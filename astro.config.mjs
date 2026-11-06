@@ -38,6 +38,7 @@ export default defineConfig({
 				]),
 				grade(8, [
 					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['zakon-oma']),
+					section('Световые явления', '8-klass/svetovye-yavleniya', ['linzy']),
 				]),
 				grade(9),
 				grade(10, [

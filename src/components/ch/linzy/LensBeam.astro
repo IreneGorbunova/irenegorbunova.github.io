@@ -1,0 +1,512 @@
+---
+/**
+ * A parallel beam (sunlight) falls on a lens. A sheet of paper can be dragged behind the lens:
+ * the light spot shrinks to a point at the focus of a converging lens and only grows behind a
+ * diverging one. The lens shape is that of a glass lens (n = 1.5) with this focal length,
+ * R = 2(n − 1)F = F, aperture 10 cm. Equal scales, 12 px per centimetre.
+ * Live formula D = 1/F with KaTeX.
+ */
+import LzStyles from './LzStyles.astro';
+
+const W = 62 * 12;
+const H = 20 * 12;
+---
+
+<LzStyles />
+<figure class="lz lz-beam not-content" data-lens-beam>
+	<svg class="lz__svg" viewBox={`0 0 ${W} ${H}`} role="group" aria-label="Параллельный пучок света проходит через линзу">
+		<g data-ruler class="lz-ruler"></g>
+		<g data-nums></g>
+		<line class="lz-axis" data-axis></line>
+		<g class="lz-beam__sun" data-sun>
+			<circle r="9"></circle>
+		</g>
+		<g data-rays></g>
+		<path class="lz-lens" data-lens></path>
+		<g class="lz-beam__dim" data-dim>
+			<path></path>
+			<text class="lz-t" text-anchor="middle"></text>
+		</g>
+		<g class="lz-beam__paper" data-paper tabindex="0" role="slider" aria-valuemin="2" aria-label="Лист бумаги. Стрелки влево и вправо — двигать">
+			<rect class="lz-beam__sheet" data-sheet></rect>
+			<line class="lz-beam__spot" data-spot></line>
+			<circle class="lz-beam__hot" data-hot r="9"></circle>
+			<g class="lz-beam__smoke" data-smoke>
+				<circle r="3"></circle>
+				<circle r="4"></circle>
+				<circle r="3.5"></circle>
+			</g>
+			<text class="lz-t lz-t--small" text-anchor="middle" data-paper-label>лист бумаги ⟷</text>
+			<rect class="lz-beam__grab" data-grab></rect>
+		</g>
+		<g data-fmark>
+			<circle class="lz-focus" r="5"></circle>
+			<text class="lz-t lz-t--math" text-anchor="end" x="-7" y="-9">F</text>
+		</g>
+	</svg>
+
+	<div class="lz-controls">
+		<div class="lz-row">
+			<div class="lz-seg" role="group" aria-label="Вид линзы">
+				<button type="button" aria-pressed="true" data-type="1">Собирающая</button>
+				<button type="button" aria-pressed="false" data-type="-1">Рассеивающая</button>
+			</div>
+		</div>
+		<label class="lz-slider">
+			<span data-curv-name>Выпуклость линзы</span>
+			<output data-f-out>F = 20 см</output>
+			<input type="range" min="0" max="24" step="1" value="16" data-curv />
+		</label>
+		<div class="lz-beam__formula" data-formula aria-live="polite"></div>
+	</div>
+	<p class="lz-live" data-live></p>
+	<figcaption class="lz-legend">
+		Линза стеклянная, её поверхности — части шаров. Чем сильнее они изогнуты, тем ближе фокус. На линзу падает
+		пучок шириной <span class="lz-nowrap">9 см</span>. Деления на оси —
+		через{' '}<span class="lz-nowrap">1 см</span>, числа — расстояние от линзы в сантиметрах.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.lz-beam__sun circle {
+		fill: var(--ig-v);
+		filter: drop-shadow(0 0 8px var(--ig-v));
+	}
+	.lz-beam .lz-ray .lz-base {
+		stroke-width: 1.8;
+	}
+	.lz-beam__sheet {
+		fill: color-mix(in srgb, var(--sl-color-gray-1) 82%, var(--ig-surface));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	:root[data-theme='light'] .lz-beam__sheet {
+		fill: white;
+		stroke: var(--sl-color-gray-4);
+	}
+	.lz-beam__spot {
+		stroke: var(--ig-v);
+		stroke-width: 5;
+		stroke-linecap: round;
+		filter: drop-shadow(0 0 4px var(--ig-v));
+	}
+	.lz-beam__hot {
+		fill: white;
+		opacity: 0;
+		filter: drop-shadow(0 0 6px var(--ig-v)) drop-shadow(0 0 12px var(--ig-v));
+		transition: opacity 0.3s;
+	}
+	.lz-beam__hot.is-on {
+		opacity: 1;
+		animation: lz-hot 0.35s ease-in-out infinite alternate;
+	}
+	@keyframes lz-hot {
+		to {
+			r: 11px;
+		}
+	}
+	.lz-beam__smoke circle {
+		fill: var(--sl-color-gray-3);
+		opacity: 0;
+	}
+	.lz-beam__smoke.is-on circle {
+		animation: lz-smoke 2.4s ease-out infinite;
+	}
+	.lz-beam__smoke.is-on circle:nth-child(2) {
+		animation-delay: 0.8s;
+	}
+	.lz-beam__smoke.is-on circle:nth-child(3) {
+		animation-delay: 1.6s;
+	}
+	@keyframes lz-smoke {
+		0% {
+			opacity: 0;
+			transform: translate(0, 0) scale(0.6);
+		}
+		20% {
+			opacity: 0.5;
+		}
+		100% {
+			opacity: 0;
+			transform: translate(10px, -46px) scale(2.4);
+		}
+	}
+	.lz-beam__paper {
+		cursor: ew-resize;
+		outline: none;
+	}
+	.lz-beam__paper:focus-visible .lz-beam__sheet {
+		stroke: var(--sl-color-accent);
+		stroke-width: 2;
+	}
+	.lz-beam__grab {
+		fill: transparent;
+		touch-action: none;
+	}
+	.lz-beam__dim path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.lz-beam__dim text {
+		fill: var(--sl-color-gray-1);
+	}
+	.lz-beam__num {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+	}
+	.lz-beam__formula {
+		align-self: center;
+		min-height: 3.2rem;
+		padding: 0.2rem 0.9rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+	}
+	.lz-beam__formula .katex-display {
+		margin: 0.35rem 0;
+	}
+	.lz-beam__formula .is-flash {
+		animation: lz-flash 0.6s ease-out;
+		border-radius: 0.3rem;
+	}
+	@keyframes lz-flash {
+		from {
+			background: var(--sl-color-accent-low);
+		}
+	}
+	@media (max-width: 40rem) {
+		.lz-beam__num {
+			font-size: 20px;
+		}
+		.lz-beam .lz-ray .lz-base {
+			stroke-width: 2.6;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.lz-beam__hot.is-on,
+		.lz-beam__smoke.is-on circle,
+		.lz-beam__formula .is-flash {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { makeView, X, Y, pathD, lensOutline, closedPath, fmt, fmtSmart, isRound, type P, type View } from './optics';
+
+	const S = 12;
+	const YR = 10;
+	const HALF = 5; // lens aperture radius, cm
+	const SHEET = 8.2; // sheet half-height, cm
+	const BEAM = [-4.5, -3, -1.5, 0, 1.5, 3, 4.5]; // a beam 9 cm wide on a lens 10 cm across
+	const BEAM_W = 9;
+	// visible window: 62 cm wide, 50 cm on narrow screens
+	const WIDE = { span: 62, conv: -12, div: -40 };
+	const NARROW = { span: 50, conv: -8, div: -40 };
+	const NS = 'http://www.w3.org/2000/svg';
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+	const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-lens-beam]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('svg');
+		const ruler = q<SVGGElement>('[data-ruler]');
+		const nums = q<SVGGElement>('[data-nums]');
+		const axis = q<SVGLineElement>('[data-axis]');
+		const sun = q<SVGGElement>('[data-sun]');
+		const raysG = q<SVGGElement>('[data-rays]');
+		const lensEl = q<SVGPathElement>('[data-lens]');
+		const fmark = q<SVGGElement>('[data-fmark]');
+		const dim = q<SVGGElement>('[data-dim]');
+		const paper = q<SVGGElement>('[data-paper]');
+		const sheet = q<SVGRectElement>('[data-sheet]');
+		const spot = q<SVGLineElement>('[data-spot]');
+		const hot = q<SVGCircleElement>('[data-hot]');
+		const smoke = q<SVGGElement>('[data-smoke]');
+		const paperLabel = q<SVGTextElement>('[data-paper-label]');
+		const grab = q<SVGRectElement>('[data-grab]');
+		const typeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-type]'));
+		const curv = q<HTMLInputElement>('[data-curv]');
+		const curvName = q<HTMLElement>('[data-curv-name]');
+		const fOut = q<HTMLOutputElement>('[data-f-out]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const live = q<HTMLElement>('[data-live]');
+
+		// one ray = base line + running light + dashed extension
+		const rays = BEAM.map(() => {
+			const g = document.createElementNS(NS, 'g');
+			g.setAttribute('class', 'lz-ray lz-ray--1');
+			const virt = document.createElementNS(NS, 'path');
+			virt.setAttribute('class', 'lz-virt');
+			const base = document.createElementNS(NS, 'path');
+			base.setAttribute('class', 'lz-base');
+			const flow = document.createElementNS(NS, 'path');
+			flow.setAttribute('class', 'lz-flow');
+			g.append(virt, base, flow);
+			raysG.append(g);
+			return { g, virt, base, flow };
+		});
+
+		const st = { type: 1 as 1 | -1, Fabs: 20, s: 30 };
+		let win = WIDE;
+		let SPAN = win.span;
+		let xmin = win.conv;
+		let shape = 1; // +1 convex … −1 concave (morph)
+		let anim = 0;
+		let lastTex = '';
+		let V: View = makeView(xmin, xmin + SPAN, -YR, YR, S);
+		const F = () => st.type * st.Fabs;
+		const sMax = () => xmin + SPAN - 1;
+
+		const set = (el: Element, attrs: Record<string, string | number>) => {
+			for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+		};
+
+		const drawRuler = () => {
+			ruler.replaceChildren();
+			nums.replaceChildren();
+			const y0 = Y(V, 0);
+			for (let x = Math.ceil(V.xmin); x <= V.xmax; x++) {
+				const major = x % 5 === 0;
+				const l = document.createElementNS(NS, 'line');
+				set(l, { x1: X(V, x), x2: X(V, x), y1: y0 - (major ? 5 : 2.5), y2: y0 + (major ? 5 : 2.5) });
+				if (major) l.setAttribute('class', 'is-major');
+				ruler.append(l);
+				if (x !== 0 && x % 10 === 0 && x > V.xmin + 3 && x < V.xmax - 2) {
+					const t = document.createElementNS(NS, 'text');
+					set(t, { x: X(V, x), y: Y(V, -6.3), 'text-anchor': 'middle', class: 'lz-t lz-beam__num' });
+					t.textContent = String(Math.abs(x));
+					nums.append(t);
+				}
+			}
+			set(axis, { x1: 0, x2: V.w, y1: y0, y2: y0 });
+		};
+
+		const render = () => {
+			V = makeView(xmin, xmin + SPAN, -YR, YR, S);
+			const Fv = F();
+			const fade = Math.abs(shape);
+			drawRuler();
+			set(sun, { transform: `translate(${X(V, V.xmin) + 14} ${Y(V, 0)})` });
+
+			// lens: blend the convex and concave outlines while morphing
+			const a = lensOutline(HALF, st.Fabs, { edge: 0.3 });
+			const b = lensOutline(HALF, -st.Fabs, { edge: 0.3 });
+			const t = (shape + 1) / 2;
+			lensEl.setAttribute('d', closedPath(V, a.map(([x, y], i) => [x * t + b[i][0] * (1 - t), y] as P)));
+
+			// paper sheet
+			const sx = X(V, st.s);
+			set(sheet, { x: sx, y: Y(V, SHEET), width: 6, height: SHEET * 2 * S, rx: 1.5 });
+			set(grab, { x: sx - 18, y: Y(V, SHEET), width: 42, height: SHEET * 2 * S });
+			const nearRight = st.s > V.xmax - 6;
+			set(paperLabel, {
+				x: nearRight ? sx + 6 : sx + 3,
+				y: Y(V, SHEET) - 6,
+				'text-anchor': nearRight ? 'end' : st.s < 6 ? 'start' : 'middle',
+			});
+
+			// rays
+			let lo = Infinity;
+			let hi = -Infinity;
+			let missed = 0;
+			BEAM.forEach((y, i) => {
+				const r = rays[i];
+				const slope = -y / Fv;
+				const yAt = (x: number) => y + slope * x;
+				const pts: P[] = [
+					[V.xmin + 2, y],
+					[0, y],
+				];
+				const ys = yAt(st.s);
+				if (Math.abs(ys) <= SHEET) {
+					pts.push([st.s, ys]);
+					lo = Math.min(lo, ys);
+					hi = Math.max(hi, ys);
+				} else {
+					// misses the sheet: runs to the edge of the picture
+					missed++;
+					let xe = V.xmax;
+					if (Math.abs(yAt(xe)) > YR) xe = (Math.sign(slope) * YR - y) / slope;
+					pts.push([xe, yAt(xe)]);
+				}
+				const d = pathD(V, pts);
+				r.base.setAttribute('d', d);
+				r.flow.setAttribute('d', d);
+				// diverging lens: dashed extensions back to the virtual focus
+				r.virt.setAttribute('d', Fv < 0 && y !== 0 ? pathD(V, [[0, y], [Fv - 1.2, yAt(Fv - 1.2)]]) : '');
+				r.g.style.opacity = String(fade);
+			});
+
+			// light spot on the sheet
+			if (hi >= lo) {
+				const pad = 0.12;
+				set(spot, { x1: sx, x2: sx, y1: Y(V, hi + pad), y2: Y(V, lo - pad) });
+				const w = hi - lo;
+				spot.style.opacity = String(fade * clamp(0.35 + 1.2 / (w + 1), 0.35, 1));
+				spot.style.display = '';
+			} else spot.style.display = 'none';
+			const inFocus = Fv > 0 && Math.abs(st.s - Fv) < 1e-6 && fade > 0.99;
+			set(hot, { cx: sx, cy: Y(V, 0) });
+			hot.classList.toggle('is-on', inFocus);
+			smoke.setAttribute('transform', `translate(${sx - 2} ${Y(V, 0) - 6})`);
+			smoke.classList.toggle('is-on', inFocus && !reduce.matches);
+
+			// focus mark and the F dimension
+			fmark.setAttribute('transform', `translate(${X(V, Fv)} ${Y(V, 0)})`);
+			fmark.style.opacity = String(fade);
+			const yd = -9.2;
+			const x1 = X(V, 0);
+			const x2 = X(V, Fv);
+			const yy = Y(V, yd);
+			dim.querySelector('path')!.setAttribute(
+				'd',
+				`M${x1} ${yy - 6} V${yy + 6} M${x1} ${yy} H${x2} M${x2} ${yy - 6} V${yy + 6}`,
+			);
+			const label = dim.querySelector('text')!;
+			set(label, { x: (x1 + x2) / 2, y: yy - 7 });
+			label.textContent = `F = ${fmtSmart(st.Fabs)} см`;
+			dim.style.opacity = String(fade);
+
+			// controls, formula, status
+			typeBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.type) === st.type)));
+			curvName.textContent = st.type > 0 ? 'Выпуклость линзы' : 'Вогнутость линзы';
+			fOut.value = `F = ${fmtSmart(st.Fabs)} см`;
+			paper.setAttribute('aria-valuenow', String(st.s));
+			paper.setAttribute('aria-valuemax', String(sMax()));
+			paper.setAttribute('aria-valuetext', `${fmtSmart(st.s)} см от линзы`);
+			if (fade > 0.99) {
+				renderFormula(Fv);
+				renderStatus(Fv, BEAM_W * Math.abs(1 - st.s / Fv), hi >= lo, missed > 0);
+			}
+		};
+
+		const renderFormula = (Fv: number) => {
+			// F is a distance (positive); a diverging lens gets a minus sign: D = −1/F
+			const Fm = Math.abs(Fv) / 100;
+			const D = Math.sign(Fv) / Fm;
+			const exact = isRound(D, 0.01);
+			const Dtxt = (exact ? fmtSmart(D, 2) : fmt(D, 1)).replace('−', '-').replace(',', '{,}');
+			const sign = Fv < 0 ? '-' : '';
+			const tex = `D = ${sign}\\dfrac{1}{F} = ${sign}\\dfrac{1}{${fmt(Fm, 2).replace(',', '{,}')}~\\text{м}} ${exact ? '=' : '\\approx'} ${Dtxt}~\\text{дптр}`;
+			if (tex === lastTex) return;
+			lastTex = tex;
+			katex.render(tex, formula, { displayMode: true, throwOnError: false });
+			if (!reduce.matches) {
+				const k = formula.querySelector('.katex');
+				k?.classList.add('is-flash');
+			}
+		};
+
+		// width: the exact width of the beam at the sheet, 9 cm · |1 − s/F|
+		const renderStatus = (Fv: number, width: number, onSheet: boolean, cut: boolean) => {
+			const w = `${fmt(width, 1)} см`;
+			if (Fv > 0) {
+				if (Math.abs(st.s - Fv) < 1e-6) {
+					live.innerHTML = `<b>Свет собрался в точку — это фокус линзы!</b> Здесь бумага нагревается сильнее всего и может даже затлеть. Расстояние от линзы до листа — фокусное расстояние: <i>F</i> = ${fmtSmart(st.Fabs)} см.`;
+				} else if (!onSheet) {
+					live.innerHTML = 'Лучи проходят мимо листа. Пододвиньте лист ближе к линзе.';
+				} else if (cut) {
+					live.innerHTML = 'Лучи прошли точку, где собирались, снова разошлись, и пятно света стало <b>шире листа</b>. Пододвиньте лист ближе к линзе.';
+				} else {
+					live.innerHTML = `Светлое пятно на листе шириной ${w}. ${st.s > Fv ? 'Лучи уже прошли точку, где собирались, и снова разошлись.' : 'Лучи ещё не успели собраться.'} Двигайте лист и найдите место, где пятно превращается в яркую точку.`;
+				}
+			} else {
+				live.innerHTML = `Рассеивающая линза: пятно на листе ${cut ? 'уже <b>шире самого листа</b>' : `шириной ${w} — <b>шире пучка</b>, упавшего на линзу (${BEAM_W} см),`} и растёт, если отодвигать лист. Точки, где лучи собираются, нет. Сходятся лишь их продолжения (пунктир) — в <b>мнимом фокусе</b> перед линзой.`;
+			}
+		};
+
+		const setType = (type: 1 | -1) => {
+			if (type === st.type && shape === type) return;
+			cancelAnimationFrame(anim);
+			const from = { shape, xmin, s: st.s };
+			const to = { shape: type as number, xmin: type > 0 ? win.conv : win.div, s: type > 0 ? 30 : Math.min(12, win.div + win.span - 2) };
+			if (reduce.matches) {
+				st.type = type;
+				shape = type;
+				xmin = to.xmin;
+				st.s = to.s;
+				render();
+				return;
+			}
+			const t0 = performance.now();
+			const frame = (now: number) => {
+				const t = Math.min(1, (now - t0) / 800);
+				const e = ease(t);
+				shape = from.shape + (to.shape - from.shape) * e;
+				xmin = from.xmin + (to.xmin - from.xmin) * e;
+				st.s = from.s + (to.s - from.s) * e;
+				if (Math.sign(shape) === type) st.type = type;
+				if (t >= 1) {
+					shape = type;
+					st.type = type;
+					xmin = to.xmin;
+					st.s = to.s;
+				}
+				render();
+				if (t < 1) anim = requestAnimationFrame(frame);
+			};
+			anim = requestAnimationFrame(frame);
+		};
+
+		const snapS = (s: number) => {
+			s = clamp(s, 2, sMax());
+			if (F() > 0 && Math.abs(s - F()) < 0.7) return F();
+			return Math.round(s * 10) / 10;
+		};
+
+		// dragging the sheet
+		let dragging = false;
+		let off = 0;
+		const toWorldX = (e: PointerEvent) => {
+			const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM()!.inverse());
+			return V.xmin + pt.x / V.S;
+		};
+		paper.addEventListener('pointerdown', (e) => {
+			if (e.button !== 0) return;
+			dragging = true;
+			off = st.s - toWorldX(e);
+			svg.setPointerCapture(e.pointerId);
+			e.preventDefault();
+		});
+		svg.addEventListener('pointermove', (e) => {
+			if (!dragging) return;
+			st.s = snapS(toWorldX(e) + off);
+			render();
+		});
+		const stop = () => (dragging = false);
+		svg.addEventListener('pointerup', stop);
+		svg.addEventListener('pointercancel', stop);
+		paper.addEventListener('keydown', (e) => {
+			if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+			e.preventDefault();
+			const step = e.shiftKey ? 0.1 : 1;
+			st.s = snapS(st.s + (e.key === 'ArrowRight' ? step : -step));
+			render();
+		});
+
+		curv.addEventListener('input', () => {
+			st.Fabs = 36 - Number(curv.value);
+			render();
+		});
+		typeBtns.forEach((b) => b.addEventListener('click', () => setType(Number(b.dataset.type) as 1 | -1)));
+
+		curv.value = String(36 - st.Fabs);
+		const applyWindow = () => {
+			const next = root.clientWidth < 560 ? NARROW : WIDE;
+			if (next === win && svg.getAttribute('viewBox')!.startsWith(`0 0 ${SPAN * S} `)) return render();
+			win = next;
+			SPAN = win.span;
+			xmin = st.type > 0 ? win.conv : win.div;
+			st.s = Math.min(st.s, sMax());
+			svg.setAttribute('viewBox', `0 0 ${SPAN * S} ${2 * YR * S}`);
+			render();
+		};
+		new ResizeObserver(applyWindow).observe(root);
+		applyWindow();
+	}
+</script>

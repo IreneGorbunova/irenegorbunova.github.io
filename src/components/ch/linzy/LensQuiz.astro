@@ -1,0 +1,404 @@
+---
+/**
+ * «Предскажите, затем проверьте»: the reader sees a lens and an object, chooses what the image
+ * will be like, and then the rays are drawn and the answer is checked. Equal scales, 10 px per cm.
+ */
+import LzStyles from './LzStyles.astro';
+import { makeView, X, Y } from './optics';
+
+const V = makeView(-32, 32, -15, 15, 10);
+const y0 = Y(V, 0);
+const groups = [
+	{ key: 'real', label: 'Какое', options: [['real', 'действительное'], ['virtual', 'мнимое']] },
+	{ key: 'orient', label: 'Как стоит', options: [['inverted', 'перевёрнутое'], ['upright', 'прямое']] },
+	{ key: 'size', label: 'Размер', options: [['larger', 'увеличенное'], ['same', 'равное'], ['smaller', 'уменьшенное']] },
+];
+---
+
+<LzStyles />
+<figure class="lz lzq not-content" data-lens-quiz>
+	<p class="lzq__task" data-task>Какое изображение даст линза?</p>
+	<svg class="lz__svg" viewBox={`0 0 ${V.w} ${V.h}`} role="img" aria-label="Линза и предмет: предскажите изображение">
+		<line class="lz-axis" x1="0" y1={y0} x2={V.w} y2={y0}></line>
+		<line class="lz-plane" x1={X(V, 0)} y1="0" x2={X(V, 0)} y2={V.h}></line>
+		<path class="lz-lens" data-lens></path>
+		{
+			[3, 2, 1].map((n) => (
+				<g class={`lz-ray lz-ray--${n}`} data-ray={n}>
+					<path class="lz-guide" />
+					<path class="lz-virt" />
+					<path class="lz-base" />
+					<path class="lz-flow" />
+				</g>
+			))
+		}
+		<g class="lz-arrow lz-arrow--image" data-image><line></line><polygon></polygon></g>
+		<g data-foci>
+			{
+				[-2, -1, 1, 2].map((k) => (
+					<g data-focus={k}>
+						<circle class={`lz-focus ${Math.abs(k) === 2 ? 'lz-focus--2' : ''}`} r="5" />
+						<text class="lz-t lz-t--math" text-anchor="middle" y="27">
+							{Math.abs(k) === 2 && <tspan class="lz-t__num">2</tspan>}F
+						</text>
+					</g>
+				))
+			}
+		</g>
+		<g class="lz-arrow lz-arrow--object" data-object><line></line><polygon></polygon></g>
+	</svg>
+
+	<div class="lzq__groups">
+		{
+			groups.map((g) => (
+				<div class="lzq__row">
+					<span class="lzq__label" id={`lzq-${g.key}`}>{g.label}</span>
+					<div class="lzq__group" role="radiogroup" aria-labelledby={`lzq-${g.key}`} data-group={g.key}>
+						{g.options.map(([v, t]) => (
+							<button type="button" class="lzq__opt" role="radio" aria-checked="false" data-value={v}>
+								{t}
+							</button>
+						))}
+					</div>
+				</div>
+			))
+		}
+	</div>
+	<div class="lz-row lzq__buttons">
+		<button type="button" class="lz-btn lz-btn--primary" data-check disabled>Проверить</button>
+		<button type="button" class="lz-btn" data-next>Другой предмет</button>
+		<span class="lzq__score" data-score></span>
+	</div>
+	<p class="lz-live lzq__feedback" data-feedback aria-live="polite">Выберите по одному слову в каждой строке.</p>
+</figure>
+
+<style is:global>
+	.lzq__task {
+		margin: 0 0 0.5rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.lzq__groups {
+		display: grid;
+		gap: 0.45rem;
+		margin-top: 0.75rem;
+	}
+	.lzq__row {
+		display: grid;
+		grid-template-columns: 6rem 1fr;
+		align-items: center;
+		gap: 0.6rem;
+	}
+	.lzq__label {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 30rem) {
+		.lzq__groups {
+			gap: 0;
+		}
+		.lzq__row {
+			grid-template-columns: 1fr;
+			gap: 0.3rem;
+			padding-block: 0.5rem;
+			border-top: 1px solid var(--sl-color-gray-5);
+		}
+		.lzq__row:first-child {
+			border-top: none;
+			padding-top: 0;
+		}
+	}
+	.lzq__group {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.lzq__opt {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		margin: 0;
+		padding: 0.35rem 0.9rem;
+		border-radius: 999px;
+		border: 1.5px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition:
+			background 0.2s,
+			border-color 0.2s;
+	}
+	.lzq__opt:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.lzq__opt[aria-checked='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		font-weight: 700;
+	}
+	.lzq__opt.is-right {
+		border-color: var(--sl-color-green);
+		background: var(--sl-color-green-low);
+		color: var(--sl-color-green-high);
+		font-weight: 700;
+	}
+	.lzq__opt.is-wrong {
+		border-color: var(--sl-color-red);
+		background: var(--sl-color-red-low);
+		color: var(--sl-color-red-high);
+		text-decoration: line-through;
+	}
+	.lzq__opt.is-right::before {
+		content: '✓ ';
+	}
+	.lzq__opt.is-wrong::before {
+		content: '✗ ';
+	}
+	.lzq__opt:disabled {
+		cursor: default;
+	}
+	.lzq__buttons {
+		margin-top: 0.8rem;
+	}
+	.lzq__score {
+		margin-left: auto;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.lzq__feedback b {
+		color: var(--sl-color-white);
+	}
+	.lzq [data-ray],
+	.lzq [data-image] {
+		transition: opacity 0.4s;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.lzq__opt,
+		.lzq [data-ray],
+		.lzq [data-image] {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { makeView, X, Y, pathD, traceScene, lensOutline, closedPath, imageKind, zoneOf, type P } from './optics';
+
+	const V = makeView(-32, 32, -15, 15, 10);
+	const LENS_HALF = 14;
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+	const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+	const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)];
+
+	type Zone = 'far' | 'twoF' | 'between' | 'near' | 'div';
+	const EXPLAIN: Record<Zone, string> = {
+		far: 'Предмет дальше двойного фокуса — изображение <b>действительное, перевёрнутое, уменьшенное</b>, оно между <i>F</i> и 2<i>F</i> по другую сторону линзы (как в фотоаппарате).',
+		twoF: 'Предмет в двойном фокусе — изображение <b>действительное, перевёрнутое, равное</b> предмету, тоже в двойном фокусе.',
+		between: 'Предмет между <i>F</i> и 2<i>F</i> — изображение <b>действительное, перевёрнутое, увеличенное</b>, дальше 2<i>F</i> (как в проекторе).',
+		near: 'Предмет между линзой и фокусом — лучи после линзы расходятся, изображение <b>мнимое, прямое, увеличенное</b> (как в лупе).',
+		div: 'Рассеивающая линза всегда даёт <b>мнимое, прямое, уменьшенное</b> изображение.',
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-lens-quiz]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const lensEl = q<SVGPathElement>('[data-lens]');
+		const rayEls = [1, 2, 3].map((n) => {
+			const g = q<SVGGElement>(`[data-ray="${n}"]`);
+			return {
+				g,
+				guide: g.querySelector<SVGPathElement>('.lz-guide')!,
+				virt: g.querySelector<SVGPathElement>('.lz-virt')!,
+				base: g.querySelector<SVGPathElement>('.lz-base')!,
+				flow: g.querySelector<SVGPathElement>('.lz-flow')!,
+			};
+		});
+		const imageG = q<SVGGElement>('[data-image]');
+		const objectG = q<SVGGElement>('[data-object]');
+		const foci = Array.from(root.querySelectorAll<SVGGElement>('[data-focus]'));
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('.lzq__opt'));
+		const checkBtn = q<HTMLButtonElement>('[data-check]');
+		const nextBtn = q<HTMLButtonElement>('[data-next]');
+		const feedback = q<HTMLElement>('[data-feedback]');
+		const scoreEl = q<HTMLElement>('[data-score]');
+		const task = q<HTMLElement>('[data-task]');
+
+		let cfg = { F: 10, d: 25, h: 5, zone: 'far' as Zone };
+		let lastZone: Zone | null = null;
+		let answered = false;
+		let token = 0;
+		const score = { right: 0, total: 0 };
+
+		const setArrow = (g: SVGGElement, x: number, y: number) => {
+			const [line, head] = [g.querySelector('line')!, g.querySelector('polygon')!];
+			const px = X(V, x);
+			const p0 = Y(V, 0);
+			const p1 = Y(V, y);
+			const dir = p1 < p0 ? 1 : -1;
+			const hl = Math.min(14, Math.abs(p1 - p0) * 0.5);
+			const hw = hl * 0.55;
+			line.setAttribute('x1', String(px));
+			line.setAttribute('y1', String(p0));
+			line.setAttribute('x2', String(px));
+			line.setAttribute('y2', String(p1 + dir * hl * 0.7));
+			head.setAttribute('points', `${px},${p1} ${px - hw},${p1 + dir * hl} ${px + hw},${p1 + dir * hl}`);
+		};
+
+		const fits = (F: number, d: number, h: number) => {
+			const s = traceScene(V, d, h, F, LENS_HALF);
+			return !!s.tip && Math.abs(s.tip[0]) < 30 && Math.abs(s.tip[1]) < 13.5 && d < 30;
+		};
+
+		const generate = () => {
+			const zones: Zone[] = ['far', 'twoF', 'between', 'near', 'div', 'far', 'between', 'near'];
+			for (let tries = 0; tries < 200; tries++) {
+				const zone = pick(zones);
+				if (zone === lastZone) continue;
+				const Fa = pick([7, 8, 9, 10]);
+				const h = Math.round(rnd(3, 6) * 2) / 2;
+				let d = 0;
+				if (zone === 'far') d = rnd(2.3, 3.2) * Fa;
+				if (zone === 'twoF') d = 2 * Fa;
+				if (zone === 'between') d = rnd(1.35, 1.8) * Fa;
+				if (zone === 'near') d = rnd(0.35, 0.7) * Fa;
+				if (zone === 'div') d = rnd(0.8, 2.6) * Fa;
+				d = zone === 'twoF' ? d : Math.round(d * 2) / 2;
+				const F = zone === 'div' ? -Fa : Fa;
+				if (zone !== 'div' && zone !== 'twoF' && Math.abs(d - 2 * Fa) < 1) continue;
+				if (!fits(F, d, h)) continue;
+				lastZone = zone;
+				return { F, d, h, zone };
+			}
+			return { F: 10, d: 25, h: 5, zone: 'far' as Zone };
+		};
+
+		const drawStatic = () => {
+			const Fa = Math.abs(cfg.F);
+			lensEl.setAttribute('d', closedPath(V, lensOutline(LENS_HALF, cfg.F, { maxSag: 15 / Fa, edge: 0.45 })));
+			foci.forEach((g) => g.setAttribute('transform', `translate(${X(V, Number(g.dataset.focus) * Fa)} ${Y(V, 0)})`));
+			setArrow(objectG, -cfg.d, cfg.h);
+			const s = traceScene(V, cfg.d, cfg.h, cfg.F, LENS_HALF);
+			s.rays.forEach((r, i) => {
+				const el = rayEls[i];
+				el.g.style.display = r ? '' : 'none';
+				if (!r) return;
+				el.base.setAttribute('d', pathD(V, r.real));
+				el.flow.setAttribute('d', pathD(V, r.real));
+				el.virt.setAttribute('d', pathD(V, r.virt));
+				el.guide.setAttribute('d', pathD(V, r.guide));
+			});
+			if (s.tip) setArrow(imageG, s.tip[0], s.tip[1]);
+			imageG.classList.toggle('is-real', s.img.real);
+			imageG.classList.toggle('is-virtual', !s.img.real);
+		};
+
+		const hideAnswer = () => {
+			rayEls.forEach((r) => (r.g.style.opacity = '0'));
+			imageG.style.opacity = '0';
+		};
+
+		const newTask = () => {
+			token++;
+			cfg = generate();
+			answered = false;
+			opts.forEach((o) => {
+				o.setAttribute('aria-checked', 'false');
+				o.classList.remove('is-right', 'is-wrong');
+				o.disabled = false;
+			});
+			checkBtn.disabled = true;
+			hideAnswer();
+			drawStatic();
+			task.innerHTML =
+				cfg.F > 0
+					? 'Собирающая линза. Какое изображение она даст?'
+					: 'Рассеивающая линза. Какое изображение она даст?';
+			feedback.innerHTML = 'Выберите по одному слову в каждой строке и нажмите «Проверить».';
+		};
+
+		const choice = (key: string) =>
+			q<HTMLElement>(`[data-group="${key}"]`).querySelector<HTMLButtonElement>('[aria-checked="true"]')?.dataset.value;
+
+		opts.forEach((o) =>
+			o.addEventListener('click', () => {
+				if (answered) return;
+				const group = o.closest<HTMLElement>('[data-group]')!;
+				group.querySelectorAll('.lzq__opt').forEach((x) => x.setAttribute('aria-checked', String(x === o)));
+				checkBtn.disabled = !(choice('real') && choice('orient') && choice('size'));
+			}),
+		);
+
+		const drawIn = (el: SVGPathElement, ms: number, tok: number) =>
+			new Promise<void>((resolve) => {
+				if (reduce.matches || !el.getAttribute('d')) return resolve();
+				const L = el.getTotalLength();
+				el.style.strokeDasharray = `${L} ${L}`;
+				el.style.strokeDashoffset = `${L}`;
+				const t0 = performance.now();
+				const frame = (now: number) => {
+					const t = Math.min(1, (now - t0) / ms);
+					el.style.strokeDashoffset = String(L * (1 - ease(t)));
+					if (t < 1 && tok === token) requestAnimationFrame(frame);
+					else {
+						el.style.strokeDasharray = '';
+						el.style.strokeDashoffset = '';
+						resolve();
+					}
+				};
+				requestAnimationFrame(frame);
+			});
+
+		const reveal = async (tok: number) => {
+			for (const i of [0, 1, 2]) {
+				const r = rayEls[i];
+				if (r.g.style.display === 'none') continue;
+				r.virt.style.opacity = '0';
+				r.guide.style.opacity = '0';
+				r.flow.style.visibility = 'hidden';
+				r.g.style.opacity = '1';
+				await drawIn(r.base, 750, tok);
+				r.flow.style.visibility = '';
+				if (tok !== token) return;
+			}
+			rayEls.forEach((r) => {
+				r.virt.style.opacity = '';
+				r.guide.style.opacity = '';
+			});
+			imageG.style.opacity = '1';
+		};
+
+		checkBtn.addEventListener('click', async () => {
+			if (answered) return;
+			answered = true;
+			checkBtn.disabled = true;
+			const kind = imageKind(cfg.d, cfg.F)!;
+			const truth: Record<string, string> = {
+				real: kind.real ? 'real' : 'virtual',
+				orient: kind.inverted ? 'inverted' : 'upright',
+				size: kind.size > 0 ? 'larger' : kind.size < 0 ? 'smaller' : 'same',
+			};
+			let ok = 0;
+			for (const key of ['real', 'orient', 'size']) {
+				const mine = choice(key);
+				q<HTMLElement>(`[data-group="${key}"]`)
+					.querySelectorAll<HTMLButtonElement>('.lzq__opt')
+					.forEach((o) => {
+						o.disabled = true;
+						if (o.dataset.value === truth[key]) o.classList.add('is-right');
+						else if (o.dataset.value === mine) o.classList.add('is-wrong');
+					});
+				if (mine === truth[key]) ok++;
+			}
+			score.total++;
+			if (ok === 3) score.right++;
+			scoreEl.textContent = `Верно: ${score.right} из ${score.total}`;
+			const zone: Zone = cfg.F < 0 ? 'div' : (zoneOf(cfg.d, cfg.F) as Zone);
+			feedback.innerHTML = `${ok === 3 ? '<b>Верно!</b> ' : `<b>Верно ${ok} из 3.</b> `}${EXPLAIN[zone]}`;
+			const tok = ++token;
+			await reveal(tok);
+		});
+		nextBtn.addEventListener('click', newTask);
+
+		newTask();
+	}
+</script>

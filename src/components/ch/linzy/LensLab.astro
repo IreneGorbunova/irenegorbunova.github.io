@@ -1,0 +1,996 @@
+---
+/**
+ * Main model of the chapter: a thin lens (converging or diverging), a draggable object arrow,
+ * the three characteristic rays and the image they build. Equal scales on both axes,
+ * 10 px per centimetre, so all angles on screen are true angles.
+ */
+import LzStyles from './LzStyles.astro';
+import { makeView, X, Y } from './optics';
+
+const V = makeView(-38, 38, -20, 20, 10);
+const uid = `lzl-${Math.random().toString(36).slice(2, 8)}`;
+const y0 = Y(V, 0);
+const ticks = Array.from({ length: 75 }, (_, i) => i - 37);
+---
+
+<LzStyles />
+<figure class="lz lz-lab not-content" data-lens-lab>
+	<svg
+		class="lz__svg"
+		viewBox={`0 0 ${V.w} ${V.h}`}
+		role="group"
+		aria-label="Линза, предмет-стрелка, характерные лучи и изображение предмета"
+	>
+		<defs>
+			<clipPath id={`${uid}-clip`}>
+				<rect x="0" y="0" width={V.w} height={V.h}></rect>
+			</clipPath>
+			<radialGradient id={`${uid}-spark`}>
+				<stop offset="0" stop-color="white" stop-opacity="0.95"></stop>
+				<stop offset="0.35" stop-color="var(--sl-color-accent)" stop-opacity="0.55"></stop>
+				<stop offset="1" stop-color="var(--sl-color-accent)" stop-opacity="0"></stop>
+			</radialGradient>
+		</defs>
+
+		<g class="lz-lab__zones" data-zones>
+			{['L0', 'L1', 'L2', 'R0', 'R1', 'R2'].map((z) => <rect data-zone={z} y={y0 + 4} height="5" rx="2.5" />)}
+		</g>
+		<g class="lz-ruler">
+			{
+				ticks.map((t) => (
+					<line
+						class={t % 5 === 0 ? 'is-major' : undefined}
+						x1={X(V, t)}
+						x2={X(V, t)}
+						y1={y0 - (t % 5 === 0 ? 5 : 2.5)}
+						y2={y0 + (t % 5 === 0 ? 5 : 2.5)}
+					/>
+				))
+			}
+		</g>
+		<line class="lz-axis" x1="0" y1={y0} x2={V.w} y2={y0}></line>
+		<line class="lz-plane" x1={X(V, 0)} y1="0" x2={X(V, 0)} y2={V.h}></line>
+		<path class="lz-lens" data-lens></path>
+		<text class="lz-t lz-t--math" x={X(V, 0) + 7} y={y0 + 22} data-o>O</text>
+
+		<g clip-path={`url(#${uid}-clip)`}>
+			{
+				[3, 2, 1].map((n) => (
+					<g class={`lz-ray lz-ray--${n}`} data-ray={n}>
+						<path class="lz-guide" />
+						<path class="lz-virt" />
+						<path class="lz-base" />
+						<path class="lz-flow" />
+					</g>
+				))
+			}
+			<circle class="lz-lab__spark" r="22" fill={`url(#${uid}-spark)`} data-spark></circle>
+			<circle class="lz-lab__ring" r="11" data-ring></circle>
+			<g class="lz-arrow lz-arrow--image" data-image>
+				<line></line>
+				<polygon></polygon>
+			</g>
+		</g>
+
+		<g data-foci>
+			{
+				[-2, -1, 1, 2].map((k) => (
+					<g class="lz-lab__focus" data-focus={k} data-grab="focus">
+						<circle class="lz-lab__focus-hit" r="16" />
+						<circle class={`lz-focus ${Math.abs(k) === 2 ? 'lz-focus--2' : ''}`} r="5" />
+						<text class="lz-t lz-t--math" text-anchor="middle" y="27">
+							{Math.abs(k) === 2 && <tspan class="lz-t__num">2</tspan>}F
+						</text>
+					</g>
+				))
+			}
+		</g>
+
+		<g
+			class="lz-arrow lz-arrow--object"
+			data-object
+			tabindex="0"
+			role="slider"
+			aria-valuemin="3"
+			aria-valuemax="37"
+			aria-label="Предмет. Стрелки влево и вправо — двигать, вверх и вниз — менять высоту"
+		>
+			<line></line>
+			<polygon></polygon>
+			<circle class="lz-dot" r="3.5"></circle>
+			<line class="lz-lab__grab" data-grab="body"></line>
+			<circle class="lz-lab__grab" r="20" data-grab="tip"></circle>
+		</g>
+		<g class="lz-lab__hint" data-hint>
+			<text class="lz-t lz-t--small" x="12" y="-2">⟷ тяните стрелку</text>
+		</g>
+		<text class="lz-t lz-t--small" data-offscreen></text>
+	</svg>
+
+	<div class="lz-controls">
+		<div class="lz-row">
+			<div class="lz-seg" role="group" aria-label="Вид линзы">
+				<button type="button" aria-pressed="true" data-type="1">Собирающая</button>
+				<button type="button" aria-pressed="false" data-type="-1">Рассеивающая</button>
+			</div>
+			<button type="button" class="lz-btn lz-btn--primary" data-build>Построить по шагам</button>
+			<button type="button" class="lz-btn" aria-pressed="true" data-ray3>Третий луч</button>
+		</div>
+		<label class="lz-slider">
+			<span>Расстояние от предмета до линзы <i>d</i></span>
+			<output data-d-out>25 см</output>
+			<input type="range" min="3" max="37" step="0.1" value="25" data-d />
+		</label>
+		<label class="lz-slider">
+			<span>Фокусное расстояние <i>F</i></span>
+			<output data-f-out>10 см</output>
+			<input type="range" min="5" max="15" step="0.5" value="10" data-f />
+		</label>
+		<div class="lz-row lz-lab__presets">
+			<span class="lz-row__label">Как в приборе:</span>
+			<button type="button" class="lz-btn lz-btn--small" data-preset="camera">фотоаппарат</button>
+			<button type="button" class="lz-btn lz-btn--small" data-preset="projector">проектор</button>
+			<button type="button" class="lz-btn lz-btn--small" data-preset="loupe">лупа</button>
+		</div>
+	</div>
+
+	<div class="lz-lab__verdict" aria-live="polite">
+		<span class="lz-row__label">Изображение:</span>
+		<span class="lz-lab__chip" data-chip="real">действительное</span>
+		<span class="lz-lab__chip" data-chip="orient">перевёрнутое</span>
+		<span class="lz-lab__chip" data-chip="size">уменьшенное</span>
+	</div>
+
+	<dl class="lz-stats">
+		<div><dt>Предмет: <i>d</i></dt><dd data-s-d>—</dd></div>
+		<div><dt>Изображение: <i>f</i></dt><dd data-s-f>—</dd></div>
+		<div><dt>Увеличение <i>H</i>/<i>h</i></dt><dd data-s-m>—</dd></div>
+		<div><dt>Оптическая сила <i>D</i></dt><dd data-s-power>—</dd></div>
+	</dl>
+	<p class="lz-live" data-live></p>
+
+	<figcaption class="lz-legend">
+		<span class="lz-key" style="--c: var(--ig-v)"></span>луч, параллельный оси
+		<span class="lz-key" style="--c: var(--ig-vx)"></span>луч через центр <i>O</i>
+		<span class="lz-key" style="--c: var(--ig-vy)"></span>луч через фокус
+		<span class="lz-key lz-key--dash" style="--c: var(--sl-color-gray-2)"></span>продолжения лучей;
+		<span class="lz-key lz-key--thick" style="--c: var(--sl-color-white)"></span>предмет,
+		<span class="lz-key lz-key--thick" style="--c: var(--sl-color-accent-high)"></span>изображение
+		(пунктиром — мнимое). Подсветка под осью показывает, где предмет и где его изображение. Деления на
+		оси — через{' '}<span class="lz-nowrap">1 см</span>, линза тонкая.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.lz-lab__zones rect {
+		fill: var(--sl-color-accent);
+		opacity: 0;
+		transition: opacity 0.35s;
+	}
+	.lz-lab__zones rect.is-on {
+		opacity: 0.55;
+	}
+	.lz-lab__zones rect.is-img {
+		opacity: 0.3;
+	}
+	.lz-lab__focus {
+		cursor: ew-resize;
+		touch-action: none;
+	}
+	.lz-lab__focus-hit {
+		fill: transparent;
+	}
+	.lz-lab__focus:hover .lz-focus {
+		fill: var(--sl-color-accent);
+	}
+	.lz-lab__focus.is-pulse .lz-focus {
+		animation: lz-pulse 0.9s ease-out 2;
+	}
+	@keyframes lz-pulse {
+		50% {
+			fill: var(--sl-color-accent);
+			r: 9px;
+		}
+	}
+	.lz-arrow--object {
+		cursor: grab;
+		outline: none;
+	}
+	.lz-arrow--object:focus-visible line:first-child {
+		stroke: var(--sl-color-accent);
+	}
+	.lz-lab__grab {
+		fill: transparent;
+		stroke: transparent;
+		stroke-width: 30;
+		touch-action: none;
+		cursor: grab;
+	}
+	.lz-lab.is-dragging,
+	.lz-lab.is-dragging * {
+		cursor: grabbing !important;
+	}
+	.lz-lab__spark {
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.3s;
+	}
+	.lz-lab__spark.is-on {
+		opacity: 1;
+	}
+	.lz-lab__ring {
+		fill: none;
+		stroke: var(--sl-color-accent-high);
+		stroke-width: 2;
+		stroke-dasharray: 4 4;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.3s;
+	}
+	.lz-lab__ring.is-on {
+		opacity: 1;
+	}
+	.lz-lab__hint {
+		pointer-events: none;
+		transition: opacity 0.6s;
+	}
+	.lz-lab__hint.is-gone {
+		opacity: 0;
+	}
+	.lz-lab [data-ray],
+	.lz-lab [data-image] {
+		transition: opacity 0.35s;
+	}
+	.lz-lab.is-morphing [data-ray],
+	.lz-lab.is-morphing [data-image],
+	.lz-lab.is-building [data-ray],
+	.lz-lab.is-building [data-image] {
+		transition: none;
+	}
+	.lz-lab__presets {
+		gap: 0.4rem;
+	}
+	.lz-lab .lz-stats small {
+		font-size: var(--sl-text-xs);
+		font-weight: 400;
+		color: var(--sl-color-gray-3);
+	}
+
+	.lz-lab__verdict {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.9rem;
+	}
+	.lz-lab__chip {
+		display: inline-block;
+		padding: 0.3rem 0.85rem;
+		border-radius: 999px;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		border: 1.5px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.lz-lab__chip.is-alt {
+		background: transparent;
+		color: var(--sl-color-text-accent);
+		border-style: dashed;
+	}
+	.lz-lab__chip.is-plain {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-4);
+	}
+	.lz-lab__chip.is-none {
+		background: transparent;
+		color: var(--sl-color-gray-3);
+		border-color: var(--sl-color-gray-4);
+	}
+	.lz-lab__chip.is-changed {
+		animation: lz-chip 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+	}
+	@keyframes lz-chip {
+		from {
+			transform: scale(0.85);
+			opacity: 0.4;
+		}
+	}
+	.lz-lab__step {
+		display: inline-grid;
+		place-items: center;
+		width: 1.6rem;
+		height: 1.6rem;
+		margin-right: 0.45rem;
+		border-radius: 50%;
+		font-weight: 700;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-black);
+		background: var(--sl-color-accent);
+		vertical-align: 0.05rem;
+	}
+	@media (max-width: 40rem) {
+		.lz-lab__grab {
+			stroke-width: 56;
+		}
+		.lz-lab__grab[data-grab='tip'] {
+			r: 38px;
+		}
+		.lz-lab__focus-hit {
+			r: 30px;
+		}
+		.lz-arrow line {
+			stroke-width: 5;
+		}
+		.lz-ray .lz-base {
+			stroke-width: 3.4;
+		}
+		.lz-ray .lz-virt {
+			stroke-width: 2.6;
+		}
+		.lz-ray .lz-flow {
+			stroke-width: 5.5;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.lz-lab__chip.is-changed,
+		.lz-lab__focus.is-pulse .lz-focus {
+			animation: none;
+		}
+		.lz-lab__zones rect,
+		.lz-lab [data-ray],
+		.lz-lab [data-image] {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import {
+		makeView,
+		X,
+		Y,
+		pathD,
+		traceScene,
+		lensOutline,
+		closedPath,
+		fmt,
+		fmtSmart,
+		imageKind,
+		zoneOf,
+		type P,
+		type Scene,
+	} from './optics';
+
+	const V = makeView(-38, 38, -20, 20, 10);
+	const LENS_HALF = 18;
+	const SAG_K = 8; // axial bulge of the drawn lens, cm·cm: 0,8 cm at F = 10, 1,6 cm at F = 5
+	const D_MIN = 3; // the drawn lens bulges at most ~1.8 cm from its plane (F = 5), so the object never stands in the glass
+	const D_MAX = 37;
+	const H_MIN = 1.5;
+	const H_MAX = 9;
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+	const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+	const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+	const sleep = (ms: number) => new Promise((r) => setTimeout(r, reduce.matches ? 0 : ms));
+
+	const PRESETS = {
+		camera: { d: 28, h: 6, F: 10 },
+		projector: { d: 16, h: 5, F: 10 },
+		loupe: { d: 6, h: 4, F: 10 },
+	} as const;
+	/** on narrow screens the figure shows only the middle of the scene, a bit larger */
+	const CROP_NARROW = { xmin: -30, xmax: 30, ymin: -17, ymax: 17 };
+
+	const ZONE_TEXT = {
+		far: 'Предмет дальше двойного фокуса (<i>d</i> &gt; 2<i>F</i>). Изображение получается по другую сторону линзы, между <i>F</i> и 2<i>F</i>. Так работает <b>фотоаппарат</b>.',
+		twoF: 'Предмет в двойном фокусе (<i>d</i> = 2<i>F</i>). Изображение — тоже в двойном фокусе, по другую сторону линзы, и <b>такого же размера</b>, как предмет.',
+		between:
+			'Предмет между фокусом и двойным фокусом (<i>F</i> &lt; <i>d</i> &lt; 2<i>F</i>). Изображение — дальше двойного фокуса по другую сторону линзы. Так работает <b>проектор</b>.',
+		focus: 'Предмет в фокусе (<i>d</i> = <i>F</i>). После линзы лучи идут <b>параллельно</b> и нигде не пересекаются — изображения нет.',
+		near: 'Предмет между линзой и фокусом (<i>d</i> &lt; <i>F</i>). Лучи после линзы расходятся, пересекаются только их продолжения — изображение <b>мнимое</b>, его видно, если смотреть сквозь линзу. Так работает <b>лупа</b>.',
+		diverging:
+			'Рассеивающая линза: лучи после неё расходятся, и при любом положении предмета изображение <b>мнимое, прямое, уменьшенное</b>. Оно находится между линзой и фокусом.',
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-lens-lab]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('svg');
+		const lensEl = q<SVGPathElement>('[data-lens]');
+		const oLabel = q<SVGTextElement>('[data-o]');
+		const rayEls = [1, 2, 3].map((n) => {
+			const g = q<SVGGElement>(`[data-ray="${n}"]`);
+			return {
+				g,
+				guide: g.querySelector<SVGPathElement>('.lz-guide')!,
+				virt: g.querySelector<SVGPathElement>('.lz-virt')!,
+				base: g.querySelector<SVGPathElement>('.lz-base')!,
+				flow: g.querySelector<SVGPathElement>('.lz-flow')!,
+			};
+		});
+		const imageG = q<SVGGElement>('[data-image]');
+		const objectG = q<SVGGElement>('[data-object]');
+		const spark = q<SVGCircleElement>('[data-spark]');
+		const ring = q<SVGCircleElement>('[data-ring]');
+		const hint = q<SVGGElement>('[data-hint]');
+		const offscreen = q<SVGTextElement>('[data-offscreen]');
+		const foci = Array.from(root.querySelectorAll<SVGGElement>('[data-focus]'));
+		const zones = Object.fromEntries(
+			Array.from(root.querySelectorAll<SVGRectElement>('[data-zone]')).map((r) => [r.dataset.zone!, r]),
+		);
+		const typeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-type]'));
+		const buildBtn = q<HTMLButtonElement>('[data-build]');
+		const ray3Btn = q<HTMLButtonElement>('[data-ray3]');
+		const dIn = q<HTMLInputElement>('[data-d]');
+		const fIn = q<HTMLInputElement>('[data-f]');
+		const dOut = q<HTMLOutputElement>('[data-d-out]');
+		const fOut = q<HTMLOutputElement>('[data-f-out]');
+		const chips = {
+			real: q<HTMLElement>('[data-chip="real"]'),
+			orient: q<HTMLElement>('[data-chip="orient"]'),
+			size: q<HTMLElement>('[data-chip="size"]'),
+		};
+		const stat = {
+			d: q<HTMLElement>('[data-s-d]'),
+			f: q<HTMLElement>('[data-s-f]'),
+			m: q<HTMLElement>('[data-s-m]'),
+			D: q<HTMLElement>('[data-s-power]'),
+		};
+		const live = q<HTMLElement>('[data-live]');
+
+		const st = { type: 1 as 1 | -1, Fabs: 10, d: 25, h: 5, ray3: true };
+		let crop = { xmin: V.xmin, xmax: V.xmax, ymin: V.ymin, ymax: V.ymax };
+		let dMax = D_MAX;
+		/** lens shape: +1 convex … −1 concave; differs from st.type only while morphing */
+		let shape = 1;
+		/** which parts are visible (the step-by-step construction hides and reveals them) */
+		const shown = { rays: [true, true, true], virt: [true, true, true], image: true };
+		let building = 0; // construction token; 0 = not building
+		let anim = 0;
+
+		const F = () => st.type * st.Fabs;
+
+		/* ---------- drawing ---------- */
+
+		const setArrow = (g: SVGGElement, x: number, y: number) => {
+			const [line, head] = [g.querySelector('line')!, g.querySelector('polygon')!];
+			const px = X(V, x);
+			const p0 = Y(V, 0);
+			const p1 = Y(V, y);
+			const len = Math.abs(p1 - p0);
+			const dir = p1 < p0 ? 1 : -1; // +1: arrow points up on screen
+			const hl = Math.min(14, len * 0.5);
+			const hw = hl * 0.55;
+			line.setAttribute('x1', String(px));
+			line.setAttribute('y1', String(p0));
+			line.setAttribute('x2', String(px));
+			line.setAttribute('y2', String(p1 + dir * hl * 0.7));
+			head.setAttribute(
+				'points',
+				`${px},${p1} ${px - hw},${p1 + dir * hl} ${px + hw},${p1 + dir * hl}`,
+			);
+		};
+
+		const lensPath = () => {
+			const sag = SAG_K / st.Fabs;
+			const a = lensOutline(LENS_HALF, st.Fabs, { maxSag: sag, edge: 0.45 });
+			const b = lensOutline(LENS_HALF, -st.Fabs, { maxSag: sag, edge: 0.45 });
+			const t = (shape + 1) / 2; // 1 → convex
+			const pts: P[] = a.map(([x, y], i) => [x * t + b[i][0] * (1 - t), y]);
+			return closedPath(V, pts);
+		};
+
+		const setPath = (el: SVGPathElement, pts: P[]) => el.setAttribute('d', pathD(V, pts));
+
+		let scene: Scene;
+		let lastKind = '';
+
+		const render = () => {
+			const Fv = F();
+			lensEl.setAttribute('d', lensPath());
+			oLabel.setAttribute('x', String(X(V, 0.25 + Math.max(0, shape) * (SAG_K / st.Fabs)) + 5));
+			scene = traceScene(V, st.d, st.h, Fv, LENS_HALF);
+			const fade = Math.abs(shape); // rays and image fade out while the lens changes its kind
+
+			// foci
+			for (const g of foci) {
+				const k = Number(g.dataset.focus);
+				g.setAttribute('transform', `translate(${X(V, k * st.Fabs)} ${Y(V, 0)})`);
+			}
+
+			// zones (converging lens only)
+			const conv = st.type > 0 && shape > 0.99;
+			const z = zoneOf(st.d, st.Fabs);
+			const Fs = st.Fabs;
+			const spans: Record<string, [number, number]> = {
+				L0: [-Fs, 0],
+				L1: [-2 * Fs, -Fs],
+				L2: [V.xmin, -2 * Fs],
+				R0: [0, Fs],
+				R1: [Fs, 2 * Fs],
+				R2: [2 * Fs, V.xmax],
+			};
+			for (const [k, [a, b]] of Object.entries(spans)) {
+				const r = zones[k];
+				const pad = 0.25;
+				r.setAttribute('x', String(X(V, a + pad)));
+				r.setAttribute('width', String(Math.max(0, (b - a - 2 * pad) * V.S)));
+			}
+			const objZone = { far: 'L2', twoF: '', between: 'L1', focus: '', near: 'L0' }[z];
+			const imgZone = { far: 'R1', twoF: '', between: 'R2', focus: '', near: '' }[z];
+			for (const [k, r] of Object.entries(zones)) {
+				r.classList.toggle('is-on', conv && k === objZone);
+				r.classList.toggle('is-img', conv && k === imgZone);
+			}
+
+			// rays
+			scene.rays.forEach((ray, i) => {
+				const el = rayEls[i];
+				const visible = !!ray && (i < 2 || st.ray3) && shown.rays[i];
+				el.g.style.display = ray && (i < 2 || st.ray3) ? '' : 'none';
+				if (!ray) return;
+				setPath(el.base, ray.real);
+				setPath(el.flow, ray.real);
+				setPath(el.virt, ray.virt);
+				setPath(el.guide, ray.guide);
+				el.g.style.opacity = String(visible ? fade : 0);
+				el.virt.style.opacity = shown.virt[i] ? '' : '0';
+				el.guide.style.opacity = shown.virt[i] ? '' : '0';
+			});
+
+			// image
+			const tip = scene.tip;
+			const tipInside =
+				!!tip && tip[0] > crop.xmin && tip[0] < crop.xmax && tip[1] > crop.ymin && tip[1] < crop.ymax;
+			if (tip) {
+				setArrow(imageG, tip[0], tip[1]);
+				imageG.classList.toggle('is-real', scene.img.real);
+				imageG.classList.toggle('is-virtual', !scene.img.real);
+				for (const c of [spark, ring]) {
+					c.setAttribute('cx', String(X(V, tip[0])));
+					c.setAttribute('cy', String(Y(V, tip[1])));
+				}
+			}
+			imageG.style.opacity = String(tip && shown.image ? fade : 0);
+
+			// object
+			setArrow(objectG, -st.d, st.h);
+			const [body, tipHit] = [
+				objectG.querySelector<SVGLineElement>('[data-grab="body"]')!,
+				objectG.querySelector<SVGCircleElement>('[data-grab="tip"]')!,
+			];
+			body.setAttribute('x1', String(X(V, -st.d)));
+			body.setAttribute('x2', String(X(V, -st.d)));
+			body.setAttribute('y1', String(Y(V, 0)));
+			body.setAttribute('y2', String(Y(V, st.h)));
+			tipHit.setAttribute('cx', String(X(V, -st.d)));
+			tipHit.setAttribute('cy', String(Y(V, st.h)));
+			objectG.querySelector<SVGCircleElement>('.lz-dot')!.setAttribute('cx', String(X(V, -st.d)));
+			objectG.querySelector<SVGCircleElement>('.lz-dot')!.setAttribute('cy', String(Y(V, 0)));
+			objectG.setAttribute('aria-valuenow', String(st.d));
+			objectG.setAttribute('aria-valuetext', `d = ${fmtSmart(st.d)} см, высота ${fmtSmart(st.h)} см`);
+			hint.setAttribute('transform', `translate(${X(V, -st.d)} ${Y(V, st.h) - 14})`);
+
+			// note when the image does not fit
+			offscreen.textContent = '';
+			if (tip && !tipInside && fade > 0.99) {
+				const where = scene.img.real ? 'справа' : 'слева';
+				const dist = Math.abs(scene.img.f) >= 100 ? `${fmt(Math.abs(scene.img.f) / 100, 2)} м` : `${fmt(Math.abs(scene.img.f))} см`;
+				offscreen.textContent = `изображение за краем рисунка ${where}: ${dist} от линзы`;
+				const right = scene.img.real;
+				offscreen.setAttribute('x', String(right ? X(V, crop.xmax) - 10 : X(V, crop.xmin) + 10));
+				offscreen.setAttribute('y', String(Y(V, crop.ymax) + 26));
+				offscreen.setAttribute('text-anchor', right ? 'end' : 'start');
+			}
+
+			// controls and numbers
+			dIn.value = String(st.d);
+			fIn.value = String(st.Fabs);
+			dOut.value = `${fmtSmart(st.d)} см`;
+			fOut.value = `${fmtSmart(st.Fabs)} см`;
+			typeBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.type) === st.type)));
+			updateNumbers();
+		};
+
+		const setChip = (el: HTMLElement, text: string, alt: boolean, none = false, plain = false) => {
+			const changed = el.textContent !== text;
+			el.textContent = text;
+			el.classList.toggle('is-alt', alt && !none);
+			el.classList.toggle('is-plain', plain && !none);
+			el.classList.toggle('is-none', none);
+			if (changed && !reduce.matches) {
+				el.classList.remove('is-changed');
+				void el.offsetWidth;
+				el.classList.add('is-changed');
+			}
+		};
+
+		const updateNumbers = () => {
+			const Fv = F();
+			const im = scene.img;
+			const kind = imageKind(st.d, Fv);
+			stat.d.textContent = `${fmtSmart(st.d)} см`;
+			if (im.finite) {
+				const af = Math.abs(im.f);
+				const dist = af >= 100 ? `${fmt(af / 100, 2)} м` : `${fmt(af)} см`;
+				stat.f.innerHTML = `${dist} <small>${im.real ? 'за линзой' : 'перед линзой'}</small>`;
+				stat.m.textContent = fmt(Math.abs(im.m), 2);
+			} else {
+				stat.f.textContent = '—';
+				stat.m.textContent = '—';
+			}
+			const D = 100 / Fv;
+			const Dr = Math.round(D * 10) / 10;
+			stat.D.textContent = `${Math.abs(D - Dr) > 1e-9 ? '≈ ' : ''}${D > 0 ? '+' : ''}${fmtSmart(D, 1)} дптр`;
+
+			if (kind) {
+				setChip(chips.real, kind.real ? 'действительное' : 'мнимое', !kind.real);
+				setChip(chips.orient, kind.inverted ? 'перевёрнутое' : 'прямое', false, false, true);
+				setChip(
+					chips.size,
+					kind.size > 0 ? 'увеличенное' : kind.size < 0 ? 'уменьшенное' : 'равное предмету',
+					false,
+					false,
+					true,
+				);
+			} else {
+				setChip(chips.real, 'изображения нет', false, true);
+				setChip(chips.orient, '—', false, true);
+				setChip(chips.size, '—', false, true);
+			}
+			const key = `${st.type}|${zoneOf(st.d, st.Fabs)}`;
+			if (!building && key !== lastKind) {
+				live.innerHTML = st.type < 0 ? ZONE_TEXT.diverging : ZONE_TEXT[zoneOf(st.d, st.Fabs)];
+			}
+			if (!building) lastKind = key;
+		};
+
+		/* ---------- state changes ---------- */
+
+		const snapD = (d: number) => {
+			d = clamp(d, D_MIN, dMax);
+			if (Math.abs(d - st.Fabs) < 0.45) return st.Fabs;
+			if (Math.abs(d - 2 * st.Fabs) < 0.45) return 2 * st.Fabs;
+			return Math.round(d * 10) / 10;
+		};
+
+		const stopAll = () => {
+			cancelAnimationFrame(anim);
+			if (building) endBuild(true);
+		};
+
+		const dismissHint = () => hint.classList.add('is-gone');
+
+		const tween = (to: Partial<typeof st>, ms: number) => {
+			cancelAnimationFrame(anim);
+			const from = { d: st.d, h: st.h, Fabs: st.Fabs };
+			const target = { d: to.d ?? st.d, h: to.h ?? st.h, Fabs: to.Fabs ?? st.Fabs };
+			if (reduce.matches) {
+				Object.assign(st, target);
+				render();
+				return;
+			}
+			const t0 = performance.now();
+			const frame = (now: number) => {
+				const t = Math.min(1, (now - t0) / ms);
+				const e = ease(t);
+				st.d = from.d + (target.d - from.d) * e;
+				st.h = from.h + (target.h - from.h) * e;
+				st.Fabs = from.Fabs + (target.Fabs - from.Fabs) * e;
+				if (t >= 1) Object.assign(st, target);
+				render();
+				if (t < 1) anim = requestAnimationFrame(frame);
+			};
+			anim = requestAnimationFrame(frame);
+		};
+
+		const setType = (type: 1 | -1, then?: () => void) => {
+			if (type === st.type && shape === type) {
+				then?.();
+				return;
+			}
+			cancelAnimationFrame(anim);
+			if (reduce.matches) {
+				st.type = type;
+				shape = type;
+				render();
+				then?.();
+				return;
+			}
+			root.classList.add('is-morphing');
+			const from = shape;
+			const t0 = performance.now();
+			const ms = 650;
+			const frame = (now: number) => {
+				const t = Math.min(1, (now - t0) / ms);
+				shape = from + (type - from) * ease(t);
+				if (Math.sign(shape) === type) st.type = type;
+				render();
+				if (t < 1) anim = requestAnimationFrame(frame);
+				else {
+					shape = type;
+					st.type = type;
+					root.classList.remove('is-morphing');
+					render();
+					then?.();
+				}
+			};
+			anim = requestAnimationFrame(frame);
+		};
+
+		/* ---------- dragging ---------- */
+
+		const toWorld = (e: PointerEvent): P => {
+			const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM()!.inverse());
+			return [V.xmin + pt.x / V.S, V.ymax - pt.y / V.S];
+		};
+
+		let drag: null | { mode: 'body' | 'tip' | 'focus'; off: number; k: number } = null;
+
+		svg.addEventListener('pointerdown', (e) => {
+			if (e.button !== 0) return;
+			const target = (e.target as Element).closest<SVGElement>('[data-grab]');
+			const [wx] = toWorld(e);
+			let mode: 'body' | 'tip' | 'focus';
+			if (target) mode = target.dataset.grab as typeof mode;
+			else if (wx < -0.6 && e.pointerType === 'mouse') mode = 'body';
+			else return;
+			stopAll();
+			dismissHint();
+			// a focus marker sits at x = k·F (k = ±1, ±2)
+			const k = mode === 'focus' ? Number(target!.closest<SVGGElement>('[data-focus]')!.dataset.focus) : 1;
+			const off = mode === 'body' && target ? -st.d - wx : 0;
+			drag = { mode, off, k };
+			if (mode === 'body' && !target) {
+				st.d = snapD(-wx);
+				render();
+			}
+			svg.setPointerCapture(e.pointerId);
+			root.classList.add('is-dragging');
+			e.preventDefault();
+		});
+		svg.addEventListener('pointermove', (e) => {
+			if (!drag) return;
+			const [wx, wy] = toWorld(e);
+			if (drag.mode === 'focus') {
+				st.Fabs = clamp(Math.round((wx / drag.k) * 2) / 2, 5, 15);
+			} else {
+				st.d = snapD(-(wx + drag.off));
+				if (drag.mode === 'tip') st.h = clamp(Math.round(wy * 10) / 10, H_MIN, H_MAX);
+			}
+			render();
+		});
+		const endDrag = () => {
+			drag = null;
+			root.classList.remove('is-dragging');
+		};
+		svg.addEventListener('pointerup', endDrag);
+		svg.addEventListener('pointercancel', endDrag);
+
+		objectG.addEventListener('keydown', (e) => {
+			const step = e.shiftKey ? 0.1 : 0.5;
+			const k = e.key;
+			if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(k)) return;
+			e.preventDefault();
+			stopAll();
+			dismissHint();
+			if (k === 'ArrowLeft') st.d = snapD(st.d + step);
+			if (k === 'ArrowRight') st.d = snapD(st.d - step);
+			if (k === 'ArrowUp') st.h = clamp(st.h + step, H_MIN, H_MAX);
+			if (k === 'ArrowDown') st.h = clamp(st.h - step, H_MIN, H_MAX);
+			render();
+		});
+
+		dIn.addEventListener('input', () => {
+			stopAll();
+			dismissHint();
+			st.d = snapD(Number(dIn.value));
+			render();
+		});
+		fIn.addEventListener('input', () => {
+			stopAll();
+			st.Fabs = Number(fIn.value);
+			render();
+		});
+		typeBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				stopAll();
+				setType(Number(b.dataset.type) as 1 | -1);
+			}),
+		);
+		ray3Btn.addEventListener('click', () => {
+			st.ray3 = !st.ray3;
+			ray3Btn.setAttribute('aria-pressed', String(st.ray3));
+			render();
+		});
+		root.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((b) =>
+			b.addEventListener('click', () => {
+				stopAll();
+				dismissHint();
+				const p = PRESETS[b.dataset.preset as keyof typeof PRESETS];
+				setType(1, () => tween({ d: p.d, h: p.h, Fabs: p.F }, 1100));
+			}),
+		);
+
+		/* ---------- step-by-step construction ---------- */
+
+		const drawIn = (el: SVGPathElement, ms: number, tok: number) =>
+			new Promise<void>((resolve) => {
+				if (reduce.matches || !el.getAttribute('d')) {
+					resolve();
+					return;
+				}
+				const L = el.getTotalLength();
+				el.style.strokeDasharray = `${L} ${L}`;
+				el.style.strokeDashoffset = `${L}`;
+				const t0 = performance.now();
+				const frame = (now: number) => {
+					if (tok !== building) {
+						el.style.strokeDasharray = '';
+						el.style.strokeDashoffset = '';
+						resolve();
+						return;
+					}
+					const t = Math.min(1, (now - t0) / ms);
+					el.style.strokeDashoffset = String(L * (1 - ease(t)));
+					if (t < 1) requestAnimationFrame(frame);
+					else {
+						el.style.strokeDasharray = '';
+						el.style.strokeDashoffset = '';
+						resolve();
+					}
+				};
+				requestAnimationFrame(frame);
+			});
+
+		const caption = (n: number | null, html: string) => {
+			live.innerHTML = `${n ? `<span class="lz-lab__step">${n}</span>` : ''}${html}`;
+		};
+
+		const pulse = (k: number) => {
+			const g = foci.find((f) => Number(f.dataset.focus) === k);
+			if (!g || reduce.matches) return;
+			g.classList.remove('is-pulse');
+			void (g as unknown as HTMLElement).getBoundingClientRect();
+			g.classList.add('is-pulse');
+			setTimeout(() => g.classList.remove('is-pulse'), 1900);
+		};
+
+		const showRay = async (i: number, tok: number, withVirt: boolean) => {
+			shown.rays[i] = true;
+			shown.virt[i] = withVirt;
+			const el = rayEls[i];
+			el.flow.style.visibility = 'hidden';
+			render();
+			await drawIn(el.base, 1300, tok);
+			el.flow.style.visibility = '';
+		};
+
+		const endBuild = (interrupted: boolean) => {
+			building = 0;
+			root.classList.remove('is-building');
+			shown.rays = [true, true, true];
+			shown.virt = [true, true, true];
+			shown.image = true;
+			spark.classList.remove('is-on');
+			ring.classList.remove('is-on');
+			rayEls.forEach((r) => (r.flow.style.visibility = ''));
+			buildBtn.textContent = 'Построить по шагам';
+			lastKind = '';
+			if (interrupted) render();
+		};
+
+		const construct = async () => {
+			const tok = Date.now();
+			building = tok;
+			root.classList.add('is-building');
+			buildBtn.textContent = 'Показать сразу';
+			dismissHint();
+			const Fv = F();
+			const conv = Fv > 0;
+			const kind = imageKind(st.d, Fv);
+			shown.rays = [false, false, false];
+			shown.virt = [false, false, false];
+			shown.image = false;
+			render();
+			const alive = () => tok === building;
+			const wait = async (ms: number) => {
+				await sleep(ms);
+				return alive();
+			};
+
+			caption(1, conv
+				? 'Луч, идущий <b>параллельно главной оптической оси</b>, после собирающей линзы проходит через <b>фокус</b> <i>F</i>.'
+				: 'Луч, идущий <b>параллельно оси</b>, после рассеивающей линзы отклоняется от оси так, будто вышел из <b>фокуса</b> <i>F</i> перед линзой.');
+			pulse(conv ? 1 : -1);
+			await showRay(0, tok, !conv && !!kind);
+			if (!(await wait(900))) return;
+
+			caption(2, 'Луч, идущий через <b>оптический центр</b> <i>O</i>, не преломляется — идёт прямо.');
+			await showRay(1, tok, false);
+			if (!(await wait(900))) return;
+
+			if (!kind) {
+				caption(3, 'После линзы лучи идут <b>параллельно</b>: они не пересекаются ни за линзой, ни перед ней. Предмет в фокусе — <b>изображения нет</b>.');
+				if (!(await wait(3200))) return;
+				endBuild(false);
+				render();
+				return;
+			}
+			if (kind.real) {
+				caption(3, 'Лучи пересеклись! В этой точке — <b>изображение верхнего конца</b> стрелки. Изображение всей стрелки тянется от оси до этой точки.');
+			} else {
+				caption(3, 'После линзы лучи <b>расходятся</b> и сами не пересекаются. Продолжим их назад (пунктир): продолжения пересекаются — там <b>мнимое изображение</b>.');
+				shown.virt = [true, true, shown.virt[2]];
+				render();
+				for (const i of [0, 1]) {
+					const v = rayEls[i].virt;
+					if (!reduce.matches && v.getAttribute('d')) {
+						v.style.opacity = '0';
+						v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, fill: 'forwards' });
+						setTimeout(() => (v.style.opacity = ''), 720);
+					}
+				}
+				if (!(await wait(800))) return;
+			}
+			if (kind.real) spark.classList.add('is-on');
+			else ring.classList.add('is-on');
+			shown.image = true;
+			render();
+			if (!reduce.matches) {
+				imageG.animate(
+					[
+						{ transform: 'scaleY(0)', transformOrigin: `${X(V, scene.tip![0])}px ${Y(V, 0)}px` },
+						{ transform: 'scaleY(1)', transformOrigin: `${X(V, scene.tip![0])}px ${Y(V, 0)}px` },
+					],
+					{ duration: 700, easing: 'cubic-bezier(0.3, 1.3, 0.5, 1)' },
+				);
+			}
+			if (!(await wait(1800))) return;
+			spark.classList.remove('is-on');
+			ring.classList.remove('is-on');
+
+			if (st.ray3 && scene.rays[2]) {
+				caption(4, conv
+					? 'Проверка: луч, прошедший через <b>фокус перед линзой</b>, после линзы идёт <b>параллельно оси</b> — и проходит через ту же точку.'
+					: 'Проверка: луч, направленный в <b>фокус за линзой</b>, после линзы идёт <b>параллельно оси</b>; его продолжение проходит через ту же точку.');
+				pulse(conv ? -1 : 1);
+				await showRay(2, tok, true);
+				if (!(await wait(1400))) return;
+			}
+			const words = `${kind.real ? 'действительное' : 'мнимое'}, ${kind.inverted ? 'перевёрнутое' : 'прямое'}, ${kind.size > 0 ? 'увеличенное' : kind.size < 0 ? 'уменьшенное' : 'равное предмету по размеру'}`;
+			caption(null, `<b>Готово.</b> Изображение ${words}. Подвиньте предмет — лучи перестроятся сами.`);
+			endBuild(false);
+			lastKind = `${st.type}|${zoneOf(st.d, st.Fabs)}`;
+			render();
+		};
+
+		buildBtn.addEventListener('click', () => {
+			cancelAnimationFrame(anim);
+			if (building) {
+				endBuild(true);
+				return;
+			}
+			construct();
+		});
+
+		// narrow screens: zoom into the middle of the scene
+		const applyCrop = () => {
+			const narrow = root.clientWidth < 560;
+			crop = narrow ? { ...CROP_NARROW } : { xmin: V.xmin, xmax: V.xmax, ymin: V.ymin, ymax: V.ymax };
+			svg.setAttribute(
+				'viewBox',
+				`${X(V, crop.xmin)} ${Y(V, crop.ymax)} ${(crop.xmax - crop.xmin) * V.S} ${(crop.ymax - crop.ymin) * V.S}`,
+			);
+			dMax = narrow ? CROP_NARROW.xmax - 1 : D_MAX;
+			dIn.max = String(dMax);
+			objectG.setAttribute('aria-valuemax', String(dMax));
+			if (st.d > dMax) st.d = dMax;
+			render();
+		};
+		new ResizeObserver(applyCrop).observe(root);
+		applyCrop();
+	}
+</script>

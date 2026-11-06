@@ -1,0 +1,232 @@
+---
+/**
+ * Static construction drawing of a converging lens (rendered at build time, works without JS).
+ * Real image only (d > F). Equal scales on both axes.
+ * hl: which pair of similar triangles to shade — 'center' (through O) or 'focus' (through F).
+ */
+import LzStyles from './LzStyles.astro';
+import { makeView, X, Y, pathD, traceScene, lensOutline, closedPath, fmtSmart, type P } from './optics';
+
+interface Props {
+	d?: number;
+	F?: number;
+	h?: number;
+	view?: [number, number, number, number];
+	S?: number;
+	rays?: number[];
+	hl?: 'none' | 'center' | 'focus';
+	letters?: boolean;
+	/** write the distances with numbers (d = 30 см) instead of letters */
+	numbers?: boolean;
+	label: string;
+}
+const {
+	d = 25,
+	F = 10,
+	h = 6,
+	view = [-29, 23, -8.5, 9.5],
+	S = 12,
+	rays = [1, 2],
+	hl = 'none',
+	letters = true,
+	numbers = false,
+	label,
+} = Astro.props;
+
+const V = makeView(view[0], view[1], view[2], view[3], S);
+const half = Math.min(view[3], -view[2]) - 0.6;
+const scene = traceScene(V, d, h, F, half);
+const f = scene.img.f;
+const H = scene.img.m * h;
+const px = (p: P) => [X(V, p[0]), Y(V, p[1])] as const;
+const poly = (pts: P[]) => pts.map((p) => px(p).join(',')).join(' ');
+const lens = closedPath(V, lensOutline(half, F, { maxSag: Math.min(1.1, (V.xmax - V.xmin) / 40), edge: 0.35 }));
+
+const A: P = [-d, h];
+const B: P = [-d, 0];
+const O: P = [0, 0];
+const C: P = [0, h];
+const Fp: P = [F, 0];
+const A1: P = [f, H];
+const B1: P = [f, 0];
+
+const arrow = (x: number, y: number) => {
+	const p0 = Y(V, 0);
+	const p1 = Y(V, y);
+	const dir = p1 < p0 ? 1 : -1;
+	const hl = Math.min(13, Math.abs(p1 - p0) * 0.45);
+	const hw = hl * 0.55;
+	const xx = X(V, x);
+	return {
+		line: { x1: xx, y1: p0, x2: xx, y2: p1 + dir * hl * 0.7 },
+		head: `${xx},${p1} ${xx - hw},${p1 + dir * hl} ${xx + hw},${p1 + dir * hl}`,
+	};
+};
+const obj = arrow(-d, h);
+const img = arrow(f, H);
+
+// dimension lines: d below the axis on the left, f above the axis on the right
+const dimD = { x1: X(V, -d), x2: X(V, 0), y: Y(V, -Math.min(h * (numbers ? 0.8 : 0.55), -view[2] - 1.6)) };
+const dimF = { x1: X(V, 0), x2: X(V, f), y: Y(V, Math.min(h + 1.6, view[3] - 0.9)) };
+const dl = (k: string, v: number) => (numbers ? `${k} = ${fmtSmart(v)} см` : k);
+const isMath = !numbers;
+const y0 = Y(V, 0);
+const shown = (n: number) => rays.includes(n);
+---
+
+<LzStyles />
+<figure class="lz lzf not-content" data-hl={hl}>
+	<svg class="lz__svg" viewBox={`0 0 ${V.w} ${V.h}`} role="img" aria-label={label}>
+		<line class="lz-axis" x1="0" y1={y0} x2={V.w} y2={y0}></line>
+		<line class="lz-plane" x1={X(V, 0)} y1="0" x2={X(V, 0)} y2={V.h}></line>
+		<path class="lz-lens" d={lens}></path>
+
+		{
+			hl === 'center' && (
+				<g class="lzf__tri lzf__tri--center">
+					<polygon points={poly([A, B, O])} />
+					<polygon points={poly([A1, B1, O])} />
+				</g>
+			)
+		}
+		{
+			hl === 'focus' && (
+				<g class="lzf__tri lzf__tri--focus">
+					<polygon points={poly([O, C, Fp])} />
+					<polygon points={poly([B1, A1, Fp])} />
+				</g>
+			)
+		}
+
+		{
+			[1, 2, 3].map(
+				(n) =>
+					shown(n) &&
+					scene.rays[n - 1] && (
+						<g class={`lz-ray lz-ray--${n}`}>
+							<path class="lz-base" d={pathD(V, scene.rays[n - 1]!.real)} />
+						</g>
+					),
+			)
+		}
+
+		<g class="lz-arrow lz-arrow--object">
+			<line {...obj.line}></line>
+			<polygon points={obj.head}></polygon>
+		</g>
+		<g class="lz-arrow lz-arrow--image is-real">
+			<line {...img.line}></line>
+			<polygon points={img.head}></polygon>
+		</g>
+
+		{
+			(letters ? [-1, 1] : [-2, -1, 1, 2]).filter((k) => k * F > view[0] && k * F < view[1]).map((k) => (
+				<circle class={`lz-focus ${Math.abs(k) === 2 ? 'lz-focus--2' : ''}`} cx={X(V, k * F)} cy={y0} r="4.5" />
+			))
+		}
+
+		<!-- dimension lines -->
+		<g class="lzf__dim">
+			<path
+				d={`M${dimD.x1} ${dimD.y - 6} V${dimD.y + 6} M${dimD.x1} ${dimD.y} H${dimD.x2} M${dimD.x2} ${dimD.y - 6} V${dimD.y + 6}`}
+			></path>
+			<path
+				d={`M${dimF.x1} ${dimF.y - 6} V${dimF.y + 6} M${dimF.x1} ${dimF.y} H${dimF.x2} M${dimF.x2} ${dimF.y - 6} V${dimF.y + 6}`}
+			></path>
+			<text class={isMath ? 'lz-t lz-t--math' : 'lz-t'} x={(dimD.x1 + dimD.x2) / 2} y={dimD.y - 7} text-anchor="middle">
+				{dl('d', d)}
+			</text>
+			<text class={isMath ? 'lz-t lz-t--math' : 'lz-t'} x={(dimF.x1 + dimF.x2) / 2} y={dimF.y - 7} text-anchor="middle">
+				{dl('f', f)}
+			</text>
+		</g>
+
+		{
+			letters && (
+				<g class="lzf__letters">
+					<text class="lz-t lz-t--math" x={X(V, A[0]) - 8} y={Y(V, A[1]) + 4} text-anchor="end">A</text>
+					<text class="lz-t lz-t--math" x={X(V, B[0]) - 8} y={y0 + 20} text-anchor="end">B</text>
+					<text class="lz-t lz-t--math" x={X(V, 0) - 7} y={y0 + 20} text-anchor="end">O</text>
+					<text class="lz-t lz-t--math" x={X(V, F)} y={y0 - 10} text-anchor="middle">F</text>
+					<text class="lz-t lz-t--math" x={X(V, -F)} y={y0 + 22} text-anchor="middle">F</text>
+					<text class="lz-t lz-t--math" x={X(V, 0) + 7} y={Y(V, h) - 6}>C</text>
+					<text class="lz-t lz-t--math" x={X(V, f) + 8} y={Y(V, H) + 8}>
+						A<tspan class="lzf__sub" dy="5">1</tspan>
+					</text>
+					<text class="lz-t lz-t--math" x={X(V, f) + 8} y={y0 - 8}>
+						B<tspan class="lzf__sub" dy="5">1</tspan>
+					</text>
+					<text class="lz-t lz-t--math lzf__hh" x={X(V, -d) + 8} y={Y(V, h / 2) + 6}>h</text>
+					<text class="lz-t lz-t--math lzf__hh" x={X(V, f) - 8} y={Y(V, H / 2) + 6} text-anchor="end">H</text>
+				</g>
+			)
+		}
+		{
+			!letters && (
+				<g>
+					<text class="lz-t lz-t--math" x={X(V, F)} y={y0 + 22} text-anchor="middle">F</text>
+					<text class="lz-t lz-t--math" x={X(V, -F)} y={y0 - 10} text-anchor="middle">F</text>
+					<text class="lz-t lz-t--math" x={X(V, 2 * F)} y={y0 - 10} text-anchor="middle">
+						<tspan class="lz-t__num">2</tspan>F
+					</text>
+					{-2 * F > view[0] && (
+						<text class="lz-t lz-t--math" x={X(V, -2 * F)} y={y0 - 10} text-anchor="middle">
+							<tspan class="lz-t__num">2</tspan>F
+						</text>
+					)}
+				</g>
+			)
+		}
+	</svg>
+</figure>
+
+<style is:global>
+	.lzf {
+		margin-block: 0.75rem;
+		padding: 0.5rem;
+		background: transparent;
+		border-style: dashed;
+	}
+	.lzf__dim path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.lzf__dim text {
+		fill: var(--sl-color-gray-1);
+	}
+	.lzf__sub {
+		font-size: 0.7em;
+		font-style: normal;
+		font-family: KaTeX_Main, serif;
+	}
+	.lzf__tri polygon {
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.lzf__tri--center polygon {
+		fill: color-mix(in srgb, var(--ig-vx) 30%, transparent);
+		stroke: var(--ig-vx);
+	}
+	.lzf__tri--focus polygon {
+		fill: color-mix(in srgb, var(--ig-v) 32%, transparent);
+		stroke: var(--ig-v);
+	}
+	.derivation .step.is-entering .lzf__tri polygon {
+		animation: lzf-tri 1.2s ease-out 0.5s both;
+	}
+	.derivation .step.is-entering .lzf__tri polygon + polygon {
+		animation-delay: 1.1s;
+	}
+	@keyframes lzf-tri {
+		from {
+			fill-opacity: 0;
+			stroke-opacity: 0;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.derivation .step.is-entering .lzf__tri polygon {
+			animation: none;
+		}
+	}
+</style>
