@@ -1,0 +1,1304 @@
+---
+/**
+ * Main model: Faraday's experiment. A bar magnet is dragged into and out of a coil connected to a
+ * zero-centre galvanometer. Everything is drawn to scale (13 px per cm): coil 8 cm long, turn
+ * radius 2.5 cm; magnet 10 cm × 2.4 cm. The flux, the EMF and the current are computed from the
+ * field of the magnet (see physics.ts); the needle is a damped pointer, as in a real instrument.
+ */
+import katex from 'katex';
+import { fieldLines, toPath, MAG_LEN, MAG_R, COIL_LEN, COIL_R } from './physics';
+
+const uid = `emi-${Math.random().toString(36).slice(2, 8)}`;
+const S = 13; // px per cm
+const X0 = 360;
+const Y0 = 112;
+const ML = MAG_LEN * 100 * S; // magnet length, px
+const MR = MAG_R * 100 * S;
+const CL = COIL_LEN * 100 * S;
+const CA = COIL_R * 100 * S;
+
+const lines = fieldLines(10, { x: 52, y: 9.5 });
+const box = { x: 52, y: 9.5 };
+const toPx = (p: [number, number]): [number, number] => [p[0] * S, -p[1] * S];
+const linePaths = lines.map((l) => toPath(l.pts, box, toPx, 2.5)).filter((d) => d.length > 0);
+const arrowMarks = lines
+	.flatMap((l) => l.arrows)
+	.filter((a) => a.y < 8.4 && a.y > MAG_R * 100 + 0.3)
+	.map((a) => ({ x: a.x * S, y: -a.y * S, deg: (-a.a * 180) / Math.PI }));
+
+// Galvanometer: ±40 mA over ±55°.
+const GX = X0;
+const GY = 304;
+const GR = 58;
+const ticks = Array.from({ length: 17 }, (_, i) => -40 + 5 * i);
+const tickPt = (mA: number, r: number) => {
+	const a = ((mA / 40) * 55 * Math.PI) / 180;
+	return [GX + r * Math.sin(a), GY - r * Math.cos(a)];
+};
+
+const xl = X0 - CL / 2;
+const xr = X0 + CL / 2;
+const wireL = `M${xl + 2} ${Y0 + CA} L${xl + 2} 228`;
+const wireR = `M${xr - 2} 228 L${xr - 2} ${Y0 + CA}`;
+const tex = (s: string) => katex.renderToString(s, { throwOnError: false });
+const texE = tex('\\mathcal{E}_i');
+---
+
+<figure class="emi not-content" data-emi-lab>
+	<svg
+		class="emi__scene"
+		viewBox="0 0 720 340"
+		role="group"
+		aria-label="Опыт Фарадея: магнит, катушка и гальванометр"
+		data-scene
+	>
+		<defs>
+			<clipPath id={`${uid}-view`}>
+				<rect x="0" y="0" width="720" height="216"></rect>
+			</clipPath>
+			<clipPath id={`${uid}-in`}>
+				<rect x={xl} y={Y0 - CA} width={CL} height={2 * CA} data-coil-clip></rect>
+			</clipPath>
+			<g id={`${uid}-fl`}>
+				{linePaths.map((d) => <path d={d} fill="none" />)}
+				{arrowMarks.map((a) => <path d="M-4.5,-3.5 L3.5,0 L-4.5,3.5 z" stroke="none" transform={`translate(${a.x} ${a.y}) rotate(${a.deg})`} />)}
+			</g>
+			{
+				['b', 'bi', 'f'].map((k) => (
+					<marker id={`${uid}-${k}`} class={`emi__head emi__head--${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+						<path d="M0,0 L10,5 L0,10 z" />
+					</marker>
+				))
+			}
+		</defs>
+
+		<!-- Back halves of the turns -->
+		<g class="emi__coil-back" data-back></g>
+
+		<!-- Field lines of the magnet; inside the coil they are drawn brighter -->
+		<g clip-path={`url(#${uid}-view)`}>
+			<g class="emi__fl" data-fl>
+				<use href={`#${uid}-fl`}></use>
+				<use href={`#${uid}-fl`} transform="scale(1,-1)"></use>
+			</g>
+		</g>
+		<g clip-path={`url(#${uid}-in)`}>
+			<g class="emi__fl emi__fl--in" data-fl-in>
+				<use href={`#${uid}-fl`}></use>
+				<use href={`#${uid}-fl`} transform="scale(1,-1)"></use>
+			</g>
+		</g>
+
+		<!-- Magnet: drawn with the north pole to +x; a flip mirrors it -->
+		<g class="emi__magnet" data-magnet tabindex="0" role="slider" aria-label="Магнит. Двигайте стрелками влево и вправо" aria-valuemin="-21" aria-valuemax="21" aria-valuenow="-18">
+			<rect class="emi__hit" x={-ML / 2 - 14} y={-MR - 30} width={ML + 28} height={2 * MR + 60}></rect>
+			<g data-magnet-body>
+				<rect class="emi__pole emi__pole--s" x={-ML / 2} y={-MR} width={ML / 2} height={2 * MR} rx="3"></rect>
+				<rect class="emi__pole emi__pole--n" x="0" y={-MR} width={ML / 2} height={2 * MR} rx="3"></rect>
+				<rect class="emi__shine" x={-ML / 2 + 3} y={-MR + 3} width={ML - 6} height="4" rx="2"></rect>
+			</g>
+			<text class="emi__pole-label" x={-ML / 4} y="6" text-anchor="middle" data-label-s>S</text>
+			<text class="emi__pole-label" x={ML / 4} y="6" text-anchor="middle" data-label-n>N</text>
+		</g>
+
+		<!-- Front halves of the turns and the current running along them -->
+		<g class="emi__coil-front" data-front></g>
+		<g class="emi__flow" data-flow></g>
+		<ellipse class="emi__coil-end" cx={xr} cy={Y0} rx="6" ry={CA}></ellipse>
+
+		<!-- Force on the magnet from the coil -->
+		<g data-force>
+			<line class="emi__vec emi__vec--f" marker-end={`url(#${uid}-f)`} data-force-line></line>
+			<text class="emi__vlabel" data-force-label><tspan class="emi__m">F</tspan></text>
+		</g>
+
+		<!-- Field inside the coil: of the magnet (B) and of the induced current (B_инд) -->
+		<g class="emi__inside">
+			<line class="emi__vec emi__vec--b" marker-end={`url(#${uid}-b)`} data-b-line></line>
+			<text class="emi__vlabel emi__vlabel--b" data-b-label><tspan class="emi__m">B</tspan><tspan class="emi__sub" dy="4">магн</tspan></text>
+			<line class="emi__vec emi__vec--bi" marker-end={`url(#${uid}-bi)`} data-bi-line></line>
+			<text class="emi__vlabel emi__vlabel--bi" data-bi-label><tspan class="emi__m">B</tspan><tspan class="emi__sub" dy="4">инд</tspan></text>
+		</g>
+
+		<!-- Poles of the coil itself (it is an electromagnet while the current flows) -->
+		<g class="emi__cpole" data-cpole-l transform={`translate(${xl - 18} ${Y0 + CA + 16})`}>
+			<g class="emi__cpole-in emi__cpole-in--l">
+				<circle r="11"></circle>
+				<text y="5" text-anchor="middle"></text>
+			</g>
+		</g>
+		<g class="emi__cpole" data-cpole-r transform={`translate(${xr + 18} ${Y0 + CA + 16})`}>
+			<g class="emi__cpole-in emi__cpole-in--r">
+				<circle r="11"></circle>
+				<text y="5" text-anchor="middle"></text>
+			</g>
+		</g>
+
+		<!-- Circuit and galvanometer -->
+		<path class="emi__wire" d={wireL} data-wire-l></path>
+		<path class="emi__wire" d={wireR} data-wire-r></path>
+		<g class="emi__chevrons" data-chev></g>
+
+		<g class="emi__galv">
+			<rect class="emi__case" x={GX - 76} y="226" width="152" height="104" rx="14"></rect>
+			<rect class="emi__face" x={GX - 66} y="234" width="132" height="86" rx="9"></rect>
+			{
+				ticks.map((t) => {
+					const [x1, y1] = tickPt(t, GR);
+					const [x2, y2] = tickPt(t, t % 20 === 0 ? GR - 9 : GR - 5);
+					return <line class={t === 0 ? 'emi__tick emi__tick--zero' : 'emi__tick'} x1={x1} y1={y1} x2={x2} y2={y2} />;
+				})
+			}
+			{
+				[-40, -20, 0, 20, 40].map((t) => {
+					const [x, y] = tickPt(t, GR + 7);
+					return (
+						<text class="emi__glabel" x={x} y={y + 3} text-anchor="middle">
+							{String(Math.abs(t))}
+						</text>
+					);
+				})
+			}
+			<text class="emi__gunit" x={GX + 44} y={GY + 4} text-anchor="middle">мА</text>
+			<line class="emi__needle" x1={GX} y1={GY} x2={GX} y2={GY - GR + 3} data-needle></line>
+			<circle class="emi__pivot" cx={GX} cy={GY} r="5"></circle>
+			<circle class="emi__terminal" cx={xl + 2} cy="228" r="4"></circle>
+			<circle class="emi__terminal" cx={xr - 2} cy="228" r="4"></circle>
+		</g>
+
+		<g class="emi__hint" data-hint>
+			<text x={X0 - 18 * S} y={Y0 + MR + 30} text-anchor="middle">⟵ тяните магнит ⟶</text>
+		</g>
+	</svg>
+
+	<svg class="emi__chart" viewBox="0 0 720 282" role="img" aria-label="Графики магнитного потока и ЭДС индукции за последние 5 секунд" data-chart>
+		<g class="emi__grid" data-grid></g>
+		<line class="emi__zero" x1="64" y1="78" x2="704" y2="78"></line>
+		<line class="emi__zero" x1="64" y1="210" x2="704" y2="210"></line>
+		<text class="emi__clabel" x="56" y="22" text-anchor="end"><tspan class="emi__m">Φ</tspan>, мВб</text>
+		<text class="emi__ctick" x="56" y="48" text-anchor="end" data-ptick>0,1</text>
+		<text class="emi__ctick" x="56" y="82" text-anchor="end">0</text>
+		<text class="emi__ctick" x="56" y="116" text-anchor="end">−0,1</text>
+		<text class="emi__clabel" x="56" y="154" text-anchor="end"><tspan class="emi__m">ℰ</tspan>, мВ</text>
+		<text class="emi__ctick" x="56" y="180" text-anchor="end" data-etop>200</text>
+		<text class="emi__ctick" x="56" y="214" text-anchor="end">0</text>
+		<text class="emi__ctick" x="56" y="248" text-anchor="end" data-ebot>−200</text>
+		<clipPath id={`${uid}-phi`}><rect x="64" y="26" width="640" height="104"></rect></clipPath>
+		<path class="emi__tangent" clip-path={`url(#${uid}-phi)`} data-tangent></path>
+		<path class="emi__curve emi__curve--phi" data-cphi></path>
+		<path class="emi__curve emi__curve--e" data-ce></path>
+		<circle class="emi__dot emi__dot--phi" r="4" cx="704" cy="78" data-dphi></circle>
+		<circle class="emi__dot emi__dot--e" r="4" cx="704" cy="210" data-de></circle>
+		<text class="emi__ctick" x="704" y="278" text-anchor="end">сейчас</text>
+		<text class="emi__ctick" x="64" y="278">5 с назад</text>
+	</svg>
+
+	<div class="emi__lenz" aria-live="polite" data-lenz>
+		<span data-l1>Поток не меняется</span>
+		<span class="emi__arrow">→</span>
+		<span data-l2>тока нет</span>
+		<span class="emi__arrow">→</span>
+		<span data-l3>катушка на магнит не действует</span>
+	</div>
+
+	<dl class="emi__stats">
+		<div><dt>Поток через виток <i>Φ</i></dt><dd data-o-phi>—</dd></div>
+		<div><dt>ЭДС индукции <span set:html={texE} /> (за 0,1 с)</dt><dd data-o-e>—</dd></div>
+		<div><dt>Сила тока <i>I</i> (за 0,1 с)</dt><dd data-o-i>—</dd></div>
+	</dl>
+
+	<div class="emi__formula" aria-hidden="true">
+		<div data-f-e></div>
+		<div data-f-i></div>
+	</div>
+
+	<div class="emi__controls">
+		<label class="emi__slider">
+			<span>Скорость магнита <i>υ</i></span>
+			<output data-v-out>0,4 м/с</output>
+			<input type="range" min="0.1" max="1" step="0.1" value="0.4" data-speed />
+		</label>
+		<fieldset class="emi__seg">
+			<legend>Число витков <i>N</i></legend>
+			<label><input type="radio" name={`${uid}-n`} value="100" />100</label>
+			<label><input type="radio" name={`${uid}-n`} value="200" checked />200</label>
+			<label><input type="radio" name={`${uid}-n`} value="400" />400</label>
+		</fieldset>
+		<div class="emi__buttons">
+			<button type="button" class="emi__btn emi__btn--primary" data-act="in">Внести</button>
+			<button type="button" class="emi__btn emi__btn--primary" data-act="out">Вынуть</button>
+			<button type="button" class="emi__btn" data-act="through">Насквозь</button>
+			<button type="button" class="emi__btn" data-act="flip">Перевернуть магнит</button>
+		</div>
+	</div>
+	<p class="emi__live" data-live aria-live="polite"></p>
+
+	<figcaption class="emi__legend">
+		Масштаб настоящий: катушка длиной 8 см, магнит 10 см. <i>Φ</i> — магнитный поток через один виток
+		(в среднем по виткам), <span set:html={texE} /> — ЭДС индукции всей катушки. Сопротивление
+		цепи <span class="emi__nowrap"><i>R</i> = 10 Ом</span>. Линии магнитной индукции внутри катушки выделены
+		ярче. Синий конец магнита — северный полюс <i>N</i>, красный — южный <i>S</i>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.emi {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.emi svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		overflow: visible;
+	}
+	.emi__scene {
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.emi i,
+	.emi__m {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	/* The lines live in <defs> and are shown through <use>: they inherit stroke and fill from here. */
+	.emi__fl {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.3;
+	}
+	.emi__fl--in {
+		fill: var(--ig-vx);
+		stroke: var(--ig-vx);
+		stroke-width: 2.2;
+	}
+	.emi__coil-back path {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 45%, var(--ig-surface));
+		stroke-width: var(--emi-turn-back, 2.4);
+	}
+	.emi__coil-front path {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: var(--emi-turn, 3);
+		stroke-linecap: round;
+	}
+	.emi__coil-end {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 60%, var(--ig-surface));
+		stroke-width: 1.5;
+	}
+	.emi__flow path {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-dasharray: 3 9;
+	}
+	.emi__magnet {
+		cursor: grab;
+		outline: none;
+		touch-action: none;
+	}
+	.emi__magnet:active {
+		cursor: grabbing;
+	}
+	.emi__magnet:focus-visible .emi__pole {
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+	}
+	.emi__hit {
+		fill: transparent;
+	}
+	.emi__pole--n {
+		fill: var(--ig-vx);
+	}
+	.emi__pole--s {
+		fill: var(--ig-vy);
+	}
+	.emi__shine {
+		fill: rgb(255 255 255 / 0.25);
+	}
+	.emi__pole-label {
+		fill: var(--sl-color-black);
+		font: 700 17px var(--__sl-font);
+	}
+	.emi__vec {
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.emi__vec--b {
+		stroke: var(--ig-vx);
+	}
+	.emi__vec--bi {
+		stroke: var(--ig-v);
+	}
+	.emi__vec--f {
+		stroke: var(--sl-color-gray-1);
+	}
+	.emi__head--b path {
+		fill: var(--ig-vx);
+	}
+	.emi__head--bi path {
+		fill: var(--ig-v);
+	}
+	.emi__head--f path {
+		fill: var(--sl-color-gray-1);
+	}
+	.emi__vlabel {
+		fill: var(--sl-color-gray-1);
+		font-size: 17px;
+		font-family: var(--__sl-font);
+	}
+	.emi__vlabel--b {
+		fill: var(--ig-vx);
+	}
+	.emi__vlabel--bi {
+		fill: var(--ig-v);
+	}
+	.emi__sub {
+		font-size: 11px;
+		font-style: normal;
+		font-family: var(--__sl-font);
+	}
+	.emi__cpole circle {
+		stroke: none;
+	}
+	.emi__cpole text {
+		fill: var(--sl-color-black);
+		font: 700 14px var(--__sl-font);
+	}
+	.emi__cpole--n circle {
+		fill: var(--ig-vx);
+	}
+	.emi__cpole--s circle {
+		fill: var(--ig-vy);
+	}
+	.emi__wire {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 70%, var(--sl-color-gray-3));
+		stroke-width: 2.5;
+	}
+	.emi__chevrons path {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.emi__case {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.emi__face {
+		fill: var(--sl-color-bg);
+		stroke: var(--sl-color-gray-5);
+	}
+	.emi__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.emi__tick--zero {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.emi__glabel,
+	.emi__gunit {
+		fill: var(--sl-color-gray-3);
+		font-size: 11px;
+		font-family: var(--__sl-font);
+	}
+	.emi__needle {
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.emi__pivot {
+		fill: var(--sl-color-gray-2);
+	}
+	.emi__terminal {
+		fill: var(--sl-color-gray-3);
+	}
+	.emi__hint text {
+		fill: var(--sl-color-accent);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.emi__hint {
+		transition: opacity 0.6s;
+	}
+
+	.emi__chart {
+		margin-top: 0.75rem;
+	}
+	.emi__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.emi__zero {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.emi__clabel {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.emi__ctick {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+	.emi__curve {
+		fill: none;
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.emi__curve--phi {
+		stroke: var(--ig-vx);
+	}
+	.emi__curve--e {
+		stroke: var(--ig-v);
+	}
+	.emi__dot--phi {
+		fill: var(--ig-vx);
+	}
+	.emi__dot--e {
+		fill: var(--ig-v);
+	}
+	.emi__tangent {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 4;
+	}
+
+	.emi__lenz {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.35rem 0.5rem;
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.emi__lenz span:not(.emi__arrow) {
+		padding: 0.2rem 0.65rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-gray-5);
+		transition:
+			border-color 0.3s,
+			color 0.3s;
+	}
+	.emi__lenz.is-grow span:not(.emi__arrow),
+	.emi__lenz.is-fall span:not(.emi__arrow) {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.emi__arrow {
+		color: var(--sl-color-gray-4);
+	}
+
+	.emi__stats {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
+		margin: 0.75rem 0 0;
+	}
+	.emi__stats > div {
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.emi__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.emi__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.emi__formula {
+		margin-top: 0.6rem;
+		padding: 0.4rem 0.75rem;
+		border-radius: 0.6rem;
+		border: 1px dashed var(--sl-color-gray-5);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		min-height: 3.6rem;
+	}
+	.emi__formula .katex-display {
+		margin: 0.25rem 0;
+	}
+
+	.emi__controls {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.9rem;
+		align-items: end;
+	}
+	.emi__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.emi__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.emi__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.emi__seg {
+		display: flex;
+		gap: 0;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		flex-wrap: wrap;
+		align-items: center;
+	}
+	.emi__seg legend {
+		float: left;
+		margin-right: 0.6rem;
+		padding: 0;
+	}
+	.emi__seg label {
+		position: relative;
+		padding: 0.35rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-4);
+		margin-left: -1px;
+		cursor: pointer;
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-white);
+	}
+	.emi__seg label:first-of-type {
+		border-radius: 999px 0 0 999px;
+	}
+	.emi__seg label:last-of-type {
+		border-radius: 0 999px 999px 0;
+	}
+	.emi__seg input {
+		position: absolute;
+		opacity: 0;
+		pointer-events: none;
+	}
+	.emi__seg label:has(input:checked) {
+		background: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 700;
+	}
+	.emi__seg label:has(input:focus-visible) {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.emi__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.emi__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.emi__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.emi__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.emi__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.emi__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.emi__nowrap {
+		white-space: nowrap;
+	}
+
+	@media (max-width: 40rem) {
+		.emi__formula .katex {
+			font-size: 1.05em;
+		}
+		.emi {
+			padding: 0.75rem;
+		}
+		.emi__vlabel {
+			font-size: 26px;
+		}
+		.emi__sub {
+			font-size: 22px;
+		}
+		.emi__glabel,
+		.emi__gunit {
+			font-size: 22px;
+		}
+		/* coil pole badges: larger and moved a little away from the coil */
+		.emi__cpole-in--l {
+			transform: translate(-6px, 6px) scale(1.55);
+		}
+		.emi__cpole-in--r {
+			transform: translate(6px, 6px) scale(1.55);
+		}
+		.emi__pole-label {
+			font-size: 22px;
+		}
+		.emi__hint text {
+			font-size: 24px;
+		}
+		.emi__clabel {
+			font-size: 22px;
+		}
+		.emi__ctick {
+			font-size: 19px;
+		}
+		.emi__controls {
+			grid-template-columns: 1fr;
+		}
+		.emi__stats {
+			grid-template-columns: 1fr;
+		}
+		.emi__stats > div {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+		}
+		.emi__stats dd {
+			font-size: var(--sl-text-lg);
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { flux, dflux, FLUX_MAX, COIL_LEN, COIL_R, MAG_LEN, R_CIRCUIT } from './physics';
+
+	const S = 1300; // px per metre
+	const X0 = 360;
+	const Y0 = 112;
+	const CL = COIL_LEN * S;
+	const CA = COIL_R * S;
+	const XMIN = -0.21;
+	const XMAX = 0.21;
+	const X_OUT = -0.18;
+	const ACC = 20; // m/s², start and stop of the automatic moves
+	const OUTSIDE = (COIL_LEN + MAG_LEN) / 2 + 0.012; // magnet fully out of the coil
+	const I_FULL = 0.04; // A, full scale of the galvanometer
+	const NEEDLE_MAX = 55; // degrees at full scale
+	const CHART_T = 5; // s shown on the chart
+	const CX0 = 64;
+	const CX1 = 704;
+	const PHI_Y0 = 78;
+	const PHI_K = 34 / 1e-4; // px per Wb (0,1 мВб → 34 px)
+	const E_Y0 = 210;
+	const E_HALF = 50; // px, half-height of the ℰ chart
+	const E_TICKS = [0.2, 0.5, 1, 2]; // V, possible values of the labelled tick (drawn 34 px from zero)
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+	const fmt = (v: number, d: number) => {
+		const r = Math.round(v * 10 ** d) / 10 ** d;
+		return (r === 0 ? 0 : r).toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d }).replace('-', '−');
+	};
+	const texNum = (v: number, d: number) => {
+		const s = Math.abs(v).toFixed(d).replace('.', '{,}');
+		return v < 0 && Number(s.replace('{,}', '.')) !== 0 ? `-${s}` : s;
+	};
+	const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+
+	type Auto = { x0: number; x1: number; v: number; t: number; T: number; kind: string; q: number; imax: number; sign: number[] };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-emi-lab]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const scene = q<SVGSVGElement>('[data-scene]');
+		const magnet = q<SVGGElement>('[data-magnet]');
+		const body = q<SVGGElement>('[data-magnet-body]');
+		const labN = q<SVGTextElement>('[data-label-n]');
+		const labS = q<SVGTextElement>('[data-label-s]');
+		const fl = q<SVGGElement>('[data-fl]');
+		const flIn = q<SVGGElement>('[data-fl-in]');
+		const back = q<SVGGElement>('[data-back]');
+		const front = q<SVGGElement>('[data-front]');
+		const flow = q<SVGGElement>('[data-flow]');
+		const chev = q<SVGGElement>('[data-chev]');
+		const needle = q<SVGLineElement>('[data-needle]');
+		const bLine = q<SVGLineElement>('[data-b-line]');
+		const bLabel = q<SVGTextElement>('[data-b-label]');
+		const biLine = q<SVGLineElement>('[data-bi-line]');
+		const biLabel = q<SVGTextElement>('[data-bi-label]');
+		const fLine = q<SVGLineElement>('[data-force-line]');
+		const fLabel = q<SVGTextElement>('[data-force-label]');
+		const cpL = q<SVGGElement>('[data-cpole-l]');
+		const cpR = q<SVGGElement>('[data-cpole-r]');
+		const hint = q<SVGGElement>('[data-hint]');
+		const wireL = q<SVGPathElement>('[data-wire-l]');
+		const wireR = q<SVGPathElement>('[data-wire-r]');
+		const grid = q<SVGGElement>('[data-grid]');
+		const cPhi = q<SVGPathElement>('[data-cphi]');
+		const cE = q<SVGPathElement>('[data-ce]');
+		const dPhi = q<SVGCircleElement>('[data-dphi]');
+		const dE = q<SVGCircleElement>('[data-de]');
+		const tangent = q<SVGPathElement>('[data-tangent]');
+		const eTop = q<SVGTextElement>('[data-etop]');
+		const eBot = q<SVGTextElement>('[data-ebot]');
+		const lenz = q<HTMLElement>('[data-lenz]');
+		const l1 = q<HTMLElement>('[data-l1]');
+		const l2 = q<HTMLElement>('[data-l2]');
+		const l3 = q<HTMLElement>('[data-l3]');
+		const oPhi = q<HTMLElement>('[data-o-phi]');
+		const oE = q<HTMLElement>('[data-o-e]');
+		const oI = q<HTMLElement>('[data-o-i]');
+		const fE = q<HTMLElement>('[data-f-e]');
+		const fI = q<HTMLElement>('[data-f-i]');
+		const speedIn = q<HTMLInputElement>('[data-speed]');
+		const speedOut = q<HTMLOutputElement>('[data-v-out]');
+		const live = q<HTMLElement>('[data-live]');
+
+		// ---- state ----
+		let x = X_OUT; // m
+		let v = 0; // m/s
+		let target = X_OUT;
+		let mode: 'idle' | 'drag' | 'auto' = 'idle';
+		let auto: Auto | null = null;
+		let theta = 0; // magnet orientation: 0 — N to +x, π — N to −x
+		let flip: { from: number; t: number } | null = null;
+		let N = 200;
+		let needleA = 0;
+		let needleW = 0;
+		let phase = 0; // phase of the current animation, px
+		let simT = 0;
+		let lastNow = 0;
+		let running = false;
+		let visible = true;
+		let lenzState = 'none';
+		let nextText = 0;
+		let grabDX = 0;
+		let eTick = E_TICKS[0]; // V, the labelled tick of the ℰ axis
+		let eK = 34 / eTick; // px per V, eases towards 34 / eTick when the scale changes
+		const hist: { t: number; phi: number; e: number }[] = [];
+
+		// ---- coil drawing ----
+		const drawCoil = () => {
+			const n = N / 10;
+			const step = CL / n;
+			let b = '';
+			let f = '';
+			for (let k = 0; k < n; k++) {
+				const xk = X0 - CL / 2 + (k + 0.5) * step;
+				f += `<path d="M${xk} ${Y0 - CA} A6 ${CA} 0 0 1 ${xk} ${Y0 + CA}"/>`;
+				b += `<path d="M${xk} ${Y0 + CA} A6 ${CA} 0 0 1 ${xk} ${Y0 - CA}"/>`;
+			}
+			back.innerHTML = b;
+			front.innerHTML = f;
+			flow.innerHTML = f;
+			// one drawn turn stands for 10 real ones; thinner wire when the turns are dense
+			root.style.setProperty('--emi-turn', Math.min(3, 0.5 * step).toFixed(2));
+			root.style.setProperty('--emi-turn-back', Math.min(2.4, 0.42 * step).toFixed(2));
+		};
+
+		// ---- circuit: chevrons running along the wires ----
+		const wires = [wireL, wireR];
+		const wireLen = wires.map((w) => w.getTotalLength());
+		const CH_GAP = 26;
+		const chevs: SVGPathElement[] = [];
+		const chevSlots: { w: number; s: number }[] = [];
+		wires.forEach((_, w) => {
+			for (let s = 0; s < wireLen[w]; s += CH_GAP) chevSlots.push({ w, s });
+		});
+		for (let i = 0; i < chevSlots.length; i++) {
+			const p = document.createElementNS(SVG_NS, 'path');
+			p.setAttribute('d', 'M-4,-4 L1,0 L-4,4');
+			chev.append(p);
+			chevs.push(p);
+		}
+
+		// ---- chart grid ----
+		for (let s = 0; s <= CHART_T; s++) {
+			const gx = CX0 + (s / CHART_T) * (CX1 - CX0);
+			grid.insertAdjacentHTML('beforeend', `<line x1="${gx}" y1="30" x2="${gx}" y2="126"/><line x1="${gx}" y1="162" x2="${gx}" y2="258"/>`);
+		}
+
+		// ---- physics ----
+		const orient = () => Math.cos(theta);
+		const fluxNow = () => orient() * flux(x);
+
+		const startAuto = (x1: number, kind: string) => {
+			x1 = clamp(x1, XMIN, XMAX);
+			const dist = Math.abs(x1 - x);
+			if (dist < 0.002) return;
+			const vmax = Number(speedIn.value);
+			const acc = ACC; // short smooth start and stop
+			const ta = vmax / acc;
+			const T = dist < vmax * ta ? 2 * Math.sqrt(dist / acc) : dist / vmax + ta;
+			auto = { x0: x, x1, v: vmax, t: 0, T, kind, q: 0, imax: 0, sign: [] };
+			mode = 'auto';
+			hint.style.opacity = '0';
+			kick(true);
+		};
+		const autoPos = (a: Auto, t: number) => {
+			const dist = Math.abs(a.x1 - a.x0);
+			const dir = Math.sign(a.x1 - a.x0);
+			const acc = ACC;
+			let s: number;
+			let sp: number;
+			const ta = a.v / acc;
+			if (dist < a.v * ta) {
+				const th = a.T / 2;
+				if (t < th) {
+					s = (acc * t * t) / 2;
+					sp = acc * t;
+				} else {
+					const u = a.T - t;
+					s = dist - (acc * u * u) / 2;
+					sp = acc * u;
+				}
+			} else if (t < ta) {
+				s = (acc * t * t) / 2;
+				sp = acc * t;
+			} else if (t > a.T - ta) {
+				const u = a.T - t;
+				s = dist - (acc * u * u) / 2;
+				sp = acc * u;
+			} else {
+				s = a.v * ta / 2 + a.v * (t - ta);
+				sp = a.v;
+			}
+			return { x: a.x0 + dir * Math.min(s, dist), v: dir * Math.max(sp, 0) };
+		};
+
+		const step = (dt: number) => {
+			simT += dt;
+			const xPrev = x;
+			const phiPrev = fluxNow();
+			if (mode === 'auto' && auto) {
+				auto.t = Math.min(auto.t + dt, auto.T);
+				const p = autoPos(auto, auto.t);
+				x = p.x;
+				v = p.v;
+			} else {
+				// the magnet follows the hand (or the keyboard target) with a stiff, critically damped spring
+				const w = 28;
+				const sub = 4;
+				const h = dt / sub;
+				for (let i = 0; i < sub; i++) {
+					const a = w * w * (target - x) - 2 * w * v;
+					v += a * h;
+					x += v * h;
+				}
+				if (x < XMIN || x > XMAX) {
+					x = clamp(x, XMIN, XMAX);
+					v = 0;
+				}
+				if (mode === 'idle' && Math.abs(target - x) < 1e-5 && Math.abs(v) < 1e-4) {
+					x = target;
+					v = 0;
+				}
+			}
+			let dsdt = 0;
+			if (flip) {
+				flip.t = Math.min(flip.t + dt, 0.5);
+				const u = flip.t / 0.5;
+				const e = (1 - Math.cos(Math.PI * u)) / 2;
+				const thNew = flip.from + Math.PI * e;
+				dsdt = (Math.cos(thNew) - Math.cos(theta)) / dt;
+				theta = thNew;
+				if (flip.t >= 0.5) {
+					theta = flip.from + Math.PI;
+					flip = null;
+				}
+			}
+			const s = orient();
+			const dPhidt = s * dflux(x) * v + flux(x) * dsdt;
+			const E = -N * dPhidt; // V
+			const I = E / R_CIRCUIT; // A
+			if (mode === 'auto' && auto) {
+				// charge through the circuit in this step: I·Δt = −N·ΔΦ/R (exact, whatever the step)
+				auto.q += (-N * (fluxNow() - phiPrev)) / R_CIRCUIT;
+				auto.imax = Math.max(auto.imax, Math.abs(I));
+				if (Math.abs(I) > 0.002) {
+					const sg = Math.sign(I);
+					if (auto.sign[auto.sign.length - 1] !== sg) auto.sign.push(sg);
+				}
+				if (auto.t >= auto.T) finishAuto();
+			}
+			// galvanometer needle: a damped pointer (right for I < 0, i.e. when the N pole enters)
+			const aT = clamp((-I / I_FULL) * NEEDLE_MAX, -62, 62);
+			const w0 = 15;
+			const z = reduce.matches ? 1 : 0.55;
+			needleW += (w0 * w0 * (aT - needleA) - 2 * z * w0 * needleW) * dt;
+			needleA += needleW * dt;
+			if (Math.abs(needleA) > 62) {
+				needleA = Math.sign(needleA) * 62;
+				needleW = 0;
+			}
+			phase += (I / I_FULL) * 90 * dt;
+			hist.push({ t: simT, phi: s * flux(x), e: E });
+			while (hist.length && hist[0].t < simT - CHART_T - 0.5) hist.shift();
+			return { E, I, dPhidt, moved: x !== xPrev };
+		};
+
+		const finishAuto = () => {
+			if (!auto) return;
+			const a = auto;
+			mode = 'idle';
+			target = x;
+			v = 0;
+			auto = null;
+			const dur = `${fmt(a.T, 2)} с`;
+			const imax = `${fmt(a.imax * 1000, 1)} мА`;
+			if (a.kind === 'through' && a.sign.length > 1) {
+				live.textContent = `Магнит прошёл сквозь катушку за ${dur}. Стрелка качнулась сначала в одну сторону, потом в другую: пока магнит входит, поток растёт, а когда выходит — убывает.`;
+			} else {
+				const qq = `${fmt(Math.abs(a.q) * 1000, 2)} мКл`;
+				const off = a.imax > I_FULL ? ' Ток был больше 40 мА — стрелка уходила за край шкалы, прибор «зашкаливал».' : '';
+				live.textContent = `Магнит ${a.kind === 'in' ? 'внесли' : 'вынули'} за ${dur}. Наибольший ток ${imax}, через гальванометр прошёл заряд ${qq}.${off} Повторите с другой скоростью и сравните.`;
+			}
+		};
+
+		// ---- drawing ----
+		const setLine = (el: SVGLineElement, x1: number, y1: number, x2: number, y2: number) => {
+			el.setAttribute('x1', x1.toFixed(1));
+			el.setAttribute('y1', y1.toFixed(1));
+			el.setAttribute('x2', x2.toFixed(1));
+			el.setAttribute('y2', y2.toFixed(1));
+		};
+		const setPole = (g: SVGGElement, letter: string, op: number) => {
+			g.classList.toggle('emi__cpole--n', letter === 'N');
+			g.classList.toggle('emi__cpole--s', letter === 'S');
+			g.querySelector('text')!.textContent = letter;
+			g.style.opacity = op.toFixed(2);
+		};
+
+		const draw = (st: { E: number; I: number; dPhidt: number }) => {
+			const mx = X0 + x * S;
+			const sc = Math.cos(theta);
+			body.setAttribute('transform', `scale(${sc.toFixed(4)} 1)`);
+			const ML4 = (MAG_LEN * S) / 4;
+			labN.setAttribute('x', (sc * ML4).toFixed(1));
+			labS.setAttribute('x', (-sc * ML4).toFixed(1));
+			labN.style.opacity = labS.style.opacity = Math.max(0, (Math.abs(sc) - 0.4) / 0.6).toFixed(2);
+			magnet.setAttribute('transform', `translate(${mx.toFixed(2)} ${Y0})`);
+			const tr = `translate(${mx.toFixed(2)} ${Y0}) scale(${Math.sign(sc) || 1} 1)`;
+			fl.setAttribute('transform', tr);
+			flIn.setAttribute('transform', tr);
+			const flOp = Math.abs(sc) ** 2;
+			fl.style.opacity = flOp.toFixed(2);
+			flIn.style.opacity = flOp.toFixed(2);
+			magnet.setAttribute('aria-valuenow', String(Math.round(x * 100)));
+			magnet.setAttribute(
+				'aria-valuetext',
+				Math.abs(x) < OUTSIDE - 0.012 ? 'магнит в катушке' : `${Math.round(Math.abs(x) * 100)} см ${x < 0 ? 'левее' : 'правее'} центра катушки`,
+			);
+
+			// field of the magnet inside the coil and of the induced current
+			const phi = fluxNow();
+			const yB = 40;
+			const yBi = 16;
+			const sB = Math.sign(phi) || 1;
+			const lenB = 18 + 34 * Math.min(1, Math.abs(phi) / FLUX_MAX);
+			setLine(bLine, X0 - (sB * lenB) / 2, yB, X0 + (sB * lenB) / 2, yB);
+			bLine.style.opacity = clamp((Math.abs(phi) / FLUX_MAX - 0.04) / 0.12, 0, 1).toFixed(2);
+			bLabel.setAttribute('x', String(X0 + 34));
+			bLabel.setAttribute('y', String(yB + 6));
+			bLabel.style.opacity = bLine.style.opacity;
+			const I = st.I;
+			const sI = Math.sign(I) || 1;
+			const lenBi = 14 + 40 * Math.min(1, Math.abs(I) / 0.02);
+			setLine(biLine, X0 - (sI * lenBi) / 2, yBi, X0 + (sI * lenBi) / 2, yBi);
+			const opI = Math.min(1, Math.abs(I) / 0.002);
+			biLine.style.opacity = opI.toFixed(2);
+			biLabel.setAttribute('x', String(X0 + 34));
+			biLabel.setAttribute('y', String(yBi + 6));
+			biLabel.style.opacity = opI.toFixed(2);
+			setPole(cpL, I > 0 ? 'S' : 'N', opI);
+			setPole(cpR, I > 0 ? 'N' : 'S', opI);
+
+			// force of the coil on the magnet: F = N·I·dΦ/dx, always against the motion
+			const F = N * I * Math.cos(theta) * dflux(x);
+			const lenF = Math.min(70, Math.abs(F) * 1000 * 6);
+			const yF = Y0 - 46;
+			if (lenF > 3) {
+				setLine(fLine, mx, yF, mx + Math.sign(F) * lenF, yF);
+				fLine.style.opacity = '1';
+				fLabel.setAttribute('x', String(mx + Math.sign(F) * (lenF + 10)));
+				fLabel.setAttribute('y', String(yF + 6));
+				fLabel.setAttribute('text-anchor', F > 0 ? 'start' : 'end');
+				fLabel.style.opacity = '1';
+			} else {
+				fLine.style.opacity = '0';
+				fLabel.style.opacity = '0';
+			}
+
+			// current: dashes on the front strands move down for I > 0, chevrons run along the wires
+			flow.style.opacity = opI.toFixed(2);
+			flow.style.strokeDashoffset = reduce.matches ? '0' : String(-phase);
+			const dirSign = sI;
+			chevSlots.forEach((slot, i) => {
+				const L = wireLen[slot.w];
+				// I > 0: current leaves the coil through the right lead, goes down, through the meter, and up the left lead.
+				// Paths: left wire is drawn downward from the coil, right wire upward to the coil.
+				let s = slot.s + (reduce.matches ? 0 : -phase * 0.6);
+				s = ((s % L) + L) % L;
+				const p = wires[slot.w].getPointAtLength(s);
+				const p2 = wires[slot.w].getPointAtLength(Math.min(L, s + 1));
+				const p1 = wires[slot.w].getPointAtLength(Math.max(0, s - 1));
+				let ang = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI;
+				if (dirSign > 0) ang += 180;
+				chevs[i].setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${ang.toFixed(0)})`);
+				chevs[i].style.opacity = opI.toFixed(2);
+			});
+
+			needle.setAttribute('transform', `rotate(${needleA.toFixed(2)} 360 304)`);
+
+			// chart. The ℰ axis rescales in steps (200, 500, 1000, 2000 мВ) so that no peak is cut off.
+			const tx = (t: number) => CX1 - ((simT - t) / CHART_T) * (CX1 - CX0);
+			let eMax = 0;
+			for (const h of hist) if (h.t >= simT - CHART_T) eMax = Math.max(eMax, Math.abs(h.e));
+			const need = E_TICKS.find((T) => eMax <= (T * E_HALF) / 34) ?? E_TICKS[E_TICKS.length - 1];
+			if (need !== eTick) {
+				eTick = need;
+				const mv = Math.round(eTick * 1000);
+				eTop.textContent = String(mv);
+				eBot.textContent = `−${mv}`;
+			}
+			const eKgoal = 34 / eTick;
+			eK = reduce.matches ? eKgoal : eK + (eKgoal - eK) * 0.18;
+			if (Math.abs(eK - eKgoal) < 0.01 * eKgoal) eK = eKgoal;
+			const tickY = eTick * eK;
+			const tickOp = tickY <= E_HALF + 2 ? '1' : '0';
+			eTop.setAttribute('y', (E_Y0 - tickY + 4).toFixed(1));
+			eBot.setAttribute('y', (E_Y0 + tickY + 4).toFixed(1));
+			eTop.style.opacity = eBot.style.opacity = tickOp;
+			const ey = (e: number) => clamp(E_Y0 - e * eK, E_Y0 - E_HALF - 2, E_Y0 + E_HALF + 2).toFixed(1);
+			let dp = '';
+			let de = '';
+			for (let i = 0; i < hist.length; i += 2) {
+				const h = hist[i];
+				if (h.t < simT - CHART_T) continue;
+				const X = tx(h.t).toFixed(1);
+				const yp = clamp(PHI_Y0 - h.phi * PHI_K, 26, 130).toFixed(1);
+				dp += `${dp ? 'L' : 'M'}${X} ${yp}`;
+				de += `${de ? 'L' : 'M'}${X} ${ey(h.e)}`;
+			}
+			const last = hist[hist.length - 1];
+			if (last) {
+				dp += `L${CX1} ${(PHI_Y0 - last.phi * PHI_K).toFixed(1)}`;
+				de += `L${CX1} ${ey(last.e)}`;
+			}
+			cPhi.setAttribute('d', dp);
+			cE.setAttribute('d', de);
+			const yP = PHI_Y0 - phi * PHI_K;
+			dPhi.setAttribute('cy', yP.toFixed(1));
+			dE.setAttribute('cy', ey(st.E));
+			// tangent to Φ(t) at "now": its slope is ΔΦ/Δt
+			const slope = (st.dPhidt * PHI_K * CHART_T) / (CX1 - CX0); // px per px
+			if (Math.abs(st.E) > 0.003) {
+				const dx = 60;
+				tangent.setAttribute('d', `M${CX1 - dx} ${(yP + slope * dx).toFixed(1)} L${CX1} ${yP.toFixed(1)}`);
+			} else tangent.setAttribute('d', '');
+		};
+
+		// ---- text outputs, 10 times a second ----
+		const sampleAgo = (dt: number) => {
+			const t = simT - dt;
+			for (let i = hist.length - 1; i > 0; i--) {
+				if (hist[i - 1].t <= t) {
+					const a = hist[i - 1];
+					const b = hist[i];
+					const u = b.t > a.t ? (t - a.t) / (b.t - a.t) : 0;
+					return a.phi + (b.phi - a.phi) * u;
+				}
+			}
+			return hist.length ? hist[0].phi : fluxNow();
+		};
+		const writeText = (st: { E: number; I: number }) => {
+			const phi = fluxNow();
+			oPhi.textContent = `${fmt(phi * 1000, 3)} мВб`;
+			// ℰ over the last 0,1 s, computed from the rounded numbers that are on the screen
+			const dphi = Math.round((phi - sampleAgo(0.1)) * 1e7) / 1e7; // Wb, to 0,0001 мВб
+			const eRaw = (-N * dphi * 1000) / 0.1; // мВ
+			const eShow = Math.round(eRaw);
+			const eSign = Math.abs(eRaw - eShow) < 1e-6 ? '=' : '\\approx';
+			const iShow = Math.round((Math.abs(eShow) / R_CIRCUIT) * 10) / 10; // мА
+			const dTex = dphi < 0 ? `(${texNum(dphi * 1000, 4)})` : texNum(dphi * 1000, 4);
+			oE.textContent = `${fmt(eShow, 0)} мВ`;
+			oI.textContent = `${fmt(iShow, 1)} мА`;
+			const br = root.clientWidth < 560 ? '\\\\ &' : '';
+			katex.render(
+				String.raw`\begin{aligned}\mathcal{E}_i &= -N\dfrac{\Delta\Phi}{\Delta t} ${br}= -${N}\cdot\dfrac{${dTex}~\text{мВб}}{0{,}1~\text{с}} ${eSign} ${texNum(eShow, 0)}~\text{мВ}\end{aligned}`,
+				fE,
+				{ displayMode: true, throwOnError: false },
+			);
+			katex.render(
+				String.raw`I = \dfrac{|\mathcal{E}_i|}{R} = \dfrac{${texNum(Math.abs(eShow), 0)}~\text{мВ}}{10~\text{Ом}} = ${texNum(iShow, 1)}~\text{мА}`,
+				fI,
+				{ displayMode: true, throwOnError: false },
+			);
+			// Lenz chain
+			const grow = Math.sign(phi) * (st.E === 0 ? 0 : -st.E) > 0; // |Φ| grows when −ℰ has the sign of Φ
+			const big = Math.abs(st.E);
+			let state = lenzState;
+			if (big > 0.004) state = grow ? 'grow' : 'fall';
+			else if (big < 0.002) state = 'none';
+			if (state !== lenzState) {
+				lenzState = state;
+				lenz.classList.toggle('is-grow', state === 'grow');
+				lenz.classList.toggle('is-fall', state === 'fall');
+				if (state === 'grow') {
+					l1.textContent = 'Поток через катушку растёт';
+					l2.textContent = 'поле тока направлено против поля магнита';
+					l3.textContent = 'катушка отталкивает магнит';
+				} else if (state === 'fall') {
+					l1.textContent = 'Поток через катушку убывает';
+					l2.textContent = 'поле тока направлено как поле магнита';
+					l3.textContent = 'катушка притягивает магнит';
+				} else {
+					l1.textContent = 'Поток не меняется';
+					l2.textContent = 'тока нет';
+					l3.textContent = 'катушка на магнит не действует';
+				}
+			}
+		};
+
+		// ---- loop ----
+		let lastSt = { E: 0, I: 0, dPhidt: 0 };
+		const frame = (now: number) => {
+			if (!running) return;
+			const dt = Math.min(0.05, Math.max(0.001, (now - lastNow) / 1000));
+			lastNow = now;
+			const sub = Math.ceil(dt / 0.01);
+			for (let i = 0; i < sub; i++) lastSt = step(dt / sub);
+			draw(lastSt);
+			if (simT >= nextText) {
+				nextText = simT + 0.1;
+				writeText(lastSt);
+			}
+			requestAnimationFrame(frame);
+		};
+		/** Start the loop. `user` — the reader touched the model, so it is certainly on the screen. */
+		const kick = (user = false) => {
+			if (user) visible = true;
+			if (running || !visible) return;
+			running = true;
+			lastNow = performance.now();
+			requestAnimationFrame(frame);
+		};
+		new IntersectionObserver((entries) => {
+			// several changes can arrive in one batch: the last one is the current state
+			visible = entries[entries.length - 1].isIntersecting;
+			if (!visible) running = false;
+			else kick();
+		}).observe(root);
+
+		// ---- input ----
+		const toSvgX = (clientX: number, clientY: number) => {
+			const pt = scene.createSVGPoint();
+			pt.x = clientX;
+			pt.y = clientY;
+			const m = scene.getScreenCTM();
+			return m ? pt.matrixTransform(m.inverse()).x : 0;
+		};
+		// touch-action is ignored on SVG <g> in some browsers, so stop the page scroll here
+		magnet.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+		magnet.addEventListener('pointerdown', (e) => {
+			e.preventDefault();
+			magnet.setPointerCapture(e.pointerId);
+			mode = 'drag';
+			auto = null;
+			grabDX = x - (toSvgX(e.clientX, e.clientY) - X0) / S;
+			target = x;
+			hint.style.opacity = '0';
+			magnet.focus({ preventScroll: true });
+			kick(true);
+		});
+		magnet.addEventListener('pointermove', (e) => {
+			if (mode !== 'drag') return;
+			target = clamp((toSvgX(e.clientX, e.clientY) - X0) / S + grabDX, XMIN, XMAX);
+		});
+		const release = () => {
+			if (mode === 'drag') mode = 'idle';
+		};
+		magnet.addEventListener('pointerup', release);
+		magnet.addEventListener('pointercancel', release);
+		magnet.addEventListener('keydown', (e) => {
+			const d = e.shiftKey ? 0.05 : 0.01;
+			if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') target = clamp((mode === 'auto' ? x : target) - d, XMIN, XMAX);
+			else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') target = clamp((mode === 'auto' ? x : target) + d, XMIN, XMAX);
+			else return;
+			e.preventDefault();
+			mode = 'idle';
+			auto = null;
+			hint.style.opacity = '0';
+			kick(true);
+		});
+
+		speedIn.addEventListener('input', () => {
+			speedOut.value = `${fmt(Number(speedIn.value), 1)} м/с`;
+		});
+		for (const r of root.querySelectorAll<HTMLInputElement>('.emi__seg input')) {
+			r.addEventListener('change', () => {
+				N = Number(r.value);
+				drawCoil();
+				kick(true);
+			});
+		}
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-act]')) {
+			b.addEventListener('click', () => {
+				const act = b.dataset.act;
+				if (act === 'in') startAuto(0, 'in');
+				else if (act === 'out') startAuto(x > 0 ? -X_OUT : X_OUT, 'out');
+				else if (act === 'through') startAuto(x > 0 ? XMIN + 0.03 : XMAX - 0.03, 'through');
+				else if (act === 'flip') {
+					if (Math.abs(x) < OUTSIDE) {
+						live.textContent = 'Магнит длиннее, чем диаметр катушки: внутри неё его не перевернуть. Сначала выньте магнит.';
+						return;
+					}
+					if (!flip) {
+						flip = { from: theta, t: 0 };
+						live.textContent = '';
+						kick(true);
+					}
+				}
+			});
+		}
+
+		drawCoil();
+		for (let i = 0; i < 3; i++) hist.push({ t: -CHART_T + i, phi: fluxNow(), e: 0 });
+		draw(lastSt);
+		writeText(lastSt);
+		kick();
+	}
+</script>

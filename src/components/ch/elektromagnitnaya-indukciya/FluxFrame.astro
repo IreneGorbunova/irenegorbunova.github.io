@@ -1,0 +1,663 @@
+---
+/**
+ * Magnetic flux through a square frame in a uniform field: Φ = B·S·cos α.
+ * 3D scene (orthographic projection, equal scales on all axes): vertical lines of B on a regular
+ * grid, a frame that turns about a horizontal axis, its "shadow" along B (area S·|cos α|).
+ * The lines that pierce the frame are highlighted; their number is proportional to S·|cos α|.
+ * "Вращать" turns the frame uniformly (ω = π рад/с) — a model of a generator: ℰ = B·S·ω·sin α.
+ */
+const uid = `ff-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="ff not-content" data-ff>
+	<div class="ff__panes">
+		<svg class="ff__scene" viewBox="0 0 420 380" role="img" aria-label="Рамка в однородном магнитном поле" data-scene>
+			<defs>
+				<marker id={`${uid}-lb`} class="ff__head ff__head--b" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"></path></marker>
+				<marker id={`${uid}-lg`} class="ff__head ff__head--g" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"></path></marker>
+				<marker id={`${uid}-ln`} class="ff__head ff__head--n" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M0,0 L10,5 L0,10 z"></path></marker>
+			</defs>
+			<g data-back></g>
+			<g data-frame></g>
+			<g data-front></g>
+			<g data-labels></g>
+		</svg>
+		<svg class="ff__chart" viewBox="0 0 340 414" role="img" aria-label="График магнитного потока и ЭДС в зависимости от угла поворота" data-chart>
+			<g class="ff__grid" data-grid></g>
+			<path class="ff__curve ff__curve--phi" data-cphi></path>
+			<path class="ff__curve ff__curve--e" data-ce></path>
+			<line class="ff__cursor" data-cursor></line>
+			<circle class="ff__dot ff__dot--phi" r="5" data-dphi></circle>
+			<circle class="ff__dot ff__dot--e" r="5" data-de></circle>
+			<g data-axes></g>
+		</svg>
+	</div>
+
+	<div class="ff__formula" data-formula aria-live="off"></div>
+	<div class="ff__formula ff__formula--e" data-formula-e></div>
+
+	<div class="ff__controls">
+		<label class="ff__slider ff__slider--wide">
+			<span>Угол поворота рамки <i>α</i></span>
+			<output data-a-out>0°</output>
+			<input type="range" min="0" max="360" step="1" value="30" data-a />
+		</label>
+		<label class="ff__slider">
+			<span>Индукция поля <i>B</i></span>
+			<output data-b-out></output>
+			<input type="range" min="0.1" max="1" step="0.1" value="0.8" data-b />
+		</label>
+		<label class="ff__slider">
+			<span>Сторона рамки <i>a</i></span>
+			<output data-s-out></output>
+			<input type="range" min="10" max="20" step="1" value="15" data-s />
+		</label>
+		<div class="ff__buttons">
+			<button type="button" class="ff__btn ff__btn--primary" data-spin>Вращать</button>
+			<span class="ff__note">Рамку можно поворачивать и на рисунке: потяните вбок мышью или пальцем.</span>
+		</div>
+	</div>
+	<figcaption class="ff__legend">
+		При <i>α</i> = 0 нормаль <i>n</i> к рамке направлена вдоль <i>B</i>; пока <i>α</i> не больше 180°, это угол
+		между <i>B</i> и <i>n</i>. Синие линии — линии магнитной индукции, которые пронизывают рамку. Пунктир внизу — «тень» рамки,
+		если смотреть вдоль линий: её площадь равна <i>S</i>&nbsp;|cos&nbsp;<i>α</i>|. При вращении рамка делает
+		один оборот за 2&nbsp;с, то есть её угловая скорость <span class="ff__nowrap"><i>ω</i> = π рад/с ≈ 3,14 рад/с</span>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ff {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ff__panes {
+		display: grid;
+		grid-template-columns: 55fr 45fr;
+		gap: 0.5rem;
+		align-items: center;
+	}
+	.ff svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.ff__scene {
+		touch-action: pan-y;
+		cursor: ew-resize;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.ff i,
+	.ff__m {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.ff__line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.4;
+		fill: none;
+	}
+	.ff__line--on {
+		stroke: var(--ig-vx);
+		stroke-width: 2.4;
+	}
+	.ff__head--b path {
+		fill: var(--ig-vx);
+	}
+	.ff__head--g path {
+		fill: var(--sl-color-gray-4);
+	}
+	.ff__head--n path {
+		fill: var(--sl-color-white);
+	}
+	.ff__shadow {
+		fill: color-mix(in srgb, var(--ig-vx) 22%, transparent);
+		stroke: var(--ig-vx);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 4;
+	}
+	.ff__drop {
+		stroke: var(--ig-vx);
+		stroke-width: 1;
+		stroke-dasharray: 2 4;
+		opacity: 0.7;
+	}
+	.ff__plate {
+		fill: color-mix(in srgb, var(--ig-v) 16%, transparent);
+	}
+	.ff__rim {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 4;
+		stroke-linejoin: round;
+	}
+	.ff__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 6 4;
+	}
+	.ff__normal {
+		stroke: var(--sl-color-white);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.ff__arc {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.ff__lab {
+		font-size: 19px;
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		fill: var(--sl-color-gray-1);
+	}
+	.ff__lab--b {
+		fill: var(--ig-vx);
+	}
+	.ff__lab--s {
+		font-size: 14px;
+		font-style: normal;
+		font-family: var(--__sl-font);
+		fill: var(--ig-vx);
+	}
+	.ff__lab--s .ff__m {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.ff__grid line {
+		stroke: var(--sl-color-gray-5);
+	}
+	.ff__zero {
+		stroke: var(--sl-color-gray-4) !important;
+	}
+	.ff__tick {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+	.ff__ctitle {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.ff__curve {
+		fill: none;
+		stroke-width: 2.5;
+	}
+	.ff__curve--phi {
+		stroke: var(--ig-vx);
+	}
+	.ff__curve--e {
+		stroke: var(--ig-v);
+		transition: opacity 0.4s;
+	}
+	.ff__cursor {
+		stroke: var(--sl-color-gray-3);
+		stroke-dasharray: 3 4;
+	}
+	.ff__dot--phi {
+		fill: var(--ig-vx);
+	}
+	.ff__dot--e {
+		fill: var(--ig-v);
+		transition: opacity 0.4s;
+	}
+	.ff__hintE {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.ff__formula {
+		margin-top: 0.5rem;
+		padding: 0.3rem 0.75rem;
+		border-radius: 0.6rem;
+		border: 1px dashed var(--sl-color-gray-5);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+	}
+	.ff__formula--e {
+		border-color: color-mix(in srgb, var(--ig-v) 50%, transparent);
+	}
+	.ff__formula--e[hidden] {
+		display: none;
+	}
+	.ff__formula .katex-display {
+		margin: 0.3rem 0;
+	}
+	.ff__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.9rem;
+	}
+	.ff__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ff__slider--wide {
+		grid-column: 1 / -1;
+	}
+	.ff__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ff__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.ff__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 1rem;
+		align-items: center;
+	}
+	.ff__note {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.ff__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ff__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ff__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.ff__nowrap {
+		white-space: nowrap;
+	}
+	@media (max-width: 40rem) {
+		.ff__formula .katex {
+			font-size: 1.05em;
+		}
+		.ff {
+			padding: 0.75rem;
+		}
+		.ff__panes {
+			grid-template-columns: 1fr;
+		}
+		.ff__controls {
+			grid-template-columns: 1fr;
+		}
+		.ff__lab {
+			font-size: 24px;
+		}
+		.ff__lab--s {
+			font-size: 18px;
+		}
+		.ff__tick {
+			font-size: 15px;
+		}
+		.ff__ctitle {
+			font-size: 17px;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+
+	const OMEGA = Math.PI; // rad/s in the "Вращать" mode
+	const K = 10.2; // px per cm
+	const CX = 210;
+	const CY = 190;
+	const BETA = (32 * Math.PI) / 180; // yaw of the camera
+	const GAMMA = (17 * Math.PI) / 180; // pitch of the camera
+	const GRID = [-10, -6, -2, 2, 6, 10]; // cm, positions of the field lines in x and z
+	const YB = 14; // cm, half-height of the field lines
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+	type V3 = [number, number, number];
+	const cb = Math.cos(BETA);
+	const sb = Math.sin(BETA);
+	const cg = Math.cos(GAMMA);
+	const sg = Math.sin(GAMMA);
+	const CAM: V3 = [-sb * cg, sg, cb * cg]; // direction to the viewer, world coordinates
+	const proj = (p: V3): [number, number] => {
+		const x1 = p[0] * cb + p[2] * sb;
+		const z1 = -p[0] * sb + p[2] * cb;
+		const y2 = p[1] * cg - z1 * sg;
+		return [CX + K * x1, CY - K * y2];
+	};
+	const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+	const P = (p: V3) => proj(p).map((v) => v.toFixed(1)).join(' ');
+
+	const fmt = (v: number, d: number) => {
+		const r = Math.round(v * 10 ** d) / 10 ** d;
+		return (r === 0 ? 0 : r).toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d }).replace('-', '−');
+	};
+	const tn = (v: number, d: number) => {
+		const r = Math.round(v * 10 ** d) / 10 ** d;
+		return (r === 0 ? 0 : r).toFixed(d).replace('.', '{,}');
+	};
+	// a number for KaTeX without trailing zeros: 0,0225; 0,01
+	const tz = (v: number) => String(Math.round(v * 1e6) / 1e6).replace('.', '{,}');
+	// cos and sin of whole degrees: exact where they are exact, otherwise to three digits
+	const trig = (deg: number, f: 'cos' | 'sin') => {
+		const d = ((deg % 360) + 360) % 360;
+		const val = f === 'cos' ? Math.cos((d * Math.PI) / 180) : Math.sin((d * Math.PI) / 180);
+		const r = Math.round(val * 1000) / 1000;
+		const exact = f === 'cos' && [0, 60, 90, 120, 180, 240, 270, 300].includes(d);
+		const exactSin = f === 'sin' && [0, 30, 90, 150, 180, 210, 270, 330].includes(d);
+		return { val: r, tex: (r === 0 ? 0 : r).toString().replace('.', '{,}'), approx: !(exact || exactSin) };
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ff]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const uid = root.querySelector('marker')!.id.replace(/-lb$/, '');
+		const scene = q<SVGSVGElement>('[data-scene]');
+		const gBack = q<SVGGElement>('[data-back]');
+		const gFrame = q<SVGGElement>('[data-frame]');
+		const gFront = q<SVGGElement>('[data-front]');
+		const gLab = q<SVGGElement>('[data-labels]');
+		const aIn = q<HTMLInputElement>('[data-a]');
+		const bIn = q<HTMLInputElement>('[data-b]');
+		const sIn = q<HTMLInputElement>('[data-s]');
+		const aOut = q<HTMLOutputElement>('[data-a-out]');
+		const bOut = q<HTMLOutputElement>('[data-b-out]');
+		const sOut = q<HTMLOutputElement>('[data-s-out]');
+		const spinBtn = q<HTMLButtonElement>('[data-spin]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const formulaE = q<HTMLElement>('[data-formula-e]');
+		const cPhi = q<SVGPathElement>('[data-cphi]');
+		const cE = q<SVGPathElement>('[data-ce]');
+		const cursor = q<SVGLineElement>('[data-cursor]');
+		const dPhi = q<SVGCircleElement>('[data-dphi]');
+		const dE = q<SVGCircleElement>('[data-de]');
+		const grid = q<SVGGElement>('[data-grid]');
+		const axes = q<SVGGElement>('[data-axes]');
+
+		let alpha = Number(aIn.value); // degrees
+		let spinning = false;
+		let raf = 0;
+		let last = 0;
+		let lastText = 0;
+		let spinPhase = 0; // degrees, continuous; with reduced motion the frame shows it in 30° jumps
+		const STEP = 30;
+
+		// ---- chart: Φ(α) above, ℰ(α) below; α from 0 to 360° ----
+		const AX0 = 54;
+		const AX1 = 318;
+		const PY0 = 112;
+		const PK = 80 / 0.04; // px per Wb: ±40 мВб → ±80 px
+		const EY0 = 330;
+		const EK = 64 / 0.1; // px per V: ±100 мВ → ±64 px
+		const ax = (deg: number) => AX0 + (deg / 360) * (AX1 - AX0);
+		{
+			let g = '';
+			for (const d of [0, 90, 180, 270, 360]) {
+				g += `<line x1="${ax(d)}" y1="28" x2="${ax(d)}" y2="196"/><line x1="${ax(d)}" y1="250" x2="${ax(d)}" y2="410"/>`;
+			}
+			g += `<line class="ff__zero" x1="${AX0}" y1="${PY0}" x2="${AX1}" y2="${PY0}"/><line class="ff__zero" x1="${AX0}" y1="${EY0}" x2="${AX1}" y2="${EY0}"/>`;
+			grid.innerHTML = g;
+			let a = '';
+			a += `<text class="ff__ctitle" x="4" y="16"><tspan class="ff__m">Φ</tspan>, мВб</text>`;
+			for (const v of [-40, -20, 20, 40]) a += `<text class="ff__tick" x="${AX0 - 6}" y="${PY0 - v * 1e-3 * PK + 4}" text-anchor="end">${v < 0 ? '−' : ''}${Math.abs(v)}</text>`;
+			a += `<text class="ff__tick" x="${AX0 - 6}" y="${PY0 + 4}" text-anchor="end">0</text>`;
+			a += `<text class="ff__ctitle" x="4" y="238"><tspan class="ff__m">ℰ</tspan>, мВ</text>`;
+			for (const v of [-100, -50, 50, 100]) a += `<text class="ff__tick" x="${AX0 - 6}" y="${EY0 - v * 1e-3 * EK + 4}" text-anchor="end">${v < 0 ? '−' : ''}${Math.abs(v)}</text>`;
+			a += `<text class="ff__tick" x="${AX0 - 6}" y="${EY0 + 4}" text-anchor="end">0</text>`;
+			for (const d of [0, 90, 180, 270, 360]) a += `<text class="ff__tick" x="${ax(d)}" y="212" text-anchor="middle">${d}°</text>`;
+			a += `<text class="ff__hintE" x="${(AX0 + AX1) / 2}" y="${EY0 - 52}" text-anchor="middle" data-hint-e>ЭДС появится при вращении</text>`;
+			axes.innerHTML = a;
+		}
+		const hintE = q<SVGTextElement>('[data-hint-e]');
+
+		const line = (cls: string, a: V3, b: V3, marker?: string) => {
+			const [x1, y1] = proj(a);
+			const [x2, y2] = proj(b);
+			return `<line class="${cls}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"${marker ? ` marker-end="url(#${marker})"` : ''}/>`;
+		};
+
+		const draw = () => {
+			const B = Number(bIn.value);
+			const a = Number(sIn.value); // cm
+			const h = a / 2;
+			const ar = (alpha * Math.PI) / 180;
+			const ca = Math.cos(ar);
+			const sa = Math.sin(ar);
+			const n: V3 = [0, ca, sa];
+			const camSide = Math.sign(dot(n, CAM)) || 1;
+			const corner = (u: number, v: number): V3 => [u, -v * sa, v * ca];
+			let back = '';
+			let front = '';
+			// shadow of the frame along B on the floor, and the "rays" from the corners
+			const floor = -YB;
+			const sh = (u: number, v: number): V3 => [u, floor, v * ca];
+			back += `<path class="ff__shadow" d="M${P(sh(-h, -h))} L${P(sh(h, -h))} L${P(sh(h, h))} L${P(sh(-h, h))} Z"/>`;
+			const shadowArea = a * a * Math.abs(ca);
+			// field lines: split where they cross the plane of the frame
+			const lines: { x: number; z: number; d: number }[] = [];
+			for (const x of GRID) for (const z of GRID) lines.push({ x, z, d: dot([x, 0, z], CAM) });
+			lines.sort((p, q2) => p.d - q2.d);
+			for (const { x, z } of lines) {
+				const through = Math.abs(x) < h && Math.abs(z) < h * Math.abs(ca);
+				const cls = through ? 'ff__line ff__line--on' : 'ff__line';
+				const mk = through ? `${uid}-lb` : `${uid}-lg`;
+				const p0: V3 = [x, -YB, z];
+				const p1: V3 = [x, YB, z];
+				const s0 = dot(n, p0);
+				const s1 = dot(n, p1);
+				if (Math.sign(s0) === Math.sign(s1) || Math.abs(ca) < 1e-6) {
+					const side = Math.sign(s0 + s1) || 1;
+					(side === camSide ? (front += line(cls, p0, p1, mk)) : (back += line(cls, p0, p1, mk)));
+				} else {
+					const yc = -(z * sa) / ca; // where n·p = 0
+					const pc: V3 = [x, yc, z];
+					const lowSide = Math.sign(s0);
+					const lowPart = line(cls, p0, pc);
+					const highPart = line(cls, pc, p1, mk);
+					if (lowSide === camSide) {
+						front += lowPart;
+						back += highPart;
+					} else {
+						back += lowPart;
+						front += highPart;
+					}
+				}
+			}
+			// drop lines from the corners of the frame to its shadow
+			for (const [u, v] of [[-h, -h], [h, -h], [h, h], [-h, h]] as const) {
+				back += line('ff__drop', [u, floor, v * ca], corner(u, v));
+			}
+			gBack.innerHTML = back;
+
+			// the frame itself, its axis, the normal and the angle
+			const rim = `M${P(corner(-h, -h))} L${P(corner(h, -h))} L${P(corner(h, h))} L${P(corner(-h, h))} Z`;
+			const axis = line('ff__axis', [-h - 4, 0, 0], [h + 4, 0, 0]);
+			const nTip: V3 = [0, 9 * ca, 9 * sa];
+			const normal = line('ff__normal', [0, 0, 0], nTip, `${uid}-ln`);
+			let arc = '';
+			const arS = alpha <= 180 ? ar : ar - 2 * Math.PI; // draw the angle the short way
+			const steps = Math.max(2, Math.round(Math.abs(arS) / 0.09));
+			const R = 4.2;
+			for (let i = 0; i <= steps; i++) {
+				const t = (arS * i) / steps;
+				arc += `${i ? 'L' : 'M'}${P([0, R * Math.cos(t), R * Math.sin(t)])}`;
+			}
+			const bRef = line('ff__axis', [0, 0, 0], [0, 6.5, 0]);
+			const behind = camSide < 0; // the normal points away from the viewer
+			gFrame.innerHTML =
+				(behind ? normal : '') +
+				`<path class="ff__plate" d="${rim}"/><path class="ff__rim" d="${rim}"/>` +
+				axis +
+				bRef +
+				(Math.abs(arS) > 0.01 ? `<path class="ff__arc" d="${arc}"/>` : '') +
+				(behind ? '' : normal);
+			gFront.innerHTML = front;
+
+			// labels
+			const [nx, ny] = proj([0, 10.6 * ca, 10.6 * sa]);
+			const [axL, ayL] = proj([0, 5.8 * Math.cos(arS / 2), 5.8 * Math.sin(arS / 2)]);
+			const [bx, by] = proj([GRID[5], YB, GRID[0]]);
+			const [shx, shy] = proj([h + 1, floor, 0]);
+			gLab.innerHTML =
+				`<text class="ff__lab" x="${nx.toFixed(1)}" y="${(ny + 6).toFixed(1)}" text-anchor="middle">n</text>` +
+				(Math.abs(arS) > 0.14 ? `<text class="ff__lab" x="${axL.toFixed(1)}" y="${(ayL + 6).toFixed(1)}" text-anchor="middle">α</text>` : '') +
+				`<text class="ff__lab ff__lab--b" x="${(bx + 10).toFixed(1)}" y="${(by + 4).toFixed(1)}">B</text>` +
+				(shadowArea > 4 ? `<text class="ff__lab ff__lab--s" x="${(shx + 4).toFixed(1)}" y="${(shy + 4).toFixed(1)}"><tspan class="ff__m">S</tspan>·|cos <tspan class="ff__m">α</tspan>|</text>` : '');
+
+			// chart
+			const S = (a * a) / 1e4; // m²
+			let dp = '';
+			let de = '';
+			for (let d = 0; d <= 360; d += 4) {
+				const r = (d * Math.PI) / 180;
+				dp += `${d ? 'L' : 'M'}${ax(d).toFixed(1)} ${(PY0 - B * S * Math.cos(r) * PK).toFixed(1)}`;
+				de += `${d ? 'L' : 'M'}${ax(d).toFixed(1)} ${(EY0 - B * S * OMEGA * Math.sin(r) * EK).toFixed(1)}`;
+			}
+			cPhi.setAttribute('d', dp);
+			cE.setAttribute('d', de);
+			const am = ((alpha % 360) + 360) % 360;
+			const X = ax(am);
+			cursor.setAttribute('x1', String(X));
+			cursor.setAttribute('x2', String(X));
+			cursor.setAttribute('y1', '28');
+			cursor.setAttribute('y2', '410');
+			dPhi.setAttribute('cx', String(X));
+			dPhi.setAttribute('cy', (PY0 - B * S * Math.cos(ar) * PK).toFixed(1));
+			dE.setAttribute('cx', String(X));
+			dE.setAttribute('cy', (EY0 - B * S * OMEGA * Math.sin(ar) * EK).toFixed(1));
+			cE.style.opacity = spinning ? '1' : '0.12';
+			dE.style.opacity = spinning ? '1' : '0';
+			hintE.style.opacity = spinning ? '0' : '1';
+		};
+
+		const writeText = () => {
+			const B = Number(bIn.value);
+			const a = Number(sIn.value);
+			const S = (a * a) / 1e4;
+			const deg = Math.round(((alpha % 360) + 360) % 360);
+			aOut.value = `${deg}°`;
+			bOut.value = `${fmt(B, 1)} Тл`;
+			sOut.value = `${a} см (S = ${a * a} см²)`;
+			const c = trig(deg, 'cos');
+			const phi = B * S * c.val; // Wb, from the numbers on the screen
+			const mwb = phi * 1000;
+			const exactPhi = Math.abs(mwb * 10 - Math.round(mwb * 10)) < 1e-6;
+			const br = root.clientWidth < 560 ? '\\\\ &' : '';
+			katex.render(
+				String.raw`\begin{aligned}\Phi &= BS\cos\alpha = ${br} ${tn(B, 1)}~\text{Тл}\cdot ${tz(S)}~\text{м}^2\cdot ${br ? '\\\\ &\\cdot' : ''} \cos ${deg}^\circ ${c.approx || !exactPhi ? '\\approx' : '='} ${tn(mwb, 1)}~\text{мВб}\end{aligned}`,
+				formula,
+				{ displayMode: true, throwOnError: false },
+			);
+			formulaE.hidden = !spinning;
+			if (spinning) {
+				const s = trig(deg, 'sin');
+				const e = B * S * 3.14 * s.val;
+				katex.render(
+					String.raw`\begin{aligned}\mathcal{E}_i &= BS\omega\sin\alpha \approx ${br} ${tn(B, 1)}~\text{Тл}\cdot ${tz(S)}~\text{м}^2\cdot 3{,}14~\tfrac{\text{рад}}{\text{с}}\cdot ${br ? '\\\\ &\\cdot' : ''} \sin ${deg}^\circ \approx ${tn(e * 1000, 0)}~\text{мВ}\end{aligned}`,
+					formulaE,
+					{ displayMode: true, throwOnError: false },
+				);
+			}
+		};
+
+		const update = () => {
+			draw();
+			writeText();
+		};
+
+		const tick = (now: number) => {
+			if (!spinning) return;
+			const dt = Math.min(0.05, (now - last) / 1000);
+			last = now;
+			spinPhase = (spinPhase + (OMEGA * dt * 180) / Math.PI) % 360;
+			if (reduce.matches) {
+				// no continuous motion: the frame jumps by 30° (6 positions per second, same ω)
+				const stepped = (Math.floor(spinPhase / STEP) * STEP) % 360;
+				if (stepped !== alpha) {
+					alpha = stepped;
+					aIn.value = String(alpha);
+					draw();
+					writeText();
+				}
+			} else {
+				alpha = spinPhase;
+				aIn.value = String(Math.round(alpha));
+				draw();
+				if (now - lastText > 120) {
+					lastText = now;
+					writeText();
+				}
+			}
+			raf = requestAnimationFrame(tick);
+		};
+		const setSpin = (on: boolean) => {
+			spinning = on;
+			spinBtn.textContent = on ? 'Остановить' : 'Вращать';
+			spinBtn.setAttribute('aria-pressed', String(on));
+			cancelAnimationFrame(raf);
+			if (on) {
+				spinPhase = alpha;
+				last = performance.now();
+				raf = requestAnimationFrame(tick);
+			}
+			update();
+		};
+		spinBtn.addEventListener('click', () => setSpin(!spinning));
+		aIn.addEventListener('input', () => {
+			if (spinning) setSpin(false);
+			alpha = Number(aIn.value);
+			update();
+		});
+		bIn.addEventListener('input', update);
+		sIn.addEventListener('input', update);
+
+		// drag sideways on the scene to turn the frame
+		let dragX: number | null = null;
+		let dragA = 0;
+		scene.addEventListener('pointerdown', (e) => {
+			dragX = e.clientX;
+			dragA = alpha;
+			if (spinning) setSpin(false);
+			scene.setPointerCapture(e.pointerId);
+		});
+		scene.addEventListener('pointermove', (e) => {
+			if (dragX === null) return;
+			const w = scene.getBoundingClientRect().width;
+			alpha = (((dragA + ((e.clientX - dragX) / w) * 360) % 360) + 360) % 360;
+			aIn.value = String(Math.round(alpha));
+			update();
+		});
+		const end = () => (dragX = null);
+		scene.addEventListener('pointerup', end);
+		scene.addEventListener('pointercancel', end);
+		new IntersectionObserver((en) => {
+			if (!en[en.length - 1].isIntersecting && spinning) setSpin(false);
+		}).observe(root);
+		let wasNarrow = root.clientWidth < 560;
+		new ResizeObserver(() => {
+			const narrow = root.clientWidth < 560;
+			if (narrow !== wasNarrow) {
+				wasNarrow = narrow;
+				writeText();
+			}
+		}).observe(root);
+		if (reduce.matches) spinBtn.title = 'Рамка поворачивается скачками по 30°, один оборот за 2 с';
+		update();
+	}
+</script>

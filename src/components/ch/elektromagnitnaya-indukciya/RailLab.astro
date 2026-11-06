@@ -1,0 +1,801 @@
+---
+/**
+ * A rod slides along two rails closed by a resistor; uniform field B perpendicular to the plane.
+ * Top view, drawn to scale (500 px per metre). ℰ = B·υ·l, I = ℰ/R, F_A = I·B·l against the motion.
+ * The rod can be dragged by hand, or pushed and left alone: then it brakes,
+ * m·dυ/dt = −B²l²υ/R (integrated exactly), and its kinetic energy turns into heat in the resistor.
+ */
+const uid = `rail-${Math.random().toString(36).slice(2, 8)}`;
+const marks: [number, number][] = [];
+for (let x = 30; x < 720; x += 40) for (let y = 22; y < 300; y += 40) marks.push([x, y]);
+---
+
+<figure class="rail not-content" data-rail>
+	<svg class="rail__scene" viewBox="0 0 720 300" role="group" aria-label="Стержень на рельсах в магнитном поле, вид сверху" data-scene>
+		<defs>
+			<clipPath id={`${uid}-area`}>
+				<rect data-clip></rect>
+			</clipPath>
+			<g id={`${uid}-cross`}>
+				{marks.map(([x, y]) => <path d={`M${x - 5} ${y - 5} L${x + 5} ${y + 5} M${x + 5} ${y - 5} L${x - 5} ${y + 5}`} />)}
+			</g>
+			<g id={`${uid}-dot`}>
+				{marks.map(([x, y]) => <><circle cx={x} cy={y} r="6" fill="none" /><circle cx={x} cy={y} r="2" stroke="none" /></>)}
+			</g>
+			{
+				['v', 'f', 'i'].map((k) => (
+					<marker id={`${uid}-${k}`} class={`rail__head rail__head--${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+						<path d="M0,0 L10,5 L0,10 z" />
+					</marker>
+				))
+			}
+		</defs>
+		<g class="rail__marks"><use href={`#${uid}-cross`} data-marks></use></g>
+		<rect class="rail__area" data-area></rect>
+		<g clip-path={`url(#${uid}-area)`}>
+			<g class="rail__marks rail__marks--in"><use href={`#${uid}-cross`} data-marks-in></use></g>
+		</g>
+		<text class="rail__s" data-s-label>S</text>
+
+		<line class="rail__rail" data-rail-top></line>
+		<line class="rail__rail" data-rail-bot></line>
+		<line class="rail__wire" data-wire></line>
+		<rect class="rail__res" width="18" height="40" rx="2" data-res></rect>
+		<text class="rail__rlabel" data-r-label><tspan class="rail__m">R</tspan></text>
+		<line class="rail__stop" data-stop></line>
+
+		<g class="rail__chev" data-chev></g>
+
+		<g class="rail__rod" data-rod tabindex="0" role="slider" aria-label="Стержень. Двигайте стрелками влево и вправо" aria-valuemin="8" aria-valuemax="120">
+			<rect class="rail__hit" data-rod-hit></rect>
+			<rect class="rail__bar" data-rod-bar rx="3"></rect>
+			<rect class="rail__shine" data-rod-shine rx="1.5"></rect>
+		</g>
+		<line class="rail__vec rail__vec--i" marker-end={`url(#${uid}-i)`} data-i-line></line>
+		<text class="rail__vlabel rail__vlabel--i" data-i-label><tspan class="rail__m">I</tspan></text>
+		<line class="rail__vec rail__vec--v" marker-end={`url(#${uid}-v)`} data-v-line></line>
+		<text class="rail__vlabel" data-v-label><tspan class="rail__m">υ</tspan></text>
+		<line class="rail__vec rail__vec--f" marker-end={`url(#${uid}-f)`} data-f-line></line>
+		<text class="rail__vlabel rail__vlabel--f" data-f-label><tspan class="rail__m">F</tspan><tspan class="rail__sub" dy="4">А</tspan></text>
+		<g class="rail__bmark" transform="translate(690 22)">
+			<rect x="-34" y="-14" width="52" height="28" rx="8"></rect>
+			<text x="-8" y="6" text-anchor="middle" data-b-sym><tspan class="rail__m">B</tspan> ×</text>
+		</g>
+		<text class="rail__hint" x="200" y="290" text-anchor="middle" data-hint>⟵ тяните стержень ⟶</text>
+	</svg>
+
+	<p class="rail__chain" aria-live="polite" data-chain>Стержень стоит — поток не меняется, тока нет.</p>
+
+	<div class="rail__formula" aria-hidden="true">
+		<div data-f1></div>
+		<div data-f2></div>
+		<div data-f3></div>
+	</div>
+
+	<div class="rail__energy" data-energy>
+		<div class="rail__bar-row">
+			<span>Кинетическая энергия стержня</span>
+			<span class="rail__track"><span class="rail__fill rail__fill--k" data-ek-bar></span></span>
+			<output data-ek>0 мДж</output>
+		</div>
+		<div class="rail__bar-row">
+			<span>Выделилось тепла в резисторе</span>
+			<span class="rail__track"><span class="rail__fill rail__fill--q" data-q-bar></span></span>
+			<output data-q>0 мДж</output>
+		</div>
+	</div>
+
+	<div class="rail__controls">
+		<label class="rail__slider">
+			<span>Индукция поля <i>B</i></span>
+			<output data-b-out></output>
+			<input type="range" min="0.1" max="1" step="0.1" value="0.8" data-b />
+		</label>
+		<label class="rail__slider">
+			<span>Расстояние между рельсами <i>l</i></span>
+			<output data-l-out></output>
+			<input type="range" min="0.1" max="0.3" step="0.05" value="0.2" data-l />
+		</label>
+		<div class="rail__buttons">
+			<button type="button" class="rail__btn rail__btn--primary" data-push>Толкнуть стержень</button>
+			<button type="button" class="rail__btn" data-dir aria-pressed="false">Поле: от нас ×</button>
+		</div>
+	</div>
+	<p class="rail__live" aria-live="polite" data-live></p>
+	<figcaption class="rail__legend">
+		Вид сверху, масштаб настоящий: рельсы длиной 1,2 м. Стержень массой 10 г скользит без трения,
+		сопротивление цепи <span class="rail__nowrap"><i>R</i> = 1 Ом</span>. Знак × означает, что линии
+		магнитной индукции уходят от нас за экран, знак ⊙ — что идут к нам. Голубым выделена
+		площадь контура <i>S</i>, через которую считают поток.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rail {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rail svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.rail i,
+	.rail__m {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.rail__marks {
+		stroke: var(--sl-color-gray-4);
+		fill: var(--sl-color-gray-4);
+		stroke-width: 1.4;
+	}
+	.rail__marks--in {
+		stroke: var(--ig-vx);
+		fill: var(--ig-vx);
+		stroke-width: 2;
+	}
+	.rail__area {
+		fill: color-mix(in srgb, var(--ig-vx) 13%, transparent);
+	}
+	.rail__s {
+		fill: var(--ig-vx);
+		font: italic 20px var(--ig-font-math);
+	}
+	.rail__rail {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 7;
+		stroke-linecap: round;
+	}
+	.rail__wire {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.rail__res {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.rail__rlabel {
+		fill: var(--sl-color-gray-2);
+		font-size: 19px;
+	}
+	.rail__stop {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.rail__rod {
+		cursor: grab;
+		touch-action: none;
+		outline: none;
+	}
+	.rail__rod:active {
+		cursor: grabbing;
+	}
+	.rail__rod:focus-visible .rail__bar {
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+	}
+	.rail__hit {
+		fill: transparent;
+	}
+	.rail__bar {
+		fill: var(--ig-v);
+	}
+	.rail__shine {
+		fill: rgb(255 255 255 / 0.3);
+	}
+	.rail__chev path {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.rail__vec {
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.rail__vec--v {
+		stroke: var(--sl-color-gray-1);
+	}
+	.rail__vec--f {
+		stroke: var(--ig-vy);
+	}
+	.rail__vec--i {
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.rail__head--v path {
+		fill: var(--sl-color-gray-1);
+	}
+	.rail__head--f path {
+		fill: var(--ig-vy);
+	}
+	.rail__head--i path {
+		fill: var(--sl-color-white);
+	}
+	.rail__vlabel {
+		fill: var(--sl-color-gray-1);
+		font-size: 19px;
+		font-family: var(--__sl-font);
+	}
+	.rail__vlabel--f {
+		fill: var(--ig-vy);
+	}
+	.rail__vlabel--i {
+		fill: var(--sl-color-white);
+	}
+	.rail__sub {
+		font-size: 12px;
+	}
+	.rail__bmark rect {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-5);
+	}
+	.rail__bmark text {
+		fill: var(--sl-color-gray-2);
+		font-size: 17px;
+		font-family: var(--__sl-font);
+	}
+	.rail__hint {
+		fill: var(--sl-color-accent);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+		transition: opacity 0.6s;
+	}
+	.rail__chain {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rail__formula {
+		margin-top: 0.5rem;
+		padding: 0.3rem 0.75rem;
+		border-radius: 0.6rem;
+		border: 1px dashed var(--sl-color-gray-5);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+	}
+	.rail__formula .katex-display {
+		margin: 0.3rem 0;
+	}
+	.rail__energy {
+		display: grid;
+		gap: 0.35rem;
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rail__bar-row {
+		display: grid;
+		grid-template-columns: 15rem 1fr 5.5rem;
+		gap: 0.75rem;
+		align-items: center;
+	}
+	.rail__bar-row output {
+		text-align: end;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rail__track {
+		height: 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.rail__fill {
+		display: block;
+		height: 100%;
+		width: 0;
+		border-radius: 999px;
+	}
+	.rail__fill--k {
+		background: var(--ig-v);
+	}
+	.rail__fill--q {
+		background: var(--ig-vy);
+	}
+	.rail__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.9rem;
+	}
+	.rail__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rail__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rail__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.rail__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.rail__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rail__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.rail__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.rail__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rail__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.rail__nowrap {
+		white-space: nowrap;
+	}
+	@media (max-width: 40rem) {
+		.rail__formula .katex {
+			font-size: 1.05em;
+		}
+		.rail {
+			padding: 0.75rem;
+		}
+		.rail__vlabel,
+		.rail__rlabel {
+			font-size: 28px;
+		}
+		.rail__sub {
+			font-size: 18px;
+		}
+		.rail__s {
+			font-size: 28px;
+		}
+		.rail__bmark text {
+			font-size: 24px;
+		}
+		.rail__hint {
+			font-size: 24px;
+		}
+		.rail__controls {
+			grid-template-columns: 1fr;
+		}
+		.rail__bar-row {
+			grid-template-columns: 1fr 5rem;
+		}
+		.rail__bar-row .rail__track {
+			grid-column: 1 / -1;
+			grid-row: 2;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+
+	const PX = 500; // px per metre
+	const XL = 70; // the resistor's side of the rails
+	const XR = 690; // the far end of the rails
+	const Y0 = 150;
+	const XMIN = 0.08;
+	const XMAX = 1.2;
+	const M = 0.01; // kg
+	const R = 1; // Ohm
+	const V0 = 1.5; // m/s, the push
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+	const fmt = (v: number, d: number) => {
+		const r = Math.round(v * 10 ** d) / 10 ** d;
+		return (r === 0 ? 0 : r).toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d }).replace('-', '−');
+	};
+	const tex = (v: number, d: number) => {
+		const r = Math.round(v * 10 ** d) / 10 ** d;
+		return (r === 0 ? 0 : r).toFixed(d).replace('.', '{,}');
+	};
+	/** A product of the numbers on the screen, rounded to `d` decimals, with = or ≈. */
+	const res = (v: number, d: number) => {
+		const r = Math.round(v * 10 ** d) / 10 ** d;
+		return `${Math.abs(v - r) < 1e-12 ? '=' : '\\approx'} ${tex(r, d)}`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rail]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const scene = q<SVGSVGElement>('[data-scene]');
+		const uid = root.querySelector('clipPath')!.id.replace(/-area$/, '');
+		const clip = q<SVGRectElement>('[data-clip]');
+		const area = q<SVGRectElement>('[data-area]');
+		const sLabel = q<SVGTextElement>('[data-s-label]');
+		const marksUse = q<SVGUseElement>('[data-marks]');
+		const marksIn = q<SVGUseElement>('[data-marks-in]');
+		const railTop = q<SVGLineElement>('[data-rail-top]');
+		const railBot = q<SVGLineElement>('[data-rail-bot]');
+		const wire = q<SVGLineElement>('[data-wire]');
+		const resEl = q<SVGRectElement>('[data-res]');
+		const rLabel = q<SVGTextElement>('[data-r-label]');
+		const stop = q<SVGLineElement>('[data-stop]');
+		const chevG = q<SVGGElement>('[data-chev]');
+		const rod = q<SVGGElement>('[data-rod]');
+		const rodHit = q<SVGRectElement>('[data-rod-hit]');
+		const rodBar = q<SVGRectElement>('[data-rod-bar]');
+		const rodShine = q<SVGRectElement>('[data-rod-shine]');
+		const vLine = q<SVGLineElement>('[data-v-line]');
+		const vLabel = q<SVGTextElement>('[data-v-label]');
+		const fLine = q<SVGLineElement>('[data-f-line]');
+		const fLabel = q<SVGTextElement>('[data-f-label]');
+		const iLine = q<SVGLineElement>('[data-i-line]');
+		const iLabel = q<SVGTextElement>('[data-i-label]');
+		const bSym = q<SVGTextElement>('[data-b-sym]');
+		const hint = q<SVGTextElement>('[data-hint]');
+		const chain = q<HTMLElement>('[data-chain]');
+		const f1 = q<HTMLElement>('[data-f1]');
+		const f2 = q<HTMLElement>('[data-f2]');
+		const f3 = q<HTMLElement>('[data-f3]');
+		const ekBar = q<HTMLElement>('[data-ek-bar]');
+		const qBar = q<HTMLElement>('[data-q-bar]');
+		const ekOut = q<HTMLOutputElement>('[data-ek]');
+		const qOut = q<HTMLOutputElement>('[data-q]');
+		const bIn = q<HTMLInputElement>('[data-b]');
+		const lIn = q<HTMLInputElement>('[data-l]');
+		const bOut = q<HTMLOutputElement>('[data-b-out]');
+		const lOut = q<HTMLOutputElement>('[data-l-out]');
+		const dirBtn = q<HTMLButtonElement>('[data-dir]');
+		const live = q<HTMLElement>('[data-live]');
+
+		let x = 0.3; // m, distance from the resistor to the rod
+		let v = 0;
+		let target = x;
+		let mode: 'drag' | 'free' = 'free';
+		let into = true; // field directed away from the viewer
+		let heat = 0; // J
+		let eScale = 0.5 * M * V0 * V0; // J, full length of the energy bars
+		let phase = 0;
+		let raf = 0;
+		let last = 0;
+		let lastText = 0;
+		let grabDX = 0;
+		let chainState = '';
+
+		const B = () => Number(bIn.value);
+		const L = () => Number(lIn.value);
+		const k = () => (B() * B() * L() * L()) / R; // N·s/m, braking coefficient
+
+		const chevs: SVGPathElement[] = [];
+		for (let i = 0; i < 40; i++) {
+			const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			p.setAttribute('d', 'M-4,-4.5 L1.5,0 L-4,4.5');
+			chevG.append(p);
+			chevs.push(p);
+		}
+
+		const setLine = (el: SVGLineElement, x1: number, y1: number, x2: number, y2: number) => {
+			el.setAttribute('x1', x1.toFixed(1));
+			el.setAttribute('y1', y1.toFixed(1));
+			el.setAttribute('x2', x2.toFixed(1));
+			el.setAttribute('y2', y2.toFixed(1));
+		};
+
+		const geometry = () => {
+			const h = (L() * PX) / 2;
+			const yt = Y0 - h;
+			const yb = Y0 + h;
+			setLine(railTop, XL, yt, XR, yt);
+			setLine(railBot, XL, yb, XR, yb);
+			setLine(wire, XL, yt, XL, yb);
+			setLine(stop, XR + 6, yt - 14, XR + 6, yb + 14);
+			resEl.setAttribute('x', String(XL - 9));
+			resEl.setAttribute('y', String(Y0 - 20));
+			rLabel.setAttribute('x', String(XL - 36));
+			rLabel.setAttribute('y', String(Y0 + 7));
+			const sym = into ? 'cross' : 'dot';
+			marksUse.setAttribute('href', `#${uid}-${sym}`);
+			marksIn.setAttribute('href', `#${uid}-${sym}`);
+			bSym.innerHTML = `<tspan class="rail__m">B</tspan> ${into ? '×' : '⊙'}`;
+			dirBtn.textContent = into ? 'Поле: от нас ×' : 'Поле: к нам ⊙';
+			dirBtn.setAttribute('aria-pressed', String(!into));
+			bOut.value = `${fmt(B(), 1)} Тл`;
+			lOut.value = `${fmt(L(), 2)} м`;
+		};
+
+		const step = (dt: number) => {
+			const kk = k();
+			if (mode === 'drag') {
+				const w = 25;
+				const a = w * w * (target - x) - 2 * w * v;
+				v += a * dt;
+				x += v * dt;
+				heat += kk * v * v * dt; // I²R = B²l²υ²/R
+			} else if (v !== 0) {
+				// exact solution of m·dυ/dt = −kυ over the step
+				const e = Math.exp((-kk * dt) / M);
+				const vNew = v * e;
+				x += kk > 0 ? (M / kk) * (v - vNew) : v * dt;
+				heat += 0.5 * M * (v * v - vNew * vNew);
+				v = Math.abs(vNew) < 1e-4 ? 0 : vNew;
+			}
+			if (x > XMAX || x < XMIN) {
+				const ek = 0.5 * M * v * v;
+				x = Math.min(XMAX, Math.max(XMIN, x));
+				if (mode === 'free' && ek > 1e-4) {
+					live.textContent = `Стержень ударился об упор, сохранив ${fmt(ek * 1000, 1)} мДж энергии: поле слишком слабое, чтобы остановить его на рельсах. Увеличьте B или l.`;
+				}
+				v = 0;
+				target = x;
+			}
+		};
+
+		const draw = () => {
+			const h = (L() * PX) / 2;
+			const yt = Y0 - h;
+			const yb = Y0 + h;
+			const xr = XL + x * PX;
+			area.setAttribute('x', String(XL));
+			area.setAttribute('y', yt.toFixed(1));
+			area.setAttribute('width', (xr - XL).toFixed(1));
+			area.setAttribute('height', (2 * h).toFixed(1));
+			clip.setAttribute('x', String(XL));
+			clip.setAttribute('y', yt.toFixed(1));
+			clip.setAttribute('width', (xr - XL).toFixed(1));
+			clip.setAttribute('height', (2 * h).toFixed(1));
+			sLabel.setAttribute('x', String((XL + xr) / 2 - 6));
+			sLabel.setAttribute('y', String(Y0 + 7));
+			sLabel.style.opacity = xr - XL > 70 ? '1' : '0';
+			rod.setAttribute('transform', `translate(${xr.toFixed(1)} 0)`);
+			rodHit.setAttribute('x', '-22');
+			rodHit.setAttribute('y', String(yt - 30));
+			rodHit.setAttribute('width', '44');
+			rodHit.setAttribute('height', String(2 * h + 60));
+			rodBar.setAttribute('x', '-5');
+			rodBar.setAttribute('y', String(yt - 16));
+			rodBar.setAttribute('width', '10');
+			rodBar.setAttribute('height', String(2 * h + 32));
+			rodShine.setAttribute('x', '-3');
+			rodShine.setAttribute('y', String(yt - 13));
+			rodShine.setAttribute('width', '3');
+			rodShine.setAttribute('height', String(2 * h + 26));
+			rod.setAttribute('aria-valuenow', String(Math.round(x * 100)));
+			rod.setAttribute('aria-valuetext', `${Math.round(x * 100)} см от резистора`);
+
+			// induced current, counter-clockwise on the screen is positive
+			const emf = B() * v * L(); // V, magnitude with sign of υ
+			const Iccw = (into ? 1 : -1) * emf / R;
+			const op = Math.min(1, Math.abs(Iccw) / 0.02);
+			// chevrons along the loop: rod top → top rail ← → resistor ↓ → bottom rail → → rod ↑
+			const top = xr - XL;
+			const side = 2 * h;
+			const per = 2 * top + 2 * side;
+			const gap = 34;
+			const n = Math.min(chevs.length, Math.floor(per / gap));
+			const sp = per / Math.max(1, n);
+			const shift = ((phase % sp) + sp) % sp;
+			for (let i = 0; i < chevs.length; i++) {
+				const c = chevs[i];
+				if (i >= n || op < 0.02) {
+					c.style.opacity = '0';
+					continue;
+				}
+				let s = i * sp + shift;
+				s %= per;
+				let px: number;
+				let py: number;
+				let ang: number;
+				if (s < top) {
+					px = xr - s;
+					py = yt;
+					ang = 180;
+				} else if (s < top + side) {
+					px = XL;
+					py = yt + (s - top);
+					ang = 90;
+				} else if (s < 2 * top + side) {
+					px = XL + (s - top - side);
+					py = yb;
+					ang = 0;
+				} else {
+					px = xr;
+					py = yb - (s - 2 * top - side);
+					ang = -90;
+				}
+				if (Iccw < 0) ang += 180;
+				const nearRes = px === XL && Math.abs(py - Y0) < 26;
+				c.setAttribute('transform', `translate(${px.toFixed(1)} ${py.toFixed(1)}) rotate(${ang})`);
+				c.style.opacity = nearRes ? '0' : op.toFixed(2);
+			}
+			// arrows: υ above the rod, F_A below it, I along the rod
+			const lenV = Math.min(110, Math.abs(v) * 60);
+			if (lenV > 4) {
+				setLine(vLine, xr, yt - 30, xr + Math.sign(v) * lenV, yt - 30);
+				vLabel.setAttribute('x', String(xr + Math.sign(v) * (lenV + 8) - (v < 0 ? 12 : 0)));
+				vLabel.setAttribute('y', String(yt - 24));
+			}
+			vLine.style.opacity = vLabel.style.opacity = lenV > 4 ? '1' : '0';
+			const F = -k() * v; // N
+			const lenF = Math.min(110, Math.abs(F) * 1500);
+			if (lenF > 4) {
+				setLine(fLine, xr, yb + 30, xr + Math.sign(F) * lenF, yb + 30);
+				fLabel.setAttribute('x', String(xr + Math.sign(F) * (lenF + 8) - (F < 0 ? 24 : 0)));
+				fLabel.setAttribute('y', String(yb + 36));
+			}
+			fLine.style.opacity = fLabel.style.opacity = lenF > 4 ? '1' : '0';
+			const iy = Iccw > 0 ? 1 : -1; // up the rod for counter-clockwise
+			setLine(iLine, xr + 18, Y0 + iy * 20, xr + 18, Y0 - iy * 20);
+			iLabel.setAttribute('x', String(xr + 26));
+			iLabel.setAttribute('y', String(Y0 + 7));
+			iLine.style.opacity = iLabel.style.opacity = op > 0.05 ? op.toFixed(2) : '0';
+			return { emf, Iccw };
+		};
+
+		const writeText = () => {
+			const Bv = B();
+			const lv = L();
+			const vs = Math.round(Math.abs(v) * 100) / 100; // shown speed
+			const e = Bv * vs * lv;
+			const eR = Math.round(e * 1000) / 1000;
+			const iR = eR / R;
+			const fA = iR * Bv * lv;
+			const narrow = root.clientWidth < 560;
+			const br = narrow ? '\\\\ &' : '';
+			katex.render(
+				String.raw`\begin{aligned}\mathcal{E}_i &= B\upsilon l = ${br} ${tex(Bv, 1)}~\text{Тл}\cdot ${tex(vs, 2)}~\text{м/с}\cdot ${tex(lv, 2)}~\text{м} ${res(e, 3)}~\text{В}\end{aligned}`,
+				f1,
+				{ displayMode: true, throwOnError: false },
+			);
+			katex.render(
+				String.raw`I = \dfrac{\mathcal{E}_i}{R} = \dfrac{${tex(eR, 3)}~\text{В}}{1~\text{Ом}} = ${tex(iR, 3)}~\text{А}`,
+				f2,
+				{ displayMode: true, throwOnError: false },
+			);
+			katex.render(
+				String.raw`\begin{aligned}F_{\text{А}} &= IBl = ${br} ${tex(iR, 3)}~\text{А}\cdot ${tex(Bv, 1)}~\text{Тл}\cdot ${tex(lv, 2)}~\text{м} ${res(fA, 4)}~\text{Н}\end{aligned}`,
+				f3,
+				{ displayMode: true, throwOnError: false },
+			);
+			const ek = 0.5 * M * v * v;
+			eScale = Math.max(eScale, ek, heat);
+			ekOut.value = `${fmt(ek * 1000, 1)} мДж`;
+			qOut.value = `${fmt(heat * 1000, 1)} мДж`;
+			ekBar.style.width = `${((ek / eScale) * 100).toFixed(1)}%`;
+			qBar.style.width = `${((heat / eScale) * 100).toFixed(1)}%`;
+			// chain of reasons
+			let st = 'rest';
+			if (Math.abs(v) > 0.01) st = v > 0 ? 'right' : 'left';
+			if (st !== chainState) {
+				chainState = st;
+				const ccw = (v > 0) === into;
+				const dirTxt = ccw ? 'против часовой стрелки' : 'по часовой стрелке';
+				if (st === 'rest') chain.textContent = 'Стержень стоит — поток не меняется, тока нет.';
+				else
+					chain.textContent = `Площадь контура ${v > 0 ? 'растёт' : 'уменьшается'} → магнитный поток ${v > 0 ? 'растёт' : 'убывает'} → индукционный ток идёт ${dirTxt} → сила Ампера направлена против скорости и тормозит стержень.`;
+			}
+		};
+
+		const loop = (now: number) => {
+			const dt = Math.min(0.05, (now - last) / 1000);
+			last = now;
+			const sub = Math.ceil(dt / 0.004);
+			for (let i = 0; i < sub; i++) step(dt / sub);
+			const st = draw();
+			phase += (reduce.matches ? 0 : 1) * st.Iccw * 900 * dt;
+			if (now - lastText > 100) {
+				lastText = now;
+				writeText();
+			}
+			if (mode === 'drag' || v !== 0) raf = requestAnimationFrame(loop);
+			else {
+				raf = 0;
+				writeText();
+				draw();
+			}
+		};
+		const kick = () => {
+			if (raf) return;
+			last = performance.now();
+			raf = requestAnimationFrame(loop);
+		};
+
+		const toSvgX = (cx: number, cy: number) => {
+			const pt = scene.createSVGPoint();
+			pt.x = cx;
+			pt.y = cy;
+			const m = scene.getScreenCTM();
+			return m ? pt.matrixTransform(m.inverse()).x : 0;
+		};
+		// touch-action is ignored on SVG <g> in some browsers, so stop the page scroll here
+		rod.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+		rod.addEventListener('pointerdown', (e) => {
+			e.preventDefault();
+			rod.setPointerCapture(e.pointerId);
+			mode = 'drag';
+			grabDX = x - (toSvgX(e.clientX, e.clientY) - XL) / PX;
+			target = x;
+			hint.style.opacity = '0';
+			live.textContent = '';
+			rod.focus({ preventScroll: true });
+			kick();
+		});
+		rod.addEventListener('pointermove', (e) => {
+			if (mode !== 'drag') return;
+			target = Math.min(XMAX, Math.max(XMIN, (toSvgX(e.clientX, e.clientY) - XL) / PX + grabDX));
+		});
+		const release = () => {
+			if (mode === 'drag') {
+				mode = 'free'; // let go: the rod keeps its speed and brakes by itself
+				kick();
+			}
+		};
+		rod.addEventListener('pointerup', release);
+		rod.addEventListener('pointercancel', release);
+		rod.addEventListener('keydown', (e) => {
+			const d = e.shiftKey ? 0.1 : 0.02;
+			if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') target = Math.max(XMIN, x - d);
+			else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') target = Math.min(XMAX, x + d);
+			else return;
+			e.preventDefault();
+			mode = 'drag';
+			hint.style.opacity = '0';
+			kick();
+			window.setTimeout(release, 350);
+		});
+		q<HTMLButtonElement>('[data-push]').addEventListener('click', () => {
+			x = 0.12;
+			v = V0;
+			target = x;
+			mode = 'free';
+			heat = 0;
+			eScale = 0.5 * M * V0 * V0;
+			live.textContent = '';
+			hint.style.opacity = '0';
+			kick();
+		});
+		dirBtn.addEventListener('click', () => {
+			into = !into;
+			chainState = '';
+			geometry();
+			draw();
+			writeText();
+		});
+		const onParam = () => {
+			geometry();
+			draw();
+			writeText();
+		};
+		bIn.addEventListener('input', onParam);
+		lIn.addEventListener('input', onParam);
+		new ResizeObserver(() => writeText()).observe(root);
+
+		geometry();
+		draw();
+		writeText();
+	}
+</script>

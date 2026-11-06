@@ -49,7 +49,9 @@ export default defineConfig({
 					section('Законы сохранения', '10-klass/zakony-sohraneniya', ['impuls']),
 					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['gazovye-zakony']),
 				]),
-				grade(11),
+				grade(11, [
+					section('Электродинамика', '11-klass/elektrodinamika', ['elektromagnitnaya-indukciya']),
+				]),
 				{ label: 'Источники иллюстраций', slug: 'uchebnik/istochniki' },
 			],
 		}),
