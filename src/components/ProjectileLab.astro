@@ -1,0 +1,501 @@
+---
+/**
+ * Interactive model: a body thrown at an angle to the horizon (no air resistance).
+ * Equal scales on both axes (10 px per metre), so angles on screen are true angles.
+ */
+const uid = `lab-${Math.random().toString(36).slice(2, 8)}`;
+const OX = 48;
+const OY = 354;
+const S = 10;
+const XMAX = 66;
+const YMAX = 33;
+const xs = [10, 20, 30, 40, 50, 60];
+const ys = [10, 20, 30];
+---
+
+<figure class="lab not-content" data-lab>
+	<svg
+		class="lab__plot"
+		viewBox="0 0 720 384"
+		role="img"
+		aria-label="Траектория тела, брошенного под углом к горизонту"
+	>
+		<defs>
+			{
+				['v', 'vx', 'vy'].map((k) => (
+					<marker
+						id={`${uid}-${k}`}
+						class={`lab__head lab__head--${k}`}
+						viewBox="0 0 10 10"
+						refX="7"
+						refY="5"
+						markerWidth="6"
+						markerHeight="6"
+						orient="auto"
+					>
+						<path d="M0,0 L10,5 L0,10 z" />
+					</marker>
+				))
+			}
+		</defs>
+
+		<g class="lab__grid">
+			{xs.map((x) => <line x1={OX + x * S} y1={OY} x2={OX + x * S} y2={OY - YMAX * S} />)}
+			{ys.map((y) => <line x1={OX} y1={OY - y * S} x2={OX + XMAX * S} y2={OY - y * S} />)}
+		</g>
+		<line class="lab__axis" x1={OX} y1={OY} x2={OX + XMAX * S} y2={OY} />
+		<line class="lab__axis" x1={OX} y1={OY} x2={OX} y2={OY - YMAX * S} />
+		<g class="lab__ticks">
+			<text x={OX} y={OY + 20} text-anchor="middle">0</text>
+			{xs.map((x) => <text x={OX + x * S} y={OY + 20} text-anchor="middle">{x}</text>)}
+			{ys.map((y) => <text x={OX - 8} y={OY - y * S + 5} text-anchor="end">{y}</text>)}
+			<text class="lab__axis-name" x={OX + XMAX * S} y={OY - 8} text-anchor="end">x, м</text>
+			<text class="lab__axis-name" x={OX + 8} y={OY - YMAX * S + 14}>y, м</text>
+		</g>
+
+		<g data-traces></g>
+		<path class="lab__preview" data-preview></path>
+		<line class="lab__hline" data-hline></line>
+		<text class="lab__mark" data-hlabel>H</text>
+		<text class="lab__mark" data-llabel>L</text>
+		<path class="lab__arc" data-arc></path>
+		<text class="lab__mark" data-alabel>α</text>
+		<path class="lab__trail" data-trail></path>
+		<line class="lab__vec lab__vec--vx" marker-end={`url(#${uid}-vx)`} data-vec-vx></line>
+		<line class="lab__vec lab__vec--vy" marker-end={`url(#${uid}-vy)`} data-vec-vy></line>
+		<line class="lab__vec lab__vec--v" marker-end={`url(#${uid}-v)`} data-vec-v></line>
+		<circle class="lab__ball" r="7" cx={OX} cy={OY} data-ball></circle>
+	</svg>
+
+	<div class="lab__controls">
+		<label class="lab__slider">
+			<span class="lab__slider-name">Угол броска <i>α</i></span>
+			<output data-a-out>45°</output>
+			<input type="range" min="5" max="85" step="1" value="45" data-angle />
+		</label>
+		<label class="lab__slider">
+			<span class="lab__slider-name">Начальная скорость <i>υ</i><sub>0</sub></span>
+			<output data-v-out>20 м/с</output>
+			<input type="range" min="5" max="25" step="0.5" value="20" data-speed />
+		</label>
+		<div class="lab__buttons">
+			<button type="button" class="lab__btn lab__btn--primary" data-throw>Бросить</button>
+			<button type="button" class="lab__btn" data-clear>Стереть следы</button>
+		</div>
+	</div>
+
+	<dl class="lab__stats">
+		<div><dt>Время полёта</dt><dd data-T>—</dd></div>
+		<div><dt>Наибольшая высота <i>H</i></dt><dd data-H>—</dd></div>
+		<div><dt>Дальность <i>L</i></dt><dd data-L>—</dd></div>
+	</dl>
+	<p class="lab__live" data-live aria-live="polite"></p>
+
+	<figcaption class="lab__legend">
+		<span class="lab__key lab__key--v"></span><i>υ</i> — скорость
+		<span class="lab__key lab__key--vx"></span><i>υ<sub>x</sub></i>
+		<span class="lab__key lab__key--vy"></span><i>υ<sub>y</sub></i> — её проекции.
+		Сопротивление воздуха не учитывается, <span class="lab__nowrap"><i>g</i> = 9,8 м/с²</span>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.lab {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.lab__plot {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.lab__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.lab__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.lab__ticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.lab__axis-name {
+		font-style: italic;
+	}
+	.lab__preview {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 6;
+	}
+	.lab__trail {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.lab__trace path {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.lab__trace text {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.lab__hline {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.lab__arc {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.lab__mark {
+		fill: var(--sl-color-gray-2);
+		font-size: 17px;
+		font-style: italic;
+		font-family: var(--ig-font-math);
+	}
+	.lab i {
+		font-family: var(--ig-font-math);
+	}
+	.lab__ball {
+		fill: var(--ig-v);
+		filter: drop-shadow(0 0 5px var(--ig-v));
+	}
+	.lab__vec {
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.lab__vec--v {
+		stroke: var(--ig-v);
+	}
+	.lab__vec--vx {
+		stroke: var(--ig-vx);
+	}
+	.lab__vec--vy {
+		stroke: var(--ig-vy);
+	}
+	.lab__head--v path {
+		fill: var(--ig-v);
+	}
+	.lab__head--vx path {
+		fill: var(--ig-vx);
+	}
+	.lab__head--vy path {
+		fill: var(--ig-vy);
+	}
+
+	.lab__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+		align-items: end;
+	}
+	.lab__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.lab__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.lab__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.lab__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.lab__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.lab__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.lab__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+
+	.lab__stats {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
+		margin: 1rem 0 0;
+	}
+	.lab__stats > div {
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.lab__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.lab__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.lab__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.lab__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.lab__key {
+		display: inline-block;
+		width: 1.1rem;
+		height: 3px;
+		margin: 0 0.3rem 0.2rem 0.6rem;
+		vertical-align: middle;
+		border-radius: 2px;
+	}
+	.lab__key:first-child {
+		margin-left: 0;
+	}
+	.lab__key--v {
+		background: var(--ig-v);
+	}
+	.lab__key--vx {
+		background: var(--ig-vx);
+	}
+	.lab__key--vy {
+		background: var(--ig-vy);
+	}
+
+	.lab__nowrap {
+		white-space: nowrap;
+	}
+
+	@media (max-width: 40rem) {
+		.lab {
+			padding: 0.75rem;
+		}
+		.lab__ticks text {
+			font-size: 24px;
+		}
+		.lab__trace text {
+			font-size: 22px;
+		}
+		.lab__mark {
+			font-size: 28px;
+		}
+		.lab__controls {
+			grid-template-columns: 1fr;
+		}
+		.lab__stats {
+			grid-template-columns: 1fr;
+		}
+		.lab__stats > div {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+		}
+		.lab__stats dd {
+			font-size: var(--sl-text-lg);
+		}
+	}
+</style>
+
+<script>
+	const G = 9.8;
+	const S = 10;
+	const OX = 48;
+	const OY = 354;
+	const K = 2.4; // arrow length, px per (m/s)
+	const MAX_TRACES = 4;
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+
+	const fmt = (v: number, digits = 1) =>
+		v.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+	const px = (x: number) => OX + x * S;
+	const py = (y: number) => OY - y * S;
+
+	type Throw = { deg: number; a: number; v0: number; T: number; H: number; L: number };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-lab]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const aIn = q<HTMLInputElement>('[data-angle]');
+		const vIn = q<HTMLInputElement>('[data-speed]');
+		const aOut = q<HTMLOutputElement>('[data-a-out]');
+		const vOut = q<HTMLOutputElement>('[data-v-out]');
+		const traces = q<SVGGElement>('[data-traces]');
+		const preview = q<SVGPathElement>('[data-preview]');
+		const trail = q<SVGPathElement>('[data-trail]');
+		const hline = q<SVGLineElement>('[data-hline]');
+		const hlabel = q<SVGTextElement>('[data-hlabel]');
+		const llabel = q<SVGTextElement>('[data-llabel]');
+		const arc = q<SVGPathElement>('[data-arc]');
+		const alabel = q<SVGTextElement>('[data-alabel]');
+		const ball = q<SVGCircleElement>('[data-ball]');
+		const vec = {
+			v: q<SVGLineElement>('[data-vec-v]'),
+			vx: q<SVGLineElement>('[data-vec-vx]'),
+			vy: q<SVGLineElement>('[data-vec-vy]'),
+		};
+		const outT = q<HTMLElement>('[data-T]');
+		const outH = q<HTMLElement>('[data-H]');
+		const outL = q<HTMLElement>('[data-L]');
+		const live = q<HTMLElement>('[data-live]');
+
+		let raf = 0;
+
+		const current = (): Throw => {
+			const deg = Number(aIn.value);
+			const v0 = Number(vIn.value);
+			const a = (deg * Math.PI) / 180;
+			return {
+				deg,
+				a,
+				v0,
+				T: (2 * v0 * Math.sin(a)) / G,
+				H: (v0 * Math.sin(a)) ** 2 / (2 * G),
+				L: (v0 * v0 * Math.sin(2 * a)) / G,
+			};
+		};
+
+		// Exact parabola segment from launch to time t as a quadratic Bézier:
+		// the control point is r0 + v0 * t / 2.
+		const segment = (p: Throw, t: number) => {
+			const vx = p.v0 * Math.cos(p.a);
+			const vy = p.v0 * Math.sin(p.a);
+			const x = vx * t;
+			const y = vy * t - (G * t * t) / 2;
+			return `M ${px(0)} ${py(0)} Q ${px((vx * t) / 2)} ${py((vy * t) / 2)} ${px(x)} ${py(y)}`;
+		};
+
+		const setLine = (el: SVGLineElement, x1: number, y1: number, x2: number, y2: number) => {
+			el.setAttribute('x1', String(x1));
+			el.setAttribute('y1', String(y1));
+			el.setAttribute('x2', String(x2));
+			el.setAttribute('y2', String(y2));
+			el.style.visibility = Math.hypot(x2 - x1, y2 - y1) < 4 ? 'hidden' : 'visible';
+		};
+
+		const placeBall = (p: Throw, t: number) => {
+			const vx = p.v0 * Math.cos(p.a);
+			const vy = p.v0 * Math.sin(p.a) - G * t;
+			const x = px(vx * t);
+			const y = py(p.v0 * Math.sin(p.a) * t - (G * t * t) / 2);
+			ball.setAttribute('cx', String(x));
+			ball.setAttribute('cy', String(y));
+			setLine(vec.vx, x, y, x + vx * K, y);
+			setLine(vec.vy, x, y, x, y - vy * K);
+			setLine(vec.v, x, y, x + vx * K, y - vy * K);
+			return { t, x: vx * t, y: p.v0 * Math.sin(p.a) * t - (G * t * t) / 2, v: Math.hypot(vx, vy) };
+		};
+
+		const drawStatic = (p: Throw) => {
+			preview.setAttribute('d', segment(p, p.T));
+			setLine(hline, px(p.L / 2), py(p.H), px(p.L / 2), py(0));
+			hlabel.setAttribute('x', String(px(p.L / 2) + 6));
+			hlabel.setAttribute('y', String(py(p.H / 2) + 5));
+			hlabel.style.visibility = p.H * S > 18 ? 'visible' : 'hidden';
+			const nearEdge = px(p.L) > 650;
+			llabel.setAttribute('x', String(px(p.L) + (nearEdge ? -8 : 8)));
+			llabel.setAttribute('y', String(py(0) - 8));
+			llabel.setAttribute('text-anchor', nearEdge ? 'end' : 'start');
+			const r = 40;
+			arc.setAttribute(
+				'd',
+				`M ${OX + r} ${OY} A ${r} ${r} 0 0 0 ${OX + r * Math.cos(p.a)} ${OY - r * Math.sin(p.a)}`,
+			);
+			alabel.setAttribute('x', String(OX + (r + 10) * Math.cos(p.a / 2)));
+			alabel.setAttribute('y', String(OY - (r + 10) * Math.sin(p.a / 2) + 5));
+			aOut.value = `${p.deg}°`;
+			vOut.value = `${fmt(p.v0, Number.isInteger(p.v0) ? 0 : 1)} м/с`;
+			outT.textContent = `${fmt(p.T, 2)} с`;
+			outH.textContent = `${fmt(p.H)} м`;
+			outL.textContent = `${fmt(p.L)} м`;
+		};
+
+		const addTrace = (p: Throw) => {
+			const g = document.createElementNS(SVG_NS, 'g');
+			g.classList.add('lab__trace');
+			const path = document.createElementNS(SVG_NS, 'path');
+			path.setAttribute('d', segment(p, p.T));
+			const label = document.createElementNS(SVG_NS, 'text');
+			label.setAttribute('x', String(px(p.L / 2) - 8));
+			label.setAttribute('y', String(py(p.H) - 6));
+			label.setAttribute('text-anchor', 'end');
+			label.textContent = `${p.deg}°`;
+			g.append(path, label);
+			traces.append(g);
+			while (traces.children.length > MAX_TRACES) traces.firstElementChild!.remove();
+		};
+
+		const reset = () => {
+			cancelAnimationFrame(raf);
+			const p = current();
+			trail.setAttribute('d', '');
+			drawStatic(p);
+			placeBall(p, 0);
+			live.textContent = 'Выберите угол и скорость и нажмите «Бросить».';
+		};
+
+		const launch = () => {
+			cancelAnimationFrame(raf);
+			const p = current();
+			drawStatic(p);
+			const start = performance.now();
+			const frame = (now: number) => {
+				const t = Math.min((now - start) / 1000, p.T);
+				const s = placeBall(p, t);
+				trail.setAttribute('d', segment(p, t));
+				if (t < p.T) {
+					live.innerHTML = `<i>t</i> = ${fmt(s.t, 2)} с · <i>x</i> = ${fmt(s.x)} м · <i>y</i> = ${fmt(Math.max(s.y, 0))} м · <i>υ</i> = ${fmt(s.v)} м/с`;
+					raf = requestAnimationFrame(frame);
+				} else {
+					Object.values(vec).forEach((v) => (v.style.visibility = 'hidden'));
+					addTrace(p);
+					live.textContent = `Мяч упал через ${fmt(p.T, 2)} с на расстоянии ${fmt(p.L)} м.`;
+				}
+			};
+			raf = requestAnimationFrame(frame);
+		};
+
+		aIn.addEventListener('input', reset);
+		vIn.addEventListener('input', reset);
+		q<HTMLButtonElement>('[data-throw]').addEventListener('click', launch);
+		q<HTMLButtonElement>('[data-clear]').addEventListener('click', () => traces.replaceChildren());
+		reset();
+	}
+</script>
