@@ -20,7 +20,12 @@ export default defineConfig({
 		starlight({
 			title: 'Учебник физики',
 			locales: { root: { label: 'Русский', lang: 'ru' } },
-			customCss: ['katex/dist/katex.min.css'],
+			customCss: [
+				'katex/dist/katex.min.css',
+				'@fontsource-variable/manrope',
+				'@fontsource-variable/cormorant-garamond',
+				'./src/styles/textbook.css',
+			],
 			sidebar: [
 				{ label: 'Об учебнике', slug: 'uchebnik' },
 				grade(7),
