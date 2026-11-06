@@ -2,24 +2,26 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
-// https://astro.build/config
+const grade = (/** @type {number} */ n, /** @type {any[]} */ chapters = []) => ({
+	label: `${n} класс`,
+	collapsed: chapters.length === 0,
+	items: [{ label: 'Содержание', slug: `uchebnik/${n}-klass` }, ...chapters],
+});
+
 export default defineConfig({
+	site: 'https://irenegorbunova.github.io',
+	base: '/IG_physics',
 	integrations: [
 		starlight({
-			title: 'My Docs',
-			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
+			title: 'Учебник физики',
+			locales: { root: { label: 'Русский', lang: 'ru' } },
 			sidebar: [
-				{
-					label: 'Guides',
-					items: [
-						// Each item here is one entry in the navigation menu.
-						{ label: 'Example Guide', slug: 'guides/example' },
-					],
-				},
-				{
-					label: 'Reference',
-					items: [{ autogenerate: { directory: 'reference' } }],
-				},
+				{ label: 'Об учебнике', slug: 'uchebnik' },
+				grade(7),
+				grade(8),
+				grade(9),
+				grade(10),
+				grade(11),
 			],
 		}),
 	],
