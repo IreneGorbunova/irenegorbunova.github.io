@@ -22,8 +22,8 @@ export default defineConfig({
 			components: { Footer: './src/components/Footer.astro' },
 			customCss: [
 				'katex/dist/katex.min.css',
-				'@fontsource-variable/manrope',
-				'@fontsource-variable/cormorant-garamond',
+				'@fontsource/alice',
+				'@fontsource/great-vibes',
 				'./src/styles/textbook.css',
 			],
 			sidebar: [
