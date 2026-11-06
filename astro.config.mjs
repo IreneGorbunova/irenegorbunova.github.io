@@ -31,7 +31,12 @@ export default defineConfig({
 				grade(7),
 				grade(8),
 				grade(9),
-				grade(10),
+				grade(10, [
+					{
+						label: 'Кинематика',
+						items: [{ slug: 'uchebnik/10-klass/kinematika/brosok-pod-uglom' }],
+					},
+				]),
 				grade(11),
 			],
 		}),
