@@ -19,6 +19,7 @@ export default defineConfig({
 		starlight({
 			title: 'Учебник физики',
 			locales: { root: { label: 'Русский', lang: 'ru' } },
+			components: { Footer: './src/components/Footer.astro' },
 			customCss: [
 				'katex/dist/katex.min.css',
 				'@fontsource-variable/manrope',
