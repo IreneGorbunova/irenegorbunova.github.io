@@ -1,0 +1,961 @@
+---
+/**
+ * Third law in two experiments.
+ * 1) Two hooked dynamometers: the reader drags the free hook; both always read the same force,
+ *    even when the first one has a spring twice as stiff (it stretches half as much).
+ * 2) Two carts pushed apart by a compressed spring (the thread is burnt): the spring pushes both
+ *    carts with equal forces at every moment; the lighter cart gets the larger speed.
+ *    Physics: massless spring k = 10 N/m compressed by 0.2 m, no friction;
+ *    compression c(t) = c0 cos(ωt), ω = sqrt(k (m1 + m2) / (m1 m2)), until the spring is free.
+ */
+const uid = `tl-${Math.random().toString(36).slice(2, 8)}`;
+const T_MAX = 0.8;
+const FGX0 = 60;
+const FGX1 = 700;
+const FGY0 = 75;
+const fgx = (t: number) => FGX0 + (t / T_MAX) * (FGX1 - FGX0);
+const fgy = (f: number) => FGY0 - f * 26;
+---
+
+<figure class="tl not-content" data-third>
+	<div class="tl__tabs" role="tablist" aria-label="Опыты к третьему закону">
+		<button type="button" role="tab" id={`${uid}-t1`} aria-controls={`${uid}-p1`} aria-selected="true" data-tab="0">
+			Два динамометра
+		</button>
+		<button type="button" role="tab" id={`${uid}-t2`} aria-controls={`${uid}-p2`} aria-selected="false" data-tab="1" tabindex="-1">
+			Две тележки
+		</button>
+	</div>
+
+	<!-- Panel 1: dynamometers -->
+	<div class="tl__panel" role="tabpanel" id={`${uid}-p1`} aria-labelledby={`${uid}-t1`} data-panel="0">
+		<svg class="tl__plot" viewBox="0 0 720 196" data-dyn-svg role="img" aria-label="Два сцепленных динамометра">
+			<g class="tl__wall">
+				<rect x="6" y="46" width="16" height="110"></rect>
+				{[0, 1, 2, 3, 4, 5, 6].map((i) => <line x1="6" y1={58 + i * 15} x2="22" y2={48 + i * 15} />)}
+			</g>
+			<path class="tl__metal" d="M 22 100 L 36 100"></path>
+			{
+				[0, 1].map((i) => (
+					<g data-dyn={i}>
+						<circle class="tl__eye" cy="100" r="7" data-eye />
+						<line class="tl__metal" y1="100" y2="100" data-neck />
+						<rect class="tl__body" y="76" width="170" height="48" rx="9" data-body />
+						<g class="tl__scale" data-scale />
+						<path class="tl__spring" data-spring />
+						<line class="tl__rod" y1="111" y2="111" data-rod />
+						<path class="tl__pointer" data-pointer />
+						<path class="tl__hook" data-hook />
+						<text class="tl__read" y="64" text-anchor="middle" data-read />
+					</g>
+				))
+			}
+			<line class="tl__guide" y1="114" y2="182" data-guide></line>
+			<path class="tl__force" data-f1></path>
+			<path class="tl__force" data-f2></path>
+			<text class="tl__flabel" data-f1-label><tspan class="tl__sym">F</tspan><tspan class="tl__sub" dy="5">1</tspan></text>
+			<text class="tl__flabel" data-f2-label><tspan class="tl__sym">F</tspan><tspan class="tl__sub" dy="5">2</tspan></text>
+			<g class="tl__handle" data-handle tabindex="-1">
+				<line class="tl__metal" x1="-14" y1="0" x2="-8" y2="0"></line>
+				<circle class="tl__grip" r="13"></circle>
+				<circle class="tl__grip-in" r="6"></circle>
+				<text class="tl__hint" x="22" y="6" data-hint>← тяните →</text>
+			</g>
+		</svg>
+		<div class="tl__controls">
+			<label class="tl__slider">
+				<span>Тянем за крючок с силой</span>
+				<output data-out-pull>3,0 Н</output>
+				<input type="range" min="0" max="10" step="0.1" value="3" data-pull />
+			</label>
+			<label class="tl__check"><input type="checkbox" data-stiff /> У первого динамометра пружина в 2 раза жёстче</label>
+		</div>
+		<p class="tl__live" data-dyn-live aria-live="polite"></p>
+		<p class="tl__legend">
+			<i>F</i><sub>1</sub> — сила, с которой второй динамометр тянет первый; <i>F</i><sub>2</sub> — сила, с которой первый
+			тянет второй. Это пара сил по третьему закону: они приложены к разным динамометрам в одной точке. Перетащите кольцо справа или двигайте ползунок.
+		</p>
+	</div>
+
+	<!-- Panel 2: carts -->
+	<div class="tl__panel" role="tabpanel" id={`${uid}-p2`} aria-labelledby={`${uid}-t2`} data-panel="1" hidden>
+		<svg class="tl__plot" viewBox="0 0 720 176" data-cart-svg role="img" aria-label="Две тележки, которые расталкивает сжатая пружина">
+			<line class="tl__table" x1="8" y1="160" x2="712" y2="160"></line>
+			<rect class="tl__stop" x="8" y="136" width="6" height="24" rx="2"></rect>
+			<rect class="tl__stop" x="706" y="136" width="6" height="24" rx="2"></rect>
+			<path class="tl__spring tl__spring--big" data-cspring></path>
+			<line class="tl__thread" data-thread></line>
+			<circle class="tl__flame" r="7" data-flame></circle>
+			{
+				[0, 1].map((i) => (
+					<g data-cart={i}>
+						<g data-bricks>
+							<rect class="tl__brick" x="0" y="0" width="22" height="12" rx="1.5" />
+							<rect class="tl__brick" x="0" y="0" width="22" height="12" rx="1.5" />
+						</g>
+						<rect class="tl__cbody" x="-30" y="-36" width="60" height="18" rx="3" />
+						<text class="tl__cname" x="0" y="-22.5" text-anchor="middle">{i + 1}</text>
+						<circle class="tl__wheel" cx="-18" cy="-8" r="7.5" />
+						<circle class="tl__wheel" cx="18" cy="-8" r="7.5" />
+					</g>
+				))
+			}
+			<path class="tl__force" data-cf1></path>
+			<path class="tl__force" data-cf2></path>
+			<path class="tl__vel" data-cv1></path>
+			<path class="tl__vel" data-cv2></path>
+			<text class="tl__flabel" data-cf1-label><tspan class="tl__sym">F</tspan><tspan class="tl__sub" dy="5">1</tspan></text>
+			<text class="tl__flabel" data-cf2-label><tspan class="tl__sym">F</tspan><tspan class="tl__sub" dy="5">2</tspan></text>
+			<text class="tl__vlabel" data-cv1-label><tspan class="tl__sym">υ</tspan><tspan class="tl__sub" dy="5">1</tspan></text>
+			<text class="tl__vlabel" data-cv2-label><tspan class="tl__sym">υ</tspan><tspan class="tl__sub" dy="5">2</tspan></text>
+			<text class="tl__badge" x="712" y="22" text-anchor="end" data-badge></text>
+		</svg>
+		<svg class="tl__plot tl__fgraph" viewBox="0 0 720 150" role="img" aria-label="Проекции сил, с которыми пружина действует на тележки, в зависимости от времени">
+			<g class="tl__grid">
+				{[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((t) => <line x1={fgx(t)} y1={fgy(2.5)} x2={fgx(t)} y2={fgy(-2.5)} />)}
+				{[-2, -1, 1, 2].map((f) => <line x1={FGX0} y1={fgy(f)} x2={FGX1} y2={fgy(f)} />)}
+			</g>
+			<line class="tl__axis" x1={FGX0} y1={fgy(0)} x2={FGX1 + 6} y2={fgy(0)}></line>
+			<line class="tl__axis" x1={FGX0} y1={fgy(2.6)} x2={FGX0} y2={fgy(-2.6)}></line>
+			<g class="tl__gticks">
+				{[0.2, 0.4, 0.6, 0.8].map((t) => <text x={fgx(t)} y={fgy(0) + 18} text-anchor="middle">{String(t).replace('.', ',')}</text>)}
+				{[-2, -1, 0, 1, 2].map((f) => <text x={FGX0 - 8} y={fgy(f) + 5} text-anchor="end">{f < 0 ? `−${-f}` : f}</text>)}
+				<text x={FGX1} y={fgy(0) - 8} text-anchor="end"><tspan class="tl__axis-sym">t</tspan>, с</text>
+				<text x={FGX0 + 8} y={fgy(2.5) + 4}><tspan class="tl__axis-sym">F</tspan><tspan class="tl__axis-sym" dy="4" font-size="0.75em">x</tspan><tspan dy="-4">, Н</tspan></text>
+			</g>
+			<path class="tl__fcurve" data-g2></path>
+			<path class="tl__fcurve" data-g1></path>
+			<text class="tl__glabel" data-g2-label>сила на тележку 2</text>
+			<text class="tl__glabel" data-g1-label>сила на тележку 1</text>
+		</svg>
+		<div class="tl__controls tl__controls--carts">
+			{
+				[1, 2].map((i) => (
+					<div class="tl__group">
+						<span>
+							Масса тележки {i} <i>m</i>
+							<sub>{i}</sub>
+						</span>
+						<div class="tl__seg" role="group" aria-label={`Масса тележки ${i}`}>
+							{[1, 2, 3].map((m) => (
+								<button type="button" data-m={i} data-val={m} aria-pressed={m === 1 ? 'true' : 'false'}>
+									{m} кг
+								</button>
+							))}
+						</div>
+					</div>
+				))
+			}
+			<div class="tl__buttons">
+				<button type="button" class="tl__btn tl__btn--primary" data-burn>Пережечь нить</button>
+				<button type="button" class="tl__btn" data-again>Сначала</button>
+				<label class="tl__check"><input type="checkbox" checked data-slow /> Толчок замедлить в 4 раза</label>
+			</div>
+		</div>
+		<p class="tl__live" data-cart-live aria-live="polite"></p>
+		<p class="tl__legend">
+			<i>F</i><sub>1</sub> и <i>F</i><sub>2</sub> — силы, с которыми пружина действует на тележки 1 и 2. Пружина лёгкая, поэтому на обе тележки она давит одинаково. Пружина сжата на 20 см и связана нитью. Трения нет. На графике — проекции сил на ось <i>x</i>, направленную вправо.
+		</p>
+	</div>
+</figure>
+
+<style is:global>
+	.tl {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.tl i {
+		font-family: var(--ig-font-math);
+	}
+	.tl__tabs {
+		display: flex;
+		gap: 0.4rem;
+		margin-bottom: 0.75rem;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+	.tl__tabs button {
+		margin: 0 0 -1px;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.45rem 0.9rem;
+		border: 1px solid transparent;
+		border-radius: 0.6rem 0.6rem 0 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.tl__tabs button[aria-selected='true'] {
+		border-color: var(--sl-color-gray-5);
+		border-bottom-color: var(--ig-surface);
+		background: var(--ig-surface);
+		color: var(--sl-color-white);
+		font-weight: 700;
+	}
+	.tl__panel[hidden] {
+		display: none;
+	}
+	.tl__plot {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: pan-y;
+	}
+	.tl__wall rect {
+		fill: var(--sl-color-gray-5);
+	}
+	.tl__wall line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.tl__metal,
+	.tl__rod {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+		fill: none;
+	}
+	.tl__eye {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+	}
+	.tl__body {
+		fill: color-mix(in srgb, var(--sl-color-accent) 14%, var(--ig-surface));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.tl__scale line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.tl__scale line.is-major {
+		stroke-width: 1.6;
+	}
+	.tl__scale text {
+		fill: var(--sl-color-gray-2);
+		font-size: 10px;
+		font-family: var(--__sl-font);
+	}
+	.tl__spring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.tl__spring.is-stiff {
+		stroke-width: 3;
+	}
+	.tl__spring--big {
+		stroke-width: 2;
+	}
+	.tl__pointer {
+		fill: var(--sl-color-accent);
+	}
+	.tl__hook {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.tl__read {
+		fill: var(--sl-color-white);
+		font-size: 19px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.tl__force {
+		fill: var(--ig-vy);
+	}
+	.tl__guide {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.tl__vel {
+		fill: var(--ig-v);
+	}
+	.tl__flabel {
+		fill: var(--ig-vy);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.tl__vlabel {
+		fill: var(--ig-v);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.tl__sym {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 19px;
+	}
+	.tl__sub {
+		font-size: 12px;
+	}
+	.tl__handle {
+		cursor: grab;
+		touch-action: none;
+		outline: none;
+	}
+	.tl__handle.is-dragging {
+		cursor: grabbing;
+	}
+	.tl__grip {
+		fill: color-mix(in srgb, var(--sl-color-accent) 30%, var(--ig-surface));
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+	}
+	.tl__grip-in {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.5;
+	}
+	.tl__handle.is-waiting .tl__grip {
+		animation: tl-pulse 1.6s ease-in-out infinite;
+	}
+	@keyframes tl-pulse {
+		50% {
+			stroke-width: 6;
+		}
+	}
+	.tl__hint {
+		fill: var(--sl-color-accent);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+
+	.tl__table {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.tl__stop {
+		fill: var(--sl-color-gray-4);
+	}
+	.tl__thread {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.2;
+	}
+	.tl__flame {
+		fill: hsl(28, 95%, 58%);
+		filter: drop-shadow(0 0 6px hsl(40, 100%, 60%));
+		opacity: 0;
+	}
+	.tl__cbody {
+		fill: color-mix(in srgb, var(--sl-color-accent) 30%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.tl__cname {
+		fill: var(--sl-color-white);
+		font-size: 12px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.tl__wheel {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.tl__brick {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 45%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		transition: opacity 0.25s;
+	}
+	.tl__badge {
+		fill: var(--sl-color-accent);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+
+	.tl__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.tl__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.tl__gticks text,
+	.tl__glabel {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.tl__axis-sym {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.tl__nw {
+		white-space: nowrap;
+	}
+	.tl__glabel {
+		fill: var(--ig-vy);
+	}
+	.tl__fcurve {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+
+	.tl__controls {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.6rem 1.5rem;
+		margin-top: 0.6rem;
+	}
+	.tl__controls--carts {
+		grid-template-columns: 1fr 1fr;
+	}
+	.tl__slider,
+	.tl__group {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tl__group {
+		grid-template-columns: 1fr;
+	}
+	.tl__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.tl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.tl__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.tl__check input {
+		accent-color: var(--sl-color-accent);
+	}
+	.tl__seg {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.tl__seg button {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0;
+		border: 0;
+		border-left: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.tl__seg button:first-child {
+		border-left: 0;
+	}
+	.tl__seg button[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 700;
+	}
+	.tl__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+	}
+	.tl__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.tl__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.tl__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.tl__btn:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.tl__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+		font-variant-numeric: tabular-nums;
+	}
+	.tl__legend {
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.tl {
+			padding: 0.75rem;
+		}
+		.tl__read {
+			font-size: 30px;
+		}
+		.tl__scale text {
+			font-size: 15px;
+		}
+		.tl__flabel,
+		.tl__vlabel {
+			font-size: 24px;
+		}
+		.tl__sym {
+			font-size: 30px;
+		}
+		.tl__sub {
+			font-size: 19px;
+		}
+		.tl__hint,
+		.tl__badge {
+			font-size: 22px;
+		}
+		.tl__gticks text,
+		.tl__glabel {
+			font-size: 22px;
+		}
+		.tl__cname {
+			font-size: 16px;
+		}
+		.tl__controls--carts {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tl__handle.is-waiting .tl__grip {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { SVG_NS, arrowPath, attrs, fmt, reducedMotion, springPath } from './draw';
+
+	/** Keeps «symbol = value unit» on one line in a live text. */
+	const nw = (s: string) => `<span class="tl__nw">${s}</span>`;
+
+	// --- Dynamometers (screen px) ---
+	const XB1 = 50; // left end of the first body
+	const BODY = 170;
+	const ZERO = 58; // zero mark, from the left end of the body
+	const HOOK = 184; // hook at zero force, from the left end of the body
+	const KF = 6; // force arrows, px per newton
+	const FMAX = 10;
+
+	// --- Carts ---
+	const SC = 250; // px per metre
+	const K_SPRING = 10; // N/m
+	const C0 = 0.2; // compression, m
+	const L_FREE = 0.3; // spring length when free, m
+	const KFC = 40; // px per newton
+	const KVC = 150; // px per (m/s)
+	const T_MAX = 0.8;
+	const FGX0 = 60;
+	const FGX1 = 700;
+	const FGY0 = 75;
+	const fgx = (t: number) => FGX0 + (t / T_MAX) * (FGX1 - FGX0);
+	const fgy = (f: number) => FGY0 - f * 26;
+	const TABLE = 160;
+
+	const svgX = (svg: SVGSVGElement, clientX: number) => {
+		const pt = svg.createSVGPoint();
+		pt.x = clientX;
+		pt.y = 0;
+		return pt.matrixTransform(svg.getScreenCTM()!.inverse()).x;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-third]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+
+		// Tabs.
+		const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+		const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-panel]'));
+		const select = (i: number) => {
+			tabs.forEach((t, j) => {
+				t.setAttribute('aria-selected', String(i === j));
+				t.tabIndex = i === j ? 0 : -1;
+			});
+			panels.forEach((p, j) => (p.hidden = i !== j));
+		};
+		tabs.forEach((t, i) => {
+			t.addEventListener('click', () => select(i));
+			t.addEventListener('keydown', (e) => {
+				if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+				const j = (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+				select(j);
+				tabs[j].focus();
+			});
+		});
+
+		// ---------- Dynamometers ----------
+		const dynSvg = q<SVGSVGElement>('[data-dyn-svg]');
+		const dyns = Array.from(root.querySelectorAll<SVGGElement>('[data-dyn]')).map((g) => ({
+			eye: g.querySelector<SVGCircleElement>('[data-eye]')!,
+			neck: g.querySelector<SVGLineElement>('[data-neck]')!,
+			body: g.querySelector<SVGRectElement>('[data-body]')!,
+			scale: g.querySelector<SVGGElement>('[data-scale]')!,
+			spring: g.querySelector<SVGPathElement>('[data-spring]')!,
+			rod: g.querySelector<SVGLineElement>('[data-rod]')!,
+			pointer: g.querySelector<SVGPathElement>('[data-pointer]')!,
+			hook: g.querySelector<SVGPathElement>('[data-hook]')!,
+			read: g.querySelector<SVGTextElement>('[data-read]')!,
+		}));
+		const handle = q<SVGGElement>('[data-handle]');
+		const pull = q<HTMLInputElement>('[data-pull]');
+		const outPull = q<HTMLOutputElement>('[data-out-pull]');
+		const stiff = q<HTMLInputElement>('[data-stiff]');
+		const dynLive = q<HTMLElement>('[data-dyn-live]');
+		const f1 = q<SVGPathElement>('[data-f1]');
+		const f2 = q<SVGPathElement>('[data-f2]');
+		const f1l = q<SVGTextElement>('[data-f1-label]');
+		const guide = q<SVGLineElement>('[data-guide]');
+		const f2l = q<SVGTextElement>('[data-f2-label]');
+
+		let force = 3;
+		let scaleSig = '';
+		const comp = () => [stiff.checked ? 5 : 10, 10]; // stretch, px per newton
+
+		const drawScale = (d: (typeof dyns)[number], xb: number, c: number) => {
+			d.scale.replaceChildren();
+			for (let n = 0; n <= FMAX; n++) {
+				const x = xb + ZERO + n * c;
+				const major = c >= 10 ? n % 2 === 0 : n % 5 === 0;
+				const ln = document.createElementNS(SVG_NS, 'line');
+				attrs(ln, { x1: x, x2: x, y1: 82, y2: major ? 93 : 89 });
+				if (major) ln.classList.add('is-major');
+				d.scale.append(ln);
+				if (major) {
+					const tx = document.createElementNS(SVG_NS, 'text');
+					attrs(tx, { x, y: 104, 'text-anchor': 'middle' });
+					tx.textContent = String(n);
+					d.scale.append(tx);
+				}
+			}
+		};
+
+		const drawDyn = () => {
+			const c = comp();
+			const sig = c.join();
+			let xb = XB1;
+			let hookX = 0;
+			let junction = 0;
+			dyns.forEach((d, i) => {
+				const ext = force * c[i];
+				attrs(d.eye, { cx: xb - 14 });
+				attrs(d.neck, { x1: xb - 7, x2: xb });
+				attrs(d.body, { x: xb });
+				// The scale moves with the body; it is redrawn only when its body moves or the spring changes.
+				if (sig !== scaleSig || i === 1) drawScale(d, xb, c[i]);
+				const px = xb + ZERO + ext;
+				d.spring.setAttribute('d', springPath(xb + 6, px, 111, 9, 6, 4));
+				d.spring.classList.toggle('is-stiff', c[i] === 5);
+				attrs(d.rod, { x1: px, x2: xb + BODY + 4 });
+				d.pointer.setAttribute('d', `M ${px} 96 l -5 -7 h 10 z M ${px - 1} 96 h 2 v 19 h -2 z`);
+				hookX = xb + HOOK + ext;
+				d.rod.setAttribute('x2', String(hookX - 6));
+				d.hook.setAttribute('d', `M ${hookX - 8} 111 L ${hookX - 2} 111 Q ${hookX + 7} 111 ${hookX + 7} 101 Q ${hookX + 7} 93 ${hookX} 93`);
+				attrs(d.read, { x: xb + BODY / 2 });
+				d.read.textContent = `${fmt(force, 1)} Н`;
+				if (i === 0) junction = hookX + 7;
+				xb = hookX + 21; // the eye of the next dynamometer hangs on this hook
+			});
+			scaleSig = sig;
+			// Wall hook → eye of the first: fixed. Handle on the hook of the second.
+			handle.setAttribute('transform', `translate(${hookX + 21} 100)`);
+			// Third-law pair at the junction: F1 acts on the first (to the right), F2 on the second (to the left).
+			const y1 = 150;
+			const y2 = 172;
+			attrs(guide, { x1: junction, x2: junction });
+			f1.setAttribute('d', arrowPath(junction, y1, junction + force * KF, y1, 4, 12));
+			f2.setAttribute('d', arrowPath(junction, y2, junction - force * KF, y2, 4, 12));
+			const showLabels = force * KF > 4;
+			f1l.style.visibility = f2l.style.visibility = showLabels ? 'visible' : 'hidden';
+			attrs(f1l, { x: junction + force * KF + 6, y: y1 + 6 });
+			attrs(f2l, { x: junction - force * KF - 6, y: y2 + 6, 'text-anchor': 'end' });
+			outPull.value = `${fmt(force, 1)} Н`;
+			const [c1] = c;
+			dynLive.innerHTML =
+				`Оба динамометра показывают ${nw(`${fmt(force, 1)} Н`)}: ${nw('<i>F</i><sub>1</sub> = <i>F</i><sub>2</sub>')}.` +
+				(c1 === 5
+					? ` Жёсткая пружина первого растянулась вдвое меньше (на ${nw(`${fmt(force * 0.5, 1)} см`)} против ${nw(`${fmt(force, 1)} см`)}), но показания одинаковы — деления на её шкале вдвое чаще.`
+					: '');
+		};
+
+		const setForce = (f: number) => {
+			force = Math.round(Math.min(Math.max(f, 0), FMAX) * 10) / 10;
+			pull.value = String(force);
+			drawDyn();
+		};
+
+		pull.addEventListener('input', () => {
+			handle.classList.remove('is-waiting');
+			setForce(Number(pull.value));
+		});
+		stiff.addEventListener('change', drawDyn);
+
+		// Dragging the handle: the total stretch of both springs is split by their stiffness.
+		let drag = false;
+		let grab = 0;
+		handle.addEventListener('pointerdown', (e) => {
+			drag = true;
+			handle.classList.add('is-dragging');
+			handle.classList.remove('is-waiting');
+			handle.setPointerCapture(e.pointerId);
+			const [c1, c2] = comp();
+			grab = svgX(dynSvg, e.clientX) - force * (c1 + c2);
+			e.preventDefault();
+		});
+		handle.addEventListener('pointermove', (e) => {
+			if (!drag) return;
+			const [c1, c2] = comp();
+			setForce((svgX(dynSvg, e.clientX) - grab) / (c1 + c2));
+		});
+		const stop = () => {
+			drag = false;
+			handle.classList.remove('is-dragging');
+		};
+		handle.addEventListener('pointerup', stop);
+		handle.addEventListener('pointercancel', stop);
+		if (!reducedMotion()) handle.classList.add('is-waiting');
+		drawDyn();
+
+		// ---------- Carts ----------
+		const cartEls = Array.from(root.querySelectorAll<SVGGElement>('[data-cart]'));
+		const cspring = q<SVGPathElement>('[data-cspring]');
+		const thread = q<SVGLineElement>('[data-thread]');
+		const flame = q<SVGCircleElement>('[data-flame]');
+		const cf = [q<SVGPathElement>('[data-cf1]'), q<SVGPathElement>('[data-cf2]')];
+		const cv = [q<SVGPathElement>('[data-cv1]'), q<SVGPathElement>('[data-cv2]')];
+		const cfl = [q<SVGTextElement>('[data-cf1-label]'), q<SVGTextElement>('[data-cf2-label]')];
+		const cvl = [q<SVGTextElement>('[data-cv1-label]'), q<SVGTextElement>('[data-cv2-label]')];
+		const badge = q<SVGTextElement>('[data-badge]');
+		const g1 = q<SVGPathElement>('[data-g1]');
+		const g2 = q<SVGPathElement>('[data-g2]');
+		const g1l = q<SVGTextElement>('[data-g1-label]');
+		const g2l = q<SVGTextElement>('[data-g2-label]');
+		const burn = q<HTMLButtonElement>('[data-burn]');
+		const slow = q<HTMLInputElement>('[data-slow]');
+		const cartLive = q<HTMLElement>('[data-cart-live]');
+		const mBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-m]'));
+
+		const m = [1, 1];
+		// Initial positions (m, screen = SC * x): the spring between them is compressed to L_FREE − C0.
+		const X1_FRONT = 360 / SC - (L_FREE - C0) / 2;
+		const HALF = 0.12; // half length of a cart
+		let tc = 0; // simulated time since the thread burnt, s
+		let phase: 'ready' | 'burning' | 'push' | 'free' | 'done' = 'ready';
+		let raf = 0;
+		let last = 0;
+		let burnStart = 0;
+		let scaleT = 1; // current time scale
+		let curve1 = '';
+		let curve2 = '';
+
+		const omega = () => Math.sqrt((K_SPRING * (m[0] + m[1])) / (m[0] * m[1]));
+		const tPush = () => Math.PI / (2 * omega());
+		/** Displacements of the carts (m) and the spring compression at time t. */
+		const state = (t: number) => {
+			const M = m[0] + m[1];
+			const w = omega();
+			const tp = tPush();
+			const tt = Math.min(t, tp);
+			const ext = C0 * (1 - Math.cos(w * tt)); // how much the spring has expanded
+			let d1 = -(m[1] / M) * ext;
+			let d2 = (m[0] / M) * ext;
+			const vrel = C0 * w;
+			const v1 = t < tp ? -(m[1] / M) * C0 * w * Math.sin(w * t) : -(m[1] / M) * vrel;
+			const v2 = t < tp ? (m[0] / M) * C0 * w * Math.sin(w * t) : (m[0] / M) * vrel;
+			if (t > tp) {
+				d1 += v1 * (t - tp);
+				d2 += v2 * (t - tp);
+			}
+			const comp = t < tp ? C0 * Math.cos(w * t) : 0;
+			return { d1, d2, v1, v2, comp, F: K_SPRING * comp };
+		};
+
+		const placeBricks = () => {
+			cartEls.forEach((g, i) => {
+				const bricks = Array.from(g.querySelectorAll<SVGRectElement>('.tl__brick'));
+				const n = m[i] - 1;
+				bricks.forEach((b, j) => {
+					attrs(b, { x: -24 + j * 26, y: -49 });
+					b.style.opacity = j < n ? '1' : '0';
+				});
+			});
+			mBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.val) === m[Number(b.dataset.m) - 1])));
+		};
+
+		const drawCarts = (t: number) => {
+			const s = state(t);
+			const front1 = (X1_FRONT + s.d1) * SC; // front of cart 1 = left end of the spring
+			const rear2 = (X1_FRONT + L_FREE - C0 + s.d2) * SC;
+			const c1 = front1 - HALF * SC;
+			const c2 = rear2 + HALF * SC;
+			cartEls[0].setAttribute('transform', `translate(${c1.toFixed(2)} ${TABLE})`);
+			cartEls[1].setAttribute('transform', `translate(${c2.toFixed(2)} ${TABLE})`);
+			const springEnd = front1 + (L_FREE - s.comp) * SC;
+			cspring.setAttribute('d', springPath(front1, springEnd, TABLE - 27, 8, 7, 4));
+			const tied = phase === 'ready' || phase === 'burning';
+			thread.style.visibility = tied ? 'visible' : 'hidden';
+			attrs(thread, { x1: front1 - 2, x2: rear2 + 2, y1: TABLE - 33, y2: TABLE - 33 });
+			attrs(flame, { cx: (front1 + rear2) / 2, cy: TABLE - 33 });
+
+			const yF = TABLE - 70;
+			const pushing = phase === 'push' && s.F > 0.01;
+			cf[0].setAttribute('d', pushing ? arrowPath(front1, yF, front1 - s.F * KFC, yF, 4, 12) : '');
+			cf[1].setAttribute('d', pushing ? arrowPath(rear2, yF, rear2 + s.F * KFC, yF, 4, 12) : '');
+			cfl[0].style.visibility = cfl[1].style.visibility = pushing ? 'visible' : 'hidden';
+			attrs(cfl[0], { x: front1 - s.F * KFC - 6, y: yF + 6, 'text-anchor': 'end' });
+			attrs(cfl[1], { x: rear2 + s.F * KFC + 6, y: yF + 6 });
+
+			const yV = TABLE - 96;
+			const moving = phase !== 'ready' && phase !== 'burning';
+			[s.v1, s.v2].forEach((v, i) => {
+				const cx = i === 0 ? c1 : c2;
+				const show = moving && Math.abs(v) * KVC > 3;
+				cv[i].setAttribute('d', show ? arrowPath(cx, yV, cx + v * KVC, yV, 4, 12) : '');
+				cvl[i].style.visibility = show ? 'visible' : 'hidden';
+				attrs(cvl[i], { x: cx + v * KVC + (v < 0 ? -6 : 6), y: yV + 6, 'text-anchor': v < 0 ? 'end' : 'start' });
+			});
+			return { s, c1, c2 };
+		};
+
+		const resetCarts = () => {
+			cancelAnimationFrame(raf);
+			phase = 'ready';
+			tc = 0;
+			curve1 = curve2 = '';
+			g1.setAttribute('d', '');
+			g2.setAttribute('d', '');
+			g1l.style.visibility = g2l.style.visibility = 'hidden';
+			badge.textContent = '';
+			flame.style.opacity = '0';
+			burn.disabled = false;
+			placeBricks();
+			drawCarts(0);
+			cartLive.innerHTML = `${nw(`<i>m</i><sub>1</sub> = ${m[0]} кг`)}, ${nw(`<i>m</i><sub>2</sub> = ${m[1]} кг`)}. Какая тележка разгонится сильнее? Пережгите нить.`;
+		};
+
+		const extendCurves = (t: number) => {
+			const s = state(t);
+			const p2 = `${fgx(t).toFixed(1)} ${fgy(s.F).toFixed(1)}`;
+			const p1 = `${fgx(t).toFixed(1)} ${fgy(-s.F).toFixed(1)}`;
+			curve2 += curve2 ? ` L ${p2}` : `M ${p2}`;
+			curve1 += curve1 ? ` L ${p1}` : `M ${p1}`;
+			g2.setAttribute('d', curve2);
+			g1.setAttribute('d', curve1);
+		};
+
+		const frame = (now: number) => {
+			const real = Math.min((now - last) / 1000, 0.05);
+			last = now;
+			if (phase === 'burning') {
+				const k = (now - burnStart) / 350;
+				flame.style.opacity = String(k < 1 ? Math.sin(Math.PI * k) : 0);
+				flame.setAttribute('r', String(5 + 5 * Math.sin(Math.PI * Math.min(k, 1))));
+				if (k >= 0.5 && phase === 'burning') {
+					phase = 'push';
+					extendCurves(0);
+				}
+				drawCarts(0);
+				raf = requestAnimationFrame(frame);
+				return;
+			}
+			if (phase === 'push' || phase === 'free') {
+				flame.style.opacity = String(Math.max(0, Number(flame.style.opacity) - real * 4));
+				const tp = tPush();
+				const target = slow.checked && !reducedMotion() && tc < tp ? 0.25 : 1;
+				scaleT += (target - scaleT) * Math.min(1, real * (target < scaleT ? 30 : 3));
+				const dt = real * scaleT;
+				const steps = Math.max(1, Math.ceil(dt / 0.004));
+				for (let i = 0; i < steps; i++) {
+					tc += dt / steps;
+					if (tc <= T_MAX) extendCurves(tc);
+				}
+				if (phase === 'push' && tc >= tp) phase = 'free';
+				badge.textContent = scaleT < 0.5 ? `замедлено в ${Math.round(1 / scaleT)} раза` : '';
+				const { s, c1, c2 } = drawCarts(tc);
+				const a1 = s.F / m[0];
+				const a2 = s.F / m[1];
+				if (phase === 'push') {
+					cartLive.innerHTML =
+						`Пружина толкает тележки с равными силами: ${nw(`<i>F</i><sub>1</sub> = <i>F</i><sub>2</sub> = ${fmt(s.F, 2)} Н`)}. ` +
+						`Ускорения: ${nw(`<i>a</i><sub>1</sub> = ${fmt(a1, 2)} м/с²`)}, ${nw(`<i>a</i><sub>2</sub> = ${fmt(a2, 2)} м/с²`)}.`;
+				} else {
+					const s1 = -s.d1 * 100;
+					const s2 = s.d2 * 100;
+					cartLive.innerHTML =
+						`Пружина распрямилась. Скорости: ${nw(`<i>υ</i><sub>1</sub> = ${fmt(Math.abs(s.v1), 2)} м/с`)}, ` +
+						`${nw(`<i>υ</i><sub>2</sub> = ${fmt(s.v2, 2)} м/с`)}. Пройденные пути: ${nw(`<i>s</i><sub>1</sub> = ${fmt(s1, 0)} см`)}, ` +
+						`${nw(`<i>s</i><sub>2</sub> = ${fmt(s2, 0)} см`)}.`;
+				}
+				if (!g1l.style.visibility || g1l.style.visibility === 'hidden') {
+					g1l.style.visibility = g2l.style.visibility = 'visible';
+					const tl = Math.min(tPush() * 0.45, 0.3);
+					const F = state(tl).F;
+					attrs(g2l, { x: fgx(tl) + 10, y: fgy(F) - 8 });
+					attrs(g1l, { x: fgx(tl) + 10, y: fgy(-F) + 20 });
+				}
+				// Stop while both speed arrows (with their labels) are still in the picture.
+				const hit = c1 + s.v1 * KVC - 34 <= 8 || c2 + s.v2 * KVC + 34 >= 712;
+				if (hit) {
+					phase = 'done';
+					badge.textContent = '';
+					const ratio = m[1] / m[0];
+					const r = ratio >= 1 ? `${fmt(ratio, 2, true)} : 1` : `1 : ${fmt(1 / ratio, 2, true)}`;
+					cartLive.innerHTML =
+						`Скорости: ${nw(`<i>υ</i><sub>1</sub> = ${fmt(Math.abs(s.v1), 2)} м/с`)}, ${nw(`<i>υ</i><sub>2</sub> = ${fmt(s.v2, 2)} м/с`)}. ` +
+						`За одно и то же время тележки проехали ${nw(`<i>s</i><sub>1</sub> = ${fmt(-s.d1 * 100, 0)} см`)} и ${nw(`<i>s</i><sub>2</sub> = ${fmt(s.d2 * 100, 0)} см`)}: ` +
+						`${nw(`<i>υ</i><sub>1</sub> : <i>υ</i><sub>2</sub> = <i>m</i><sub>2</sub> : <i>m</i><sub>1</sub> = ${r}`)}.`;
+					return;
+				}
+				raf = requestAnimationFrame(frame);
+			}
+		};
+
+		burn.addEventListener('click', () => {
+			if (phase !== 'ready') return;
+			phase = 'burning';
+			burn.disabled = true;
+			scaleT = slow.checked && !reducedMotion() ? 0.25 : 1;
+			burnStart = last = performance.now();
+			cartLive.textContent = 'Нить пережигают…';
+			raf = requestAnimationFrame(frame);
+		});
+		q<HTMLButtonElement>('[data-again]').addEventListener('click', resetCarts);
+		mBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				m[Number(b.dataset.m) - 1] = Number(b.dataset.val);
+				resetCarts();
+			}),
+		);
+		resetCarts();
+	}
+</script>

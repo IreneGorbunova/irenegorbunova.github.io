@@ -1,0 +1,602 @@
+---
+/**
+ * Galileo's thought experiment: a ball rolls down one inclined plane and up another.
+ * Without friction it rises to the same height; the gentler the second slope, the farther it rolls;
+ * on a horizontal plane it would roll for ever.
+ * Physics: a solid ball rolling without slipping, a = (5/7) g sin θ along each plane; equal scales
+ * on both axes (110 px per metre), real time. A stroboscope shows the ball every 0.1 s.
+ */
+const angles = [60, 45, 30, 20, 15, 0];
+---
+
+<figure class="glr not-content" data-galileo>
+	<svg class="glr__plot" viewBox="0 58 720 170" role="img" aria-label="Шар скатывается с одной наклонной плоскости и вкатывается на другую">
+		<g class="glr__old" data-old></g>
+		<path class="glr__wedge" data-left></path>
+		<path class="glr__wedge" data-right></path>
+		<line class="glr__ground" data-ground></line>
+		<path class="glr__arc" data-arc></path>
+		<line class="glr__level" data-level></line>
+		<g data-ghosts></g>
+		<text class="glr__angle" data-angle-label></text>
+		<g data-ball>
+			<circle class="glr__ball" r="11"></circle>
+			<path class="glr__ball-band" d="M -11 0 A 11 11 0 0 0 11 0 Z"></path>
+			<circle class="glr__ball-rim" r="11"></circle>
+		</g>
+		<text class="glr__inf" data-inf>→ ∞</text>
+	</svg>
+
+	<div class="glr__controls">
+		<div class="glr__group">
+			<span class="glr__name">Наклон второй плоскости <i>β</i></span>
+			<div class="glr__seg" role="group" aria-label="Наклон второй плоскости">
+				{
+					angles.map((b) => (
+						<button type="button" data-beta={b} aria-pressed={b === 30 ? 'true' : 'false'}>
+							{b}°
+						</button>
+					))
+				}
+			</div>
+		</div>
+		<div class="glr__buttons">
+			<button type="button" class="glr__btn glr__btn--primary" data-go>Отпустить шар</button>
+			<button type="button" class="glr__btn" data-clear>Стереть следы</button>
+			<label class="glr__check"><input type="checkbox" checked data-strobe /> Стробоскоп</label>
+		</div>
+	</div>
+	<p class="glr__live" data-live aria-live="polite"></p>
+	<figcaption class="glr__legend">
+		<span class="glr__key"></span>начальная высота центра шара. Сопротивление движению не учитывается, переход между плоскостями считается плавным: шар не теряет скорость на изломах. Шар катится без проскальзывания, масштаб по горизонтали и по вертикали одинаковый, время — настоящее.
+		Стробоскоп показывает положение шара через каждые 0,1&nbsp;с.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.glr {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.glr i {
+		font-family: var(--ig-font-math);
+	}
+	.glr__plot {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.glr__wedge {
+		fill: color-mix(in srgb, var(--sl-color-accent) 18%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.glr__ground {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.glr__old line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 5;
+	}
+	.glr__old circle {
+		fill: var(--sl-color-gray-3);
+	}
+	.glr__old text,
+	.glr__angle {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.glr__angle {
+		fill: var(--sl-color-gray-2);
+		font-size: 15px;
+		/* drawn over the stroboscope ghosts: a halo in the panel colour keeps it readable */
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+		paint-order: stroke;
+	}
+	.glr__arc {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.glr__level {
+		stroke: var(--ig-v);
+		stroke-width: 1.5;
+		stroke-dasharray: 7 6;
+		opacity: 0.9;
+	}
+	.glr__key {
+		display: inline-block;
+		width: 1.4rem;
+		margin: 0 0.35rem 0.2rem 0;
+		vertical-align: middle;
+		border-top: 2px dashed var(--ig-v);
+	}
+	.glr__ghost {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 1.2;
+		opacity: 0.55;
+	}
+	.glr__ball {
+		fill: var(--ig-v);
+	}
+	.glr__ball-band {
+		fill: color-mix(in srgb, var(--ig-v) 55%, var(--sl-color-black));
+	}
+	.glr__ball-rim {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+		opacity: 0.6;
+	}
+	.glr__inf {
+		fill: var(--ig-v);
+		font-size: 20px;
+		font-family: var(--__sl-font);
+	}
+
+	.glr__controls {
+		display: grid;
+		gap: 0.75rem;
+		margin-top: 0.75rem;
+	}
+	.glr__group {
+		display: grid;
+		gap: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.glr__seg {
+		display: grid;
+		grid-template-columns: repeat(6, 1fr);
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.glr__seg button {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0;
+		border: 0;
+		border-left: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		font-variant-numeric: tabular-nums;
+	}
+	.glr__seg button:first-child {
+		border-left: 0;
+	}
+	.glr__seg button[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 700;
+	}
+	.glr__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+	}
+	.glr__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.glr__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.glr__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.glr__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.glr__check input {
+		accent-color: var(--sl-color-accent);
+	}
+	.glr__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+		font-variant-numeric: tabular-nums;
+	}
+	.glr__legend {
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.glr {
+			padding: 0.75rem;
+		}
+		.glr__old text {
+			font-size: 21px;
+		}
+		.glr__angle {
+			font-size: 24px;
+		}
+		.glr__inf {
+			font-size: 30px;
+		}
+	}
+</style>
+
+<script>
+	import { SVG_NS, attrs, fmt, nb, reducedMotion } from './draw';
+
+	const G = 9.8;
+	const K = 5 / 7; // solid ball rolling without slipping: a = (5/7) g sin θ
+	const S = 110; // px per metre (both axes)
+	const OX = 145; // screen x of the foot of the first plane
+	const GY = 214; // screen y of the floor
+	const R = 0.1; // ball radius, m
+	const H0 = 1.0; // starting height of the ball's centre, m
+	const ALPHA = (45 * Math.PI) / 180; // first plane
+	const TOP = 1.1; // height of the first plane, m
+	const GAP = 0.5; // flat part between the planes, m
+	const XMAX = (712 - OX) / S; // right edge of the picture, m
+	const STROBE = 0.1; // s
+
+	type P = { x: number; y: number };
+	const sx = (x: number) => OX + x * S;
+	const sy = (y: number) => GY - y * S;
+
+	/** The floor and the planes as a polyline (left to right) for a given angle of the second plane. */
+	const surface = (beta: number): P[] => {
+		const xl = -TOP / Math.tan(ALPHA);
+		if (beta < 1e-6) return [{ x: xl, y: TOP }, { x: 0, y: 0 }, { x: XMAX + 1, y: 0 }];
+		const h = Math.min(1.25, (XMAX - GAP) * Math.tan(beta));
+		return [{ x: xl, y: TOP }, { x: 0, y: 0 }, { x: GAP, y: 0 }, { x: GAP + h / Math.tan(beta), y: h }];
+	};
+
+	/** Path of the ball's centre: every plane shifted by R along its normal; corners are the crossings. */
+	const centrePath = (surf: P[]): P[] => {
+		const lines = surf.slice(1).map((b, i) => {
+			const a = surf[i];
+			const len = Math.hypot(b.x - a.x, b.y - a.y);
+			const u = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+			const n = { x: -u.y, y: u.x };
+			return { p: { x: a.x + R * n.x, y: a.y + R * n.y }, u, end: { x: b.x + R * n.x, y: b.y + R * n.y } };
+		});
+		const pts: P[] = [];
+		// Start: on the first shifted line at the height H0.
+		const l0 = lines[0];
+		const k0 = (H0 - l0.p.y) / l0.u.y;
+		pts.push({ x: l0.p.x + k0 * l0.u.x, y: H0 });
+		for (let i = 1; i < lines.length; i++) {
+			const A = lines[i - 1];
+			const B = lines[i];
+			const den = A.u.x * B.u.y - A.u.y * B.u.x;
+			const k = ((B.p.x - A.p.x) * B.u.y - (B.p.y - A.p.y) * B.u.x) / den;
+			pts.push({ x: A.p.x + k * A.u.x, y: A.p.y + k * A.u.y });
+		}
+		pts.push(lines[lines.length - 1].end);
+		return pts;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-galileo]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const leftW = q<SVGPathElement>('[data-left]');
+		const rightW = q<SVGPathElement>('[data-right]');
+		const ground = q<SVGLineElement>('[data-ground]');
+		const arc = q<SVGPathElement>('[data-arc]');
+		const angleLabel = q<SVGTextElement>('[data-angle-label]');
+		const level = q<SVGLineElement>('[data-level]');
+		const ghostsG = q<SVGGElement>('[data-ghosts]');
+		const oldG = q<SVGGElement>('[data-old]');
+		const ball = q<SVGGElement>('[data-ball]');
+		const inf = q<SVGTextElement>('[data-inf]');
+		const live = q<HTMLElement>('[data-live]');
+		const strobe = q<HTMLInputElement>('[data-strobe]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		const betaBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-beta]'));
+
+		let betaDeg = 30;
+		let shown = 30; // angle currently drawn (animates towards betaDeg)
+		let path: P[] = [];
+		let segs: { a: P; u: P; L: number; acc: number }[] = [];
+		let seg = 0;
+		let s = 0;
+		let v = 0;
+		let roll = 0;
+		let t = 0;
+		let nextGhost = 0;
+		let forward = true;
+		let running = false;
+		let raf = 0;
+		let last = 0;
+		const old = new Map<number, P>();
+
+		attrs(ground, { x1: 0, x2: 720, y1: GY, y2: GY });
+		attrs(level, { x1: sx(-TOP / Math.tan(ALPHA)) + 4, x2: 712, y1: sy(H0), y2: sy(H0) });
+		const xl = -TOP / Math.tan(ALPHA);
+		leftW.setAttribute('d', `M ${sx(xl)} ${sy(TOP)} L ${sx(0)} ${GY} L ${sx(xl)} ${GY} Z`);
+
+		const build = (beta: number) => {
+			const surf = surface(beta);
+			path = centrePath(surf);
+			segs = path.slice(1).map((b, i) => {
+				const a = path[i];
+				const L = Math.hypot(b.x - a.x, b.y - a.y);
+				const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L };
+				return { a, u, L, acc: -K * G * u.y };
+			});
+		};
+
+		const drawRamp = (deg: number) => {
+			const b = (deg * Math.PI) / 180;
+			const surf = surface(b);
+			if (b > 1e-6) {
+				const end = surf[3];
+				rightW.setAttribute('d', `M ${sx(GAP)} ${GY} L ${sx(end.x)} ${sy(end.y)} L ${sx(end.x)} ${GY} Z`);
+				const r = 46;
+				arc.setAttribute(
+					'd',
+					`M ${sx(GAP) + r} ${GY} A ${r} ${r} 0 0 0 ${sx(GAP) + r * Math.cos(b)} ${GY - r * Math.sin(b)}`,
+				);
+				// Keep the label inside the wedge, under the slope, so it never covers the stroboscope ghosts:
+				// on a gentle slope it moves right along the floor until the wedge is tall enough for it.
+				const fs = parseFloat(getComputedStyle(angleLabel).fontSize) || 15;
+				const inside = Math.min((fs * 0.75 + 6) / Math.tan(b), 300);
+				if (inside > r + 8) attrs(angleLabel, { x: sx(GAP) + inside, y: GY - 4, 'text-anchor': 'start' });
+				else
+					attrs(angleLabel, {
+						x: sx(GAP) + (r + 8) * Math.cos(b / 2),
+						y: GY - (r + 8) * Math.sin(b / 2) + 5,
+						'text-anchor': 'start',
+					});
+			} else {
+				rightW.setAttribute('d', '');
+				arc.setAttribute('d', '');
+				attrs(angleLabel, { x: sx(GAP) + 6, y: GY - 34 });
+			}
+			angleLabel.textContent = `β = ${Math.round(deg)}°`;
+			inf.style.visibility = deg < 0.5 ? 'visible' : 'hidden';
+			attrs(inf, { x: 708, y: GY - 34, 'text-anchor': 'end' });
+		};
+
+		const pos = () => {
+			const g = segs[seg];
+			return { x: g.a.x + g.u.x * s, y: g.a.y + g.u.y * s };
+		};
+		const placeBall = () => {
+			const p = pos();
+			const deg = ((roll / R) * 180) / Math.PI;
+			ball.setAttribute('transform', `translate(${sx(p.x).toFixed(2)} ${sy(p.y).toFixed(2)}) rotate(${(deg % 360).toFixed(1)})`);
+		};
+
+		const addGhost = () => {
+			if (!strobe.checked) return;
+			const p = pos();
+			const c = document.createElementNS(SVG_NS, 'circle');
+			c.setAttribute('class', 'glr__ghost');
+			attrs(c, { cx: sx(p.x).toFixed(1), cy: sy(p.y).toFixed(1), r: 11 });
+			ghostsG.append(c);
+		};
+
+		const drawOld = () => {
+			oldG.replaceChildren();
+			for (const [deg, p] of old) {
+				if (deg === betaDeg) continue;
+				const b = (deg * Math.PI) / 180;
+				const end = surface(b)[3];
+				const ln = document.createElementNS(SVG_NS, 'line');
+				attrs(ln, { x1: sx(GAP), y1: GY, x2: sx(end.x), y2: sy(end.y) });
+				const dot = document.createElementNS(SVG_NS, 'circle');
+				attrs(dot, { cx: sx(p.x), cy: sy(p.y), r: 4 });
+				const tx = document.createElementNS(SVG_NS, 'text');
+				attrs(tx, { x: sx(p.x), y: sy(p.y) - 10, 'text-anchor': 'middle' });
+				tx.textContent = `${deg}°`;
+				oldG.append(ln, dot, tx);
+			}
+		};
+
+		const resetBall = () => {
+			cancelAnimationFrame(raf);
+			running = false;
+			build((betaDeg * Math.PI) / 180);
+			seg = 0;
+			s = 0;
+			v = 0;
+			roll = 0;
+			t = 0;
+			nextGhost = 0;
+			forward = true;
+			ghostsG.replaceChildren();
+			placeBall();
+			go.textContent = 'Отпустить шар';
+		};
+
+		const climb = (deg: number) => {
+			const b = (deg * Math.PI) / 180;
+			return R * Math.tan(b / 2) + (H0 - R) / Math.sin(b);
+		};
+
+		let verdict = '';
+		const finishForward = () => {
+			forward = false;
+			const p = pos();
+			if (betaDeg > 0) {
+				old.set(betaDeg, p);
+				verdict = `β = ${betaDeg}°: шар вкатился по склону на ${fmt(climb(betaDeg), 1)} м и поднялся ровно до начальной высоты.`;
+				live.textContent = nb(`${verdict} Сейчас он скатится обратно.`);
+			}
+		};
+
+		/** Exact motion with constant acceleration on each plane; stops at corners, turning points and strobe ticks. */
+		const advance = (dt: number) => {
+			let rem = dt;
+			for (let guard = 0; rem > 1e-12 && running && guard < 64; guard++) {
+				const g = segs[seg];
+				const a = g.acc;
+				let h = rem;
+				let event = '';
+				if (forward && strobe.checked) {
+					const tg = nextGhost - t;
+					if (tg < h) {
+						h = Math.max(tg, 0);
+						event = 'ghost';
+					}
+				}
+				if (v > 1e-12) {
+					const d = g.L - s;
+					const disc = v * v + 2 * a * d;
+					if (disc >= 0) {
+						const tb = (2 * d) / (v + Math.sqrt(disc));
+						if (tb <= h) {
+							h = tb;
+							event = 'end';
+						}
+					}
+					if (a < 0 && v / -a <= h) {
+						h = v / -a;
+						event = 'turn';
+					}
+				} else if (v < -1e-12) {
+					const w = -v;
+					const disc = w * w - 2 * a * s;
+					if (disc >= 0) {
+						const tb = (2 * s) / (w + Math.sqrt(disc));
+						if (tb <= h) {
+							h = tb;
+							event = 'start';
+						}
+					}
+					if (a > 0 && w / a <= h) {
+						h = w / a;
+						event = 'turn';
+					}
+				}
+				const ds = v * h + (a * h * h) / 2;
+				s += ds;
+				roll += ds;
+				v += a * h;
+				t += h;
+				rem -= h;
+				if (event === 'ghost') {
+					addGhost();
+					nextGhost += STROBE;
+				} else if (event === 'end') {
+					s = g.L;
+					if (seg < segs.length - 1) {
+						seg += 1;
+						s = 0;
+					} else {
+						running = false; // rolled out of the picture
+						live.textContent =
+							'На горизонтальной плоскости шару не нужно подниматься, и скорость его не уменьшается. Если бы плоскость нигде не кончалась, он катился бы равномерно бесконечно долго.';
+					}
+				} else if (event === 'start') {
+					s = 0;
+					if (seg > 0) {
+						seg -= 1;
+						s = segs[seg].L;
+					} else {
+						v = 0;
+						running = false;
+					}
+				} else if (event === 'turn') {
+					v = 0;
+					if (forward) finishForward();
+					else if (seg === 0) {
+						running = false;
+					}
+				}
+			}
+			if (!running) {
+				go.textContent = 'Ещё раз';
+				if (!forward && betaDeg > 0)
+					live.textContent = nb(
+						`${verdict} Потом он вернулся в исходную точку: без трения шар катался бы туда и обратно бесконечно. Попробуйте склон положе.`,
+					);
+			}
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.05);
+			last = now;
+			advance(dt);
+			placeBall();
+			if (running) {
+				const p = pos();
+				if (forward)
+					live.innerHTML = nb(
+						`<i>t</i> = ${fmt(t, 2)} с · <i>υ</i> = ${fmt(Math.abs(v), 2)} м/с · высота центра шара ${fmt(p.y, 2)} м`,
+					);
+				raf = requestAnimationFrame(frame);
+			} else drawOld();
+		};
+
+		const launch = () => {
+			resetBall();
+			running = true;
+			go.textContent = 'Шар катится…';
+			last = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+
+		const setBeta = (deg: number) => {
+			const from = shown;
+			betaDeg = deg;
+			betaBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.beta) === deg)));
+			resetBall();
+			drawOld();
+			live.textContent =
+				deg > 0
+					? `Как далеко шар вкатится на плоскость с наклоном ${deg}°? Нажмите «Отпустить шар».`
+					: 'Вторая плоскость горизонтальна. Где остановится шар?';
+			if (reducedMotion()) {
+				shown = deg;
+				drawRamp(deg);
+				return;
+			}
+			const t0 = performance.now();
+			const tween = (now: number) => {
+				const k = Math.min((now - t0) / 450, 1);
+				const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+				shown = from + (deg - from) * e;
+				drawRamp(shown);
+				if (k < 1) requestAnimationFrame(tween);
+			};
+			requestAnimationFrame(tween);
+		};
+
+		betaBtns.forEach((b) => b.addEventListener('click', () => setBeta(Number(b.dataset.beta))));
+		go.addEventListener('click', () => (running ? undefined : launch()));
+		q<HTMLButtonElement>('[data-clear]').addEventListener('click', () => {
+			old.clear();
+			drawOld();
+			ghostsG.replaceChildren();
+		});
+
+		drawRamp(shown);
+		resetBall();
+		live.textContent = nb('Шар отпускают с высоты 1 м. До какой высоты он поднимется на второй плоскости?');
+	}
+</script>

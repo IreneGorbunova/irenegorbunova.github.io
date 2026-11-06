@@ -1,0 +1,1118 @@
+---
+/**
+ * Main model of the chapter: a cart on a straight road.
+ * Pulling force, friction and mass are set by the reader; the cart moves with
+ * a = (F_pull − F_fr) / m (exact piecewise-constant integration, real time, real units).
+ * The road scale is 80 px per metre; a mark on the road shows the cart's position every 0.5 s;
+ * the speed–time graph is drawn live and keeps the previous runs for comparison.
+ */
+const GROUND = 168;
+const W = 720;
+const GX0 = 52;
+const GX1 = 704;
+const GY0 = 164;
+const GY1 = 14;
+const gx = (t: number) => GX0 + (t / 10) * (GX1 - GX0);
+const gy = (v: number) => GY0 - (v / 10) * (GY0 - GY1);
+const secs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const speeds = [0, 2, 4, 6, 8, 10];
+// Distant hills: a smooth curve with period 720 px, drawn twice so that it can scroll without a seam.
+const hill = (x: number) =>
+	GROUND -
+	(34 +
+		16 * Math.sin((2 * Math.PI * 2 * x) / 720 + 1) +
+		11 * Math.sin((2 * Math.PI * 3 * x) / 720 + 2.3) +
+		6 * Math.sin((2 * Math.PI * 5 * x) / 720 + 0.4));
+const hills =
+	`M 0 ${GROUND} ` +
+	Array.from({ length: 1440 / 8 + 1 }, (_, i) => `L ${i * 8} ${hill(i * 8).toFixed(1)}`).join(' ') +
+	` L 1440 ${GROUND} Z`;
+const presets = [
+	['free', 'Нет сил'],
+	['balanced', 'Силы уравновешены'],
+	['speedup', 'Разгон'],
+	['heavy', 'Груз тяжелее'],
+	['brake', 'Торможение'],
+];
+---
+
+<figure class="cl cl--init not-content" data-cartlab>
+	<div class="cl__presets" role="group" aria-label="Готовые опыты">
+		<span class="cl__presets-name">Готовые опыты:</span>
+		{
+			presets.map(([id, name]) => (
+				<button type="button" class="cl__chip" data-preset={id}>
+					{name}
+				</button>
+			))
+		}
+	</div>
+
+	<svg
+		class="cl__scene"
+		viewBox={`0 0 ${W} 210`}
+		data-scene
+		role="img"
+		aria-label="Тележка на дороге. Стрелками показаны силы, скорость и ускорение тележки."
+	>
+		<path class="cl__hills" d={hills} data-hills></path>
+		<rect class="cl__ground" x="0" y={GROUND} width={W} height="42"></rect>
+		<line class="cl__groundline" x1="0" y1={GROUND} x2={W} y2={GROUND}></line>
+		<g data-posts></g>
+		<g class="cl__ticks" data-ticks></g>
+		<g data-drops></g>
+
+		<g class="cl__cart" data-cart>
+			<g data-boxes>
+				{
+					[0, 1, 2].map(() => (
+						<g class="cl__box" data-box>
+							<rect x="0" y="0" width="24" height="24" rx="2" />
+							<rect class="cl__tape" x="10" y="0" width="4" height="24" />
+						</g>
+					))
+				}
+			</g>
+			<line class="cl__strut" x1="-30" y1="-28" x2="-30" y2="-16"></line>
+			<line class="cl__strut" x1="30" y1="-28" x2="30" y2="-16"></line>
+			<rect class="cl__bed" x="-50" y="-42" width="100" height="14" rx="3"></rect>
+			<line class="cl__bar" x1="50" y1="-35" x2="61" y2="-35"></line>
+			<circle class="cl__ring" cx="65" cy="-35" r="4"></circle>
+			{
+				[-30, 30].map((cx) => (
+					<g transform={`translate(${cx} -16)`}>
+						<circle class="cl__tyre" r="15" />
+						<g data-spokes>
+							<line class="cl__spoke" x1="0" y1="0" x2="0" y2="-11" />
+							<line class="cl__spoke" x1="0" y1="0" x2="9.53" y2="5.5" />
+							<line class="cl__spoke" x1="0" y1="0" x2="-9.53" y2="5.5" />
+							<circle class="cl__valve" cx="0" cy="-11" r="2.2" />
+						</g>
+						<circle class="cl__hub" r="3" />
+					</g>
+				))
+			}
+		</g>
+
+		<path class="cl__arrow cl__arrow--f" data-ar-pull></path>
+		<path class="cl__arrow cl__arrow--f" data-ar-fric></path>
+		<path class="cl__arrow cl__arrow--v" data-ar-v></path>
+		<path class="cl__arrow cl__arrow--a" data-ar-a></path>
+		<text class="cl__lbl cl__lbl--f" data-lb-pull><tspan class="cl__sym">F</tspan><tspan class="cl__sub" dy="5">тяги</tspan></text>
+		<text class="cl__lbl cl__lbl--f" data-lb-fric><tspan class="cl__sym">F</tspan><tspan class="cl__sub" dy="5">тр</tspan></text>
+		<text class="cl__lbl cl__lbl--v" data-lb-v><tspan class="cl__sym">υ</tspan></text>
+		<text class="cl__lbl cl__lbl--a" data-lb-a><tspan class="cl__sym">a</tspan></text>
+		<text class="cl__clock" x={W - 14} y="26" text-anchor="end" data-clock>t = 0,0 с</text>
+	</svg>
+
+	<svg class="cl__graph" viewBox={`0 0 ${W} 196`} role="img" aria-label="График зависимости скорости тележки от времени">
+		<g class="cl__grid">
+			{secs.slice(1).map((t) => <line x1={gx(t)} y1={GY0} x2={gx(t)} y2={GY1} />)}
+			{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => <line x1={GX0} y1={gy(v)} x2={GX1} y2={gy(v)} />)}
+		</g>
+		<line class="cl__axis" x1={GX0} y1={GY0} x2={GX1 + 6} y2={GY0}></line>
+		<line class="cl__axis" x1={GX0} y1={GY0} x2={GX0} y2={GY1 - 6}></line>
+		<g class="cl__gticks">
+			{
+				secs.map((t) => (
+					<text class={t % 2 ? 'cl__odd' : undefined} x={gx(t)} y={GY0 + 21} text-anchor="middle">
+						{t}
+					</text>
+				))
+			}
+			{speeds.map((v) => <text x={GX0 - 9} y={gy(v) + 5} text-anchor="end">{v}</text>)}
+			<text x={GX1} y={GY0 - 9} text-anchor="end"><tspan class="cl__axis-sym">t</tspan>, с</text>
+			<text x={GX0 + 10} y={GY1 + 6}><tspan class="cl__axis-sym">υ</tspan>, м/с</text>
+		</g>
+		<g data-traces></g>
+		<path class="cl__vline" data-vline></path>
+		<circle class="cl__vdot" r="5" data-vdot></circle>
+	</svg>
+
+	<div class="cl__controls">
+		<label class="cl__slider">
+			<span class="cl__name">Сила тяги <i>F</i><sub>тяги</sub></span>
+			<output data-out-f>30 Н</output>
+			<input type="range" min="0" max="40" step="5" value="30" data-in-f />
+		</label>
+		<label class="cl__slider">
+			<span class="cl__name">Сила трения <i>F</i><sub>тр</sub></span>
+			<output data-out-ff>10 Н</output>
+			<input type="range" min="0" max="20" step="5" value="10" data-in-ff />
+		</label>
+		<div class="cl__slider">
+			<span class="cl__name">Масса тележки с грузом <i>m</i></span>
+			<div class="cl__seg" role="group" aria-label="Масса тележки с грузом">
+				{
+					[10, 20, 30, 40].map((m) => (
+						<button type="button" data-mass={m} aria-pressed={m === 20 ? 'true' : 'false'}>
+							{m} кг
+						</button>
+					))
+				}
+			</div>
+		</div>
+		<label class="cl__slider">
+			<span class="cl__name">Начальная скорость <i>υ</i><sub>0</sub></span>
+			<output data-out-v0>0 м/с</output>
+			<input type="range" min="0" max="5" step="1" value="0" data-in-v0 />
+		</label>
+		<div class="cl__buttons">
+			<button type="button" class="cl__btn cl__btn--primary" data-run>Пуск</button>
+			<button type="button" class="cl__btn" data-reset>Сначала</button>
+			<button type="button" class="cl__btn" data-clear>Стереть графики</button>
+		</div>
+	</div>
+
+	<div class="cl__formula" data-formula></div>
+	<p class="cl__say" data-say aria-live="polite"></p>
+
+	<dl class="cl__stats">
+		<div><dt>Время <i>t</i></dt><dd data-st-t>0,0 с</dd></div>
+		<div><dt>Скорость <i>υ</i></dt><dd data-st-v>0,0 м/с</dd></div>
+		<div><dt>Ускорение <i>a<sub>x</sub></i></dt><dd data-st-a>0 м/с²</dd></div>
+		<div><dt>Путь <i>s</i></dt><dd data-st-s>0,0 м</dd></div>
+	</dl>
+
+	<figcaption class="cl__legend">
+		<span class="cl__key cl__key--f"></span>силы
+		<span class="cl__key cl__key--v"></span>скорость <i>υ</i>
+		<span class="cl__key cl__key--a"></span>ускорение <i>a</i>.
+		Метки на дороге показывают, где была тележка через каждые 0,5&nbsp;с. Серые линии на графике — предыдущие
+		опыты, подпись у каждой — <span class="cl__nowrap">равнодействующая / масса</span>. Когда тележка стоит, сила
+		трения покоя не больше <i>F</i><sub>тр</sub>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.cl {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.cl i {
+		font-family: var(--ig-font-math);
+	}
+	.cl__presets {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.cl__presets-name {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+		margin-right: 0.2rem;
+	}
+	.cl__chip {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.8rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-1);
+		cursor: pointer;
+		transition:
+			background 0.2s,
+			border-color 0.2s,
+			color 0.2s;
+	}
+	.cl__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.cl__chip[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		color: var(--sl-color-white);
+	}
+
+	.cl__scene,
+	.cl__graph {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.cl__scene {
+		border-radius: 0.6rem;
+		background: linear-gradient(
+			to bottom,
+			color-mix(in srgb, var(--sl-color-accent-low) 35%, transparent),
+			transparent 80%
+		);
+	}
+	.cl__ground {
+		fill: var(--sl-color-gray-6);
+	}
+	.cl__groundline {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.cl__hills {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 45%, transparent);
+	}
+	.cl__post {
+		opacity: 0.7;
+	}
+	.cl__post rect {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.cl__post rect.cl__reflector {
+		fill: var(--sl-color-accent);
+		stroke: none;
+	}
+	.cl__ticks line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.cl__ticks line.is-five {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.cl__ticks text,
+	.cl__gticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.cl__drop {
+		fill: var(--sl-color-gray-2);
+		opacity: 0.85;
+	}
+
+	.cl__bed {
+		fill: color-mix(in srgb, var(--sl-color-accent) 30%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.cl__strut,
+	.cl__bar {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.cl__ring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.cl__tyre {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3.5;
+	}
+	.cl__spoke {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.cl__valve {
+		fill: var(--sl-color-accent);
+	}
+	.cl__hub {
+		fill: var(--sl-color-gray-2);
+	}
+	.cl__box {
+		transition:
+			transform 0.45s cubic-bezier(0.3, 1.4, 0.5, 1),
+			opacity 0.3s;
+	}
+	.cl--init .cl__box {
+		transition: none;
+	}
+	.cl__box rect {
+		fill: color-mix(in srgb, var(--ig-v) 28%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.cl__box rect.cl__tape {
+		fill: color-mix(in srgb, var(--ig-v) 50%, var(--ig-surface));
+		stroke: none;
+	}
+
+	.cl__arrow--f {
+		fill: var(--ig-vy);
+	}
+	.cl__arrow--v {
+		fill: var(--ig-v);
+	}
+	.cl__arrow--a {
+		fill: var(--ig-vx);
+	}
+	.cl__lbl {
+		font-size: 17px;
+		font-family: var(--__sl-font);
+	}
+	.cl__sym {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 19px;
+	}
+	.cl__sub {
+		font-size: 12px;
+	}
+	.cl__lbl--f {
+		fill: var(--ig-vy);
+	}
+	.cl__lbl--v {
+		fill: var(--ig-v);
+	}
+	.cl__lbl--a {
+		fill: var(--ig-vx);
+	}
+	.cl__clock {
+		fill: var(--sl-color-gray-2);
+		font-size: 16px;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.cl__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.cl__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.cl__axis-sym {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.cl__vline {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.cl__vdot {
+		fill: var(--ig-v);
+		filter: drop-shadow(0 0 4px var(--ig-v));
+	}
+	.cl__trace path {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.cl__trace text {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+
+	.cl__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+		align-items: end;
+	}
+	.cl__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.cl__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.cl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.cl__seg {
+		grid-column: 1 / -1;
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.cl__seg button {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0;
+		border: 0;
+		border-left: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		font-variant-numeric: tabular-nums;
+	}
+	.cl__seg button:first-child {
+		border-left: 0;
+	}
+	.cl__seg button[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 700;
+	}
+	.cl__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.cl__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.cl__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.cl__btn--primary {
+		min-width: 8.5rem;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+
+	.cl__formula {
+		margin-top: 0.9rem;
+		padding: 0.2rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		min-height: 4.2rem;
+		overflow-x: auto;
+	}
+	.cl__formula .katex-display {
+		margin: 0.5rem 0;
+	}
+	.cl__formula .cl-n {
+		display: inline-block;
+		border-radius: 0.25em;
+	}
+	.cl__formula .cl-n.is-new {
+		animation: cl-flash 1.1s ease-out;
+	}
+	@keyframes cl-flash {
+		from {
+			background: color-mix(in srgb, var(--sl-color-accent) 45%, transparent);
+			transform: scale(1.12);
+		}
+	}
+	.cl__say {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+
+	.cl__stats {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0.5rem;
+		margin: 0.6rem 0 0;
+	}
+	.cl__stats > div {
+		padding: 0.45rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.cl__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.cl__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.cl__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.cl__key {
+		display: inline-block;
+		width: 1.1rem;
+		height: 3px;
+		margin: 0 0.3rem 0.2rem 0.6rem;
+		vertical-align: middle;
+		border-radius: 2px;
+	}
+	.cl__key:first-child {
+		margin-left: 0;
+	}
+	.cl__key--f {
+		background: var(--ig-vy);
+	}
+	.cl__key--v {
+		background: var(--ig-v);
+	}
+	.cl__key--a {
+		background: var(--ig-vx);
+	}
+	.cl__nowrap {
+		white-space: nowrap;
+	}
+
+	/* On a narrow screen the road shows 6 m instead of 9 m, so the cart stays large. */
+	.cl--narrow .cl__ticks text {
+		font-size: 16px;
+	}
+	.cl--narrow .cl__lbl {
+		font-size: 20px;
+	}
+	.cl--narrow .cl__sym {
+		font-size: 23px;
+	}
+	.cl--narrow .cl__sub {
+		font-size: 15px;
+	}
+	.cl--narrow .cl__clock {
+		font-size: 19px;
+	}
+	@media (max-width: 40rem) {
+		.cl {
+			padding: 0.75rem;
+		}
+		.cl__gticks text,
+		.cl__trace text {
+			font-size: 23px;
+		}
+		.cl__gticks .cl__odd {
+			display: none;
+		}
+		.cl__controls {
+			grid-template-columns: 1fr;
+		}
+		.cl__stats {
+			grid-template-columns: 1fr 1fr;
+		}
+		.cl__stats dd {
+			font-size: var(--sl-text-base);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.cl__box,
+		.cl__chip {
+			transition: none;
+		}
+		.cl__formula .cl-n.is-new {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { SVG_NS, arrowPath, attrs, fmt, nb, reducedMotion, tex } from './draw';
+
+	const S = 80; // px per metre on the road
+	const GROUND = 168;
+	const HILLS = 0.25; // the distant hills move 4 times slower than the road (parallax)
+	const R_WHEEL = 16 / S; // m: rolling radius = wheel centre height above the road (16 px), so the wheels do not slip
+	const KF = 3; // px per newton
+	const KV = 14; // px per (m/s)
+	const KA = 30; // px per (m/s²)
+	const TMAX = 10;
+	const VMAX = 10;
+	const DROP = 0.5; // s between drops
+	const GX0 = 52;
+	const GX1 = 704;
+	const GY0 = 164;
+	const GY1 = 14;
+	const gx = (t: number) => GX0 + (t / TMAX) * (GX1 - GX0);
+	const gy = (v: number) => GY0 - (v / VMAX) * (GY0 - GY1);
+	const MAX_TRACES = 3;
+
+	type Preset = { F: number; Ff: number; m: number; v0: number; say: string };
+	const PRESETS: Record<string, Preset> = {
+		free: {
+			F: 0,
+			Ff: 0,
+			m: 20,
+			v0: 3,
+			say: 'Тележку толкнули, и больше по горизонтали на неё ничего не действует: ни тяга, ни трение. Остановится ли она?',
+		},
+		balanced: {
+			F: 10,
+			Ff: 10,
+			m: 20,
+			v0: 3,
+			say: 'Тележка едет, сила тяги равна силе трения. Что будет со скоростью?',
+		},
+		speedup: {
+			F: 30,
+			Ff: 10,
+			m: 20,
+			v0: 0,
+			say: 'Тяга больше трения на 20 Н. Следите, как растёт скорость.',
+		},
+		heavy: {
+			F: 30,
+			Ff: 10,
+			m: 40,
+			v0: 0,
+			say: 'Те же силы, но масса вдвое больше. Сравните наклон графика с опытом «Разгон».',
+		},
+		brake: {
+			F: 0,
+			Ff: 10,
+			m: 20,
+			v0: 4,
+			say: 'Тягу выключили, осталось только трение. Где остановится тележка?',
+		},
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-cartlab]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const inF = q<HTMLInputElement>('[data-in-f]');
+		const inFf = q<HTMLInputElement>('[data-in-ff]');
+		const inV0 = q<HTMLInputElement>('[data-in-v0]');
+		const outF = q<HTMLOutputElement>('[data-out-f]');
+		const outFf = q<HTMLOutputElement>('[data-out-ff]');
+		const outV0 = q<HTMLOutputElement>('[data-out-v0]');
+		const massBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mass]'));
+		const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-preset]'));
+		const runBtn = q<HTMLButtonElement>('[data-run]');
+		const cart = q<SVGGElement>('[data-cart]');
+		const boxes = Array.from(root.querySelectorAll<SVGGElement>('[data-box]'));
+		const spokes = Array.from(root.querySelectorAll<SVGGElement>('[data-spokes]'));
+		const arPull = q<SVGPathElement>('[data-ar-pull]');
+		const arFric = q<SVGPathElement>('[data-ar-fric]');
+		const arV = q<SVGPathElement>('[data-ar-v]');
+		const arA = q<SVGPathElement>('[data-ar-a]');
+		const lbPull = q<SVGTextElement>('[data-lb-pull]');
+		const lbFric = q<SVGTextElement>('[data-lb-fric]');
+		const lbV = q<SVGTextElement>('[data-lb-v]');
+		const lbA = q<SVGTextElement>('[data-lb-a]');
+		const clock = q<SVGTextElement>('[data-clock]');
+		const vline = q<SVGPathElement>('[data-vline]');
+		const vdot = q<SVGCircleElement>('[data-vdot]');
+		const tracesG = q<SVGGElement>('[data-traces]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const say = q<HTMLElement>('[data-say]');
+		const stT = q<HTMLElement>('[data-st-t]');
+		const stV = q<HTMLElement>('[data-st-v]');
+		const stA = q<HTMLElement>('[data-st-a]');
+		const stS = q<HTMLElement>('[data-st-s]');
+
+		// Pools of road elements: metre ticks with numbers, 5-metre posts, drops.
+		const mk = <K extends keyof SVGElementTagNameMap>(tag: K, parent: Element, cls?: string) => {
+			const el = document.createElementNS(SVG_NS, tag);
+			if (cls) el.setAttribute('class', cls);
+			parent.append(el);
+			return el;
+		};
+		const ticksG = q<SVGGElement>('[data-ticks]');
+		const postsG = q<SVGGElement>('[data-posts]');
+		const dropsG = q<SVGGElement>('[data-drops]');
+		const scene = q<SVGSVGElement>('[data-scene]');
+		const hillsEl = q<SVGPathElement>('[data-hills]');
+		// Visible width of the road in px: 720 (9 m) on a wide screen, 480 (6 m) on a phone.
+		let W = 720;
+		let CART0 = 150; // screen x of the cart at the start
+		let FOLLOW = 320; // the camera follows the cart once it reaches this screen x
+		let narrow = false;
+		const ticks = Array.from({ length: 12 }, () => ({
+			line: mk('line', ticksG),
+			text: mk('text', ticksG),
+		}));
+		ticks.forEach((tk) => attrs(tk.text, { 'text-anchor': 'middle', y: GROUND + 24 }));
+		const posts = Array.from({ length: 3 }, () => {
+			const g = mk('g', postsG, 'cl__post');
+			attrs(mk('rect', g), { x: -3, y: -30, width: 6, height: 30, rx: 1.5 });
+			attrs(mk('rect', g, 'cl__reflector'), { x: -3, y: -26, width: 6, height: 5 });
+			return g;
+		});
+		const drops = Array.from({ length: 24 }, () => {
+			const d = mk('ellipse', dropsG, 'cl__drop');
+			attrs(d, { rx: 4, ry: 2.6, cy: GROUND - 1.5 });
+			return d;
+		});
+
+		// Parameters and state.
+		let F = 30;
+		let Ff = 10;
+		let m = 20;
+		let v0 = 0;
+		let t = 0;
+		let x = 0;
+		let v = 0;
+		let running = false;
+		let done: '' | 'time' | 'speed' = '';
+		let raf = 0;
+		let last = 0;
+		let path = '';
+		let marks: number[] = [];
+		let nextDrop = DROP;
+		let changed = false;
+		let tStop = -1; // moment when friction stopped the cart, s
+		let runLabel = '';
+		let hint = '';
+		let sig = '';
+		let prevNums: string[] = [];
+
+		const moving = () => v > 1e-9;
+		const accel = () => (moving() || F > Ff ? (F - Ff) / m : 0);
+		/** Friction actually acting now: sliding value while moving, static friction (= pull) at rest. */
+		const friction = () => (moving() || F > Ff ? Ff : F);
+
+		const pushPoint = () => {
+			path += `${path ? ' L' : 'M'} ${gx(t).toFixed(1)} ${gy(Math.min(v, VMAX)).toFixed(1)}`;
+		};
+
+		const advance = (dt: number) => {
+			let rem = dt;
+			for (let guard = 0; rem > 1e-12 && !done && guard < 64; guard++) {
+				const a = accel();
+				let h = Math.min(rem, nextDrop - t, TMAX - t);
+				if (moving() && a < 0) h = Math.min(h, v / -a);
+				if (a > 0) h = Math.min(h, (VMAX - v) / a);
+				h = Math.max(h, 0);
+				x += v * h + (a * h * h) / 2;
+				v += a * h;
+				t += h;
+				rem -= h;
+				if (a < 0 && v < 1e-9) {
+					v = 0; // stopped by friction exactly now
+					tStop = t;
+					pushPoint();
+				}
+				if (t >= nextDrop - 1e-9) {
+					marks.push(x);
+					nextDrop += DROP;
+				}
+				if (t >= TMAX - 1e-9) finish('time');
+				else if (v >= VMAX - 1e-9) finish('speed');
+			}
+			pushPoint();
+		};
+
+		const finish = (why: 'time' | 'speed') => {
+			done = why;
+			running = false;
+			runBtn.textContent = 'Ещё раз';
+		};
+
+		const placeLabel = (el: SVGTextElement, x0: number, y0: number, right: boolean, show: boolean) => {
+			el.style.visibility = show ? 'visible' : 'hidden';
+			if (!show) return;
+			attrs(el, { x: x0 + (right ? 7 : -7), y: y0 + 6, 'text-anchor': right ? 'start' : 'end' });
+		};
+
+		const formatRow = (n: number, unit: string) => `${tex(n, 2)}~\\text{${unit}}`;
+		const num = (s: string) => `\\htmlClass{cl-n}{${s}}`;
+
+		const updateText = () => {
+			const a = accel();
+			const fr = friction();
+			const net = F - fr;
+			let state: string;
+			if (done) state = `done-${done}`;
+			else if (moving()) state = a > 1e-9 ? 'up' : a < -1e-9 ? 'down' : 'even';
+			else if (F > Ff) state = 'start';
+			else state = F > 0 ? 'static' : 'rest';
+			const key = `${F}|${Ff}|${m}|${state}|${running}|${t === 0}|${hint}|${narrow}|${tStop}`;
+			if (key === sig) return;
+			sig = key;
+
+			// Live formula, the numbers that changed flash.
+			const exact = Math.abs(a * 100 - Math.round(a * 100)) < 1e-6;
+			const def = `\\frac{F_{\\text{тяги}} - F_{\\text{тр}}}{m}`;
+			const subst = `\\frac{${num(formatRow(F, 'Н'))} - ${num(formatRow(fr, 'Н'))}}{${num(formatRow(m, 'кг'))}}`;
+			const rest =
+				`= \\frac{${formatRow(net, 'Н')}}{${formatRow(m, 'кг')}} ${exact ? '=' : '\\approx'} ` +
+				`${num(`${tex(a, 2)}~\\text{м/с}^2`)}`;
+			const texStr = narrow
+				? `\\begin{aligned} a_x &= ${def} = ${subst} \\\\[0.4em] &${rest} \\end{aligned}`
+				: `a_x = ${def} = ${subst} ${rest}`;
+			katex.render(texStr, formula, {
+				displayMode: true,
+				throwOnError: false,
+				strict: false,
+				trust: (ctx) => ctx.command === '\\htmlClass',
+			});
+			const nums = Array.from(formula.querySelectorAll<HTMLElement>('.cl-n'));
+			nums.forEach((el, i) => {
+				if (prevNums.length && prevNums[i] !== el.textContent && !reducedMotion()) el.classList.add('is-new');
+			});
+			prevNums = nums.map((el) => el.textContent ?? '');
+
+			const A = fmt(Math.abs(a), 2, true);
+			const msg: Record<string, string> = {
+				up: `Равнодействующая направлена вперёд, по скорости, — тележка разгоняется: каждую секунду скорость растёт на ${A} м/с.`,
+				even: 'Силы уравновешены, равнодействующая равна нулю — скорость не меняется: тележка едет равномерно и прямолинейно.',
+				down: `Равнодействующая направлена против скорости — тележка тормозит: каждую секунду скорость уменьшается на ${A} м/с.`,
+				start: `Сила тяги больше силы трения — тележка трогается с места с ускорением ${A} м/с².`,
+				static: 'Тележка стоит: сила тяги не больше наибольшей силы трения покоя, и трение покоя её уравновешивает.',
+				rest:
+					(tStop > 0 ? `Трение остановило тележку через ${fmt(tStop, 1)} с. ` : '') +
+					'Тележка стоит, и её никто не тянет — значит, нет и силы трения: горизонтальные силы на неё не действуют.',
+				'done-time':
+					tStop > 0 && !moving()
+						? `Прошло 10 с — опыт окончен. Трение остановило тележку через ${fmt(tStop, 1)} с, она успела проехать ${fmt(x)} м. ` +
+							(F > 0
+								? 'Теперь тележка стоит, и тягу уравновешивает сила трения покоя.'
+								: 'Теперь тележка стоит и тяги нет — поэтому нет и силы трения.')
+						: `Прошло 10 с — опыт окончен. Тележка проехала ${fmt(x)} м.`,
+				'done-speed': 'Скорость достигла 10 м/с — дальше график не помещается. Опыт окончен.',
+			};
+			let text = msg[state];
+			if (t === 0 && !running && hint) text = hint;
+			else if (t === 0 && !running && state !== 'static' && state !== 'rest')
+				text = `${text} Нажмите «Пуск».`;
+			say.textContent = nb(text);
+		};
+
+		const render = () => {
+			const camX = Math.max(0, x - (FOLLOW - CART0) / S);
+			const sx = CART0 + (x - camX) * S;
+			cart.setAttribute('transform', `translate(${sx.toFixed(2)} ${GROUND})`);
+			const turn = ((x / R_WHEEL) * 180) / Math.PI;
+			spokes.forEach((g) => g.setAttribute('transform', `rotate(${(turn % 360).toFixed(2)})`));
+
+			// Road: metre ticks, 5-metre posts, drops (world x → screen x).
+			const wx = (X: number) => CART0 + (X - camX) * S;
+			const first = Math.ceil(camX - CART0 / S - 0.5);
+			ticks.forEach((tk, i) => {
+				const n = first + i;
+				const px = wx(n);
+				const visible = n >= 0 && px > -20 && px < W + 20;
+				tk.line.style.visibility = tk.text.style.visibility = visible ? 'visible' : 'hidden';
+				if (!visible) return;
+				const five = n % 5 === 0;
+				attrs(tk.line, { x1: px, x2: px, y1: GROUND, y2: GROUND + (five ? 10 : 6) });
+				tk.line.classList.toggle('is-five', five);
+				tk.text.setAttribute('x', px.toFixed(1));
+				tk.text.classList.toggle('cl__odd', n % 2 === 1);
+				tk.text.textContent = n === 0 ? '0 м' : String(n);
+			});
+			const firstPost = Math.ceil((camX - CART0 / S) / 5) * 5;
+			posts.forEach((p, i) => {
+				const px = wx(firstPost + 5 * i) - 0.5 * S; // posts stand half a metre behind each 5-m tick
+				p.style.visibility = firstPost + 5 * i > 0 && px > -10 && px < W + 10 ? 'visible' : 'hidden';
+				p.setAttribute('transform', `translate(${px.toFixed(1)} ${GROUND})`);
+			});
+			hillsEl.setAttribute('transform', `translate(${(-((camX * S * HILLS) % 720)).toFixed(1)} 0)`);
+			let di = 0;
+			for (const mx of marks) {
+				const px = wx(mx);
+				if (px < -10 || px > W + 10 || di >= drops.length) continue;
+				drops[di].setAttribute('cx', px.toFixed(1));
+				drops[di].style.visibility = 'visible';
+				di++;
+			}
+			for (; di < drops.length; di++) drops[di].style.visibility = 'hidden';
+
+			// Arrows: forces on the cart, speed and acceleration above it.
+			const a = accel();
+			const fr = friction();
+			const yPull = GROUND - 35;
+			const xPull = sx + 69;
+			arPull.setAttribute('d', arrowPath(xPull, yPull, xPull + F * KF, yPull, 4, 12));
+			placeLabel(lbPull, xPull + F * KF, yPull, true, F > 0);
+			const yFr = GROUND - 5;
+			const xFr = sx - 30;
+			arFric.setAttribute('d', arrowPath(xFr, yFr, xFr - fr * KF, yFr, 4, 12));
+			const headFr = Math.min(xFr - fr * KF, sx - 46);
+			if (headFr > 46) placeLabel(lbFric, headFr, yFr - 14, false, fr > 0);
+			else placeLabel(lbFric, xFr - fr * KF - 7, yFr - 22, true, fr > 0); // no room on the left: above the head
+			const yV = GROUND - 88;
+			arV.setAttribute('d', arrowPath(sx, yV, sx + v * KV, yV, 4, 12));
+			placeLabel(lbV, sx + v * KV, yV, true, v * KV > 3);
+			const yA = GROUND - 112;
+			arA.setAttribute('d', arrowPath(sx, yA, sx + a * KA, yA, 4, 12));
+			placeLabel(lbA, sx + a * KA, yA, a >= 0, Math.abs(a) * KA > 3);
+
+			clock.textContent = `t = ${fmt(t, 1)} с`;
+			stT.textContent = `${fmt(t, 1)} с`;
+			stV.textContent = `${fmt(v, 1)} м/с`;
+			stA.textContent = `${fmt(a, 2, true)} м/с²`;
+			stS.textContent = `${fmt(x, 1)} м`;
+
+			vline.setAttribute('d', path);
+			attrs(vdot, { cx: gx(t).toFixed(1), cy: gy(Math.min(v, VMAX)).toFixed(1) });
+			updateText();
+		};
+
+		const placeBoxes = () => {
+			const n = m / 10 - 1;
+			const total = 24 * n + 4 * Math.max(n - 1, 0);
+			boxes.forEach((b, i) => {
+				const on = i < n;
+				const bx = -total / 2 + i * 28;
+				b.style.transform = `translate(${on ? bx : bx}px, ${on ? -66 : -110}px)`;
+				b.style.opacity = on ? '1' : '0';
+			});
+		};
+
+		const addTrace = () => {
+			if (t < 0.3) return;
+			const g = document.createElementNS(SVG_NS, 'g');
+			g.classList.add('cl__trace');
+			const p = document.createElementNS(SVG_NS, 'path');
+			p.setAttribute('d', path);
+			const label = document.createElementNS(SVG_NS, 'text');
+			const ex = gx(t);
+			const ey = gy(Math.min(v, VMAX));
+			const right = ex < GX1 - 140;
+			attrs(label, {
+				x: ex + (right ? 8 : -8),
+				y: ey < GY1 + 24 ? ey + 24 : ey - 8,
+				'text-anchor': right ? 'start' : 'end',
+			});
+			label.textContent = changed ? 'силы менялись' : runLabel;
+			g.append(p, label);
+			tracesG.append(g);
+			while (tracesG.children.length > MAX_TRACES) tracesG.firstElementChild!.remove();
+		};
+
+		const reset = () => {
+			cancelAnimationFrame(raf);
+			addTrace();
+			running = false;
+			done = '';
+			t = 0;
+			x = 0;
+			v = v0;
+			marks = [];
+			nextDrop = DROP;
+			changed = false;
+			tStop = -1;
+			path = '';
+			pushPoint();
+			runBtn.textContent = 'Пуск';
+			render();
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.05);
+			last = now;
+			advance(dt);
+			render();
+			if (running && !done) raf = requestAnimationFrame(frame);
+		};
+
+		const start = () => {
+			if (done) reset();
+			if (t === 0) runLabel = `${fmt(F - friction(), 0)} Н / ${m} кг`;
+			running = true;
+			runBtn.textContent = 'Пауза';
+			last = performance.now();
+			cancelAnimationFrame(raf);
+			raf = requestAnimationFrame(frame);
+			render();
+		};
+		const pause = () => {
+			running = false;
+			cancelAnimationFrame(raf);
+			runBtn.textContent = 'Продолжить';
+			render();
+		};
+
+		const readControls = () => {
+			F = Number(inF.value);
+			Ff = Number(inFf.value);
+			v0 = Number(inV0.value);
+			outF.value = `${F} Н`;
+			outFf.value = `${Ff} Н`;
+			outV0.value = `${v0} м/с`;
+			massBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.mass) === m)));
+			placeBoxes();
+		};
+		const clearPreset = () => {
+			hint = '';
+			chips.forEach((c) => c.setAttribute('aria-pressed', 'false'));
+		};
+
+		inF.addEventListener('input', () => {
+			readControls();
+			clearPreset();
+			if (t > 0) changed = true;
+			render();
+		});
+		inFf.addEventListener('input', () => {
+			readControls();
+			clearPreset();
+			if (t > 0) changed = true;
+			render();
+		});
+		inV0.addEventListener('input', () => {
+			readControls();
+			clearPreset();
+			reset();
+		});
+		massBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				m = Number(b.dataset.mass);
+				readControls();
+				clearPreset();
+				reset();
+			}),
+		);
+		runBtn.addEventListener('click', () => (running ? pause() : start()));
+		q<HTMLButtonElement>('[data-reset]').addEventListener('click', reset);
+		q<HTMLButtonElement>('[data-clear]').addEventListener('click', () => tracesG.replaceChildren());
+
+		const applyPreset = (id: string, autostart: boolean) => {
+			const p = PRESETS[id];
+			if (!p) return;
+			inF.value = String(p.F);
+			inFf.value = String(p.Ff);
+			inV0.value = String(p.v0);
+			m = p.m;
+			readControls();
+			reset();
+			hint = p.say;
+			chips.forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.preset === id)));
+			render();
+			if (autostart && !reducedMotion()) setTimeout(() => !running && t === 0 && start(), 900);
+		};
+		chips.forEach((c) => c.addEventListener('click', () => applyPreset(c.dataset.preset!, true)));
+
+		// Other parts of the page (questions) can load a preset into the model (the first one on the page).
+		if (root === document.querySelector('[data-cartlab]'))
+			document.addEventListener('nl:cart-preset', (e) => {
+				const id = (e as CustomEvent<string>).detail;
+				root.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
+				applyPreset(id, true);
+			});
+
+		const fit = () => {
+			const n = root.clientWidth < 560;
+			if (n === narrow) return;
+			narrow = n;
+			W = n ? 480 : 720;
+			CART0 = n ? 112 : 150;
+			FOLLOW = n ? 190 : 320;
+			root.classList.toggle('cl--narrow', n);
+			scene.setAttribute('viewBox', `0 0 ${W} 210`);
+			clock.setAttribute('x', String(W - 14));
+			render();
+		};
+		new ResizeObserver(fit).observe(root);
+		fit();
+
+		readControls();
+		reset();
+		// No drop-in animation of the boxes on page load.
+		requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('cl--init')));
+	}
+</script>

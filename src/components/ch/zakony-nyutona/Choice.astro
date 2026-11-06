@@ -1,0 +1,211 @@
+---
+/**
+ * A question with several answers and instant feedback.
+ * The question is the default slot; the explanation (slot "explain") opens after the right answer.
+ * `notes` give a short reaction to each answer. With `preset`, a button loads that experiment
+ * into the cart model on the page (event "nl:cart-preset").
+ */
+interface Props {
+	options: string[];
+	answer: number;
+	notes?: string[];
+	preset?: string;
+}
+const { options, answer, notes = [], preset } = Astro.props;
+---
+
+<div class="ch not-content" data-choice data-answer={answer}>
+	<div class="ch__q"><slot /></div>
+	<div class="ch__options" role="group">
+		{
+			options.map((o, i) => (
+				<button type="button" class="ch__opt" data-i={i}>
+					<span class="ch__mark" aria-hidden="true" />
+					<span set:html={o} />
+				</button>
+			))
+		}
+	</div>
+	<p class="ch__note" aria-live="polite" data-note></p>
+	{notes.map((n, i) => <template data-note-for={i} set:html={n} />)}
+	<div class="ch__explain" data-explain hidden>
+		<slot name="explain" />
+		{
+			preset && (
+				<button type="button" class="ch__try" data-preset={preset}>
+					Проверить в модели ↑
+				</button>
+			)
+		}
+	</div>
+</div>
+
+<style is:global>
+	.ch {
+		margin-block: 1.5rem;
+		padding: 1rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-left: 4px solid var(--sl-color-accent);
+		border-radius: 0.8rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-text);
+	}
+	.ch i {
+		font-family: var(--ig-font-math);
+	}
+	.ch__q > :first-child {
+		margin-top: 0;
+	}
+	.ch__q p {
+		margin: 0 0 0.5rem;
+	}
+	.ch__q strong {
+		color: var(--sl-color-white);
+	}
+	.ch__options {
+		display: grid;
+		gap: 0.45rem;
+		margin-top: 0.6rem;
+	}
+	.ch__opt {
+		display: flex;
+		gap: 0.6rem;
+		align-items: center;
+		width: 100%;
+		margin: 0;
+		padding: 0.55rem 0.8rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		text-align: start;
+		color: var(--sl-color-gray-1);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.6rem;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s,
+			transform 0.2s;
+	}
+	.ch__opt:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ch__mark {
+		flex: none;
+		width: 1.15rem;
+		height: 1.15rem;
+		border-radius: 50%;
+		border: 2px solid var(--sl-color-gray-3);
+		display: grid;
+		place-items: center;
+		font-size: 0.75rem;
+		font-weight: 700;
+		line-height: 1;
+	}
+	.ch__opt.is-right {
+		border-color: var(--sl-color-green);
+		background: color-mix(in srgb, var(--sl-color-green) 14%, transparent);
+		color: var(--sl-color-white);
+	}
+	.ch__opt.is-right .ch__mark {
+		border-color: var(--sl-color-green);
+		background: var(--sl-color-green);
+		color: var(--sl-color-black);
+	}
+	.ch__opt.is-right .ch__mark::after {
+		content: '✓';
+	}
+	.ch__opt.is-wrong {
+		border-color: var(--sl-color-red);
+		background: color-mix(in srgb, var(--sl-color-red) 10%, transparent);
+		animation: ch-shake 0.35s;
+	}
+	.ch__opt.is-wrong .ch__mark {
+		border-color: var(--sl-color-red);
+		color: var(--sl-color-red);
+	}
+	.ch__opt.is-wrong .ch__mark::after {
+		content: '✕';
+	}
+	@keyframes ch-shake {
+		25% {
+			transform: translateX(-4px);
+		}
+		75% {
+			transform: translateX(4px);
+		}
+	}
+	.ch__note:empty {
+		display: none;
+	}
+	.ch__note {
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ch__explain {
+		margin-top: 0.4rem;
+		padding-top: 0.6rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+		animation: ch-in 0.4s ease-out;
+	}
+	.ch__explain p {
+		margin: 0.3rem 0;
+	}
+	@keyframes ch-in {
+		from {
+			opacity: 0;
+			transform: translateY(0.4rem);
+		}
+	}
+	.ch__try {
+		margin: 0.5rem 0 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ch__opt.is-wrong,
+		.ch__explain {
+			animation: none;
+		}
+		.ch__opt {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-choice]')) {
+		const answer = Number(root.dataset.answer);
+		const note = root.querySelector<HTMLElement>('[data-note]')!;
+		const explain = root.querySelector<HTMLElement>('[data-explain]')!;
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('.ch__opt'));
+		opts.forEach((btn) =>
+			btn.addEventListener('click', () => {
+				const i = Number(btn.dataset.i);
+				const tpl = root.querySelector<HTMLTemplateElement>(`template[data-note-for="${i}"]`);
+				note.innerHTML = tpl ? tpl.innerHTML : i === answer ? 'Верно!' : 'Не совсем. Подумайте ещё.';
+				if (i === answer) {
+					opts.forEach((o) => o.classList.remove('is-wrong'));
+					btn.classList.add('is-right');
+					explain.hidden = false;
+				} else {
+					btn.classList.remove('is-wrong');
+					void btn.offsetWidth; // restart the shake
+					btn.classList.add('is-wrong');
+				}
+			}),
+		);
+		root.querySelector<HTMLButtonElement>('[data-preset]')?.addEventListener('click', (e) => {
+			const id = (e.currentTarget as HTMLElement).dataset.preset!;
+			document.dispatchEvent(new CustomEvent('nl:cart-preset', { detail: id }));
+		});
+	}
+</script>

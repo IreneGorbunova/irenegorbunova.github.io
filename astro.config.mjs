@@ -40,7 +40,9 @@ export default defineConfig({
 					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['zakon-oma']),
 					section('Световые явления', '8-klass/svetovye-yavleniya', ['linzy']),
 				]),
-				grade(9),
+				grade(9, [
+					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['zakony-nyutona']),
+				]),
 				grade(10, [
 					section('Кинематика', '10-klass/kinematika', ['brosok-pod-uglom']),
 				]),
