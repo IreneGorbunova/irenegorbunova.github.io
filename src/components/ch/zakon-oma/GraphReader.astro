@@ -1,0 +1,516 @@
+---
+/**
+ * Reading I(U) graphs of two conductors: drag the voltage cursor, read both currents,
+ * decide which conductor has the larger resistance, then see R = U / I stay the same.
+ */
+const R1 = 2;
+const R2 = 5;
+const G = { W: 560, H: 336, X0: 64, Y0: 282, PW: 460, PH: 230, UMAX: 10, IMAX: 5 };
+const gx = (u: number) => G.X0 + (u / G.UMAX) * G.PW;
+const gy = (i: number) => G.Y0 - (i / G.IMAX) * G.PH;
+const uTicks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const iTicks = [1, 2, 3, 4, 5];
+---
+
+<figure class="gread not-content" data-gread data-r1={R1} data-r2={R2}>
+	<svg class="gread__svg" viewBox={`0 0 ${G.W} ${G.H}`} aria-hidden="true" data-svg>
+		<g class="gread__grid">
+			{uTicks.slice(1).map((u) => <line x1={gx(u)} y1={G.Y0} x2={gx(u)} y2={gy(G.IMAX)} />)}
+			{iTicks.map((i) => <line x1={G.X0} y1={gy(i)} x2={gx(G.UMAX)} y2={gy(i)} />)}
+		</g>
+		<line class="gread__axis" x1={G.X0} y1={G.Y0} x2={gx(G.UMAX) + 8} y2={G.Y0}></line>
+		<line class="gread__axis" x1={G.X0} y1={G.Y0} x2={G.X0} y2={gy(G.IMAX) - 8}></line>
+		<g class="gread__ticks">
+			{uTicks.filter((u) => u % 2 === 0).map((u) => <text x={gx(u)} y={G.Y0 + 22} text-anchor="middle">{u}</text>)}
+			{iTicks.map((i) => <text x={G.X0 - 9} y={gy(i) + 5} text-anchor="end">{i}</text>)}
+			<text class="gread__name gread__name--u" x={gx(G.UMAX)} y={G.Y0 + 44} text-anchor="end">
+				<tspan class="gread__math">U</tspan>, В
+			</text>
+			<text class="gread__name gread__name--i" x={G.X0 - 9} y={gy(G.IMAX) - 16} text-anchor="end">
+				<tspan class="gread__math">I</tspan>, А
+			</text>
+		</g>
+
+		<line class="gread__line gread__line--1" x1={gx(0)} y1={gy(0)} x2={gx(G.UMAX)} y2={gy(G.UMAX / R1)}></line>
+		<line class="gread__line gread__line--2" x1={gx(0)} y1={gy(0)} x2={gx(G.UMAX)} y2={gy(G.UMAX / R2)}></line>
+		<g class="gread__badge gread__badge--1">
+			<circle cx={gx(9) - 34} cy={gy(4.5) - 4} r="14"></circle>
+			<text x={gx(9) - 34} y={gy(4.5) + 2} text-anchor="middle">1</text>
+		</g>
+		<g class="gread__badge gread__badge--2">
+			<circle cx={gx(9)} cy={gy(1.8) + 26} r="14"></circle>
+			<text x={gx(9)} y={gy(1.8) + 32} text-anchor="middle">2</text>
+		</g>
+
+		<rect class="gread__hit" x={G.X0} y={gy(G.IMAX) - 40} width={G.PW + 10} height={G.PH + 60} data-hit></rect>
+
+		<g class="gread__cursor" data-cursor>
+			<line class="gread__vline" data-vline></line>
+			<line class="gread__hline gread__hline--1" data-h1></line>
+			<line class="gread__hline gread__hline--2" data-h2></line>
+			<circle class="gread__pt gread__pt--1" r="6.5" data-p1></circle>
+			<circle class="gread__pt gread__pt--2" r="6.5" data-p2></circle>
+			<text class="gread__tag gread__tag--1" data-t1></text>
+			<text class="gread__tag gread__tag--2" data-t2></text>
+			<g
+				class="gread__handle"
+				data-handle
+				tabindex="0"
+				role="slider"
+				aria-label="Напряжение"
+				aria-valuemin="0.5"
+				aria-valuemax="10"
+			>
+				<rect x="-50" y="-15" width="100" height="30" rx="15"></rect>
+				<text y="6" text-anchor="middle" data-handle-text>U = 4 В</text>
+			</g>
+		</g>
+	</svg>
+
+	<p class="gread__read" data-read aria-live="polite"></p>
+
+	<div class="gread__quiz">
+		<p class="gread__q">Сопротивление какого проводника больше?</p>
+		<div class="gread__options">
+			<button type="button" class="gread__opt" data-ans="1">первого</button>
+			<button type="button" class="gread__opt" data-ans="2">второго</button>
+			<button type="button" class="gread__opt" data-ans="0">одинаковое</button>
+		</div>
+		<p class="gread__fb" data-fb aria-live="polite"></p>
+		<div class="gread__calc" data-calc hidden>
+			<div class="gread__formula" data-f1></div>
+			<div class="gread__formula" data-f2></div>
+			<p class="gread__note">
+				Двигайте <i>U</i>: токи меняются, а сопротивления — нет. Чем круче прямая, тем меньше сопротивление.
+			</p>
+		</div>
+	</div>
+</figure>
+
+<style is:global>
+	.gread {
+		--c1: var(--sl-color-green);
+		--c1-text: var(--sl-color-green-high);
+		--c2: var(--sl-color-purple);
+		--c2-text: var(--sl-color-purple-high);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.gread i,
+	.gread .gread__math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.gread__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: pan-y;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.gread__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.gread__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.gread__ticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.gread__ticks .gread__name {
+		font-size: 16px;
+	}
+	.gread__name--u {
+		fill: var(--ig-vy) !important;
+	}
+	.gread__name--i {
+		fill: var(--ig-vx) !important;
+	}
+	.gread__line {
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.gread__line--1,
+	.gread__badge--1 circle {
+		stroke: var(--c1);
+	}
+	.gread__line--2,
+	.gread__badge--2 circle {
+		stroke: var(--c2);
+	}
+	.gread__badge circle {
+		fill: var(--ig-surface);
+		stroke-width: 2.5;
+	}
+	.gread__badge text {
+		font-size: 17px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.gread__badge--1 text {
+		fill: var(--c1-text);
+	}
+	.gread__badge--2 text {
+		fill: var(--c2-text);
+	}
+	.gread__hit {
+		fill: transparent;
+		cursor: ew-resize;
+	}
+	.gread__vline {
+		stroke: var(--ig-vy);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 5;
+		pointer-events: none;
+	}
+	.gread__hline {
+		stroke-width: 1.2;
+		stroke-dasharray: 3 4;
+		pointer-events: none;
+	}
+	.gread__hline--1 {
+		stroke: var(--c1);
+	}
+	.gread__hline--2 {
+		stroke: var(--c2);
+	}
+	.gread__pt {
+		stroke: var(--ig-surface);
+		stroke-width: 2;
+		pointer-events: none;
+	}
+	.gread__pt--1 {
+		fill: var(--c1);
+	}
+	.gread__pt--2 {
+		fill: var(--c2);
+	}
+	.gread__tag {
+		font-size: 16px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		pointer-events: none;
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 5px;
+		stroke-linejoin: round;
+	}
+	.gread__tag--1 {
+		fill: var(--c1-text);
+	}
+	.gread__tag--2 {
+		fill: var(--c2-text);
+	}
+	.gread__handle {
+		cursor: grab;
+		outline: none;
+	}
+	.gread__handle rect {
+		fill: var(--ig-vy);
+	}
+	.gread__handle:focus-visible rect {
+		stroke: var(--sl-color-white);
+		stroke-width: 3;
+	}
+	.gread__handle text {
+		fill: var(--sl-color-black);
+		font-size: 15px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.gread__read {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-base);
+		color: var(--sl-color-gray-1);
+		font-variant-numeric: tabular-nums;
+	}
+	.gread__read b:nth-of-type(1) {
+		color: var(--ig-vy);
+	}
+	.gread__read .c1 {
+		color: var(--c1-text);
+		font-weight: 700;
+	}
+	.gread__read .c2 {
+		color: var(--c2-text);
+		font-weight: 700;
+	}
+	.gread__quiz {
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.gread__q {
+		margin: 0 0 0.5rem;
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.gread__options {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.gread__opt {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition:
+			background 0.25s,
+			border-color 0.25s;
+	}
+	.gread__opt:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.gread__opt.is-right {
+		border-color: var(--sl-color-green);
+		background: color-mix(in srgb, var(--sl-color-green) 22%, transparent);
+	}
+	.gread__opt.is-wrong {
+		border-color: var(--sl-color-red);
+		background: color-mix(in srgb, var(--sl-color-red) 18%, transparent);
+		animation: gread-shake 0.4s;
+	}
+	@keyframes gread-shake {
+		25% {
+			transform: translateX(-4px);
+		}
+		75% {
+			transform: translateX(4px);
+		}
+	}
+	.gread__fb {
+		min-height: 1.5em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.gread__calc[hidden] {
+		display: none;
+	}
+	.gread__calc {
+		margin-top: 0.4rem;
+		animation: gread-in 0.5s ease-out;
+	}
+	@keyframes gread-in {
+		from {
+			opacity: 0;
+			transform: translateY(0.4rem);
+		}
+	}
+	.gread__formula {
+		color: var(--sl-color-white);
+		overflow-x: auto;
+	}
+	.gread__formula .katex-display {
+		margin: 0.3rem 0;
+	}
+	.gread__formula .katex {
+		font-size: 1.2em;
+	}
+	.gread .zo-c1 {
+		color: var(--c1-text);
+	}
+	.gread .zo-c2 {
+		color: var(--c2-text);
+	}
+	.zo-u {
+		color: var(--ig-vy);
+	}
+	.zo-i {
+		color: var(--ig-vx);
+	}
+	.zo-r {
+		color: var(--ig-v);
+	}
+	.gread__note {
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	@media (max-width: 40rem) {
+		.gread {
+			padding: 0.75rem;
+		}
+		.gread__ticks text {
+			font-size: 23px;
+		}
+		.gread__ticks .gread__name {
+			font-size: 25px;
+		}
+		.gread__tag {
+			font-size: 25px;
+		}
+		.gread__badge text {
+			font-size: 24px;
+		}
+		.gread__handle text {
+			font-size: 22px;
+		}
+		.gread__formula .katex {
+			font-size: 1em;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.gread__opt.is-wrong,
+		.gread__calc {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { ru, tex, q, renderTex } from './ohm';
+
+	const G = { X0: 64, Y0: 282, PW: 460, PH: 230, UMAX: 10, IMAX: 5 };
+	const gx = (u: number) => G.X0 + (u / G.UMAX) * G.PW;
+	const gy = (i: number) => G.Y0 - (i / G.IMAX) * G.PH;
+	const STEP = 0.5;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-gread]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const r1 = Number(root.dataset.r1);
+		const r2 = Number(root.dataset.r2);
+		const svg = $<SVGSVGElement>('[data-svg]');
+		const hit = $<SVGRectElement>('[data-hit]');
+		const vline = $<SVGLineElement>('[data-vline]');
+		const h1 = $<SVGLineElement>('[data-h1]');
+		const h2 = $<SVGLineElement>('[data-h2]');
+		const p1 = $<SVGCircleElement>('[data-p1]');
+		const p2 = $<SVGCircleElement>('[data-p2]');
+		const t1 = $<SVGTextElement>('[data-t1]');
+		const t2 = $<SVGTextElement>('[data-t2]');
+		const handle = $<SVGGElement>('[data-handle]');
+		const handleText = $<SVGTextElement>('[data-handle-text]');
+		const read = $<HTMLElement>('[data-read]');
+		const fb = $<HTMLElement>('[data-fb]');
+		const calcBox = $<HTMLElement>('[data-calc]');
+		const f1 = $<HTMLElement>('[data-f1]');
+		const f2 = $<HTMLElement>('[data-f2]');
+		const opts = root.querySelectorAll<HTMLButtonElement>('[data-ans]');
+
+		let u = 4;
+		let solved = false;
+
+		const line = (el: SVGLineElement, x1: number, y1: number, x2: number, y2: number) => {
+			el.setAttribute('x1', String(x1));
+			el.setAttribute('y1', String(y1));
+			el.setAttribute('x2', String(x2));
+			el.setAttribute('y2', String(y2));
+		};
+		const tag = (el: SVGTextElement, x: number, y: number, anchor: string, text: string) => {
+			el.setAttribute('x', String(x));
+			el.setAttribute('y', String(y));
+			el.setAttribute('text-anchor', anchor);
+			el.textContent = text;
+		};
+
+		const draw = () => {
+			const i1 = u / r1;
+			const i2 = u / r2;
+			const x = gx(u);
+			line(vline, x, G.Y0, x, gy(G.IMAX) - 8);
+			line(h1, G.X0, gy(i1), x, gy(i1));
+			line(h2, G.X0, gy(i2), x, gy(i2));
+			p1.setAttribute('cx', String(x));
+			p1.setAttribute('cy', String(gy(i1)));
+			p2.setAttribute('cx', String(x));
+			p2.setAttribute('cy', String(gy(i2)));
+			const left1 = x > G.X0 + 100;
+			tag(t1, left1 ? x - 12 : x + 12, gy(i1) - 9, left1 ? 'end' : 'start', `${ru(i1, 2)} А`);
+			const right2 = x < G.X0 + G.PW - 90;
+			tag(t2, right2 ? x + 12 : x - 12, gy(i2) + 24, right2 ? 'start' : 'end', `${ru(i2, 2)} А`);
+			const hx = Math.min(Math.max(x, G.X0 + 46), G.X0 + G.PW - 40);
+			handle.setAttribute('transform', `translate(${hx} ${gy(G.IMAX) - 26})`);
+			handleText.textContent = `U = ${ru(u, 1)} В`;
+			handle.setAttribute('aria-valuenow', String(u));
+			handle.setAttribute('aria-valuetext', `${ru(u, 1)} вольт`);
+			read.innerHTML = `При <b><i>U</i> = ${ru(u, 1)} В</b>: через первый проводник идёт ток <span class="c1"><i>I</i><sub>1</sub> = ${ru(i1, 2)} А</span>, через второй — <span class="c2"><i>I</i><sub>2</sub> = ${ru(i2, 2)} А</span>.`;
+			if (solved) {
+				const val = (n: number, unit: string) => `${tex(n, 2)}~\\text{${unit}}`;
+				renderTex(
+					f1,
+					`\\htmlClass{zo-c1}{R_1} = \\dfrac{${q('u', 'U')}}{\\htmlClass{zo-c1}{I_1}} = \\dfrac{${q('u', val(u, 'В'))}}{\\htmlClass{zo-c1}{${val(i1, 'А')}}} = \\htmlClass{zo-c1}{${val(r1, 'Ом')}}`,
+				);
+				renderTex(
+					f2,
+					`\\htmlClass{zo-c2}{R_2} = \\dfrac{${q('u', 'U')}}{\\htmlClass{zo-c2}{I_2}} = \\dfrac{${q('u', val(u, 'В'))}}{\\htmlClass{zo-c2}{${val(i2, 'А')}}} = \\htmlClass{zo-c2}{${val(r2, 'Ом')}}`,
+				);
+			}
+		};
+
+		const setU = (v: number) => {
+			const snapped = Math.round(v / STEP) * STEP;
+			const next = Math.min(G.UMAX, Math.max(STEP, snapped));
+			if (next !== u) {
+				u = next;
+				draw();
+			}
+		};
+
+		// Dragging the cursor (anywhere on the plot).
+		const toU = (e: PointerEvent) => {
+			const m = svg.getScreenCTM();
+			if (!m) return u;
+			const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+			return ((p.x - G.X0) / G.PW) * G.UMAX;
+		};
+		let dragging = false;
+		for (const el of [hit, handle]) {
+			el.addEventListener('pointerdown', (e) => {
+				dragging = true;
+				svg.setPointerCapture(e.pointerId);
+				setU(toU(e));
+			});
+		}
+		svg.addEventListener('pointermove', (e) => dragging && setU(toU(e)));
+		svg.addEventListener('pointerup', () => (dragging = false));
+		svg.addEventListener('pointercancel', () => (dragging = false));
+		handle.addEventListener('keydown', (e) => {
+			const d = { ArrowRight: STEP, ArrowUp: STEP, ArrowLeft: -STEP, ArrowDown: -STEP }[e.key];
+			if (d) {
+				e.preventDefault();
+				setU(u + d);
+			} else if (e.key === 'Home' || e.key === 'End') {
+				e.preventDefault();
+				setU(e.key === 'Home' ? STEP : G.UMAX);
+			}
+		});
+
+		const FEEDBACK: Record<string, string> = {
+			'1': 'Нет. Посмотрите: при одном и том же напряжении через первый проводник идёт <b>больший</b> ток. Он лучше пропускает ток — значит, его сопротивление меньше.',
+			'0': 'Нет. Если бы сопротивления были одинаковыми, при одном напряжении шли бы одинаковые токи и прямые совпали бы.',
+			'2': `Верно! При одном и том же напряжении ток через второй проводник в ${ru(r2 / r1, 1)} раза меньше, значит, его сопротивление в ${ru(r2 / r1, 1)} раза больше. Проверим по закону Ома:`,
+		};
+		opts.forEach((b) =>
+			b.addEventListener('click', () => {
+				const a = b.dataset.ans!;
+				const right = a === '2';
+				opts.forEach((o) => o.classList.remove('is-wrong'));
+				void b.offsetWidth;
+				b.classList.add(right ? 'is-right' : 'is-wrong');
+				fb.innerHTML = FEEDBACK[a];
+				if (right) {
+					solved = true;
+					calcBox.hidden = false;
+					draw();
+				}
+			}),
+		);
+
+		draw();
+	}
+</script>

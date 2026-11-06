@@ -1,0 +1,405 @@
+---
+/**
+ * The «Ohm's law triangle»: U on top, I and R at the bottom. Choosing the unknown quantity
+ * hides it and shows the formula made of the other two; a calculator below solves it live.
+ */
+const apex = { x: 130, y: 12 };
+const baseY = 214;
+const halfBase = 116;
+const midY = 122;
+const edge = (y: number) => halfBase * ((y - apex.y) / (baseY - apex.y));
+const mx = edge(midY);
+const parts = {
+	u: `M ${apex.x} ${apex.y} L ${apex.x + mx} ${midY} L ${apex.x - mx} ${midY} Z`,
+	i: `M ${apex.x - mx} ${midY} L ${apex.x} ${midY} L ${apex.x} ${baseY} L ${apex.x - halfBase} ${baseY} Z`,
+	r: `M ${apex.x} ${midY} L ${apex.x + mx} ${midY} L ${apex.x + halfBase} ${baseY} L ${apex.x} ${baseY} Z`,
+};
+const letters = {
+	u: { x: apex.x, y: 106, t: 'U' },
+	i: { x: 86, y: 186, t: 'I' },
+	r: { x: 174, y: 186, t: 'R' },
+};
+---
+
+<figure class="otri not-content" data-otri>
+	<div class="otri__top">
+		<svg class="otri__svg" viewBox="0 0 260 226" aria-hidden="true">
+			{
+				(['u', 'i', 'r'] as const).map((k) => (
+					<g class={`otri__part otri__part--${k}`} data-part={k}>
+						<path d={parts[k]} />
+						<text class="otri__letter" x={letters[k].x} y={letters[k].y} text-anchor="middle">
+							{letters[k].t}
+						</text>
+						<text class="otri__ask" x={letters[k].x} y={letters[k].y} text-anchor="middle">
+							?
+						</text>
+					</g>
+				))
+			}
+			<path
+				class="otri__frame"
+				d={`M ${apex.x} ${apex.y} L ${apex.x + halfBase} ${baseY} L ${apex.x - halfBase} ${baseY} Z M ${apex.x - mx} ${midY} H ${apex.x + mx} M ${apex.x} ${midY} V ${baseY}`}
+			></path>
+		</svg>
+
+		<div class="otri__side">
+			<p class="otri__ask-title">Что нужно найти?</p>
+			<div class="otri__choose" role="group" aria-label="Что нужно найти">
+				<button type="button" class="otri__pick otri__pick--i" data-pick="i" aria-pressed="true">
+					силу тока <i>I</i>
+				</button>
+				<button type="button" class="otri__pick otri__pick--u" data-pick="u" aria-pressed="false">
+					напряжение <i>U</i>
+				</button>
+				<button type="button" class="otri__pick otri__pick--r" data-pick="r" aria-pressed="false">
+					сопротивление <i>R</i>
+				</button>
+			</div>
+			<div class="otri__formula" data-formula aria-live="polite"></div>
+			<p class="otri__rule" data-rule></p>
+		</div>
+	</div>
+
+	<div class="otri__calc">
+		<p class="otri__calc-title">Проверьте на числах</p>
+		<div class="otri__sliders">
+			<label class="otri__slider otri__slider--u" data-row="u">
+				<span>Напряжение <i>U</i></span>
+				<output data-out="u"></output>
+				<input type="range" min="0.5" max="24" step="0.5" value="6" data-in="u" />
+			</label>
+			<label class="otri__slider otri__slider--i" data-row="i">
+				<span>Сила тока <i>I</i></span>
+				<output data-out="i"></output>
+				<input type="range" min="0.05" max="5" step="0.05" value="0.5" data-in="i" />
+			</label>
+			<label class="otri__slider otri__slider--r" data-row="r">
+				<span>Сопротивление <i>R</i></span>
+				<output data-out="r"></output>
+				<input type="range" min="1" max="100" step="1" value="12" data-in="r" />
+			</label>
+		</div>
+		<div class="otri__result" data-result></div>
+	</div>
+</figure>
+
+<style is:global>
+	.otri {
+		margin-block: 2rem;
+		padding: 1rem 1.25rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.otri i {
+		font-family: var(--ig-font-math);
+	}
+	.otri__top {
+		display: grid;
+		grid-template-columns: minmax(10rem, 15rem) 1fr;
+		gap: 1.25rem;
+		align-items: center;
+	}
+	.otri__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.otri__part {
+		cursor: pointer;
+	}
+	.otri__part path {
+		fill: transparent;
+		transition: fill 0.4s;
+	}
+	.otri__part:hover path {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 60%, transparent);
+	}
+	.otri__part--u {
+		--c: var(--ig-vy);
+	}
+	.otri__part--i {
+		--c: var(--ig-vx);
+	}
+	.otri__part--r {
+		--c: var(--ig-v);
+	}
+	.otri__part.is-sought path {
+		fill: color-mix(in srgb, var(--c) 28%, transparent);
+	}
+	.otri__frame {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linejoin: round;
+		pointer-events: none;
+	}
+	.otri__letter,
+	.otri__ask {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 48px;
+		fill: var(--c);
+		transition:
+			opacity 0.35s,
+			transform 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+		transform-box: fill-box;
+		transform-origin: center;
+	}
+	.otri__ask {
+		font-style: normal;
+		font-family: var(--__sl-font);
+		font-weight: 700;
+		opacity: 0;
+		transform: scale(0.4);
+	}
+	.otri__part.is-sought .otri__letter {
+		opacity: 0;
+		transform: scale(1.6);
+	}
+	.otri__part.is-sought .otri__ask {
+		opacity: 1;
+		transform: scale(1);
+	}
+	.otri__ask-title,
+	.otri__calc-title {
+		margin: 0 0 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.otri__choose {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.otri__pick {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.85rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-1);
+		cursor: pointer;
+	}
+	.otri__pick--u {
+		--c: var(--ig-vy);
+	}
+	.otri__pick--i {
+		--c: var(--ig-vx);
+	}
+	.otri__pick--r {
+		--c: var(--ig-v);
+	}
+	.otri__pick:hover {
+		border-color: var(--c);
+	}
+	.otri__pick[aria-pressed='true'] {
+		border-color: var(--c);
+		background: color-mix(in srgb, var(--c) 18%, transparent);
+		color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.otri__formula {
+		min-height: 4.6rem;
+		margin-top: 0.6rem;
+		display: grid;
+		place-items: center start;
+		color: var(--sl-color-white);
+	}
+	.otri__formula .katex {
+		font-size: 2em;
+	}
+	.otri__formula.is-new .katex {
+		animation: otri-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	@keyframes otri-in {
+		from {
+			opacity: 0;
+			transform: translateY(0.4rem);
+		}
+	}
+	.zo-u {
+		color: var(--ig-vy);
+	}
+	.zo-i {
+		color: var(--ig-vx);
+	}
+	.zo-r {
+		color: var(--ig-v);
+	}
+	.otri__rule {
+		margin: 0.2rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.otri__calc {
+		margin-top: 1rem;
+		padding-top: 0.9rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.otri__sliders {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+	}
+	.otri__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.otri__slider[hidden] {
+		display: none;
+	}
+	.otri__slider output {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--c);
+	}
+	.otri__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--c);
+	}
+	.otri__slider--u {
+		--c: var(--ig-vy);
+	}
+	.otri__slider--i {
+		--c: var(--ig-vx);
+	}
+	.otri__slider--r {
+		--c: var(--ig-v);
+	}
+	.otri__result {
+		margin-top: 0.75rem;
+		padding: 0.25rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		min-height: 4rem;
+		display: grid;
+		place-items: center;
+		overflow-x: auto;
+	}
+	.otri__result .katex {
+		font-size: 1.3em;
+	}
+	@media (max-width: 40rem) {
+		.otri {
+			padding: 0.75rem;
+		}
+		.otri__top {
+			grid-template-columns: 1fr;
+			gap: 0.5rem;
+		}
+		.otri__svg {
+			max-width: 12rem;
+			margin-inline: auto;
+		}
+		.otri__formula {
+			place-items: center;
+		}
+		.otri__rule {
+			text-align: center;
+		}
+		.otri__sliders {
+			grid-template-columns: 1fr;
+		}
+		.otri__result .katex {
+			font-size: 1.05em;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.otri__letter,
+		.otri__ask,
+		.otri__part path {
+			transition: none;
+		}
+		.otri__formula.is-new .katex {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { ru, isRounded, tex, q, renderTex } from './ohm';
+
+	type K = 'u' | 'i' | 'r';
+	const UNIT: Record<K, string> = { u: 'В', i: 'А', r: 'Ом' };
+	const DIGITS: Record<K, number> = { u: 2, i: 2, r: 1 };
+	const RULE: Record<K, string> = {
+		i: 'Закрыли <i>I</i>: <i>U</i> стоит над <i>R</i> — значит, делим <i>U</i> на <i>R</i>.',
+		r: 'Закрыли <i>R</i>: <i>U</i> стоит над <i>I</i> — значит, делим <i>U</i> на <i>I</i>.',
+		u: 'Закрыли <i>U</i>: <i>I</i> и <i>R</i> стоят рядом — значит, перемножаем их.',
+	};
+	const GENERAL: Record<K, string> = {
+		i: `${q('i', 'I')} = \\dfrac{${q('u', 'U')}}{${q('r', 'R')}}`,
+		r: `${q('r', 'R')} = \\dfrac{${q('u', 'U')}}{${q('i', 'I')}}`,
+		u: `${q('u', 'U')} = ${q('i', 'I')} \\cdot ${q('r', 'R')}`,
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-otri]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const inputs = {} as Record<K, HTMLInputElement>;
+		const outs = {} as Record<K, HTMLOutputElement>;
+		const rowsEl = {} as Record<K, HTMLElement>;
+		for (const k of ['u', 'i', 'r'] as K[]) {
+			inputs[k] = $<HTMLInputElement>(`[data-in="${k}"]`);
+			outs[k] = $<HTMLOutputElement>(`[data-out="${k}"]`);
+			rowsEl[k] = $<HTMLElement>(`[data-row="${k}"]`);
+		}
+		const formula = $<HTMLElement>('[data-formula]');
+		const rule = $<HTMLElement>('[data-rule]');
+		const result = $<HTMLElement>('[data-result]');
+		const parts = root.querySelectorAll<SVGGElement>('[data-part]');
+		const picks = root.querySelectorAll<HTMLButtonElement>('[data-pick]');
+
+		let sought: K = 'i';
+		const val = (k: K) => Number(inputs[k].value);
+		const solve = (k: K) => (k === 'u' ? val('i') * val('r') : k === 'i' ? val('u') / val('r') : val('u') / val('i'));
+		const qty = (k: K, v: number) => q(k, `${tex(v, DIGITS[k])}~\\text{${UNIT[k]}}`);
+
+		const calc = () => {
+			for (const k of ['u', 'i', 'r'] as K[]) outs[k].value = `${ru(val(k), 2)} ${UNIT[k]}`;
+			const v = solve(sought);
+			const eq = isRounded(v, DIGITS[sought]) ? '\\approx' : '=';
+			const body =
+				sought === 'u'
+					? `${qty('i', val('i'))} \\cdot ${qty('r', val('r'))}`
+					: `\\dfrac{${qty('u', val('u'))}}{${sought === 'i' ? qty('r', val('r')) : qty('i', val('i'))}}`;
+			renderTex(result, `${GENERAL[sought]} = ${body} ${eq} ${qty(sought, v)}`);
+		};
+
+		const choose = (k: K, animate = true) => {
+			if (k !== sought) {
+				// The quantity that was unknown becomes a given: start from its computed value.
+				const prev = sought;
+				const v = solve(prev);
+				const inp = inputs[prev];
+				const step = Number(inp.step);
+				const snapped = Math.round(v / step) * step;
+				inp.value = String(Math.min(Number(inp.max), Math.max(Number(inp.min), snapped)));
+			}
+			sought = k;
+			parts.forEach((p) => p.classList.toggle('is-sought', p.dataset.part === k));
+			picks.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pick === k)));
+			for (const key of ['u', 'i', 'r'] as K[]) rowsEl[key].hidden = key === k;
+			renderTex(formula, GENERAL[k]);
+			rule.innerHTML = RULE[k];
+			if (animate) {
+				formula.classList.remove('is-new');
+				void formula.offsetWidth;
+				formula.classList.add('is-new');
+			}
+			calc();
+		};
+
+		parts.forEach((p) => p.addEventListener('click', () => choose(p.dataset.part as K)));
+		picks.forEach((b) => b.addEventListener('click', () => choose(b.dataset.pick as K)));
+		for (const k of ['u', 'i', 'r'] as K[]) inputs[k].addEventListener('input', calc);
+		choose('i', false);
+	}
+</script>

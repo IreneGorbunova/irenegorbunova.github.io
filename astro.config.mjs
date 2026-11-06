@@ -36,7 +36,9 @@ export default defineConfig({
 				grade(7, [
 					section('Давление твёрдых тел, жидкостей и газов', '7-klass/davlenie', ['atmosfernoe-davlenie', 'arhimedova-sila']),
 				]),
-				grade(8),
+				grade(8, [
+					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['zakon-oma']),
+				]),
 				grade(9),
 				grade(10, [
 					section('Кинематика', '10-klass/kinematika', ['brosok-pod-uglom']),

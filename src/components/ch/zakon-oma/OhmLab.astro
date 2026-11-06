@@ -1,0 +1,1357 @@
+---
+/**
+ * Main model of the chapter: a circuit with a source, a key, an ammeter, a rheostat and a voltmeter.
+ * Free electrons (dots) drift against the current with a speed proportional to the current;
+ * the needles of the meters swing like those of real pointer meters (a damped oscillator).
+ * The graph I(U) is built point by point; every series of points is one setting of the rheostat.
+ * Ideal meters and wires: the voltmeter reads the source voltage while the key is closed.
+ */
+import { C, RANGE, G, gx, gy, dial, sliderX } from './geometry';
+
+const uid = `ohm-${Math.random().toString(36).slice(2, 8)}`;
+const U0 = 6;
+const R0 = 12;
+const xs0 = sliderX(R0);
+const am = dial(C.XAM, C.YB, C.RAM, 12, 4); // 0–3 А: a division is 0,25 А
+const vm = dial(C.XV, C.YV, C.RV, 12, 3); // 0–12 В: a division is 1 В
+const coil: number[] = [];
+for (let x = C.XA + 6; x <= C.XE - 4; x += 8) coil.push(x);
+const uTicks = [0, 2, 4, 6, 8, 10, 12];
+const iTicks = [0.5, 1, 1.5, 2, 2.5, 3];
+const fmtTick = (v: number) => String(v).replace('.', ',');
+const arcPath = (d: ReturnType<typeof dial>) =>
+	`M ${d.arcStart.x} ${d.arcStart.y} A ${d.ra} ${d.ra} 0 0 1 ${d.arcEnd.x} ${d.arcEnd.y}`;
+---
+
+<figure class="ohm not-content" data-ohm>
+	<svg
+		class="ohm__circuit"
+		viewBox={`0 0 ${C.W} ${C.H}`}
+		role="img"
+		aria-label="Электрическая цепь: источник тока, ключ, амперметр и реостат соединены последовательно, вольтметр подключён параллельно реостату"
+	>
+		<defs>
+			<marker
+				id={`${uid}-tip`}
+				class="ohm__tip"
+				viewBox="0 0 10 10"
+				refX="8"
+				refY="5"
+				markerWidth="5"
+				markerHeight="5"
+				orient="auto"
+			>
+				<path d="M0,0 L10,5 L0,10 z"></path>
+			</marker>
+			<marker
+				id={`${uid}-cur`}
+				class="ohm__curtip"
+				viewBox="0 0 10 10"
+				refX="7"
+				refY="5"
+				markerWidth="6"
+				markerHeight="6"
+				orient="auto"
+			>
+				<path d="M0,0 L10,5 L0,10 z"></path>
+			</marker>
+		</defs>
+
+		<!-- wires -->
+		<g class="ohm__wires">
+			<path d={`M ${C.XBP} ${C.YB} H ${C.XL} V ${C.YT} H ${C.XA}`}></path>
+			<path d={`M ${C.XBN} ${C.YB} H ${C.XK1}`}></path>
+			<path d={`M ${C.XK2} ${C.YB} H ${C.XAM - C.RAM}`}></path>
+			<path d={`M ${C.XAM + C.RAM} ${C.YB} H ${C.XR} V ${C.YS}`}></path>
+			<path d={`M ${xs0} ${C.YS} H ${C.XR}`} data-slider-wire></path>
+			<path d={`M ${C.XN1} ${C.YT} V ${C.YV} H ${C.XV - C.RV}`}></path>
+			<path d={`M ${C.XV + C.RV} ${C.YV} H ${C.XN2} V ${C.YS}`}></path>
+		</g>
+		<circle class="ohm__node" cx={C.XN1} cy={C.YT} r="4.5"></circle>
+		<circle class="ohm__node" cx={C.XN2} cy={C.YS} r="4.5"></circle>
+
+		<!-- rheostat -->
+		<g class="ohm__rheo" data-rheo>
+			<rect class="ohm__rheo-body" x={C.XA} y={C.YT - 12} width={C.XE - C.XA} height="24" rx="3"></rect>
+			<g class="ohm__coil">
+				{coil.map((x) => <line x1={x - 3} y1={C.YT - 11} x2={x + 3} y2={C.YT + 11} />)}
+			</g>
+			<rect
+				class="ohm__rheo-on"
+				x={C.XA}
+				y={C.YT - 12}
+				width={xs0 - C.XA}
+				height="24"
+				rx="3"
+				data-rheo-on></rect>
+			<circle class="ohm__clamp" cx={C.XA} cy={C.YT} r="4"></circle>
+			<circle class="ohm__clamp ohm__clamp--free" cx={C.XE} cy={C.YT} r="4"></circle>
+		</g>
+		<line
+			class="ohm__stem"
+			x1={xs0}
+			y1={C.YS}
+			x2={xs0}
+			y2={C.YT - 13}
+			marker-end={`url(#${uid}-tip)`}
+			data-stem></line>
+
+		<!-- free electrons -->
+		<g class="ohm__dots" data-dots></g>
+		<g class="ohm__dots ohm__dots--rest" data-dots-rest></g>
+
+		<!-- direction of the current -->
+		<line
+			class="ohm__current"
+			x1={C.XL + 15}
+			y1={212}
+			x2={C.XL + 15}
+			y2={162}
+			marker-end={`url(#${uid}-cur)`}
+			data-current></line>
+		<text class="ohm__current-name" x={C.XL + 26} y={194} data-current-name>I</text>
+
+		<!-- source -->
+		<g class="ohm__source">
+			<rect x={C.XBP - 6} y={C.YB - 26} width={C.XBN - C.XBP + 12} height="52" class="ohm__source-bg"></rect>
+			<line class="ohm__plate ohm__plate--plus" x1={C.XBP} y1={C.YB - 22} x2={C.XBP} y2={C.YB + 22}></line>
+			<line class="ohm__plate ohm__plate--minus" x1={C.XBN} y1={C.YB - 11} x2={C.XBN} y2={C.YB + 11}></line>
+			<text class="ohm__sign" x={C.XBP - 13} y={C.YB - 28} text-anchor="middle">+</text>
+			<text class="ohm__sign" x={C.XBN + 13} y={C.YB - 28} text-anchor="middle">−</text>
+		</g>
+
+		<!-- key -->
+		<g class="ohm__key" data-key>
+			<rect class="ohm__hit" x={C.XK1 - 14} y={C.YB - 40} width={C.XK2 - C.XK1 + 28} height="56"></rect>
+			<line class="ohm__lever" x1={C.XK1} y1={C.YB} x2={C.XK2} y2={C.YB} data-lever></line>
+			<circle class="ohm__contact" cx={C.XK1} cy={C.YB} r="4.5"></circle>
+			<circle class="ohm__contact" cx={C.XK2} cy={C.YB} r="4.5"></circle>
+		</g>
+
+		<!-- ammeter -->
+		<g class="ohm__meter ohm__meter--a">
+			<circle class="ohm__face" cx={C.XAM} cy={C.YB} r={C.RAM}></circle>
+			<path class="ohm__scale" d={arcPath(am)}></path>
+			{
+				am.ticks.map((t) => (
+					<line class={t.major ? 'ohm__tick ohm__tick--major' : 'ohm__tick'} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />
+				))
+			}
+			<line class="ohm__needle" x1={am.px} y1={am.py} x2={am.px} y2={am.py - am.len} data-needle-a></line>
+			<circle class="ohm__pivot" cx={am.px} cy={am.py} r="3"></circle>
+			<text class="ohm__letter" x={C.XAM} y={C.YB + C.RAM * 0.84} text-anchor="middle">A</text>
+		</g>
+		<text class="ohm__reading ohm__reading--i" x={C.XAM} y={C.YB + C.RAM + 27} text-anchor="middle" data-read-i
+			>0,50 А</text
+		>
+
+		<!-- voltmeter -->
+		<g class="ohm__meter ohm__meter--v">
+			<circle class="ohm__face" cx={C.XV} cy={C.YV} r={C.RV}></circle>
+			<path class="ohm__scale" d={arcPath(vm)}></path>
+			{
+				vm.ticks.map((t) => (
+					<line class={t.major ? 'ohm__tick ohm__tick--major' : 'ohm__tick'} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />
+				))
+			}
+			<line class="ohm__needle" x1={vm.px} y1={vm.py} x2={vm.px} y2={vm.py - vm.len} data-needle-v></line>
+			<circle class="ohm__pivot" cx={vm.px} cy={vm.py} r="3"></circle>
+			<text class="ohm__letter" x={C.XV} y={C.YV + C.RV * 0.84} text-anchor="middle">V</text>
+		</g>
+		<text class="ohm__reading ohm__reading--u" x={C.XV} y={C.YV + C.RV + 27} text-anchor="middle" data-read-u
+			>6,0 В</text
+		>
+
+		<!-- rheostat slider (drawn above the electrons) -->
+		<g class="ohm__knob" transform={`translate(${xs0} ${C.YS})`} data-knob>
+			<circle class="ohm__hit" r="26"></circle>
+			<rect x="-14" y="-10" width="28" height="20" rx="5"></rect>
+			<line x1="-5" y1="-5" x2="-5" y2="5"></line>
+			<line x1="0" y1="-5" x2="0" y2="5"></line>
+			<line x1="5" y1="-5" x2="5" y2="5"></line>
+		</g>
+		<text class="ohm__reading ohm__reading--r" x={xs0} y={C.YS - 20} text-anchor="middle" data-read-r>R = 12 Ом</text>
+
+		<!-- captions -->
+		<g class="ohm__caption">
+			<text x={(C.XBP + C.XBN) / 2} y={C.YB + 44} text-anchor="middle">источник тока</text>
+			<text x={(C.XK1 + C.XK2) / 2} y={C.YB + 30} text-anchor="middle">ключ</text>
+			<text x={(C.XA + C.XE) / 2} y={C.YT + 32} text-anchor="middle">реостат</text>
+		</g>
+	</svg>
+
+	<div class="ohm__controls">
+		<label class="ohm__slider ohm__slider--u">
+			<span class="ohm__slider-name">Напряжение источника <i>U</i></span>
+			<output data-u-out>6 В</output>
+			<input type="range" min="0" max={RANGE.UMAX} step="0.5" value={U0} data-u />
+		</label>
+		<label class="ohm__slider ohm__slider--r">
+			<span class="ohm__slider-name">Сопротивление реостата <i>R</i></span>
+			<output data-r-out>12 Ом</output>
+			<input type="range" min={RANGE.RMIN} max={RANGE.RMAX} step="1" value={R0} data-r />
+		</label>
+	</div>
+
+	<div class="ohm__formula" data-formula></div>
+
+	<div class="ohm__buttons">
+		<button type="button" class="ohm__btn ohm__btn--primary" data-record>Записать точку</button>
+		<button type="button" class="ohm__btn" data-auto>Провести опыт</button>
+		<button type="button" class="ohm__btn" data-key-btn>Разомкнуть ключ</button>
+		<button type="button" class="ohm__btn ohm__btn--quiet" data-clear>Очистить график</button>
+	</div>
+	<p class="ohm__live" data-live aria-live="polite"></p>
+
+	<div class="ohm__results">
+		<svg
+			class="ohm__graph"
+			viewBox={`0 0 ${G.W} ${G.H}`}
+			role="img"
+			aria-label="График зависимости силы тока от напряжения"
+		>
+			<g class="ohm__grid">
+				{uTicks.slice(1).map((u) => <line x1={gx(u)} y1={G.Y0} x2={gx(u)} y2={G.Y0 - G.PH} />)}
+				{iTicks.map((i) => <line x1={G.X0} y1={gy(i)} x2={G.X0 + G.PW} y2={gy(i)} />)}
+			</g>
+			<line class="ohm__axis" x1={G.X0} y1={G.Y0} x2={G.X0 + G.PW + 8} y2={G.Y0}></line>
+			<line class="ohm__axis" x1={G.X0} y1={G.Y0} x2={G.X0} y2={G.Y0 - G.PH - 8}></line>
+			<g class="ohm__gticks">
+				{uTicks.map((u) => <text x={gx(u)} y={G.Y0 + 22} text-anchor="middle">{u}</text>)}
+				{iTicks.map((i) => <text x={G.X0 - 9} y={gy(i) + 5} text-anchor="end">{fmtTick(i)}</text>)}
+				<text class="ohm__gname ohm__gname--u" x={G.X0 + G.PW} y={G.Y0 + 44} text-anchor="end">
+					<tspan class="ohm__math">U</tspan>, В
+				</text>
+				<text class="ohm__gname ohm__gname--i" x={G.X0 - 9} y={G.Y0 - G.PH - 16} text-anchor="end">
+					<tspan class="ohm__math">I</tspan>, А
+				</text>
+			</g>
+			<text class="ohm__empty" x={G.X0 + G.PW / 2} y={G.Y0 - G.PH / 2} text-anchor="middle" data-empty>
+				Здесь появятся ваши измерения
+			</text>
+			<g data-series></g>
+			<g class="ohm__probe" data-probe>
+				<line class="ohm__proj" data-proj-x></line>
+				<line class="ohm__proj" data-proj-y></line>
+				<circle class="ohm__ring" r="7" data-ring></circle>
+			</g>
+		</svg>
+
+		<div class="ohm__table-wrap" data-table-wrap hidden>
+			<table class="ohm__table">
+				<thead>
+					<tr>
+						<th><i>R</i>, Ом</th>
+						<th><i>U</i>, В</th>
+						<th><i>I</i>, А</th>
+						<th><i>U</i>&thinsp;/&thinsp;<i>I</i>, Ом</th>
+					</tr>
+				</thead>
+				<tbody data-rows></tbody>
+			</table>
+		</div>
+	</div>
+
+	<figcaption class="ohm__legend">
+		<span class="ohm__key-dot"></span>свободные электроны: движутся от «−» источника к «+», навстречу направлению тока
+		<span class="ohm__key-arrow"></span><i>I</i>. Чем больше сила тока, тем быстрее движутся точки. Скорость показана условно: настоящие электроны
+		движутся гораздо медленнее — на доли миллиметра в секунду, а в тонкой проволоке реостата быстрее, чем в толстых проводах. Приборы идеальные: сопротивление амперметра и проводов очень
+		мало, через вольтметр ток почти не идёт. Ползунок реостата можно тянуть прямо на схеме, ключ — нажимать.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ohm {
+		--ohm-u: var(--ig-vy);
+		--ohm-i: var(--ig-vx);
+		--ohm-r: var(--ig-v);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ohm i,
+	.ohm .ohm__math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.ohm__circuit,
+	.ohm__graph {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+
+	/* circuit */
+	.ohm__wires path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.ohm__node {
+		fill: var(--sl-color-gray-2);
+	}
+	.ohm__rheo-body {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.ohm__coil line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.ohm__rheo-on {
+		fill: color-mix(in srgb, var(--ohm-r) 22%, transparent);
+		stroke: var(--ohm-r);
+		stroke-width: 2.5;
+		cursor: pointer;
+	}
+	.ohm__rheo-body {
+		cursor: pointer;
+	}
+	.ohm__clamp {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.ohm__clamp--free {
+		stroke: var(--sl-color-gray-4);
+	}
+	.ohm__stem {
+		stroke: var(--ohm-r);
+		stroke-width: 2.5;
+	}
+	.ohm__tip path {
+		fill: var(--ohm-r);
+	}
+	.ohm__knob {
+		cursor: grab;
+		touch-action: none;
+	}
+	.ohm__knob.is-dragging {
+		cursor: grabbing;
+	}
+	.ohm__knob rect {
+		fill: var(--ohm-r);
+		filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ohm-r) 60%, transparent));
+	}
+	.ohm__knob line {
+		stroke: var(--sl-color-black);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+		opacity: 0.55;
+	}
+	.ohm__hit {
+		fill: transparent;
+	}
+	.ohm__dots circle {
+		fill: var(--ohm-i);
+	}
+	.ohm__dots--rest circle {
+		opacity: 0.45;
+	}
+	.ohm__current {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		transition: opacity 0.3s;
+	}
+	.ohm__curtip path {
+		fill: var(--sl-color-gray-2);
+	}
+	.ohm__current-name {
+		fill: var(--sl-color-gray-2);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 19px;
+		transition: opacity 0.3s;
+	}
+	.ohm__source-bg {
+		fill: var(--ig-surface);
+	}
+	.ohm__plate {
+		stroke: var(--sl-color-white);
+	}
+	.ohm__plate--plus {
+		stroke-width: 3;
+	}
+	.ohm__plate--minus {
+		stroke-width: 8;
+	}
+	.ohm__sign {
+		fill: var(--sl-color-gray-2);
+		font-size: 20px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.ohm__key {
+		cursor: pointer;
+		outline: none;
+	}
+	.ohm__lever {
+		stroke: var(--sl-color-white);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.ohm__key:hover .ohm__lever {
+		stroke: var(--sl-color-accent);
+	}
+	.ohm__contact {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.ohm__face {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.ohm__scale {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.ohm__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ohm__tick--major {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+	}
+	.ohm__needle {
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	.ohm__meter--a .ohm__needle {
+		stroke: var(--ohm-i);
+	}
+	.ohm__meter--v .ohm__needle {
+		stroke: var(--ohm-u);
+	}
+	.ohm__pivot {
+		fill: var(--sl-color-gray-2);
+	}
+	.ohm__letter {
+		fill: var(--sl-color-white);
+		font-size: 13px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.ohm__reading {
+		font-size: 20px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.ohm__reading--i {
+		fill: var(--ohm-i);
+	}
+	.ohm__reading--u {
+		fill: var(--ohm-u);
+	}
+	.ohm__reading--r {
+		fill: var(--ohm-r);
+	}
+	.ohm__caption text {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+
+	/* controls */
+	.ohm__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+	}
+	.ohm__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ohm__slider output {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.ohm__slider--u output {
+		color: var(--ohm-u);
+	}
+	.ohm__slider--r output {
+		color: var(--ohm-r);
+	}
+	.ohm__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+	}
+	.ohm__slider--u input {
+		accent-color: var(--ohm-u);
+	}
+	.ohm__slider--r input {
+		accent-color: var(--ohm-r);
+	}
+	.ohm__formula {
+		min-height: 4.2rem;
+		margin: 0.6rem 0 0;
+		padding: 0.3rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		display: grid;
+		place-items: center;
+		overflow-x: auto;
+		text-align: center;
+	}
+	.ohm__formula .katex-display {
+		margin: 0.35rem 0;
+	}
+	.ohm__formula .katex {
+		font-size: 1.35em;
+	}
+	.ohm__nowrap {
+		white-space: nowrap;
+	}
+	.ohm__formula-note {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.zo-u {
+		color: var(--ig-vy);
+	}
+	.zo-i {
+		color: var(--ig-vx);
+	}
+	.zo-r {
+		color: var(--ig-v);
+	}
+	.ohm__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.ohm__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ohm__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ohm__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ohm__btn--primary:hover {
+		filter: brightness(1.08);
+	}
+	.ohm__btn--quiet {
+		color: var(--sl-color-gray-2);
+		border-color: var(--sl-color-gray-5);
+	}
+	.ohm__btn.is-running {
+		border-color: var(--ohm-u);
+		color: var(--ohm-u);
+	}
+	.ohm__live {
+		min-height: 1.5em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+
+	/* graph */
+	.ohm__results {
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.ohm__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.ohm__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ohm__gticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.ohm__gticks .ohm__gname {
+		font-size: 16px;
+	}
+	.ohm__gticks .ohm__gname--u {
+		fill: var(--ohm-u);
+	}
+	.ohm__gticks .ohm__gname--i {
+		fill: var(--ohm-i);
+	}
+	.ohm__empty {
+		fill: var(--sl-color-gray-3);
+		font-size: 16px;
+		font-family: var(--__sl-font);
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 8px;
+		stroke-linejoin: round;
+	}
+	.ohm__s-line {
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		transition: stroke-dashoffset 0.9s cubic-bezier(0.3, 0.6, 0.3, 1);
+	}
+	.ohm__s-pt {
+		stroke: var(--ig-surface);
+		stroke-width: 2;
+		transform-box: fill-box;
+		transform-origin: center;
+		animation: ohm-pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+	}
+	.ohm__s-label {
+		font-size: 15px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		transition: opacity 0.4s;
+	}
+	.ohm__s0 {
+		--s: var(--ig-v);
+		--s-text: var(--ig-v);
+	}
+	.ohm__s1 {
+		--s: var(--sl-color-green);
+		--s-text: var(--sl-color-green-high);
+	}
+	.ohm__s2 {
+		--s: var(--sl-color-purple);
+		--s-text: var(--sl-color-purple-high);
+	}
+	.ohm__s-line {
+		stroke: var(--s);
+	}
+	.ohm__s-pt {
+		fill: var(--s);
+	}
+	.ohm__s-label {
+		fill: var(--s-text);
+	}
+	.ohm__proj {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.ohm__ring {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.ohm__probe {
+		transition: opacity 0.3s;
+	}
+	@keyframes ohm-pop {
+		from {
+			transform: scale(0);
+		}
+	}
+
+	/* table */
+	.ohm__table-wrap {
+		max-height: 15rem;
+		overflow-y: auto;
+		margin-top: 0.5rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.6rem;
+	}
+	.ohm__table-wrap[hidden] {
+		display: none;
+	}
+	.ohm__table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+	}
+	.ohm__table th,
+	.ohm__table td {
+		padding: 0.3rem 0.6rem;
+		text-align: right;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+	.ohm__table th {
+		position: sticky;
+		top: 0;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-gray-2);
+		font-weight: 600;
+	}
+	.ohm__table td {
+		color: var(--sl-color-gray-1);
+	}
+	.ohm__table th:first-child,
+	.ohm__table td:first-child {
+		text-align: left;
+	}
+	.ohm__table td:last-child {
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.ohm__table tr:last-child td {
+		border-bottom: 0;
+	}
+	.ohm__table tr.is-new td {
+		animation: ohm-row 1.2s ease-out;
+	}
+	@keyframes ohm-row {
+		from {
+			background: color-mix(in srgb, var(--sl-color-accent) 25%, transparent);
+		}
+	}
+	.ohm__table .ohm__swatch {
+		display: inline-block;
+		width: 0.6rem;
+		height: 0.6rem;
+		margin-right: 0.4rem;
+		border-radius: 50%;
+		background: var(--s);
+	}
+
+	/* legend */
+	.ohm__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+	.ohm__key-dot {
+		display: inline-block;
+		width: 0.55rem;
+		height: 0.55rem;
+		margin: 0 0.35rem 0.1rem 0;
+		border-radius: 50%;
+		background: var(--ohm-i);
+		vertical-align: middle;
+	}
+	.ohm__key-arrow {
+		display: inline-block;
+		width: 1.1rem;
+		height: 2px;
+		margin: 0 0.3rem 0.2rem 0.2rem;
+		vertical-align: middle;
+		background: var(--sl-color-gray-2);
+		position: relative;
+	}
+	.ohm__key-arrow::after {
+		content: '';
+		position: absolute;
+		right: -2px;
+		top: -4px;
+		border: 5px solid transparent;
+		border-left: 7px solid var(--sl-color-gray-2);
+		border-right: 0;
+	}
+
+	@media (max-width: 40rem) {
+		.ohm {
+			padding: 0.75rem;
+		}
+		.ohm__controls {
+			grid-template-columns: 1fr;
+		}
+		.ohm__caption text {
+			font-size: 22px;
+		}
+		.ohm__reading {
+			font-size: 29px;
+		}
+		.ohm__sign {
+			font-size: 28px;
+		}
+		.ohm__current-name {
+			font-size: 28px;
+		}
+		.ohm__letter {
+			font-size: 17px;
+		}
+		.ohm__gticks text {
+			font-size: 23px;
+		}
+		.ohm__gticks .ohm__gname {
+			font-size: 25px;
+		}
+		.ohm__empty {
+			font-size: 24px;
+		}
+		.ohm__s-label {
+			font-size: 23px;
+		}
+		.ohm__formula .katex {
+			font-size: 1.12em;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ohm__s-pt,
+		.ohm__table tr.is-new td {
+			animation: none;
+		}
+		.ohm__s-line {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { C, RANGE, G, gx, gy, dial, sliderX } from './geometry';
+	import { ru, fixed, isRounded, tex, q, renderTex, sig, sigDigits } from './ohm';
+
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const DOT_GAP = 16; // distance between neighbouring free electrons, px
+	const SPEED = 40; // drift of the dots, px/s per ampere
+	const JITTER = 1.1; // amplitude of the chaotic motion, px
+	const ANGLE = 55; // half-span of the meter scales, degrees
+	const MAX_SERIES = 3;
+	const AUTO_U = [0, 2, 4, 6, 8, 10, 12];
+
+	type Pt = [number, number];
+	type Dot = { el: SVGCircleElement; f1: number; f2: number; p1: number; p2: number };
+	type Series = { r: number; slot: number; us: number[]; g: SVGGElement; line: SVGLineElement | null; label: SVGTextElement };
+
+	/** A polyline with lookup of the point at a given distance from its start. */
+	const polyline = (pts: Pt[]) => {
+		const lens = pts.slice(1).map((p, k) => Math.hypot(p[0] - pts[k][0], p[1] - pts[k][1]));
+		const total = lens.reduce((a, b) => a + b, 0);
+		const at = (s: number): { x: number; y: number; seg: number } => {
+			let rest = ((s % total) + total) % total;
+			for (let k = 0; k < lens.length; k++) {
+				if (rest <= lens[k] || k === lens.length - 1) {
+					const t = lens[k] ? Math.min(rest / lens[k], 1) : 0;
+					return {
+						x: pts[k][0] + (pts[k + 1][0] - pts[k][0]) * t,
+						y: pts[k][1] + (pts[k + 1][1] - pts[k][1]) * t,
+						seg: k,
+					};
+				}
+				rest -= lens[k];
+			}
+			return { x: pts[0][0], y: pts[0][1], seg: 0 };
+		};
+		return { total, at, segments: lens.length };
+	};
+
+	/** The closed path of the electrons, in the direction they move: from «−» through the circuit to «+». */
+	const loop = (xs: number) =>
+		polyline([
+			[C.XBN, C.YB],
+			[C.XR, C.YB],
+			[C.XR, C.YS],
+			[xs, C.YS],
+			[xs, C.YT],
+			[C.XA, C.YT],
+			[C.XL, C.YT],
+			[C.XL, C.YB],
+			[C.XBP, C.YB],
+			[C.XBN, C.YB], // inside the source: hidden
+		]);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ohm]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const uIn = $<HTMLInputElement>('[data-u]');
+		const rIn = $<HTMLInputElement>('[data-r]');
+		const uOut = $<HTMLOutputElement>('[data-u-out]');
+		const rOut = $<HTMLOutputElement>('[data-r-out]');
+		const svg = $<SVGSVGElement>('.ohm__circuit');
+		const sliderWire = $<SVGPathElement>('[data-slider-wire]');
+		const rheoOn = $<SVGRectElement>('[data-rheo-on]');
+		const rheoBody = $<SVGRectElement>('.ohm__rheo-body');
+		const stem = $<SVGLineElement>('[data-stem]');
+		const knob = $<SVGGElement>('[data-knob]');
+		const readR = $<SVGTextElement>('[data-read-r]');
+		const readI = $<SVGTextElement>('[data-read-i]');
+		const readU = $<SVGTextElement>('[data-read-u]');
+		const lever = $<SVGLineElement>('[data-lever]');
+		const keyG = $<SVGGElement>('[data-key]');
+		const curArrow = $<SVGLineElement>('[data-current]');
+		const curName = $<SVGTextElement>('[data-current-name]');
+		const needleA = $<SVGLineElement>('[data-needle-a]');
+		const needleV = $<SVGLineElement>('[data-needle-v]');
+		const dotsG = $<SVGGElement>('[data-dots]');
+		const restG = $<SVGGElement>('[data-dots-rest]');
+		const formula = $<HTMLElement>('[data-formula]');
+		const live = $<HTMLElement>('[data-live]');
+		const recordBtn = $<HTMLButtonElement>('[data-record]');
+		const autoBtn = $<HTMLButtonElement>('[data-auto]');
+		const keyBtn = $<HTMLButtonElement>('[data-key-btn]');
+		const clearBtn = $<HTMLButtonElement>('[data-clear]');
+		const seriesG = $<SVGGElement>('[data-series]');
+		const probe = $<SVGGElement>('[data-probe]');
+		const ring = $<SVGCircleElement>('[data-ring]');
+		const projX = $<SVGLineElement>('[data-proj-x]');
+		const projY = $<SVGLineElement>('[data-proj-y]');
+		const empty = $<SVGTextElement>('[data-empty]');
+		const tableWrap = $<HTMLElement>('[data-table-wrap]');
+		const rows = $<HTMLElement>('[data-rows]');
+
+		const am = dial(C.XAM, C.YB, C.RAM, 12, 4);
+		const vm = dial(C.XV, C.YV, C.RV, 12, 3);
+
+		// ---------- state ----------
+		let closed = true;
+		const U = () => Number(uIn.value);
+		const R = () => Number(rIn.value);
+		const I = () => (closed ? U() / R() : 0);
+		const Uv = () => (closed ? U() : 0); // the voltmeter is connected across the rheostat
+
+		// ---------- free electrons ----------
+		const makeDot = (parent: SVGGElement): Dot => {
+			const el = document.createElementNS(SVG_NS, 'circle');
+			el.setAttribute('r', '3.2');
+			parent.append(el);
+			return {
+				el,
+				f1: 8 + Math.random() * 6,
+				f2: 8 + Math.random() * 6,
+				p1: Math.random() * 6.3,
+				p2: Math.random() * 6.3,
+			};
+		};
+		let path = loop(sliderX(R()));
+		const nDots = Math.round(path.total / DOT_GAP);
+		const gap = path.total / nDots;
+		const dots: Dot[] = Array.from({ length: nDots }, () => makeDot(dotsG));
+		let shift = 0; // how far the electrons have drifted along the loop
+		let drift = 0; // current drift speed, px/s (follows the current almost at once)
+
+		// Electrons at rest: in the voltmeter branch and in the part of the rheostat that is not in use.
+		type Rest = { dot: Dot; x: number; y: number };
+		const placeAlong = (pts: Pt[], from: number, to: number) => {
+			const p = polyline(pts);
+			const out: Pt[] = [];
+			for (let s = from; s <= p.total - to + 0.01; s += DOT_GAP) {
+				const a = p.at(Math.min(s, p.total - 0.001));
+				out.push([a.x, a.y]);
+			}
+			return out;
+		};
+		const branchPts: Pt[] = [
+			...placeAlong(
+				[
+					[C.XN1, C.YT],
+					[C.XN1, C.YV],
+					[C.XV - C.RV, C.YV],
+				],
+				DOT_GAP,
+				6,
+			),
+			...placeAlong(
+				[
+					[C.XV + C.RV, C.YV],
+					[C.XN2, C.YV],
+					[C.XN2, C.YS],
+				],
+				6,
+				DOT_GAP,
+			),
+		];
+		let rest: Rest[] = [];
+		const layoutRest = (xs: number) => {
+			const pts = [...branchPts];
+			for (let x = xs + DOT_GAP; x <= C.XE - 4; x += DOT_GAP) pts.push([x, C.YT]);
+			while (rest.length < pts.length) rest.push({ dot: makeDot(restG), x: 0, y: 0 });
+			while (rest.length > pts.length) rest.pop()!.dot.el.remove();
+			pts.forEach((p, k) => {
+				rest[k].x = p[0];
+				rest[k].y = p[1];
+			});
+		};
+
+		const drawDots = (t: number) => {
+			const j = reduceMotion.matches ? 0 : JITTER;
+			for (let k = 0; k < dots.length; k++) {
+				const d = dots[k];
+				const a = path.at(k * gap + shift);
+				// hidden inside the source, and in the gap of an open key (there is no metal there)
+				const inside =
+					a.seg === path.segments - 1 || (!closed && a.y === C.YB && a.x > C.XK1 + 5 && a.x < C.XK2 - 5);
+				d.el.setAttribute('cx', (a.x + j * Math.sin(d.f1 * t + d.p1)).toFixed(2));
+				d.el.setAttribute('cy', (a.y + j * Math.sin(d.f2 * t + d.p2)).toFixed(2));
+				d.el.setAttribute('opacity', inside ? '0' : '1');
+			}
+			for (const r of rest) {
+				const d = r.dot;
+				d.el.setAttribute('cx', (r.x + j * Math.sin(d.f1 * t + d.p1)).toFixed(2));
+				d.el.setAttribute('cy', (r.y + j * Math.sin(d.f2 * t + d.p2)).toFixed(2));
+			}
+		};
+
+		// ---------- meters: a damped needle ----------
+		const OMEGA = 13; // rad/s
+		const ZETA = 0.6;
+		const STOP = ANGLE + 2; // stop pins, degrees
+		const needles = [
+			{ el: needleA, d: am, full: RANGE.IMAX, value: I, a: 0, w: 0 },
+			{ el: needleV, d: vm, full: RANGE.UMAX, value: Uv, a: 0, w: 0 },
+		];
+		const target = (n: (typeof needles)[number]) => -ANGLE + (2 * ANGLE * Math.min(n.value(), n.full)) / n.full;
+		const placeNeedle = (n: (typeof needles)[number]) =>
+			n.el.setAttribute('transform', `rotate(${n.a.toFixed(2)} ${n.d.px} ${n.d.py})`);
+		needles.forEach((n) => {
+			n.a = target(n);
+			placeNeedle(n);
+		});
+		const stepNeedles = (dt: number) => {
+			let moving = false;
+			for (const n of needles) {
+				const goal = target(n);
+				if (reduceMotion.matches) {
+					n.a = goal;
+					n.w = 0;
+				} else {
+					const h = 1 / 240;
+					for (let t = 0; t < dt; t += h) {
+						n.w += (OMEGA * OMEGA * (goal - n.a) - 2 * ZETA * OMEGA * n.w) * h;
+						n.a += n.w * h;
+						// stop pins just outside the scale, as in a real meter: the needle bounces off them
+						if (Math.abs(n.a) > STOP) {
+							n.a = Math.sign(n.a) * STOP;
+							n.w = -0.3 * n.w;
+						}
+					}
+				}
+				if (Math.abs(goal - n.a) > 0.02 || Math.abs(n.w) > 0.05) moving = true;
+				placeNeedle(n);
+			}
+			return moving;
+		};
+
+		// ---------- key ----------
+		let leverAngle = 0; // degrees, 0 = closed
+		const placeLever = () => {
+			const a = (leverAngle * Math.PI) / 180;
+			const len = C.XK2 - C.XK1;
+			lever.setAttribute('x2', String(C.XK1 + len * Math.cos(a)));
+			lever.setAttribute('y2', String(C.YB - len * Math.sin(a)));
+		};
+
+		// ---------- rheostat ----------
+		const placeSlider = () => {
+			const xs = sliderX(R());
+			path = loop(xs);
+			sliderWire.setAttribute('d', `M ${xs} ${C.YS} H ${C.XR}`);
+			rheoOn.setAttribute('width', String(xs - C.XA));
+			stem.setAttribute('x1', String(xs));
+			stem.setAttribute('x2', String(xs));
+			knob.setAttribute('transform', `translate(${xs} ${C.YS})`);
+			readR.setAttribute('x', String(xs));
+			layoutRest(xs);
+		};
+
+		// ---------- text and formula ----------
+		const showReadings = () => {
+			uOut.value = `${ru(U(), 1)} В`;
+			rOut.value = `${R()} Ом`;
+			readR.textContent = `R = ${R()} Ом`;
+			readI.textContent = `${fixed(sig(I()), I() > 0 ? sigDigits(I()) : 2)} А`; // 3 significant digits, so U/I checks out
+			readU.textContent = `${fixed(Uv(), 1)} В`;
+			const on = I() > 0;
+			curArrow.style.opacity = on ? '1' : '0';
+			curName.style.opacity = on ? '1' : '0';
+			keyBtn.textContent = closed ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+			if (!closed) {
+				formula.innerHTML =
+					'<p class="ohm__formula-note">Ключ разомкнут — цепь разорвана, тока нет. Поэтому и напряжение на реостате равно нулю: <span class="ohm__nowrap"><i>U</i> = <i>IR</i> = 0</span>.</p>';
+				return;
+			}
+			const i = U() / R();
+			renderTex(
+				formula,
+				`${q('i', 'I')} = \\dfrac{${q('u', 'U')}}{${q('r', 'R')}} = \\dfrac{${q('u', `${tex(U(), 1)}~\\text{В}`)}}{${q('r', `${R()}~\\text{Ом}`)}} ${isRounded(i, sigDigits(i)) ? '\\approx' : '='} ${q('i', `${tex(i, sigDigits(i))}~\\text{А}`)}`,
+			);
+		};
+
+		// ---------- graph ----------
+		const series: Series[] = [];
+		const setLine = (el: SVGLineElement, x1: number, y1: number, x2: number, y2: number) => {
+			el.setAttribute('x1', String(x1));
+			el.setAttribute('y1', String(y1));
+			el.setAttribute('x2', String(x2));
+			el.setAttribute('y2', String(y2));
+		};
+		const placeProbe = () => {
+			const on = closed;
+			probe.style.opacity = on ? '1' : '0';
+			const x = gx(U());
+			const y = gy(I());
+			ring.setAttribute('cx', String(x));
+			ring.setAttribute('cy', String(y));
+			setLine(projX, x, G.Y0, x, y);
+			setLine(projY, G.X0, y, x, y);
+		};
+		const placeLabels = () => {
+			const withLine = series.filter((s) => s.line);
+			const items = withLine
+				.map((s) => ({ s, y: gy(RANGE.UMAX / s.r) - 9 }))
+				.sort((a, b) => a.y - b.y);
+			const h = (items[0]?.s.label.getBBox().height || 18) * 0.95;
+			for (let k = 1; k < items.length; k++) items[k].y = Math.max(items[k].y, items[k - 1].y + h);
+			for (const { s, y } of items) {
+				s.label.setAttribute('x', String(G.X0 + G.PW - 18)); // clear of the probe ring at U = 12 В
+				s.label.setAttribute('y', String(y));
+				s.label.style.opacity = '1';
+			}
+		};
+		const freeSlot = () => {
+			for (let k = 0; k < MAX_SERIES; k++) if (!series.some((s) => s.slot === k)) return k;
+			return -1;
+		};
+		const rowsOf = (s: Series) => rows.querySelectorAll(`[data-series-r="${s.r}"]`);
+		const dropSeries = (s: Series) => {
+			s.g.remove();
+			rowsOf(s).forEach((row) => row.remove());
+			series.splice(series.indexOf(s), 1);
+		};
+		const syncEmpty = () => {
+			const anything = series.length > 0;
+			empty.style.display = anything ? 'none' : '';
+			tableWrap.hidden = !anything;
+		};
+
+		const record = (quiet = false) => {
+			if (!closed) {
+				live.textContent = 'Ключ разомкнут: тока нет. Замкните ключ, чтобы измерять.';
+				return;
+			}
+			const u = U();
+			const r = R();
+			let s = series.find((x) => x.r === r);
+			if (s && s.us.includes(u)) {
+				if (!quiet) live.textContent = `Точка при U = ${ru(u, 1)} В для R = ${r} Ом уже записана — измените напряжение.`;
+				return;
+			}
+			if (!s) {
+				if (series.length >= MAX_SERIES) dropSeries(series[0]);
+				const g = document.createElementNS(SVG_NS, 'g');
+				const slot = freeSlot();
+				g.classList.add(`ohm__s${slot}`);
+				const label = document.createElementNS(SVG_NS, 'text');
+				label.classList.add('ohm__s-label');
+				label.setAttribute('text-anchor', 'end');
+				label.style.opacity = '0';
+				label.textContent = `R = ${r} Ом`;
+				g.append(label);
+				seriesG.append(g);
+				s = { r, slot, us: [], g, line: null, label };
+				series.push(s);
+			}
+			s.us.push(u);
+			const i = u / r;
+			const iShown = sig(i); // 3 significant digits: U/I from the shown numbers rounds to R for every slider setting
+			const dot = document.createElementNS(SVG_NS, 'circle');
+			dot.classList.add('ohm__s-pt');
+			dot.setAttribute('r', '5.5');
+			dot.setAttribute('cx', String(gx(u)));
+			dot.setAttribute('cy', String(gy(i)));
+			s.g.append(dot);
+			if (!s.line && s.us.filter((v) => v > 0).length >= 2) {
+				const line = document.createElementNS(SVG_NS, 'line');
+				line.classList.add('ohm__s-line');
+				setLine(line, gx(0), gy(0), gx(RANGE.UMAX), gy(RANGE.UMAX / r));
+				const len = Math.hypot(gx(RANGE.UMAX) - gx(0), gy(0) - gy(RANGE.UMAX / r));
+				line.style.strokeDasharray = String(len);
+				line.style.strokeDashoffset = String(len);
+				s.g.prepend(line);
+				s.line = line;
+				line.getBoundingClientRect();
+				requestAnimationFrame(() => (line.style.strokeDashoffset = '0'));
+				placeLabels();
+			}
+			// table row
+			rows.querySelectorAll('.is-new').forEach((row) => row.classList.remove('is-new'));
+			const tr = document.createElement('tr');
+			tr.dataset.seriesR = String(r);
+			tr.className = `ohm__s${s.slot} is-new`;
+			tr.innerHTML = `<td><span class="ohm__swatch"></span>${r}</td><td>${ru(u, 1)}</td><td>${ru(iShown, sigDigits(i))}</td><td>${u > 0 ? ru(u / iShown, 0) : '—'}</td>`;
+			rows.append(tr);
+			syncEmpty();
+			tableWrap.scrollTop = tableWrap.scrollHeight;
+			if (!quiet)
+				live.textContent = `Записано: U = ${ru(u, 1)} В, I = ${ru(iShown, sigDigits(i))} А${isRounded(i, sigDigits(i)) ? ' (округлённо)' : ''} при R = ${r} Ом.`;
+		};
+
+		const clearGraph = () => {
+			stopAuto();
+			while (series.length) dropSeries(series[0]);
+			syncEmpty();
+			live.textContent = 'График очищен.';
+		};
+
+		// ---------- automatic experiment ----------
+		let auto: { stop: boolean } | null = null;
+		const sleep = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+		const stopAuto = () => {
+			if (auto) auto.stop = true;
+			auto = null;
+			autoBtn.textContent = 'Провести опыт';
+			autoBtn.classList.remove('is-running');
+		};
+		const tweenU = async (to: number, token: { stop: boolean }) => {
+			const from = U();
+			if (reduceMotion.matches || from === to) {
+				uIn.value = String(to);
+				update();
+				return;
+			}
+			const steps = Math.round(Math.abs(to - from) / 0.5);
+			for (let k = 1; k <= steps && !token.stop; k++) {
+				uIn.value = String(from + Math.sign(to - from) * 0.5 * k);
+				update();
+				await sleep(320 / steps);
+			}
+		};
+		const runAuto = async () => {
+			if (auto) {
+				stopAuto();
+				live.textContent = 'Опыт остановлен.';
+				return;
+			}
+			const token = { stop: false };
+			auto = token;
+			autoBtn.textContent = 'Остановить';
+			autoBtn.classList.add('is-running');
+			if (!closed) setClosed(true);
+			live.textContent = `Опыт: R = ${R()} Ом, напряжение увеличиваем от 0 до 12 В.`;
+			for (const u of AUTO_U) {
+				await tweenU(u, token);
+				if (token.stop) return;
+				await sleep(reduceMotion.matches ? 300 : 700);
+				if (token.stop) return;
+				record(true);
+			}
+			stopAuto();
+			live.textContent = `Готово: при R = ${R()} Ом все точки легли на одну прямую. Попробуйте другое сопротивление.`;
+		};
+
+		// ---------- updates ----------
+		const update = () => {
+			placeSlider();
+			showReadings();
+			placeProbe();
+			wake();
+		};
+		const setClosed = (v: boolean) => {
+			closed = v;
+			showReadings();
+			placeProbe();
+			wake();
+		};
+
+		uIn.addEventListener('input', () => {
+			stopAuto();
+			update();
+		});
+		rIn.addEventListener('input', () => {
+			stopAuto();
+			update();
+		});
+		recordBtn.addEventListener('click', () => {
+			stopAuto();
+			record();
+		});
+		autoBtn.addEventListener('click', runAuto);
+		clearBtn.addEventListener('click', clearGraph);
+		const toggleKey = () => {
+			stopAuto();
+			setClosed(!closed);
+			live.textContent = closed ? 'Ключ замкнут — по цепи идёт ток.' : 'Ключ разомкнут — тока нет, приборы показывают ноль.';
+		};
+		keyBtn.addEventListener('click', toggleKey);
+		keyG.addEventListener('click', toggleKey);
+
+		// Drag the slider of the rheostat on the drawing.
+		const toSvgX = (e: PointerEvent) => {
+			const m = svg.getScreenCTM();
+			if (!m) return 0;
+			const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+			return p.x;
+		};
+		const dragTo = (e: PointerEvent) => {
+			const r = Math.round((RANGE.RMAX * (toSvgX(e) - C.XA)) / (C.XE - C.XA));
+			const clamped = Math.min(RANGE.RMAX, Math.max(RANGE.RMIN, r));
+			if (clamped !== R()) {
+				rIn.value = String(clamped);
+				update();
+			}
+		};
+		let dragging = false;
+		for (const el of [knob, rheoBody, rheoOn]) {
+			el.addEventListener('pointerdown', (e) => {
+				e.preventDefault();
+				stopAuto();
+				dragging = true;
+				knob.classList.add('is-dragging');
+				svg.setPointerCapture(e.pointerId);
+				dragTo(e);
+			});
+		}
+		svg.addEventListener('pointermove', (e) => dragging && dragTo(e));
+		const endDrag = () => {
+			dragging = false;
+			knob.classList.remove('is-dragging');
+		};
+		svg.addEventListener('pointerup', endDrag);
+		svg.addEventListener('pointercancel', endDrag);
+
+		// ---------- animation loop (runs only while the model is on screen) ----------
+		let raf = 0;
+		let last = 0;
+		let visible = true;
+		const frame = (now: number) => {
+			const dt = Math.min((now - (last || now)) / 1000, 1 / 20);
+			last = now;
+			const t = now / 1000;
+			const goalDrift = SPEED * I();
+			drift += (goalDrift - drift) * Math.min(1, dt / 0.08);
+			if (!reduceMotion.matches) shift += drift * dt;
+			const goalLever = closed ? 0 : 30;
+			leverAngle += (goalLever - leverAngle) * Math.min(1, reduceMotion.matches ? 1 : dt / 0.07);
+			placeLever();
+			const moving = stepNeedles(dt);
+			drawDots(t);
+			const idle = reduceMotion.matches && !moving && Math.abs(goalLever - leverAngle) < 0.01;
+			if (visible && !idle) raf = requestAnimationFrame(frame);
+			else raf = 0;
+		};
+		const wake = () => {
+			if (!raf && visible) {
+				last = 0;
+				raf = requestAnimationFrame(frame);
+			}
+		};
+		new IntersectionObserver((entries) => {
+			visible = entries.some((e) => e.isIntersecting);
+			if (visible) wake();
+		}).observe(root);
+
+		placeSlider();
+		showReadings();
+		placeProbe();
+		syncEmpty();
+		drawDots(0);
+		live.textContent = 'Меняйте напряжение и сопротивление, записывайте точки — или нажмите «Провести опыт».';
+		wake();
+	}
+</script>
