@@ -1,0 +1,1611 @@
+---
+/**
+ * Main model of the chapter: a cube hangs on a spring dynamometer above a glass of liquid
+ * standing on a lab jack. Raising the jack immerses the cube; the dynamometer shows the weight
+ * of the body in the liquid, the liquid level shows the displaced volume. The thread can be cut:
+ * the cube then sinks, floats or stays, with real dynamics (time can be slowed down).
+ *
+ * Real proportions: 11 px per centimetre for everything in the scene; cube 4 cm (64 cm³),
+ * glass 8 × 8 cm inside (64 cm²) and 8 cm high, 320 cm³ of liquid. The dynamometer is chosen to suit the body
+ * (0,2 … 20 N), all of them with the same 8-cm scale. The force arrows use one scale per dynamometer
+ * (60 px = full range); a force too small for it gets a minimum-length arrow (and F_A its value printed).
+ */
+import { BODIES, LIQUIDS, fmtInt } from './physics';
+
+const uid = `arh-${Math.random().toString(36).slice(2, 8)}`;
+const XC = 222;
+---
+
+<figure class="arh not-content" data-arh>
+	<div class="arh__stage">
+	<div class="arh__pickers">
+		<fieldset class="arh__pick">
+			<legend>Тело — кубик 4 × 4 × 4 см</legend>
+			<div class="arh__chips">
+				{
+					BODIES.map((b) => (
+						<label class="arh__chip">
+							<input type="radio" name={`${uid}-body`} value={b.id} checked={b.id === 'al'} data-body />
+							<span class={`arh__sw arh__sw--${b.id}`} aria-hidden="true" />
+							<span class="arh__chip-name">{b.name}</span>
+							<span class="arh__chip-rho">{fmtInt(b.rho)}</span>
+						</label>
+					))
+				}
+			</div>
+		</fieldset>
+		<fieldset class="arh__pick">
+			<legend>Жидкость</legend>
+			<div class="arh__chips">
+				{
+					LIQUIDS.map((l) => (
+						<label class="arh__chip">
+							<input type="radio" name={`${uid}-liq`} value={l.id} checked={l.id === 'water'} data-liq />
+							<span class={`arh__sw arh__sw--${l.id}`} aria-hidden="true" />
+							<span class="arh__chip-name">{l.name}</span>
+							<span class="arh__chip-rho">{fmtInt(l.rho)}</span>
+						</label>
+					))
+				}
+			</div>
+		</fieldset>
+		<p class="arh__units">Числа на кнопках — плотность в кг/м³.</p>
+	</div>
+
+		<svg
+			class="arh__svg"
+			viewBox="92 0 292 540"
+			role="group"
+			aria-label="Тело на динамометре над сосудом с жидкостью на подъёмном столике"
+			data-svg
+		>
+			<defs>
+				{
+					['fg', 'fa', 'fs'].map((k) => (
+						<marker
+							id={`${uid}-${k}`}
+							class={`arh__head arh__head--${k}`}
+							viewBox="0 0 10 10"
+							refX="6"
+							refY="5"
+							markerWidth="5"
+							markerHeight="5"
+							orient="auto"
+						>
+							<path d="M0,0 L10,5 L0,10 z" />
+						</marker>
+					))
+				}
+				<linearGradient id={`${uid}-sheen`} x1="0" y1="0" x2="1" y2="1">
+					<stop offset="0" stop-color="#fff" stop-opacity="0.45" />
+					<stop offset="0.45" stop-color="#fff" stop-opacity="0.05" />
+					<stop offset="1" stop-color="#000" stop-opacity="0.22" />
+				</linearGradient>
+				<linearGradient id={`${uid}-merc`} x1="0" y1="0" x2="1" y2="0">
+					<stop offset="0" stop-color="#000" stop-opacity="0.25" />
+					<stop offset="0.3" stop-color="#fff" stop-opacity="0.35" />
+					<stop offset="0.55" stop-color="#fff" stop-opacity="0" />
+					<stop offset="1" stop-color="#000" stop-opacity="0.3" />
+				</linearGradient>
+				<clipPath id={`${uid}-clip`}>
+					<rect x="-22" y="0" width="44" height="44" />
+				</clipPath>
+			</defs>
+
+			<!-- Table and stand -->
+			<line class="arh__table" x1="96" y1="522" x2="380" y2="522" />
+			<rect class="arh__metal" x="104" y="510" width="64" height="12" rx="3" />
+			<rect class="arh__metal" x="136" y="14" width="8" height="498" rx="2" />
+			<rect class="arh__metal" x="136" y="14" width={XC - 128} height="7" rx="2" />
+			<rect class="arh__clamp" x="129" y="9" width="22" height="18" rx="3" />
+			<circle class="arh__ring" cx={XC} cy="26" r="5" />
+
+			<!-- Scale of the force arrows -->
+			<g class="arh__scale" data-scale>
+				<text class="arh__scale-cap" x="300" y="34">масштаб сил</text>
+				<line x1="300" y1="48" x2="340" y2="48" data-scale-bar />
+				<text x="346" y="52" data-scale-text>0,5 Н</text>
+			</g>
+
+			<!-- Lab jack -->
+			<g class="arh__jack arh__drag" data-jack>
+				<rect class="arh__metal" x={XC - 50} y="512" width="100" height="10" rx="3" />
+				<g class="arh__bars" data-bars></g>
+				<rect class="arh__metal" x={XC - 50} width="100" height="7" rx="3" data-jack-top />
+			</g>
+
+			<!-- Glass, back side -->
+			<g class="arh__drag" data-tankg>
+				<rect class="arh__glass-back" x={XC - 46} width="92" height="114" rx="4" data-glass-back />
+			</g>
+
+			<!-- Body -->
+			<g class="arh__body" data-body-g>
+				<circle class="arh__body-ring" cx="0" cy="-3" r="3" />
+				<g clip-path={`url(#${uid}-clip)`}>
+					<rect class="arh__body-fill" x="-22" y="0" width="44" height="44" data-body-fill />
+					<g class="arh__decor" data-decor></g>
+					<rect x="-22" y="0" width="44" height="44" fill={`url(#${uid}-sheen)`} />
+				</g>
+				<rect class="arh__body-edge" x="-22" y="0" width="44" height="44" rx="1.5" />
+			</g>
+
+			<!-- Liquid -->
+			<g class="arh__liquid" data-liquid>
+				<rect class="arh__liq-body" x={XC - 44} width="88" data-liq-rect />
+				<rect class="arh__liq-sheen" x={XC - 44} width="88" fill={`url(#${uid}-merc)`} data-liq-sheen />
+				<rect class="arh__liq-band" x={XC - 44} width="88" data-liq-band />
+				<line class="arh__liq-surface" x1={XC - 44} x2={XC + 44} data-liq-surface />
+				<line class="arh__liq-initial" x1={XC - 44} x2={XC + 44} data-liq-initial />
+			</g>
+			<rect class="arh__ghost" x="-22" y="0" width="44" height="44" data-ghost />
+
+			<!-- Glass walls and graduations -->
+			<g class="arh__drag" data-tank-front>
+				<path class="arh__glass" data-glass />
+				<g class="arh__grad" data-grad></g>
+			</g>
+
+			<!-- Displaced volume bracket -->
+			<g class="arh__dv" data-dv>
+				<path data-dv-path />
+				<text x={XC + 92} data-dv-text></text>
+			</g>
+
+			<!-- Dynamometer -->
+			<g class="arh__dyn">
+				<rect class="arh__dyn-plate" x={XC - 20} y="30" width="40" height="178" rx="8" />
+				<g class="arh__dyn-scale" data-dyn-scale></g>
+				<text class="arh__dyn-unit" x={XC - 11} y="66" text-anchor="middle">Н</text>
+				<rect class="arh__metal" x={XC - 1} y="36" width="14" height="4" rx="1" />
+				<path class="arh__spring" data-spring />
+				<line class="arh__rod" x1={XC} x2={XC} data-rod />
+				<g data-pointer>
+					<line class="arh__pointer" x1={XC - 15} y1="0" x2={XC + 13} y2="0" />
+					<path class="arh__pointer-tip" d={`M ${XC - 19} 0 l 6 -4 v 8 z`} />
+				</g>
+				<circle class="arh__hook" cx={XC} r="4" data-hook />
+				<g class="arh__bubble" data-bubble>
+					<rect x={XC + 25} y="-12" width="66" height="24" rx="12" />
+					<text x={XC + 58} y="5" text-anchor="middle" data-bubble-text></text>
+				</g>
+			</g>
+
+			<path class="arh__thread" data-thread />
+
+			<!-- Forces -->
+			<g class="arh__forces" data-forces>
+				<line class="arh__f arh__f--fg" marker-end={`url(#${uid}-fg)`} data-f="fg" />
+				<line class="arh__f arh__f--fa" marker-end={`url(#${uid}-fa)`} data-f="fa" />
+				<line class="arh__f arh__f--fs" marker-end={`url(#${uid}-fs)`} data-f="fs" />
+				<text class="arh__flabel arh__flabel--fg" data-fl="fg"><tspan class="arh__fi">F</tspan><tspan class="arh__fsub" dy="4">тяж</tspan></text>
+				<text class="arh__flabel arh__flabel--fa" text-anchor="end" data-fl="fa"><tspan class="arh__fi">F</tspan><tspan class="arh__fsub" dy="4">А</tspan><tspan class="arh__fval" dy="-4" data-fv="fa"></tspan></text>
+				<text class="arh__flabel arh__flabel--fs" data-fl="fs"><tspan class="arh__fi">F</tspan><tspan class="arh__fsub" dy="4">упр</tspan></text>
+			</g>
+
+			<text class="arh__hint" x="300" y="490" data-hint>
+				<tspan x="300">↑ поднимите</tspan>
+				<tspan x="300" dy="16">сосуд</tspan>
+			</text>
+		</svg>
+
+		<div class="arh__side">
+			<label class="arh__slider">
+				<span>Подъёмный столик</span>
+				<output data-s-out>внизу</output>
+				<input type="range" min="0" max="1000" step="1" value="0" data-s aria-label="Высота подъёмного столика" />
+			</label>
+
+			<div class="arh__buttons">
+				<button type="button" class="arh__btn arh__btn--primary" data-release>Перерезать нить</button>
+				<label class="arh__check"><input type="checkbox" checked data-slow /> замедлить в 4 раза</label>
+			</div>
+
+			<dl class="arh__stats">
+				<div><dt>Вес тела в воздухе <i>P</i></dt><dd data-o-p>—</dd></div>
+				<div><dt data-o-p1-label>Динамометр показывает <i>P</i><sub>1</sub></dt><dd data-o-p1>—</dd></div>
+				<div class="arh__stats-key">
+					<dt data-o-fa-label>Выталкивающая сила <i>F</i><sub>А</sub> = <i>P</i> − <i>P</i><sub>1</sub></dt>
+					<dd data-o-fa>—</dd>
+				</div>
+				<div><dt>Объём погружённой части <i>V</i><sub>погр</sub></dt><dd data-o-v>—</dd></div>
+			</dl>
+			<div class="arh__formula" data-formula aria-hidden="true"></div>
+		</div>
+	</div>
+
+	<p class="arh__live" data-live aria-live="polite"></p>
+
+	<figcaption class="arh__legend">
+		<span class="arh__key arh__key--fg"></span>сила тяжести
+		<span class="arh__key arh__key--fa"></span>выталкивающая (архимедова) сила
+		<span class="arh__key arh__key--fs"></span>сила упругости нити или дна.
+		Сосуд можно поднимать мышкой или пальцем, а после того как нить перерезана, — двигать и само тело.{' '}
+		<span class="arh__nowrap"><i>g</i> = 9,8 Н/кг</span>, 1 мл = 1 см³. Ртуть ядовита: опыты с ней — только в модели.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.arh {
+		--arh-cork: hsl(30 45% 58%);
+		--arh-pine: hsl(37 62% 62%);
+		--arh-ice: hsl(193 80% 88%);
+		--arh-plexi: hsl(190 40% 80%);
+		--arh-al: hsl(214 14% 78%);
+		--arh-iron: hsl(214 9% 50%);
+		--arh-lead: hsl(224 10% 40%);
+		--arh-gold: hsl(45 90% 55%);
+		--arh-kerosene: hsl(54 55% 72%);
+		--arh-oil: hsl(44 95% 55%);
+		--arh-water: var(--ig-vx);
+		--arh-brine: hsl(170 65% 50%);
+		--arh-mercury: hsl(222 8% 72%);
+		--arh-fg: var(--ig-vy);
+		--arh-fa: var(--ig-vx);
+		--arh-fs: var(--ig-v);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .arh {
+		--arh-ice: hsl(193 70% 80%);
+		--arh-plexi: hsl(190 35% 72%);
+		--arh-kerosene: hsl(50 60% 58%);
+		--arh-oil: hsl(42 95% 48%);
+		--arh-brine: hsl(170 70% 36%);
+		--arh-mercury: hsl(222 6% 60%);
+	}
+	.arh i {
+		font-family: var(--ig-font-math);
+	}
+	.arh__pickers {
+		display: grid;
+		gap: 0.6rem;
+	}
+	.arh__pick {
+		margin: 0;
+		padding: 0;
+		border: 0;
+		min-width: 0;
+	}
+	.arh__pick legend {
+		padding: 0;
+		margin-bottom: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.arh__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.arh__chip {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.3rem 0.7rem 0.3rem 0.45rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 999px;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background-color 0.2s,
+			color 0.2s;
+		user-select: none;
+	}
+	.arh__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.arh__chip input {
+		position: absolute;
+		opacity: 0;
+		pointer-events: none;
+	}
+	.arh__chip:has(input:checked) {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		color: var(--sl-color-white);
+	}
+	.arh__chip:has(input:focus-visible) {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.arh__chip-rho {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.arh__sw {
+		width: 0.95rem;
+		height: 0.95rem;
+		border-radius: 0.25rem;
+		box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25);
+	}
+	.arh__sw--cork { background: var(--arh-cork); }
+	.arh__sw--pine { background: var(--arh-pine); }
+	.arh__sw--ice { background: var(--arh-ice); }
+	.arh__sw--plexi { background: color-mix(in oklab, var(--arh-plexi) 55%, transparent); }
+	.arh__sw--al { background: var(--arh-al); }
+	.arh__sw--iron { background: var(--arh-iron); }
+	.arh__sw--lead { background: var(--arh-lead); }
+	.arh__sw--gold { background: var(--arh-gold); }
+	.arh__sw--kerosene,
+	.arh__sw--oil,
+	.arh__sw--water,
+	.arh__sw--brine,
+	.arh__sw--mercury {
+		border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+	}
+	.arh__sw--kerosene { background: var(--arh-kerosene); }
+	.arh__sw--oil { background: var(--arh-oil); }
+	.arh__sw--water { background: var(--arh-water); }
+	.arh__sw--brine { background: var(--arh-brine); }
+	.arh__sw--mercury { background: var(--arh-mercury); }
+	.arh__units {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+
+	.arh {
+		container-type: inline-size;
+	}
+	.arh__stage {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-template-areas: 'svg pick' 'svg side';
+		grid-template-rows: auto 1fr;
+		gap: 0.9rem 1.25rem;
+		align-items: start;
+	}
+	.arh__pickers {
+		grid-area: pick;
+	}
+	.arh__svg {
+		grid-area: svg;
+	}
+	.arh__side {
+		grid-area: side;
+	}
+	.arh__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: pan-y;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.arh__drag {
+		cursor: ns-resize;
+	}
+	.arh.is-free .arh__body {
+		cursor: grab;
+	}
+	.arh.is-grabbing,
+	.arh.is-grabbing * {
+		cursor: grabbing !important;
+	}
+	.arh__table {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.arh__metal {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.arh__clamp {
+		fill: var(--sl-color-gray-4);
+	}
+	.arh__ring {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.arh__bars line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.arh__bars circle {
+		fill: var(--sl-color-gray-3);
+	}
+	.arh__bars .arh__screw {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.arh__glass-back {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 22%, transparent);
+	}
+	.arh__glass {
+		fill: none;
+		stroke: color-mix(in oklab, var(--sl-color-gray-2) 70%, transparent);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.arh__grad line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.arh__grad text {
+		fill: var(--sl-color-gray-3);
+		font-size: 11px;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.arh__body-ring {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.arh__body {
+		--body: var(--arh-al);
+	}
+	.arh__body-fill {
+		fill: var(--body);
+		transition: fill 0.35s;
+	}
+	.arh__body-edge {
+		fill: none;
+		stroke: color-mix(in oklab, var(--body) 55%, var(--sl-color-black));
+		stroke-width: 1.5;
+		transition: stroke 0.35s;
+	}
+	.arh__body[data-mat='ice'] .arh__body-fill,
+	.arh__body[data-mat='plexi'] .arh__body-fill {
+		fill-opacity: 0.55;
+	}
+	.arh__decor * {
+		fill: none;
+		stroke: color-mix(in oklab, var(--body) 60%, var(--sl-color-black));
+		stroke-width: 1.2;
+	}
+	.arh__decor .arh__dot {
+		fill: color-mix(in oklab, var(--body) 55%, var(--sl-color-black));
+		stroke: none;
+	}
+	.arh__decor .arh__shine {
+		stroke: #fff;
+		stroke-opacity: 0.8;
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.arh__liquid {
+		--liq: var(--arh-water);
+		pointer-events: none;
+	}
+	.arh__liq-body {
+		fill: var(--liq);
+		fill-opacity: 0.26;
+		transition:
+			fill 0.4s,
+			fill-opacity 0.4s;
+	}
+	.arh__liq-band {
+		fill: var(--liq);
+		fill-opacity: 0.22;
+		transition: fill 0.4s;
+	}
+	.arh__liq-sheen {
+		opacity: 0;
+		transition: opacity 0.4s;
+	}
+	.arh__liq-surface {
+		stroke: var(--liq);
+		stroke-width: 2.5;
+		transition: stroke 0.4s;
+	}
+	.arh__liq-initial {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 4 4;
+	}
+	.arh__liquid[data-liq='mercury'] .arh__liq-body {
+		fill-opacity: 0.94;
+	}
+	.arh__liquid[data-liq='mercury'] .arh__liq-band {
+		fill-opacity: 0;
+	}
+	.arh__liquid[data-liq='mercury'] .arh__liq-sheen {
+		opacity: 1;
+	}
+	.arh__liquid[data-liq='oil'] .arh__liq-body {
+		fill-opacity: 0.32;
+	}
+	.arh__ghost {
+		fill: none;
+		stroke: var(--sl-color-black);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 3;
+		pointer-events: none;
+	}
+	.arh__dv path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.arh__dv text {
+		fill: var(--sl-color-gray-2);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.arh__dyn-plate {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.arh__dyn-scale line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.arh__dyn-scale text,
+	.arh__dyn-unit {
+		fill: var(--sl-color-gray-2);
+		font-size: 11px;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.arh__spring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+	.arh__rod {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.arh__pointer {
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.arh__pointer-tip {
+		fill: var(--ig-vy);
+	}
+	.arh__hook {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.arh__bubble rect {
+		fill: var(--sl-color-accent);
+	}
+	.arh__bubble text {
+		fill: var(--sl-color-black);
+		font-size: 14px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.arh__thread {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+	}
+	.arh__f {
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.arh__f--fg { stroke: var(--arh-fg); }
+	.arh__f--fa { stroke: var(--arh-fa); }
+	.arh__f--fs { stroke: var(--arh-fs); }
+	.arh__head--fg path { fill: var(--arh-fg); }
+	.arh__head--fa path { fill: var(--arh-fa); }
+	.arh__head--fs path { fill: var(--arh-fs); }
+	.arh__forces line {
+		filter: drop-shadow(0 0 1.5px var(--ig-surface)) drop-shadow(0 0 1px var(--ig-surface));
+	}
+	/* overlays must not catch the pointer: the body and the glass under them stay draggable */
+	.arh__forces,
+	.arh__thread,
+	.arh__dv,
+	.arh__bubble,
+	.arh__scale {
+		pointer-events: none;
+	}
+	.arh__flabel {
+		font-size: 16px;
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.arh__flabel--fg { fill: var(--arh-fg); }
+	.arh__flabel--fa { fill: var(--arh-fa); }
+	.arh__flabel--fs { fill: var(--arh-fs); }
+	.arh__fi {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.arh__fsub {
+		font-size: 11px;
+		font-family: var(--__sl-font);
+	}
+	.arh__fval {
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.arh__scale line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.arh__scale text {
+		fill: var(--sl-color-gray-2);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+	.arh__scale .arh__scale-cap {
+		fill: var(--sl-color-gray-3);
+		font-size: 11px;
+	}
+	.arh__hint {
+		fill: var(--sl-color-text-accent);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+		transition: opacity 0.5s;
+		pointer-events: none;
+	}
+	.arh__hint.is-gone {
+		opacity: 0;
+	}
+
+	.arh__side {
+		display: grid;
+		gap: 0.75rem;
+	}
+	.arh__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.arh__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.arh__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.arh__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.9rem;
+	}
+	.arh__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.arh__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.arh__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.arh__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.arh__check input {
+		accent-color: var(--sl-color-accent);
+	}
+	.arh__stats {
+		display: grid;
+		gap: 0.4rem;
+		margin: 0;
+	}
+	.arh__stats > div {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0.75rem;
+		padding: 0.45rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.arh__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.arh__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.arh__stats-key {
+		box-shadow: inset 3px 0 0 var(--arh-fa);
+	}
+	.arh__stats-key dd {
+		color: var(--arh-fa);
+	}
+	.arh__formula {
+		min-height: 2.6em;
+		padding: 0.5rem 0.75rem;
+		border: 1px dashed var(--sl-color-gray-5);
+		border-radius: 0.6rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.9;
+		color: var(--sl-color-text);
+	}
+	.arh__formula .katex {
+		font-size: 1.05em;
+	}
+	.arh__live {
+		min-height: 3em;
+		margin: 0.75rem 0 0;
+		padding: 0.6rem 0.8rem;
+		border-radius: 0.6rem;
+		background: color-mix(in oklab, var(--sl-color-accent-low) 55%, transparent);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.arh__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.arh__key {
+		display: inline-block;
+		width: 1.1rem;
+		height: 3px;
+		margin: 0 0.3rem 0.2rem 0.6rem;
+		vertical-align: middle;
+		border-radius: 2px;
+	}
+	.arh__key:first-child {
+		margin-left: 0;
+	}
+	.arh__key--fg { background: var(--arh-fg); }
+	.arh__key--fa { background: var(--arh-fa); }
+	.arh__key--fs { background: var(--arh-fs); }
+	.arh__nowrap {
+		white-space: nowrap;
+	}
+
+	@container (max-width: 36rem) {
+		.arh__stage {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-areas: 'pick' 'svg' 'side';
+			grid-template-rows: auto;
+		}
+		.arh__svg {
+			max-width: 22rem;
+			width: 100%;
+			margin-inline: auto;
+		}
+	}
+	@media (max-width: 40rem) {
+		.arh {
+			padding: 0.75rem;
+		}
+		.arh__chip {
+			padding: 0.25rem 0.6rem 0.25rem 0.4rem;
+		}
+		.arh__grad text,
+		.arh__dyn-scale text,
+		.arh__dyn-unit,
+		.arh__scale .arh__scale-cap {
+			font-size: 13px;
+		}
+		.arh__dv text,
+		.arh__scale text {
+			font-size: 14px;
+		}
+		.arh__flabel {
+			font-size: 19px;
+		}
+		.arh__fsub {
+			font-size: 13px;
+		}
+		.arh__fval {
+			font-size: 15px;
+		}
+		.arh__hint {
+			font-size: 15px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.arh__body-fill,
+		.arh__body-edge,
+		.arh__liq-body,
+		.arh__liq-band,
+		.arh__liq-surface,
+		.arh__liq-sheen,
+		.arh__chip {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { BODIES, LIQUIDS, G, fmt, fmtInt, fmtTrim, tex, clamp, round, reducedMotion } from './physics';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	// Scene geometry, px (11 px = 1 cm), y downwards.
+	const S = 11;
+	const XC = 222;
+	const A = 4 * S; // cube side
+	const RISE = 16 / 64; // a² / (glass cross-section): level rise per unit of immersion depth
+	const HL = 5 * S; // initial liquid height (320 cm³)
+	const TANK_H = 8 * S; // glass height: 8 cm (512 cm³), the rim never meets the dynamometer
+	const GRAD_MAX = 450; // cm³, the highest graduation
+	const Y_SPRING = 40; // upper end of the spring
+	const Y_ZERO = 80; // pointer at 0 N
+	const TRAVEL = 8 * S; // full scale of every dynamometer
+	const ROD = 136; // pointer → hook
+	const THREAD = 22;
+	const HOOK0 = Y_ZERO + ROD;
+	const REST_B = HOOK0 + 10 + THREAD + 6 + A; // body bottom when the spring is not stretched
+	const TABLE_JACK = 512; // top of the jack base plate
+	const BAR = 100; // jack bar length
+	const V_BODY = 64; // cm³
+	const RANGES = [0.2, 0.5, 1, 2, 5, 10, 20];
+	const ARROW_FULL = 60; // px of arrow for the full range of the dynamometer
+	const MIN_ARROW = 12; // px, shortest arrow drawn (head 6 px + a bit of shaft)
+	const TICKS: Record<string, [number, number]> = {
+		'0.2': [0.05, 0.01],
+		'0.5': [0.1, 0.05],
+		'1': [0.2, 0.1],
+		'2': [0.5, 0.1],
+		'5': [1, 0.5],
+		'10': [2, 1],
+		'20': [5, 1],
+	};
+	const SLOW = 0.25;
+
+	const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		return e;
+	};
+	const set = (e: Element, attrs: Record<string, string | number>) => {
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+	};
+
+	/** Decorations drawn inside the cube (local coordinates, cube is x −22…22, y 0…44). */
+	const decor = (id: string): string => {
+		if (id === 'cork') {
+			const pts = [
+				[-15, 6], [-4, 9], [9, 5], [16, 14], [-12, 18], [2, 20], [12, 27], [-17, 30],
+				[-5, 33], [7, 38], [17, 36], [-10, 41], [-1, 13], [6, 30],
+			];
+			return pts.map(([x, y], i) => `<circle class="arh__dot" cx="${x}" cy="${y}" r="${i % 3 ? 1.2 : 1.7}"/>`).join('');
+		}
+		if (id === 'pine') {
+			return [8, 17, 26, 35]
+				.map((y, i) => `<path d="M -24 ${y} C -10 ${y - 4 + i}, 4 ${y + 4}, 24 ${y - 2}"/>`)
+				.join('') + '<ellipse cx="7" cy="22" rx="4" ry="2.4"/>';
+		}
+		if (id === 'ice' || id === 'plexi') {
+			return '<path class="arh__shine" d="M -15 8 L -6 8"/><path class="arh__shine" d="M -16 13 L -16 24"/>';
+		}
+		return '';
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-arh]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const sIn = q<HTMLInputElement>('[data-s]');
+		const sOut = q<HTMLOutputElement>('[data-s-out]');
+		const releaseBtn = q<HTMLButtonElement>('[data-release]');
+		const slowIn = q<HTMLInputElement>('[data-slow]');
+		const bodyG = q<SVGGElement>('[data-body-g]');
+		const decorG = q<SVGGElement>('[data-decor]');
+		const ghost = q<SVGRectElement>('[data-ghost]');
+		const liquidG = q<SVGGElement>('[data-liquid]');
+		const liqRect = q<SVGRectElement>('[data-liq-rect]');
+		const liqSheen = q<SVGRectElement>('[data-liq-sheen]');
+		const liqBand = q<SVGRectElement>('[data-liq-band]');
+		const liqSurf = q<SVGLineElement>('[data-liq-surface]');
+		const liqInit = q<SVGLineElement>('[data-liq-initial]');
+		const glass = q<SVGPathElement>('[data-glass]');
+		const glassBack = q<SVGRectElement>('[data-glass-back]');
+		const gradG = q<SVGGElement>('[data-grad]');
+		const jackTop = q<SVGRectElement>('[data-jack-top]');
+		const barsG = q<SVGGElement>('[data-bars]');
+		const dvPath = q<SVGPathElement>('[data-dv-path]');
+		const dvText = q<SVGTextElement>('[data-dv-text]');
+		const dynScale = q<SVGGElement>('[data-dyn-scale]');
+		const spring = q<SVGPathElement>('[data-spring]');
+		const rod = q<SVGLineElement>('[data-rod]');
+		const pointer = q<SVGGElement>('[data-pointer]');
+		const hook = q<SVGCircleElement>('[data-hook]');
+		const bubble = q<SVGGElement>('[data-bubble]');
+		const bubbleText = q<SVGTextElement>('[data-bubble-text]');
+		const thread = q<SVGPathElement>('[data-thread]');
+		const fLine = {
+			fg: q<SVGLineElement>('[data-f="fg"]'),
+			fa: q<SVGLineElement>('[data-f="fa"]'),
+			fs: q<SVGLineElement>('[data-f="fs"]'),
+		};
+		const fLabel = {
+			fg: q<SVGTextElement>('[data-fl="fg"]'),
+			fa: q<SVGTextElement>('[data-fl="fa"]'),
+			fs: q<SVGTextElement>('[data-fl="fs"]'),
+		};
+		const fVal = { fa: q<SVGTSpanElement>('[data-fv="fa"]') };
+		const scaleBar = q<SVGLineElement>('[data-scale-bar]');
+		const scaleText = q<SVGTextElement>('[data-scale-text]');
+		const hint = q<SVGTextElement>('[data-hint]');
+		const out = {
+			p: q<HTMLElement>('[data-o-p]'),
+			p1: q<HTMLElement>('[data-o-p1]'),
+			p1Label: q<HTMLElement>('[data-o-p1-label]'),
+			fa: q<HTMLElement>('[data-o-fa]'),
+			faLabel: q<HTMLElement>('[data-o-fa-label]'),
+			v: q<HTMLElement>('[data-o-v]'),
+		};
+		const formula = q<HTMLElement>('[data-formula]');
+		const live = q<HTMLElement>('[data-live]');
+
+		// Graduations of the glass: every 50 cm³, numbers every 100 cm³ (64 cm² inside → 1 cm³ = S/64 px).
+		const gradMarks: { v: number; line: SVGLineElement; text?: SVGTextElement }[] = [];
+		for (let v = 50; v <= GRAD_MAX; v += 50) {
+			const major = v % 100 === 0;
+			const line = el('line', { x1: XC + 44 - (major ? 9 : 5), x2: XC + 44 });
+			gradG.append(line);
+			const mark: (typeof gradMarks)[number] = { v, line };
+			if (major) {
+				mark.text = el('text', { x: XC + 52 });
+				mark.text.textContent = String(v);
+				gradG.append(mark.text);
+			}
+			gradMarks.push(mark);
+		}
+		const gradUnit = el('text', { x: XC + 52 });
+		gradUnit.textContent = 'см³';
+		gradG.append(gradUnit);
+
+		// ----- state -----
+		let body = BODIES.find((b) => b.id === 'al')!;
+		let liq = LIQUIDS.find((l) => l.id === 'water')!;
+		let mode: 'hang' | 'free' = 'hang';
+		let sTarget = 0;
+		let tbVis = NaN;
+		let yBVis = NaN; // body bottom, px (hang mode, smoothed)
+		let z = 0; // free mode: body bottom above the glass bottom, cm
+		let v = 0; // free mode: velocity, m/s (up)
+		let hookY = 0; // free mode: hook offset from rest, px
+		let hookV = 0;
+		let grabbing = false;
+		let grabOffset = 0;
+		let raf = 0;
+		let lastT = 0;
+		let lastFormula = '';
+		let lastStatus = '';
+		let fade = 1;
+		let fadeDir = 0;
+
+		const mass = () => (body.rho * V_BODY) / 1e6; // kg
+		const weight = () => mass() * G; // N
+		const range = () => RANGES.find((r) => weight() <= 0.9 * r) ?? 20;
+		const K = () => TRAVEL / range(); // px per N
+		const cA = () => (liq.rho * G * 0.0016 * 0.01) / S; // N per px of immersion
+
+		/** Static equilibrium of the hanging body for a given glass bottom position. */
+		const equilibrium = (tb: number) => {
+			const P = weight();
+			const k = K();
+			const c = cA();
+			const y0 = REST_B + k * P;
+			const d1 = (y0 - tb + HL) / (1 - RISE + k * c);
+			let d = clamp(d1, 0, A);
+			let fa = c * d;
+			let f = P - fa;
+			let yB: number;
+			let floating = false;
+			if (f <= 0 && body.rho < liq.rho) {
+				floating = true;
+				d = (body.rho / liq.rho) * A;
+				fa = P;
+				f = 0;
+				yB = tb - HL - RISE * d + d;
+			} else {
+				f = Math.max(0, f);
+				yB = y0 - k * fa;
+			}
+			return { yB, d, fa, f, floating };
+		};
+
+		const tbRange = () => {
+			const P = weight();
+			const k = K();
+			const y0 = REST_B + k * P;
+			const low = y0 + 1.5 * S + HL;
+			let high: number;
+			if (body.rho < liq.rho) {
+				const df = (body.rho / liq.rho) * A;
+				high = REST_B - (1 - RISE) * df + HL - 1.2 * S;
+			} else {
+				high = y0 - k * cA() * A + S;
+			}
+			return [low, high] as const;
+		};
+		const tbTarget = () => {
+			const [lo, hi] = tbRange();
+			return lo + sTarget * (hi - lo);
+		};
+
+		// ----- drawing helpers -----
+		const drawDynScale = () => {
+			const r = range();
+			const [major, minor] = TICKS[String(r)];
+			dynScale.replaceChildren();
+			const n = Math.round(r / minor);
+			for (let i = 0; i <= n; i++) {
+				const val = i * minor;
+				const y = Y_ZERO + (val / r) * TRAVEL;
+				const isMajor = Math.abs(val / major - Math.round(val / major)) < 1e-6;
+				dynScale.append(el('line', { x1: XC - 16, x2: XC - (isMajor ? 6 : 10), y1: y, y2: y }));
+				if (isMajor) {
+					const t = el('text', { x: XC - 24, y: y + 4, 'text-anchor': 'end' });
+					t.textContent = fmtTrim(round(val, 3), 3);
+					dynScale.append(t);
+				}
+			}
+		};
+
+		const springPath = (top: number, bottom: number) => {
+			const x = XC + 6;
+			const coils = 8;
+			const len = bottom - top - 8;
+			let d = `M ${x} ${top} v 4`;
+			for (let i = 0; i < coils; i++) {
+				const y0 = top + 4 + (len * i) / coils;
+				d += ` L ${x + 6} ${y0 + len / coils / 4} L ${x - 6} ${y0 + (3 * len) / coils / 4}`;
+			}
+			d += ` L ${x} ${bottom - 4} V ${bottom} H ${XC}`;
+			return d;
+		};
+
+		const drawJack = (tb: number) => {
+			const top = tb + 5;
+			set(jackTop, { y: top });
+			const bottom = TABLE_JACK;
+			const h = (bottom - (top + 7)) / 2;
+			const w = Math.sqrt(Math.max(BAR * BAR - h * h, 0));
+			const y1 = top + 7;
+			const ym = y1 + h;
+			const y2 = bottom;
+			const xl = XC - w / 2;
+			const xr = XC + w / 2;
+			barsG.innerHTML =
+				`<line x1="${xl}" y1="${y1}" x2="${xr}" y2="${ym}"/><line x1="${xr}" y1="${y1}" x2="${xl}" y2="${ym}"/>` +
+				`<line x1="${xl}" y1="${ym}" x2="${xr}" y2="${y2}"/><line x1="${xr}" y1="${ym}" x2="${xl}" y2="${y2}"/>` +
+				`<line class="arh__screw" x1="${xl - 6}" y1="${ym}" x2="${xr + 14}" y2="${ym}"/>` +
+				`<circle cx="${xr + 16}" cy="${ym}" r="4"/>` +
+				[
+					[xl, y1], [xr, y1], [xl, ym], [xr, ym], [xl, y2], [xr, y2], [XC, (y1 + ym) / 2], [XC, (ym + y2) / 2],
+				]
+					.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3"/>`)
+					.join('');
+		};
+
+		const drawTank = (tb: number, d: number) => {
+			const top = tb - TANK_H - 2;
+			set(glassBack, { y: top, height: TANK_H + 6 });
+			glass.setAttribute(
+				'd',
+				`M ${XC - 46} ${top} V ${tb + 1} q 0 4 4 4 H ${XC + 42} q 4 0 4 -4 V ${top}`,
+			);
+			for (const m of gradMarks) {
+				const y = tb - (m.v / 64) * S;
+				set(m.line, { y1: y, y2: y });
+				if (m.text) set(m.text, { y: y + 4 });
+			}
+			set(gradUnit, { y: tb - (GRAD_MAX / 64) * S - 12 });
+			const y0 = tb - HL;
+			const yS = y0 - RISE * d;
+			set(liqRect, { y: yS, height: tb - yS });
+			set(liqSheen, { y: yS, height: tb - yS });
+			set(liqBand, { y: yS, height: Math.max(y0 - yS, 0) });
+			set(liqSurf, { y1: yS, y2: yS });
+			set(liqInit, { y1: y0, y2: y0 });
+			liqInit.style.visibility = y0 - yS > 2 ? 'visible' : 'hidden';
+			const dv = (d / S) * 16; // cm³
+			if (y0 - yS > 3) {
+				const x = XC + 86;
+				dvPath.setAttribute('d', `M ${x - 4} ${y0} H ${x} V ${yS} H ${x - 4}`);
+				set(dvText, { y: (y0 + yS) / 2 + 4 });
+				dvText.textContent = `+${fmtTrim(round(dv, 1), 1)} см³`;
+				dvPath.parentElement!.style.visibility = 'visible';
+			} else {
+				dvPath.parentElement!.style.visibility = 'hidden';
+			}
+			return yS;
+		};
+
+		/**
+		 * Draws a force arrow and returns its drawn length. One scale per dynamometer, so equal forces
+		 * get equal arrows for bodies on the same dynamometer. A force too small for the scale is drawn
+		 * with the minimum visible length and its value is printed next to the label.
+		 */
+		const setArrow = (k: 'fg' | 'fa' | 'fs', x: number, y: number, force: number, kf: number, up: boolean, labelSide: number) => {
+			const line = fLine[k];
+			const label = fLabel[k];
+			const show = force >= 0.005;
+			line.style.visibility = show ? 'visible' : 'hidden';
+			label.style.visibility = show ? 'visible' : 'hidden';
+			if (!show) return 0;
+			const short = force * kf < MIN_ARROW;
+			const len = short ? MIN_ARROW : force * kf;
+			// the value is printed for F_A only: F_упр is read off the dynamometer
+			if (k === 'fa') fVal.fa.textContent = short ? `\u2009= ${fmt(force)} Н` : '';
+			const y2 = up ? y - len : y + len;
+			// the arrow head sticks out 6 px beyond the end of the line
+			set(line, { x1: x, y1: y, x2: x, y2: up ? y2 + 6 : y2 - 6 });
+			const ly = up ? y2 + 6 : y2 + 2;
+			set(label, { x: x + labelSide * 7, y: ly });
+			return len;
+		};
+
+		/** Percent for a fraction: one decimal below 10 %, whole numbers above. */
+		const pctFloat = (f: number) => (f < 0.1 ? fmt(f * 100, 1) : String(Math.round(f * 100)));
+
+		const niceScale = (pxPerN: number) => {
+			const steps = [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
+			return steps.find((s) => s * pxPerN >= 22) ?? 5;
+		};
+
+		const setBody = () => {
+			bodyG.style.setProperty('--body', `var(--arh-${body.id})`);
+			bodyG.dataset.mat = body.id;
+			decorG.innerHTML = decor(body.id);
+			drawDynScale();
+		};
+		const setLiquid = () => {
+			liquidG.style.setProperty('--liq', `var(--arh-${liq.id})`);
+			liquidG.dataset.liq = liq.id;
+		};
+
+		const katexRender = (s: string) => {
+			if (s === lastFormula) return;
+			lastFormula = s;
+			formula.innerHTML = katex.renderToString(s, { throwOnError: false });
+		};
+
+		const say = (text: string) => {
+			if (text === lastStatus) return;
+			lastStatus = text;
+			live.innerHTML = text;
+		};
+
+		const rhoT = () => `<span class="arh__nowrap"><i>ρ</i><sub>т</sub> = ${fmtInt(body.rho)} кг/м³</span>`;
+		const rhoZh = () => `<span class="arh__nowrap"><i>ρ</i><sub>ж</sub> = ${fmtInt(liq.rho)} кг/м³</span>`;
+
+		/** Numbers shown to the pupil; all computed from the rounded volume so the arithmetic on screen is exact. */
+		const numbers = (dPx: number, floating: boolean) => {
+			const P = weight();
+			const Pr = round(P, 2);
+			const vTrue = (dPx / S) * 16;
+			const vr = round(vTrue, 1);
+			let far = round(G * liq.rho * vr * 1e-6, 2);
+			if (floating) far = Pr;
+			return { P, Pr, vr, far };
+		};
+
+		const writeFormula = (vr: number, far: number) => {
+			const rho = tex(fmtInt(liq.rho));
+			if (vr <= 0) {
+				katexRender(`F_{\\text{А}} = g\\rho_{\\text{ж}}V_{\\text{погр}} = 0`);
+				return;
+			}
+			const vm3 = tex(fmtTrim(vr / 1e6, 8));
+			katexRender(
+				`F_{\\text{А}} = g\\rho_{\\text{ж}}V_{\\text{погр}} = 9{,}8 \\cdot ${rho} \\cdot ${vm3} \\approx ${tex(fmt(far, 2))}~\\text{Н}`,
+			);
+		};
+
+		// ----- one frame -----
+		const render = (dtReal: number) => {
+			const rm = reducedMotion();
+			const tbT = tbTarget();
+			// smooth approach; snapped at the end so that the picture and the numbers agree exactly
+			if (!Number.isFinite(tbVis) || rm) tbVis = tbT;
+			else tbVis += (tbT - tbVis) * (1 - Math.exp(-dtReal / 0.07));
+			if (Math.abs(tbT - tbVis) < 0.05) tbVis = tbT;
+			const tb = tbVis;
+			const P = weight();
+			const kf = ARROW_FULL / range(); // arrow px per newton, the same for every body on this dynamometer
+			let yB: number;
+			let d: number;
+			let springF: number;
+			let hookPos: number;
+			let threadState: 'taut' | 'slack' | 'cut';
+			let moving = Math.abs(tbT - tbVis) > 0.05;
+			let faTrue: number;
+			let floatingEq = false;
+			let onBottom = false;
+
+			if (mode === 'hang') {
+				const eq = equilibrium(tb);
+				if (!Number.isFinite(yBVis) || rm) yBVis = eq.yB;
+				else yBVis += (eq.yB - yBVis) * (1 - Math.exp(-dtReal / 0.09));
+				if (Math.abs(eq.yB - yBVis) < 0.05) yBVis = eq.yB;
+				if (Math.abs(eq.yB - yBVis) > 0.05) moving = true;
+				yB = yBVis;
+				d = clamp((yB - tb + HL) / (1 - RISE), 0, A);
+				springF = Math.max(0, (yB - REST_B) / K());
+				hookPos = HOOK0 + Math.max(0, yB - REST_B);
+				threadState = yB >= REST_B - 0.3 ? 'taut' : 'slack';
+				faTrue = eq.fa;
+				floatingEq = eq.floating;
+				const nums = numbers(eq.d, eq.floating);
+				const p1 = Math.max(0, round(nums.Pr - nums.far, 2));
+				out.p.textContent = `${fmt(nums.Pr)} Н`;
+				out.p1.textContent = `${fmt(p1)} Н`;
+				out.fa.textContent = `${fmt(nums.far)} Н`;
+				out.v.textContent = `${fmt(nums.vr, 1)} см³`;
+				bubbleText.textContent = `${fmt(p1)} Н`;
+				writeFormula(nums.vr, nums.far);
+				const pct = Math.round((eq.d / A) * 100);
+				if (eq.d <= 0.01) {
+					say(`Тело в воздухе. Динамометр показывает его вес: <i>P</i> = ${fmt(nums.Pr)} Н. Поднимите сосуд.`);
+				} else if (eq.floating) {
+					say(
+						`Динамометр показывает 0: выталкивающая сила сравнялась с силой тяжести, нить провисла. Тело плавает, погрузившись на ${pctFloat(eq.d / A)} % своего объёма — ровно ${fmtInt(body.rho)} / ${fmtInt(liq.rho)}.`,
+					);
+				} else if (eq.d >= A - 0.01) {
+					say(
+						body.rho === liq.rho
+							? `Тело целиком в жидкости, а динамометр показывает 0: ${rhoT()} равна ${rhoZh()}. Такое тело плавает внутри жидкости.`
+							: `Тело целиком ${liq.inName}. Поднимайте сосуд дальше — показание больше не меняется: архимедова сила не зависит от глубины.`,
+					);
+				} else {
+					say(
+						`Тело погружено на ${pct} %. Показание уменьшилось на ${fmt(nums.far)} Н — это и есть выталкивающая сила. По делениям сосуда видно: тело вытеснило ${fmt(nums.vr, 1)} см³ жидкости: ровно столько места занимает его погружённая часть.`,
+					);
+				}
+			} else {
+				// free motion in the frame of the glass
+				const dtSim = rm ? 0 : Math.min(dtReal, 0.05) * (slowIn.checked ? SLOW : 1);
+				const m = mass();
+				const kS = range() / (TRAVEL / S / 100); // N/m of the spring
+				const mHook = 0.03;
+				const wH = Math.sqrt(kS / mHook);
+				if (rm && !grabbing) {
+					// jump straight to the final state
+					if (body.rho > liq.rho) z = 0;
+					else if (body.rho < liq.rho) {
+						const df = (body.rho / liq.rho) * 4;
+						z = 5 + RISE * df - df;
+					}
+					v = 0;
+					hookY = 0;
+					hookV = 0;
+				}
+				let tLeft = dtSim;
+				while (tLeft > 1e-9 && !grabbing) {
+					const h = Math.min(2e-4, tLeft);
+					tLeft -= h;
+					const dCm = clamp((5 - z) / (1 - RISE), 0, 4);
+					const dM = dCm / 100;
+					const fa = liq.rho * G * 0.0016 * dM;
+					const mAdd = 0.5 * liq.rho * 0.0016 * dM;
+					const frac = dCm / 4;
+					let f = fa - m * G - 0.5 * liq.rho * 1.05 * 0.0016 * v * Math.abs(v) * frac;
+					if (dCm > 0 && dCm < 4) {
+						const kW = (liq.rho * G * 0.0016) / (1 - RISE);
+						f -= 2 * 0.22 * Math.sqrt(kW * (m + mAdd)) * v;
+					}
+					f -= 0.4 * (m + mAdd) * v * (dCm > 0 ? 1 : 0);
+					v += (f / (m + mAdd)) * h;
+					z += v * 100 * h;
+					if (z <= 0) {
+						z = 0;
+						if (v < 0) v = 0;
+					}
+					if (z > 14) {
+						z = 14;
+						if (v > 0) v = 0;
+					}
+					// hook springs back to zero
+					const ext = hookY / S / 100;
+					const acc = -wH * wH * ext - 2 * 0.12 * wH * hookV;
+					hookV += acc * h;
+					hookY += hookV * h * 100 * S;
+				}
+				if (grabbing) {
+					hookY *= Math.exp(-dtReal * 6);
+				}
+				// stop only at rest: slow AND (almost) no net force — never at a turning point of a bob
+				const fNet = liq.rho * G * 0.0016 * (clamp((5 - z) / (1 - RISE), 0, 4) / 100) - m * G;
+				const resting = Math.abs(v) < 1e-4 && ((z <= 1e-6 && fNet <= 0) || Math.abs(fNet) < 0.01 * m * G);
+				const hookResting = Math.abs(hookY) < 0.05 && Math.abs(hookV) < 2e-3;
+				if (!resting || !hookResting || grabbing) moving = true;
+				else {
+					if (body.rho < liq.rho && z > 1e-6) {
+						// snap to the exact floating position so that the numbers are exact
+						const df = (body.rho / liq.rho) * 4;
+						z = 5 + RISE * df - df;
+					}
+					v = 0;
+					hookY = 0;
+					hookV = 0;
+				}
+				yB = tb - z * S;
+				d = clamp((5 - z) / (1 - RISE), 0, 4) * S;
+				springF = 0;
+				hookPos = HOOK0 + hookY;
+				threadState = 'cut';
+				faTrue = cA() * d;
+				onBottom = z <= 1e-6;
+				const nums = numbers(d, false);
+				const fa = round(G * liq.rho * nums.vr * 1e-6, 2);
+				out.p.textContent = `${fmt(nums.Pr)} Н`;
+				out.p1.textContent = `${fmt(0)} Н`;
+				out.fa.textContent = `${fmt(fa)} Н`;
+				out.v.textContent = `${fmt(nums.vr, 1)} см³`;
+				bubbleText.textContent = `${fmt(0)} Н`;
+				writeFormula(nums.vr, fa);
+				const settled = !moving;
+				if (grabbing) {
+					say(
+						`Вы держите тело. Сила тяжести ${fmt(nums.Pr)} Н, выталкивающая сила ${fmt(fa)} Н. Отпустите — и посмотрите, что будет.`,
+					);
+				} else if (body.rho > liq.rho) {
+					say(
+						settled || onBottom
+							? `Тело лежит на дне: ${rhoT()} больше, чем ${rhoZh()}, поэтому сила тяжести больше архимедовой силы. Дно поддерживает тело с силой ${fmt(Math.max(0, nums.Pr - fa))} Н.`
+							: `Тело тонет: сила тяжести (${fmt(nums.Pr)} Н) больше выталкивающей силы.`,
+					);
+				} else if (body.rho < liq.rho) {
+					const pct = pctFloat(body.rho / liq.rho);
+					say(
+						settled
+							? `Тело плавает: ${rhoT()} меньше, чем ${rhoZh()}. Оно погрузилось на ${pct} % объёма — ровно настолько, чтобы архимедова сила сравнялась с силой тяжести.`
+							: `Тело всплывает: пока оно целиком в жидкости, выталкивающая сила больше силы тяжести.`,
+					);
+				} else {
+					say(
+						`${rhoT()} равна ${rhoZh()}: целиком погружённое тело плавает внутри жидкости — сила тяжести уравновешена архимедовой силой.`,
+					);
+				}
+			}
+
+			// fade (re-hanging)
+			if (fadeDir !== 0) {
+				fade = clamp(fade + fadeDir * dtReal * 6, 0, 1);
+				if (fade <= 0 && fadeDir < 0) {
+					fadeDir = 1;
+					mode = 'hang';
+					root.classList.remove('is-free');
+					yBVis = NaN;
+					hookY = 0;
+					hookV = 0;
+				} else if (fade >= 1 && fadeDir > 0) fadeDir = 0;
+				moving = true;
+			}
+			bodyG.style.opacity = String(fade);
+			ghost.style.opacity = String(fade);
+
+			// scene
+			drawJack(tb);
+			const yS = drawTank(tb, d);
+			const bodyTop = yB - A;
+			bodyG.setAttribute('transform', `translate(${XC} ${bodyTop})`);
+			set(ghost, { x: XC - 22, y: Math.max(bodyTop, yS), height: Math.max(0, yB - Math.max(bodyTop, yS)) });
+			ghost.style.visibility = liq.id === 'mercury' && yB > yS + 1 ? 'visible' : 'hidden';
+
+			const pY = Y_ZERO + (hookPos - HOOK0);
+			spring.setAttribute('d', springPath(Y_SPRING, pY));
+			set(rod, { y1: pY, y2: hookPos - 4 });
+			pointer.setAttribute('transform', `translate(0 ${pY})`);
+			set(hook, { cy: hookPos + 2 });
+			bubble.setAttribute('transform', `translate(0 ${pY})`);
+
+			const ringTop = bodyTop - 6;
+			const hookBottom = hookPos + 6;
+			if (threadState === 'cut') {
+				thread.setAttribute('d', `M ${XC} ${hookBottom} v 7`);
+			} else {
+				const span = ringTop - hookBottom;
+				if (span >= THREAD - 0.5) thread.setAttribute('d', `M ${XC} ${hookBottom} V ${ringTop}`);
+				else {
+					const sag = 0.75 * Math.sqrt(Math.max(THREAD * THREAD - span * span, 0));
+					thread.setAttribute('d', `M ${XC} ${hookBottom} Q ${XC + sag} ${(hookBottom + ringTop) / 2} ${XC} ${ringTop}`);
+				}
+			}
+			thread.style.opacity = String(fade);
+
+			// forces
+			const cy = bodyTop + A / 2;
+			let fs = 0;
+			if (mode === 'hang') fs = springF;
+			else if (onBottom) fs = Math.max(0, P - faTrue);
+			if (mode === 'hang' && floatingEq) fs = 0;
+			setArrow('fg', XC, cy, P, kf, false, 1);
+			const faLen = setArrow('fa', XC - 9, cy, faTrue, kf, true, -1);
+			setArrow('fs', XC + 9, cy, fs, kf, true, 1);
+			// a short F_A ends inside the cube: then its label goes just left of the cube, off the body
+			const faTip = cy - faLen;
+			if (faTip > bodyTop - 4) set(fLabel.fa, { x: XC - 25, y: clamp(faTip + 6, bodyTop + 12, yB - 2) });
+			const sc = niceScale(kf);
+			set(scaleBar, { x2: 300 + sc * kf });
+			set(scaleText, { x: 306 + sc * kf });
+			scaleText.textContent = `${fmtTrim(sc, 2)} Н`;
+
+			const r = Number(sIn.value) / 1000;
+			sOut.value = r < 0.02 ? 'внизу' : r > 0.98 ? 'вверху' : `${Math.round(r * 100)} %`;
+			return moving;
+		};
+
+		const loop = (now: number) => {
+			const dt = lastT ? Math.min((now - lastT) / 1000, 0.05) : 0.016;
+			lastT = now;
+			const moving = render(dt);
+			if (moving) raf = requestAnimationFrame(loop);
+			else {
+				raf = 0;
+				lastT = 0;
+			}
+		};
+		const kick = () => {
+			if (!raf) {
+				lastT = 0;
+				raf = requestAnimationFrame(loop);
+			}
+		};
+
+		// ----- interaction -----
+		const hideHint = () => hint.classList.add('is-gone');
+
+		const setLabels = () => {
+			const free = mode === 'free' && fadeDir === 0;
+			out.p1Label.innerHTML = free
+				? 'Динамометр (нить перерезана)'
+				: 'Динамометр показывает <i>P</i><sub>1</sub>';
+			out.faLabel.innerHTML = free
+				? 'Выталкивающая сила <i>F</i><sub>А</sub>'
+				: 'Выталкивающая сила <i>F</i><sub>А</sub> = <i>P</i> − <i>P</i><sub>1</sub>';
+		};
+
+		const rehang = () => {
+			if (mode === 'free') {
+				if (reducedMotion()) {
+					mode = 'hang';
+					root.classList.remove('is-free');
+					yBVis = NaN;
+					hookY = 0;
+				} else fadeDir = -1;
+			}
+			releaseBtn.textContent = 'Перерезать нить';
+			setLabels();
+		};
+
+		for (const input of root.querySelectorAll<HTMLInputElement>('[data-body]')) {
+			input.addEventListener('change', () => {
+				body = BODIES.find((b) => b.id === input.value)!;
+				setBody();
+				rehang();
+				kick();
+			});
+		}
+		for (const input of root.querySelectorAll<HTMLInputElement>('[data-liq]')) {
+			input.addEventListener('change', () => {
+				liq = LIQUIDS.find((l) => l.id === input.value)!;
+				setLiquid();
+				rehang();
+				kick();
+			});
+		}
+		sIn.addEventListener('input', () => {
+			sTarget = Number(sIn.value) / 1000;
+			hideHint();
+			kick();
+		});
+		releaseBtn.addEventListener('click', () => {
+			if (mode === 'hang' && fadeDir === 0) {
+				const tb = tbVis;
+				z = (tb - (Number.isFinite(yBVis) ? yBVis : equilibrium(tb).yB)) / S;
+				v = 0;
+				hookY = Math.max(0, (Number.isFinite(yBVis) ? yBVis : REST_B) - REST_B);
+				hookV = 0;
+				mode = 'free';
+				root.classList.add('is-free');
+				releaseBtn.textContent = 'Подвесить снова';
+				setLabels();
+			} else rehang();
+			kick();
+		});
+		slowIn.addEventListener('change', kick);
+
+		// dragging: the glass (with the jack) up and down; after the thread is cut, also the body
+		const toSvgY = (e: PointerEvent) => {
+			const pt = svg.createSVGPoint();
+			pt.x = e.clientX;
+			pt.y = e.clientY;
+			return pt.matrixTransform(svg.getScreenCTM()!.inverse()).y;
+		};
+		let dragGlass: { y0: number; s0: number } | null = null;
+		svg.addEventListener('pointerdown', (e) => {
+			const target = e.target as Element;
+			const y = toSvgY(e);
+			if (mode === 'free' && fadeDir === 0 && target.closest('[data-body-g]')) {
+				grabbing = true;
+				grabOffset = y - (tbVis - z * S);
+				v = 0;
+				root.classList.add('is-grabbing');
+				svg.setPointerCapture(e.pointerId);
+				e.preventDefault();
+				kick();
+				return;
+			}
+			if (target.closest('.arh__drag')) {
+				dragGlass = { y0: y, s0: sTarget };
+				svg.setPointerCapture(e.pointerId);
+				hideHint();
+				e.preventDefault();
+			}
+		});
+		svg.addEventListener('pointermove', (e) => {
+			if (grabbing) {
+				const y = toSvgY(e) - grabOffset;
+				const zMax = (TANK_H - 2) / S;
+				z = clamp((tbVis - y) / S, 0, zMax);
+				v = 0;
+				kick();
+				return;
+			}
+			if (dragGlass) {
+				const [lo, hi] = tbRange();
+				const dy = toSvgY(e) - dragGlass.y0;
+				sTarget = clamp(dragGlass.s0 + dy / (hi - lo), 0, 1);
+				sIn.value = String(Math.round(sTarget * 1000));
+				kick();
+			}
+		});
+		const endDrag = () => {
+			if (grabbing) {
+				grabbing = false;
+				root.classList.remove('is-grabbing');
+				v = 0;
+				kick();
+			}
+			dragGlass = null;
+		};
+		svg.addEventListener(
+			'touchstart',
+			(e) => {
+				const t = e.target as Element;
+				if (t.closest('.arh__drag') || (mode === 'free' && t.closest('[data-body-g]'))) e.preventDefault();
+			},
+			{ passive: false },
+		);
+		svg.addEventListener('pointerup', endDrag);
+		svg.addEventListener('pointercancel', endDrag);
+
+		setBody();
+		setLiquid();
+		render(0.016);
+	}
+</script>

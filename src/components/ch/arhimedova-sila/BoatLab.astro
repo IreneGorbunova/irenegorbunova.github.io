@@ -1,0 +1,674 @@
+---
+/**
+ * The same 50 g of plasticine as a lump (sinks) and as a boat (floats). Weights of 30 g can be
+ * put into the boat; the draft grows until the boat takes water over the rim and sinks.
+ * To scale: 14 px per centimetre. Boat: trapezoid 9 cm (bottom) – 13 cm (top), 3 cm high,
+ * 6 cm wide, so it can displace at most 198 cm³. Basin 26 × 15 cm.
+ */
+const uid = `boat-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="boat not-content" data-boat>
+	<svg class="boat__svg" viewBox="0 40 420 208" role="img" aria-label="Пластилиновая лодочка в сосуде с водой" data-svg>
+		<defs>
+			<clipPath id={`${uid}-hull`}>
+				<path data-hull-clip />
+			</clipPath>
+			<linearGradient id={`${uid}-w`} x1="0" y1="0" x2="0" y2="1">
+				<stop offset="0" stop-color="#fff" stop-opacity="0.35" />
+				<stop offset="1" stop-color="#000" stop-opacity="0.25" />
+			</linearGradient>
+		</defs>
+		<rect class="boat__back" x="28" y="54" width="364" height="182" />
+		<rect class="boat__water" x="28" width="364" data-water />
+		<line class="boat__surface" x1="28" x2="392" data-surface />
+		<g data-lump class="boat__lump">
+			<path data-lump-path />
+		</g>
+		<g data-boat-g>
+			<path class="boat__hull" data-hull />
+			<g clip-path={`url(#${uid}-hull)`}>
+				<rect class="boat__inner-water" x="0" width="420" data-inner-water />
+			</g>
+			<g data-weights></g>
+		</g>
+		<rect class="boat__water boat__water--front" x="28" width="364" data-water-front />
+		<g class="boat__marks" data-marks>
+			<line class="boat__wl" data-wl />
+			<path data-draft />
+			<text data-draft-text><tspan data-dt1>осадка</tspan><tspan dy="1.15em" data-dt2></tspan></text>
+			<text text-anchor="end" data-wl-text><tspan data-wt1>уровень</tspan><tspan dy="1.15em" data-wt2>воды</tspan></text>
+		</g>
+		<path class="boat__glass" d="M 26 50 V 236 q 0 4 4 4 H 390 q 4 0 4 -4 V 50" />
+	</svg>
+
+	<div class="boat__controls">
+		<div class="boat__seg" role="group" aria-label="Форма пластилина">
+			<button type="button" class="boat__btn" aria-pressed="false" data-shape="lump">Комок</button>
+			<button type="button" class="boat__btn" aria-pressed="true" data-shape="boat">Лодочка</button>
+		</div>
+		<div class="boat__seg" role="group" aria-label="Груз">
+			<button type="button" class="boat__btn" data-add>+ грузик 30 г</button>
+			<button type="button" class="boat__btn" data-remove>− грузик</button>
+		</div>
+		<div class="boat__seg" role="group" aria-label="Жидкость">
+			<button type="button" class="boat__btn" aria-pressed="true" data-rho="1000">Пресная вода</button>
+			<button type="button" class="boat__btn" aria-pressed="false" data-rho="1200">Солёная</button>
+		</div>
+	</div>
+
+	<div class="boat__out">
+		<div class="boat__gauge" aria-hidden="true">
+			<div class="boat__gauge-bar"><span data-gauge></span></div>
+			<p data-gauge-text></p>
+		</div>
+		<ol class="boat__lines" data-lines></ol>
+	</div>
+	<p class="boat__live" data-live aria-live="polite"></p>
+	<figcaption class="boat__caption">
+		Лодочка и комок — из одного и того же куска пластилина массой 50 г. Грузики стальные, по 30 г.
+		Как тонут комок и перегруженная лодочка, показано в 2 раза медленнее.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.boat {
+		--boat-clay: hsl(145 45% 46%);
+		--boat-steel: hsl(214 10% 55%);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .boat {
+		--boat-clay: hsl(145 50% 38%);
+		--boat-steel: hsl(214 10% 45%);
+	}
+	.boat i {
+		font-family: var(--ig-font-math);
+	}
+	.boat__svg {
+		display: block;
+		width: 100%;
+		max-width: 36rem;
+		height: auto;
+		margin-inline: auto;
+	}
+	.boat__caption {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.boat__back {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 20%, transparent);
+	}
+	.boat__water {
+		fill: var(--boat-liq, var(--ig-vx));
+		fill-opacity: 0.16;
+		pointer-events: none;
+		transition: fill 0.4s;
+	}
+	.boat__water--front {
+		fill-opacity: 0.14;
+	}
+	.boat__surface {
+		stroke: var(--boat-liq, var(--ig-vx));
+		stroke-width: 2.5;
+		transition: stroke 0.4s;
+	}
+	.boat[data-liq='1200'] {
+		--boat-liq: hsl(170 65% 50%);
+	}
+	:root[data-theme='light'] .boat[data-liq='1200'] {
+		--boat-liq: hsl(170 70% 36%);
+	}
+	.boat__glass {
+		fill: none;
+		stroke: color-mix(in oklab, var(--sl-color-gray-2) 70%, transparent);
+		stroke-width: 3;
+	}
+	.boat__hull,
+	.boat__lump path {
+		fill: var(--boat-clay);
+		stroke: color-mix(in oklab, var(--boat-clay) 55%, var(--sl-color-black));
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.boat__inner-water {
+		fill: var(--boat-liq, var(--ig-vx));
+		fill-opacity: 0.45;
+	}
+	.boat__weight {
+		fill: var(--boat-steel);
+		stroke: color-mix(in oklab, var(--boat-steel) 50%, var(--sl-color-black));
+		stroke-width: 1;
+	}
+	.boat__weight-top {
+		fill: color-mix(in oklab, var(--boat-steel) 70%, white);
+	}
+	.boat__wl {
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 4;
+	}
+	.boat__marks path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.boat__marks text {
+		fill: var(--sl-color-gray-2);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+	}
+	.boat__controls {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 1rem;
+		margin-top: 0.75rem;
+	}
+	.boat__seg {
+		display: inline-flex;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.boat__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 0.95rem;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.boat__btn + .boat__btn {
+		border-left: 1px solid var(--sl-color-gray-4);
+	}
+	.boat__btn:hover:not(:disabled) {
+		background: var(--sl-color-gray-6);
+	}
+	.boat__btn[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.boat__btn:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	.boat__out {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+		gap: 0.75rem 1rem;
+		margin-top: 0.75rem;
+		align-items: start;
+	}
+	.boat__gauge-bar {
+		position: relative;
+		height: 0.9rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.boat__gauge-bar span {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 0;
+		border-radius: 999px;
+		background: var(--boat-liq, var(--ig-vx));
+		transition: width 0.3s;
+	}
+	.boat__gauge.is-over .boat__gauge-bar span {
+		background: var(--ig-vy);
+	}
+	.boat__gauge p {
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.boat__lines {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 0.3rem;
+	}
+	.boat__lines li {
+		padding: 0.3rem 0.6rem;
+		border-radius: 0.5rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.boat__lines .katex {
+		font-size: 1em;
+	}
+	.boat__live {
+		min-height: 1.5em;
+		margin: 0.75rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	@media (max-width: 40rem) {
+		.boat {
+			padding: 0.75rem;
+		}
+		.boat__out {
+			grid-template-columns: 1fr;
+		}
+		.boat__marks text {
+			font-size: 16px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.boat__gauge-bar span,
+		.boat__water,
+		.boat__surface {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { G, fmt, fmtTrim, tex, clamp, reducedMotion } from './physics';
+
+	const S = 14; // px per cm
+	const XC = 210;
+	const BOTTOM = 236; // inner bottom of the basin, px
+	const H0 = 8; // water depth without the boat, cm
+	const AREA = 26 * 15; // basin cross-section, cm²
+	const LB = 9; // boat: bottom length, cm
+	const LT = 13; // top length
+	const HB = 3; // height
+	const BW = 6; // width
+	const VMAX = BW * HB * (LB + LT) / 2; // 198 cm³
+	const M_CLAY = 50; // g
+	const RHO_CLAY = 1.4; // g/cm³, ordinary plasticine is ≈ 1,3–1,4
+	const V_CLAY = M_CLAY / RHO_CLAY;
+	const R_LUMP = Math.cbrt((3 * V_CLAY) / (4 * Math.PI)); // cm
+	const M_W = 30; // one weight, g
+	const V_W = M_W / 7.8; // steel
+	const MAX_W = 6;
+	const WALL = 0.22; // cm: the drawn hull then holds 34,8 cm³ of plasticine ≈ 49 g, as in the physics
+	const SLOW = 0.5; // sinking is shown two times slower
+
+	const vHull = (d: number) => BW * (LB * d + ((LT - LB) * d * d) / (2 * HB)); // cm³ below draft d
+	const vCap = (d: number) => (Math.PI * d * d * (3 * R_LUMP - d)) / 3; // sphere below depth d
+	const k = (s: string) => katex.renderToString(s, { throwOnError: false });
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-boat]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const water = q<SVGRectElement>('[data-water]');
+		const waterFront = q<SVGRectElement>('[data-water-front]');
+		const surface = q<SVGLineElement>('[data-surface]');
+		const boatG = q<SVGGElement>('[data-boat-g]');
+		const hull = q<SVGPathElement>('[data-hull]');
+		const hullClip = q<SVGPathElement>('[data-hull-clip]');
+		const innerWater = q<SVGRectElement>('[data-inner-water]');
+		const weightsG = q<SVGGElement>('[data-weights]');
+		const lumpG = q<SVGGElement>('[data-lump]');
+		const lumpPath = q<SVGPathElement>('[data-lump-path]');
+		const marks = q<SVGGElement>('[data-marks]');
+		const wl = q<SVGLineElement>('[data-wl]');
+		const draftPath = q<SVGPathElement>('[data-draft]');
+		const draftText = q<SVGTextElement>('[data-draft-text]');
+		const wlText = q<SVGTextElement>('[data-wl-text]');
+		const gauge = q<HTMLElement>('[data-gauge]');
+		const gaugeText = q<HTMLElement>('[data-gauge-text]');
+		const lines = q<HTMLOListElement>('[data-lines]');
+		const live = q<HTMLElement>('[data-live]');
+		const addBtn = q<HTMLButtonElement>('[data-add]');
+		const removeBtn = q<HTMLButtonElement>('[data-remove]');
+
+		let shape: 'lump' | 'boat' = 'boat';
+		let rho = 1; // g/cm³
+		let n = 0;
+		let z = 0; // bottom of the boat (or lump) above the basin bottom, cm
+		let v = 0; // m/s, up
+		let vIn = 0; // water inside the boat, cm³
+		let sinking = false;
+		let raf = 0;
+		let lastT = 0;
+		let lastKey = '';
+
+		const mass = () => (shape === 'lump' ? M_CLAY : M_CLAY + n * M_W); // g, without water inside
+		/** Water level for a given body position (cm above the basin bottom); a few fixed-point steps. */
+		const level = () => {
+			let h = H0;
+			for (let i = 0; i < 6; i++) {
+				const d = Math.max(0, h - z);
+				const vd = shape === 'lump' ? vCap(Math.min(d, 2 * R_LUMP)) : vHull(Math.min(d, HB)) - vIn;
+				h = H0 + vd / AREA;
+			}
+			return h;
+		};
+		const floatZ = () => {
+			// equilibrium of the (not flooded) boat: vHull(d) = m / ρ
+			const vNeed = mass() / rho;
+			if (vNeed > VMAX) return null;
+			let lo = 0;
+			let hi = HB;
+			for (let i = 0; i < 40; i++) {
+				const mid = (lo + hi) / 2;
+				if (vHull(mid) < vNeed) lo = mid;
+				else hi = mid;
+			}
+			const d = lo;
+			const h = H0 + vNeed / AREA;
+			return h - d;
+		};
+
+		const draw = () => {
+			const h = level();
+			const yS = BOTTOM - h * S;
+			water.setAttribute('y', String(yS));
+			water.setAttribute('height', String(BOTTOM - yS));
+			waterFront.setAttribute('y', String(yS));
+			waterFront.setAttribute('height', String(BOTTOM - yS));
+			surface.setAttribute('y1', String(yS));
+			surface.setAttribute('y2', String(yS));
+			const yb = BOTTOM - z * S;
+			if (shape === 'lump') {
+				boatG.style.display = 'none';
+				lumpG.style.display = '';
+				marks.style.display = 'none';
+				const r = R_LUMP * S;
+				const cy = yb - r;
+				// a slightly squashed, irregular lump
+				lumpPath.setAttribute(
+					'd',
+					`M ${XC - r} ${cy + 3} C ${XC - r} ${cy - r * 0.8}, ${XC - r * 0.3} ${cy - r * 1.05}, ${XC + r * 0.2} ${cy - r * 0.95}` +
+						` C ${XC + r * 0.9} ${cy - r * 0.9}, ${XC + r * 1.05} ${cy - r * 0.2}, ${XC + r} ${cy + r * 0.25}` +
+						` C ${XC + r * 0.95} ${cy + r * 0.9}, ${XC + r * 0.3} ${cy + r}, ${XC - r * 0.15} ${cy + r}` +
+						` C ${XC - r * 0.75} ${cy + r}, ${XC - r * 1.02} ${cy + r * 0.7}, ${XC - r} ${cy + 3} Z`,
+				);
+				return h;
+			}
+			boatG.style.display = '';
+			lumpG.style.display = 'none';
+			const bl = (LB * S) / 2;
+			const tl = (LT * S) / 2;
+			const top = yb - HB * S;
+			const w = WALL * S;
+			const outer = `M ${XC - tl} ${top} L ${XC - bl} ${yb} L ${XC + bl} ${yb} L ${XC + tl} ${top}`;
+			// inner side of the walls (same slope)
+			const slope = (tl - bl) / (HB * S);
+			const ibl = bl - w + slope * w;
+			hull.setAttribute(
+				'd',
+				`${outer} L ${XC + tl - w} ${top} L ${XC + ibl} ${yb - w} L ${XC - ibl} ${yb - w} L ${XC - tl + w} ${top} Z`,
+			);
+			hullClip.setAttribute('d', `M ${XC - tl + w} ${top} L ${XC - ibl} ${yb - w} L ${XC + ibl} ${yb - w} L ${XC + tl - w} ${top} Z`);
+			// water inside the boat: height from the inner floor, inner trapezoid
+			if (vIn > 0.01) {
+				const ib = LB - 2 * WALL;
+				const it = LT - 2 * WALL;
+				const ih = HB - WALL;
+				const iw = BW - 2 * WALL;
+				let lo = 0;
+				let hi = ih;
+				for (let i = 0; i < 30; i++) {
+					const mid = (lo + hi) / 2;
+					const vol = iw * (ib * mid + ((it - ib) * mid * mid) / (2 * ih));
+					if (vol < vIn) lo = mid;
+					else hi = mid;
+				}
+				const yIn = yb - w - lo * S;
+				innerWater.setAttribute('y', String(yIn));
+				innerWater.setAttribute('height', String(Math.max(0, yb - yIn)));
+			} else innerWater.setAttribute('height', '0');
+			// weights: a row on the floor
+			weightsG.replaceChildren();
+			const ww = 18;
+			const wh = 15;
+			for (let i = 0; i < n; i++) {
+				const x = XC - (n * (ww + 2)) / 2 + i * (ww + 2) + 1;
+				const y = yb - w - wh;
+				const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+				g.innerHTML =
+					`<rect class="boat__weight" x="${x}" y="${y}" width="${ww}" height="${wh}" rx="2"/>` +
+					`<ellipse class="boat__weight-top" cx="${x + ww / 2}" cy="${y + 2}" rx="${ww / 2 - 1}" ry="2"/>`;
+				weightsG.append(g);
+			}
+			// waterline and draft
+			const d = h - z;
+			const show = !sinking && d > 0.05 && d < HB;
+			marks.style.display = show ? '' : 'none';
+			if (show) {
+				const half = (LB + ((LT - LB) * d) / HB) * S * 0.5;
+				wl.setAttribute('x1', String(XC - half - 6));
+				wl.setAttribute('x2', String(XC + half + 6));
+				wl.setAttribute('y1', String(yS));
+				wl.setAttribute('y2', String(yS));
+				const x = XC + tl + 16;
+				draftPath.setAttribute('d', `M ${x - 4} ${yS} H ${x + 4} M ${x} ${yS} V ${yb} M ${x - 4} ${yb} H ${x + 4}`);
+				// two short lines, so that the labels stay inside the basin even on a phone
+				for (const t of draftText.children) t.setAttribute('x', String(x + 8));
+				draftText.setAttribute('y', String((yS + yb) / 2 - 3));
+				draftText.lastElementChild!.textContent = `${fmt(d, 1)} см`;
+				for (const t of wlText.children) t.setAttribute('x', String(XC - tl - 10));
+				wlText.setAttribute('y', String(yS - 28));
+			}
+			return h;
+		};
+
+		const text = () => {
+			const m = mass();
+			const key = `${shape}|${n}|${rho}|${sinking}`;
+			if (key === lastKey) return;
+			lastKey = key;
+			const rhoT = tex(fmtTrim(rho, 1));
+			const rhoSI = rho === 1 ? '1000' : '1200';
+			const items: string[] = [];
+			if (shape === 'lump') {
+				const vr = Math.round(V_CLAY);
+				const fa = Math.round(G * rho * 1000 * vr * 1e-6 * 100) / 100;
+				const ft = Math.round(G * m * 1e-3 * 100) / 100;
+				items.push(k(`m = ${m}~\\text{г}, \\quad V \\approx ${vr}~\\text{см}^3`));
+				items.push(k(`F_{\\text{тяж}} = gm = 9{,}8 \\cdot ${tex(fmtTrim(m / 1000, 3))} \\approx ${tex(fmt(ft))}~\\text{Н}`));
+				items.push(k(`F_{\\text{А}} = g\\rho_{\\text{ж}}V = 9{,}8 \\cdot ${rhoSI} \\cdot ${tex(fmtTrim(vr / 1e6, 7))} \\approx ${tex(fmt(fa))}~\\text{Н}`));
+				items.push(`${k('F_{\\text{А}} < F_{\\text{тяж}}')} — комок тонет.`);
+				gauge.style.width = `${Math.min(100, ((m / rho) / VMAX) * 100)}%`;
+				gaugeText.innerHTML = `Комок может вытеснить только ${vr} см³ — это ${fmt(vr * rho, 0)} г ${rho === 1 ? 'пресной' : 'солёной'} воды, а его масса ${m} г.`;
+				gauge.parentElement!.parentElement!.classList.add('is-over');
+				live.textContent = 'Комок пластилина тонет: он плотнее воды.';
+			} else {
+				const ft = Math.round(G * m * 1e-3 * 100) / 100;
+				const vNeed = m / rho;
+				const cap = Math.round(VMAX * rho);
+				items.push(k(`m = ${M_CLAY}~\\text{г}${n ? ` + ${n} \\cdot ${M_W}~\\text{г} = ${m}~\\text{г}` : ''}`));
+				items.push(k(`F_{\\text{тяж}} = gm = 9{,}8 \\cdot ${tex(fmtTrim(m / 1000, 3))} \\approx ${tex(fmt(ft))}~\\text{Н}`));
+				if (vNeed <= VMAX) {
+					items.push(
+						k(`V_{\\text{погр}} = \\dfrac{m}{\\rho_{\\text{ж}}} = \\dfrac{${m}~\\text{г}}{${rhoT}~\\text{г/см}^3} \\approx ${tex(fmt(vNeed, 0))}~\\text{см}^3`),
+					);
+					items.push(`Лодочка погружается, пока вес вытесненной воды не станет равен весу лодочки с грузом: ${k('F_{\\text{А}} = F_{\\text{тяж}}')}.`);
+					live.textContent =
+						n === 0
+							? 'Тот же пластилин в форме лодочки плавает: она вытесняет много воды.'
+							: `Лодочка с ${n} ${n === 1 ? 'грузиком' : 'грузиками'} плавает, осадка выросла.`;
+				} else {
+					const famax = Math.round(G * rho * 1000 * VMAX * 1e-6 * 100) / 100;
+					items.push(
+						k(`F_{\\text{А}\\,\\max} = g\\rho_{\\text{ж}}V_{\\max} = 9{,}8 \\cdot ${rhoSI} \\cdot 0{,}000198 \\approx ${tex(fmt(famax))}~\\text{Н}`),
+					);
+					items.push(`${k('F_{\\text{тяж}} > F_{\\text{А}\\,\\max}')} — даже погрузившись до краёв, лодочка не может вытеснить столько воды. Вода переливается через борт, и лодочка тонет.`);
+					live.textContent = 'Перегруз! Лодочка зачерпнула воду и утонула. Уберите грузик.';
+				}
+				gauge.style.width = `${Math.min(100, (vNeed / VMAX) * 100)}%`;
+				gauge.parentElement!.parentElement!.classList.toggle('is-over', vNeed > VMAX);
+				gaugeText.innerHTML =
+					vNeed <= VMAX
+						? `Вытеснено ${fmt(vNeed, 0)} см³ из ${VMAX} см³, которые лодочка может вытеснить. Её предел — ${cap} г вместе с грузом.`
+						: `Нужно вытеснить ${fmt(vNeed, 0)} см³, а лодочка может вытеснить только ${VMAX} см³ (${cap} г ${rho === 1 ? 'пресной' : 'солёной'} воды).`;
+			}
+			lines.innerHTML = items.map((s) => `<li>${s}</li>`).join('');
+			addBtn.disabled = shape === 'lump' || n >= MAX_W || sinking;
+			removeBtn.disabled = shape === 'lump' || n === 0;
+		};
+
+		// physics: one step of h seconds
+		const step = (h: number) => {
+			const lvl = level();
+			const m = (mass() + rho * vIn) / 1000; // kg
+			let fa: number;
+			let area: number;
+			let vSub: number;
+			if (shape === 'lump') {
+				const d = clamp(lvl - z, 0, 2 * R_LUMP);
+				vSub = vCap(d);
+				area = Math.PI * R_LUMP * R_LUMP;
+			} else {
+				const d = clamp(lvl - z, 0, HB);
+				vSub = vHull(d);
+				area = LB * BW;
+				// water pours over the rim (weir): Q = 0,6 · L · √(2g) · Δh^1,5
+				const over = lvl - z - HB;
+				const cap = vHull(HB) - V_CLAY - n * V_W;
+				if (over > 0 && vIn < cap) {
+					const q = 0.6 * (2 * (LT + BW)) * 0.01 * Math.sqrt(2 * G) * Math.pow(over / 100, 1.5) * 1e6; // cm³/s
+					vIn = Math.min(cap, vIn + q * h);
+				}
+			}
+			fa = rho * 1000 * G * vSub * 1e-6;
+			const mAdd = 0.5 * rho * 1000 * vSub * 1e-6;
+			let f = fa - m * G - 0.5 * rho * 1000 * 1.2 * area * 1e-4 * v * Math.abs(v) * (vSub > 0 ? 1 : 0);
+			f -= 0.8 * (m + mAdd) * v * (vSub > 0 ? 1 : 0);
+			v += (f / (m + mAdd)) * h;
+			z += v * 100 * h;
+			if (z <= 0) {
+				z = 0;
+				if (v < 0) v = 0;
+			}
+		};
+
+		let target: number | null = null; // eased target of z (gentle loading)
+		const loop = (now: number) => {
+			const dt = lastT ? Math.min((now - lastT) / 1000, 0.05) : 0.016;
+			lastT = now;
+			let moving = false;
+			if (reducedMotion()) {
+				if (shape === 'lump' || sinking) {
+					z = 0;
+					if (sinking) vIn = vHull(HB) - V_CLAY - n * V_W;
+				} else if (target !== null) z = target;
+				v = 0;
+			} else if (target !== null && !sinking) {
+				// the weight is put in gently: critically damped approach to the new draft
+				const err = target - z;
+				const w = 14;
+				const a = w * w * err - 2 * w * (v * 100);
+				v += (a / 100) * dt;
+				z += v * 100 * dt;
+				// when the rim would go under water, switch to the real dynamics
+				if (shape === 'boat' && level() - z > HB) {
+					sinking = true;
+					target = null;
+				}
+				moving = Math.abs(err) > 0.002 || Math.abs(v) > 1e-4;
+				if (!moving) {
+					z = target!;
+					v = 0;
+				}
+			} else {
+				let t = dt * SLOW;
+				while (t > 1e-9) {
+					const hh = Math.min(t, 2e-4);
+					step(hh);
+					t -= hh;
+				}
+				moving = Math.abs(v) > 1e-4 || (sinking && z > 0);
+			}
+			draw();
+			text();
+			if (moving) raf = requestAnimationFrame(loop);
+			else {
+				raf = 0;
+				lastT = 0;
+			}
+		};
+		const kick = () => {
+			if (!raf) {
+				lastT = 0;
+				raf = requestAnimationFrame(loop);
+			}
+		};
+
+		const settle = () => {
+			const fz = floatZ();
+			if (shape === 'boat' && fz !== null) {
+				target = fz;
+				if (sinking) {
+					// lifted out, water poured out
+					sinking = false;
+					vIn = 0;
+					z = fz;
+					v = 0;
+				}
+			} else if (shape === 'boat') {
+				// overloaded: sink to the rim first (gently), then take water
+				const h = H0 + (VMAX - vIn) / AREA;
+				target = h - HB - 0.2;
+			} else target = null;
+			kick();
+		};
+
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-shape]')) {
+			b.addEventListener('click', () => {
+				shape = b.dataset.shape as 'lump' | 'boat';
+				root.querySelectorAll('[data-shape]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				sinking = false;
+				vIn = 0;
+				v = 0;
+				if (shape === 'lump') {
+					// put the lump on the water surface and let go
+					z = H0;
+					target = null;
+				} else {
+					const fz = floatZ();
+					z = fz !== null ? fz + 0.6 : H0;
+					target = null;
+				}
+				lastKey = '';
+				settle();
+			});
+		}
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-rho]')) {
+			b.addEventListener('click', () => {
+				rho = Number(b.dataset.rho) / 1000;
+				root.dataset.liq = b.dataset.rho;
+				root.querySelectorAll('[data-rho]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				if (sinking) {
+					sinking = false;
+					vIn = 0;
+					const fz = floatZ();
+					z = fz ?? 0;
+				}
+				lastKey = '';
+				settle();
+			});
+		}
+		addBtn.addEventListener('click', () => {
+			if (n < MAX_W) n += 1;
+			lastKey = '';
+			settle();
+		});
+		removeBtn.addEventListener('click', () => {
+			if (n > 0) n -= 1;
+			lastKey = '';
+			settle();
+		});
+
+		z = floatZ() ?? H0;
+		draw();
+		text();
+	}
+</script>

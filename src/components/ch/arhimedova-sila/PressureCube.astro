@@ -1,0 +1,472 @@
+---
+/**
+ * Why the liquid pushes a body up: a cube (edge 20 cm) is held in water at an adjustable depth.
+ * Arrows show the pressure on every face (length ∝ pressure, equal scale everywhere); the formulas
+ * for p₁, F₁, p₂, F₂ and F₂ − F₁ update live. The depth axis is to scale (260 px per metre).
+ */
+const uid = `prc-${Math.random().toString(36).slice(2, 8)}`;
+const SURF = 46;
+const M = 260;
+const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4];
+---
+
+<figure class="prc not-content" data-prc>
+	<div class="prc__grid">
+		<svg class="prc__svg" viewBox="0 0 340 420" role="group" aria-label="Кубик в воде и силы давления на его грани" data-svg>
+			<defs>
+				{
+					['p', 'fa'].map((k) => (
+						<marker id={`${uid}-${k}`} class={`prc__head prc__head--${k}`} viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+							<path d="M0,0 L10,5 L0,10 z" />
+						</marker>
+					))
+				}
+			</defs>
+			<rect class="prc__water" x="40" y={SURF} width="290" height={1.4 * M} />
+			<line class="prc__surface" x1="40" x2="330" y1={SURF} y2={SURF} />
+			<text class="prc__air" x="322" y={SURF - 10} text-anchor="end">воздух</text>
+			<text class="prc__air" x="322" y={SURF + 20} text-anchor="end">вода</text>
+			<g class="prc__ruler">
+				<line x1="34" x2="34" y1={SURF} y2={SURF + 1.4 * M} />
+				{
+					ticks.map((t) => (
+						<>
+							<line x1="28" x2="34" y1={SURF + t * M} y2={SURF + t * M} />
+							<text x="25" y={SURF + t * M + 4} text-anchor="end">
+								{String(t).replace('.', ',')}
+							</text>
+						</>
+					))
+				}
+				<text class="prc__ruler-name" x="6" y="18">глубина, м</text>
+			</g>
+
+			<line class="prc__holder" x1="180" y1="0" x2="180" data-holder />
+			<g data-arrows class="prc__arrows"></g>
+			<g class="prc__cube prc__drag" data-cube>
+				<rect x="154" y="0" width="52" height="52" rx="2" />
+			</g>
+			<g class="prc__depth" data-depth>
+				<path data-h1 />
+				<path data-h2 />
+				<text data-h1t><tspan class="prc__i">h</tspan><tspan class="prc__sub" dy="4">1</tspan></text>
+				<text data-h2t><tspan class="prc__i">h</tspan><tspan class="prc__sub" dy="4">2</tspan></text>
+			</g>
+			<line class="prc__fa" marker-end={`url(#${uid}-fa)`} data-fa />
+			<text class="prc__fa-label" text-anchor="end" data-fa-label><tspan class="prc__i">F</tspan><tspan class="prc__sub" dy="4">А</tspan></text>
+			<text class="prc__flabel" data-f1-label><tspan class="prc__i">F</tspan><tspan class="prc__sub" dy="4">1</tspan></text>
+			<text class="prc__flabel" data-f2-label><tspan class="prc__i">F</tspan><tspan class="prc__sub" dy="4">2</tspan></text>
+		</svg>
+
+		<div class="prc__side">
+			<label class="prc__slider">
+				<span>Глубина верхней грани <i>h</i><sub>1</sub></span>
+				<output data-out></output>
+				<input type="range" min="-20" max="90" step="1" value="30" data-h aria-label="Глубина верхней грани, сантиметры" />
+			</label>
+			<p class="prc__note">Кубик с ребром 20 см: площадь грани <i>S</i> = 0,04 м², объём <i>V</i> = 0,008 м³. Вода, <i>ρ</i> = 1000 кг/м³.</p>
+			<ol class="prc__lines" data-lines aria-live="polite"></ol>
+		</div>
+	</div>
+	<figcaption class="prc__caption">
+		Перетащите кубик вверх или вниз. Стрелки показывают силы давления воды на каждую грань (в одном масштабе).
+		Атмосферное давление давит и сверху, и снизу (через воду), поэтому его не учитываем.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.prc {
+		container-type: inline-size;
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.prc i,
+	.prc__i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.prc__grid {
+		display: grid;
+		grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr);
+		gap: 1rem 1.25rem;
+		align-items: start;
+	}
+	.prc__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.prc__water {
+		fill: var(--ig-vx);
+		fill-opacity: 0.18;
+	}
+	.prc__surface {
+		stroke: var(--ig-vx);
+		stroke-width: 2.5;
+	}
+	.prc__air {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+	.prc__ruler line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.prc__ruler text {
+		fill: var(--sl-color-gray-3);
+		font-size: 11px;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.prc__ruler .prc__ruler-name {
+		font-size: 12px;
+	}
+	.prc__holder {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.prc__cube {
+		cursor: ns-resize;
+		touch-action: none;
+	}
+	.prc__cube rect {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.prc__arrows line {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.prc__head--p path {
+		fill: var(--sl-color-gray-1);
+	}
+	.prc__head--fa path {
+		fill: var(--ig-vx);
+	}
+	.prc__fa {
+		stroke: var(--ig-vx);
+		stroke-width: 4;
+		stroke-linecap: round;
+		filter: drop-shadow(0 0 1.5px var(--ig-surface));
+	}
+	.prc__fa,
+	.prc__fa-label,
+	.prc__flabel,
+	.prc__depth,
+	.prc__arrows {
+		pointer-events: none;
+	}
+	.prc__fa-label,
+	.prc__flabel,
+	.prc__depth text {
+		font-size: 15px;
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.prc__fa-label {
+		fill: var(--ig-vx);
+	}
+	.prc__flabel {
+		fill: var(--sl-color-gray-1);
+	}
+	.prc__sub {
+		font-size: 11px;
+		font-family: var(--__sl-font);
+	}
+	.prc__depth .prc__guide {
+		stroke: var(--sl-color-gray-4);
+	}
+	.prc__depth path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.prc__depth text {
+		fill: var(--sl-color-gray-1);
+	}
+	.prc__side {
+		display: grid;
+		gap: 0.6rem;
+	}
+	.prc__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.prc__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.prc__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.prc__note {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.prc__lines {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 0.3rem;
+	}
+	.prc__lines li {
+		padding: 0.3rem 0.6rem;
+		border-radius: 0.5rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.prc__lines li.is-key {
+		box-shadow: inset 3px 0 0 var(--ig-vx);
+		background: color-mix(in oklab, var(--ig-vx) 14%, var(--sl-color-gray-6));
+	}
+	.prc__lines li.is-text {
+		background: none;
+		padding-inline: 0.2rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.prc__lines .katex {
+		font-size: 1em;
+	}
+	.prc__caption {
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@container (max-width: 36rem) {
+		.prc__grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.prc__svg {
+			max-width: 22rem;
+			margin-inline: auto;
+		}
+	}
+	@media (max-width: 40rem) {
+		.prc {
+			padding: 0.75rem;
+		}
+		.prc__ruler text,
+		.prc__air {
+			font-size: 13px;
+		}
+		.prc__fa-label,
+		.prc__flabel,
+		.prc__depth text {
+			font-size: 17px;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { fmt, fmtTrim, tex } from './physics';
+
+	const SURF = 46;
+	const M = 260; // px per metre
+	const XC = 180;
+	const EDGE = 0.2; // m
+	const E = EDGE * M; // px
+	const KP = 0.0055; // px per pascal (pressure arrows)
+	const KF = 0.42; // px per newton (resultant, drawn inside the cube)
+	const NS = 'http://www.w3.org/2000/svg';
+
+	const line = (x1: number, y1: number, x2: number, y2: number, marker: string) => {
+		const l = document.createElementNS(NS, 'line');
+		l.setAttribute('x1', String(x1));
+		l.setAttribute('y1', String(y1));
+		l.setAttribute('x2', String(x2));
+		l.setAttribute('y2', String(y2));
+		l.setAttribute('marker-end', marker);
+		return l;
+	};
+	const k = (s: string) => katex.renderToString(s, { throwOnError: false });
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-prc]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const input = q<HTMLInputElement>('[data-h]');
+		const outEl = q<HTMLOutputElement>('[data-out]');
+		const cube = q<SVGGElement>('[data-cube]');
+		const holder = q<SVGLineElement>('[data-holder]');
+		const arrows = q<SVGGElement>('[data-arrows]');
+		const fa = q<SVGLineElement>('[data-fa]');
+		const faLabel = q<SVGTextElement>('[data-fa-label]');
+		const f1Label = q<SVGTextElement>('[data-f1-label]');
+		const f2Label = q<SVGTextElement>('[data-f2-label]');
+		const h1Path = q<SVGPathElement>('[data-h1]');
+		const h2Path = q<SVGPathElement>('[data-h2]');
+		const h1t = q<SVGTextElement>('[data-h1t]');
+		const h2t = q<SVGTextElement>('[data-h2t]');
+		const lines = q<HTMLOListElement>('[data-lines]');
+		const markerP = `url(#${fa.getAttribute('marker-end')!.match(/#([^)]+)-fa/)![1]}-p)`;
+		let lastKey = '';
+
+		const draw = () => {
+			const cm = Number(input.value); // depth of the top face, cm (negative: above the water)
+			const h1 = cm / 100;
+			const h2 = h1 + EDGE;
+			const top = SURF + h1 * M;
+			const bottom = top + E;
+			cube.setAttribute('transform', `translate(0 ${top})`);
+			holder.setAttribute('y2', String(top));
+			outEl.value = cm < 0 ? `${fmt(-h1, 2)} м над водой` : `${fmt(h1, 2)} м`;
+
+			// pressures, Pa: p = gρh = 9800·h, exact in whole pascals for whole centimetres
+			const p1 = Math.max(0, Math.round(98 * cm));
+			const p2 = Math.round(98 * (cm + 20));
+			arrows.replaceChildren();
+			const xs = [-20, -10, 0, 10, 20];
+			if (h1 > 0) {
+				const L = p1 * KP;
+				if (L > 5) for (const dx of xs) arrows.append(line(XC + dx, top - L - 2, XC + dx, top - 6, markerP));
+			}
+			if (h2 > 0) {
+				const L = p2 * KP;
+				if (L > 5) for (const dx of xs) arrows.append(line(XC + dx, bottom + L + 2, XC + dx, bottom + 6, markerP));
+			}
+			for (const f of [1 / 6, 1 / 2, 5 / 6]) {
+				const y = top + f * E;
+				const depth = (y - SURF) / M;
+				if (depth <= 0) continue;
+				const L = 9800 * depth * KP;
+				if (L < 5) continue;
+				arrows.append(line(XC - E / 2 - L - 2, y, XC - E / 2 - 6, y, markerP));
+				arrows.append(line(XC + E / 2 + L + 2, y, XC + E / 2 + 6, y, markerP));
+			}
+
+			// labels F1 and F2 next to the groups of arrows
+			const L1 = p1 * KP;
+			const L2 = p2 * KP;
+			f1Label.style.visibility = h1 > 0 && L1 > 5 ? 'visible' : 'hidden';
+			f1Label.setAttribute('x', String(XC + 26));
+			f1Label.setAttribute('y', String(top - Math.max(L1, 14) / 2));
+			f2Label.style.visibility = h2 > 0 && L2 > 5 ? 'visible' : 'hidden';
+			f2Label.setAttribute('x', String(XC + 26));
+			f2Label.setAttribute('y', String(bottom + Math.max(L2, 14) / 2 + 10));
+
+			// resultant: F2 − F1 in newtons; F = p·S with S = 0,04 m² → centinewtons p·4 are whole numbers
+			const f1c = p1 * 4;
+			const f2c = p2 * 4;
+			const fac = f2c - f1c;
+			const faN = fac / 100;
+			const cy = top + E / 2;
+			const len = faN * KF;
+			fa.style.visibility = len > 4 ? 'visible' : 'hidden';
+			faLabel.style.visibility = len > 4 ? 'visible' : 'hidden';
+			fa.setAttribute('x1', String(XC));
+			fa.setAttribute('x2', String(XC));
+			// the resultant is drawn centred on the middle of the cube; its label sits left of the shaft, below the
+			// middle, away from the arrow head and between the side pressure arrows
+			fa.setAttribute('y1', String(cy + len / 2));
+			fa.setAttribute('y2', String(cy - len / 2 + 6));
+			faLabel.setAttribute('x', String(XC - 5));
+			faLabel.setAttribute('y', String(cy + 15));
+
+			// depth brackets on the right
+			const bx = 64;
+			h1Path.style.visibility = h1 > 0.03 ? 'visible' : 'hidden';
+			h1t.style.visibility = h1Path.style.visibility;
+			h1Path.setAttribute('d', `M ${bx - 4} ${SURF} H ${bx + 4} M ${bx} ${SURF} V ${top} M ${bx - 4} ${top} H ${bx + 4}`);
+			h1t.setAttribute('x', String(bx + 5));
+			h1t.setAttribute('y', String((SURF + top) / 2 + 5));
+			const bx2 = 50;
+			h2Path.style.visibility = h2 > 0.03 ? 'visible' : 'hidden';
+			h2t.style.visibility = h2Path.style.visibility;
+			h2Path.setAttribute('d', `M ${bx2 - 4} ${SURF} H ${bx2 + 4} M ${bx2} ${SURF} V ${bottom} M ${bx2 - 4} ${bottom} H ${bx2 + 4}`);
+			h2t.setAttribute('x', String(bx2 + 5));
+			h2t.setAttribute('y', String(Math.max(top, SURF) + (bottom - Math.max(top, SURF)) / 2 + 6));
+			// dashed guides from the faces to the brackets
+			const guides = `M ${bx2 - 4} ${top} H ${XC - E / 2 - 2} M ${bx2 - 4} ${bottom} H ${XC - E / 2 - 2}`;
+			let guide = root.querySelector<SVGPathElement>('[data-guide]');
+			if (!guide) {
+				guide = document.createElementNS(NS, 'path');
+				guide.setAttribute('data-guide', '');
+				guide.setAttribute('class', 'prc__guide');
+				guide.setAttribute('stroke-dasharray', '3 4');
+				q('[data-depth]').prepend(guide);
+			}
+			guide.setAttribute('d', guides);
+
+			// live formulas
+			const key = String(cm);
+			if (key === lastKey) return;
+			lastKey = key;
+			const h = (v: number) => tex(fmt(v, 2));
+			const n = (c: number) => tex(fmtTrim(c / 100, 2)); // centinewtons → newtons
+			const items: [string, string][] = [];
+			if (h1 >= 0) {
+				items.push(['', `p_1 = g\\rho h_1 = 9{,}8 \\cdot 1000 \\cdot ${h(h1)} = ${tex(String(p1))}~\\text{Па}`]);
+				items.push(['', `F_1 = p_1 S = ${tex(String(p1))} \\cdot 0{,}04 = ${n(f1c)}~\\text{Н}`]);
+			} else {
+				items.push(['is-text', 'Верхняя грань над водой: вода на неё не давит, <i>F</i><sub>1</sub> = 0.']);
+			}
+			if (h2 > 0) {
+				items.push(['', `p_2 = g\\rho h_2 = 9{,}8 \\cdot 1000 \\cdot ${h(h2)} = ${tex(String(p2))}~\\text{Па}`]);
+				items.push(['', `F_2 = p_2 S = ${tex(String(p2))} \\cdot 0{,}04 = ${n(f2c)}~\\text{Н}`]);
+			}
+			if (h1 >= 0) {
+				items.push(['is-key', `F_2 - F_1 = ${n(f2c)} - ${n(f1c)} = ${n(fac)}~\\text{Н}`]);
+				items.push(['', `g\\rho V = 9{,}8 \\cdot 1000 \\cdot 0{,}008 = 78{,}4~\\text{Н}`]);
+				items.push(['is-text', 'Разность сил не зависит от глубины и равна весу воды в объёме кубика.']);
+			} else if (h2 > 0) {
+				const vp = Math.round((cm + 20) * 4) / 10000; // m³: S·h₂ = 0,04·h₂
+				items.push(['is-key', `F_{\\text{А}} = F_2 = ${n(f2c)}~\\text{Н}`]);
+				items.push(['', `V_{\\text{погр}} = S h_2 = 0{,}04 \\cdot ${h(h2)} = ${tex(fmtTrim(vp, 4))}~\\text{м}^3`]);
+				items.push(['', `g\\rho V_{\\text{погр}} = 9{,}8 \\cdot 1000 \\cdot ${tex(fmtTrim(vp, 4))} = ${n(f2c)}~\\text{Н}`]);
+				items.push(['is-text', 'Выталкивающая сила равна весу воды в объёме погружённой части.']);
+			} else {
+				items.push(['is-text', 'Кубик только касается воды: выталкивающей силы нет.']);
+			}
+			lines.innerHTML = items
+				.map(([cls, s]) => `<li class="${cls}">${cls === 'is-text' ? s : k(s)}</li>`)
+				.join('');
+		};
+
+		input.addEventListener('input', draw);
+
+		// drag the cube
+		const toY = (e: PointerEvent) => {
+			const pt = svg.createSVGPoint();
+			pt.x = e.clientX;
+			pt.y = e.clientY;
+			return pt.matrixTransform(svg.getScreenCTM()!.inverse()).y;
+		};
+		let drag: { y0: number; v0: number } | null = null;
+		cube.addEventListener('pointerdown', (e) => {
+			drag = { y0: toY(e), v0: Number(input.value) };
+			cube.setPointerCapture(e.pointerId);
+			e.preventDefault();
+		});
+		cube.addEventListener('pointermove', (e) => {
+			if (!drag) return;
+			const cm = Math.round(drag.v0 + ((toY(e) - drag.y0) / M) * 100);
+			input.value = String(Math.min(90, Math.max(-20, cm)));
+			draw();
+		});
+		const end = () => (drag = null);
+		cube.addEventListener('pointerup', end);
+		cube.addEventListener('pointercancel', end);
+		draw();
+	}
+</script>

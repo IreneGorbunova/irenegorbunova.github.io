@@ -1,0 +1,444 @@
+---
+/**
+ * Hydrostatic balance: a crown (1 kg, some of the gold replaced by silver) and a 1 kg bar of pure
+ * gold balance in air. Raised glasses of water put both under water: the crown has the larger
+ * volume, gets the larger buoyant force and its pan goes up. The beam swings like a real balance
+ * (damped oscillation about the new equilibrium, stops at ±10°).
+ */
+const PX = 210;
+const PY = 84;
+---
+
+<figure class="crown not-content" data-crown>
+	<svg class="crown__svg" viewBox="0 0 420 380" role="img" aria-label="Весы: корона и золотой слиток в воздухе и в воде" data-svg>
+		<line class="crown__floor" x1="0" y1="372" x2="420" y2="372" />
+		<!-- balance stand -->
+		<rect class="crown__metal" x={PX - 50} y="358" width="100" height="14" rx="3" />
+		<rect class="crown__metal" x={PX - 5} y={PY} width="10" height={358 - PY} rx="2" />
+		<path class="crown__scale" d={`M ${PX - 21} ${PY + 92} A 95 95 0 0 0 ${PX + 21} ${PY + 92}`} />
+		{
+			[-10, -5, 0, 5, 10].map((a) => {
+				const r1 = 90;
+				const r2 = a === 0 ? 101 : 97;
+				const t = (a * Math.PI) / 180;
+				return (
+					<line
+						class="crown__tick"
+						x1={PX - r1 * Math.sin(t)}
+						y1={PY + r1 * Math.cos(t)}
+						x2={PX - r2 * Math.sin(t)}
+						y2={PY + r2 * Math.cos(t)}
+					/>
+				);
+			})
+		}
+		<!-- glasses with water -->
+		{
+			[60, 360].map((x, i) => (
+				<g data-glass={i}>
+					<rect class="crown__stand" x={x - 26} width="52" data-stand />
+					<rect class="crown__glass-back" x={x - 48} y="0" width="96" height="130" />
+				</g>
+			))
+		}
+		<!-- beam, pointer, hanging things -->
+		<g data-beam>
+			<rect class="crown__beam" x={PX - 152} y={PY - 4} width="304" height="8" rx="4" />
+			<line class="crown__pointer" x1={PX} y1={PY} x2={PX} y2={PY + 96} />
+			<circle class="crown__pin" cx={PX - 150} cy={PY} r="3.5" />
+			<circle class="crown__pin" cx={PX + 150} cy={PY} r="3.5" />
+		</g>
+		<circle class="crown__pivot" cx={PX} cy={PY} r="6" />
+		<line class="crown__thread" data-thread="0" />
+		<line class="crown__thread" data-thread="1" />
+		<g data-obj="0">
+			<path
+				class="crown__gold"
+				d="M -28 36 L -28 12 L -20 22 L -14 2 L -7 20 L 0 0 L 7 20 L 14 2 L 20 22 L 28 12 L 28 36 Z"
+			/>
+			<rect class="crown__band" x="-28" y="27" width="56" height="9" />
+			<circle class="crown__gem" cx="0" cy="31.5" r="2.6" />
+			<circle class="crown__gem" cx="-15" cy="31.5" r="2" />
+			<circle class="crown__gem" cx="15" cy="31.5" r="2" />
+		</g>
+		<g data-obj="1">
+			<path class="crown__gold" d="M -20 12 L 20 12 L 28 36 L -28 36 Z" />
+			<path class="crown__bar-top" d="M -20 12 L 20 12 L 16 17 L -16 17 Z" />
+		</g>
+		{
+			[60, 360].map((x, i) => (
+				<g data-glass-front={i}>
+					<rect class="crown__water" x={x - 48} y="10" width="96" height="120" />
+					<line class="crown__surface" x1={x - 48} x2={x + 48} y1="10" y2="10" />
+				</g>
+			))
+		}
+		{
+			[
+				[60, 'корона'],
+				[360, 'слиток'],
+			].map(([x, t]) => (
+				<text class="crown__label" x={x} y="26" text-anchor="middle">
+					{t}
+				</text>
+			))
+		}
+		<text class="crown__label crown__label--sub" x="60" y="42" text-anchor="middle">1 кг</text>
+		<text class="crown__label crown__label--sub" x="360" y="42" text-anchor="middle">1 кг золота</text>
+	</svg>
+
+	<div class="crown__controls">
+		<label class="crown__slider">
+			<span>Мастер заменил серебром</span>
+			<output data-out>30 %</output>
+			<input type="range" min="0" max="50" step="5" value="30" data-silver aria-label="Доля серебра в короне, проценты" />
+		</label>
+		<button type="button" class="crown__btn" aria-pressed="false" data-dip>Опустить в воду</button>
+	</div>
+	<ol class="crown__lines" data-lines></ol>
+	<p class="crown__live" data-live aria-live="polite"></p>
+</figure>
+
+<style is:global>
+	.crown {
+		--crown-gold: hsl(45 90% 55%);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .crown {
+		--crown-gold: hsl(43 90% 50%);
+	}
+	.crown i {
+		font-family: var(--ig-font-math);
+	}
+	.crown__svg {
+		display: block;
+		width: 100%;
+		max-width: 34rem;
+		height: auto;
+		margin-inline: auto;
+	}
+	.crown__floor {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.crown__metal,
+	.crown__stand {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.crown__beam {
+		fill: var(--sl-color-gray-3);
+	}
+	.crown__pointer {
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.crown__pivot {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 2;
+	}
+	.crown__pin {
+		fill: var(--sl-color-gray-2);
+	}
+	.crown__scale {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.crown__tick {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.crown__thread {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.crown__gold {
+		fill: var(--crown-gold);
+		stroke: color-mix(in oklab, var(--crown-gold) 50%, var(--sl-color-black));
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.crown__band {
+		fill: color-mix(in oklab, var(--crown-gold) 80%, var(--sl-color-black));
+	}
+	.crown__bar-top {
+		fill: color-mix(in oklab, var(--crown-gold) 65%, white);
+	}
+	.crown__gem {
+		fill: var(--ig-vy);
+	}
+	.crown__glass-back {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 20%, transparent);
+		stroke: color-mix(in oklab, var(--sl-color-gray-2) 70%, transparent);
+		stroke-width: 2.5;
+	}
+	.crown__water {
+		fill: var(--ig-vx);
+		fill-opacity: 0.25;
+	}
+	.crown__surface {
+		stroke: var(--ig-vx);
+		stroke-width: 2;
+	}
+	.crown__label {
+		fill: var(--sl-color-gray-1);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.crown__label--sub {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+	}
+	.crown__controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: end;
+		gap: 0.75rem 1.25rem;
+		margin-top: 0.5rem;
+	}
+	.crown__slider {
+		flex: 1 1 14rem;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.crown__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.crown__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.crown__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.crown__lines {
+		list-style: none;
+		margin: 0.75rem 0 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+		gap: 0.3rem 0.5rem;
+	}
+	.crown__lines li {
+		padding: 0.3rem 0.6rem;
+		border-radius: 0.5rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.crown__lines .katex {
+		font-size: 1em;
+	}
+	.crown__live {
+		min-height: 1.5em;
+		margin: 0.75rem 0 0;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: color-mix(in oklab, var(--sl-color-accent-low) 55%, transparent);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	@media (max-width: 40rem) {
+		.crown {
+			padding: 0.75rem;
+		}
+		.crown__label {
+			font-size: 18px;
+		}
+		.crown__label--sub {
+			font-size: 15px;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { G, fmt, tex, round, clamp, reducedMotion } from './physics';
+
+	const PX = 210;
+	const PY = 84;
+	const ARM = 150;
+	const THREAD = 104;
+	const OBJ_H = 36;
+	const GLASS_DOWN = 236; // top of the glasses when lowered
+	const LIFT = 112;
+	const RHO_AU = 19.3; // g/cm³
+	const RHO_AG = 10.5;
+	const MASS = 1000; // g
+	const FS = 0.25; // N: torque scale of the balance (tan θ = ΔF / FS)
+	const STOP = (10 * Math.PI) / 180;
+	const W = 2.2; // rad/s, own swing of the beam
+	const ZETA = 0.1;
+	const k = (s: string) => katex.renderToString(s, { throwOnError: false });
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-crown]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const beam = q<SVGGElement>('[data-beam]');
+		const threads = [q<SVGLineElement>('[data-thread="0"]'), q<SVGLineElement>('[data-thread="1"]')];
+		const objs = [q<SVGGElement>('[data-obj="0"]'), q<SVGGElement>('[data-obj="1"]')];
+		const glasses = [q<SVGGElement>('[data-glass="0"]'), q<SVGGElement>('[data-glass="1"]')];
+		const fronts = [q<SVGGElement>('[data-glass-front="0"]'), q<SVGGElement>('[data-glass-front="1"]')];
+		const silverIn = q<HTMLInputElement>('[data-silver]');
+		const outEl = q<HTMLOutputElement>('[data-out]');
+		const dip = q<HTMLButtonElement>('[data-dip]');
+		const lines = q<HTMLOListElement>('[data-lines]');
+		const live = q<HTMLElement>('[data-live]');
+
+		let theta = 0;
+		let omega = 0;
+		let lift = 0; // 0 = glasses down, 1 = up
+		let liftTarget = 0;
+		let raf = 0;
+		let lastT = 0;
+
+		const volumes = () => {
+			const pct = Number(silverIn.value);
+			const mAg = (MASS * pct) / 100;
+			const mAu = MASS - mAg;
+			return { pct, mAu, mAg, vCrown: mAu / RHO_AU + mAg / RHO_AG, vBar: MASS / RHO_AU };
+		};
+
+		const glassTop = () => GLASS_DOWN - LIFT * (lift < 0.5 ? 2 * lift * lift : 1 - 2 * (1 - lift) * (1 - lift));
+
+		/** Buoyant forces now (part of each body may still be above the water). */
+		const forces = () => {
+			const { vCrown, vBar } = volumes();
+			const surface = glassTop() + 10;
+			return [vCrown, vBar].map((vol, i) => {
+				const side = i === 0 ? -1 : 1;
+				const yTop = PY + side * ARM * Math.sin(theta) + THREAD;
+				const f = clamp((yTop + OBJ_H - surface) / OBJ_H, 0, 1);
+				return 1000 * G * vol * 1e-6 * f;
+			});
+		};
+
+		const draw = () => {
+			beam.setAttribute('transform', `rotate(${(theta * 180) / Math.PI} ${PX} ${PY})`);
+			const top = glassTop();
+			fronts.forEach((g) => g.setAttribute('transform', `translate(0 ${top})`));
+			glasses.forEach((g) => {
+				g.setAttribute('transform', `translate(0 ${top})`);
+				const stand = g.querySelector<SVGRectElement>('[data-stand]')!;
+				stand.setAttribute('y', '130');
+				stand.setAttribute('height', String(Math.max(0, 372 - top - 130)));
+			});
+			[-1, 1].forEach((side, i) => {
+				const ax = PX + side * ARM * Math.cos(theta);
+				const ay = PY + side * ARM * Math.sin(theta);
+				threads[i].setAttribute('x1', String(ax));
+				threads[i].setAttribute('y1', String(ay));
+				threads[i].setAttribute('x2', String(ax));
+				threads[i].setAttribute('y2', String(ay + THREAD + (i === 0 ? 4 : 12)));
+				objs[i].setAttribute('transform', `translate(${ax} ${ay + THREAD})`);
+			});
+		};
+
+		const text = () => {
+			const { pct, mAu, mAg, vCrown, vBar } = volumes();
+			outEl.value = `${pct} %`;
+			// rounded chain, so that every sum on the screen is exact
+			const a = round(mAu / RHO_AU, 1);
+			const b = round(mAg / RHO_AG, 1);
+			const vc = pct ? round(a + b, 1) : round(vCrown, 1);
+			const vb = round(vBar, 1);
+			const fc = round(G * 1000 * vc * 1e-6, 3);
+			const fb = round(G * 1000 * vb * 1e-6, 3);
+			const t = (x: number, d: number) => tex(fmt(x, d));
+			const items: string[] = [];
+			items.push(
+				pct
+					? k(`V_{\\text{к}} = \\frac{${mAu}~\\text{г}}{19{,}3~\\text{г/см}^3} + \\frac{${mAg}~\\text{г}}{10{,}5~\\text{г/см}^3} \\approx ${t(a, 1)} + ${t(b, 1)} = ${t(vc, 1)}~\\text{см}^3`)
+					: k(`V_{\\text{к}} = \\frac{1000~\\text{г}}{19{,}3~\\text{г/см}^3} \\approx ${t(vc, 1)}~\\text{см}^3`),
+			);
+			items.push(k(`V_{\\text{сл}} = \\frac{1000~\\text{г}}{19{,}3~\\text{г/см}^3} \\approx ${t(vb, 1)}~\\text{см}^3`));
+			if (liftTarget) {
+				items.push(k(`F_{\\text{А,к}} = g\\rho_{\\text{в}}V_{\\text{к}} \\approx ${t(fc, 3)}~\\text{Н}`));
+				items.push(k(`F_{\\text{А,сл}} = g\\rho_{\\text{в}}V_{\\text{сл}} \\approx ${t(fb, 3)}~\\text{Н}`));
+			}
+			lines.innerHTML = items.map((s) => `<li>${s}</li>`).join('');
+			if (!liftTarget) {
+				live.textContent = 'В воздухе весы в равновесии: корона и слиток весят одинаково. Опустите их в воду.';
+			} else if (pct === 0) {
+				live.textContent = 'Объёмы равны, выталкивающие силы равны — весы остаются в равновесии. Корона из чистого золота.';
+			} else {
+				live.innerHTML = `Плотность серебра меньше, чем у золота, поэтому у короны больше объём: на ${fmt(vc - vb, 1)} см³. Выталкивающая сила на неё больше на ${fmt(fc - fb, 3)} Н, и конец коромысла с короной поднимается. Мастер — обманщик!`;
+			}
+		};
+
+		const loop = (now: number) => {
+			const dt = lastT ? Math.min((now - lastT) / 1000, 0.05) : 0.016;
+			lastT = now;
+			const rm = reducedMotion();
+			lift = rm ? liftTarget : lift + clamp(liftTarget - lift, -dt / 1.2, dt / 1.2);
+			let t = dt;
+			while (t > 1e-9) {
+				const h = Math.min(t, 0.004);
+				t -= h;
+				const [fc, fb] = forces();
+				const eq = Math.atan((fc - fb) / FS);
+				if (rm) {
+					theta = clamp(eq, -STOP, STOP);
+					omega = 0;
+					break;
+				}
+				omega += (-W * W * (theta - eq) - 2 * ZETA * W * omega) * h;
+				theta += omega * h;
+				if (Math.abs(theta) > STOP) {
+					theta = Math.sign(theta) * STOP;
+					omega = -0.3 * omega;
+				}
+			}
+			draw();
+			const [fc, fb] = forces();
+			const eq = clamp(Math.atan((fc - fb) / FS), -STOP, STOP);
+			const moving = Math.abs(lift - liftTarget) > 1e-4 || Math.abs(omega) > 1e-3 || Math.abs(theta - eq) > 1e-3;
+			if (moving) raf = requestAnimationFrame(loop);
+			else {
+				raf = 0;
+				lastT = 0;
+			}
+		};
+		const kick = () => {
+			if (!raf) {
+				lastT = 0;
+				raf = requestAnimationFrame(loop);
+			}
+		};
+
+		silverIn.addEventListener('input', () => {
+			text();
+			kick();
+		});
+		dip.addEventListener('click', () => {
+			liftTarget = liftTarget ? 0 : 1;
+			dip.textContent = liftTarget ? 'Вынуть из воды' : 'Опустить в воду';
+			dip.setAttribute('aria-pressed', String(Boolean(liftTarget)));
+			text();
+			kick();
+		});
+		draw();
+		text();
+	}
+</script>
