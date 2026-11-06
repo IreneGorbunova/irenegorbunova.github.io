@@ -1,6 +1,8 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { satteri } from '@astrojs/markdown-satteri';
+import { katexPlugin } from './src/plugins/katex.mjs';
 
 const grade = (/** @type {number} */ n, /** @type {any[]} */ chapters = []) => ({
 	label: `${n} класс`,
@@ -11,10 +13,14 @@ const grade = (/** @type {number} */ n, /** @type {any[]} */ chapters = []) => (
 export default defineConfig({
 	site: 'https://irenegorbunova.github.io',
 	base: '/IG_physics',
+	markdown: {
+		processor: satteri({ features: { math: true }, mdastPlugins: [katexPlugin] }),
+	},
 	integrations: [
 		starlight({
 			title: 'Учебник физики',
 			locales: { root: { label: 'Русский', lang: 'ru' } },
+			customCss: ['katex/dist/katex.min.css'],
 			sidebar: [
 				{ label: 'Об учебнике', slug: 'uchebnik' },
 				grade(7),
