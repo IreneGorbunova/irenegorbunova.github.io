@@ -38,6 +38,7 @@ export default defineConfig({
 					},
 				]),
 				grade(11),
+				{ label: 'Источники иллюстраций', slug: 'uchebnik/istochniki' },
 			],
 		}),
 	],
