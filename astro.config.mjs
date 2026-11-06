@@ -10,6 +10,11 @@ const grade = (/** @type {number} */ n, /** @type {any[]} */ chapters = []) => (
 	items: [{ label: 'Содержание', slug: `uchebnik/${n}-klass` }, ...chapters],
 });
 
+const section = (/** @type {string} */ label, /** @type {string} */ dir, /** @type {string[]} */ slugs) => ({
+	label,
+	items: slugs.map((slug) => ({ slug: `uchebnik/${dir}/${slug}` })),
+});
+
 export default defineConfig({
 	site: 'https://irenegorbunova.github.io',
 	markdown: {
@@ -32,10 +37,7 @@ export default defineConfig({
 				grade(8),
 				grade(9),
 				grade(10, [
-					{
-						label: 'Кинематика',
-						items: [{ slug: 'uchebnik/10-klass/kinematika/brosok-pod-uglom' }],
-					},
+					section('Кинематика', '10-klass/kinematika', ['brosok-pod-uglom']),
 				]),
 				grade(11),
 				{ label: 'Источники иллюстраций', slug: 'uchebnik/istochniki' },
