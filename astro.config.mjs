@@ -46,6 +46,7 @@ export default defineConfig({
 				]),
 				grade(10, [
 					section('Кинематика', '10-klass/kinematika', ['brosok-pod-uglom']),
+					section('Законы сохранения', '10-klass/zakony-sohraneniya', ['impuls']),
 				]),
 				grade(11),
 				{ label: 'Источники иллюстраций', slug: 'uchebnik/istochniki' },

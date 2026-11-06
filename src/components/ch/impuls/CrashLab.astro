@@ -1,0 +1,759 @@
+---
+/**
+ * Impulse of a force: a 1-tonne car at 15 m/s stops against a wall. The crumple zone is modelled as
+ * crushing with a constant force, so the car decelerates uniformly: F = Δp/Δt, crush s = υΔt/2.
+ * The rectangle under F(t) always has the area Δp = mυ; its corner can be dragged along the
+ * hyperbola F·Δt = Δp. The crash is shown 20 times slower than in reality.
+ */
+---
+
+<figure class="imp-crash not-content" data-imp-crash>
+	<div class="imp-crash__stage" data-stage>
+		<svg class="imp-crash__scene" data-scene role="img" aria-label="Автомобиль врезается в бетонную стену, его капот сминается"></svg>
+		<span class="imp-crash__badge">Замедлено в 20 раз</span>
+	</div>
+
+	<div class="imp-crash__controls">
+		<label class="imp-crash__slider">
+			<span>Время удара <i>Δt</i> (чем мягче капот, тем дольше удар)</span>
+			<output data-dt-out>50 мс</output>
+			<input type="range" min="0.01" max="0.1" step="0.005" value="0.05" data-dt />
+		</label>
+		<button type="button" class="imp-crash__btn" data-go>Удар!</button>
+	</div>
+
+	<div class="imp-crash__graph">
+		<p class="imp-crash__graph-title">Сила, с которой стена действует на автомобиль</p>
+		<svg class="imp-crash__plot" data-plot role="img" aria-label="График силы удара от времени: прямоугольник площадью Δp; его угол можно тянуть"></svg>
+	</div>
+
+	<div class="imp-crash__eq" data-eq></div>
+
+	<dl class="imp-crash__stats">
+		<div><dt>Сила удара</dt><dd data-F>—</dd></div>
+		<div><dt>Больше веса автомобиля</dt><dd data-ratio>—</dd></div>
+		<div><dt>Капот смят на</dt><dd data-s>—</dd></div>
+	</dl>
+	<p class="imp-crash__live" data-live aria-live="polite"></p>
+	<figcaption class="imp-crash__caption">
+		Автомобиль массой 1 т едет со скоростью 54 км/ч (15 м/с) и врезается в стену. Для простоты считаем,
+		что, пока капот сминается, сила постоянна; у настоящей машины она меняется, и тогда <i>F</i> — её
+		среднее значение. Тяните угол прямоугольника на графике или двигайте ползунок.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.imp-crash {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-text);
+	}
+	.imp-crash i {
+		font-family: var(--ig-font-math);
+	}
+	.imp-crash__stage {
+		position: relative;
+	}
+	.imp-crash__scene,
+	.imp-crash__plot {
+		display: block;
+		width: 100%;
+		overflow: hidden;
+		font-family: var(--__sl-font);
+	}
+	.imp-crash__badge {
+		position: absolute;
+		top: 0.1rem;
+		left: 0.1rem;
+		padding: 0.1rem 0.55rem;
+		border-radius: 999px;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+		border: 1px solid var(--sl-color-gray-5);
+		background: var(--ig-surface);
+	}
+	.imp-crash text {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+	}
+	.imp-crash .t-math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.imp-crash .road {
+		fill: var(--sl-color-gray-5);
+	}
+	.imp-crash .road-line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+		stroke-dasharray: 14 12;
+	}
+	.imp-crash .wall {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.imp-crash .hatch {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		opacity: 0.7;
+	}
+	.imp-crash .car {
+		fill: color-mix(in srgb, var(--ig-vy) 72%, var(--ig-surface));
+		stroke: color-mix(in srgb, var(--ig-vy) 60%, var(--sl-color-black));
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.imp-crash .crumple {
+		fill: color-mix(in srgb, var(--ig-vy) 55%, var(--sl-color-gray-4));
+		stroke: color-mix(in srgb, var(--ig-vy) 60%, var(--sl-color-black));
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.imp-crash .fold {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vy) 40%, var(--sl-color-black));
+		stroke-width: 1.2;
+	}
+	.imp-crash .glass {
+		fill: color-mix(in srgb, var(--ig-vx) 25%, var(--ig-surface));
+		stroke: color-mix(in srgb, var(--ig-vy) 60%, var(--sl-color-black));
+		stroke-width: 1.2;
+	}
+	.imp-crash .tyre {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.imp-crash .hub {
+		fill: var(--sl-color-gray-3);
+	}
+	.imp-crash .spoke {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.imp-crash .lamp {
+		fill: var(--ig-v);
+	}
+	.imp-crash .vel {
+		fill: var(--ig-vx);
+	}
+	.imp-crash .force {
+		fill: var(--sl-color-white);
+	}
+	.imp-crash text.lbl-v {
+		fill: var(--ig-vx);
+		font-size: 14px;
+	}
+	.imp-crash text.lbl-f {
+		fill: var(--sl-color-white);
+		font-size: 14px;
+	}
+	.imp-crash .t-halo {
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.imp-crash .grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.imp-crash .axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.imp-crash .hyper {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 5;
+	}
+	.imp-crash .area {
+		fill: color-mix(in srgb, var(--ig-v) 20%, transparent);
+		stroke: var(--ig-v);
+		stroke-width: 2;
+	}
+	.imp-crash .area-done {
+		fill: color-mix(in srgb, var(--ig-v) 42%, transparent);
+	}
+	.imp-crash .handle {
+		fill: var(--ig-v);
+		stroke: var(--ig-surface);
+		stroke-width: 2.5;
+		filter: drop-shadow(0 0 5px var(--ig-v));
+	}
+	.imp-crash .hit {
+		fill: transparent;
+		cursor: ew-resize;
+		touch-action: none;
+	}
+	.imp-crash__plot.is-drag {
+		cursor: ew-resize;
+	}
+	.imp-crash text.area-lbl {
+		fill: var(--sl-color-white);
+		font-size: 13px;
+	}
+	.imp-crash text.hint {
+		fill: var(--ig-v);
+		font-size: 12px;
+		font-weight: 700;
+	}
+	.imp-crash__controls {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.75rem 1.25rem;
+		align-items: end;
+		margin-top: 0.75rem;
+	}
+	.imp-crash__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.imp-crash__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-crash__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.imp-crash__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.4rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.imp-crash__btn:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.imp-crash__graph {
+		margin-top: 1rem;
+	}
+	.imp-crash__graph-title {
+		margin: 0 0 0.25rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.imp-crash__eq {
+		margin-top: 0.6rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.imp-crash__eq .katex {
+		font-size: 1.1em;
+	}
+	.imp-crash__stats {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
+		margin: 0.75rem 0 0;
+	}
+	.imp-crash__stats > div {
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.imp-crash__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.imp-crash__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-crash__live {
+		min-height: 1.5em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-crash__caption {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.imp-crash {
+			padding: 0.75rem;
+		}
+		.imp-crash__controls {
+			grid-template-columns: 1fr;
+		}
+		.imp-crash__btn {
+			justify-self: start;
+		}
+		.imp-crash__stats {
+			grid-template-columns: 1fr;
+		}
+		.imp-crash__stats > div {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			gap: 1rem;
+		}
+		.imp-crash__stats dd {
+			font-size: var(--sl-text-lg);
+		}
+		.imp-crash__eq .katex {
+			font-size: 0.98em;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { svg, attrs, fmt, tex, clamp, hArrow, reducedMotion, times } from './util';
+
+	const M = 1000; // kg
+	const V = 15; // m/s
+	const DP = M * V; // kg·m/s
+	const G = 9.8;
+	const SLOW = 20;
+	const D0 = 1.0; // the car starts this far from the wall, m
+	const CAR = 4.4; // car length, m
+	const ZONE0 = 3.6; // the crumple zone starts here (from the rear), m
+	const TMAX = 0.12; // graph: time axis, s
+	const FMAX = 1.6e6; // graph: force axis, N
+	const nf = (v: number) => Math.round(v).toLocaleString('ru-RU').replace(/ /g, ' ');
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-imp-crash]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const scene = q<SVGSVGElement>('[data-scene]');
+		const plot = q<SVGSVGElement>('[data-plot]');
+		const stage = q<HTMLElement>('[data-stage]');
+		const dtIn = q<HTMLInputElement>('[data-dt]');
+		const dtOut = q<HTMLOutputElement>('[data-dt-out]');
+		const eq = q<HTMLElement>('[data-eq]');
+		const outF = q<HTMLElement>('[data-F]');
+		const outR = q<HTMLElement>('[data-ratio]');
+		const outS = q<HTMLElement>('[data-s]');
+		const live = q<HTMLElement>('[data-live]');
+		let W = 0;
+		let raf = 0;
+		let t = -D0 / V; // model time; the impact starts at t = 0
+		let running = false;
+		const dt = () => Number(dtIn.value);
+
+		// ---------------- scene ----------------
+		let Sc: ReturnType<typeof buildScene>;
+		function buildScene() {
+			scene.replaceChildren();
+			const narrow = W < 520;
+			const pad = narrow ? 8 : 14;
+			const span = 6.7; // metres shown
+			const S = (W - 2 * pad) / span;
+			const xw = pad + (span - 0.55) * S; // wall face, px
+			const ground = Math.round(1.75 * S + 34);
+			const H = ground + 30;
+			attrs(scene, { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+			svg('rect', { class: 'road', x: 0, y: ground, width: W, height: 9 }, scene);
+			svg('line', { class: 'road-line', x1: 0, x2: xw, y1: ground + 20, y2: ground + 20 }, scene);
+			const wallTop = ground - 2.05 * S;
+			svg('rect', { class: 'wall', x: xw, y: wallTop, width: 0.55 * S + 4, height: ground - wallTop + 9 }, scene);
+			for (let y = wallTop + 8; y + 6 <= ground + 8; y += 12)
+				svg('line', { class: 'hatch', x1: xw + 2, x2: xw + 0.55 * S + 2, y1: y + 6, y2: y - 6 }, scene);
+			const X = (x: number) => xw + x * S; // x in metres, 0 at the wall, negative to the left
+			const Y = (y: number) => ground - y * S;
+			const rear = svg('g', {}, scene);
+			// rigid part of the car (rear to the start of the crumple zone), drawn at x = 0..ZONE0
+			const body = svg('path', { class: 'car' }, rear);
+			const pts = [
+				[0.06, 0.36], [0, 0.55], [0.06, 0.86], [0.95, 0.95], [1.42, 1.4], [2.5, 1.43], [3.08, 0.98], [ZONE0, 0.92], [ZONE0, 0.34],
+			];
+			body.setAttribute('d', 'M' + pts.map(([x, y]) => `${(x * S).toFixed(1)},${Y(y).toFixed(1)}`).join(' L') + ' Z');
+			const glass = svg('path', { class: 'glass' }, rear);
+			const gp = [[1.12, 1.0], [1.5, 1.34], [2.0, 1.36], [2.0, 1.0]];
+			const gq = [[2.1, 1.0], [2.1, 1.36], [2.46, 1.37], [2.9, 1.0]];
+			glass.setAttribute(
+				'd',
+				[gp, gq].map((p) => 'M' + p.map(([x, y]) => `${(x * S).toFixed(1)},${Y(y).toFixed(1)}`).join(' L') + ' Z').join(' '),
+			);
+			const wheels = [0.85, 3.2].map((wx) => {
+				const g = svg('g', {}, rear);
+				svg('circle', { class: 'tyre', r: 0.32 * S, cx: 0, cy: 0 }, g);
+				svg('circle', { class: 'hub', r: 0.12 * S, cx: 0, cy: 0 }, g);
+				const sp = svg('path', { class: 'spoke', d: `M${-0.2 * S},0 L${0.2 * S},0 M0,${-0.2 * S} L0,${0.2 * S}` }, g);
+				return { g, sp, wx };
+			});
+			const crumple = svg('path', { class: 'crumple' }, scene);
+			const folds = svg('path', { class: 'fold' }, scene);
+			const lamp = svg('rect', { class: 'lamp', width: 0.08 * S, height: 0.1 * S, rx: 2 }, scene);
+			const vel = svg('path', { class: 'vel arrow' }, scene);
+			const velLbl = svg('text', { class: 'lbl-v t-halo' }, scene);
+			velLbl.innerHTML = '<tspan class="t-math">υ</tspan>';
+			const force = svg('path', { class: 'force' }, scene);
+			const fLbl = svg('text', { class: 'lbl-f t-halo' }, scene);
+			fLbl.innerHTML = '<tspan class="t-math">F</tspan>';
+			return { S, X, Y, xw, ground, rear, wheels, crumple, folds, lamp, vel, velLbl, force, fLbl };
+		}
+
+		/** Car state at model time t: position of the rear part and crush of the zone (metres). */
+		function carAt(time: number) {
+			const T = dt();
+			if (time <= 0) return { front: time * V, crush: 0, v: V };
+			const tt = Math.min(time, T);
+			const crush = V * tt - (V * tt * tt) / (2 * T);
+			return { front: 0, crush, v: V * (1 - tt / T) };
+		}
+
+		function drawScene() {
+			const { S, X, Y, rear, wheels, crumple, folds, lamp } = Sc;
+			const st = carAt(t);
+			const zone = CAR - ZONE0; // 0.8 m
+			const len = zone - st.crush;
+			const xr = st.front - CAR + st.crush; // rear of the car, m from the wall
+			rear.setAttribute('transform', `translate(${X(xr).toFixed(2)},0)`);
+			const travelled = xr + 6; // for wheel rotation
+			wheels.forEach((w) => {
+				w.g.setAttribute('transform', `translate(${(w.wx * S).toFixed(2)},${Y(0.32).toFixed(2)})`);
+				w.sp.setAttribute('transform', `rotate(${(((travelled / 0.32) * 180) / Math.PI).toFixed(1)})`);
+			});
+			// crumple zone: from x0 to the front, folded like an accordion when crushed
+			const x0 = xr + ZONE0;
+			const x1 = st.front;
+			const k = st.crush / zone; // 0..~0.94
+			const n = 7;
+			const top: string[] = [];
+			const bot: string[] = [];
+			for (let i = 0; i <= n; i++) {
+				const f = i / n;
+				const x = x0 + f * len;
+				const yt = 0.92 - 0.12 * f - (i % 2 ? k * 0.09 : 0) - (f > 0.85 ? 0.14 * (f - 0.85) / 0.15 : 0);
+				const yb = 0.34 + (i % 2 ? k * 0.06 : 0);
+				top.push(`${X(x).toFixed(1)},${Y(yt).toFixed(1)}`);
+				bot.unshift(`${X(x).toFixed(1)},${Y(yb).toFixed(1)}`);
+			}
+			crumple.setAttribute('d', `M${top.join(' L')} L${X(x1).toFixed(1)},${Y(0.4).toFixed(1)} L${bot.join(' L')} Z`);
+			let fd = '';
+			if (k > 0.02) {
+				for (let i = 1; i < n; i++) {
+					const x = X(x0 + (i / n) * len);
+					fd += `M${x.toFixed(1)},${Y(0.82 - 0.1 * (i / n)).toFixed(1)} L${(x + (i % 2 ? 3 : -3) * k).toFixed(1)},${Y(0.6).toFixed(1)} L${x.toFixed(1)},${Y(0.4).toFixed(1)} `;
+				}
+			}
+			folds.setAttribute('d', fd);
+			attrs(lamp, { x: X(x1) - 0.1 * S, y: Y(0.74) });
+			// velocity arrow above the car; force arrow on the front while crushing
+			const vy = Y(1.62);
+			const vx0 = X(xr + 2.0);
+			const vl = st.v * 0.09 * S;
+			Sc.vel.setAttribute('d', hArrow(vx0, vx0 + vl, vy, 3.4));
+			attrs(Sc.velLbl, { x: vx0 + vl + 6, y: vy + 5 });
+			Sc.velLbl.style.visibility = vl > 6 ? 'visible' : 'hidden';
+			const crushing = t > 0 && t < dt();
+			const fl = crushing ? clamp(((DP / dt()) / FMAX) * 3.2 * S, 18, 3.2 * S) : 0;
+			Sc.force.setAttribute('d', crushing ? hArrow(X(x1) - 2, X(x1) - 2 - fl, Y(0.62), 4, 13, 13) : '');
+			attrs(Sc.fLbl, { x: X(x1) - fl - 8, y: Y(0.62) - 9, 'text-anchor': 'end' });
+			Sc.fLbl.style.visibility = crushing ? 'visible' : 'hidden';
+		}
+
+		// ---------------- graph ----------------
+		let Pl: ReturnType<typeof buildPlot>;
+		function buildPlot() {
+			plot.replaceChildren();
+			const narrow = W < 520;
+			const H = narrow ? 230 : 260;
+			attrs(plot, { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+			const L = narrow ? 50 : 62;
+			const R = W - (narrow ? 10 : 18);
+			const T = 22;
+			const B = H - 38;
+			const tx = (s: number) => L + (s / TMAX) * (R - L);
+			const fy = (f: number) => B - (f / FMAX) * (B - T);
+			for (let f = 0; f <= FMAX + 1; f += 400e3) {
+				svg('line', { class: 'grid', x1: L, x2: R, y1: fy(f), y2: fy(f) }, plot);
+				const tl = svg('text', { x: L - 7, y: fy(f) + 4, 'text-anchor': 'end' }, plot);
+				tl.textContent = nf(f / 1000);
+			}
+			const step = narrow ? 0.04 : 0.02;
+			for (let s = 0; s <= TMAX + 1e-9; s += step) {
+				svg('line', { class: 'grid', x1: tx(s), x2: tx(s), y1: T, y2: B }, plot);
+				const tl = svg('text', { x: tx(s), y: B + 17, 'text-anchor': 'middle' }, plot);
+				tl.textContent = nf(s * 1000);
+			}
+			svg('line', { class: 'axis', x1: L, x2: R, y1: B, y2: B }, plot);
+			svg('line', { class: 'axis', x1: L, x2: L, y1: T - 6, y2: B }, plot);
+			const xl = svg('text', { x: R, y: B + 33, 'text-anchor': 'end' }, plot);
+			xl.innerHTML = '<tspan class="t-math">t</tspan>, мс';
+			const yl = svg('text', { x: L - 7, y: T - 9, 'text-anchor': 'start' }, plot);
+			yl.innerHTML = '<tspan class="t-math">F</tspan>, кН';
+			// hyperbola F·Δt = Δp
+			let d = '';
+			const n = 120;
+			const tmin = DP / FMAX;
+			for (let i = 0; i <= n; i++) {
+				const s = tmin * Math.pow(TMAX / tmin, i / n);
+				d += `${i ? 'L' : 'M'}${tx(s).toFixed(1)},${fy(DP / s).toFixed(1)}`;
+			}
+			svg('path', { class: 'hyper', d }, plot);
+			// dense samples of the curve, used to keep the labels off it
+			const curve: [number, number][] = [];
+			for (let i = 0; i <= 600; i++) {
+				const s = tmin * Math.pow(TMAX / tmin, i / 600);
+				curve.push([tx(s), fy(DP / s)]);
+			}
+			// the curve's label sits in the upper left, to the right of the steep part of the curve,
+			// where the corner of the rectangle never comes (it stops at Δt = 10 мс)
+			const fh = 1.4e6;
+			const hl = svg('text', { x: tx(DP / fh) + 16, y: fy(fh) + 4, 'text-anchor': 'start' }, plot);
+			hl.innerHTML = '<tspan class="t-math">F</tspan> · <tspan class="t-math">Δt</tspan> = 15 000 Н·с';
+			const area = svg('rect', { class: 'area', x: L }, plot);
+			const done = svg('rect', { class: 'area-done', x: L, width: 0 }, plot);
+			const aLbl = svg('text', { class: 'area-lbl t-halo' }, plot);
+			aLbl.innerHTML =
+				'<tspan class="t-math">Δp</tspan> = <tspan class="t-math">F</tspan>·<tspan class="t-math">Δt</tspan>';
+			const aLbl2 = svg('text', { class: 'area-lbl t-halo' }, plot);
+			aLbl2.textContent = '15 000 кг·м/с';
+			const handle = svg('circle', { class: 'handle', r: 8 }, plot);
+			const hint = svg('text', { class: 'hint t-halo', 'text-anchor': 'start' }, plot);
+			hint.textContent = '⟷ тяните';
+			const hit = svg('circle', { class: 'hit', r: 24 }, plot);
+			return { L, R, T, B, tx, fy, area, done, aLbl, aLbl2, handle, hint, hit, narrow, curve, hl, placedFor: -1 };
+		}
+
+		let touched = false;
+		type Box = { x0: number; y0: number; x1: number; y1: number };
+		const boxOf = (el: SVGTextElement): Box => {
+			try {
+				const b = el.getBBox();
+				if (b.width > 0) return { x0: b.x, y0: b.y, x1: b.x + b.width, y1: b.y + b.height };
+			} catch {
+				/* not rendered yet */
+			}
+			// rough fallback: 7.5 px per character, 13 px font
+			const w = (el.textContent ?? '').length * 7.5;
+			const x = Number(el.getAttribute('x'));
+			const y = Number(el.getAttribute('y'));
+			const a = el.getAttribute('text-anchor');
+			const x0 = a === 'end' ? x - w : a === 'middle' ? x - w / 2 : x;
+			return { x0, y0: y - 11, x1: x0 + w, y1: y + 3 };
+		};
+		const overlap = (a: Box, b: Box, m = 2) => a.x0 - m < b.x1 && b.x0 - m < a.x1 && a.y0 - m < b.y1 && b.y0 - m < a.y1;
+		const hitsCurve = (b: Box) => Pl.curve.some(([x, y]) => x > b.x0 - 2 && x < b.x1 + 2 && y > b.y0 - 2 && y < b.y1 + 2);
+		const inPlot = (b: Box) => b.x0 >= Pl.L + 3 && b.x1 <= Pl.R && b.y0 >= Pl.T - 4 && b.y1 <= Pl.B - 1;
+		const put = (el: SVGTextElement, x: number, y: number, anchor: string) => attrs(el, { x, y, 'text-anchor': anchor });
+
+		// the labels of the area: inside the rectangle when they fit, otherwise next to the corner,
+		// wherever they touch neither the dashed curve, nor its label, nor the edges of the graph
+		function placeLabels(x1: number, y1: number) {
+			const { L, B, aLbl, aLbl2, hint, hl } = Pl;
+			const hlBox = boxOf(hl);
+			const cx = (L + x1) / 2;
+			const cy = (y1 + B) / 2;
+			const two = (x: number, ya: number, anchor: string) => () => {
+				aLbl2.textContent = '15 000 кг·м/с';
+				put(aLbl, x, ya, anchor);
+				put(aLbl2, x, ya + 17, anchor);
+			};
+			const one = () => {
+				aLbl2.textContent = '= 15 000 кг·м/с';
+				const w1 = boxOf(aLbl).x1 - boxOf(aLbl).x0;
+				put(aLbl, 0, 0, 'start');
+				put(aLbl2, 0, 0, 'start');
+				const w2 = boxOf(aLbl2).x1 - boxOf(aLbl2).x0;
+				const x0 = cx - (w1 + 5 + w2) / 2;
+				put(aLbl, x0, cy + 4.5, 'start');
+				put(aLbl2, x0 + w1 + 5, cy + 4.5, 'start');
+			};
+			const rect: Box = { x0: L, y0: y1, x1, y1: B };
+			const inside = (b: Box) => b.x0 >= rect.x0 + 4 && b.x1 <= rect.x1 - 4 && b.y0 >= rect.y0 + 1 && b.y1 <= rect.y1 - 1;
+			const options: [() => void, boolean][] = [
+				[two(cx, cy - 2, 'middle'), true],
+				[one, true],
+				[two(x1 + 10, B - 26, 'start'), false],
+				[two(x1 + 12, y1 - 28, 'start'), false],
+				[two(x1 + 12, y1 - 20, 'start'), false],
+				[two(Pl.R, y1 - 34, 'end'), false],
+				[two(x1 - 14, y1 - 28, 'end'), false],
+			];
+			let ok = false;
+			for (const [apply, isInside] of options) {
+				apply();
+				const a = boxOf(aLbl);
+				const b = boxOf(aLbl2);
+				const fits = isInside
+					? inside(a) && inside(b)
+					: inPlot(a) && inPlot(b) && !hitsCurve(a) && !hitsCurve(b) && !overlap(a, hlBox) && !overlap(b, hlBox);
+				if (fits) {
+					ok = true;
+					break;
+				}
+			}
+			if (!ok) options[2][0]();
+			// the «тяните» hint (shown until the corner is first moved): beside the corner
+			const lab = [boxOf(aLbl), boxOf(aLbl2), hlBox];
+			const hints: [number, number, string][] = [
+				[x1 + 12, y1 - 10, 'start'],
+				[x1 - 12, cy + 4, 'end'],
+				[x1 + 12, y1 + 22, 'start'],
+			];
+			for (const [x, y, an] of hints) {
+				put(hint, x, y, an);
+				const h = boxOf(hint);
+				if (inPlot(h) && !hitsCurve(h) && !lab.some((l) => overlap(h, l))) break;
+			}
+		}
+
+		function drawPlot() {
+			const { L, B, tx, fy, area, done, handle, hint, hit } = Pl;
+			const T = dt();
+			const F = DP / T;
+			const x1 = tx(T);
+			const y1 = fy(F);
+			attrs(area, { y: y1, width: x1 - L, height: B - y1 });
+			const tc = clamp(t, 0, T);
+			attrs(done, { y: y1, width: tx(tc) - L, height: B - y1 });
+			attrs(handle, { cx: x1, cy: y1 });
+			attrs(hit, { cx: x1, cy: y1 });
+			hint.style.visibility = touched ? 'hidden' : 'visible';
+			if (Pl.placedFor !== T) {
+				placeLabels(x1, y1);
+				Pl.placedFor = T;
+			}
+		}
+
+		// ---------------- numbers ----------------
+		function drawNumbers() {
+			const T = dt();
+			const F = DP / T;
+			dtOut.value = `${nf(T * 1000)} мс`;
+			const Ts = tex(T, 3, true);
+			katex.render(
+				`F = \\dfrac{\\Delta p}{\\Delta t} = \\dfrac{m\\upsilon}{\\Delta t} = \\dfrac{1000 \\cdot 15}{${Ts}} = ${nf(F).replace(/ /g, '\\,')}~\\text{Н}`,
+				eq,
+				{ throwOnError: false },
+			);
+			outF.textContent = `${nf(F / 1000)} кН`;
+			outR.textContent = `в ${nf(F / (M * G))} ${times(F / (M * G))}`;
+			outS.textContent = `${fmt((V * T) / 2, 2)} м`;
+		}
+
+		function frameTo(time: number) {
+			t = time;
+			drawScene();
+			drawPlot();
+			if (t <= 0) live.textContent = running ? `До стены ${fmt(-t * V, 2)} м, скорость 15 м/с.` : '';
+			else if (t < dt()) {
+				const st = carAt(t);
+				live.innerHTML = `<i>t</i> = ${nf(t * 1000)} мс · скорость ${fmt(st.v, 1)} м/с · импульс уменьшился на ${nf((V - st.v) * M)} кг·м/с`;
+			} else
+				live.innerHTML = `Автомобиль остановился за ${nf(dt() * 1000)} мс. Его импульс уменьшился на 15 000 кг·м/с — ровно на площадь прямоугольника.`;
+		}
+
+		function reset() {
+			cancelAnimationFrame(raf);
+			running = false;
+			drawNumbers();
+			frameTo(-D0 / V);
+			live.textContent = 'Нажмите «Удар!», чтобы посмотреть столкновение (замедленно).';
+		}
+
+		function go() {
+			cancelAnimationFrame(raf);
+			running = true;
+			if (reducedMotion()) {
+				frameTo(dt() + 0.001);
+				running = false;
+				return;
+			}
+			const t0 = performance.now();
+			const start = -D0 / V;
+			const frame = (now: number) => {
+				const tm = start + (now - t0) / 1000 / SLOW;
+				if (tm >= dt() + 0.004) {
+					running = false;
+					frameTo(dt() + 0.004);
+					return;
+				}
+				frameTo(tm);
+				raf = requestAnimationFrame(frame);
+			};
+			raf = requestAnimationFrame(frame);
+		}
+
+		// ---------------- dragging the corner ----------------
+		let dragging = false;
+		const setFromX = (clientX: number) => {
+			const r = plot.getBoundingClientRect();
+			const x = ((clientX - r.left) / r.width) * W;
+			const s = ((x - Pl.L) / (Pl.R - Pl.L)) * TMAX;
+			const v = clamp(Math.round(s / 0.005) * 0.005, 0.01, 0.1);
+			if (Math.abs(v - dt()) > 1e-9) {
+				dtIn.value = String(v);
+				reset();
+			}
+		};
+		plot.addEventListener('pointerdown', (e) => {
+			const r = plot.getBoundingClientRect();
+			const x = ((e.clientX - r.left) / r.width) * W;
+			const y = ((e.clientY - r.top) / r.height) * Number(plot.getAttribute('height'));
+			if (x < Pl.L - 4 || x > Pl.R + 10 || y < Pl.T - 14 || y > Pl.B + 6) return;
+			if (e.pointerType === 'touch') {
+				// on a phone only the corner itself is draggable, so the page can still be scrolled
+				const hx = Number(Pl.handle.getAttribute('cx'));
+				const hy = Number(Pl.handle.getAttribute('cy'));
+				if (Math.hypot(x - hx, y - hy) > 32) return;
+			}
+			dragging = true;
+			touched = true;
+			plot.classList.add('is-drag');
+			plot.setPointerCapture(e.pointerId);
+			setFromX(e.clientX);
+			e.preventDefault();
+		});
+		plot.addEventListener('pointermove', (e) => dragging && setFromX(e.clientX));
+		const stop = () => {
+			dragging = false;
+			plot.classList.remove('is-drag');
+		};
+		plot.addEventListener('pointerup', stop);
+		plot.addEventListener('pointercancel', stop);
+
+		dtIn.addEventListener('input', () => {
+			touched = true;
+			reset();
+		});
+		q<HTMLButtonElement>('[data-go]').addEventListener('click', go);
+
+		const layout = () => {
+			const w = Math.floor(stage.clientWidth);
+			if (!w || Math.abs(w - W) < 2) return;
+			W = w;
+			Sc = buildScene();
+			Pl = buildPlot();
+			drawNumbers();
+			frameTo(t);
+		};
+		W = Math.floor(stage.clientWidth) || 700;
+		Sc = buildScene();
+		Pl = buildPlot();
+		reset();
+		new ResizeObserver(layout).observe(stage);
+	}
+</script>

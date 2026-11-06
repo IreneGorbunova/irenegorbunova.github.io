@@ -1,0 +1,752 @@
+---
+/**
+ * Reactive motion: a rocket at rest in space throws its fuel back as gas — all at once or in
+ * 40 small portions (see rocket.ts). Drawn in the frame where the rocket was at rest at the start.
+ * Positions are true to one scale for the rocket's nozzle and the centres of the gas clouds;
+ * the sizes of the rocket and of the clouds are not to scale.
+ */
+---
+
+<figure class="imp-rkt not-content" data-imp-rkt>
+	<div class="imp-rkt__modes" role="radiogroup" aria-label="Как сгорает топливо">
+		<button type="button" role="radio" aria-checked="true" data-mode="40">Постепенно</button>
+		<button type="button" role="radio" aria-checked="false" data-mode="1">Всё сразу</button>
+	</div>
+
+	<div class="imp-rkt__stage" data-stage>
+		<svg class="imp-rkt__scene" data-scene role="img" aria-label="Ракета выбрасывает назад газ и разгоняется вперёд"></svg>
+	</div>
+
+	<div class="imp-rkt__eq">
+		<div class="imp-rkt__eq-row">
+			<span class="imp-rkt__eq-tag">сейчас</span>
+			<span class="imp-rkt__eq-tex" data-eq-now></span>
+		</div>
+		<div class="imp-rkt__eq-row">
+			<span class="imp-rkt__eq-tag" data-eq-tag2>итог</span>
+			<span class="imp-rkt__eq-tex" data-eq-end></span>
+		</div>
+	</div>
+
+	<div class="imp-rkt__controls">
+		<label class="imp-rkt__slider">
+			<span>Масса топлива <i>m</i><sub>т</sub></span>
+			<output data-out-m></output>
+			<input type="range" min="0.5" max="9" step="0.5" value="3" data-in-m />
+		</label>
+		<label class="imp-rkt__slider">
+			<span>Скорость вылета газа <i>u</i></span>
+			<output data-out-u></output>
+			<input type="range" min="1" max="4.5" step="0.5" value="3" data-in-u />
+		</label>
+		<div class="imp-rkt__buttons">
+			<button type="button" class="imp-rkt__btn imp-rkt__btn--primary" data-run>Пуск</button>
+			<button type="button" class="imp-rkt__btn" data-reset>Сначала</button>
+		</div>
+	</div>
+
+	<dl class="imp-rkt__stats">
+		<div><dt>Скорость ракеты</dt><dd data-v>0 км/с</dd></div>
+		<div><dt>Масса ракеты</dt><dd data-mass>—</dd></div>
+		<div><dt>Формула Циолковского</dt><dd data-tsi>—</dd></div>
+	</dl>
+
+	<div class="imp-rkt__chart-box">
+		<p class="imp-rkt__chart-title">Как растёт скорость ракеты</p>
+		<svg class="imp-rkt__chart" data-chart role="img" aria-label="Скорость ракеты в зависимости от массы выброшенного газа и кривая Циолковского"></svg>
+	</div>
+	<p class="imp-rkt__live" data-live aria-live="polite"></p>
+
+	<figcaption class="imp-rkt__legend">
+		<span class="imp-rkt__key imp-rkt__key--r"></span>импульс ракеты
+		<span class="imp-rkt__key imp-rkt__key--g"></span>импульс всего газа
+		<span class="imp-rkt__key imp-rkt__key--s"></span>их сумма.
+		Масса ракеты без топлива 1 т, тяготения нет; <i>u</i> — скорость газа относительно ракеты.
+		Размеры ракеты и облаков газа — не в масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.imp-rkt {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-text);
+	}
+	.imp-rkt i {
+		font-family: var(--ig-font-math);
+	}
+	.imp-rkt__modes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		width: fit-content;
+		max-width: 100%;
+		margin-bottom: 0.6rem;
+	}
+	.imp-rkt__modes button {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.95rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.imp-rkt__modes button[aria-checked='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.imp-rkt__modes button:focus-visible,
+	.imp-rkt__btn:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.imp-rkt__scene,
+	.imp-rkt__chart {
+		display: block;
+		width: 100%;
+		overflow: hidden;
+		font-family: var(--__sl-font);
+	}
+	.imp-rkt__scene {
+		border-radius: 0.75rem;
+		background: radial-gradient(ellipse at 70% 30%, color-mix(in srgb, var(--sl-color-accent) 7%, var(--sl-color-gray-6)), var(--sl-color-gray-6));
+	}
+	.imp-rkt text {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+	}
+	.imp-rkt .t-math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.imp-rkt .t-halo {
+		paint-order: stroke;
+		stroke: var(--sl-color-gray-6);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.imp-rkt .star {
+		fill: var(--sl-color-gray-2);
+	}
+	.imp-rkt .startline {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.imp-rkt .rbody {
+		fill: color-mix(in srgb, var(--ig-vx) 22%, var(--sl-color-gray-6));
+		stroke: var(--ig-vx);
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+	.imp-rkt .rfin {
+		fill: var(--ig-vx);
+	}
+	.imp-rkt .rwin {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--ig-vx);
+		stroke-width: 1.5;
+	}
+	.imp-rkt .flame {
+		fill: var(--ig-v);
+		filter: drop-shadow(0 0 6px var(--ig-v));
+	}
+	.imp-rkt .c-r {
+		fill: var(--ig-vx);
+	}
+	.imp-rkt .c-g {
+		fill: var(--ig-vy);
+	}
+	.imp-rkt .c-s {
+		fill: var(--ig-v);
+	}
+	.imp-rkt text.c-r {
+		fill: var(--ig-vx);
+	}
+	.imp-rkt text.c-g {
+		fill: var(--ig-vy);
+	}
+	.imp-rkt text.c-s {
+		fill: var(--ig-v);
+		font-weight: 700;
+	}
+	.imp-rkt .zero {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.imp-rkt .grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.imp-rkt .axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.imp-rkt .tsi {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.5;
+		stroke-dasharray: 7 5;
+	}
+	.imp-rkt .uline {
+		stroke: var(--ig-vy);
+		stroke-width: 1.5;
+		stroke-dasharray: 2 4;
+	}
+	.imp-rkt .dot {
+		fill: var(--ig-vx);
+		stroke: var(--ig-surface);
+		stroke-width: 1;
+	}
+	.imp-rkt .dot-big {
+		fill: var(--ig-vx);
+		stroke: var(--ig-surface);
+		stroke-width: 2;
+		filter: drop-shadow(0 0 4px var(--ig-vx));
+	}
+	.imp-rkt__eq {
+		display: grid;
+		gap: 0.15rem;
+		margin-top: 0.6rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+	.imp-rkt__eq-row {
+		display: grid;
+		grid-template-columns: 5.5rem 1fr;
+		align-items: baseline;
+		gap: 0.5rem;
+		min-height: 2.3em;
+	}
+	.imp-rkt__eq-tag {
+		font-size: var(--sl-text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--sl-color-gray-3);
+	}
+	.imp-rkt__eq-tex {
+		overflow-x: auto;
+		overflow-y: hidden;
+		color: var(--sl-color-white);
+	}
+	.imp-rkt__eq-tex .katex {
+		font-size: 1.08em;
+	}
+	.imp-rkt__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+		align-items: end;
+	}
+	.imp-rkt__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.imp-rkt__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-rkt__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.imp-rkt__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.imp-rkt__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.2rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.imp-rkt__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.imp-rkt__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.imp-rkt__stats {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
+		margin: 0.85rem 0 0;
+	}
+	.imp-rkt__stats > div {
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.imp-rkt__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.imp-rkt__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-rkt__chart-box {
+		margin-top: 0.9rem;
+	}
+	.imp-rkt__chart-title {
+		margin: 0 0 0.25rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.imp-rkt__live {
+		min-height: 3em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.imp-rkt__live b {
+		color: var(--sl-color-white);
+	}
+	.imp-rkt__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.8;
+		color: var(--sl-color-gray-3);
+	}
+	.imp-rkt__key {
+		display: inline-block;
+		width: 1.1rem;
+		height: 4px;
+		margin: 0 0.3rem 0.2rem 0.6rem;
+		vertical-align: middle;
+		border-radius: 2px;
+	}
+	.imp-rkt__key:first-child {
+		margin-left: 0;
+	}
+	.imp-rkt__key--r {
+		background: var(--ig-vx);
+	}
+	.imp-rkt__key--g {
+		background: var(--ig-vy);
+	}
+	.imp-rkt__key--s {
+		background: var(--ig-v);
+	}
+	@media (max-width: 40rem) {
+		.imp-rkt {
+			padding: 0.75rem;
+		}
+		.imp-rkt__controls {
+			grid-template-columns: 1fr;
+		}
+		.imp-rkt__stats {
+			grid-template-columns: 1fr;
+		}
+		.imp-rkt__stats > div {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			gap: 1rem;
+		}
+		.imp-rkt__stats dd {
+			font-size: var(--sl-text-lg);
+		}
+		.imp-rkt__eq-row {
+			grid-template-columns: 1fr;
+			gap: 0;
+		}
+		.imp-rkt__eq-tex .katex {
+			font-size: 1em;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { burn, MK, tsiolkovsky, type Step } from './rocket';
+	import { svg, attrs, fmt, tex, clamp, niceStep, stepDigits, hArrow, reducedMotion } from './util';
+
+	const STEP_MS = 70; // real time between two portions of gas
+	const T_END = 60; // model time of the end of the animation (one portion per unit)
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-imp-rkt]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const uid = Math.random().toString(36).slice(2, 8);
+		const stage = q<HTMLElement>('[data-stage]');
+		const scene = q<SVGSVGElement>('[data-scene]');
+		const chart = q<SVGSVGElement>('[data-chart]');
+		const inM = q<HTMLInputElement>('[data-in-m]');
+		const inU = q<HTMLInputElement>('[data-in-u]');
+		const outM = q<HTMLOutputElement>('[data-out-m]');
+		const outU = q<HTMLOutputElement>('[data-out-u]');
+		const eqNow = q<HTMLElement>('[data-eq-now]');
+		const eqEnd = q<HTMLElement>('[data-eq-end]');
+		const tag2 = q<HTMLElement>('[data-eq-tag2]');
+		const outV = q<HTMLElement>('[data-v]');
+		const outMass = q<HTMLElement>('[data-mass]');
+		const outTsi = q<HTMLElement>('[data-tsi]');
+		const live = q<HTMLElement>('[data-live]');
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+
+		let N = 40;
+		let mt = 3;
+		let u = 3;
+		let steps: Step[] = [];
+		let X: number[] = []; // rocket position at each ejection
+		let t = -1; // model time; ejection k happens at t = k
+		let raf = 0;
+		let running = false;
+		let W = 0;
+
+		// ---- kinematics in the frame where everything was at rest ----
+		function prepare() {
+			steps = burn(mt, u, N);
+			X = [0];
+			for (let k = 1; k < N; k++) X.push(X[k - 1] + steps[k - 1].V);
+		}
+		const ejected = (time: number) => (time < 0 ? 0 : Math.min(N, Math.floor(time) + 1));
+		function rocketX(time: number) {
+			const n = ejected(time);
+			if (n === 0) return 0;
+			return X[n - 1] + steps[n - 1].V * (time - (n - 1));
+		}
+		const rocketV = (time: number) => {
+			const n = ejected(time);
+			return n ? steps[n - 1].V : 0;
+		};
+		const rocketM = (time: number) => {
+			const n = ejected(time);
+			return n ? steps[n - 1].M : MK + mt;
+		};
+		const gasP = (time: number) => {
+			const n = ejected(time);
+			let p = 0;
+			for (let k = 0; k < n; k++) p += (mt / N) * steps[k].g;
+			return p;
+		};
+
+		// ---- scene ----
+		let Sc: ReturnType<typeof buildScene>;
+		function buildScene() {
+			scene.replaceChildren();
+			const narrow = W < 520;
+			const H = narrow ? 210 : 230;
+			attrs(scene, { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+			const defs = svg('defs', {}, scene);
+			const grad = svg('radialGradient', { id: `imp-rkt-gas-${uid}` }, defs);
+			svg('stop', { offset: '0', style: 'stop-color: var(--ig-vy); stop-opacity: 0.85' }, grad);
+			svg('stop', { offset: '0.55', style: 'stop-color: var(--ig-vy); stop-opacity: 0.35' }, grad);
+			svg('stop', { offset: '1', style: 'stop-color: var(--ig-vy); stop-opacity: 0' }, grad);
+			// stars (fixed pseudo-random pattern)
+			let seed = 7;
+			const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+			const sg = svg('g', { opacity: 0.55 }, scene);
+			for (let i = 0; i < Math.round(W / 9); i++)
+				svg('circle', { class: 'star', cx: rnd() * W, cy: rnd() * (H - 70), r: rnd() < 0.15 ? 1.3 : 0.7 }, sg);
+			const yR = narrow ? 64 : 70; // axis of the rocket
+			const L = narrow ? 50 : 66; // rocket length on screen
+			// world → screen: chosen so that everything stays in view until the end
+			const xEnd = rocketX(T_END);
+			let xMin = 0;
+			for (let k = 0; k < N; k++) xMin = Math.min(xMin, X[k] + steps[k].g * (T_END - k));
+			const rMax = cloudR(mt, T_END);
+			const left = 10 + rMax * 0.6;
+			const right = W - L - 12;
+			const k = (right - left) / Math.max(xEnd - xMin, 1e-6);
+			const sx = (x: number) => left + (x - xMin) * k;
+			const startLine = svg('line', { class: 'startline', x1: sx(0), x2: sx(0), y1: 14, y2: yR + 40 }, scene);
+			const st = svg('text', { x: sx(0), y: 12, 'text-anchor': 'middle' }, scene);
+			st.textContent = 'старт';
+			const clouds = svg('g', {}, scene);
+			const flame = svg('path', { class: 'flame' }, scene);
+			const rocket = svg('g', {}, scene);
+			const h = narrow ? 8 : 10;
+			svg('path', { class: 'rfin', d: `M2,${-h} L-6,${-h - 9} L14,${-h} Z M2,${h} L-6,${h + 9} L14,${h} Z` }, rocket);
+			svg('path', { class: 'rbody', d: `M0,${-h * 0.75} L${L * 0.66},${-h} Q${L * 0.92},${-h} ${L},0 Q${L * 0.92},${h} ${L * 0.66},${h} L0,${h * 0.75} Z` }, rocket);
+			svg('circle', { class: 'rwin', cx: L * 0.62, cy: 0, r: h * 0.42 }, rocket);
+			// momentum balance: the gas arrow starts where the rocket arrow ends and comes back to zero
+			const yb = H - 58;
+			const zx = W / 2;
+			svg('line', { class: 'zero', x1: zx, x2: zx, y1: yb - 12, y2: yb + 44 }, scene);
+			const ar = svg('path', { class: 'c-r arrow' }, scene);
+			const ag = svg('path', { class: 'c-g arrow' }, scene);
+			const ds = svg('circle', { class: 'c-s', r: 5, cx: zx, cy: yb + 36 }, scene);
+			const lr = svg('text', { class: 'c-r t-halo', x: zx - 10, y: yb + 4, 'text-anchor': 'end' }, scene);
+			const lg = svg('text', { class: 'c-g t-halo', x: zx - 10, y: yb + 22, 'text-anchor': 'end' }, scene);
+			const ls = svg('text', { class: 'c-s t-halo', x: zx + 10, y: yb + 40 }, scene);
+			ls.textContent = 'сумма = 0';
+			const tb = svg('text', { class: 't-halo', x: 10, y: yb - 18, 'font-weight': 700 }, scene);
+			tb.textContent = 'Импульсы, млн кг·м/с';
+			const vel = svg('path', { class: 'c-r arrow' }, scene);
+			// scale for the balance: the largest rocket momentum of the run
+			let pMax = 0.05;
+			for (const s of steps) pMax = Math.max(pMax, s.M * s.V);
+			const Kp = (W / 2 - 24) / pMax;
+			return { H, yR, L, h, sx, clouds, flame, rocket, ar, ag, ds, lr, lg, ls, yb, zx, Kp, vel, startLine, narrow };
+		}
+
+		/** Visual radius of a gas cloud (px): grows with its mass and slowly with age. */
+		function cloudR(mass: number, age: number) {
+			const r0 = (W < 520 ? 9 : 12) * Math.cbrt(mass);
+			return r0 * (1 + 0.035 * Math.max(0, age)) + 2;
+		}
+
+		function drawScene() {
+			const { sx, yR, rocket, clouds, flame, L, h } = Sc;
+			const n = ejected(t);
+			// clouds
+			while (clouds.childElementCount < n) {
+				svg('circle', { fill: `url(#imp-rkt-gas-${uid})` }, clouds);
+			}
+			while (clouds.childElementCount > n) clouds.lastElementChild!.remove();
+			for (let k = 0; k < n; k++) {
+				const c = clouds.children[k] as SVGCircleElement;
+				const age = t - k;
+				const x = X[k] + steps[k].g * age;
+				attrs(c, { cx: sx(x).toFixed(1), cy: yR, r: cloudR(mt / N, age).toFixed(1) });
+			}
+			const xr = sx(rocketX(t));
+			rocket.setAttribute('transform', `translate(${xr.toFixed(2)},${yR})`);
+			// all at once: a short fading flash after the instant ejection; gradually: a flickering flame
+			const burnEnd = N === 1 ? 4 : N - 1 + 0.6;
+			const burning = t >= 0 && t < burnEnd;
+			if (burning) {
+				const fl = (N === 1 ? 8 + 30 * (1 - t / burnEnd) : 16 + 6 * Math.sin(t * 9)) * (Sc.narrow ? 0.8 : 1);
+				flame.setAttribute('d', `M${xr},${yR - h * 0.6} Q${xr - fl * 0.5},${yR - h * 0.7} ${xr - fl},${yR} Q${xr - fl * 0.5},${yR + h * 0.7} ${xr},${yR + h * 0.6} Z`);
+			} else flame.setAttribute('d', '');
+			// velocity arrow of the rocket
+			const v = rocketV(t);
+			const vl = clamp(v * (Sc.narrow ? 6 : 9), 0, 90);
+			Sc.vel.setAttribute('d', hArrow(xr + L * 0.3, xr + L * 0.3 + vl, yR - h - 16, 3, 9, 9));
+			// balance
+			const pR = rocketM(t) * v;
+			const pG = gasP(t);
+			const { zx, Kp, yb, ar, ag, lr, lg, ds } = Sc;
+			ar.setAttribute('d', hArrow(zx, zx + pR * Kp, yb, 4.5, 12, 12));
+			ag.setAttribute('d', hArrow(zx + pR * Kp, zx + (pR + pG) * Kp, yb + 18, 4.5, 12, 12));
+			lr.textContent = `ракета ${fmt(pR, 2)}`;
+			lg.textContent = `газ ${fmt(pG, 2)}`;
+			void ds;
+		}
+
+		// ---- chart: speed vs burned fuel ----
+		let Ch: ReturnType<typeof buildChart>;
+		function buildChart() {
+			chart.replaceChildren();
+			const narrow = W < 520;
+			const H = narrow ? 210 : 240;
+			attrs(chart, { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+			const L = narrow ? 36 : 44;
+			const R = W - (narrow ? 12 : 20);
+			const T = 22;
+			const B = H - 36;
+			const M0 = MK + mt;
+			const vT = tsiolkovsky(u, M0, MK);
+			const ymax = Math.max(vT, u, steps[steps.length - 1].V) * 1.12;
+			const tx = (m: number) => L + (m / mt) * (R - L);
+			const ty = (v: number) => B - (v / ymax) * (B - T);
+			const ys = niceStep(ymax, B - T, 32);
+			for (let v = 0; v <= ymax + 1e-9; v += ys) {
+				svg('line', { class: 'grid', x1: L, x2: R, y1: ty(v), y2: ty(v) }, chart);
+				const tl = svg('text', { x: L - 6, y: ty(v) + 4, 'text-anchor': 'end' }, chart);
+				tl.textContent = fmt(v, stepDigits(ys), true);
+			}
+			const xs = niceStep(mt, R - L, narrow ? 40 : 52);
+			for (let m = 0; m <= mt + 1e-9; m += xs) {
+				svg('line', { class: 'grid', x1: tx(m), x2: tx(m), y1: T, y2: B }, chart);
+				const tl = svg('text', { x: tx(m), y: B + 16, 'text-anchor': 'middle' }, chart);
+				tl.textContent = fmt(m, stepDigits(xs), true);
+			}
+			svg('line', { class: 'axis', x1: L, x2: R, y1: B, y2: B }, chart);
+			svg('line', { class: 'axis', x1: L, x2: L, y1: T - 6, y2: B }, chart);
+			const xl = svg('text', { x: R, y: B + 31, 'text-anchor': 'end' }, chart);
+			xl.textContent = 'выброшено газа, т';
+			const yl = svg('text', { x: 4, y: T - 9 }, chart);
+			yl.innerHTML = '<tspan class="t-math">υ</tspan>, км/с';
+			// line υ = u
+			svg('line', { class: 'uline', x1: L, x2: R, y1: ty(u), y2: ty(u) }, chart);
+			const ul = svg('text', { class: 'c-g t-halo', x: L + 6, y: ty(u) - 6 }, chart);
+			ul.innerHTML = 'скорость газа <tspan class="t-math">u</tspan>';
+			// Tsiolkovsky curve
+			let d = '';
+			for (let i = 0; i <= 160; i++) {
+				const m = (mt * i) / 160;
+				d += `${i ? 'L' : 'M'}${tx(m).toFixed(1)},${ty(tsiolkovsky(u, M0, M0 - m)).toFixed(1)}`;
+			}
+			svg('path', { class: 'tsi', d }, chart);
+			const tl = svg('text', { class: 'c-s t-halo', x: R - 4, y: ty(vT) - 9, 'text-anchor': 'end' }, chart);
+			tl.textContent = 'формула Циолковского';
+			const dots = svg('g', {}, chart);
+			for (const s of steps) {
+				const c = svg('circle', { class: N === 1 ? 'dot-big' : 'dot', cx: tx(s.burned), cy: ty(s.V), r: N === 1 ? 7 : 3.4 }, dots);
+				c.style.visibility = 'hidden';
+			}
+			const endLbl = svg('text', { class: 'c-r t-halo', 'text-anchor': 'end' }, chart);
+			const last = steps[steps.length - 1];
+			// bottom right of the plot is always free: the curve is high there
+			attrs(endLbl, { x: R - 6, y: B - 10 });
+			endLbl.textContent = `${N === 1 ? 'точка' : 'точки'} — наша ракета: ${fmt(last.V, 2)} км/с`;
+			endLbl.style.visibility = 'hidden';
+			return { dots, endLbl };
+		}
+		function drawChart() {
+			const n = ejected(t);
+			Array.from(Ch.dots.children).forEach((c, k) => ((c as SVGElement).style.visibility = k < n ? 'visible' : 'hidden'));
+			Ch.endLbl.style.visibility = n === N ? 'visible' : 'hidden';
+		}
+
+		// ---- numbers ----
+		function drawNumbers() {
+			const n = ejected(t);
+			const v = rocketV(t);
+			const M = rocketM(t);
+			outV.textContent = `${fmt(v, 2)} км/с`;
+			outMass.textContent = `${fmt(M, 2, true)} т`;
+			const pR = M * v;
+			const pG = gasP(t);
+			const nowTex = `p_{\\text{р}} + p_{\\text{г}} = ${tex(pR, 2)} + ${tex(pG, 2, false, true)} = ${tex(pR + pG, 2)}~\\text{млн кг·м/с}`;
+			if (eqNow.dataset.tex !== nowTex) {
+				katex.render(nowTex, eqNow, { throwOnError: false });
+				eqNow.dataset.tex = nowTex;
+			}
+			const M0 = MK + mt;
+			const last = steps[steps.length - 1];
+			let endTex: string;
+			if (N === 1) {
+				tag2.textContent = 'проверка';
+				const vg = u - last.V; // gas speed relative to the start frame
+				endTex =
+					n === 0
+						? `M\\upsilon = m_{\\text{г}}\\upsilon_{\\text{г}}`
+						: `M\\upsilon = m_{\\text{г}}\\upsilon_{\\text{г}}:\\quad ${tex(MK, 0)}~\\text{т} \\cdot ${tex(last.V, 2)}~\\text{км/с} = ${tex(mt, 1, true)}~\\text{т} \\cdot ${tex(vg, 2)}~\\text{км/с}`;
+			} else {
+				tag2.textContent = 'формула';
+				endTex = `\\upsilon = u \\ln\\dfrac{M_0}{M} = ${tex(u, 1, true)} \\cdot \\ln\\dfrac{${tex(M0, 1, true)}}{${tex(MK, 0)}} \\approx ${tex(tsiolkovsky(u, M0, MK), 2)}~\\text{км/с}`;
+			}
+			if (eqEnd.dataset.tex !== endTex) {
+				katex.render(endTex, eqEnd, { throwOnError: false });
+				eqEnd.dataset.tex = endTex;
+			}
+			outTsi.textContent = `${fmt(tsiolkovsky(u, M0, MK), 2)} км/с`;
+		}
+
+		function finalText() {
+			const last = steps[steps.length - 1];
+			if (N === 1)
+				return `Всё топливо выброшено разом: ракета получила <b>${fmt(last.V, 2)} км/с</b>, а газ полетел назад со скоростью ${fmt(u - last.V, 2)} км/с относительно точки старта (относительно ракеты — <i>u</i> = ${fmt(u, 1, true)} км/с). Импульсы ракеты и газа равны по модулю: ${fmt(MK * last.V, 2)} млн кг·м/с.`;
+			const ahead = steps.filter((s) => s.g > 0).length;
+			return (
+				`Топливо сгорело: ракета разогналась до <b>${fmt(last.V, 2)} км/с</b>` +
+				(last.V > u ? ` — быстрее, чем газ вылетает из сопла (<i>u</i> = ${fmt(u, 1, true)} км/с)!` : '.') +
+				(ahead ? ` Последние ${ahead} из 40 порций газа летят уже не назад, а вперёд: ракета обогнала свою струю.` : '') +
+				` Суммарный импульс ракеты и газа по-прежнему равен нулю.`
+			);
+		}
+
+		function frameTo(time: number) {
+			t = time;
+			drawScene();
+			drawChart();
+			drawNumbers();
+		}
+
+		function reset() {
+			cancelAnimationFrame(raf);
+			running = false;
+			mt = Number(inM.value);
+			u = Number(inU.value);
+			outM.value = `${fmt(mt, 1, true)} т`;
+			outU.value = `${fmt(u, 1, true)} км/с`;
+			prepare();
+			t = -1;
+			Sc = buildScene();
+			Ch = buildChart();
+			frameTo(-1);
+			live.innerHTML = 'Нажмите «Пуск». Сначала ракета покоится, и суммарный импульс равен нулю.';
+		}
+
+		function run() {
+			if (running) return;
+			if (t > -1) reset();
+			running = true;
+			if (reducedMotion()) {
+				frameTo(T_END);
+				running = false;
+				live.innerHTML = finalText();
+				return;
+			}
+			live.textContent = 'Двигатель работает…';
+			const t0 = performance.now();
+			const frame = (now: number) => {
+				const tm = (now - t0) / STEP_MS;
+				if (tm >= T_END) {
+					frameTo(T_END);
+					running = false;
+					live.innerHTML = finalText();
+					return;
+				}
+				frameTo(tm);
+				raf = requestAnimationFrame(frame);
+			};
+			raf = requestAnimationFrame(frame);
+		}
+
+		modeBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				N = Number(b.dataset.mode);
+				modeBtns.forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+				reset();
+			}),
+		);
+		modeBtns[0].parentElement!.addEventListener('keydown', (e) => {
+			if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+			const i = modeBtns.findIndex((b) => b.getAttribute('aria-checked') === 'true');
+			const j = (i + 1) % modeBtns.length;
+			modeBtns[j].focus();
+			modeBtns[j].click();
+		});
+		inM.addEventListener('input', reset);
+		inU.addEventListener('input', reset);
+		q<HTMLButtonElement>('[data-run]').addEventListener('click', run);
+		q<HTMLButtonElement>('[data-reset]').addEventListener('click', reset);
+
+		W = Math.floor(stage.clientWidth) || 700;
+		reset();
+		new ResizeObserver(() => {
+			const w = Math.floor(stage.clientWidth);
+			if (!w || Math.abs(w - W) < 2) return;
+			W = w;
+			Sc = buildScene();
+			Ch = buildChart();
+			frameTo(t);
+		}).observe(stage);
+	}
+</script>

@@ -1,0 +1,1354 @@
+---
+/**
+ * Main model of the chapter: two carts on a smooth track.
+ * Elastic impact (spring bumper), perfectly inelastic impact (plasticine) or "burst" (a compressed
+ * spring between carts at rest is released). The contact is simulated with real, equal and opposite
+ * forces (see collision.ts), so the momentum bookkeeping shown here is true at every moment.
+ * Everything is drawn 1:1 in screen pixels, the track has one scale (px per metre).
+ */
+const presets = {
+	elastic: [
+		{ label: 'Одинаковые, вторая стоит', m1: 1, v1: 1, m2: 1, v2: 0 },
+		{ label: 'Тяжёлая налетает на лёгкую', m1: 3, v1: 1, m2: 0.5, v2: 0 },
+		{ label: 'Лёгкая налетает на тяжёлую', m1: 0.5, v1: 1.5, m2: 3, v2: 0 },
+		{ label: 'Навстречу, суммарный импульс 0', m1: 1, v1: 1, m2: 2, v2: -0.5 },
+	],
+	burst: [
+		{ label: 'Одинаковые', m1: 1, v1: 0, m2: 1, v2: 0 },
+		{ label: 'Вторая тяжелее в 2 раза', m1: 1, v1: 0, m2: 2, v2: 0 },
+		{ label: 'Вторая тяжелее в 6 раз', m1: 0.5, v1: 0, m2: 3, v2: 0 },
+	],
+};
+---
+
+<figure class="imp-col not-content" data-imp-col>
+	<div class="imp-col__modes" role="radiogroup" aria-label="Что происходит с тележками">
+		<button type="button" role="radio" aria-checked="true" data-mode="elastic">Упругий удар</button>
+		<button type="button" role="radio" aria-checked="false" data-mode="inelastic">Неупругий удар</button>
+		<button type="button" role="radio" aria-checked="false" data-mode="burst">Разлёт</button>
+	</div>
+	<p class="imp-col__note" data-note></p>
+
+	<div class="imp-col__stage" data-stage>
+		<svg class="imp-col__scene" data-scene role="img" aria-label="Две тележки на дорожке, стрелки их импульсов и сумма импульсов"></svg>
+		<span class="imp-col__slowmo" data-slowmo hidden></span>
+	</div>
+
+	<div class="imp-col__eq" aria-live="off">
+		<div class="imp-col__eq-row">
+			<span class="imp-col__eq-tag" data-eq-tag-before>до удара</span>
+			<span class="imp-col__eq-tex" data-eq-before></span>
+		</div>
+		<div class="imp-col__eq-row imp-col__eq-row--now">
+			<span class="imp-col__eq-tag" data-eq-tag-now>сейчас</span>
+			<span class="imp-col__eq-tex" data-eq-now></span>
+		</div>
+	</div>
+
+	<div class="imp-col__carts">
+		<fieldset class="imp-col__cart imp-col__cart--1">
+			<legend>Тележка 1</legend>
+			<label class="imp-col__slider">
+				<span>Масса <i>m</i><sub>1</sub></span>
+				<output data-out="m1"></output>
+				<input type="range" min="0.5" max="3" step="0.5" value="2" data-in="m1" />
+			</label>
+			<label class="imp-col__slider" data-vel>
+				<span>Скорость <i>υ</i><sub>1</sub></span>
+				<output data-out="v1"></output>
+				<input type="range" min="-1.5" max="1.5" step="0.1" value="1" data-in="v1" />
+			</label>
+		</fieldset>
+		<fieldset class="imp-col__cart imp-col__cart--2">
+			<legend>Тележка 2</legend>
+			<label class="imp-col__slider">
+				<span>Масса <i>m</i><sub>2</sub></span>
+				<output data-out="m2"></output>
+				<input type="range" min="0.5" max="3" step="0.5" value="1" data-in="m2" />
+			</label>
+			<label class="imp-col__slider" data-vel>
+				<span>Скорость <i>υ</i><sub>2</sub></span>
+				<output data-out="v2"></output>
+				<input type="range" min="-1.5" max="1.5" step="0.1" value="0" data-in="v2" />
+			</label>
+		</fieldset>
+	</div>
+	<p class="imp-col__hint" data-vel-hint>
+		Скорости и импульсы здесь — проекции на ось <i>x</i>: вправо — со знаком «+», влево — со знаком «−».
+	</p>
+
+	<div class="imp-col__presets">
+		<span class="imp-col__presets-title">Готовые опыты:</span>
+		{
+			presets.elastic.map((p) => (
+				<button type="button" class="imp-col__chip" data-preset={JSON.stringify(p)} data-for="collide">
+					{p.label}
+				</button>
+			))
+		}
+		{
+			presets.burst.map((p) => (
+				<button type="button" class="imp-col__chip" data-preset={JSON.stringify(p)} data-for="burst" hidden>
+					{p.label}
+				</button>
+			))
+		}
+	</div>
+
+	<div class="imp-col__buttons">
+		<button type="button" class="imp-col__btn imp-col__btn--primary" data-run>Пуск</button>
+		<button type="button" class="imp-col__btn" data-reset>Сначала</button>
+		<label class="imp-col__check"><input type="checkbox" checked data-slow /> <span data-slow-label>Показывать удар замедленно</span></label>
+	</div>
+	<p class="imp-col__live" data-live aria-live="polite"></p>
+
+	<div class="imp-col__chart-box">
+		<p class="imp-col__chart-title" data-chart-title>Удар крупным планом</p>
+		<p class="imp-col__chart-sub" data-chart-sub></p>
+		<svg class="imp-col__chart" data-chart role="img" aria-label="Графики импульсов тележек во время взаимодействия"></svg>
+	</div>
+
+	<figcaption class="imp-col__legend">
+		<span class="imp-col__key imp-col__key--1"></span><i>p</i><sub>1</sub> = <i>m</i><sub>1</sub><i>υ</i><sub>1</sub>
+		<span class="imp-col__key imp-col__key--2"></span><i>p</i><sub>2</sub> = <i>m</i><sub>2</sub><i>υ</i><sub>2</sub>
+		<span class="imp-col__key imp-col__key--s"></span>суммарный импульс <i>p</i><sub>1</sub> + <i>p</i><sub>2</sub>
+		<span class="imp-col__key imp-col__key--f"></span>силы взаимодействия.
+		Трения нет; все стрелки импульсов нарисованы в одном масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.imp-col {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-text);
+	}
+	.imp-col i {
+		font-family: var(--ig-font-math);
+	}
+	.imp-col__modes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		width: fit-content;
+		max-width: 100%;
+	}
+	.imp-col__modes button {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.95rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		transition:
+			background 0.2s,
+			color 0.2s;
+	}
+	.imp-col__modes button[aria-checked='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.imp-col__modes button:focus-visible,
+	.imp-col__chip:focus-visible,
+	.imp-col__btn:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.imp-col__note {
+		margin: 0.6rem 0 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		min-height: 3em;
+	}
+	.imp-col__stage {
+		position: relative;
+	}
+	.imp-col__scene,
+	.imp-col__chart {
+		display: block;
+		width: 100%;
+		overflow: hidden;
+		font-family: var(--__sl-font);
+	}
+	.imp-col__slowmo {
+		position: absolute;
+		top: 0;
+		right: 0.25rem;
+		padding: 0.15rem 0.6rem;
+		border-radius: 999px;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		color: var(--sl-color-black);
+		background: var(--sl-color-accent);
+		animation: imp-col-blink 1s ease-in-out infinite alternate;
+	}
+	.imp-col__slowmo[hidden] {
+		display: none;
+	}
+	@keyframes imp-col-blink {
+		to {
+			opacity: 0.55;
+		}
+	}
+	.imp-col text {
+		fill: var(--sl-color-gray-2);
+	}
+	.imp-col .t-small {
+		font-size: 12px;
+		fill: var(--sl-color-gray-3);
+	}
+	.imp-col .t-math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.imp-col .t-halo {
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.imp-col .c1 {
+		fill: var(--ig-vx);
+	}
+	.imp-col .c2 {
+		fill: var(--ig-vy);
+	}
+	.imp-col .cs {
+		fill: var(--ig-v);
+	}
+	.imp-col .cf {
+		fill: var(--sl-color-white);
+	}
+	.imp-col text.c1 {
+		fill: var(--ig-vx);
+	}
+	.imp-col text.c2 {
+		fill: var(--ig-vy);
+	}
+	.imp-col text.cs {
+		fill: var(--ig-v);
+	}
+	.imp-col text.cf {
+		fill: var(--sl-color-white);
+	}
+	.imp-col .arrow {
+		stroke: var(--ig-surface);
+		stroke-width: 1;
+		paint-order: stroke;
+	}
+	.imp-col .rail {
+		fill: var(--sl-color-gray-4);
+	}
+	.imp-col .stop {
+		fill: var(--sl-color-gray-3);
+	}
+	.imp-col .tick {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.imp-col .grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.imp-col .zero {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.imp-col .body1 {
+		fill: color-mix(in srgb, var(--ig-vx) 22%, var(--ig-surface));
+		stroke: var(--ig-vx);
+		stroke-width: 2;
+	}
+	.imp-col .body2 {
+		fill: color-mix(in srgb, var(--ig-vy) 22%, var(--ig-surface));
+		stroke: var(--ig-vy);
+		stroke-width: 2;
+	}
+	.imp-col .block {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.imp-col .wheel {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.imp-col .spoke {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.imp-col .spring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+	.imp-col .plate {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.imp-col .clay {
+		fill: color-mix(in srgb, var(--ig-v) 55%, var(--sl-color-gray-4));
+		stroke: color-mix(in srgb, var(--ig-v) 40%, var(--sl-color-gray-3));
+		stroke-width: 1;
+	}
+	.imp-col .thread {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.4;
+		fill: none;
+	}
+	.imp-col .flame {
+		fill: var(--ig-v);
+		filter: drop-shadow(0 0 4px var(--ig-v));
+	}
+	.imp-col .contact {
+		fill: color-mix(in srgb, var(--sl-color-accent) 9%, transparent);
+	}
+	.imp-col .line {
+		fill: none;
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.imp-col .line.l1 {
+		stroke: var(--ig-vx);
+	}
+	.imp-col .line.l2 {
+		stroke: var(--ig-vy);
+	}
+	.imp-col .line.ls {
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-dasharray: 7 5;
+	}
+	.imp-col .cursor {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+
+	.imp-col__eq {
+		display: grid;
+		gap: 0.15rem;
+		margin-top: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+	.imp-col__eq-row {
+		display: grid;
+		grid-template-columns: 8.5rem 1fr;
+		align-items: baseline;
+		gap: 0.5rem;
+		min-height: 2.1em;
+	}
+	.imp-col__eq-tag {
+		font-size: var(--sl-text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--sl-color-gray-3);
+	}
+	.imp-col__eq-tex {
+		overflow-x: auto;
+		overflow-y: hidden;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-white);
+	}
+	.imp-col__eq-tex .katex {
+		font-size: 1.08em;
+	}
+
+	.imp-col__carts {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+		margin-top: 0.75rem;
+	}
+	.imp-col__cart {
+		margin: 0;
+		padding: 0.4rem 0.8rem 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-left-width: 4px;
+		border-radius: 0.6rem;
+		display: grid;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+	.imp-col__cart--1 {
+		border-left-color: var(--ig-vx);
+	}
+	.imp-col__cart--2 {
+		border-left-color: var(--ig-vy);
+	}
+	.imp-col__cart legend {
+		padding: 0 0.3rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.imp-col__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.15rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.imp-col__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-col__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.imp-col__slider.is-off {
+		opacity: 0.45;
+	}
+	.imp-col__hint {
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.imp-col__presets {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		margin-top: 0.75rem;
+	}
+	.imp-col__presets-title {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+		margin-right: 0.2rem;
+	}
+	.imp-col__chip {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.3rem 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-5);
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-gray-1);
+		cursor: pointer;
+	}
+	.imp-col__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.imp-col__chip[hidden] {
+		display: none;
+	}
+	.imp-col__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin-top: 0.85rem;
+	}
+	.imp-col__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.2rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.imp-col__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.imp-col__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.imp-col__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.imp-col__check input {
+		accent-color: var(--sl-color-accent);
+		width: 1.05rem;
+		height: 1.05rem;
+		margin: 0;
+	}
+	.imp-col__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.imp-col__live b {
+		color: var(--sl-color-white);
+	}
+	.imp-col__chart-box {
+		margin-top: 0.5rem;
+		padding-top: 0.75rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.imp-col__chart-title {
+		margin: 0;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.imp-col__chart-sub {
+		margin: 0.1rem 0 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.imp-col__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.8;
+		color: var(--sl-color-gray-3);
+	}
+	.imp-col__key {
+		display: inline-block;
+		width: 1.1rem;
+		height: 4px;
+		margin: 0 0.3rem 0.2rem 0.6rem;
+		vertical-align: middle;
+		border-radius: 2px;
+	}
+	.imp-col__key:first-child {
+		margin-left: 0;
+	}
+	.imp-col__key--1 {
+		background: var(--ig-vx);
+	}
+	.imp-col__key--2 {
+		background: var(--ig-vy);
+	}
+	.imp-col__key--s {
+		background: var(--ig-v);
+	}
+	.imp-col__key--f {
+		background: var(--sl-color-white);
+	}
+	@media (max-width: 40rem) {
+		.imp-col {
+			padding: 0.75rem;
+		}
+		.imp-col__carts {
+			grid-template-columns: 1fr;
+		}
+		.imp-col__eq-row {
+			grid-template-columns: 1fr;
+			gap: 0;
+		}
+		.imp-col__eq-tex {
+			white-space: normal;
+		}
+		.imp-col__eq-tex .katex {
+			font-size: 1em;
+		}
+		.imp-col__modes button {
+			padding: 0.35rem 0.7rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.imp-col__slowmo {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import {
+		plan,
+		Sim,
+		TRACK,
+		LC,
+		LB,
+		LP,
+		LS,
+		type Mode,
+		type Plan,
+	} from './collision';
+	import { svg, attrs, fmt, tex, roundPair, clamp, niceStep, stepDigits, hArrow, springPath, reducedMotion, times } from './util';
+
+	const NOTES: Record<Mode, string> = {
+		elastic:
+			'На первой тележке — пружинный буфер. При ударе пружина сжимается, а потом распрямляется и расталкивает тележки.',
+		inelastic:
+			'На тележках — пластилин. При ударе он сминается, и дальше тележки едут вместе, как одно тело.',
+		burst:
+			'Тележки стоят, между ними сжатая пружина, стянутая нитью. Нить пережигают — пружина расталкивает тележки в разные стороны.',
+	};
+	const RW = 0.035; // wheel radius, m (used for the rotation of the wheels)
+	const D0 = 0.12; // slow-motion ramp, model seconds
+	const BURN = 650; // burning of the thread, ms of real time
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-imp-col]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const uid = Math.random().toString(36).slice(2, 8);
+		const scene = q<SVGSVGElement>('[data-scene]');
+		const chart = q<SVGSVGElement>('[data-chart]');
+		const stage = q<HTMLElement>('[data-stage]');
+		const slowBadge = q<HTMLElement>('[data-slowmo]');
+		const note = q<HTMLElement>('[data-note]');
+		const live = q<HTMLElement>('[data-live]');
+		const eqBefore = q<HTMLElement>('[data-eq-before]');
+		const eqNow = q<HTMLElement>('[data-eq-now]');
+		const tagBefore = q<HTMLElement>('[data-eq-tag-before]');
+		const tagNow = q<HTMLElement>('[data-eq-tag-now]');
+		const chartTitle = q<HTMLElement>('[data-chart-title]');
+		const chartSub = q<HTMLElement>('[data-chart-sub]');
+		const slowBox = q<HTMLInputElement>('[data-slow]');
+		const inputs = {
+			m1: q<HTMLInputElement>('[data-in="m1"]'),
+			v1: q<HTMLInputElement>('[data-in="v1"]'),
+			m2: q<HTMLInputElement>('[data-in="m2"]'),
+			v2: q<HTMLInputElement>('[data-in="v2"]'),
+		};
+		const outs = {
+			m1: q<HTMLOutputElement>('[data-out="m1"]'),
+			v1: q<HTMLOutputElement>('[data-out="v1"]'),
+			m2: q<HTMLOutputElement>('[data-out="m2"]'),
+			v2: q<HTMLOutputElement>('[data-out="v2"]'),
+		};
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+
+		let mode: Mode = 'elastic';
+		let P: Plan;
+		let sim: Sim;
+		let raf = 0;
+		let running = false;
+		let finished = false;
+		let burnStart = -1; // real time when the thread started burning (burst)
+		let phase = '';
+
+		// ---------- layout (recomputed when the width changes) ----------
+		let W = 0;
+		let G: ReturnType<typeof buildScene>;
+		let C: ReturnType<typeof buildChart> | null = null;
+
+		const values = () => ({
+			m1: Number(inputs.m1.value),
+			v1: mode === 'burst' ? 0 : Number(inputs.v1.value),
+			m2: Number(inputs.m2.value),
+			v2: mode === 'burst' ? 0 : Number(inputs.v2.value),
+		});
+
+		/** Label with an italic letter and a subscript: p₁, υ₂ … */
+		function symLabel(parent: Element, letter: string, sub: string, cls: string) {
+			const t = svg('text', { class: cls }, parent);
+			const a = svg('tspan', { class: 't-math' }, t);
+			a.textContent = letter;
+			const b = svg('tspan', { dy: 4, 'font-size': '0.75em' }, t);
+			b.textContent = sub;
+			const c = svg('tspan', { dy: -4 }, t);
+			c.textContent = '';
+			return { t, rest: c };
+		}
+
+		function buildScene() {
+			scene.replaceChildren();
+			const narrow = W < 520;
+			const fs = narrow ? 12 : 13;
+			const padX = narrow ? 10 : 16;
+			const S = (W - 2 * padX) / TRACK;
+			const X = (x: number) => padX + x * S;
+			const bodyH = clamp(0.1 * S, 20, 30);
+			const wheelR = clamp(RW * S, 5, 11);
+			const blockH = clamp(0.028 * S, 4, 8);
+			const yVel = 15;
+			const yArrow = 38; // p1 arrow; the p2 arrow is drawn 20 px lower
+			const yBodyTop = yArrow + 20 + 18 + 5 * (blockH + 1.5);
+			const yBodyMid = yBodyTop + bodyH / 2;
+			const yWheel = yBodyTop + bodyH + wheelR * 0.55;
+			const yTrack = yWheel + wheelR;
+			const yRulerText = yTrack + 6 + 9 + fs + 2;
+			const yPanel = yRulerText + 30;
+			const rows = [yPanel, yPanel + 64];
+			const yAxis = rows[1] + 58;
+			const H = yAxis + 9 + fs + 8;
+			attrs(scene, { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+
+			// track and ruler
+			svg('rect', { class: 'rail', x: X(0) - 2, y: yTrack, width: TRACK * S + 4, height: 5, rx: 2 }, scene);
+			svg('rect', { class: 'stop', x: X(0) - 6, y: yTrack - 12, width: 5, height: 17, rx: 1.5 }, scene);
+			svg('rect', { class: 'stop', x: X(TRACK) + 1, y: yTrack - 12, width: 5, height: 17, rx: 1.5 }, scene);
+			for (let i = 0; i <= TRACK * 10 + 1e-9; i++) {
+				const major = i % 5 === 0;
+				const x = X(i / 10);
+				svg('line', { class: 'tick', x1: x, x2: x, y1: yTrack + 6, y2: yTrack + (major ? 15 : 10) }, scene);
+				const last = i === Math.round(TRACK * 10);
+				if (major && !last && (!narrow || i % 10 === 0 || W > 400)) {
+					const t = svg('text', { x, y: yRulerText, 'text-anchor': 'middle', class: 't-small' }, scene);
+					t.textContent = fmt(i / 10, 1, true);
+				}
+			}
+			const axName = svg('text', { x: X(TRACK) + 4, y: yRulerText, 'text-anchor': 'end', class: 't-small' }, scene);
+			axName.innerHTML = '<tspan class="t-math">x</tspan>, м';
+
+			// the carts
+			const mkCart = (n: 1 | 2) => {
+				const g = svg('g', {}, scene);
+				const blocks = svg('g', {}, g);
+				const body = svg('rect', { class: `body${n}`, y: yBodyTop, height: bodyH, width: LC * S, rx: 5 }, g);
+				const mass = svg('text', { y: yBodyMid + fs * 0.36, 'text-anchor': 'middle', 'font-size': fs - 1 }, g);
+				const wheels = [0.22, 0.78].map(() => {
+					const w = svg('g', {}, g);
+					svg('circle', { class: 'wheel', r: wheelR, cx: 0, cy: 0 }, w);
+					const sp = svg('path', { class: 'spoke', d: `M${-wheelR * 0.7},0 L${wheelR * 0.7},0 M0,${-wheelR * 0.7} L0,${wheelR * 0.7}` }, w);
+					return { w, sp };
+				});
+				return { g, blocks, body, mass, wheels };
+			};
+			const carts = [mkCart(1), mkCart(2)];
+
+			// interaction parts: bumper / plasticine / burst spring with thread
+			const spring = svg('path', { class: 'spring' }, scene);
+			const plate = svg('line', { class: 'plate' }, scene);
+			const clay1 = svg('rect', { class: 'clay', rx: 3 }, scene);
+			const clay2 = svg('rect', { class: 'clay', rx: 3 }, scene);
+			const thread = svg('path', { class: 'thread' }, scene);
+			const flame = svg('circle', { class: 'flame', r: 0 }, scene);
+
+			// momentum arrows above the carts, force arrows on the carts
+			const pArr = [svg('path', { class: 'arrow c1' }, scene), svg('path', { class: 'arrow c2' }, scene)];
+			const pLab = [symLabel(scene, 'p', '1', 'c1 t-halo'), symLabel(scene, 'p', '2', 'c2 t-halo')];
+			const vLab = [symLabel(scene, 'υ', '1', 'c1'), symLabel(scene, 'υ', '2', 'c2')];
+			vLab.forEach((l) => attrs(l.t, { y: yVel, 'font-size': fs }));
+			const vJointT = svg('text', { y: yVel, 'font-size': fs }, scene);
+			svg('tspan', { class: 't-math' }, vJointT).textContent = 'υ';
+			const vJoint = { t: vJointT, rest: svg('tspan', {}, vJointT) };
+			const fArr = [svg('path', { class: 'arrow cf' }, scene), svg('path', { class: 'arrow cf' }, scene)];
+			const fLab = [symLabel(scene, 'F', '1', 'cf t-halo'), symLabel(scene, 'F', '2', 'cf t-halo')];
+
+			// vector sum panel
+			const zeroX = W / 2;
+			svg('line', { class: 'zero', x1: zeroX, x2: zeroX, y1: rows[0] - 4, y2: yAxis }, scene);
+			svg('line', { class: 'tick', x1: padX, x2: W - padX, y1: yAxis, y2: yAxis }, scene);
+			const axisTicks = svg('g', {}, scene);
+			const axLab = svg('text', { x: W - padX, y: yAxis + 9 + fs + 6, 'text-anchor': 'end', class: 't-small' }, scene);
+			axLab.innerHTML = '<tspan class="t-math">p</tspan>, кг·м/с';
+			const rowTags = rows.map((y) => {
+				const t = svg('text', { x: padX, y: y + 4, class: 't-small t-halo' }, scene);
+				return t;
+			});
+			const chains = rows.map((y) => ({
+				a1: svg('path', { class: 'arrow c1' }, scene),
+				a2: svg('path', { class: 'arrow c2' }, scene),
+				link: svg('line', { class: 'zero', y1: y + 16, y2: y + 28 }, scene),
+				as: svg('path', { class: 'arrow cs' }, scene),
+				dot: svg('circle', { class: 'cs', r: 4, cy: y + 44 }, scene),
+				ls: svg('text', { class: 'cs t-halo', y: y + 48, 'font-size': fs }, scene),
+				y,
+			}));
+			const panelTitle = svg('text', { x: padX, y: rows[0] - 16, class: 't-small', 'font-weight': 700 }, scene);
+			panelTitle.textContent = 'Сложение импульсов';
+			slowBadge.style.top = `${rows[0] - 27}px`;
+
+			return {
+				narrow, fs, padX, S, X, bodyH, wheelR, blockH, yVel, yArrow, yBodyTop, yBodyMid, yWheel, yTrack,
+				rows, yAxis, zeroX, carts, spring, plate, clay1, clay2, thread, flame, pArr, pLab, vLab, vJoint, fArr, fLab,
+				axisTicks, rowTags, chains, Kp: 40,
+			};
+		}
+
+		/** Momentum scale (px per kg·m/s) and the axis of the vector panel, fixed for one run. */
+		function scaleFor(p: Plan) {
+			const p1 = p.m1 * (p.mode === 'burst' ? 0 : p.v1);
+			const p2 = p.m2 * (p.mode === 'burst' ? 0 : p.v2);
+			const q1 = p.m1 * p.u1;
+			const q2 = p.m2 * p.u2;
+			const chainExt = Math.max(Math.abs(p1), Math.abs(p1 + p2), Math.abs(q1), Math.abs(q1 + q2), 0.05);
+			const arrowExt = Math.max(Math.abs(p1), Math.abs(p2), Math.abs(q1), Math.abs(q2), 0.05);
+			const half = W / 2 - G.padX - 10;
+			G.Kp = Math.min(Math.max(70, 0.16 * W), half / chainExt, (0.4 * W) / arrowExt);
+			G.axisTicks.replaceChildren();
+			const ext = half / G.Kp;
+			const step = niceStep(2 * ext, 2 * half, G.narrow ? 44 : 52);
+			for (let v = -Math.floor(ext / step) * step; v <= ext + 1e-9; v += step) {
+				const x = G.zeroX + v * G.Kp;
+				svg('line', { class: 'tick', x1: x, x2: x, y1: G.yAxis - 4, y2: G.yAxis + 4 }, G.axisTicks);
+				if (x > W - G.padX - 64) continue; // leave room for the axis name «p, кг·м/с»
+				const t = svg('text', { x, y: G.yAxis + 9 + G.fs, 'text-anchor': 'middle', class: 't-small' }, G.axisTicks);
+				t.textContent = fmt(v, stepDigits(step), true);
+			}
+		}
+
+		function placeLabel(lab: { t: SVGTextElement }, x: number, y: number, anchor: string) {
+			attrs(lab.t, { x, y, 'text-anchor': anchor });
+		}
+
+		function drawChain(i: 0 | 1, p1: number, p2: number) {
+			const c = G.chains[i];
+			const z = G.zeroX;
+			const K = G.Kp;
+			c.a1.setAttribute('d', hArrow(z, z + p1 * K, c.y + 16, 3.4));
+			c.a2.setAttribute('d', hArrow(z + p1 * K, z + (p1 + p2) * K, c.y + 28, 3.4));
+			const s = p1 + p2;
+			c.as.setAttribute('d', hArrow(z, z + s * K, c.y + 44, 4.2, 12, 12));
+			c.dot.setAttribute('cx', String(z));
+			c.dot.style.visibility = Math.abs(s * K) < 2 ? 'visible' : 'hidden';
+			attrs(c.link, { x1: z + p1 * K, x2: z + p1 * K });
+			c.link.style.visibility = Math.abs(p1 * K) > 2 && Math.abs(p2 * K) > 2 ? 'visible' : 'hidden';
+			const tx = z + s * K;
+			const txt = `${fmt(s, 2)} кг·м/с`;
+			if (c.ls.textContent !== txt) c.ls.textContent = txt;
+			const w = c.ls.getComputedTextLength?.() || txt.length * 7;
+			let x: number;
+			let anchor: string;
+			if (s >= 0) {
+				const fits = tx + 8 + w <= W - 2;
+				x = fits ? tx + 8 : z - 8;
+				anchor = fits ? 'start' : 'end';
+			} else {
+				const fits = tx - 8 - w >= 2;
+				x = fits ? tx - 8 : z + 8;
+				anchor = fits ? 'end' : 'start';
+			}
+			attrs(c.ls, { x, 'text-anchor': anchor });
+		}
+
+		function render() {
+			const { X, S, bodyH, wheelR, blockH, yBodyTop, yBodyMid, yWheel, yArrow, fs } = G;
+			const xs = [sim.x1, sim.x2];
+			const ms = [P.m1, P.m2];
+			const ps = [sim.p1, sim.p2];
+			const vs = [sim.v1, sim.v2];
+			for (let i = 0; i < 2; i++) {
+				const c = G.carts[i];
+				const x0 = X(xs[i]);
+				c.body.setAttribute('x', String(x0));
+				const nBlocks = Math.round((ms[i] - 0.5) / 0.5);
+				if (c.blocks.childElementCount !== nBlocks || c.blocks.dataset.w !== String(W)) {
+					c.blocks.replaceChildren();
+					c.blocks.dataset.w = String(W);
+					const bw = 0.62 * LC * S;
+					for (let k = 0; k < nBlocks; k++)
+						svg('rect', { class: 'block', x: (LC * S - bw) / 2, y: yBodyTop - (k + 1) * (blockH + 1.5), width: bw, height: blockH, rx: 1.5 }, c.blocks);
+				}
+				c.blocks.setAttribute('transform', `translate(${x0.toFixed(2)},0)`);
+				const label = `${fmt(ms[i], 1, true)} кг`;
+				if (c.mass.textContent !== label) c.mass.textContent = label;
+				c.mass.setAttribute('x', String(x0 + (LC * S) / 2));
+				c.mass.style.visibility =
+					LC * S > label.length * (fs - 1) * 0.52 + 6 && !(sim.F > 0.004 * P.Fmax) ? 'visible' : 'hidden';
+				const ang = ((xs[i] / RW) * 180) / Math.PI;
+				c.wheels.forEach((w, k) => {
+					const wx = x0 + LC * S * (k ? 0.78 : 0.22);
+					w.w.setAttribute('transform', `translate(${wx.toFixed(2)},${yWheel.toFixed(2)})`);
+					w.sp.setAttribute('transform', `rotate(${ang.toFixed(1)})`);
+				});
+			}
+
+			// spring / plasticine / thread
+			const r1 = X(sim.x1 + LC);
+			const l2 = X(sim.x2);
+			const amp = bodyH * 0.2;
+			const hideAll = () => {
+				G.spring.setAttribute('d', '');
+				G.plate.style.visibility = 'hidden';
+				G.clay1.style.visibility = G.clay2.style.visibility = 'hidden';
+				G.thread.setAttribute('d', '');
+				G.flame.setAttribute('r', '0');
+			};
+			hideAll();
+			if (P.mode === 'elastic') {
+				const tip = Math.min(r1 + LB * S, l2);
+				G.spring.setAttribute('d', springPath(r1, tip - 1.5, yBodyMid, amp, 6));
+				attrs(G.plate, { x1: tip - 1.5, x2: tip - 1.5, y1: yBodyMid - bodyH * 0.32, y2: yBodyMid + bodyH * 0.32 });
+				G.plate.style.visibility = 'visible';
+			} else if (P.mode === 'inelastic') {
+				const c = sim.stuck ? sim.squash : sim.compression();
+				const th = ((LP - c) / 2) * S;
+				const h0 = bodyH * 0.62;
+				const h = Math.min(bodyH * 0.98, h0 * Math.sqrt(LP / Math.max(LP - c, LP * 0.3)));
+				attrs(G.clay1, { x: r1, width: th, y: yBodyMid - h / 2, height: h });
+				attrs(G.clay2, { x: l2 - th, width: th, y: yBodyMid - h / 2, height: h });
+				G.clay1.style.visibility = G.clay2.style.visibility = 'visible';
+			} else {
+				const tip = Math.min(r1 + LS * S, l2);
+				G.spring.setAttribute('d', springPath(r1, tip - 1.5, yBodyMid, amp, 7));
+				attrs(G.plate, { x1: tip - 1.5, x2: tip - 1.5, y1: yBodyMid - bodyH * 0.32, y2: yBodyMid + bodyH * 0.32 });
+				G.plate.style.visibility = 'visible';
+				if (burnStart !== -2) {
+					// thread still holds (or is burning)
+					const yT = yBodyTop + 3.5;
+					const a = r1 - LC * S * 0.18;
+					const b = l2 + LC * S * 0.18;
+					const k = burnStart < 0 ? 0 : clamp((performance.now() - burnStart) / BURN, 0, 1);
+					if (k < 0.55) {
+						G.thread.setAttribute('d', `M${a},${yT} L${b},${yT}`);
+					} else {
+						const m = (a + b) / 2;
+						const sag = (k - 0.55) * 30;
+						G.thread.setAttribute('d', `M${a},${yT} Q${(a + m) / 2},${yT + sag} ${m - 3},${yT + sag * 1.4} M${b},${yT} Q${(b + m) / 2},${yT + sag} ${m + 3},${yT + sag * 1.4}`);
+					}
+					if (burnStart >= 0) {
+						attrs(G.flame, { cx: (a + b) / 2, cy: yT, r: (6 * Math.sin(Math.PI * Math.min(1, k * 1.15))).toFixed(2) });
+					}
+				}
+			}
+
+			// momentum arrows above the carts
+			const K = G.Kp;
+			for (let i = 0; i < 2; i++) {
+				// The arrow starts above the middle of its cart. Near the ends of the track it is moved
+				// sideways (keeping its length and direction) so that it and its label stay in view.
+				let cx = X(xs[i] + LC / 2);
+				const len = ps[i] * K;
+				const room = 24; // space for the label «p₁» after the tip
+				if (len > 0 && cx + len + room > W - 2) cx = W - 2 - room - len;
+				if (len < 0 && cx + len - room < 2) cx = 2 + room - len;
+				const tipX = cx + len;
+				const y = yArrow + 20 * i;
+				G.pArr[i].setAttribute('d', hArrow(cx, tipX, y, 3.4));
+				const zero = Math.abs(ps[i]) < 0.005; // rounds to 0,00
+				if (!zero) placeLabel(G.pLab[i], tipX + (ps[i] > 0 ? 5 : -5), y + 5, ps[i] > 0 ? 'start' : 'end');
+				else placeLabel(G.pLab[i], clamp(cx, 30, W - 30), y + 5, 'middle');
+				G.pLab[i].rest.textContent = zero ? ' = 0' : '';
+			}
+			// velocity labels: cart 1 to the left of its right face, cart 2 to the right of its left face;
+			// after an inelastic impact one common label «υ = …» above the joint
+			const joint = sim.stuck;
+			G.vLab.forEach((l) => (l.t.style.visibility = joint ? 'hidden' : 'visible'));
+			G.vJoint.t.style.visibility = joint ? 'visible' : 'hidden';
+			if (joint) {
+				const s = ` = ${fmt(vs[0], 2)} м/с`;
+				if (G.vJoint.rest.textContent !== s) G.vJoint.rest.textContent = s;
+				const w = G.vJoint.t.getComputedTextLength?.() || 90;
+				attrs(G.vJoint.t, { x: clamp(X(sim.x2), 2 + w / 2, W - 2 - w / 2), 'text-anchor': 'middle' });
+			} else {
+				const w = [0, 0];
+				for (let i = 0; i < 2; i++) {
+					const l = G.vLab[i];
+					const s = ` = ${fmt(vs[i], 2)} м/с`;
+					if (l.rest.textContent !== s) l.rest.textContent = s;
+					w[i] = l.t.getComputedTextLength?.() || 90;
+				}
+				let a = Math.max(X(xs[0] + LC), 2 + w[0]); // right end of label 1
+				let b = Math.min(X(xs[1]), W - 2 - w[1]); // left end of label 2
+				const gap = 10;
+				if (b - a < gap) {
+					// near a track end the two labels would overlap: move them apart around their middle
+					const mid = clamp((a + b) / 2, 2 + w[0] + gap / 2, W - 2 - w[1] - gap / 2);
+					a = mid - gap / 2;
+					b = mid + gap / 2;
+				}
+				attrs(G.vLab[0].t, { x: a, 'text-anchor': 'end' });
+				attrs(G.vLab[1].t, { x: b, 'text-anchor': 'start' });
+			}
+			// forces: equal and opposite, drawn on the carts from the contact faces
+			const F = sim.F;
+			const showF = F > 0.004 * P.Fmax && P.Fmax > 0;
+			const fl = showF ? clamp((F / P.Fmax) * (G.narrow ? 34 : 52), 0, 60) : 0;
+			const yF = yBodyMid;
+			G.fArr[0].setAttribute('d', showF ? hArrow(r1, r1 - fl, yF, 3, 9, 9) : '');
+			G.fArr[1].setAttribute('d', showF ? hArrow(l2, l2 + fl, yF, 3, 9, 9) : '');
+			G.fLab.forEach((l, i) => {
+				l.t.style.visibility = showF && fl > 8 ? 'visible' : 'hidden';
+				placeLabel(l, i ? l2 + fl + 2 : r1 - fl - 2, yF - 7, i ? 'start' : 'end');
+			});
+
+			// vector panel: before (fixed) and now
+			const b1 = P.m1 * (P.mode === 'burst' ? 0 : P.v1);
+			const b2 = P.m2 * (P.mode === 'burst' ? 0 : P.v2);
+			drawChain(0, b1, b2);
+			drawChain(1, sim.p1, sim.p2);
+			G.rowTags[1].textContent = finished ? (P.mode === 'burst' ? 'после разлёта' : P.hit ? 'после удара' : 'в конце') : 'сейчас';
+
+			// live formula
+			const [a, b, s] = roundPair(sim.p1, sim.p2, 2);
+			const nowTex = `p_1 + p_2 = ${tex(a, 2)} + ${tex(b, 2, false, true)} = ${tex(s, 2)}~\\text{кг·м/с}`;
+			if (eqNow.dataset.tex !== nowTex) {
+				katex.render(nowTex, eqNow, { throwOnError: false });
+				eqNow.dataset.tex = nowTex;
+			}
+			tagNow.textContent = finished ? G.rowTags[1].textContent : 'сейчас';
+
+			if (C) C.cursor(sim.t);
+		}
+
+		function renderBefore() {
+			const { m1, v1, m2, v2 } = P;
+			let t: string;
+			if (P.mode === 'burst') {
+				t = `p = m_1 \\cdot 0 + m_2 \\cdot 0 = 0`;
+			} else {
+				t =
+					`p = m_1\\upsilon_1 + m_2\\upsilon_2 = ${tex(m1, 1, true)} \\cdot ${tex(v1, 1, true, true)} + ` +
+					`${tex(m2, 1, true)} \\cdot ${tex(v2, 1, true, true)} = ${tex(m1 * v1 + m2 * v2, 2)}~\\text{кг·м/с}`;
+			}
+			katex.render(t, eqBefore, { throwOnError: false });
+			const tag = P.mode === 'burst' ? 'до разлёта' : 'до удара';
+			tagBefore.textContent = tag;
+			G.rowTags[0].textContent = tag;
+		}
+
+		// ---------- the chart "impact in close-up" ----------
+		function buildChart(p: Plan) {
+			chart.replaceChildren();
+			if (!p.hit) {
+				attrs(chart, { viewBox: `0 0 ${W} 1`, width: W, height: 1 });
+				return null;
+			}
+			const narrow = W < 520;
+			const H = narrow ? 190 : 210;
+			attrs(chart, { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+			const L = narrow ? 40 : 48;
+			const R = W - (narrow ? 66 : 84);
+			const T = 26;
+			const B = H - 34;
+			// precompute the whole contact with a fine time step
+			const ta = p.tOn - 0.35 * p.Tc;
+			const tb = p.tOn + 1.35 * p.Tc;
+			const s = new Sim(p);
+			const pts: [number, number, number][] = [];
+			const p10 = p.m1 * (p.mode === 'burst' ? 0 : p.v1);
+			const p20 = p.m2 * (p.mode === 'burst' ? 0 : p.v2);
+			if (ta < 0) pts.push([ta, p10, p20]);
+			if (ta > 0) s.advance(ta);
+			const n = 240;
+			const h = (tb - Math.max(ta, 0)) / n;
+			pts.push([s.t, s.p1, s.p2]);
+			for (let i = 0; i < n; i++) {
+				s.advance(h, Math.min(2e-5, h / 4));
+				pts.push([s.t, s.p1, s.p2]);
+			}
+			const all = [0, p10, p20, p.m1 * p.u1, p.m2 * p.u2, p10 + p20];
+			let lo = Math.min(...all);
+			let hi = Math.max(...all);
+			const pad = 0.12 * (hi - lo || 1);
+			lo -= pad;
+			hi += pad;
+			const tx = (t: number) => L + ((t - ta) / (tb - ta)) * (R - L);
+			const ty = (v: number) => B - ((v - lo) / (hi - lo)) * (B - T);
+			// contact interval
+			const c0 = tx(p.tOn);
+			const c1 = tx(p.tOn + p.Tc);
+			svg('rect', { class: 'contact', x: c0, y: T, width: c1 - c0, height: B - T }, chart);
+			const ct = svg('text', { x: (c0 + c1) / 2, y: T - 7, 'text-anchor': 'middle', class: 't-small' }, chart);
+			ct.textContent = p.mode === 'burst' ? 'пружина толкает' : p.mode === 'inelastic' ? 'пластилин сминается' : 'пружина сжата';
+			// grid and axes
+			const ys = niceStep(hi - lo, B - T, 34);
+			for (let v = Math.ceil(lo / ys) * ys; v <= hi + 1e-9; v += ys) {
+				const y = ty(v);
+				svg('line', { class: Math.abs(v) < 1e-9 ? 'zero' : 'grid', x1: L, x2: R, y1: y, y2: y }, chart);
+				const t = svg('text', { x: L - 6, y: y + 4, 'text-anchor': 'end', class: 't-small' }, chart);
+				t.textContent = fmt(v, stepDigits(ys), true);
+			}
+			const msA = (ta - p.tOn) * 1000;
+			const msB = (tb - p.tOn) * 1000;
+			const xsStep = niceStep(msB - msA, R - L, narrow ? 44 : 56);
+			for (let v = Math.ceil(msA / xsStep) * xsStep; v <= msB + 1e-9; v += xsStep) {
+				const x = tx(p.tOn + v / 1000);
+				svg('line', { class: 'tick', x1: x, x2: x, y1: B, y2: B + 5 }, chart);
+				const t = svg('text', { x, y: B + 18, 'text-anchor': 'middle', class: 't-small' }, chart);
+				t.textContent = fmt(v, stepDigits(xsStep), true);
+			}
+			svg('line', { class: 'tick', x1: L, x2: R, y1: B, y2: B }, chart);
+			const xl = svg('text', { x: R, y: B + 31, 'text-anchor': 'end', class: 't-small' }, chart);
+			xl.innerHTML = '<tspan class="t-math">t</tspan>, мс (от начала удара)';
+			if (p.mode === 'burst') xl.innerHTML = '<tspan class="t-math">t</tspan>, мс (от пережигания нити)';
+			const yl = svg('text', { x: 4, y: T - 7, class: 't-small' }, chart);
+			yl.innerHTML = '<tspan class="t-math">p</tspan>, кг·м/с';
+			// lines, revealed by a growing clip
+			const clipId = `imp-col-clip-${uid}`;
+			const defs = svg('defs', {}, chart);
+			const cp = svg('clipPath', { id: clipId }, defs);
+			const clipRect = svg('rect', { x: L - 3, y: 0, width: 0, height: H }, cp);
+			const g = svg('g', { 'clip-path': `url(#${clipId})` }, chart);
+			const path = (f: (q: [number, number, number]) => number) =>
+				pts.map((q, i) => `${i ? 'L' : 'M'}${tx(q[0]).toFixed(2)},${ty(f(q)).toFixed(2)}`).join(' ');
+			svg('path', { class: 'line l1', d: path((q) => q[1]) }, g);
+			svg('path', { class: 'line l2', d: path((q) => q[2]) }, g);
+			svg('path', { class: 'line ls', d: path((q) => q[1] + q[2]) }, g);
+			// end labels, pushed apart if they overlap
+			const last = pts[pts.length - 1];
+			const labs = [
+				{ y: ty(last[1]), cls: 'c1', s: '1' },
+				{ y: ty(last[2]), cls: 'c2', s: '2' },
+				{ y: ty(last[1] + last[2]), cls: 'cs', s: 's' },
+			].sort((a, b) => a.y - b.y);
+			for (let k = 1; k < 3; k++) if (labs[k].y - labs[k - 1].y < 15) labs[k].y = labs[k - 1].y + 15;
+			const lg = svg('g', { opacity: 0 }, chart);
+			for (const l of labs) {
+				const t = svg('text', { x: R + 6, y: l.y + 4, class: `${l.cls}`, 'font-size': narrow ? 12 : 13 }, lg);
+				t.innerHTML =
+					l.s === 's'
+						? '<tspan class="t-math">p</tspan><tspan dy="4" font-size="0.75em">1</tspan><tspan dy="-4"> + </tspan><tspan class="t-math">p</tspan><tspan dy="4" font-size="0.75em">2</tspan>'
+						: `<tspan class="t-math">p</tspan><tspan dy="4" font-size="0.75em">${l.s}</tspan>`;
+			}
+			const cursor = svg('line', { class: 'cursor', y1: T, y2: B }, chart);
+			cursor.style.visibility = 'hidden';
+			const hint = svg('text', { x: (L + R) / 2, y: (T + B) / 2 + 30, 'text-anchor': 'middle', class: 't-small' }, chart);
+			hint.textContent = 'Нажмите «Пуск» — здесь появятся графики';
+			return {
+				cursor(t: number) {
+					const x = clamp(tx(t), L, R);
+					clipRect.setAttribute('width', String(t > ta ? x - L + 3 : 0));
+					const inWin = t > ta && t < tb;
+					cursor.style.visibility = inWin && running ? 'visible' : 'hidden';
+					attrs(cursor, { x1: x, x2: x });
+					if (t > ta) hint.style.visibility = 'hidden';
+					lg.setAttribute('opacity', t >= tb || finished ? '1' : '0');
+				},
+				full() {
+					clipRect.setAttribute('width', String(R - L + 8));
+					lg.setAttribute('opacity', '1');
+					hint.style.visibility = 'hidden';
+				},
+			};
+		}
+
+		// ---------- run control ----------
+		const slowFactor = () => clamp(P.Tc / 1.0, 1 / 400, 1);
+		const rate = (t: number) => {
+			if (!slowBox.checked || !P.hit) return 1;
+			const a = P.tOn - 0.1 * P.Tc;
+			const b = P.tOn + 1.1 * P.Tc;
+			const d = t < a ? a - t : t > b ? t - b : 0;
+			return clamp(d / D0, slowFactor(), 1);
+		};
+		const niceTimes = (n: number) => {
+			const r = n >= 100 ? Math.round(n / 10) * 10 : Math.round(n);
+			return `${r}`;
+		};
+
+		function status(next: string, html: string) {
+			if (phase === next) return;
+			phase = next;
+			live.innerHTML = html;
+		}
+
+		function finalText() {
+			const u1 = fmt(P.u1, 2);
+			const u2 = fmt(P.u2, 2);
+			const p = fmt(P.m1 * P.u1 + P.m2 * P.u2, 2);
+			if (P.mode === 'burst')
+				return `Тележки разъехались: <b><i>υ</i><sub>1</sub> = ${u1} м/с</b>, <b><i>υ</i><sub>2</sub> = ${u2} м/с</b>. Импульсы равны по модулю и противоположны по направлению: ${fmt(P.m1 * P.u1, 2)} и ${fmt(P.m2 * P.u2, 2)} кг·м/с. Сумма была и осталась равной нулю.`;
+			if (!P.hit) return `Тележки не сталкиваются, поэтому импульс каждой из них не меняется.`;
+			if (P.mode === 'inelastic')
+				return `Тележки слиплись и едут вместе: <b><i>υ</i> = ${u1} м/с</b>. Суммарный импульс не изменился: <b>${p} кг·м/с</b>.`;
+			return `После удара: <b><i>υ</i><sub>1</sub> = ${u1} м/с</b>, <b><i>υ</i><sub>2</sub> = ${u2} м/с</b>. Суммарный импульс не изменился: <b>${p} кг·м/с</b>.`;
+		}
+
+		function reset() {
+			cancelAnimationFrame(raf);
+			running = false;
+			finished = false;
+			burnStart = -1;
+			phase = '';
+			const v = values();
+			P = plan(mode, v.m1, v.v1, v.m2, v.v2);
+			sim = new Sim(P);
+			outs.m1.value = `${fmt(v.m1, 1, true)} кг`;
+			outs.m2.value = `${fmt(v.m2, 1, true)} кг`;
+			outs.v1.value = mode === 'burst' ? '0 м/с' : `${fmt(v.v1, 1)} м/с`;
+			outs.v2.value = mode === 'burst' ? '0 м/с' : `${fmt(v.v2, 1)} м/с`;
+			scaleFor(P);
+			renderBefore();
+			C = buildChart(P);
+			const ms = (P.Tc * 1000).toLocaleString('ru-RU', { maximumFractionDigits: P.Tc < 0.01 ? 1 : 0 });
+			chartTitle.textContent = mode === 'burst' ? 'Разлёт крупным планом' : 'Удар крупным планом';
+			chartSub.textContent = P.hit
+				? mode === 'burst'
+					? `Пружина толкает тележки ${ms} мс. Как менялись импульсы за это время:`
+					: mode === 'inelastic'
+						? `Пластилин сминается за ${ms} мс. Как менялись импульсы за это время:`
+						: `Удар длится ${ms} мс. Как менялись импульсы за это время:`
+				: 'Тележки не догоняют друг друга — удара не будет.';
+			slowBadge.hidden = true;
+			render();
+			if (C) C.cursor(-Infinity);
+			if (v.v1 === 0 && v.v2 === 0 && mode !== 'burst') status('idle', 'Обе тележки стоят. Задайте скорость хотя бы одной из них.');
+			else status('ready', mode === 'burst' ? 'Нажмите «Пуск» — нить пережгут.' : 'Задайте массы и скорости и нажмите «Пуск».');
+		}
+
+		function finish() {
+			running = false;
+			finished = true;
+			slowBadge.hidden = true;
+			if (C) C.full();
+			render();
+			status('done', finalText());
+		}
+
+		function start() {
+			if (running) return;
+			if (finished || sim.t > 0 || burnStart >= 0) reset();
+			const v = values();
+			if (mode !== 'burst' && v.v1 === 0 && v.v2 === 0) return;
+			running = true;
+			if (reducedMotion()) {
+				// no animation: jump to the end state
+				burnStart = -2;
+				while (sim.t < P.tMax && !((sim.done || !P.hit) && sim.atEnd())) sim.advance(0.01);
+				finish();
+				return;
+			}
+			let last = performance.now();
+			if (mode === 'burst') {
+				burnStart = last;
+				status('burn', 'Нить горит…');
+			}
+			const frame = (now: number) => {
+				let real = Math.min(0.05, (now - last) / 1000);
+				last = now;
+				if (burnStart >= 0) {
+					if (now - burnStart < BURN) {
+						render();
+						raf = requestAnimationFrame(frame);
+						return;
+					}
+					burnStart = -2;
+					real = 0;
+				}
+				while (real > 1e-9) {
+					const h = Math.min(real, 1 / 240);
+					sim.advance(h * rate(sim.t));
+					real -= h;
+				}
+				const r = rate(sim.t);
+				if (r < 0.7) {
+					const nt = niceTimes(1 / slowFactor());
+					slowBadge.textContent = `Замедлено в ${nt} ${times(Number(nt))}`;
+					slowBadge.hidden = false;
+				} else slowBadge.hidden = true;
+				if (sim.F > 0) {
+					status(
+						'contact',
+						`${mode === 'burst' ? 'Пружина толкает тележки' : 'Удар'}: тележки действуют друг на друга с силами, равными по модулю и противоположными по направлению (третий закон Ньютона). Импульс, который теряет одна тележка, получает другая.`,
+					);
+				} else if (!sim.touched && P.hit && mode !== 'burst') status('approach', 'Тележки сближаются…');
+				else if (!P.hit) status('moving', 'Тележки едут, но не догоняют друг друга.');
+				else if (sim.done)
+					status('after', sim.stuck ? 'Тележки едут вместе…' : 'Тележки разъезжаются…');
+				const end = sim.t >= P.tMax || ((sim.done || !P.hit) && sim.atEnd());
+				if (end) {
+					finish();
+					return;
+				}
+				render();
+				raf = requestAnimationFrame(frame);
+			};
+			raf = requestAnimationFrame(frame);
+		}
+
+		// in «Разлёт» both carts start at rest: the speed sliders go to 0 and come back afterwards
+		let savedVel: { v1: string; v2: string } | null = null;
+		function setMode(m: Mode) {
+			if (m === 'burst' && mode !== 'burst') {
+				savedVel = { v1: inputs.v1.value, v2: inputs.v2.value };
+				inputs.v1.value = '0';
+				inputs.v2.value = '0';
+			} else if (m !== 'burst' && mode === 'burst' && savedVel) {
+				inputs.v1.value = savedVel.v1;
+				inputs.v2.value = savedVel.v2;
+				savedVel = null;
+			}
+			mode = m;
+			modeBtns.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === m)));
+			note.textContent = NOTES[m];
+			root.querySelectorAll<HTMLElement>('[data-vel]').forEach((el) => {
+				el.classList.toggle('is-off', m === 'burst');
+				el.querySelector('input')!.disabled = m === 'burst';
+			});
+			q<HTMLElement>('[data-vel-hint]').innerHTML =
+				m === 'burst'
+					? 'До разлёта тележки стоят, поэтому скорости менять нельзя — меняйте массы.'
+					: 'Скорости и импульсы здесь — проекции на ось <i>x</i>: вправо — со знаком «+», влево — со знаком «−».';
+			root.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((b) => {
+				b.hidden = (b.dataset.for === 'burst') !== (m === 'burst');
+			});
+			q<HTMLElement>('[data-slow-label]').textContent =
+				m === 'burst' ? 'Показывать разлёт замедленно' : 'Показывать удар замедленно';
+		}
+
+		function applyPreset(p: { mode?: Mode; m1: number; v1: number; m2: number; v2: number }) {
+			if (p.mode) setMode(p.mode);
+			inputs.m1.value = String(p.m1);
+			inputs.m2.value = String(p.m2);
+			if (mode !== 'burst') {
+				inputs.v1.value = String(p.v1);
+				inputs.v2.value = String(p.v2);
+			}
+			reset();
+		}
+
+		function relayout() {
+			const w = Math.floor(stage.clientWidth);
+			if (!w || Math.abs(w - W) < 2) return;
+			W = w;
+			G = buildScene();
+			const t = sim ? sim.t : 0;
+			const wasFinished = finished;
+			if (!P) {
+				reset();
+				return;
+			}
+			scaleFor(P);
+			renderBefore();
+			C = buildChart(P);
+			render();
+			if (C) wasFinished ? C.full() : C.cursor(t);
+		}
+
+		// ---------- wiring ----------
+		modeBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				setMode(b.dataset.mode as Mode);
+				reset();
+			}),
+		);
+		root.querySelector('[data-mode]')?.parentElement?.addEventListener('keydown', (e) => {
+			const ev = e as KeyboardEvent;
+			if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+			const i = modeBtns.findIndex((b) => b.dataset.mode === mode);
+			const j = (i + (ev.key === 'ArrowRight' ? 1 : modeBtns.length - 1)) % modeBtns.length;
+			modeBtns[j].focus();
+			modeBtns[j].click();
+		});
+		Object.values(inputs).forEach((el) => el.addEventListener('input', reset));
+		q<HTMLButtonElement>('[data-run]').addEventListener('click', start);
+		q<HTMLButtonElement>('[data-reset]').addEventListener('click', reset);
+		root.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((b) =>
+			b.addEventListener('click', () => {
+				applyPreset(JSON.parse(b.dataset.preset!));
+				start();
+			}),
+		);
+		// other parts of the page («проверить в модели») send presets with this event
+		window.addEventListener('imp:collide', (e) => {
+			const d = (e as CustomEvent).detail;
+			applyPreset(d);
+			root.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
+			setTimeout(start, reducedMotion() ? 0 : 700);
+		});
+
+		setMode('elastic');
+		W = Math.floor(stage.clientWidth) || 700;
+		G = buildScene();
+		reset();
+		new ResizeObserver(relayout).observe(stage);
+	}
+</script>
