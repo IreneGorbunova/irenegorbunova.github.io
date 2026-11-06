@@ -1,0 +1,771 @@
+---
+/**
+ * Mini-experiment after Millikan (1916): measure the stopping voltage for the lines of a
+ * mercury lamp, plot U_з against ν and get Planck's constant from the slope.
+ * The photocurrent comes from the same photocell model as the main lab (physics.ts);
+ * the meter shows 0,1 нА, so a careful measurement gives h about 1 % below 6,63·10⁻³⁴.
+ */
+import { buildPhiTable, lightColor } from './physics';
+
+const table = buildPhiTable();
+const LINES = [254, 313, 365, 405, 436, 546, 577];
+const pos = (nm: number) => 4 + ((nm - 230) / (600 - 230)) * 92;
+const MET = [
+	{ id: 'cs', name: 'Цезий', mark: 'circle' },
+	{ id: 'k', name: 'Калий', mark: 'square' },
+	{ id: 'li', name: 'Литий', mark: 'triangle' },
+];
+// graph
+const G = { x0: 46, x1: 348, y0: 12, y1: 252 };
+const gx = (nu: number) => G.x0 + (nu / 12.5) * (G.x1 - G.x0);
+const gy = (U: number) => G.y0 + ((3 - U) / 6) * (G.y1 - G.y0);
+const clipId = `fe-mil-clip-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="fe-mil not-content" data-fe-mil data-phi={JSON.stringify(table)}>
+	<div class="fe-mil__row">
+		<span class="fe-mil__name">Катод</span>
+		<div class="fe-mil__chips">
+			{
+				MET.map((m, i) => (
+					<button type="button" class="fe-mil__chip" data-mil-metal={m.id} aria-pressed={i === 0 ? 'true' : 'false'}>
+						<svg viewBox="-6 -6 12 12" aria-hidden="true" class={`fe-mil__mk fe-mil__mk--${m.id}`}>
+							{m.mark === 'circle' && <circle r="4.5" />}
+							{m.mark === 'square' && <rect x="-4" y="-4" width="8" height="8" />}
+							{m.mark === 'triangle' && <path d="M0,-5 L4.8,3.8 L-4.8,3.8 Z" />}
+						</svg>
+						{m.name}
+					</button>
+				))
+			}
+		</div>
+	</div>
+
+	<div class="fe-mil__row fe-mil__row--top">
+		<span class="fe-mil__name">Линия спектра ртутной лампы</span>
+	</div>
+	<div class="fe-mil__spectrum" role="group" aria-label="Линии спектра ртутной лампы">
+		<span class="fe-mil__uvline" style={`left: ${pos(380).toFixed(2)}%`}>
+			<span class="fe-mil__uv">← ультрафиолет</span>
+			<span class="fe-mil__vis">видимый →</span>
+		</span>
+		{
+			LINES.map((nm) => (
+				<button
+					type="button"
+					class="fe-mil__line"
+					style={`left: ${pos(nm).toFixed(2)}%; --c: ${lightColor(nm)}`}
+					data-mil-line={nm}
+					aria-pressed="false"
+					aria-label={`${nm} нм`}
+				>
+					<span class="fe-mil__bar"></span>
+					<span class="fe-mil__nm">{nm}</span>
+				</button>
+			))
+		}
+		<span class="fe-mil__unit">нм</span>
+	</div>
+
+	<div class="fe-mil__body">
+		<div class="fe-mil__device">
+			<div class="fe-mil__screen">
+				<span>Сила фототока</span>
+				<b data-mil-i>—</b>
+			</div>
+			<label class="fe-mil__slider">
+				<span>Тормозящее напряжение</span>
+				<output data-mil-u-out>0,00 В</output>
+				<input type="range" min="0" max="3" step="0.01" value="0" data-mil-u disabled />
+			</label>
+			<div class="fe-mil__btns">
+				<button type="button" class="fe-mil__btn" data-mil-step="-0.01" disabled>−0,01 В</button>
+				<button type="button" class="fe-mil__btn" data-mil-step="0.01" disabled>+0,01 В</button>
+				<button type="button" class="fe-mil__btn fe-mil__btn--primary" data-mil-rec disabled>Записать точку</button>
+			</div>
+			<p class="fe-mil__msg" data-mil-msg aria-live="polite">Выберите линию в спектре.</p>
+		</div>
+		<svg class="fe-mil__plot" viewBox="0 0 360 290" role="img" aria-label="График зависимости задерживающего напряжения от частоты света">
+			<defs>
+				<clipPath id={clipId}>
+					<rect x={G.x0} y={G.y0} width={G.x1 - G.x0} height={G.y1 - G.y0}></rect>
+				</clipPath>
+			</defs>
+			<g class="fe-mil__grid">
+				{[2, 4, 6, 8, 10, 12].map((v) => <line x1={gx(v)} x2={gx(v)} y1={G.y0} y2={G.y1} />)}
+				{[-3, -2, -1, 1, 2, 3].map((v) => <line x1={G.x0} x2={G.x1} y1={gy(v)} y2={gy(v)} />)}
+			</g>
+			<line class="fe-mil__axis" x1={G.x0} x2={G.x1 + 4} y1={gy(0)} y2={gy(0)}></line>
+			<line class="fe-mil__axis" x1={G.x0} x2={G.x0} y1={G.y1} y2={G.y0 - 4}></line>
+			<g class="fe-mil__ticks">
+				{[2, 4, 6, 8, 10, 12].map((v) => <text x={gx(v)} y={gy(0) + 15} text-anchor="middle">{v}</text>)}
+				{[-3, -2, -1, 1, 2, 3].map((v) => <text x={G.x0 - 6} y={gy(v) + 4} text-anchor="end">{v < 0 ? `−${-v}` : v}</text>)}
+				<text x={G.x0 - 6} y={gy(0) + 4} text-anchor="end">0</text>
+				<text class="fe-mil__axis-name" x={G.x1 + 4} y={gy(0) - 8} text-anchor="end">ν, 10¹⁴ Гц</text>
+				<text class="fe-mil__axis-name" x={G.x0 + 6} y={G.y0 + 10}>U<tspan baseline-shift="sub" font-size="0.75em">з</tspan>, В</text>
+			</g>
+			<g clip-path={`url(#${clipId})`}>
+				<g data-mil-exact></g>
+				<g data-mil-fits></g>
+			</g>
+			<g data-mil-points></g>
+			<g class="fe-mil__probe" data-mil-probe visibility="hidden">
+				<line data-mil-probe-line></line>
+				<circle r="6" data-mil-probe-dot></circle>
+			</g>
+		</svg>
+	</div>
+
+	<div class="fe-mil__results" data-mil-results>
+		<p class="fe-mil__hint">Запишите хотя бы две точки для одного металла — через них пройдёт прямая, и по её наклону получится постоянная Планка.</p>
+	</div>
+
+	<div class="fe-mil__btns fe-mil__btns--end">
+		<button type="button" class="fe-mil__btn" data-mil-exact-btn aria-pressed="false">Показать точные прямые</button>
+		<button type="button" class="fe-mil__btn" data-mil-clear>Стереть точки</button>
+	</div>
+	<figcaption class="fe-mil__caption">
+		Фотоэлемент тот же, что в модели выше. Ток насыщения 2 мкА; прибор показывает ток с точностью
+		до 0,1 нА (1 нА = 10<sup>−9</sup> А). Длины волн линий ртути округлены до нанометра.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.fe-mil {
+		--fe-sat: 90%;
+		--fe-lit: 62%;
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .fe-mil {
+		--fe-sat: 85%;
+		--fe-lit: 45%;
+	}
+	.fe-mil i {
+		font-family: var(--ig-font-math);
+	}
+	.fe-mil__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-mil__row--top {
+		margin-top: 0.9rem;
+	}
+	.fe-mil__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.fe-mil__chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0;
+		padding: 0.35rem 0.8rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.fe-mil__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.fe-mil__chip[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.fe-mil__chip svg {
+		width: 0.85rem;
+		height: 0.85rem;
+	}
+	.fe-mil__mk--cs {
+		fill: var(--ig-vx);
+	}
+	.fe-mil__mk--k {
+		fill: var(--ig-v);
+	}
+	.fe-mil__mk--li {
+		fill: var(--ig-vy);
+	}
+
+	.fe-mil__spectrum {
+		position: relative;
+		height: 4.8rem;
+		margin-top: 0.4rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-gray-5);
+	}
+	.fe-mil__uvline {
+		position: absolute;
+		top: 0.3rem;
+		bottom: 0.3rem;
+		border-left: 1px dashed var(--sl-color-gray-4);
+	}
+	.fe-mil__uv,
+	.fe-mil__vis {
+		position: absolute;
+		top: 0;
+		font-size: 10px;
+		color: var(--sl-color-gray-3);
+		white-space: nowrap;
+	}
+	.fe-mil__uv {
+		right: 0.3rem;
+	}
+	.fe-mil__vis {
+		left: 0.3rem;
+	}
+	.fe-mil__line {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 2.2rem;
+		margin: 0;
+		padding: 1.45rem 0 0;
+		transform: translateX(-50%);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.2rem;
+		font: inherit;
+		background: transparent;
+		border: 0;
+		cursor: pointer;
+	}
+	.fe-mil__bar {
+		width: 4px;
+		height: 1.7rem;
+		border-radius: 2px;
+		background: var(--c);
+		box-shadow: 0 0 6px var(--c);
+		transition:
+			transform 0.2s,
+			box-shadow 0.2s;
+	}
+	.fe-mil__nm {
+		font-size: 11px;
+		line-height: 1;
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-mil__line:hover .fe-mil__bar,
+	.fe-mil__line:focus-visible .fe-mil__bar {
+		transform: scaleX(1.6);
+	}
+	.fe-mil__line[aria-pressed='true'] .fe-mil__bar {
+		transform: scaleX(2);
+		box-shadow:
+			0 0 10px var(--c),
+			0 0 18px var(--c);
+	}
+	.fe-mil__line[aria-pressed='true'] .fe-mil__nm {
+		color: var(--sl-color-white);
+		font-weight: 700;
+	}
+	.fe-mil__line.is-done .fe-mil__nm {
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.fe-mil__unit {
+		position: absolute;
+		right: 0.4rem;
+		bottom: 0.3rem;
+		font-size: 10px;
+		color: var(--sl-color-gray-3);
+	}
+
+	.fe-mil__body {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+		gap: 1rem;
+		margin-top: 1rem;
+		align-items: start;
+	}
+	.fe-mil__device {
+		display: grid;
+		gap: 0.75rem;
+	}
+	.fe-mil__screen {
+		display: grid;
+		gap: 0.1rem;
+		padding: 0.6rem 0.8rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-gray-5);
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.fe-mil__screen b {
+		font-size: 1.9rem;
+		line-height: 1.15;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-mil__screen b.is-zero {
+		color: var(--sl-color-text-accent);
+	}
+	.fe-mil__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-mil__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-mil__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.fe-mil__btns {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+	.fe-mil__btns--end {
+		margin-top: 0.75rem;
+	}
+	.fe-mil__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 0.95rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-mil__btn:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+	}
+	.fe-mil__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.fe-mil__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.fe-mil__msg {
+		min-height: 3em;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-mil__msg.is-good {
+		color: var(--sl-color-text-accent);
+	}
+	.fe-mil__msg.is-bad {
+		color: var(--ig-vy);
+	}
+
+	.fe-mil__plot {
+		display: block;
+		width: 100%;
+		height: auto;
+		overflow: visible;
+	}
+	.fe-mil__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.fe-mil__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.fe-mil__ticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+	.fe-mil__axis-name {
+		font-style: italic;
+	}
+	.fe-mil__exact line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 1 4;
+		stroke-linecap: round;
+	}
+	.fe-mil__fit {
+		stroke-width: 2.2;
+	}
+	.fe-mil__fit--ext {
+		stroke-width: 1.4;
+		stroke-dasharray: 5 4;
+	}
+	.fe-mil__c--cs {
+		stroke: var(--ig-vx);
+		fill: var(--ig-vx);
+	}
+	.fe-mil__c--k {
+		stroke: var(--ig-v);
+		fill: var(--ig-v);
+	}
+	.fe-mil__c--li {
+		stroke: var(--ig-vy);
+		fill: var(--ig-vy);
+	}
+	.fe-mil__pt {
+		stroke: var(--ig-surface);
+		stroke-width: 1.5;
+	}
+	.fe-mil__pt.is-new {
+		animation: fe-mil-pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1);
+		transform-box: fill-box;
+		transform-origin: center;
+	}
+	@keyframes fe-mil-pop {
+		from {
+			transform: scale(0);
+		}
+	}
+	.fe-mil__probe circle {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.5;
+		stroke-dasharray: 3 2;
+	}
+	.fe-mil__probe line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+
+	.fe-mil__results {
+		display: grid;
+		gap: 0.6rem;
+		margin-top: 1rem;
+	}
+	.fe-mil__hint {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.fe-mil__res {
+		padding: 0.6rem 0.8rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		border-left: 4px solid var(--c);
+		font-size: var(--sl-text-sm);
+		line-height: 1.6;
+	}
+	.fe-mil__res p {
+		margin: 0.15rem 0;
+	}
+	.fe-mil__res .katex-display {
+		margin: 0.3rem 0;
+	}
+	.fe-mil__res strong {
+		color: var(--sl-color-white);
+	}
+	.fe-mil__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.fe-mil {
+			padding: 0.75rem;
+		}
+		.fe-mil__body {
+			grid-template-columns: 1fr;
+		}
+		.fe-mil__ticks text {
+			font-size: 13px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.fe-mil__pt.is-new {
+			animation: none;
+		}
+		.fe-mil__bar {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { METALS, C, E, H, HC, currentShare, fmt, sci, tex, type PhiTable } from './physics';
+
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const G = { x0: 46, x1: 348, y0: 12, y1: 252 };
+	const gx = (nu: number) => G.x0 + (nu / 12.5) * (G.x1 - G.x0);
+	const gy = (U: number) => G.y0 + ((3 - U) / 6) * (G.y1 - G.y0);
+	const I0 = 2000; // нА, saturation current
+	const MARK: Record<string, string> = { cs: 'circle', k: 'square', li: 'triangle' };
+
+	type Pt = { metal: string; nm: number; nu: number; U: number };
+
+	const marker = (id: string, x: number, y: number, r = 5.5) => {
+		const kind = MARK[id];
+		let el: SVGElement;
+		if (kind === 'circle') {
+			el = document.createElementNS(SVG_NS, 'circle');
+			el.setAttribute('cx', x.toFixed(1));
+			el.setAttribute('cy', y.toFixed(1));
+			el.setAttribute('r', String(r));
+		} else if (kind === 'square') {
+			el = document.createElementNS(SVG_NS, 'rect');
+			el.setAttribute('x', (x - r * 0.9).toFixed(1));
+			el.setAttribute('y', (y - r * 0.9).toFixed(1));
+			el.setAttribute('width', (r * 1.8).toFixed(1));
+			el.setAttribute('height', (r * 1.8).toFixed(1));
+		} else {
+			el = document.createElementNS(SVG_NS, 'path');
+			el.setAttribute('d', `M${x},${y - r * 1.1} L${x + r},${y + r * 0.75} L${x - r},${y + r * 0.75} Z`);
+		}
+		el.classList.add('fe-mil__pt', `fe-mil__c--${id}`);
+		return el;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fe-mil]')) {
+		const table = JSON.parse(root.dataset.phi!) as PhiTable;
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mil-metal]'));
+		const lines = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mil-line]'));
+		const uIn = q<HTMLInputElement>('[data-mil-u]');
+		const uOut = q<HTMLOutputElement>('[data-mil-u-out]');
+		const iOut = q<HTMLElement>('[data-mil-i]');
+		const msg = q<HTMLElement>('[data-mil-msg]');
+		const rec = q<HTMLButtonElement>('[data-mil-rec]');
+		const steps = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mil-step]'));
+		const gPts = q<SVGGElement>('[data-mil-points]');
+		const gFits = q<SVGGElement>('[data-mil-fits]');
+		const gExact = q<SVGGElement>('[data-mil-exact]');
+		const probe = q<SVGGElement>('[data-mil-probe]');
+		const probeLine = q<SVGLineElement>('[data-mil-probe-line]');
+		const probeDot = q<SVGCircleElement>('[data-mil-probe-dot]');
+		const results = q<HTMLElement>('[data-mil-results]');
+		const exactBtn = q<HTMLButtonElement>('[data-mil-exact-btn]');
+		const hint = results.innerHTML;
+
+		let metalId = 'cs';
+		let nm = 0;
+		let showExact = false;
+		let lastNew: Pt | null = null;
+		const pts: Pt[] = [];
+		const metalOf = (id: string) => METALS.find((m) => m.id === id)!;
+
+		/** The meter: current in нА, rounded to 0,1 нА as the display shows it. */
+		const reading = (U: number) => {
+			const Ek = HC / nm - metalOf(metalId).A;
+			const I = Ek > 0 ? I0 * currentShare(table, -U, Ek) : 0;
+			return Math.round(I * 10) / 10;
+		};
+
+		const say = (text: string, kind: '' | 'good' | 'bad' = '') => {
+			msg.innerHTML = text;
+			msg.classList.toggle('is-good', kind === 'good');
+			msg.classList.toggle('is-bad', kind === 'bad');
+		};
+
+		const refreshDevice = () => {
+			const U = Number(uIn.value);
+			uOut.value = `${fmt(U)} В`;
+			if (!nm) {
+				iOut.textContent = '—';
+				probe.setAttribute('visibility', 'hidden');
+				return;
+			}
+			const I = reading(U);
+			iOut.textContent = `${fmt(I, 1)} нА`;
+			iOut.classList.toggle('is-zero', I === 0);
+			const nu = C / (nm * 1e-9) / 1e14;
+			probe.setAttribute('visibility', 'visible');
+			probeDot.setAttribute('cx', gx(nu).toFixed(1));
+			probeDot.setAttribute('cy', gy(U).toFixed(1));
+			probeLine.setAttribute('x1', gx(nu).toFixed(1));
+			probeLine.setAttribute('x2', gx(nu).toFixed(1));
+			probeLine.setAttribute('y1', String(gy(0)));
+			probeLine.setAttribute('y2', gy(U).toFixed(1));
+		};
+
+		const fit = (list: Pt[]) => {
+			const n = list.length;
+			const mx = list.reduce((s, p) => s + p.nu, 0) / n;
+			const my = list.reduce((s, p) => s + p.U, 0) / n;
+			let sxx = 0;
+			let sxy = 0;
+			for (const p of list) {
+				sxx += (p.nu - mx) ** 2;
+				sxy += (p.nu - mx) * (p.U - my);
+			}
+			const k = sxy / sxx; // В/Гц
+			return { k, b: my - k * mx };
+		};
+
+		const kx = (t: string) => katex.renderToString(t, { throwOnError: false });
+		const kd = (t: string) => katex.renderToString(t, { throwOnError: false, displayMode: true, fleqn: true });
+
+		const redraw = () => {
+			gPts.replaceChildren();
+			gFits.replaceChildren();
+			gExact.replaceChildren();
+			if (showExact) {
+				for (const id of ['cs', 'k', 'li']) {
+					const A = metalOf(id).A;
+					const ln = document.createElementNS(SVG_NS, 'line');
+					// U = (h/e)·ν − A/e, ν in units of 10¹⁴ Гц
+					const s = (H / E) * 1e14;
+					ln.setAttribute('x1', String(gx(0)));
+					ln.setAttribute('y1', gy(-A).toFixed(1));
+					ln.setAttribute('x2', String(gx(12.5)));
+					ln.setAttribute('y2', gy(s * 12.5 - A).toFixed(1));
+					ln.style.stroke = `var(--${id === 'cs' ? 'ig-vx' : id === 'k' ? 'ig-v' : 'ig-vy'})`;
+					const g = document.createElementNS(SVG_NS, 'g');
+					g.classList.add('fe-mil__exact');
+					g.append(ln);
+					gExact.append(g);
+				}
+			}
+			const blocks: string[] = [];
+			for (const id of ['cs', 'k', 'li']) {
+				const list = pts.filter((p) => p.metal === id);
+				for (const p of list) {
+					const el = marker(id, gx(p.nu / 1e14), gy(p.U));
+					if (p === lastNew) el.classList.add('is-new');
+					gPts.append(el);
+				}
+				if (list.length < 2) continue;
+				const { k, b } = fit(list.map((p) => ({ ...p, nu: p.nu })));
+				const ks = k * 1e14; // В per 10¹⁴ Гц
+				const nuLo = Math.min(...list.map((p) => p.nu)) / 1e14;
+				const nuHi = Math.max(...list.map((p) => p.nu)) / 1e14;
+				const ext = document.createElementNS(SVG_NS, 'line');
+				ext.classList.add('fe-mil__fit', 'fe-mil__fit--ext', `fe-mil__c--${id}`);
+				ext.setAttribute('x1', String(gx(0)));
+				ext.setAttribute('y1', gy(b).toFixed(1));
+				ext.setAttribute('x2', String(gx(12.5)));
+				ext.setAttribute('y2', gy(b + ks * 12.5).toFixed(1));
+				const solid = document.createElementNS(SVG_NS, 'line');
+				solid.classList.add('fe-mil__fit', `fe-mil__c--${id}`);
+				solid.setAttribute('x1', gx(nuLo).toFixed(1));
+				solid.setAttribute('y1', gy(b + ks * nuLo).toFixed(1));
+				solid.setAttribute('x2', gx(nuHi).toFixed(1));
+				solid.setAttribute('y2', gy(b + ks * nuHi).toFixed(1));
+				gFits.append(ext, solid);
+
+				// the printed calculation uses the printed (rounded) numbers, so it checks on a calculator
+				const dU = Math.round(ks * (nuHi - nuLo) * 100) / 100;
+				const dNu = Math.round((nuHi - nuLo) * 100) / 100;
+				const h = (E * dU) / (dNu * 1e14);
+				const err = ((Math.round(h * 1e36) / 100 - 6.63) / 6.63) * 100;
+				const nuMin = -b / k;
+				const m = metalOf(id);
+				const colour = `var(--${id === 'cs' ? 'ig-vx' : id === 'k' ? 'ig-v' : 'ig-vy'})`;
+				const errText =
+					Math.abs(err) < 0.5
+						? 'почти точно совпадает с табличным значением'
+						: `на ${fmt(Math.abs(err), 1)}\u00a0% ${err < 0 ? 'меньше' : 'больше'} табличного значения ${kx('6{,}63\\cdot10^{-34}~\\text{Дж·с}')}`;
+				blocks.push(`<div class="fe-mil__res" style="--c: ${colour}">
+					<p><strong>${m.name}</strong>, точек: ${list.length}. Наклон прямой:</p>
+					${kd(`\\begin{aligned} h &= e\\,\\dfrac{\\Delta U_{\\text{з}}}{\\Delta\\nu} \\\\ &= 1{,}6\\cdot10^{-19}~\\text{Кл}\\cdot\\dfrac{${tex(dU)}~\\text{В}}{${tex(dNu)}\\cdot10^{14}~\\text{Гц}} \\\\ &\\approx ${sci(h)}~\\text{Дж·с} \\end{aligned}`)}
+					<p>Это ${errText}.</p>
+					<p>Прямая пересекает ось частот при ${kx(`\\nu_{\\min} = ${sci(nuMin)}~\\text{Гц}`)} — это красная граница; её продолжение отсекает на оси напряжений ${kx(`U = ${tex(b)}~\\text{В}`)}, значит, ${kx(`A_{\\text{вых}} \\approx ${tex(-b)}~\\text{эВ}`)}.</p>
+				</div>`);
+			}
+			results.innerHTML = blocks.length ? blocks.join('') : hint;
+			for (const ln of lines) {
+				ln.classList.toggle('is-done', pts.some((p) => p.metal === metalId && p.nm === Number(ln.dataset.milLine)));
+			}
+		};
+
+		const choose = (value: number) => {
+			nm = value;
+			lines.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.milLine) === nm)));
+			uIn.value = '0';
+			const off = reading(0) === 0;
+			uIn.disabled = off;
+			steps.forEach((s) => (s.disabled = off));
+			rec.disabled = off;
+			refreshDevice();
+			if (off) {
+				const Eph = HC / nm;
+				say(
+					`Ток равен нулю даже без тормозящего напряжения: энергия фотона ${fmt(Eph)}\u00a0эВ меньше работы выхода ${metalOf(metalId).gen} (${fmt(metalOf(metalId).A, 1)}\u00a0эВ). Фотоэффекта нет — эту линию на график не нанести.`,
+					'bad',
+				);
+			} else say('Увеличивайте тормозящее напряжение, пока ток не станет равным нулю.');
+		};
+
+		uIn.addEventListener('input', () => {
+			refreshDevice();
+			if (reading(Number(uIn.value)) === 0) say('Ток равен нулю. Если это наименьшее такое напряжение, запишите точку.');
+			else say('Увеличивайте тормозящее напряжение, пока ток не станет равным нулю.');
+		});
+		for (const s of steps) {
+			s.addEventListener('click', () => {
+				uIn.value = String(Math.min(3, Math.max(0, Math.round((Number(uIn.value) + Number(s.dataset.milStep)) * 100) / 100)));
+				uIn.dispatchEvent(new Event('input'));
+			});
+		}
+		rec.addEventListener('click', () => {
+			const U = Number(uIn.value);
+			if (reading(U) > 0) {
+				say('Ток ещё не исчез: часть электронов долетает до анода. Увеличьте тормозящее напряжение.', 'bad');
+				return;
+			}
+			if (U >= 0.01 && reading(Math.round((U - 0.01) * 100) / 100) === 0) {
+				say('Ток исчезает и при меньшем напряжении. Найдите наименьшее напряжение, при котором ток становится равным нулю.', 'bad');
+				return;
+			}
+			const nu = C / (nm * 1e-9);
+			const i = pts.findIndex((p) => p.metal === metalId && p.nm === nm);
+			const p = { metal: metalId, nm, nu, U };
+			if (i >= 0) pts[i] = p;
+			else pts.push(p);
+			lastNew = p;
+			redraw();
+			const n = pts.filter((x) => x.metal === metalId).length;
+			say(
+				`Записано: ${nm}\u00a0нм, ${kx(`\\nu = ${sci(nu)}~\\text{Гц}`)}, ${kx(`U_{\\text{з}} = ${tex(U)}~\\text{В}`)}.${n < 2 ? ' Выберите другую линию.' : ''}`,
+				'good',
+			);
+		});
+		for (const chip of chips) {
+			chip.addEventListener('click', () => {
+				metalId = chip.dataset.milMetal!;
+				chips.forEach((c) => c.setAttribute('aria-pressed', String(c === chip)));
+				if (nm) choose(nm);
+				redraw();
+			});
+		}
+		for (const ln of lines) ln.addEventListener('click', () => choose(Number(ln.dataset.milLine)));
+		exactBtn.addEventListener('click', () => {
+			showExact = !showExact;
+			exactBtn.setAttribute('aria-pressed', String(showExact));
+			exactBtn.textContent = showExact ? 'Скрыть точные прямые' : 'Показать точные прямые';
+			lastNew = null;
+			redraw();
+		});
+		q<HTMLButtonElement>('[data-mil-clear]').addEventListener('click', () => {
+			pts.length = 0;
+			lastNew = null;
+			redraw();
+		});
+		refreshDevice();
+	}
+</script>

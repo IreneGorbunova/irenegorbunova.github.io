@@ -1,0 +1,615 @@
+---
+/**
+ * "How long would an electron wait?" The wave-theory estimate of the photoeffect delay:
+ * the electron collects the light energy falling on an atom-sized area S = 10⁻²⁰ м², so it
+ * needs t = A / (I·S) to gather the work function. A log time line compares this with
+ * experiment (< 10⁻⁹ с); a real-time "race" fills the wave-theory energy gauge at the true
+ * rate, while an electron that absorbs a photon gets hν at once. Cathode: caesium.
+ */
+import { METALS } from './physics';
+
+const A = METALS.find((m) => m.id === 'cs')!.A;
+const LG_MIN = -10;
+const LG_MAX = 8;
+const pos = (lg: number) => (((lg - LG_MIN) / (LG_MAX - LG_MIN)) * 100).toFixed(2);
+const below = [-9, -6, -3, 0, 3, 6].map((lg) => ({
+	x: pos(lg),
+	html: lg === 0 ? '1 с' : `10<sup>${lg < 0 ? `−${-lg}` : lg}</sup> с`,
+}));
+const above: [number, string, boolean][] = [
+	[60, '1 мин', false],
+	[3600, '1 ч', true],
+	[86400, '1 сут', false],
+	[365.25 * 86400, '1 год', true],
+];
+const PRESETS = [
+	{ id: 'sun', name: 'Солнце в полдень', lg: 3 },
+	{ id: 'room', name: 'Освещённая комната', lg: 0 },
+	// the full Moon is about 14 stellar magnitudes, i.e. 10^(14/2,5) ≈ 4·10⁵ times, fainter than the Sun
+	{ id: 'moon', name: 'Полная Луна', lg: -2.6 },
+];
+const G_MAX = 3.5; // эВ, scale of the energy gauges
+const aPos = ((A / G_MAX) * 100).toFixed(2);
+---
+
+<figure class="fe-wd not-content" data-fe-wd data-a={A} data-gmax={G_MAX}>
+	<div class="fe-wd__presets" role="group" aria-label="Источник света">
+		{
+			PRESETS.map((p) => (
+				<button type="button" class="fe-wd__chip" data-lg={p.lg} aria-pressed={p.id === 'room' ? 'true' : 'false'}>
+					{p.name}
+				</button>
+			))
+		}
+	</div>
+	<label class="fe-wd__slider">
+		<span class="fe-wd__slider-name">Интенсивность света <i>I</i></span>
+		<output data-i-out>1 Вт/м²</output>
+		<input type="range" min="-6" max="3" step="0.1" value="0" data-lg-in />
+	</label>
+
+	<div class="fe-wd__calc">
+		<div data-c1></div>
+		<div data-c2></div>
+	</div>
+
+	<div class="fe-wd__line" aria-hidden="true">
+		<div class="fe-wd__track">
+			<span class="fe-wd__exp" style={`width: ${pos(-9)}%`}></span>
+			{
+				above.map(([t, l, keep]) => (
+					<span class:list={['fe-wd__up', { 'fe-wd__up--opt': !keep }]} style={`left: ${pos(Math.log10(t))}%`}>
+						{l}
+					</span>
+				))
+			}
+			{below.map((b) => <span class="fe-wd__down" style={`left: ${b.x}%`} set:html={b.html} />)}
+			<span class="fe-wd__exp-label">опыт: меньше 10<sup>−9</sup> с</span>
+			<span class="fe-wd__marker" data-marker>
+				<span class="fe-wd__bubble" data-bubble></span>
+			</span>
+		</div>
+	</div>
+	<p class="fe-wd__verdict" data-verdict aria-live="polite"></p>
+
+	<div class="fe-wd__race">
+		<button type="button" class="fe-wd__btn" data-run>Включить свет</button>
+		<div class="fe-wd__row">
+			<span class="fe-wd__row-name">Если свет — волна</span>
+			<div class="fe-wd__gauge">
+				<span class="fe-wd__fill fe-wd__fill--wave" data-wave></span>
+				<span class="fe-wd__amark" style={`left: ${aPos}%`}></span>
+			</div>
+			<span class="fe-wd__row-text" data-wave-text>Электрон медленно копит энергию волны.</span>
+		</div>
+		<div class="fe-wd__row">
+			<span class="fe-wd__row-name">Если свет — фотоны</span>
+			<div class="fe-wd__gauge">
+				<span class="fe-wd__fill fe-wd__fill--work" data-q-work></span>
+				<span class="fe-wd__fill fe-wd__fill--kin" data-q-kin style={`left: ${aPos}%`}></span>
+				<span class="fe-wd__amark" style={`left: ${aPos}%`}></span>
+			</div>
+			<span class="fe-wd__row-text" data-q-text>Фотон отдаёт электрону всю энергию сразу.</span>
+		</div>
+		<div class="fe-wd__scale">
+			{[0, 1, 3].map((v) => <span style={`left: ${((v / G_MAX) * 100).toFixed(2)}%`}>{v}</span>)}
+			<span class="fe-wd__scale-a" style={`left: ${aPos}%`}>
+				<i>A</i><sub>вых</sub>
+			</span>
+			<span class="fe-wd__scale-unit">эВ</span>
+		</div>
+	</div>
+
+	<figcaption class="fe-wd__caption">
+		Катод из цезия: <i>A</i><sub>вых</sub> = 2,1 эВ = 3,36·10<sup>−19</sup> Дж. Электрон получает энергию
+		волны с площадки размером с атом, <i>S</i> = 10<sup>−20</sup> м². Интенсивность солнечного света в полдень
+		около 1000 Вт/м², полной Луны — примерно в 400 тысяч раз меньше. Фотоны — фиолетового света (400 нм):{' '}
+		<i>hν</i> = 3,11 эВ. Шкалы энергии и времени во втором опыте настоящие: волновая шкала заполняется с той
+		скоростью, какую даёт оценка.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.fe-wd {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		--fe-wd-photon: hsl(265 90% 66%);
+	}
+	:root[data-theme='light'] .fe-wd {
+		--fe-wd-photon: hsl(265 80% 50%);
+	}
+	.fe-wd i {
+		font-family: var(--ig-font-math);
+	}
+	.fe-wd__presets {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.fe-wd__chip {
+		margin: 0;
+		padding: 0.35rem 0.9rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s;
+	}
+	.fe-wd__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.fe-wd__chip[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.fe-wd__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		margin-top: 0.8rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-wd__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-wd__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.fe-wd__calc {
+		display: grid;
+		gap: 0.2rem;
+		margin-top: 0.8rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+		overflow-x: auto;
+	}
+	.fe-wd__calc .katex-display {
+		margin: 0.2rem 0;
+	}
+
+	/* logarithmic time line */
+	.fe-wd__line {
+		margin: 3.2rem 0.4rem 0;
+		padding-bottom: 1.7rem;
+	}
+	.fe-wd__track {
+		position: relative;
+		height: 0.5rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+	}
+	.fe-wd__exp {
+		position: absolute;
+		left: 0;
+		top: -0.2rem;
+		bottom: -0.2rem;
+		border-radius: 999px;
+		background: var(--ig-vx);
+		box-shadow: 0 0 8px var(--ig-vx);
+	}
+	.fe-wd__exp-label {
+		position: absolute;
+		left: 0;
+		top: -1.55rem;
+		font-size: var(--sl-text-xs);
+		font-weight: 700;
+		color: var(--ig-vx);
+		white-space: nowrap;
+	}
+	.fe-wd__up,
+	.fe-wd__down {
+		position: absolute;
+		transform: translateX(-50%);
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		white-space: nowrap;
+		line-height: 1;
+	}
+	.fe-wd__up {
+		top: -1.2rem;
+	}
+	.fe-wd__up::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 0.95rem;
+		height: 0.45rem;
+		border-left: 1px solid var(--sl-color-gray-3);
+	}
+	.fe-wd__down {
+		top: 0.95rem;
+	}
+	.fe-wd__down::before {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: -0.55rem;
+		height: 0.4rem;
+		border-left: 1px solid var(--sl-color-gray-3);
+	}
+	.fe-wd__marker {
+		position: absolute;
+		top: 50%;
+		width: 1.1rem;
+		height: 1.1rem;
+		margin: -0.55rem 0 0 -0.55rem;
+		border-radius: 50%;
+		background: var(--ig-v);
+		border: 2px solid var(--ig-surface);
+		box-shadow: 0 0 10px var(--ig-v);
+		transition: left 0.45s cubic-bezier(0.3, 0.9, 0.3, 1);
+	}
+	.fe-wd__marker::before {
+		content: '';
+		position: absolute;
+		left: 50%;
+		bottom: 100%;
+		height: 1.05rem;
+		margin-left: -1px;
+		border-left: 2px solid var(--ig-v);
+	}
+	.fe-wd__bubble {
+		position: absolute;
+		bottom: 2.1rem;
+		left: 50%;
+		padding: 0.15rem 0.5rem;
+		border-radius: 0.5rem;
+		background: var(--ig-v);
+		color: var(--sl-color-black);
+		font-size: var(--sl-text-xs);
+		font-weight: 700;
+		white-space: nowrap;
+		transform: translateX(var(--shift, -50%));
+		transition: transform 0.45s cubic-bezier(0.3, 0.9, 0.3, 1);
+	}
+	.fe-wd__verdict {
+		min-height: 3em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-wd__verdict b {
+		color: var(--sl-color-white);
+	}
+
+	/* real-time race */
+	.fe-wd__race {
+		display: grid;
+		gap: 0.55rem;
+		margin-top: 0.75rem;
+		padding: 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+	.fe-wd__btn {
+		justify-self: start;
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.fe-wd__btn[aria-pressed='true'] {
+		background: transparent;
+		color: var(--sl-color-white);
+	}
+	.fe-wd__row {
+		display: grid;
+		grid-template-columns: 9.5rem 1fr;
+		gap: 0.15rem 0.6rem;
+		align-items: center;
+		font-size: var(--sl-text-sm);
+	}
+	.fe-wd__row-name {
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.fe-wd__row-text {
+		grid-column: 2;
+		min-height: 2.6em;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-wd__gauge {
+		position: relative;
+		height: 1.25rem;
+		border-radius: 0.35rem;
+		background: var(--ig-surface);
+		border: 1px solid var(--sl-color-gray-5);
+		overflow: hidden;
+	}
+	.fe-wd__fill {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		width: 0;
+	}
+	.fe-wd__fill--wave {
+		background: var(--ig-v);
+	}
+	.fe-wd__fill--work {
+		background: var(--fe-wd-photon);
+		transition: width 0.18s ease-out;
+	}
+	.fe-wd__fill--kin {
+		background: var(--ig-vx);
+		transition: width 0.18s ease-out 0.12s;
+	}
+	.fe-wd__amark {
+		position: absolute;
+		top: -2px;
+		bottom: -2px;
+		border-left: 2px dashed var(--sl-color-white);
+	}
+	.fe-wd__scale {
+		position: relative;
+		height: 1.1rem;
+		margin-left: 10.1rem;
+		font-size: 11px;
+		color: var(--sl-color-gray-3);
+	}
+	.fe-wd__scale span {
+		position: absolute;
+		top: 0;
+		transform: translateX(-50%);
+	}
+	.fe-wd__scale .fe-wd__scale-a {
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-xs);
+	}
+	.fe-wd__scale .fe-wd__scale-unit {
+		left: auto;
+		right: 0;
+		transform: none;
+	}
+	.fe-wd__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+
+	@media (max-width: 40rem) {
+		.fe-wd {
+			padding: 0.75rem;
+		}
+		.fe-wd__up--opt {
+			display: none;
+		}
+		.fe-wd__row {
+			grid-template-columns: 1fr;
+		}
+		.fe-wd__row-text {
+			grid-column: 1;
+		}
+		.fe-wd__scale {
+			margin-left: 0;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.fe-wd__marker,
+		.fe-wd__bubble,
+		.fe-wd__fill--work,
+		.fe-wd__fill--kin {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { E, HC, sci } from './physics';
+
+	const LG_MIN = -10;
+	const LG_MAX = 8;
+	const S = 1e-20; // м², an atom-sized area
+	const NM = 400; // нм, the photons of the "quantum" row
+	const EPH = HC / NM; // эВ
+	const YEAR = 365.25 * 86400;
+
+	/** Two significant figures with a decimal comma (for text) or {,} (for KaTeX). */
+	const sig = (v: number, n = 2) => String(Number(v.toPrecision(n)));
+	const txt = (v: number, n = 2) => sig(v, n).replace('.', ',');
+	const texn = (v: number, n = 2) => sig(v, n).replace('.', '{,}');
+	/** Plain-text a·10ⁿ with superscript digits. */
+	const SUP: Record<string, string> = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+	const pow = (v: number) => {
+		const n = Math.floor(Math.log10(v) + 1e-9);
+		const m = Number((v / 10 ** n).toPrecision(2));
+		const mm = m >= 10 ? m / 10 : m;
+		const nn = m >= 10 ? n + 1 : n;
+		const exp = String(nn).split('').map((c) => SUP[c]).join('');
+		return mm === 1 ? `10${exp}` : `${txt(mm)}·10${exp}`;
+	};
+	/** Intensity as text and as KaTeX. */
+	const iText = (I: number) => (I >= 0.01 && I < 1e4 ? txt(I) : pow(I));
+	const iTex = (I: number) => (I >= 0.01 && I < 1e4 ? texn(I) : sci(I, 1));
+	/** A time interval in everyday units. */
+	const human = (t: number) => {
+		if (t < 60) return `${txt(t)}\u00a0с`;
+		if (t < 3600) return `${txt(t / 60)}\u00a0мин`;
+		if (t < 86400) return `${txt(t / 3600)}\u00a0ч`;
+		if (t < YEAR) return `${txt(t / 86400)}\u00a0сут`;
+		const y = Number(sig(t / YEAR));
+		const word = !Number.isInteger(y) ? 'года' : y === 1 ? 'год' : y < 5 ? 'года' : 'лет';
+		return `${txt(y)}\u00a0${word}`;
+	};
+	/** Elapsed time of the race. */
+	const clock = (s: number) => {
+		if (s < 1) return human(s);
+		if (s < 60) return `${s.toFixed(1).replace('.', ',')}\u00a0с`;
+		const m = Math.floor(s / 60);
+		return `${m}\u00a0мин ${String(Math.floor(s % 60)).padStart(2, '0')}\u00a0с`;
+	};
+	/** Energy in эВ for the race text. */
+	const evText = (ev: number) => (ev === 0 ? '0' : ev < 1e-4 ? pow(ev) : ev < 0.01 ? txt(ev) : ev.toFixed(2).replace('.', ','));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fe-wd]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const A = Number(root.dataset.a); // эВ
+		const GMAX = Number(root.dataset.gmax);
+		const AJ = A * E;
+		const lgIn = q<HTMLInputElement>('[data-lg-in]');
+		const iOut = q<HTMLOutputElement>('[data-i-out]');
+		const c1 = q<HTMLElement>('[data-c1]');
+		const c2 = q<HTMLElement>('[data-c2]');
+		const marker = q<HTMLElement>('[data-marker]');
+		const bubble = q<HTMLElement>('[data-bubble]');
+		const verdict = q<HTMLElement>('[data-verdict]');
+		const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-lg]'));
+		const run = q<HTMLButtonElement>('[data-run]');
+		const wave = q<HTMLElement>('[data-wave]');
+		const waveText = q<HTMLElement>('[data-wave-text]');
+		const qWork = q<HTMLElement>('[data-q-work]');
+		const qKin = q<HTMLElement>('[data-q-kin]');
+		const qText = q<HTMLElement>('[data-q-text]');
+		const track = q<HTMLElement>('.fe-wd__track');
+
+		const kd = (t: string, el: HTMLElement) => katex.render(t, el, { throwOnError: false, displayMode: true, fleqn: true });
+
+		let running = false;
+		let acc = 0; // Дж, energy collected by the electron (wave theory)
+		let elapsed = 0; // с
+		let done = -1; // с, when the gauge reached A
+		let last = 0;
+		let raf = 0;
+
+		const intensity = () => 10 ** Number(lgIn.value);
+
+		const placeMarker = (t: number) => {
+			const lg = Math.min(Math.max(Math.log10(t), LG_MIN), LG_MAX);
+			const f = (lg - LG_MIN) / (LG_MAX - LG_MIN);
+			marker.style.left = `${(f * 100).toFixed(2)}%`;
+			bubble.textContent = `волна: ${human(t)}`;
+			// keep the bubble inside the track
+			const w = track.clientWidth;
+			const bw = bubble.offsetWidth;
+			const x = f * w;
+			let shift = -bw / 2;
+			if (x + shift < 0) shift = -x;
+			if (x + shift + bw > w) shift = w - x - bw;
+			bubble.style.setProperty('--shift', `${shift.toFixed(1)}px`);
+		};
+
+		const update = () => {
+			const I = intensity();
+			const P = I * S;
+			const t = AJ / P;
+			iOut.value = `${iText(I)}\u00a0Вт/м²`;
+			kd(
+				`\\begin{aligned} P &= IS = ${iTex(I)}~\\text{Вт/м}^2\\cdot 10^{-20}~\\text{м}^2 \\\\ &= ${sci(P, 1)}~\\text{Вт} \\end{aligned}`,
+				c1,
+			);
+			const tTex = t >= 0.01 && t < 1e4 ? texn(t) : sci(t, 1);
+			const tail = t >= 60 ? `\\approx ${human(t).replace(',', '{,}').replace(/\u00a0(.+)$/, '~\\text{$1}')}` : '';
+			kd(
+				`\\begin{aligned} t &= \\dfrac{A_{\\text{вых}}}{P} = \\dfrac{3{,}36\\cdot10^{-19}~\\text{Дж}}{${sci(P, 1)}~\\text{Вт}} \\\\ &\\approx ${tTex}~\\text{с} ${tail} \\end{aligned}`,
+				c2,
+			);
+			placeMarker(t);
+			const ratio = Math.floor(Math.log10(t / 1e-9));
+			verdict.innerHTML = `По волновой теории электрону пришлось бы копить энергию <b>${human(t)}</b>. На опыте ток появляется меньше чем через 10<sup>−9</sup> с — по крайней мере в 10<sup>${ratio}</sup> раз быстрее.`;
+			chips.forEach((c) => c.setAttribute('aria-pressed', String(Math.abs(Number(c.dataset.lg) - Number(lgIn.value)) < 0.051)));
+			if (!running) idleTexts();
+		};
+
+		const photonsPerCm2 = () => (intensity() * 1e-4) / (EPH * E);
+
+		const idleTexts = () => {
+			waveText.textContent = 'Нажмите «Включить свет»: шкала будет заполняться с той скоростью, какую даёт волновая теория.';
+			qText.innerHTML = `Фотон отдаёт электрону всю свою энергию сразу. На 1 см² катода падает около ${pow(photonsPerCm2())} фотонов в секунду.`;
+		};
+
+		const draw = () => {
+			const ev = acc / E;
+			wave.style.width = `${Math.min((ev / GMAX) * 100, 100).toFixed(3)}%`;
+			if (done >= 0) {
+				waveText.innerHTML = `Электрон набрал ${String(A).replace('.', ',')}\u00a0эВ и вылетел бы через ${clock(done)}.`;
+			} else {
+				waveText.textContent = `Прошло ${clock(elapsed)}. Электрон накопил ${evText(ev)}\u00a0эВ из ${String(A).replace('.', ',')}\u00a0эВ — вылететь ещё не может.`;
+			}
+		};
+
+		const frame = (now: number) => {
+			const dt = (now - last) / 1000;
+			last = now;
+			const P = intensity() * S;
+			if (done < 0) {
+				if (acc + P * dt >= AJ) {
+					done = elapsed + (AJ - acc) / P;
+					acc = AJ;
+				} else acc += P * dt;
+				elapsed += dt;
+			}
+			draw();
+			if (done < 0) raf = requestAnimationFrame(frame);
+		};
+
+		const start = () => {
+			running = true;
+			acc = 0;
+			elapsed = 0;
+			done = -1;
+			run.textContent = 'Выключить свет';
+			run.setAttribute('aria-pressed', 'true');
+			qWork.style.width = `${((A / GMAX) * 100).toFixed(2)}%`;
+			qKin.style.width = `${(((EPH - A) / GMAX) * 100).toFixed(2)}%`;
+			qText.innerHTML = `Первый же фотон отдал электрону ${EPH.toFixed(2).replace('.', ',')}\u00a0эВ: ${String(A).replace('.', ',')}\u00a0эВ ушло на работу выхода, с остальными ${(EPH - A).toFixed(2).replace('.', ',')}\u00a0эВ электрон вылетел. Сразу.`;
+			last = performance.now();
+			draw();
+			raf = requestAnimationFrame(frame);
+		};
+		const stop = () => {
+			running = false;
+			cancelAnimationFrame(raf);
+			acc = 0;
+			elapsed = 0;
+			done = -1;
+			run.textContent = 'Включить свет';
+			run.setAttribute('aria-pressed', 'false');
+			wave.style.width = '0';
+			qWork.style.width = '0';
+			qKin.style.width = '0';
+			idleTexts();
+		};
+
+		// a new intensity starts the race again, so that its result matches the formula
+		const change = () => {
+			update();
+			if (running) start();
+		};
+		lgIn.addEventListener('input', change);
+		for (const chip of chips) {
+			chip.addEventListener('click', () => {
+				lgIn.value = chip.dataset.lg!;
+				change();
+			});
+		}
+		run.addEventListener('click', () => (running ? stop() : start()));
+		new ResizeObserver(() => placeMarker(AJ / (intensity() * S))).observe(track);
+		update();
+	}
+</script>

@@ -1,0 +1,1794 @@
+---
+/**
+ * Main model of the chapter: a vacuum photocell.
+ * Light of a chosen wavelength and intensity falls through the mesh anode on the cathode;
+ * photoelectrons fly in the uniform field between the plates (true kinematics, the tube is
+ * drawn to scale, motion slowed down 4·10⁷ times). The ammeter, the current–voltage curve and
+ * the live Einstein equation are computed from the same model (see physics.ts).
+ */
+import {
+	METALS,
+	buildPhiTable,
+	lightColor,
+	CX,
+	YC,
+	YA,
+	K,
+	HALF_W,
+	SPOT,
+} from './physics';
+
+const table = buildPhiTable();
+const uid = `fe-${Math.random().toString(36).slice(2, 8)}`;
+
+const XL = CX - HALF_W * K;
+const XR = CX + HALF_W * K;
+const WALL_L = XL - 2;
+const WALL_R = XR + 2;
+const DOME_RX = (WALL_R - WALL_L) / 2;
+
+// Lamp and the beam from its aperture to the lit spot on the cathode.
+const L = { x: 100, y: 46 };
+const bdx = CX - L.x;
+const bdy = YC - L.y;
+const blen = Math.hypot(bdx, bdy);
+const ux = bdx / blen;
+const uy = bdy / blen;
+const perp = { x: -uy, y: ux };
+const AP = 9;
+const aL = { x: L.x + AP * perp.x, y: L.y + AP * perp.y };
+const aR = { x: L.x - AP * perp.x, y: L.y - AP * perp.y };
+const sL = { x: CX - SPOT * K, y: YC };
+const sR = { x: CX + SPOT * K, y: YC };
+const lampDeg = (Math.atan2(uy, ux) * 180) / Math.PI;
+const r1 = (v: number) => Math.round(v * 10) / 10;
+const beamPts = [aL, aR, sR, sL].map((p) => `${r1(p.x)},${r1(p.y)}`).join(' ');
+
+// Spectrum on the wavelength slider (200–760 нм).
+const stops: string[] = [];
+for (let nm = 200; nm <= 760; nm += 10) stops.push(`${lightColor(nm)} ${(((nm - 200) / 560) * 100).toFixed(1)}%`);
+const spectrum = `linear-gradient(90deg, ${stops.join(', ')})`;
+
+// Ammeter dial: pivot below the centre, scale 0–10 мкА over ±55°.
+const AM = { x: 596, y: YA, r: 52 };
+const PIV = { x: AM.x, y: AM.y + 24 };
+const SC_R = 44;
+const amTicks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => {
+	const a = ((-55 + 11 * v) * Math.PI) / 180;
+	const big = v % 5 === 0;
+	const r0 = SC_R - (big ? 8 : 5);
+	return {
+		v,
+		big,
+		x1: PIV.x + r0 * Math.sin(a),
+		y1: PIV.y - r0 * Math.cos(a),
+		x2: PIV.x + SC_R * Math.sin(a),
+		y2: PIV.y - SC_R * Math.cos(a),
+		tx: PIV.x + (SC_R - 17) * Math.sin(a),
+		ty: PIV.y - (SC_R - 17) * Math.cos(a) + 4,
+	};
+});
+const arcA = (-55 * Math.PI) / 180;
+const arcB = (55 * Math.PI) / 180;
+const amArc = `M ${r1(PIV.x + SC_R * Math.sin(arcA))} ${r1(PIV.y - SC_R * Math.cos(arcA))} A ${SC_R} ${SC_R} 0 0 1 ${r1(PIV.x + SC_R * Math.sin(arcB))} ${r1(PIV.y - SC_R * Math.cos(arcB))}`;
+const VM = { x: 500, y: 277, r: 30 };
+const BAT = { x: 680, y: 277 };
+const WIRE_B = 376;
+
+// I–V plot geometry.
+const P = { x0: 44, x1: 332, y0: 14, y1: 206 };
+const pu = (U: number) => P.x0 + ((U + 5) / 10) * (P.x1 - P.x0);
+const pi = (I: number) => P.y1 - (I / 10) * (P.y1 - P.y0);
+---
+
+<figure class="fe-lab not-content" data-fe-lab data-phi={JSON.stringify(table)}>
+	<div class="fe-lab__scene-wrap">
+		<svg
+			class="fe-lab__scene"
+			viewBox="0 0 720 400"
+			role="img"
+			aria-label="Вакуумный фотоэлемент: свет падает на катод, вылетающие электроны летят к аноду"
+			data-scene
+		>
+			<defs>
+				<linearGradient id={`${uid}-metal`} x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" style="stop-color: var(--sl-color-gray-2)"></stop>
+					<stop offset="0.5" style="stop-color: var(--sl-color-gray-3)"></stop>
+					<stop offset="1" style="stop-color: var(--sl-color-gray-4)"></stop>
+				</linearGradient>
+				<radialGradient id={`${uid}-glow`}>
+					<stop offset="0" stop-opacity="1" style="stop-color: var(--fe-light)"></stop>
+					<stop offset="1" stop-opacity="0" style="stop-color: var(--fe-light)"></stop>
+				</radialGradient>
+				<marker
+					id={`${uid}-arr`}
+					class="fe-lab__arrowhead"
+					viewBox="0 0 10 10"
+					refX="7"
+					refY="5"
+					markerWidth="5"
+					markerHeight="5"
+					orient="auto"
+				>
+					<path d="M0,0 L10,5 L0,10 z"></path>
+				</marker>
+				<marker
+					id={`${uid}-varr`}
+					class="fe-lab__wirehead"
+					viewBox="0 0 10 10"
+					refX="7"
+					refY="5"
+					markerWidth="6"
+					markerHeight="6"
+					orient="auto"
+				>
+					<path d="M0,0 L10,5 L0,10 z"></path>
+				</marker>
+			</defs>
+
+			<!-- circuit (hidden on narrow screens) -->
+			<g class="fe-lab__circuit" data-circuit>
+				<path
+					class="fe-lab__wire"
+					d={`M ${WALL_R} ${YA} H ${AM.x - AM.r} M ${AM.x + AM.r} ${YA} H ${BAT.x} V ${BAT.y - 6} M ${BAT.x} ${BAT.y + 6} V ${WIRE_B} H ${CX} V 364`}
+				></path>
+				<path class="fe-lab__wire" d={`M ${VM.x} ${YA} V ${VM.y - VM.r} M ${VM.x} ${VM.y + VM.r} V ${WIRE_B}`}></path>
+				<circle class="fe-lab__node" cx={VM.x} cy={YA} r="3.5"></circle>
+				<circle class="fe-lab__node" cx={VM.x} cy={WIRE_B} r="3.5"></circle>
+
+				<g class="fe-lab__meter">
+					<circle cx={AM.x} cy={AM.y} r={AM.r}></circle>
+					<path class="fe-lab__dial" d={amArc}></path>
+					{
+						amTicks.map((t) => (
+							<g>
+								<line class="fe-lab__tick" x1={r1(t.x1)} y1={r1(t.y1)} x2={r1(t.x2)} y2={r1(t.y2)} />
+								{t.big && (
+									<text class="fe-lab__ticknum" x={r1(t.tx)} y={r1(t.ty)} text-anchor="middle">
+										{t.v}
+									</text>
+								)}
+							</g>
+						))
+					}
+					<text class="fe-lab__unit" x={AM.x} y={AM.y + 42} text-anchor="middle">мкА</text>
+					<line
+						class="fe-lab__needle"
+						x1={PIV.x}
+						y1={PIV.y}
+						x2={PIV.x}
+						y2={PIV.y - SC_R + 4}
+						data-needle
+					></line>
+					<circle class="fe-lab__pivot" cx={PIV.x} cy={PIV.y} r="3"></circle>
+				</g>
+				<text class="fe-lab__reading" x={AM.x} y={AM.y + 74} text-anchor="middle" data-am-text>0,00 мкА</text>
+
+				<g class="fe-lab__meter">
+					<circle cx={VM.x} cy={VM.y} r={VM.r}></circle>
+					<text class="fe-lab__unit" x={VM.x} y={VM.y - 10} text-anchor="middle">V</text>
+					<text class="fe-lab__vreading" x={VM.x} y={VM.y + 11} text-anchor="middle" data-vm-text>0,00 В</text>
+				</g>
+
+				<g class="fe-lab__battery" data-battery>
+					<line class="fe-lab__plate-long" x1={BAT.x - 16} x2={BAT.x + 16} y1={BAT.y - 6} y2={BAT.y - 6} data-bat-long></line>
+					<line class="fe-lab__plate-short" x1={BAT.x - 8} x2={BAT.x + 8} y1={BAT.y + 6} y2={BAT.y + 6} data-bat-short></line>
+					<line
+						class="fe-lab__varrow"
+						x1={BAT.x - 22}
+						y1={BAT.y + 22}
+						x2={BAT.x + 20}
+						y2={BAT.y - 20}
+						marker-end={`url(#${uid}-varr)`}
+					></line>
+					<text class="fe-lab__pol" x={BAT.x + 26} y={BAT.y - 8} data-bat-top>+</text>
+					<text class="fe-lab__pol" x={BAT.x + 26} y={BAT.y + 16} data-bat-bot>−</text>
+				</g>
+			</g>
+
+			<!-- lamp and beam -->
+			<polygon class="fe-lab__beam" points={beamPts} data-beam></polygon>
+			<g transform={`translate(${L.x} ${L.y}) rotate(${r1(lampDeg)})`} class="fe-lab__lamp">
+				<rect x="-54" y="-17" width="50" height="34" rx="7"></rect>
+				<line x1="-44" y1="-17" x2="-44" y2="17"></line>
+				<line x1="-36" y1="-17" x2="-36" y2="17"></line>
+				<ellipse class="fe-lab__aperture" cx="-3" cy="0" rx="4" ry="11" data-aperture></ellipse>
+			</g>
+			<text class="fe-lab__label fe-lab__label--strong" x={L.x + 24} y={L.y - 22} data-lamp-text>400 нм</text>
+
+			<!-- glass bulb -->
+			<path
+				class="fe-lab__glass"
+				d={`M ${WALL_L} ${YA - 6} A ${DOME_RX} 80 0 0 1 ${WALL_R} ${YA - 6} L ${WALL_R} ${YC + 16} Q ${WALL_R} ${YC + 30} ${WALL_R - 14} ${YC + 30} L ${WALL_L + 14} ${YC + 30} Q ${WALL_L} ${YC + 30} ${WALL_L} ${YC + 16} Z`}
+			></path>
+			<path class="fe-lab__sheen" d={`M ${WALL_L + 26} ${YA - 30} A ${DOME_RX - 22} 64 0 0 1 ${CX - 70} ${YA - 76}`}></path>
+			<text class="fe-lab__label fe-lab__label--soft" x={CX + 86} y={YA - 44}>вакуум</text>
+
+			<!-- field arrows -->
+			<g class="fe-lab__field" data-field>
+				<line x1={XL + 24} x2={XL + 24} y1="250" y2="250" marker-end={`url(#${uid}-arr)`} data-field-l></line>
+				<line x1={XR - 24} x2={XR - 24} y1="250" y2="250" marker-end={`url(#${uid}-arr)`} data-field-r></line>
+				<text class="fe-lab__label fe-lab__label--field" x={XL + 32} y="254" data-field-label>E</text>
+			</g>
+
+			<!-- electrodes -->
+			<rect class="fe-lab__cathode" x={XL} y={YC} width={XR - XL} height="9" rx="2" fill={`url(#${uid}-metal)`}></rect>
+			<rect class="fe-lab__spot" x={CX - SPOT * K} y={YC - 2} width={SPOT * K * 2} height="4" rx="2" data-spot></rect>
+			<rect class="fe-lab__base" x={CX - 26} y={YC + 30} width="52" height="12" rx="3"></rect>
+			<line class="fe-lab__lead" x1={CX} y1={YC + 9} x2={CX} y2={YC + 30}></line>
+			<line class="fe-lab__anode" x1={XL} x2={XR} y1={YA} y2={YA}></line>
+			<line class="fe-lab__lead" x1={XR} y1={YA} x2={WALL_R} y2={YA}></line>
+			<text class="fe-lab__label" x={XR - 8} y={YA - 9} text-anchor="end">анод (сетка)</text>
+			<text class="fe-lab__label" x={XL + 8} y={YC + 25} data-cathode-text>катод — цезий</text>
+			<text class="fe-lab__sign" x={WALL_L - 14} y={YA + 7} text-anchor="middle" data-sign-a></text>
+			<text class="fe-lab__sign" x={WALL_L - 14} y={YC + 9} text-anchor="middle" data-sign-c></text>
+
+			<g data-photons></g>
+			<g data-flashes></g>
+			<g data-electrons></g>
+		</svg>
+		<button type="button" class="fe-lab__play" data-play hidden>▶ Запустить анимацию</button>
+	</div>
+
+	<div class="fe-lab__keys">
+		<span class="fe-lab__key">
+			<svg viewBox="0 0 28 12" aria-hidden="true"><path class="fe-lab__key-photon" d="M1 6 Q 4.5 0 8 6 T 15 6 T 22 6 T 27 6"></path></svg>
+			фотон
+		</span>
+		<span class="fe-lab__key">
+			<svg viewBox="0 0 28 12" aria-hidden="true"><line class="fe-lab__key-tail" x1="4" y1="6" x2="18" y2="6"></line><circle class="fe-lab__key-el" cx="20" cy="6" r="3.6"></circle></svg>
+			электрон (хвост — направление и скорость)
+		</span>
+		<span class="fe-lab__key fe-lab__key--meters">Амперметр: <b data-am-phone>0,00 мкА</b></span>
+		<span class="fe-lab__key fe-lab__key--meters">Вольтметр: <b data-vm-phone>0,00 В</b></span>
+	</div>
+
+	<div class="fe-lab__controls">
+		<div class="fe-lab__slider fe-lab__slider--wide">
+			<label class="fe-lab__slider-name" for={`${uid}-nm`}>Длина волны света <i>λ</i></label>
+			<output for={`${uid}-nm`} data-nm-out>400 нм</output>
+			<div class="fe-lab__spectrum" style={`--fe-spectrum: ${spectrum}`}>
+				<input id={`${uid}-nm`} type="range" min="200" max="760" step="1" value="400" data-nm />
+				<span class="fe-lab__kr" data-kr><span data-kr-text><i>λ</i><sub>кр</sub></span></span>
+			</div>
+			<div class="fe-lab__bands" aria-hidden="true">
+				<span style="width: 32.14%">ультрафиолет</span>
+				<span style="width: 67.86%">видимый свет</span>
+			</div>
+		</div>
+		<label class="fe-lab__slider">
+			<span class="fe-lab__slider-name">Число фотонов в секунду</span>
+			<output data-int-out>60 %</output>
+			<input type="range" min="0" max="100" step="5" value="60" data-int />
+		</label>
+		<label class="fe-lab__slider">
+			<span class="fe-lab__slider-name">Напряжение между анодом и катодом <i>U</i></span>
+			<output data-u-out>0,00 В</output>
+			<input type="range" min="-5" max="5" step="0.05" value="0" data-u />
+		</label>
+		<fieldset class="fe-lab__metals">
+			<legend>Материал катода и работа выхода <i>A</i><sub>вых</sub></legend>
+			<div class="fe-lab__chips">
+				{
+					METALS.map((m, i) => (
+						<button type="button" class="fe-lab__chip" aria-pressed={i === 0 ? 'true' : 'false'} data-metal={m.id}>
+							<span>{m.name}</span>
+							<small>{m.A.toFixed(1).replace('.', ',')} эВ</small>
+						</button>
+					))
+				}
+			</div>
+		</fieldset>
+		<div class="fe-lab__buttons">
+			<button type="button" class="fe-lab__btn fe-lab__btn--primary" data-light aria-pressed="true">Выключить свет</button>
+			<button type="button" class="fe-lab__btn" data-save>Запомнить кривую</button>
+			<button type="button" class="fe-lab__btn" data-clear hidden>Стереть кривые</button>
+			<button type="button" class="fe-lab__btn" data-pause>Пауза</button>
+		</div>
+	</div>
+
+	<div class="fe-lab__panels">
+		<section class="fe-lab__panel">
+			<h3 class="fe-lab__panel-title">Вольт-амперная характеристика</h3>
+			<svg
+				class="fe-lab__plot fe-lab__plot--drag"
+				viewBox="0 0 340 236"
+				role="img"
+				aria-label="График зависимости силы фототока от напряжения. Потяните по графику, чтобы изменить напряжение."
+				data-iv
+			>
+				<g class="fe-lab__grid">
+					{[-4, -2, 2, 4].map((u) => <line x1={pu(u)} x2={pu(u)} y1={P.y0} y2={P.y1} />)}
+					{[2, 4, 6, 8, 10].map((v) => <line x1={P.x0} x2={P.x1} y1={pi(v)} y2={pi(v)} />)}
+				</g>
+				<line class="fe-lab__axis" x1={P.x0} x2={P.x1 + 4} y1={P.y1} y2={P.y1}></line>
+				<line class="fe-lab__axis" x1={pu(0)} x2={pu(0)} y1={P.y1} y2={P.y0 - 6}></line>
+				<g class="fe-lab__ticks">
+					{[-4, -2, 0, 2, 4].map((u) => <text x={pu(u)} y={P.y1 + 16} text-anchor="middle">{u < 0 ? `−${-u}` : u}</text>)}
+					{[2, 4, 6, 8, 10].map((v) => <text x={P.x0 - 6} y={pi(v) + 4} text-anchor="end">{v}</text>)}
+					<text class="fe-lab__axis-name" x={P.x1 + 4} y={P.y1 + 30} text-anchor="end">U, В</text>
+					<text class="fe-lab__axis-name" x={pu(0) + 6} y={P.y0 + 4}>I, мкА</text>
+				</g>
+				<g data-ghosts></g>
+				<line class="fe-lab__mark-line" data-uz-line></line>
+				<text class="fe-lab__mark-text" data-uz-text text-anchor="end">−U<tspan baseline-shift="sub" font-size="0.75em">з</tspan></text>
+				<line class="fe-lab__mark-line" data-in-line></line>
+				<text class="fe-lab__mark-text" data-in-text text-anchor="end">I<tspan baseline-shift="sub" font-size="0.75em">н</tspan></text>
+				<path class="fe-lab__curve" data-curve></path>
+				<line class="fe-lab__drop" data-drop></line>
+				<circle class="fe-lab__point" r="5.5" data-point></circle>
+			</svg>
+			<p class="fe-lab__hint">Потяните точку вдоль графика — напряжение изменится.</p>
+			<ul class="fe-lab__legend" data-legend></ul>
+		</section>
+		<section class="fe-lab__panel">
+			<h3 class="fe-lab__panel-title">Уравнение Эйнштейна на числах</h3>
+			<div class="fe-lab__bars">
+				<div class="fe-lab__bar-row">
+					<span class="fe-lab__bar-name">фотон</span>
+					<div class="fe-lab__track">
+						<div class="fe-lab__seg fe-lab__seg--photon" data-seg-photon><span data-seg-photon-t></span></div>
+						<div class="fe-lab__seg fe-lab__seg--short" data-seg-short><span data-seg-short-t></span></div>
+					</div>
+				</div>
+				<div class="fe-lab__bar-row">
+					<span class="fe-lab__bar-name">электрон</span>
+					<div class="fe-lab__track">
+						<div class="fe-lab__seg fe-lab__seg--work" data-seg-work><span data-seg-work-t></span></div>
+						<div class="fe-lab__seg fe-lab__seg--kin" data-seg-kin><span data-seg-kin-t></span></div>
+					</div>
+				</div>
+				<div class="fe-lab__bar-scale" aria-hidden="true">
+					{[0, 1, 2, 3, 4, 5, 6].map((v) => <span style={`left: ${((v / 6.5) * 100).toFixed(2)}%`}>{v}</span>)}
+					<span class="fe-lab__bar-unit">эВ</span>
+				</div>
+			</div>
+			<ol class="fe-lab__calc" data-calc>
+				<li data-calc-1></li>
+				<li data-calc-2></li>
+				<li data-calc-3></li>
+				<li data-calc-4></li>
+				<li data-calc-5></li>
+			</ol>
+		</section>
+	</div>
+
+	<p class="fe-lab__live" data-live aria-live="polite"></p>
+
+	<figcaption class="fe-lab__caption">
+		Трубка нарисована в масштабе: расстояние между пластинами 16 мм. Движение электронов замедлено в 40 миллионов
+		раз, их скорости и ускорения показаны в верном соотношении; свет на самом деле летит в сотни раз быстрее
+		электронов. Ползунок «Число фотонов в секунду» задаёт, сколько фотонов падает на катод за секунду. При неизменной
+		длине волны интенсивность света пропорциональна этому числу. Но при одинаковой интенсивности фиолетового света
+		фотонов меньше, чем зелёного: каждый из них несёт больше энергии. В модели каждый поглощённый фотон
+		с достаточной энергией выбивает один электрон. Работа выхода указана приближённо: у разных образцов она
+		отличается на десятые доли электронвольта. В расчётах{' '}
+		<span class="fe-lab__nowrap"><i>h</i> = 6,63·10<sup>−34</sup> Дж·с</span>,{' '}
+		<span class="fe-lab__nowrap"><i>c</i> = 3·10<sup>8</sup> м/с</span>,{' '}
+		<span class="fe-lab__nowrap"><i>e</i> = 1,6·10<sup>−19</sup> Кл</span>,{' '}
+		<span class="fe-lab__nowrap"><i>m</i> = 9,1·10<sup>−31</sup> кг</span>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.fe-lab {
+		--fe-sat: 90%;
+		--fe-lit: 62%;
+		--fe-light: hsl(265 90% 62%);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .fe-lab {
+		--fe-sat: 85%;
+		--fe-lit: 45%;
+	}
+	.fe-lab i {
+		font-family: var(--ig-font-math);
+	}
+	.fe-lab__scene-wrap {
+		position: relative;
+	}
+	.fe-lab__scene,
+	.fe-lab__plot {
+		display: block;
+		width: 100%;
+		height: auto;
+		overflow: visible;
+	}
+	.fe-lab__play {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		font: inherit;
+		font-weight: 600;
+		padding: 0.6rem 1.2rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.fe-lab__play[hidden] {
+		display: none;
+	}
+
+	/* scene */
+	.fe-lab__wire,
+	.fe-lab__lead {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.fe-lab__node {
+		fill: var(--sl-color-gray-3);
+	}
+	.fe-lab__meter circle {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.fe-lab__meter .fe-lab__pivot {
+		fill: var(--sl-color-white);
+		stroke: none;
+	}
+	.fe-lab__dial {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.fe-lab__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.fe-lab__ticknum {
+		fill: var(--sl-color-gray-2);
+		font-size: 11px;
+		font-family: var(--__sl-font);
+	}
+	.fe-lab__needle {
+		stroke: var(--ig-vy);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.fe-lab__unit {
+		fill: var(--sl-color-gray-2);
+		font-size: 11px;
+		font-family: var(--__sl-font);
+	}
+	.fe-lab__reading,
+	.fe-lab__vreading {
+		fill: var(--sl-color-white);
+		font-size: 15px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-lab__vreading {
+		font-size: 12.5px;
+	}
+	.fe-lab__plate-long {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.fe-lab__plate-short {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 6;
+	}
+	.fe-lab__varrow {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.fe-lab__wirehead path {
+		fill: var(--sl-color-gray-3);
+	}
+	.fe-lab__pol {
+		fill: var(--sl-color-gray-2);
+		font-size: 15px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+
+	.fe-lab__beam {
+		fill: var(--fe-light);
+		opacity: var(--fe-beam-op, 0.25);
+		transition: opacity 0.3s;
+	}
+	.fe-lab__beam.is-uv {
+		stroke: var(--fe-light);
+		stroke-width: 1;
+		stroke-dasharray: 4 5;
+	}
+	.fe-lab__lamp rect {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.fe-lab__lamp line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.fe-lab__aperture {
+		fill: var(--fe-light);
+		filter: drop-shadow(0 0 4px var(--fe-light));
+	}
+	.fe-lab.is-dark .fe-lab__aperture {
+		fill: var(--sl-color-gray-4);
+		filter: none;
+	}
+	.fe-lab__glass {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 22%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+	}
+	.fe-lab__sheen {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-opacity: 0.28;
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.fe-lab__cathode {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.fe-lab__spot {
+		fill: var(--fe-light);
+		opacity: var(--fe-beam-op, 0.25);
+		filter: drop-shadow(0 0 5px var(--fe-light));
+	}
+	.fe-lab__anode {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-dasharray: 2 4;
+	}
+	.fe-lab__base {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.fe-lab__label {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+		/* a halo keeps labels readable where the beam crosses them */
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+	}
+	.fe-lab__label--strong {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+		font-size: 14px;
+	}
+	.fe-lab__label--soft {
+		fill: var(--sl-color-gray-3);
+		font-style: italic;
+	}
+	.fe-lab__label--field {
+		fill: var(--sl-color-gray-3);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 15px;
+	}
+	.fe-lab__field line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+		stroke-opacity: 0.8;
+	}
+	.fe-lab__arrowhead path {
+		fill: var(--sl-color-gray-3);
+	}
+	.fe-lab__sign {
+		fill: var(--sl-color-white);
+		font-size: 20px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+
+	.fe-ph {
+		fill: none;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.fe-fl {
+		fill: none;
+		stroke-width: 1.5;
+	}
+	.fe-el circle {
+		fill: var(--ig-vx);
+	}
+	.fe-el line {
+		stroke: var(--ig-vx);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-opacity: 0.45;
+	}
+
+	/* legend under the scene; on phones it also carries the meter readings */
+	.fe-lab__keys {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1.25rem;
+		justify-content: center;
+		margin-top: 0.25rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.fe-lab__key {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.fe-lab__key svg {
+		width: 1.75rem;
+		height: 0.75rem;
+	}
+	.fe-lab__key-photon {
+		fill: none;
+		stroke: var(--fe-light);
+		stroke-width: 2;
+	}
+	.fe-lab__key-tail {
+		stroke: var(--ig-vx);
+		stroke-width: 2.4;
+		stroke-opacity: 0.45;
+		stroke-linecap: round;
+	}
+	.fe-lab__key-el {
+		fill: var(--ig-vx);
+	}
+	.fe-lab__key b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-lab__key--meters {
+		display: none;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-lab.is-narrow .fe-lab__key--meters {
+		display: inline-flex;
+	}
+	.fe-lab.is-narrow [data-circuit] {
+		display: none;
+	}
+
+	/* controls */
+	.fe-lab__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.9rem 1.5rem;
+		margin-top: 0.75rem;
+		align-items: end;
+	}
+	.fe-lab__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-lab__slider--wide {
+		grid-column: 1 / -1;
+	}
+	.fe-lab__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.fe-lab__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.fe-lab__spectrum {
+		grid-column: 1 / -1;
+		position: relative;
+		padding: 1.35rem 0 0.2rem;
+	}
+	.fe-lab__spectrum input {
+		-webkit-appearance: none;
+		appearance: none;
+		display: block;
+		height: 1.6rem;
+		background: transparent;
+		cursor: pointer;
+	}
+	.fe-lab__spectrum input::-webkit-slider-runnable-track {
+		height: 0.75rem;
+		border-radius: 999px;
+		background: var(--fe-spectrum);
+		border: 1px solid var(--sl-color-gray-5);
+	}
+	.fe-lab__spectrum input::-moz-range-track {
+		height: 0.75rem;
+		border-radius: 999px;
+		background: var(--fe-spectrum);
+		border: 1px solid var(--sl-color-gray-5);
+	}
+	.fe-lab__spectrum input::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 1.35rem;
+		height: 1.35rem;
+		margin-top: -0.35rem;
+		border-radius: 50%;
+		background: var(--fe-light);
+		border: 3px solid var(--sl-color-white);
+		box-shadow: 0 1px 6px rgb(0 0 0 / 0.45);
+	}
+	.fe-lab__spectrum input::-moz-range-thumb {
+		width: 1.1rem;
+		height: 1.1rem;
+		border-radius: 50%;
+		background: var(--fe-light);
+		border: 3px solid var(--sl-color-white);
+		box-shadow: 0 1px 6px rgb(0 0 0 / 0.45);
+	}
+	.fe-lab__spectrum input:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+		border-radius: 999px;
+	}
+	.fe-lab__kr {
+		position: absolute;
+		top: 1.1rem;
+		bottom: 0;
+		width: 0;
+		border-left: 2px dashed var(--sl-color-white);
+		pointer-events: none;
+		transition: left 0.35s ease;
+	}
+	.fe-lab__kr span {
+		position: absolute;
+		top: -1.15rem;
+		left: 0;
+		transform: translateX(-50%);
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-white);
+		white-space: nowrap;
+	}
+	.fe-lab__bands {
+		grid-column: 1 / -1;
+		display: flex;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		padding-inline: 0.68rem;
+	}
+	.fe-lab__bands span {
+		text-align: center;
+		border-top: 1px solid var(--sl-color-gray-5);
+		padding-top: 0.1rem;
+	}
+	.fe-lab__bands span + span {
+		border-left: 1px solid var(--sl-color-gray-5);
+	}
+	.fe-lab__metals {
+		grid-column: 1 / -1;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		min-width: 0;
+	}
+	.fe-lab__metals legend {
+		padding: 0;
+		margin-bottom: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-lab__chips {
+		display: grid;
+		grid-template-columns: repeat(6, 1fr);
+		gap: 0.4rem;
+	}
+	.fe-lab__chip {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0;
+		margin: 0;
+		padding: 0.35rem 0.25rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		line-height: 1.25;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.6rem;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s;
+	}
+	.fe-lab__chip small {
+		font-weight: 400;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.fe-lab__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.fe-lab__chip[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.fe-lab__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.fe-lab__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.fe-lab__btn[hidden] {
+		display: none;
+	}
+	.fe-lab__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.fe-lab__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+
+	/* panels */
+	.fe-lab__panels {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+		margin-top: 1rem;
+	}
+	.fe-lab__panel {
+		min-width: 0;
+		padding: 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+	.fe-lab__panel-title {
+		margin: 0 0 0.5rem;
+		font-family: var(--__sl-font);
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.fe-lab__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.fe-lab__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.fe-lab__ticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+	.fe-lab__axis-name {
+		font-style: italic;
+	}
+	.fe-lab__plot--drag {
+		cursor: ew-resize;
+		touch-action: pan-y;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+	.fe-lab__plot--drag.is-dragging .fe-lab__point {
+		stroke: var(--sl-color-white);
+	}
+	.fe-lab__hint {
+		margin: 0.1rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.fe-lab__curve {
+		fill: none;
+		stroke: var(--fe-light);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.fe-lab__ghost {
+		fill: none;
+		stroke-width: 2;
+		stroke-dasharray: 5 4;
+		opacity: 0.85;
+	}
+	.fe-lab__mark-line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.fe-lab__mark-text {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+		font-style: italic;
+		font-family: var(--ig-font-math);
+	}
+	.fe-lab__drop {
+		stroke: var(--ig-v);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	.fe-lab__point {
+		fill: var(--ig-v);
+		stroke: var(--sl-color-gray-6);
+		stroke-width: 2;
+		filter: drop-shadow(0 0 4px var(--ig-v));
+	}
+	.fe-lab__legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 0.75rem;
+		margin: 0.25rem 0 0;
+		padding: 0;
+		list-style: none;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-lab__legend li {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		margin: 0;
+	}
+	.fe-lab__legend li::before {
+		content: '';
+		width: 1.1rem;
+		border-top: 2px dashed var(--c);
+	}
+	.fe-lab__legend li.is-now::before {
+		border-top-style: solid;
+		border-top-width: 3px;
+	}
+
+	.fe-lab__bars {
+		display: grid;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.fe-lab__bar-row {
+		display: grid;
+		grid-template-columns: 4.6rem 1fr;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-lab__track {
+		display: flex;
+		height: 1.6rem;
+	}
+	.fe-lab__seg {
+		position: relative;
+		height: 100%;
+		width: 0;
+		overflow: hidden;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: var(--sl-text-xs);
+		font-weight: 700;
+		white-space: nowrap;
+		transition: width 0.35s ease;
+	}
+	.fe-lab__seg span {
+		padding-inline: 0.2rem;
+	}
+	.fe-lab__seg.is-out {
+		overflow: visible;
+	}
+	.fe-lab__seg.is-out span {
+		position: absolute;
+		left: 100%;
+		padding-left: 0.3rem;
+		color: var(--ig-vx);
+	}
+	.fe-lab__seg--photon {
+		background: var(--fe-light);
+		color: var(--sl-color-black);
+		border-radius: 0.35rem;
+	}
+	.fe-lab__seg--short {
+		border: 1.5px dashed var(--ig-vy);
+		border-left: 0;
+		border-radius: 0 0.35rem 0.35rem 0;
+		color: var(--ig-vy);
+	}
+	.fe-lab__seg--work {
+		background: var(--sl-color-gray-4);
+		color: var(--sl-color-white);
+		border-radius: 0.35rem 0 0 0.35rem;
+	}
+	.fe-lab__seg--kin {
+		background: var(--ig-vx);
+		color: var(--sl-color-black);
+		border-radius: 0 0.35rem 0.35rem 0;
+	}
+	.fe-lab__bar-scale {
+		position: relative;
+		height: 1rem;
+		margin-left: 5rem;
+		font-size: 10px;
+		color: var(--sl-color-gray-3);
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+	.fe-lab__bar-scale span {
+		position: absolute;
+		top: 0;
+		transform: translateX(-50%);
+	}
+	.fe-lab__bar-scale .fe-lab__bar-unit {
+		right: 0;
+		left: auto;
+		transform: none;
+	}
+	.fe-lab__calc {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		display: grid;
+		gap: 0.45rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-text);
+	}
+	.fe-lab__calc li {
+		margin: 0;
+		line-height: 1.5;
+	}
+	.fe-lab__calc .katex {
+		font-size: 1.05em;
+	}
+	.fe-lab__calc .katex-display {
+		margin: 0;
+		padding: 0.15rem 0;
+	}
+	.fe-lab__calc .is-key {
+		padding: 0.3rem 0.5rem;
+		border-radius: 0.5rem;
+		background: var(--sl-color-accent-low);
+	}
+	.fe-lab__calc .is-warn {
+		color: var(--ig-vy);
+		font-weight: 600;
+	}
+
+	.fe-lab__live {
+		min-height: 3em;
+		margin: 0.75rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fe-lab__caption {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.fe-lab__nowrap {
+		white-space: nowrap;
+	}
+
+	@media (max-width: 50rem) {
+		.fe-lab__panels {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (max-width: 40rem) {
+		.fe-lab {
+			padding: 0.75rem;
+		}
+		.fe-lab__controls {
+			grid-template-columns: 1fr;
+		}
+		.fe-lab__chips {
+			grid-template-columns: repeat(3, 1fr);
+		}
+		.fe-lab__label {
+			font-size: 15px;
+		}
+		.fe-lab__label--strong {
+			font-size: 16px;
+		}
+		.fe-lab__ticks text {
+			font-size: 14px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.fe-lab__seg,
+		.fe-lab__kr,
+		.fe-lab__beam {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import {
+		METALS,
+		ACC_PER_VOLT,
+		CX,
+		GAP,
+		HALF_W,
+		I_MAX,
+		K,
+		SPOT,
+		TS,
+		YA,
+		YC,
+		colourName,
+		currentShare,
+		fmt,
+		freq,
+		lightColor,
+		photonEV,
+		redBoundary,
+		sci,
+		speedKmS,
+		speedMmNs,
+		tex,
+		type Metal,
+		type PhiTable,
+	} from './physics';
+
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const P = { x0: 44, x1: 332, y0: 14, y1: 206 };
+	const pu = (U: number) => P.x0 + ((U + 5) / 10) * (P.x1 - P.x0);
+	const pi = (I: number) => P.y1 - (I / 10) * (P.y1 - P.y0);
+	const sgn = (v: number, d = 2) => (v > 0 ? '+' : v < 0 ? '−' : '') + fmt(Math.abs(v), d);
+	const kx = (t: string, el: HTMLElement) =>
+		katex.render(t, el, { throwOnError: false, displayMode: false });
+	/** Display formula, left-aligned; scrolls sideways if it does not fit. */
+	const kd = (t: string, el: HTMLElement) =>
+		katex.render(t, el, { throwOnError: false, displayMode: true, fleqn: true });
+
+	type Photon = { el: SVGPathElement; x0: number; y0: number; x1: number; y1: number; t: number; T: number; ang: number; ok: boolean; xmm: number };
+	type Electron = {
+		g: SVGGElement;
+		c: SVGCircleElement;
+		tail: SVGLineElement;
+		x: number;
+		y: number;
+		vx: number;
+		vy: number;
+		fade: number;
+	};
+	type Flash = { el: SVGCircleElement; t: number; T: number; r0: number; r1: number };
+	type Saved = { nm: number; inten: number; metal: Metal; Ek: number };
+
+	function packet(nm: number) {
+		const lam = 4.5 + nm / 55; // visual wavelength in px (longer for red light)
+		const amp = 4;
+		const pts: string[] = [];
+		const n = 30;
+		for (let i = 0; i <= n; i++) {
+			const x = -1.6 * lam + (3.2 * lam * i) / n;
+			const env = Math.exp(-((x / (1.15 * lam)) ** 2));
+			const y = amp * env * Math.sin((2 * Math.PI * x) / lam);
+			pts.push(`${x.toFixed(1)} ${y.toFixed(2)}`);
+		}
+		return `M ${pts.join(' L ')}`;
+	}
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fe-lab]')) {
+		const table = JSON.parse(root.dataset.phi!) as PhiTable;
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+
+		const svg = q<SVGSVGElement>('[data-scene]');
+		const gPh = q<SVGGElement>('[data-photons]');
+		const gFl = q<SVGGElement>('[data-flashes]');
+		const gEl = q<SVGGElement>('[data-electrons]');
+		const beam = q<SVGPolygonElement>('[data-beam]');
+		const spot = q<SVGRectElement>('[data-spot]');
+		const needle = q<SVGLineElement>('[data-needle]');
+		const amText = q<SVGTextElement>('[data-am-text]');
+		const vmText = q<SVGTextElement>('[data-vm-text]');
+		const amPhone = q<HTMLElement>('[data-am-phone]');
+		const vmPhone = q<HTMLElement>('[data-vm-phone]');
+		const lampText = q<SVGTextElement>('[data-lamp-text]');
+		const cathText = q<SVGTextElement>('[data-cathode-text]');
+		const signA = q<SVGTextElement>('[data-sign-a]');
+		const signC = q<SVGTextElement>('[data-sign-c]');
+		const fieldL = q<SVGLineElement>('[data-field-l]');
+		const fieldR = q<SVGLineElement>('[data-field-r]');
+		const fieldLabel = q<SVGTextElement>('[data-field-label]');
+		const batLong = q<SVGLineElement>('[data-bat-long]');
+		const batShort = q<SVGLineElement>('[data-bat-short]');
+		const batTop = q<SVGTextElement>('[data-bat-top]');
+		const batBot = q<SVGTextElement>('[data-bat-bot]');
+
+		const nmIn = q<HTMLInputElement>('[data-nm]');
+		const intIn = q<HTMLInputElement>('[data-int]');
+		const uIn = q<HTMLInputElement>('[data-u]');
+		const nmOut = q<HTMLOutputElement>('[data-nm-out]');
+		const intOut = q<HTMLOutputElement>('[data-int-out]');
+		const uOut = q<HTMLOutputElement>('[data-u-out]');
+		const kr = q<HTMLElement>('[data-kr]');
+		const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-metal]'));
+		const lightBtn = q<HTMLButtonElement>('[data-light]');
+		const saveBtn = q<HTMLButtonElement>('[data-save]');
+		const clearBtn = q<HTMLButtonElement>('[data-clear]');
+		const pauseBtn = q<HTMLButtonElement>('[data-pause]');
+		const playBtn = q<HTMLButtonElement>('[data-play]');
+
+		const ivPlot = q<SVGSVGElement>('[data-iv]');
+		const curve = q<SVGPathElement>('[data-curve]');
+		const ghosts = q<SVGGElement>('[data-ghosts]');
+		const legend = q<HTMLUListElement>('[data-legend]');
+		const point = q<SVGCircleElement>('[data-point]');
+		const drop = q<SVGLineElement>('[data-drop]');
+		const uzLine = q<SVGLineElement>('[data-uz-line]');
+		const uzText = q<SVGTextElement>('[data-uz-text]');
+		const inLine = q<SVGLineElement>('[data-in-line]');
+		const inText = q<SVGTextElement>('[data-in-text]');
+
+		const segPhoton = q<HTMLElement>('[data-seg-photon]');
+		const segShort = q<HTMLElement>('[data-seg-short]');
+		const segWork = q<HTMLElement>('[data-seg-work]');
+		const segKin = q<HTMLElement>('[data-seg-kin]');
+		const segPhotonT = q<HTMLElement>('[data-seg-photon-t]');
+		const segShortT = q<HTMLElement>('[data-seg-short-t]');
+		const segWorkT = q<HTMLElement>('[data-seg-work-t]');
+		const segKinT = q<HTMLElement>('[data-seg-kin-t]');
+		const calc = [1, 2, 3, 4, 5].map((i) => q<HTMLElement>(`[data-calc-${i}]`));
+		const live = q<HTMLElement>('[data-live]');
+
+		// Lamp aperture and the lit spot (in SVG units), read from the drawn beam.
+		const bp = beam.points;
+		const aL = { x: bp.getItem(0).x, y: bp.getItem(0).y };
+		const aR = { x: bp.getItem(1).x, y: bp.getItem(1).y };
+		const sR = { x: bp.getItem(2).x, y: bp.getItem(2).y };
+		const sL = { x: bp.getItem(3).x, y: bp.getItem(3).y };
+
+		let metal = METALS[0];
+		let lightOn = true;
+		let running = !reduceMotion.matches;
+		let visible = false;
+		let raf = 0;
+		let last = 0;
+		let nextPhoton = 0;
+		let shownI = 0;
+		/** Photons are reaching the cathode (after "light on" the first ones are still on their way). */
+		let cathodeLit = true;
+		let packetD = packet(400);
+		const saved: Saved[] = [];
+		const photons: Photon[] = [];
+		const electrons: Electron[] = [];
+		const flashes: Flash[] = [];
+
+		const state = () => {
+			const nm = Number(nmIn.value);
+			const inten = Number(intIn.value);
+			const U = Number(uIn.value);
+			const Eph = photonEV(nm);
+			const Ek = Eph - metal.A;
+			// current while photons reach the cathode, and the current the meter tends to now
+			const Ilit = ((I_MAX * inten) / 100) * currentShare(table, U, Ek);
+			const I = lightOn ? Ilit : 0;
+			// what the equation shows: rounded hν minus A, so that the printed numbers add up exactly
+			const EkShown = (Math.round(Eph * 100) - Math.round(metal.A * 100)) / 100;
+			return { nm, inten, U, Eph, Ek, EkShown, I, Ilit };
+		};
+
+		/* ---------- static parts: readouts, graph, equation ---------- */
+		const curvePath = (Ek: number, inten: number) => {
+			const Is = (I_MAX * inten) / 100;
+			if (Ek <= 0 || Is === 0) return `M ${pu(-5)} ${pi(0)} H ${pu(5)}`;
+			const pts: string[] = [];
+			const Ustart = Math.max(-5, -Ek);
+			if (Ustart > -5) pts.push(`${pu(-5).toFixed(1)} ${pi(0).toFixed(1)}`);
+			const n = 160;
+			for (let i = 0; i <= n; i++) {
+				// denser sampling near the stopping voltage
+				const t = i / n;
+				const U = Ustart + (5 - Ustart) * t * t;
+				pts.push(`${pu(U).toFixed(1)} ${pi(Is * currentShare(table, U, Ek)).toFixed(1)}`);
+			}
+			return `M ${pts.join(' L ')}`;
+		};
+
+		const drawLegend = (s: ReturnType<typeof state>) => {
+			legend.replaceChildren();
+			const add = (nm: number, inten: number, m: Metal, now: boolean) => {
+				const li = document.createElement('li');
+				li.style.setProperty('--c', lightColor(nm));
+				if (now) li.classList.add('is-now');
+				li.textContent = `${now ? 'сейчас: ' : ''}${nm}\u00a0нм, ${m.name.toLowerCase()}, ${inten}\u00a0%`;
+				legend.append(li);
+			};
+			saved.forEach((c) => add(c.nm, c.inten, c.metal, false));
+			if (saved.length) add(s.nm, s.inten, metal, true);
+		};
+
+		const drawGhosts = () => {
+			ghosts.replaceChildren();
+			for (const c of saved) {
+				const p = document.createElementNS(SVG_NS, 'path');
+				p.classList.add('fe-lab__ghost');
+				p.setAttribute('d', curvePath(c.Ek, c.inten));
+				p.style.stroke = lightColor(c.nm);
+				ghosts.append(p);
+			}
+			clearBtn.hidden = saved.length === 0;
+		};
+
+		/**
+		 * One segment of an energy bar. A label that does not fit inside may go just to the
+		 * right of the segment (outside = true) when the track has room there.
+		 */
+		const setSeg = (el: HTMLElement, t: HTMLElement, ev: number, label: string, outside = false, endEv = ev) => {
+			const w = Math.max(ev, 0) / 6.5;
+			el.style.width = `${(w * 100).toFixed(2)}%`;
+			t.textContent = label;
+			const track = el.parentElement?.clientWidth ?? 300;
+			const need = label.length * 7 + 6;
+			const fits = track * w > need;
+			const roomRight = track * (1 - Math.max(endEv, 0) / 6.5) > need;
+			const out = !fits && outside && ev > 0 && roomRight;
+			el.classList.toggle('is-out', out);
+			t.style.visibility = fits || out ? 'visible' : 'hidden';
+		};
+
+		const renderCalc = (s: ReturnType<typeof state>) => {
+			const nu = freq(s.nm);
+			const EJ = s.Eph * 1.6e-19;
+			kd(
+				`\\nu = \\dfrac{c}{\\lambda} = \\dfrac{3\\cdot10^{8}~\\text{м/с}}{${s.nm}\\cdot10^{-9}~\\text{м}} \\approx ${sci(nu)}~\\text{Гц}`,
+				calc[0],
+			);
+			kd(
+				`\\begin{aligned} h\\nu &= 6{,}63\\cdot10^{-34}~\\text{Дж·с}\\cdot ${sci(nu)}~\\text{Гц} \\\\ &\\approx ${sci(EJ)}~\\text{Дж} \\approx ${tex(s.Eph)}~\\text{эВ} \\end{aligned}`,
+				calc[1],
+			);
+			calc[2].classList.toggle('is-key', true);
+			if (s.Ek > 0) {
+				kd(
+					`\\underbrace{${tex(s.Eph)}~\\text{эВ}}_{h\\nu} = \\underbrace{${tex(metal.A)}~\\text{эВ}}_{A_{\\text{вых}}} + \\underbrace{${tex(s.EkShown)}~\\text{эВ}}_{E_{\\text{к}}}`,
+					calc[2],
+				);
+				kd(
+					`\\begin{aligned} \\upsilon_{\\max} &= \\sqrt{\\dfrac{2E_{\\text{к}}}{m}} = \\sqrt{\\dfrac{2\\cdot ${sci(s.Ek * 1.6e-19)}~\\text{Дж}}{9{,}1\\cdot10^{-31}~\\text{кг}}} \\\\ &\\approx ${Math.round(speedKmS(s.Ek))}~\\text{км/с} \\end{aligned}`,
+					calc[3],
+				);
+				kd(`U_{\\text{з}} = \\dfrac{E_{\\text{к}}}{e} = ${tex(s.EkShown)}~\\text{В}`, calc[4]);
+				calc[3].classList.remove('is-warn');
+				calc[4].hidden = false;
+			} else {
+				kd(`h\\nu \\approx ${tex(s.Eph)}~\\text{эВ} < A_{\\text{вых}} = ${tex(metal.A)}~\\text{эВ}`, calc[2]);
+				calc[3].classList.add('is-warn');
+				calc[4].hidden = true;
+				calc[3].innerHTML = '';
+				const span = document.createElement('span');
+				calc[3].append(
+					`Энергии фотона не хватает, чтобы вырвать электрон из ${metal.gen}. Нужна длина волны меньше `,
+					span,
+					'.',
+				);
+				kx(`\\lambda_{\\text{кр}} = \\dfrac{hc}{A_{\\text{вых}}} = ${Math.round(redBoundary(metal.A))}~\\text{нм}`, span);
+			}
+		};
+
+		const sayLive = (s: ReturnType<typeof state>) => {
+			if (!lightOn) {
+				live.textContent = 'Свет выключен: фотоны не падают на катод, и ток сразу прекращается.';
+				return;
+			}
+			if (s.inten === 0) {
+				live.textContent = 'Число фотонов равно нулю: на катод не падает свет.';
+				return;
+			}
+			if (s.Ek <= 0) {
+				live.textContent = `Каждый фотон несёт ${fmt(s.Eph)}\u00a0эВ, а работа выхода ${metal.gen} — ${fmt(metal.A, 1)}\u00a0эВ. Электроны не вылетают, сколько бы фотонов ни падало: фотоэффекта нет.`;
+				return;
+			}
+			const share = currentShare(table, s.U, s.Ek);
+			const v = Math.round(speedKmS(s.Ek));
+			let tail: string;
+			if (share < 0.0005) tail = `Поле тормозит электроны так сильно, что ни один не долетает до анода: <i>U</i> ≤ −<i>U</i><sub>з</sub>.`;
+			else if (share > 0.995) tail = `До анода долетают все вылетевшие электроны — это ток насыщения.`;
+			else tail = `До анода долетает ${Math.round(share * 100)}\u00a0% вылетевших электронов.`;
+			live.innerHTML = `Электроны вылетают со скоростями до ${v}\u00a0км/с. ${tail}`;
+		};
+
+		const update = () => {
+			const s = state();
+			const col = lightColor(s.nm);
+			root.style.setProperty('--fe-light', col);
+			root.classList.toggle('is-dark', !lightOn || s.inten === 0);
+			const op = lightOn ? 0.06 + 0.32 * (s.inten / 100) : 0;
+			root.style.setProperty('--fe-beam-op', op.toFixed(3));
+			beam.classList.toggle('is-uv', s.nm < 380);
+			packetD = packet(s.nm);
+
+			nmOut.value = `${s.nm} нм · ${colourName(s.nm)}`;
+			intOut.value = `${s.inten} %`;
+			uOut.value = `${sgn(s.U)} В`;
+			lampText.textContent = s.nm < 380 ? `${s.nm} нм (невидимый)` : `${s.nm} нм`;
+			cathText.textContent = `катод — ${metal.name.toLowerCase()}`;
+
+			const lk = redBoundary(metal.A);
+			const frac = Math.min(Math.max((lk - 200) / 560, 0), 1);
+			kr.style.left = `calc(0.675rem + (100% - 1.35rem) * ${frac.toFixed(4)})`;
+			const krText = kr.querySelector<HTMLElement>('[data-kr-text]')!;
+			krText.innerHTML = `<i>λ</i><sub>кр</sub> = ${Math.round(lk)} нм`;
+			krText.style.transform = `translateX(-${(8 + 84 * frac).toFixed(1)}%)`;
+
+			// polarity, field
+			signA.textContent = s.U > 0 ? '+' : s.U < 0 ? '−' : '';
+			signC.textContent = s.U > 0 ? '−' : s.U < 0 ? '+' : '';
+			const len = (Math.abs(s.U) / 5) * 100;
+			const mid = (YA + YC) / 2;
+			// E points from + to −: down when the anode is positive.
+			const y1 = s.U >= 0 ? mid - len / 2 : mid + len / 2;
+			const y2 = s.U >= 0 ? mid + len / 2 : mid - len / 2;
+			for (const f of [fieldL, fieldR]) {
+				f.setAttribute('y1', String(y1));
+				f.setAttribute('y2', String(y2));
+				f.style.visibility = len > 6 ? 'visible' : 'hidden';
+			}
+			fieldLabel.style.visibility = len > 6 ? 'visible' : 'hidden';
+			const longY = s.U >= 0 ? 271 : 283;
+			const shortY = s.U >= 0 ? 283 : 271;
+			batLong.setAttribute('y1', String(longY));
+			batLong.setAttribute('y2', String(longY));
+			batShort.setAttribute('y1', String(shortY));
+			batShort.setAttribute('y2', String(shortY));
+			batTop.textContent = s.U >= 0 ? '+' : '−';
+			batBot.textContent = s.U >= 0 ? '−' : '+';
+
+			vmText.textContent = `${sgn(s.U)} В`;
+			vmPhone.textContent = `${sgn(s.U)} В`;
+
+			// graph
+			curve.setAttribute('d', lightOn ? curvePath(s.Ek, s.inten) : curvePath(0, 0));
+			const px = pu(s.U);
+			const py = pi(s.I);
+			point.setAttribute('cx', px.toFixed(1));
+			point.setAttribute('cy', py.toFixed(1));
+			drop.setAttribute('x1', px.toFixed(1));
+			drop.setAttribute('x2', px.toFixed(1));
+			drop.setAttribute('y1', py.toFixed(1));
+			drop.setAttribute('y2', String(P.y1));
+			const showMarks = lightOn && s.Ek > 0 && s.inten > 0;
+			const ux = pu(-Math.min(s.Ek, 5));
+			uzLine.setAttribute('x1', ux.toFixed(1));
+			uzLine.setAttribute('x2', ux.toFixed(1));
+			uzLine.setAttribute('y1', String(P.y1));
+			uzLine.setAttribute('y2', String(P.y1 - 46));
+			uzText.setAttribute('x', (ux - 4).toFixed(1));
+			uzText.setAttribute('y', String(P.y1 - 32));
+			const Is = (I_MAX * s.inten) / 100;
+			inLine.setAttribute('x1', String(P.x0));
+			inLine.setAttribute('x2', String(P.x1));
+			inLine.setAttribute('y1', pi(Is).toFixed(1));
+			inLine.setAttribute('y2', pi(Is).toFixed(1));
+			inText.setAttribute('x', String(P.x0 + 22));
+			inText.setAttribute('y', (pi(Is) - 6).toFixed(1));
+			for (const el of [uzLine, uzText]) el.style.visibility = showMarks && s.Ek <= 5 ? 'visible' : 'hidden';
+			for (const el of [inLine, inText]) el.style.visibility = showMarks ? 'visible' : 'hidden';
+			drawLegend(s);
+
+			// energy bars and the live equation
+			setSeg(segPhoton, segPhotonT, s.Eph, `${fmt(s.Eph)} эВ`);
+			setSeg(segShort, segShortT, Math.max(-s.Ek, 0), `не хватает ${fmt(-s.EkShown)}`);
+			segShort.style.borderWidth = s.Ek < 0 ? '' : '0';
+			setSeg(segWork, segWorkT, metal.A, `${fmt(metal.A)} эВ`);
+			setSeg(segKin, segKinT, Math.max(s.Ek, 0), `${fmt(s.EkShown)} эВ`, true, s.Eph);
+			segWork.style.borderRadius = s.Ek > 0 ? '' : '0.35rem';
+			renderCalc(s);
+			sayLive(s);
+
+			if (!running || !visible) setMeter(s.I, true);
+		};
+
+		const setMeter = (I: number, instant: boolean, dt = 0) => {
+			if (instant) shownI = I;
+			else shownI += (I - shownI) * (1 - Math.exp(-dt / 0.25));
+			const a = -55 + 11 * Math.min(Math.max(shownI, 0), 10.3);
+			needle.setAttribute('transform', `rotate(${a.toFixed(2)} ${needle.getAttribute('x1')} ${needle.getAttribute('y1')})`);
+			const txt = `${fmt(Math.max(shownI, 0))} мкА`;
+			amText.textContent = txt;
+			amPhone.textContent = txt;
+		};
+
+		/* ---------- particles ---------- */
+		const spawnPhoton = (s: ReturnType<typeof state>) => {
+			const f = Math.random();
+			const x0 = aL.x + f * (aR.x - aL.x);
+			const y0 = aL.y + f * (aR.y - aL.y);
+			const x1 = sL.x + f * (sR.x - sL.x);
+			const y1 = sL.y + f * (sR.y - sL.y);
+			const el = document.createElementNS(SVG_NS, 'path');
+			el.classList.add('fe-ph');
+			el.setAttribute('d', packetD);
+			el.style.stroke = lightColor(s.nm);
+			gPh.append(el);
+			const dist = Math.hypot(x1 - x0, y1 - y0);
+			photons.push({
+				el,
+				x0,
+				y0,
+				x1,
+				y1,
+				t: 0,
+				T: dist / 760,
+				ang: (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI,
+				ok: s.Ek > 0,
+				xmm: (x1 - CX) / K,
+			});
+		};
+
+		const flash = (x: number, y: number, colour: string, r0: number, r1: number, T: number) => {
+			const el = document.createElementNS(SVG_NS, 'circle');
+			el.classList.add('fe-fl');
+			el.setAttribute('cx', x.toFixed(1));
+			el.setAttribute('cy', y.toFixed(1));
+			el.style.stroke = colour;
+			gFl.append(el);
+			flashes.push({ el, t: 0, T, r0, r1 });
+		};
+
+		const emit = (xmm: number, Ek: number) => {
+			// energy share ε ~ Beta(2, 2) (median of three uniforms), direction: density cos θ / 2
+			const u3 = [Math.random(), Math.random(), Math.random()].sort((a, b) => a - b);
+			const eps = u3[1];
+			const sinT = 2 * Math.random() - 1;
+			const cosT = Math.sqrt(1 - sinT * sinT);
+			const v = speedMmNs(eps * Ek);
+			const g = document.createElementNS(SVG_NS, 'g') as SVGGElement;
+			g.classList.add('fe-el');
+			const tail = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
+			const c = document.createElementNS(SVG_NS, 'circle') as SVGCircleElement;
+			c.setAttribute('r', '3.6');
+			g.append(tail, c);
+			gEl.append(g);
+			electrons.push({ g, c, tail, x: xmm, y: 0, vx: v * sinT, vy: v * cosT, fade: -1 });
+		};
+
+		const placeElectron = (e: Electron) => {
+			const X = CX + e.x * K;
+			const Y = YC - e.y * K;
+			e.c.setAttribute('cx', X.toFixed(1));
+			e.c.setAttribute('cy', Y.toFixed(1));
+			// tail: where the electron was 0.12 s of animation time ago (straight-line estimate)
+			const back = 0.12 / TS;
+			e.tail.setAttribute('x1', (X - e.vx * back * K).toFixed(1));
+			e.tail.setAttribute('y1', (Y + e.vy * back * K).toFixed(1));
+			e.tail.setAttribute('x2', X.toFixed(1));
+			e.tail.setAttribute('y2', Y.toFixed(1));
+		};
+
+		const step = (dt: number) => {
+			const s = state();
+			// photons arrive as a random (Poisson) stream: up to 40 per second at 100 %
+			const rate = lightOn ? 0.4 * s.inten : 0;
+			if (rate > 0) {
+				nextPhoton -= dt;
+				while (nextPhoton <= 0) {
+					spawnPhoton(s);
+					nextPhoton += -Math.log(1 - Math.random()) / rate;
+				}
+			} else nextPhoton = 0.05;
+
+			for (let i = photons.length - 1; i >= 0; i--) {
+				const p = photons[i];
+				p.t += dt;
+				const f = p.t / p.T;
+				if (f >= 1) {
+					p.el.remove();
+					photons.splice(i, 1);
+					const Ek = photonEV(Number(nmIn.value)) - metal.A;
+					cathodeLit = true;
+					flash(p.x1, p.y1 - 1, 'var(--fe-light)', 1.5, Ek > 0 ? 7 : 11, Ek > 0 ? 0.3 : 0.5);
+					if (Ek > 0) emit(p.xmm, Ek);
+					continue;
+				}
+				const x = p.x0 + (p.x1 - p.x0) * f;
+				const y = p.y0 + (p.y1 - p.y0) * f;
+				p.el.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${p.ang.toFixed(1)})`);
+			}
+
+			const dtNs = dt / TS;
+			const a = ACC_PER_VOLT * s.U;
+			for (let i = electrons.length - 1; i >= 0; i--) {
+				const e = electrons[i];
+				if (e.fade >= 0) {
+					e.fade += dt;
+					e.g.style.opacity = String(Math.max(0, 1 - e.fade / 0.35));
+					if (e.fade > 0.35) {
+						e.g.remove();
+						electrons.splice(i, 1);
+					}
+					continue;
+				}
+				e.x += e.vx * dtNs;
+				e.y += e.vy * dtNs + 0.5 * a * dtNs * dtNs;
+				e.vy += a * dtNs;
+				if (Math.abs(e.x) >= HALF_W) {
+					e.x = Math.sign(e.x) * HALF_W;
+					e.fade = 0; // hits the glass wall
+				} else if (e.y >= GAP) {
+					e.y = GAP;
+					flash(CX + e.x * K, YA, 'var(--ig-vx)', 1.5, 7, 0.3);
+					e.g.remove();
+					electrons.splice(i, 1);
+					continue;
+				} else if (e.y <= 0 && e.vy < 0) {
+					e.y = 0;
+					e.fade = 0.15; // back into the cathode
+				}
+				placeElectron(e);
+			}
+
+			for (let i = flashes.length - 1; i >= 0; i--) {
+				const f = flashes[i];
+				f.t += dt;
+				const k = f.t / f.T;
+				if (k >= 1) {
+					f.el.remove();
+					flashes.splice(i, 1);
+					continue;
+				}
+				f.el.setAttribute('r', (f.r0 + (f.r1 - f.r0) * k).toFixed(1));
+				f.el.style.opacity = String(1 - k);
+			}
+			if (!lightOn && photons.length === 0) cathodeLit = false;
+			setMeter(cathodeLit ? s.Ilit : 0, false, dt);
+		};
+
+		const clearParticles = () => {
+			for (const p of photons) p.el.remove();
+			for (const e of electrons) e.g.remove();
+			for (const f of flashes) f.el.remove();
+			photons.length = electrons.length = flashes.length = 0;
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.05);
+			last = now;
+			step(dt);
+			raf = requestAnimationFrame(frame);
+		};
+		const sync = () => {
+			cancelAnimationFrame(raf);
+			if (running && visible) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			} else setMeter(state().I, true);
+			pauseBtn.textContent = running ? 'Пауза' : 'Продолжить';
+			playBtn.hidden = running;
+		};
+
+		/* ---------- controls ---------- */
+		for (const el of [nmIn, intIn, uIn]) el.addEventListener('input', update);
+		for (const chip of chips) {
+			chip.addEventListener('click', () => {
+				metal = METALS.find((m) => m.id === chip.dataset.metal)!;
+				chips.forEach((c) => c.setAttribute('aria-pressed', String(c === chip)));
+				update();
+			});
+		}
+		lightBtn.addEventListener('click', () => {
+			lightOn = !lightOn;
+			if (lightOn && !(running && visible)) cathodeLit = true;
+			lightBtn.textContent = lightOn ? 'Выключить свет' : 'Включить свет';
+			lightBtn.setAttribute('aria-pressed', String(lightOn));
+			update();
+		});
+		saveBtn.addEventListener('click', () => {
+			const s = state();
+			saved.push({ nm: s.nm, inten: lightOn ? s.inten : 0, metal, Ek: s.Ek });
+			while (saved.length > 4) saved.shift();
+			drawGhosts();
+			drawLegend(s);
+		});
+		clearBtn.addEventListener('click', () => {
+			saved.length = 0;
+			drawGhosts();
+			drawLegend(state());
+		});
+		pauseBtn.addEventListener('click', () => {
+			running = !running;
+			sync();
+		});
+		playBtn.addEventListener('click', () => {
+			running = true;
+			sync();
+		});
+
+		// Dragging along the I–V curve sets the voltage.
+		let dragging = false;
+		const dragTo = (ev: PointerEvent) => {
+			const m = ivPlot.getScreenCTM();
+			if (!m) return;
+			const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m.inverse());
+			const U = Math.min(5, Math.max(-5, ((pt.x - P.x0) / (P.x1 - P.x0)) * 10 - 5));
+			const v = String(Math.round(U * 20) / 20);
+			if (uIn.value !== v) {
+				uIn.value = v;
+				update();
+			}
+		};
+		ivPlot.addEventListener('pointerdown', (ev) => {
+			dragging = true;
+			ivPlot.classList.add('is-dragging');
+			ivPlot.setPointerCapture(ev.pointerId);
+			dragTo(ev);
+		});
+		ivPlot.addEventListener('pointermove', (ev) => dragging && dragTo(ev));
+		const endDrag = () => {
+			dragging = false;
+			ivPlot.classList.remove('is-dragging');
+		};
+		ivPlot.addEventListener('pointerup', endDrag);
+		ivPlot.addEventListener('pointercancel', endDrag);
+
+		// Questions elsewhere on the page can set the model: window.dispatchEvent(new CustomEvent('fe:set', …)).
+		window.addEventListener('fe:set', (ev) => {
+			const d = (ev as CustomEvent).detail ?? {};
+			if (d.metal) {
+				const m = METALS.find((x) => x.id === d.metal);
+				if (m) {
+					metal = m;
+					chips.forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.metal === m.id)));
+				}
+			}
+			if (d.nm != null) nmIn.value = String(d.nm);
+			if (d.inten != null) intIn.value = String(d.inten);
+			if (d.U != null) uIn.value = String(d.U);
+			if (d.light != null) {
+				lightOn = !!d.light;
+				lightBtn.textContent = lightOn ? 'Выключить свет' : 'Включить свет';
+				lightBtn.setAttribute('aria-pressed', String(lightOn));
+			}
+			clearParticles();
+			cathodeLit = lightOn;
+			update();
+			if (root === document.querySelector('[data-fe-lab]')) {
+				root.scrollIntoView({ block: 'start', behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+			}
+		});
+
+		// Narrow screens: zoom on the tube, the circuit becomes a line of readings.
+		const narrow = () => {
+			const isNarrow = root.clientWidth < 560;
+			root.classList.toggle('is-narrow', isNarrow);
+			svg.setAttribute('viewBox', isNarrow ? '34 4 432 360' : '0 0 720 400');
+		};
+		new ResizeObserver(narrow).observe(root);
+		narrow();
+
+		new IntersectionObserver((entries) => {
+			visible = entries[0].isIntersecting;
+			sync();
+		}).observe(svg);
+
+		document.addEventListener('visibilitychange', () => {
+			if (document.hidden) cancelAnimationFrame(raf);
+			else sync();
+		});
+
+		update();
+		sync();
+	}
+</script>

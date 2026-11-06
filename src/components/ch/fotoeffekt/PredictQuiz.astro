@@ -1,0 +1,220 @@
+---
+/**
+ * "Predict, then check": a question with three answers and instant feedback; the button
+ * under the explanation sets the photocell model (PhotocellLab) to the same situation.
+ */
+type Item = {
+	q: string;
+	options: string[];
+	right: number;
+	why: string;
+	set: { metal: string; nm: number; inten: number; U: number };
+	try: string;
+};
+
+const items: Item[] = [
+	{
+		q: 'Цинковую пластинку освещают очень ярким красным светом с длиной волны 650 нм. Что произойдёт?',
+		options: ['Вылетит много электронов', 'Вылетят электроны, но медленные', 'Электроны не вылетят'],
+		right: 2,
+		why: 'Энергия фотона красного света — около 1,9 эВ, а работа выхода цинка 4,2 эВ. Яркость света задаёт число фотонов, а не энергию каждого из них: сколько бы фотонов ни падало, ни один не вырвет электрон.',
+		set: { metal: 'zn', nm: 650, inten: 100, U: 2 },
+		try: 'В модели: цинк, 650 нм, 100 %. Попробуйте найти, при какой длине волны появятся электроны.',
+	},
+	{
+		q: 'Катод из цезия освещают фиолетовым светом (400 нм). Интенсивность света увеличили в 2 раза. Как изменится задерживающее напряжение?',
+		options: ['Увеличится в 2 раза', 'Не изменится', 'Уменьшится в 2 раза'],
+		right: 1,
+		why: 'Задерживающее напряжение останавливает самые быстрые электроны, а их энергия зависит только от энергии одного фотона: <i>eU</i><sub>з</sub> = <i>hν</i> − <i>A</i><sub>вых</sub>. Фотонов вдвое больше — электронов и ток насыщения тоже вдвое больше, но каждый электрон получает столько же энергии.',
+		set: { metal: 'cs', nm: 400, inten: 50, U: -0.5 },
+		try: 'В модели: цезий, 400 нм, 50 %. Нажмите «Запомнить кривую», увеличьте число фотонов в секунду до 100 % и сравните.',
+	},
+	{
+		q: 'Катод из цезия освещали зелёным светом (530 нм), а потом фиолетовым (400 нм) той же интенсивности. Как изменилась наибольшая скорость фотоэлектронов?',
+		options: ['Увеличилась', 'Не изменилась', 'Уменьшилась'],
+		right: 0,
+		why: 'Фотон фиолетового света несёт больше энергии, чем фотон зелёного: hν растёт с частотой. Работа выхода та же, поэтому на кинетическую энергию остаётся больше. Скорость растёт примерно вдвое: с 294 до 595 км/с.',
+		set: { metal: 'cs', nm: 530, inten: 60, U: 0 },
+		try: 'В модели: цезий, 530 нм. Передвиньте длину волны к 400 нм и следите за хвостами электронов.',
+	},
+	{
+		q: 'Катод из калия освещают оранжевым светом (600 нм), и фотоэффекта нет. Что поможет?',
+		options: ['Увеличить интенсивность света', 'Подать на анод большее положительное напряжение', 'Взять свет с меньшей длиной волны'],
+		right: 2,
+		why: 'Красная граница калия — около 540 нм. Нужны фотоны с большей энергией, то есть свет с длиной волны меньше 540 нм, например зелёный или синий. Ни яркость, ни напряжение не помогут: электрон просто не может выйти из металла.',
+		set: { metal: 'k', nm: 600, inten: 80, U: 1 },
+		try: 'В модели: калий, 600 нм. Уменьшайте длину волны, пока не начнут вылетать электроны.',
+	},
+];
+---
+
+<div class="fe-quiz not-content" data-fe-quiz>
+	{
+		items.map((it, n) => (
+			<section class="fe-quiz__card" data-quiz-card data-right={it.right} data-set={JSON.stringify(it.set)}>
+				<p class="fe-quiz__q">
+					<span class="fe-quiz__num">{n + 1}</span>
+					{it.q}
+				</p>
+				<div class="fe-quiz__options" role="group" aria-label="Варианты ответа">
+					{it.options.map((o, i) => (
+						<button type="button" class="fe-quiz__opt" data-opt={i}>
+							{o}
+						</button>
+					))}
+				</div>
+				<div class="fe-quiz__answer" data-answer hidden>
+					<p class="fe-quiz__verdict" data-verdict aria-live="polite"></p>
+					<p class="fe-quiz__why" set:html={it.why} />
+					<p class="fe-quiz__try">{it.try}</p>
+					<button type="button" class="fe-quiz__check" data-check>
+						Проверить в модели ↑
+					</button>
+				</div>
+			</section>
+		))
+	}
+</div>
+
+<style is:global>
+	.fe-quiz {
+		display: grid;
+		gap: 0.9rem;
+		margin-block: 1.5rem;
+	}
+	.fe-quiz__card {
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.fe-quiz__q {
+		display: flex;
+		gap: 0.6rem;
+		margin: 0 0 0.75rem;
+		color: var(--sl-color-white);
+		line-height: 1.5;
+	}
+	.fe-quiz__num {
+		flex: none;
+		width: 1.75rem;
+		height: 1.75rem;
+		display: grid;
+		place-items: center;
+		border-radius: 50%;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-black);
+		background: var(--sl-color-accent);
+	}
+	.fe-quiz__options {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.fe-quiz__opt {
+		margin: 0;
+		padding: 0.5rem 1rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		text-align: start;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s;
+	}
+	.fe-quiz__opt:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.fe-quiz__opt.is-right {
+		border-color: var(--sl-color-text-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.fe-quiz__opt.is-right::before {
+		content: '✓ ';
+	}
+	.fe-quiz__opt.is-wrong {
+		border-color: var(--ig-vy);
+		color: var(--ig-vy);
+	}
+	.fe-quiz__opt.is-wrong::before {
+		content: '✗ ';
+	}
+	.fe-quiz__answer {
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-text);
+		animation: fe-quiz-in 0.35s ease-out;
+	}
+	.fe-quiz__answer[hidden] {
+		display: none;
+	}
+	.fe-quiz__answer p {
+		margin: 0 0 0.5rem;
+	}
+	.fe-quiz__verdict {
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.fe-quiz i {
+		font-family: var(--ig-font-math);
+	}
+	.fe-quiz__try {
+		color: var(--sl-color-gray-2);
+	}
+	.fe-quiz__check {
+		margin: 0;
+		padding: 0.45rem 1rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-black);
+		background: var(--sl-color-accent);
+		border: 1px solid var(--sl-color-accent);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	@keyframes fe-quiz-in {
+		from {
+			opacity: 0;
+			transform: translateY(0.4rem);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.fe-quiz__answer {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fe-quiz]')) {
+		for (const card of root.querySelectorAll<HTMLElement>('[data-quiz-card]')) {
+			const right = Number(card.dataset.right);
+			const opts = Array.from(card.querySelectorAll<HTMLButtonElement>('[data-opt]'));
+			const answer = card.querySelector<HTMLElement>('[data-answer]')!;
+			const verdict = card.querySelector<HTMLElement>('[data-verdict]')!;
+			for (const opt of opts) {
+				opt.addEventListener('click', () => {
+					const i = Number(opt.dataset.opt);
+					opts.forEach((o) => o.classList.remove('is-right', 'is-wrong'));
+					opt.classList.add(i === right ? 'is-right' : 'is-wrong');
+					if (i !== right) opts[right].classList.add('is-right');
+					verdict.textContent = i === right ? 'Верно!' : 'Не совсем. Правильный ответ отмечен галочкой.';
+					answer.hidden = false;
+				});
+			}
+			card.querySelector<HTMLButtonElement>('[data-check]')!.addEventListener('click', () => {
+				const set = JSON.parse(card.dataset.set!);
+				window.dispatchEvent(new CustomEvent('fe:set', { detail: { ...set, light: true } }));
+			});
+		}
+	}
+</script>
