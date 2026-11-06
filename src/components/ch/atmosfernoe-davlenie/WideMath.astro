@@ -1,0 +1,53 @@
+---
+/**
+ * A display formula that is too long for a phone. Both versions are rendered with KaTeX at build
+ * time; the script shows the one-line `tex` while it fits and the multi-line `narrow` otherwise.
+ * Without JavaScript the one-line version is shown (and scrolls sideways, like any long formula).
+ */
+import katex from 'katex';
+
+interface Props {
+	tex: string;
+	narrow: string;
+}
+const { tex, narrow } = Astro.props;
+const opts = { displayMode: true, throwOnError: false };
+const wide = katex.renderToString(tex, opts);
+const small = katex.renderToString(narrow, opts);
+---
+
+<div class="wmath" data-wmath>
+	<div class="wmath__wide" set:html={wide} />
+	<div class="wmath__narrow" aria-hidden="true" set:html={small} />
+</div>
+
+<style is:global>
+	.wmath__narrow {
+		display: none;
+	}
+	.wmath.is-narrow .wmath__wide {
+		display: none;
+	}
+	.wmath.is-narrow .wmath__narrow {
+		display: block;
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-wmath]')) {
+		const wide = root.querySelector<HTMLElement>('.wmath__wide');
+		const narrow = root.querySelector<HTMLElement>('.wmath__narrow');
+		const disp = wide?.querySelector<HTMLElement>('.katex-display');
+		if (!wide || !narrow || !disp) continue;
+		const check = () => {
+			if (!root.clientWidth) return; // hidden (e.g. a step that has not been shown yet)
+			root.classList.remove('is-narrow');
+			const tooWide = disp.scrollWidth > disp.clientWidth + 1;
+			root.classList.toggle('is-narrow', tooWide);
+			wide.setAttribute('aria-hidden', String(tooWide));
+			narrow.setAttribute('aria-hidden', String(!tooWide));
+		};
+		new ResizeObserver(check).observe(root);
+		check();
+	}
+</script>

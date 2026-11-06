@@ -1,0 +1,690 @@
+---
+/**
+ * Mini-experiment: Magdeburg hemispheres. Pump the air out, hang a load and see whether the
+ * hemispheres hold. The force of air pressure F = (p_атм − p_вн)·S, S = πD²/4 (the area of the
+ * circle along which the halves touch), is compared with the weight of the load P = mg.
+ * The picture is to scale: 300 px per metre. The mass of the hemispheres themselves is neglected.
+ */
+---
+
+<figure class="mgd not-content" data-mgd>
+	<div class="mgd__stage">
+		<svg class="mgd__svg" viewBox="0 0 360 430" role="img" aria-label="Магдебургские полушария с грузом">
+			<g data-scene></g>
+		</svg>
+		<div class="mgd__side">
+			<dl class="mgd__stats">
+				<div><dt>Давление воздуха внутри</dt><dd data-pin>101,3 кПа</dd></div>
+				<div><dt>Сила давления воздуха <i>F</i></dt><dd data-f>0 Н</dd></div>
+				<div><dt>Вес груза <i>P</i></dt><dd data-w>0 Н</dd></div>
+			</dl>
+			<div class="mgd__formula" data-formula aria-hidden="true"></div>
+			<p class="mgd__status" data-status></p>
+		</div>
+	</div>
+	<div class="mgd__controls">
+		<div class="mgd__buttons">
+			<button type="button" class="mgd__btn mgd__btn--primary" data-pump>Качнуть насос</button>
+			<button type="button" class="mgd__btn" data-pump5>Качнуть 5 раз</button>
+			<button type="button" class="mgd__btn" data-valve>Открыть кран</button>
+			<button type="button" class="mgd__btn mgd__btn--primary" data-reset hidden>Сложить полушария снова</button>
+		</div>
+		<label class="mgd__slider">
+			<span>Диаметр полушарий <i>D</i></span>
+			<output data-d-out>40 см</output>
+			<input type="range" min="10" max="60" step="1" value="40" data-d />
+		</label>
+		<label class="mgd__slider">
+			<span>Масса груза <i>m</i></span>
+			<output data-m-out>0 кг</output>
+			<input type="range" min="0" max="2000" step="10" value="0" data-m />
+		</label>
+	</div>
+	<p class="mgd__live" data-live aria-live="polite"></p>
+	<figcaption class="mgd__legend">
+		Полушария и стрелки нарисованы в масштабе, грузы — условно. Синие стрелки — давление воздуха снаружи и внутри; <i>F</i> — сила, с которой
+		воздух прижимает нижнее полушарие к верхнему, <i>P</i> — вес груза (стрелки в одном масштабе).
+		Массу самих полушарий не учитываем.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.mgd {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.mgd i {
+		font-family: var(--ig-font-math);
+	}
+	.mgd__stage {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: start;
+	}
+	.mgd__side {
+		min-width: 0;
+	}
+	.mgd__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		max-height: 30rem;
+	}
+	.mgd__copper-1 {
+		stop-color: color-mix(in srgb, var(--ig-v) 55%, var(--sl-color-white));
+	}
+	.mgd__copper-2 {
+		stop-color: var(--ig-v);
+	}
+	.mgd__copper-3 {
+		stop-color: color-mix(in srgb, var(--ig-v) 55%, var(--sl-color-black));
+	}
+	.mgd__half {
+		stroke: color-mix(in srgb, var(--ig-v) 60%, var(--sl-color-black));
+		stroke-width: 1.2;
+	}
+	.mgd__flange {
+		fill: color-mix(in srgb, var(--ig-v) 70%, var(--sl-color-black));
+	}
+	.mgd__metal {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.mgd__line {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.mgd__hose {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.mgd__disc {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.mgd__floor {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.mgd__air {
+		fill: var(--sl-color-gray-3);
+		opacity: 0.75;
+	}
+	.mgd__air-in {
+		fill: var(--sl-color-gray-2);
+	}
+	.mgd__parrow {
+		stroke: var(--ig-vx);
+		stroke-width: 1.8;
+	}
+	.mgd__phead {
+		fill: var(--ig-vx);
+	}
+	.mgd__farrow {
+		stroke: var(--ig-vx);
+		stroke-width: 4;
+	}
+	.mgd__fhead {
+		fill: var(--ig-vx);
+	}
+	.mgd__warrow {
+		stroke: var(--ig-vy);
+		stroke-width: 4;
+	}
+	.mgd__whead {
+		fill: var(--ig-vy);
+	}
+	.mgd__text {
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+		font-size: 13px;
+	}
+	.mgd__text--f {
+		fill: var(--ig-vx);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 18px;
+	}
+	.mgd__text--w {
+		fill: var(--ig-vy);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 18px;
+	}
+	.mgd__stats {
+		display: grid;
+		gap: 0.4rem;
+		margin: 0;
+	}
+	.mgd__stats > div {
+		padding: 0.4rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.mgd__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.mgd__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.mgd__formula {
+		margin-top: 0.6rem;
+		padding: 0.2rem 0.5rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		font-size: 0.92em;
+		overflow-x: auto;
+	}
+	.mgd__formula .katex-display {
+		margin: 0.5rem 0;
+	}
+	.mgd-hot {
+		color: var(--ig-v);
+	}
+	.mgd__status {
+		margin: 0.6rem 0 0;
+		padding: 0.45rem 0.75rem;
+		border-radius: 0.6rem;
+		font-weight: 700;
+		text-align: center;
+		border: 1px solid var(--sl-color-gray-5);
+		color: var(--sl-color-white);
+	}
+	.mgd__status[data-state='hold'] {
+		border-color: var(--ig-vx);
+	}
+	.mgd__status i {
+		font-family: var(--ig-font-math);
+	}
+	.mgd__status[data-state='apart'] {
+		border-color: var(--ig-vy);
+		color: var(--ig-vy);
+	}
+	.mgd__controls {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.9rem;
+	}
+	.mgd__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.mgd__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.mgd__btn[hidden] {
+		display: none;
+	}
+	.mgd__btn:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+	}
+	.mgd__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.mgd__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.mgd__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mgd__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.mgd__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.mgd__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mgd__legend {
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.mgd {
+			padding: 0.75rem;
+		}
+		.mgd__stage,
+		.mgd__controls {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.mgd__svg {
+			max-height: 24rem;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { G, P0, approach, clamp, fmt, roundTo, tex, reducedMotion } from './physics';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const PX = 300; // px per metre
+	const CX = 180;
+	const TOP = 64; // top of the sphere
+	const FLOOR = 420;
+	const F_SCALE = 100 / 20000; // px per newton, the same for F and P
+	const STROKE = 0.75; // one stroke leaves 3/4 of the air
+	const P_LOW = 0.01 * P0; // the pump cannot take out everything
+	const DISC = 100; // kg per disc
+
+	const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent: Element) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		parent.append(e);
+		return e;
+	};
+	const r1 = (v: number) => Math.round(v * 10) / 10;
+	const set = (e: Element, attrs: Record<string, string | number>) => {
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-mgd]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const scene = q<SVGGElement>('[data-scene]');
+		const dIn = q<HTMLInputElement>('[data-d]');
+		const mIn = q<HTMLInputElement>('[data-m]');
+		const dOut = q<HTMLOutputElement>('[data-d-out]');
+		const mOut = q<HTMLOutputElement>('[data-m-out]');
+		const pumpBtn = q<HTMLButtonElement>('[data-pump]');
+		const pump5Btn = q<HTMLButtonElement>('[data-pump5]');
+		const valveBtn = q<HTMLButtonElement>('[data-valve]');
+		const resetBtn = q<HTMLButtonElement>('[data-reset]');
+		const outPin = q<HTMLElement>('[data-pin]');
+		const outF = q<HTMLElement>('[data-f]');
+		const outW = q<HTMLElement>('[data-w]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const status = q<HTMLElement>('[data-status]');
+		const live = q<HTMLElement>('[data-live]');
+		const uid = `mgd${Math.random().toString(36).slice(2, 8)}`;
+		const motionOff = reducedMotion();
+
+		// ----- state -----
+		let D = 0.4;
+		let m = 0;
+		let pIn = P0; // shown pressure inside
+		let pTarget = P0;
+		let strokesLeft = 0;
+		let strokeT = -1;
+		let strokeFrom = P0;
+		let apart = false;
+		let fallT = -1;
+		let fallDy = 0;
+		let raf = 0;
+		let last = 0;
+		let lastFormula = '';
+
+		// ----- drawing -----
+		const defs = el('defs', {}, scene);
+		const grad = el('radialGradient', { id: `${uid}-cu`, cx: 0.35, cy: 0.3, r: 0.8 }, defs);
+		el('stop', { offset: 0, class: 'mgd__copper-1' }, grad);
+		el('stop', { offset: 0.45, class: 'mgd__copper-2' }, grad);
+		el('stop', { offset: 1, class: 'mgd__copper-3' }, grad);
+		const head = (id: string, cls: string) => {
+			const mk = el('marker', { id, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 4, markerHeight: 4, orient: 'auto' }, defs);
+			el('path', { d: 'M0,0 L10,5 L0,10 z', class: cls }, mk);
+		};
+		head(`${uid}-p`, 'mgd__phead');
+		head(`${uid}-f`, 'mgd__fhead');
+		head(`${uid}-w`, 'mgd__whead');
+
+		const airOut = el('path', { class: 'mgd__air' }, scene);
+		el('rect', { class: 'mgd__metal', x: CX - 70, y: 6, width: 140, height: 10, rx: 3 }, scene);
+		el('line', { class: 'mgd__floor', x1: 10, x2: 350, y1: FLOOR, y2: FLOOR }, scene);
+		// pump on the left
+		el('rect', { class: 'mgd__metal', x: 22, y: 250, width: 30, height: 120, rx: 4 }, scene);
+		el('rect', { class: 'mgd__metal', x: 16, y: 366, width: 42, height: 8, rx: 2 }, scene);
+		const pumpRod = el('line', { class: 'mgd__line', x1: 37, x2: 37 }, scene);
+		const pumpHandle = el('rect', { class: 'mgd__metal', width: 40, height: 7, rx: 3, x: 17 }, scene);
+		const pumpLabel = el('text', { class: 'mgd__text', x: 37, y: 392, 'text-anchor': 'middle' }, scene);
+		pumpLabel.textContent = 'насос';
+		const hose = el('path', { class: 'mgd__hose' }, scene);
+		const chain = el('line', { class: 'mgd__line', x1: CX, x2: CX, y1: 16 }, scene);
+		const ring = el('circle', { class: 'mgd__line', cx: CX, r: 5 }, scene);
+		const upper = el('g', {}, scene);
+		const upperHalf = el('path', { class: 'mgd__half', fill: `url(#${uid}-cu)` }, upper);
+		const upperFlange = el('rect', { class: 'mgd__flange', height: 6, rx: 2 }, upper);
+		const valve = el('rect', { class: 'mgd__metal', width: 8, height: 12, rx: 1 }, upper);
+		const tap = el('rect', { class: 'mgd__metal', width: 16, height: 4, rx: 2 }, upper);
+		const lower = el('g', {}, scene);
+		const lowerHalf = el('path', { class: 'mgd__half', fill: `url(#${uid}-cu)` }, lower);
+		const lowerFlange = el('rect', { class: 'mgd__flange', height: 6, rx: 2 }, lower);
+		const hook = el('circle', { class: 'mgd__line', r: 5 }, lower);
+		const hanger = el('line', { class: 'mgd__line' }, lower);
+		const discs = el('g', {}, lower);
+		const mLabel = el('text', { class: 'mgd__text' }, lower);
+		const airIn = el('path', { class: 'mgd__air mgd__air-in' }, scene);
+		const pArrows = el('g', {}, scene);
+		const fArrow = el('line', { class: 'mgd__farrow', 'marker-end': `url(#${uid}-f)` }, scene);
+		const fText = el('text', { class: 'mgd__text--f' }, scene);
+		fText.textContent = 'F';
+		const wArrow = el('line', { class: 'mgd__warrow', 'marker-end': `url(#${uid}-w)` }, scene);
+		const wText = el('text', { class: 'mgd__text--w' }, scene);
+		wText.textContent = 'P';
+
+		// air molecules: fixed random positions
+		let seed = 1654;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		const outside = Array.from({ length: 150 }, () => ({ x: 8 + rnd() * 344, y: 20 + rnd() * 395 }));
+		const inside = Array.from({ length: 40 }, () => ({ a: rnd() * Math.PI * 2, r: Math.sqrt(rnd()) }));
+		const dot = (x: number, y: number) => `M${r1(x - 1.4)} ${r1(y)}a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0 -2.8 0`;
+
+		const R = () => (D * PX) / 2;
+		const cy = () => TOP + R();
+		const S = () => (Math.PI * D * D) / 4;
+		const force = () => (apart ? 0 : Math.max(0, P0 - pIn) * S());
+		const weight = () => m * G;
+
+		const draw = () => {
+			const r = R();
+			const c = cy();
+			set(chain, { y2: TOP - 10 });
+			set(ring, { cy: TOP - 5 });
+			upperHalf.setAttribute('d', `M${CX - r} ${c}A${r} ${r} 0 0 1 ${CX + r} ${c}Z`);
+			set(upperFlange, { x: CX - r - 6, y: c - 6, width: 2 * r + 12 });
+			// valve on the upper half, 45° to the left of the top
+			const va = (-45 * Math.PI) / 180;
+			const vx = CX + r * Math.sin(va);
+			const vy = c - r * Math.cos(va);
+			set(valve, { x: r1(vx - 4 - 6), y: r1(vy - 12), transform: `rotate(-45 ${r1(vx)} ${r1(vy)})` });
+			set(tap, { x: r1(vx - 18), y: r1(vy - 16), transform: `rotate(-45 ${r1(vx)} ${r1(vy)})` });
+			const hx = vx - 12;
+			const hy = vy - 10;
+			hose.setAttribute('d', `M${r1(hx)} ${r1(hy)}C${r1(hx - 60)} ${r1(hy - 20)} 37 200 37 248`);
+			// pump handle moves during a stroke
+			const sp = strokeT >= 0 ? Math.sin(Math.PI * strokeT) : 0;
+			const hy2 = 226 + 34 * sp;
+			set(pumpHandle, { y: r1(hy2) });
+			set(pumpRod, { y1: r1(hy2 + 4), y2: 300 });
+
+			// lower part, maybe falling
+			const dy = fallDy;
+			lower.setAttribute('transform', `translate(0 ${r1(dy)})`);
+			lowerHalf.setAttribute('d', `M${CX - r} ${c}A${r} ${r} 0 0 0 ${CX + r} ${c}Z`);
+			set(lowerFlange, { x: CX - r - 6, y: c, width: 2 * r + 12 });
+			set(hook, { cx: CX, cy: c + r + 5 });
+			const n = Math.round(m / DISC);
+			const y0 = c + r + 22;
+			set(hanger, { x1: CX, x2: CX, y1: c + r + 10, y2: y0 + Math.max(n, 1) * 6 + 2 });
+			discs.replaceChildren();
+			for (let i = 0; i < n; i++) el('rect', { class: 'mgd__disc', x: CX - 26, y: y0 + i * 6, width: 52, height: 6, rx: 2 }, discs);
+			if (m > 0) {
+				set(mLabel, { x: CX - 34, y: y0 + Math.max(n, 1) * 3 + 5, 'text-anchor': 'end' });
+				mLabel.textContent = `${fmt(m)} кг`;
+			} else mLabel.textContent = '';
+
+			// air: outside everywhere except inside the sphere; inside — a share equal to pIn/P0
+			let d = '';
+			for (const p of outside) {
+				const inSphere = Math.hypot(p.x - CX, p.y - c) < r + 4 || (dy > 0 && Math.hypot(p.x - CX, p.y - c - dy) < r + 4);
+				if (!inSphere) d += dot(p.x, p.y);
+			}
+			airOut.setAttribute('d', d);
+			const share = apart ? 1 : pIn / P0;
+			const nIn = Math.round(inside.length * share);
+			d = '';
+			if (!apart)
+				for (let i = 0; i < nIn; i++) {
+					const p = inside[i];
+					d += dot(CX + (r - 6) * p.r * Math.cos(p.a), c + (r - 6) * p.r * Math.sin(p.a));
+				}
+			airIn.setAttribute('d', d);
+
+			// pressure arrows around the sphere: outside ones are always the same, inside ones shrink
+			pArrows.replaceChildren();
+			if (r >= 34 && !apart) {
+				for (let k = 0; k < 10; k++) {
+					const a = ((k + 0.5) / 10) * 2 * Math.PI + Math.PI / 2;
+					if (Math.abs(Math.sin(a)) > 0.93) continue; // leave room for the chain and the hook
+					const ux = Math.cos(a);
+					const uy = Math.sin(a);
+					el('line', {
+						class: 'mgd__parrow', 'marker-end': `url(#${uid}-p)`,
+						x1: r1(CX + ux * (r + 22)), y1: r1(c + uy * (r + 22)), x2: r1(CX + ux * (r + 3)), y2: r1(c + uy * (r + 3)),
+					}, pArrows);
+					const li = 19 * (pIn / P0);
+					if (li > 3)
+						el('line', {
+							class: 'mgd__parrow', 'marker-end': `url(#${uid}-p)`,
+							x1: r1(CX + ux * (r - 3 - li)), y1: r1(c + uy * (r - 3 - li)), x2: r1(CX + ux * (r - 3)), y2: r1(c + uy * (r - 3)),
+						}, pArrows);
+				}
+			}
+			// F and P on the lower half, to the same scale
+			const ax = CX + r + 34;
+			const base = c + r * 0.55 + dy;
+			const lf = force() * F_SCALE;
+			const lw = weight() * F_SCALE;
+			const showF = lf > 4;
+			fArrow.style.visibility = fText.style.visibility = showF ? 'visible' : 'hidden';
+			set(fArrow, { x1: ax, x2: ax, y1: r1(base), y2: r1(base - lf) });
+			set(fText, { x: ax - 18, y: r1(base - lf + 12) });
+			const showW = lw > 4;
+			wArrow.style.visibility = wText.style.visibility = showW ? 'visible' : 'hidden';
+			set(wArrow, { x1: ax + 20, x2: ax + 20, y1: r1(base), y2: r1(base + lw) });
+			set(wText, { x: ax + 28, y: r1(base + lw) });
+		};
+
+		const readouts = () => {
+			const dp = roundTo(P0 - pIn, 100);
+			const pInShown = P0 - dp;
+			const Sx = S();
+			const sDig = Sx < 0.1 ? 4 : 3;
+			const Sshown = Math.round(Sx * 10 ** sDig) / 10 ** sDig;
+			const F = apart ? 0 : dp * Sshown;
+			const Fshown = F >= 10000 ? roundTo(F, 100) : roundTo(F, 10);
+			outPin.textContent = apart
+				? `${fmt(P0 / 1000, 1)} кПа (воздух вошёл)`
+				: `${fmt(pInShown / 1000, 1)} кПа · ${fmt(Math.round((100 * pIn) / P0))} % воздуха`;
+			outF.textContent = `${fmt(Fshown)} Н`;
+			outW.textContent = `${fmt(m * G)} Н`;
+			const narrow = formula.clientWidth < 400;
+			const src =
+				`\\begin{gathered}` +
+				`F = (p_{\\text{атм}} - p_{\\text{вн}})\\, S ${narrow ? '\\\\ =' : '='} (${tex(P0)} - ${tex(pInShown)}) \\cdot ${tex(Sshown, sDig)} ${apart ? '=' : '\\approx'} \\htmlClass{mgd-hot}{${tex(Fshown)}}~\\text{Н}\\\\` +
+				`P = m g = ${tex(m)} \\cdot 9{,}8 = \\htmlClass{mgd-hot}{${tex(m * G)}}~\\text{Н}` +
+				`\\end{gathered}`;
+			if (src !== lastFormula) {
+				lastFormula = src;
+				katex.render(src, formula, {
+					displayMode: true,
+					throwOnError: false,
+					strict: 'ignore',
+					trust: (ctx) => ctx.command === '\\htmlClass',
+				});
+			}
+			if (apart) {
+				status.dataset.state = 'apart';
+				status.textContent = 'Полушария разорвались!';
+			} else if (m === 0) {
+				status.dataset.state = '';
+				status.textContent = force() > 1 ? 'Полушария прижаты друг к другу' : 'Внутри и снаружи — одинаковое давление';
+			} else {
+				status.dataset.state = 'hold';
+				status.innerHTML = 'Полушария держатся: <i>F</i> &gt; <i>P</i>';
+			}
+		};
+
+		const check = () => {
+			if (apart || m === 0) return;
+			if (weight() > (P0 - pIn) * S()) {
+				const wasFull = pIn > 0.99 * P0;
+				apart = true;
+				fallT = motionOff ? 1e9 : 0;
+				pIn = pTarget = P0;
+				strokesLeft = 0;
+				strokeT = -1;
+				live.innerHTML = wasFull
+					? 'Внутри столько же воздуха, сколько снаружи: полушария ничто не прижимает друг к другу, и груз их разъединил.'
+					: 'Вес груза оказался больше силы давления воздуха (<i>P</i> &gt; <i>F</i>) — нижнее полушарие оторвалось, и воздух вошёл внутрь.';
+				setButtons();
+			}
+		};
+
+		const setButtons = () => {
+			pumpBtn.hidden = pump5Btn.hidden = valveBtn.hidden = apart;
+			resetBtn.hidden = !apart;
+			mIn.disabled = apart;
+			const low = pTarget <= P_LOW * 1.0001;
+			pumpBtn.disabled = pump5Btn.disabled = low;
+			valveBtn.disabled = pTarget >= P0 - 1;
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+			last = now;
+			let busy = false;
+			if (strokeT >= 0) {
+				busy = true;
+				strokeT += dt / 0.55;
+				const f = Math.min(strokeT, 1);
+				pIn = strokeFrom + (pTarget - strokeFrom) * (f < 0.5 ? 0 : (f - 0.5) * 2);
+				if (strokeT >= 1) {
+					pIn = pTarget;
+					strokeT = -1;
+					if (strokesLeft > 0) startStroke();
+				}
+			} else if (Math.abs(pIn - pTarget) > 1) {
+				busy = true;
+				pIn = approach(pIn, pTarget, dt, 0.18);
+			} else pIn = pTarget;
+			check();
+			if (apart) {
+				// the lower half falls freely (g, true scale) until the load reaches the floor
+				const n = Math.max(Math.round(m / DISC), 1);
+				const maxDy = FLOOR - (cy() + R() + 22 + n * 6 + 2);
+				if (fallT >= 0) {
+					fallT += dt;
+					fallDy = Math.min(maxDy, 0.5 * G * fallT * fallT * PX);
+					if (fallDy < maxDy) busy = true;
+					else fallT = -1;
+				} else fallDy = maxDy;
+			}
+			draw();
+			readouts();
+			if (busy) raf = requestAnimationFrame(frame);
+			else {
+				raf = 0;
+				setButtons();
+				if (!apart && strokeT < 0) describe();
+			}
+		};
+		const kick = () => {
+			if (!raf) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		};
+		let lastDescribed = '';
+		const describe = () => {
+			const share = Math.round((100 * pIn) / P0);
+			const F = Math.max(0, P0 - pIn) * S();
+			const s =
+				share >= 100
+					? 'Внутри полушарий столько же воздуха, сколько снаружи: давления одинаковы, и полушария ничто не прижимает.'
+					: `Внутри осталось ${share} % воздуха. Воздух снаружи прижимает полушария с силой около ${fmt(F >= 10000 ? roundTo(F, 100) : roundTo(F, 10))} Н — столько весит груз массой около ${fmt(roundTo(F / G, 10))} кг.`;
+			if (s !== lastDescribed) {
+				lastDescribed = s;
+				live.textContent = s;
+			}
+		};
+
+		const startStroke = () => {
+			strokesLeft -= 1;
+			strokeFrom = pIn;
+			pTarget = Math.max(P_LOW, pIn * STROKE);
+			strokeT = motionOff ? 0.999 : 0;
+			kick();
+		};
+		const pump = (n: number) => {
+			if (apart) return;
+			if (strokeT >= 0) {
+				strokesLeft += n;
+				return;
+			}
+			strokesLeft = n;
+			startStroke();
+		};
+		pumpBtn.addEventListener('click', () => pump(1));
+		pump5Btn.addEventListener('click', () => pump(5));
+		valveBtn.addEventListener('click', () => {
+			strokesLeft = 0;
+			strokeT = -1;
+			pTarget = P0;
+			kick();
+		});
+		resetBtn.addEventListener('click', () => {
+			apart = false;
+			fallDy = 0;
+			fallT = -1;
+			pIn = pTarget = P0;
+			m = 0;
+			mIn.value = '0';
+			mOut.value = '0 кг';
+			lastFormula = '';
+			lastDescribed = '';
+			setButtons();
+			live.textContent = 'Полушария снова сложены. Внутри — воздух при обычном давлении.';
+			kick();
+			pumpBtn.focus();
+		});
+		dIn.addEventListener('input', () => {
+			D = Number(dIn.value) / 100;
+			dOut.value = `${dIn.value} см`;
+			kick();
+		});
+		mIn.addEventListener('input', () => {
+			m = Number(mIn.value);
+			mOut.value = `${fmt(m)} кг`;
+			kick();
+		});
+
+		setButtons();
+		draw();
+		readouts();
+		describe();
+		// the formula breaks into two lines on a narrow screen
+		new ResizeObserver(() => readouts()).observe(formula);
+	}
+</script>

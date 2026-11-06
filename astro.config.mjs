@@ -33,7 +33,9 @@ export default defineConfig({
 			],
 			sidebar: [
 				{ label: 'Об учебнике', slug: 'uchebnik' },
-				grade(7),
+				grade(7, [
+					section('Давление твёрдых тел, жидкостей и газов', '7-klass/davlenie', ['atmosfernoe-davlenie']),
+				]),
 				grade(8),
 				grade(9),
 				grade(10, [

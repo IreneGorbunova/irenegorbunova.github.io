@@ -1,0 +1,180 @@
+---
+/**
+ * A question with several answers and instant feedback. Wrong answers can be tried again.
+ * Option texts may contain simple HTML (<i>h</i>, <sub>…</sub>).
+ */
+interface Option {
+	text: string;
+	correct?: boolean;
+	why: string;
+}
+interface Props {
+	question: string;
+	options: Option[];
+	/** Shown after the right answer: what to try in the model. */
+	check?: string;
+}
+const { question, options, check } = Astro.props;
+---
+
+<div class="choice not-content" data-choice>
+	<p class="choice__q" set:html={question} />
+	<div class="choice__opts" role="group" aria-label="Варианты ответа">
+		{
+			options.map((o, i) => (
+				<button type="button" class="choice__opt" data-ok={o.correct ? '1' : '0'} data-why={o.why}>
+					<span class="choice__letter">{'АБВГД'[i]}</span>
+					<span set:html={o.text} />
+				</button>
+			))
+		}
+	</div>
+	<p class="choice__fb" data-fb aria-live="polite"></p>
+	{check && <p class="choice__check" data-check hidden set:html={check} />}
+</div>
+
+<style is:global>
+	.choice {
+		margin-block: 1.5rem;
+		padding: 1rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.choice i {
+		font-family: var(--ig-font-math);
+	}
+	.choice__q {
+		margin: 0 0 0.75rem;
+		font-weight: 600;
+		color: var(--sl-color-white);
+		line-height: 1.5;
+	}
+	.choice__q::before {
+		content: 'Предскажите';
+		display: block;
+		margin-bottom: 0.2rem;
+		font-family: var(--ig-font-display);
+		font-size: 1.7rem;
+		font-weight: 400;
+		color: var(--sl-color-text-accent);
+		line-height: 1.2;
+	}
+	.choice__opts {
+		display: grid;
+		gap: 0.45rem;
+	}
+	.choice__opt {
+		display: flex;
+		gap: 0.65rem;
+		align-items: center;
+		width: 100%;
+		padding: 0.55rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-text);
+		font: inherit;
+		text-align: start;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s,
+			transform 0.15s;
+	}
+	.choice__opt:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+		transform: translateX(3px);
+	}
+	.choice__letter {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 1.7rem;
+		height: 1.7rem;
+		border-radius: 50%;
+		border: 1px solid var(--sl-color-gray-4);
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+	}
+	.choice__opt.is-right {
+		border-color: var(--ig-vx);
+		background: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-gray-6));
+	}
+	.choice__opt.is-right .choice__letter {
+		background: var(--ig-vx);
+		border-color: var(--ig-vx);
+		color: var(--sl-color-black);
+	}
+	.choice__opt.is-wrong {
+		border-color: var(--ig-vy);
+		background: color-mix(in srgb, var(--ig-vy) 10%, var(--sl-color-gray-6));
+		animation: choice-shake 0.35s;
+	}
+	.choice__opt.is-wrong .choice__letter {
+		background: var(--ig-vy);
+		border-color: var(--ig-vy);
+		color: var(--sl-color-black);
+	}
+	.choice__opt:disabled {
+		cursor: default;
+	}
+	.choice__fb {
+		min-height: 1.5em;
+		margin: 0.7rem 0 0;
+		color: var(--sl-color-gray-2);
+		line-height: 1.55;
+	}
+	.choice__fb strong {
+		color: var(--sl-color-white);
+	}
+	.choice__check {
+		margin: 0.4rem 0 0;
+		padding: 0.5rem 0.75rem;
+		border-left: 3px solid var(--sl-color-accent);
+		border-radius: 0 0.5rem 0.5rem 0;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-sm);
+	}
+	.choice__check a {
+		color: var(--sl-color-text-accent);
+	}
+	@keyframes choice-shake {
+		25% {
+			transform: translateX(-4px);
+		}
+		75% {
+			transform: translateX(4px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.choice__opt {
+			transition: none;
+		}
+		.choice__opt.is-wrong {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-choice]')) {
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('.choice__opt'));
+		const fb = root.querySelector<HTMLElement>('[data-fb]')!;
+		const check = root.querySelector<HTMLElement>('[data-check]');
+		for (const b of opts) {
+			b.addEventListener('click', () => {
+				const ok = b.dataset.ok === '1';
+				b.classList.remove('is-wrong');
+				void b.offsetWidth;
+				b.classList.add(ok ? 'is-right' : 'is-wrong');
+				fb.innerHTML = `<strong>${ok ? 'Верно!' : 'Не совсем.'}</strong> ${b.dataset.why ?? ''}`;
+				if (ok) {
+					opts.forEach((o) => (o.disabled = true));
+					if (check) check.hidden = false;
+				}
+			});
+		}
+	}
+</script>

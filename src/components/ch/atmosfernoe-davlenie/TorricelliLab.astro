@@ -1,0 +1,1584 @@
+---
+/**
+ * Main model of the chapter: Torricelli's experiment at different altitudes.
+ * Left: the altitude scene (drag the marker); middle: the tube in a dish with a ruler
+ * (equal scales on both axes, so a tilted tube keeps its true geometry); right: an aneroid
+ * barometer with a pressure scale and an altitude scale (as in an altimeter).
+ * Pressure vs altitude: standard atmosphere (see physics.ts).
+ */
+import { pressureAt, MMHG } from './physics';
+
+const DIAL_MIN = 180;
+const DIAL_MAX = 820;
+const SWEEP = 270;
+const C = 110;
+const ang = (mm: number) => -SWEEP / 2 + ((mm - DIAL_MIN) / (DIAL_MAX - DIAL_MIN)) * SWEEP;
+const pt = (deg: number, r: number) => {
+	const a = (deg * Math.PI) / 180;
+	return [C + r * Math.sin(a), C - r * Math.cos(a)].map((v) => Math.round(v * 100) / 100);
+};
+const tick = (mm: number, r1: number, r2: number) => {
+	const [x1, y1] = pt(ang(mm), r1);
+	const [x2, y2] = pt(ang(mm), r2);
+	return `M${x1} ${y1}L${x2} ${y2}`;
+};
+let minor = '';
+let major = '';
+for (let mm = DIAL_MIN + 0; mm <= DIAL_MAX; mm += 10) {
+	if (mm % 100 === 0) major += tick(mm, 91, 78);
+	else if (mm % 50 === 0) minor += tick(mm, 91, 82);
+	else minor += tick(mm, 91, 86);
+}
+const labels = [200, 300, 400, 500, 600, 700, 800].map((mm) => {
+	const [x, y] = pt(ang(mm), 66);
+	return { mm, x, y: y + 5 };
+});
+let kmTicks = '';
+const kmLabels: { k: number; x: number; y: number }[] = [];
+for (let k = 0; k <= 10; k++) {
+	const deg = ang(pressureAt(k * 1000) / MMHG);
+	const [x1, y1] = pt(deg, 54);
+	const [x2, y2] = pt(deg, k % 2 === 0 ? 46 : 49);
+	kmTicks += `M${x1} ${y1}L${x2} ${y2}`;
+	if (k % 2 === 0) {
+		const [x, y] = pt(deg, 37);
+		kmLabels.push({ k, x, y: y + 4 });
+	}
+}
+const arc = (r: number) => {
+	const [x1, y1] = pt(ang(DIAL_MIN), r);
+	const [x2, y2] = pt(ang(DIAL_MAX), r);
+	return `M${x1} ${y1}A${r} ${r} 0 1 1 ${x2} ${y2}`;
+};
+const kmArc = (() => {
+	const a1 = ang(pressureAt(10000) / MMHG);
+	const a2 = ang(pressureAt(0) / MMHG);
+	const [x1, y1] = pt(a1, 54);
+	const [x2, y2] = pt(a2, 54);
+	return `M${x1} ${y1}A54 54 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${x2} ${y2}`;
+})();
+
+const presets = [
+	{ h: -430, name: 'Мёртвое море' },
+	{ h: 0, name: 'Уровень моря' },
+	{ h: 1465, name: 'Пюи-де-Дом' },
+	{ h: 5642, name: 'Эльбрус' },
+	{ h: 8849, name: 'Эверест' },
+	{ h: 10000, name: 'Самолёт' },
+];
+const fmtH = (h: number) =>
+	(Math.abs(h) >= 10000 ? h.toLocaleString('ru-RU') : String(h)).replace('-', '−').replace(/\s/g, ' ');
+---
+
+<figure class="atm not-content" data-atm>
+	<div class="atm__stage">
+		<div class="atm__panel atm__panel--alt">
+			<svg
+				class="atm__svg"
+				data-alt
+				role="img"
+				aria-label="Высота над уровнем моря. Перетащите отметку вверх или вниз."
+			></svg>
+		</div>
+		<div class="atm__panel atm__panel--tube">
+			<svg class="atm__svg" data-tube role="img" aria-label="Трубка Торричелли в чашке со ртутью"></svg>
+		</div>
+		<div class="atm__panel atm__panel--gauge">
+			<svg class="atm__dial" viewBox="0 0 220 220" role="img" aria-label="Барометр-анероид">
+				<circle class="atm__dial-bezel" cx={C} cy={C} r="105"></circle>
+				<circle class="atm__dial-face" cx={C} cy={C} r="97"></circle>
+				<path class="atm__dial-arc" d={arc(91)}></path>
+				<path class="atm__dial-minor" d={minor}></path>
+				<path class="atm__dial-major" d={major}></path>
+				{
+					labels.map((l) => (
+						<text class="atm__dial-num" x={l.x} y={l.y} text-anchor="middle">
+							{l.mm}
+						</text>
+					))
+				}
+				<path class="atm__dial-km" d={kmArc + kmTicks}></path>
+				{
+					kmLabels.map((l) => (
+						<text class="atm__dial-kmnum" x={l.x} y={l.y} text-anchor="middle">
+							{l.k}
+						</text>
+					))
+				}
+				<text class="atm__dial-unit" x={C} y="166" text-anchor="middle">мм рт. ст.</text>
+				<text class="atm__dial-unit atm__dial-unit--km" x={C} y="184" text-anchor="middle">км</text>
+				<g data-needle>
+					<path class="atm__needle" d={`M${C} ${C - 86}L${C + 3.6} ${C}L${C} ${C + 22}L${C - 3.6} ${C}Z`}></path>
+				</g>
+				<circle class="atm__dial-cap" cx={C} cy={C} r="6.5"></circle>
+			</svg>
+			<dl class="atm__stats">
+				<div>
+					<dt>Давление воздуха</dt>
+					<dd><span data-p-mm>760</span> <small>мм рт. ст.</small></dd>
+					<dd class="atm__sub"><span data-p-kpa>101,3</span> кПа</dd>
+				</div>
+				<div>
+					<dt data-col-name>Высота столба ртути</dt>
+					<dd data-col>760 мм</dd>
+					<dd class="atm__sub" data-len></dd>
+				</div>
+			</dl>
+		</div>
+	</div>
+
+	<div class="atm__controls">
+		<label class="atm__slider atm__slider--wide">
+			<span class="atm__name">Высота над уровнем моря</span>
+			<output data-alt-out>0 м</output>
+			<input type="range" min="-500" max="10000" step="10" value="0" data-alt-in />
+		</label>
+		<div class="atm__chips" role="group" aria-label="Куда отправиться">
+			{
+				presets.map((p) => (
+					<button type="button" class="atm__chip" data-go={p.h}>
+						{p.name}
+						<span>{fmtH(p.h)} м</span>
+					</button>
+				))
+			}
+		</div>
+		<div class="atm__row">
+			<div class="atm__seg" role="group" aria-label="Жидкость в трубке">
+				<span class="atm__name">Жидкость</span>
+				<button type="button" class="atm__seg-btn" aria-pressed="true" data-liquid="hg">Ртуть</button>
+				<button type="button" class="atm__seg-btn" aria-pressed="false" data-liquid="water">Вода</button>
+			</div>
+			<label class="atm__slider">
+				<span class="atm__name">Наклон трубки</span>
+				<output data-tilt-out>0°</output>
+				<input type="range" min="0" max="45" step="1" value="0" data-tilt-in />
+			</label>
+			<button type="button" class="atm__btn atm__btn--primary" data-run>Повторить опыт</button>
+		</div>
+	</div>
+
+	<div class="atm__formula" data-formula aria-hidden="true"></div>
+	<p class="atm__live" data-live aria-live="polite"></p>
+
+	<figcaption class="atm__legend">
+		Высоты гор — в масштабе, ширина условная. Давление рассчитано для стандартной атмосферы: так оно
+		меняется с высотой в среднем, а в каждый день ещё зависит от погоды. В опыте с водой над столбом
+		на самом деле собирается водяной пар, поэтому настоящий столб воды примерно на 0,2 м ниже.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.atm {
+		--atm-mountain: var(--sl-color-gray-5);
+		--atm-mountain-edge: var(--sl-color-gray-4);
+		--atm-shade: var(--sl-color-black);
+		--atm-snow: var(--sl-color-gray-2);
+		--atm-hg-edge: var(--sl-color-gray-3);
+		--atm-hg-mid: var(--sl-color-gray-1);
+		--atm-glass: var(--sl-color-gray-3);
+		--atm-water: var(--ig-vx);
+		--atm-skin: color-mix(in srgb, var(--ig-v) 45%, var(--sl-color-gray-3));
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .atm {
+		--atm-snow: var(--sl-color-black);
+		--atm-shade: var(--sl-color-gray-4);
+		--atm-hg-edge: var(--sl-color-gray-3);
+		--atm-hg-mid: var(--sl-color-gray-5);
+	}
+	.atm i {
+		font-family: var(--ig-font-math);
+	}
+	.atm__stage {
+		display: grid;
+		grid-template-columns: 0.9fr 1.25fr 1fr;
+		gap: 0.75rem;
+		align-items: start;
+	}
+	.atm__panel {
+		min-width: 0;
+	}
+	.atm__svg {
+		display: block;
+		width: 100%;
+		height: 25rem;
+		border-radius: 0.75rem;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.atm__panel--alt .atm__svg {
+		cursor: ns-resize;
+	}
+	.atm__panel--tube .atm__svg {
+		background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent);
+	}
+	.atm__dial {
+		display: block;
+		width: 100%;
+		max-width: 15rem;
+		margin-inline: auto;
+	}
+
+	/* altitude scene */
+	.atm__sky-top {
+		stop-color: color-mix(in srgb, var(--ig-vx) 3%, var(--ig-surface));
+	}
+	.atm__sky-bottom {
+		stop-color: color-mix(in srgb, var(--ig-vx) 24%, var(--ig-surface));
+	}
+	.atm__air {
+		fill: var(--sl-color-gray-3);
+		opacity: 0.75;
+	}
+	.atm__above {
+		fill: var(--ig-vx);
+		opacity: 0.07;
+	}
+	.atm__mountain {
+		fill: var(--atm-mountain);
+		stroke: var(--atm-mountain-edge);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.atm__shade {
+		fill: var(--atm-shade);
+		opacity: 0.55;
+	}
+	.atm__snow {
+		fill: var(--atm-snow);
+		opacity: 0.85;
+	}
+	.atm__ground {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--atm-mountain-edge);
+		stroke-width: 1;
+	}
+	.atm__lake {
+		fill: var(--atm-water);
+		opacity: 0.55;
+	}
+	.atm__sealevel {
+		stroke: var(--atm-water);
+		stroke-width: 1;
+		stroke-dasharray: 4 4;
+		opacity: 0.8;
+	}
+	.atm__plane {
+		fill: var(--sl-color-gray-3);
+	}
+	.atm__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.atm__axis-text,
+	.atm__peak {
+		fill: var(--sl-color-gray-3);
+		font-family: var(--__sl-font);
+		font-size: 11px;
+	}
+	.atm__peak {
+		fill: var(--sl-color-gray-2);
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+	}
+	.atm__peak {
+		transition: opacity 0.25s;
+	}
+	.atm__peak tspan + tspan {
+		fill: var(--sl-color-gray-3);
+	}
+	.atm__marker-line {
+		stroke: var(--ig-v);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 4;
+	}
+	.atm__marker-pill {
+		fill: var(--ig-v);
+	}
+	.atm__marker-text {
+		fill: var(--sl-color-black);
+		font-family: var(--__sl-font);
+		font-weight: 700;
+		font-size: 12px;
+	}
+	.atm__marker-dot {
+		fill: var(--ig-v);
+		stroke: var(--ig-surface);
+		stroke-width: 2;
+	}
+	.atm__hit {
+		fill: transparent;
+		cursor: grab;
+		touch-action: none;
+	}
+
+	/* tube scene */
+	.atm__table {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.atm__ruler path {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		fill: none;
+	}
+	.atm__ruler text {
+		fill: var(--sl-color-gray-3);
+		font-family: var(--__sl-font);
+		font-size: 11px;
+		font-variant-numeric: tabular-nums;
+	}
+	.atm__hg-edge {
+		stop-color: var(--atm-hg-edge);
+	}
+	.atm__hg-mid {
+		stop-color: var(--atm-hg-mid);
+	}
+	.atm__liquid--hg {
+		fill: var(--atm-hg-mid);
+	}
+	.atm__liquid--water {
+		fill: var(--atm-water);
+		fill-opacity: 0.55;
+	}
+	.atm__glass-in {
+		fill: color-mix(in srgb, var(--ig-vx) 7%, transparent);
+	}
+	.atm__glass {
+		fill: none;
+		stroke: var(--atm-glass);
+		stroke-width: 1.6;
+	}
+	.atm__glass-shine {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.2;
+		opacity: 0.25;
+		stroke-linecap: round;
+	}
+	.atm__dish {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, transparent);
+		stroke: var(--atm-glass);
+		stroke-width: 1.6;
+	}
+	.atm__vacuum {
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+		font-size: 12px;
+		font-style: italic;
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+	}
+	.atm__level {
+		stroke: var(--ig-v);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 3;
+	}
+	.atm__pill {
+		fill: var(--ig-v);
+	}
+	.atm__pill-text {
+		fill: var(--sl-color-black);
+		font-family: var(--__sl-font);
+		font-weight: 700;
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+	.atm__finger {
+		fill: var(--atm-skin);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.atm__nail {
+		fill: color-mix(in srgb, var(--sl-color-white) 30%, var(--atm-skin));
+	}
+	.atm__stream {
+		stroke: var(--atm-hg-mid);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.atm__person {
+		fill: var(--sl-color-gray-4);
+	}
+	.atm__small-text {
+		fill: var(--sl-color-gray-3);
+		font-family: var(--__sl-font);
+		font-size: 11px;
+	}
+	.atm__tube-hit {
+		stroke: transparent;
+		stroke-width: 34;
+		fill: none;
+		cursor: grab;
+		touch-action: none;
+	}
+
+	/* dial */
+	.atm__dial-bezel {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.atm__dial-face {
+		fill: var(--ig-surface);
+	}
+	.atm__dial-arc,
+	.atm__dial-minor,
+	.atm__dial-major {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.atm__dial-major {
+		stroke-width: 2;
+	}
+	.atm__dial-num {
+		fill: var(--sl-color-gray-1);
+		font-family: var(--__sl-font);
+		font-size: 15px;
+	}
+	.atm__dial-km {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 1.4;
+	}
+	.atm__dial-kmnum {
+		fill: var(--ig-vx);
+		font-family: var(--__sl-font);
+		font-size: 12px;
+	}
+	.atm__dial-unit {
+		fill: var(--sl-color-gray-3);
+		font-family: var(--__sl-font);
+		font-size: 12px;
+	}
+	.atm__dial-unit--km {
+		fill: var(--ig-vx);
+	}
+	.atm__needle {
+		fill: var(--ig-vy);
+		filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
+	}
+	.atm__dial-cap {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-5);
+	}
+
+	/* stats */
+	.atm__stats {
+		display: grid;
+		gap: 0.5rem;
+		margin: 0.75rem 0 0;
+	}
+	.atm__stats > div {
+		padding: 0.45rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.atm__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.atm__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.atm__stats dd small {
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+	}
+	.atm__stats .atm__sub {
+		font-size: var(--sl-text-sm);
+		font-weight: 400;
+		color: var(--sl-color-gray-2);
+	}
+	.atm__stats .atm__sub:empty {
+		display: none;
+	}
+
+	/* controls */
+	.atm__controls {
+		display: grid;
+		gap: 0.75rem;
+		margin-top: 0.9rem;
+	}
+	.atm__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.atm__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.atm__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.atm__slider input:disabled {
+		opacity: 0.45;
+	}
+	.atm__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.atm__chip {
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.3rem 0.75rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-1);
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s;
+	}
+	.atm__chip span {
+		margin-left: 0.3rem;
+		color: var(--sl-color-gray-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.atm__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.atm__chip[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.atm__row {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		gap: 0.75rem 1.25rem;
+		align-items: end;
+	}
+	.atm__name {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.atm__seg {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 0.4rem;
+	}
+	.atm__seg .atm__name {
+		width: 100%;
+	}
+	.atm__seg-btn,
+	.atm__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.atm__seg-btn[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.atm__seg-btn:disabled,
+	.atm__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.atm__seg-btn:hover:not(:disabled),
+	.atm__btn:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+	}
+	.atm__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+
+	.atm__formula {
+		margin-top: 0.9rem;
+		padding: 0.4rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		text-align: center;
+	}
+	.atm__formula .katex-display {
+		margin: 0.4rem 0;
+	}
+	.atm-flash {
+		color: var(--ig-v);
+	}
+	.atm__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.atm__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+
+	@media (max-width: 50rem) {
+		.atm__stage {
+			grid-template-columns: 0.8fr 1.2fr;
+		}
+		.atm__panel--gauge {
+			grid-column: 1 / -1;
+			display: grid;
+			grid-template-columns: minmax(9rem, 13rem) 1fr;
+			gap: 0.75rem;
+			align-items: center;
+		}
+		.atm__stats {
+			margin: 0;
+		}
+		.atm__svg {
+			height: 22rem;
+		}
+	}
+	@media (max-width: 40rem) {
+		.atm {
+			padding: 0.75rem;
+		}
+		.atm__stage {
+			gap: 0.5rem;
+		}
+		.atm__panel--gauge {
+			grid-template-columns: 9.5rem 1fr;
+			gap: 0.5rem;
+		}
+		.atm__stats dd {
+			font-size: var(--sl-text-lg);
+		}
+		.atm__row {
+			grid-template-columns: 1fr;
+		}
+		.atm__btn--primary {
+			justify-self: start;
+		}
+		.atm__dial-num {
+			font-size: 17px;
+		}
+		.atm__dial-kmnum,
+		.atm__dial-unit {
+			font-size: 14px;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import {
+		G,
+		RHO_HG,
+		RHO_WATER,
+		MMHG,
+		pressureAt,
+		densityRatioAt,
+		fmt,
+		tex,
+		roundTo,
+		clamp,
+		approach,
+		reducedMotion,
+	} from './physics';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const ALT_MIN = -1500; // bottom of the scene (ground below the Dead Sea)
+	const ALT_MAX = 10700;
+	const DIAL_MIN = 180;
+	const DIAL_MAX = 820;
+	const SUB = 8; // px of the tube under the surface in the dish
+	const TUBE_LEN = { hg: 1, water: 12 }; // metres above the surface
+	const ZETA = { hg: 0.3, water: 0.45 }; // damping of the column oscillations
+
+	type Liquid = 'hg' | 'water';
+
+	const el = <K extends keyof SVGElementTagNameMap>(
+		tag: K,
+		attrs: Record<string, string | number> = {},
+		parent?: Element,
+	) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		parent?.append(e);
+		return e;
+	};
+	const set = (e: Element, attrs: Record<string, string | number>) => {
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+	};
+	const r1 = (v: number) => Math.round(v * 10) / 10;
+	const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+	const seg = (t: number, a: number, b: number) => clamp((t - a) / (b - a), 0, 1);
+
+	// Seeded random numbers, so that the air looks the same on every visit.
+	const rng = (seed: number) => () => {
+		seed = (seed * 1664525 + 1013904223) >>> 0;
+		return seed / 4294967296;
+	};
+
+	// Silhouettes: [fraction of the width, altitude in metres].
+	const EVEREST: [number, number][] = [
+		[0.6, 100], [0.66, 2600], [0.71, 4300], [0.76, 6100], [0.8, 7500], [0.835, 8849], [0.87, 7900],
+		[0.91, 7000], [0.95, 6100], [0.99, 4500], [1.04, 2200],
+	];
+	const ELBRUS: [number, number][] = [
+		[0.32, 100], [0.38, 1800], [0.44, 3800], [0.48, 5000], [0.5, 5642], [0.525, 5420], [0.55, 5621],
+		[0.585, 4700], [0.63, 3200], [0.69, 1300], [0.74, 100],
+	];
+	const PUY: [number, number][] = [
+		[0.17, 100], [0.215, 600], [0.25, 1250], [0.27, 1465], [0.29, 1250], [0.325, 600], [0.37, 100],
+	];
+	const LAKE_L = 0.025;
+	const LAKE_R = 0.135;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-atm]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const uid = `atm${Math.random().toString(36).slice(2, 8)}`;
+		const altSvg = q<SVGSVGElement>('[data-alt]');
+		const tubeSvg = q<SVGSVGElement>('[data-tube]');
+		const needle = q<SVGGElement>('[data-needle]');
+		const altIn = q<HTMLInputElement>('[data-alt-in]');
+		const altOut = q<HTMLOutputElement>('[data-alt-out]');
+		const tiltIn = q<HTMLInputElement>('[data-tilt-in]');
+		const tiltOut = q<HTMLOutputElement>('[data-tilt-out]');
+		const runBtn = q<HTMLButtonElement>('[data-run]');
+		const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-go]'));
+		const liqBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-liquid]'));
+		const outPmm = q<HTMLElement>('[data-p-mm]');
+		const outPkpa = q<HTMLElement>('[data-p-kpa]');
+		const outColName = q<HTMLElement>('[data-col-name]');
+		const outCol = q<HTMLElement>('[data-col]');
+		const outLen = q<HTMLElement>('[data-len]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const live = q<HTMLElement>('[data-live]');
+
+		// ---------- state ----------
+		let liquid: Liquid = 'hg';
+		let altTarget = 0;
+		let alt = 0;
+		let dragAlt = false;
+		let glide: { from: number; to: number; t0: number; dur: number } | null = null;
+		let alphaTarget = 0; // tilt, radians
+		let alpha = 0;
+		let scale = 300; // px per metre (animated)
+		let y = 0.76; // column height above the surface, m (vertical)
+		let v = 0;
+		let needleDeg = 0;
+		let phase: 'before' | 'run' | 'done' = 'before';
+		let runT = 0;
+		let visible = false;
+		let raf = 0;
+		let last = 0;
+		let time = 0;
+		let lastFormula = '';
+		let lastAnnounced = '';
+		let announceAt = 0;
+
+		const motionOff = reducedMotion();
+		const setLive = (s: string) => {
+			if (live.textContent !== s) live.textContent = s;
+		};
+
+		// ---------- altitude scene ----------
+		let AW = 200;
+		let AH = 400;
+		const ALT_TOP = 6;
+		const ALT_BOTTOM = 4;
+		const AX = 30; // axis
+		const ay = (h: number) => ALT_TOP + ((ALT_MAX - h) / (ALT_MAX - ALT_MIN)) * (AH - ALT_TOP - ALT_BOTTOM);
+		const ah = (py: number) => ALT_MAX - ((py - ALT_TOP) / (AH - ALT_TOP - ALT_BOTTOM)) * (ALT_MAX - ALT_MIN);
+		const ax = (u: number) => AX + u * (AW - AX);
+
+		const aDefs = el('defs', {}, altSvg);
+		const sky = el('linearGradient', { id: `${uid}-sky`, x1: 0, y1: 0, x2: 0, y2: 1 }, aDefs);
+		el('stop', { offset: 0, class: 'atm__sky-top' }, sky);
+		el('stop', { offset: 1, class: 'atm__sky-bottom' }, sky);
+		const snowClipE = el('clipPath', { id: `${uid}-snowE` }, aDefs);
+		const snowLineE = el('path', {}, snowClipE);
+		const snowClipK = el('clipPath', { id: `${uid}-snowK` }, aDefs);
+		const snowLineK = el('path', {}, snowClipK);
+		const skyRect = el('rect', { fill: `url(#${uid}-sky)` }, altSvg);
+		const aboveRect = el('rect', { class: 'atm__above' }, altSvg);
+		const air = el('path', { class: 'atm__air' }, altSvg);
+		const plane = el('path', { class: 'atm__plane' }, altSvg);
+		const planeText = el('text', { class: 'atm__axis-text' }, altSvg);
+		planeText.textContent = 'самолёт';
+		const mEverest = el('path', { class: 'atm__mountain' }, altSvg);
+		const sEverest = el('path', { class: 'atm__snow', 'clip-path': `url(#${uid}-snowE)` }, altSvg);
+		const hEverest = el('path', { class: 'atm__shade' }, altSvg);
+		const mElbrus = el('path', { class: 'atm__mountain' }, altSvg);
+		const sElbrus = el('path', { class: 'atm__snow', 'clip-path': `url(#${uid}-snowK)` }, altSvg);
+		const hElbrus = el('path', { class: 'atm__shade' }, altSvg);
+		const mPuy = el('path', { class: 'atm__mountain' }, altSvg);
+		const hPuy = el('path', { class: 'atm__shade' }, altSvg);
+		const ground = el('path', { class: 'atm__ground' }, altSvg);
+		const lake = el('rect', { class: 'atm__lake' }, altSvg);
+		const seaLine = el('line', { class: 'atm__sealevel' }, altSvg);
+		const axis = el('path', { class: 'atm__axis' }, altSvg);
+		const axisLabels = el('g', {}, altSvg);
+		const peakLabels = el('g', {}, altSvg);
+		const marker = el('g', {}, altSvg);
+		const markerLine = el('line', { class: 'atm__marker-line' }, marker);
+		const markerDot = el('circle', { class: 'atm__marker-dot', r: 5 }, marker);
+		const markerPill = el('rect', { class: 'atm__marker-pill', rx: 9, height: 18 }, marker);
+		const markerText = el('text', { class: 'atm__marker-text', 'text-anchor': 'middle' }, marker);
+		const hit = el('rect', { class: 'atm__hit', height: 44 }, altSvg);
+
+		// air molecules: precomputed in (fraction of width, altitude)
+		const rand = rng(20251106);
+		type Dot = { u: number; h: number; ph: number; f: number };
+		let dots: Dot[] = [];
+		const makeDots = () => {
+			const n = Math.round(((AW - AX) * AH) / 210);
+			const maxD = densityRatioAt(ALT_MIN);
+			dots = [];
+			while (dots.length < n) {
+				const h = ALT_MIN + rand() * (ALT_MAX - ALT_MIN);
+				if (rand() * maxD > densityRatioAt(h)) continue;
+				dots.push({ u: rand(), h, ph: rand() * Math.PI * 2, f: 0.6 + rand() * 0.9 });
+			}
+		};
+
+		const poly = (pts: [number, number][]) =>
+			pts.map(([u, h], i) => `${i ? 'L' : 'M'}${r1(ax(u))} ${r1(ay(h))}`).join('') + 'Z';
+		const mountain = (pts: [number, number][]) => poly([[pts[0][0], ALT_MIN], ...pts, [pts[pts.length - 1][0], ALT_MIN]]);
+		// the side away from the light: from the summit down the right slope
+		const shade = (pts: [number, number][]) => {
+			let top = 0;
+			pts.forEach((p, i) => p[1] > pts[top][1] && (top = i));
+			const right = pts.slice(top);
+			return poly([...right, [right[right.length - 1][0], ALT_MIN], [pts[top][0] + 0.012, ALT_MIN]]);
+		};
+		// a ragged snow line
+		const snowLine = (h: number) => {
+			let d = `M0 0H${r1(AW)}`;
+			for (let x = AW, i = 0; x >= -8; x -= 7, i++) d += `L${r1(x)} ${r1(ay(h + (i % 2 ? 260 : -220) + (i % 3) * 90))}`;
+			return d + 'Z';
+		};
+
+		const peakLabel = (u: number, h: number, name: string, anchor: string, dx: number, dy: number) => {
+			const t = el('text', { class: 'atm__peak', 'text-anchor': anchor, 'data-y': r1(ay(h) + dy) }, peakLabels);
+			const t1 = el('tspan', { x: r1(ax(u) + dx), y: r1(ay(h) + dy) }, t);
+			t1.textContent = name;
+			const t2 = el('tspan', { x: r1(ax(u) + dx), y: r1(ay(h) + dy + 12) }, t);
+			t2.textContent = `${fmt(h)} м`;
+		};
+
+		const layoutAlt = () => {
+			const r = altSvg.getBoundingClientRect();
+			AW = Math.max(120, r.width);
+			AH = Math.max(200, r.height);
+			set(altSvg, { viewBox: `0 0 ${AW} ${AH}` });
+			set(skyRect, { x: 0, y: 0, width: AW, height: AH, rx: 12 });
+			snowLineE.setAttribute('d', snowLine(5800));
+			snowLineK.setAttribute('d', snowLine(4100));
+			mEverest.setAttribute('d', mountain(EVEREST));
+			sEverest.setAttribute('d', mountain(EVEREST));
+			hEverest.setAttribute('d', shade(EVEREST));
+			mElbrus.setAttribute('d', mountain(ELBRUS));
+			sElbrus.setAttribute('d', mountain(ELBRUS));
+			hElbrus.setAttribute('d', shade(ELBRUS));
+			mPuy.setAttribute('d', mountain(PUY));
+			hPuy.setAttribute('d', shade(PUY));
+			// ground with the Dead Sea basin on the left
+			ground.setAttribute(
+				'd',
+				poly([
+					[-0.2, 120], [0, 120], [LAKE_L, -430], [LAKE_L + 0.01, -700], [LAKE_R - 0.01, -700],
+					[LAKE_R, -430], [0.17, 120], [1.05, 120], [1.05, ALT_MIN], [-0.2, ALT_MIN],
+				]),
+			);
+			set(lake, {
+				x: r1(ax(LAKE_L + 0.004)),
+				y: r1(ay(-430)),
+				width: r1(ax(LAKE_R - 0.004) - ax(LAKE_L + 0.004)),
+				height: r1(ay(-700) - ay(-430)),
+			});
+			set(seaLine, { x1: AX, x2: AW, y1: r1(ay(0)), y2: r1(ay(0)) });
+			// axis with ticks every km
+			let d = `M${AX} ${ay(ALT_MAX - 200)}V${ay(-1000)}`;
+			axisLabels.replaceChildren();
+			for (let k = -1; k <= 10; k++) {
+				const yy = r1(ay(k * 1000));
+				d += `M${AX - (k % 2 === 0 ? 6 : 3)} ${yy}H${AX}`;
+				if (k % 2 === 0 && k >= 0) {
+					const t = el('text', { class: 'atm__axis-text', x: AX - 8, y: yy + 4, 'text-anchor': 'end' }, axisLabels);
+					t.textContent = String(k);
+				}
+			}
+			const unit = el('text', { class: 'atm__axis-text', x: 3, y: r1(ay(ALT_MAX - 300)) + 4 }, axisLabels);
+			unit.textContent = 'км';
+			axis.setAttribute('d', d);
+			// labels of the peaks
+			peakLabels.replaceChildren();
+			peakLabel(0.835, 8849, 'Эверест', 'end', -9, -2);
+			peakLabel(0.5, 5642, 'Эльбрус', 'end', -9, -2);
+			peakLabel(0.27, 1465, 'Пюи-де-Дом', 'middle', 0, -20);
+			const sea = el('text', { class: 'atm__peak', x: AW - 4, y: r1(ay(0) + 20), 'text-anchor': 'end' }, peakLabels);
+			sea.textContent = 'уровень моря';
+			const ds = el('text', { class: 'atm__peak', x: r1(ax(LAKE_L)), y: r1(ay(-430) + 26) }, peakLabels);
+			ds.textContent = 'Мёртвое море';
+			// a small airliner at 10 km
+			const px0 = ax(0.06);
+			const py0 = ay(10000);
+			plane.setAttribute(
+				'd',
+				`M${px0} ${py0}l26 -1.2q4 0 5 1.2q-1 1.2 -5 1.2z M${px0 + 10} ${py0}l6 -7h3l-3 7z M${px0 + 10} ${py0}l6 6h3l-3 -6z M${px0 + 1} ${py0}l1 -5h2l1 5z`,
+			);
+			set(planeText, { x: px0 + 37, y: py0 + 4 });
+			set(hit, { x: 0, width: AW });
+			makeDots();
+		};
+
+		const drawAir = (t: number) => {
+			const amp = motionOff ? 0 : 1.6;
+			let d = '';
+			for (const p of dots) {
+				const x = ax(p.u) + amp * Math.sin(t * 2.1 * p.f + p.ph);
+				const yy = ay(p.h) + amp * Math.cos(t * 1.7 * p.f + p.ph * 1.3);
+				d += `M${r1(x - 1.3)} ${r1(yy)}a1.3 1.3 0 1 0 2.6 0a1.3 1.3 0 1 0 -2.6 0`;
+			}
+			air.setAttribute('d', d);
+		};
+
+		const drawMarker = () => {
+			const my = ay(alt);
+			const label = `${fmt(Math.abs(alt - altTarget) < 3 ? altTarget : Math.round(alt / 10) * 10)} м`;
+			const w = 12 + label.length * 7;
+			const px = AW - w - 4;
+			// a peak label under the moving pill fades out
+			for (const t of peakLabels.children as HTMLCollectionOf<SVGTextElement>) {
+				if (!t.dataset.y) continue;
+				let bb: DOMRect | null = null;
+				try {
+					bb = t.getBBox();
+				} catch {
+					bb = null;
+				}
+				const near = bb && my + 9 > bb.y && my - 9 < bb.y + bb.height && bb.x + bb.width > px;
+				t.style.opacity = near ? '0.12' : '1';
+			}
+			set(aboveRect, { x: AX, y: 0, width: AW - AX, height: Math.max(0, my) });
+			set(markerLine, { x1: AX, x2: AW, y1: r1(my), y2: r1(my) });
+			set(markerDot, { cx: AX, cy: r1(my) });
+			markerText.textContent = label;
+			set(markerPill, { x: r1(px), y: r1(my - 9), width: w });
+			set(markerText, { x: r1(px + w / 2), y: r1(my + 4) });
+			set(hit, { y: r1(my - 22) });
+		};
+
+		// ---------- tube scene ----------
+		let TW = 260;
+		let TH = 400;
+		const XR = 36; // ruler line
+		let dW = 90;
+		let dX = 100;
+		let tableY = 380;
+		let ySurf = 368;
+		const TOP_MARGIN = 26;
+		const tubeOuter = 14;
+		const tubeInner = 9;
+
+		const tDefs = el('defs', {}, tubeSvg);
+		const hgGrad = el('linearGradient', { id: `${uid}-hg`, x1: 0, y1: 0, x2: 1, y2: 0 }, tDefs);
+		el('stop', { offset: 0, class: 'atm__hg-edge' }, hgGrad);
+		el('stop', { offset: 0.45, class: 'atm__hg-mid' }, hgGrad);
+		el('stop', { offset: 1, class: 'atm__hg-edge' }, hgGrad);
+		const inner = el('clipPath', { id: `${uid}-in` }, tDefs);
+		const innerPath = el('path', {}, inner);
+
+		const ruler = el('g', { class: 'atm__ruler' }, tubeSvg);
+		const rulerPath = el('path', {}, ruler);
+		const rulerLabels = el('g', {}, ruler);
+		const rulerUnit = el('text', { x: 4, y: 14 }, ruler);
+		const table = el('line', { class: 'atm__table' }, tubeSvg);
+		const extras = el('g', {}, tubeSvg);
+		const person = el('path', { class: 'atm__person' }, extras);
+		const personText = el('text', { class: 'atm__small-text', 'text-anchor': 'middle' }, extras);
+		personText.textContent = '1,6 м';
+		const miniDish = el('path', { class: 'atm__dish' }, extras);
+		const miniTube = el('path', { class: 'atm__glass' }, extras);
+		const miniHg = el('rect', { fill: `url(#${uid}-hg)` }, extras);
+		const miniText = el('text', { class: 'atm__small-text', 'text-anchor': 'middle' }, extras);
+		miniText.textContent = 'ртуть';
+		const dishBack = el('path', { class: 'atm__dish' }, tubeSvg);
+		const stream = el('line', { class: 'atm__stream' }, tubeSvg);
+		const tube = el('g', {}, tubeSvg);
+		const glassIn = el('path', { class: 'atm__glass-in' }, tube);
+		const liquidPath = el('path', { 'clip-path': `url(#${uid}-in)` }, tube);
+		const glass = el('path', { class: 'atm__glass' }, tube);
+		const shine = el('line', { class: 'atm__glass-shine' }, tube);
+		const finger = el('g', {}, tube);
+		el('rect', { class: 'atm__finger', x: -12, y: -3, width: 24, height: 15, rx: 7 }, finger);
+		el('rect', { class: 'atm__nail', x: -7, y: 2, width: 14, height: 7, rx: 3.5 }, finger);
+		const dishLiquid = el('path', {}, tubeSvg);
+		const dishFront = el('path', { class: 'atm__glass' }, tubeSvg);
+		const vacuumText = el('text', { class: 'atm__vacuum' }, tubeSvg);
+		const level = el('line', { class: 'atm__level' }, tubeSvg);
+		const pill = el('rect', { class: 'atm__pill', rx: 9, height: 18, x: 1, width: 34 }, tubeSvg);
+		const pillText = el('text', { class: 'atm__pill-text', 'text-anchor': 'middle', x: 18 }, tubeSvg);
+		const tubeHit = el('line', { class: 'atm__tube-hit' }, tubeSvg);
+
+		const layoutTube = () => {
+			const r = tubeSvg.getBoundingClientRect();
+			TW = Math.max(150, r.width);
+			TH = Math.max(200, r.height);
+			set(tubeSvg, { viewBox: `0 0 ${TW} ${TH}` });
+			tableY = TH - 12;
+			ySurf = tableY - 20;
+			dW = clamp(TW * 0.32, 64, 110);
+			dX = XR + 14 + dW / 2;
+			set(table, { x1: XR - 4, x2: TW, y1: tableY, y2: tableY });
+			const dTop = tableY - 28;
+			const dish = `M${dX - dW / 2} ${dTop}V${tableY - 6}q0 6 6 6H${dX + dW / 2 - 6}q6 0 6 -6V${dTop}`;
+			dishBack.setAttribute('d', dish + 'Z');
+			dishFront.setAttribute('d', dish);
+			dishLiquid.setAttribute(
+				'd',
+				`M${dX - dW / 2 + 1} ${ySurf}V${tableY - 6}q0 5 5 5H${dX + dW / 2 - 6}q5 0 5 -5V${ySurf}Z`,
+			);
+		};
+
+		const fitScale = (a: number, liq: Liquid) => {
+			const L = TUBE_LEN[liq];
+			const sV = (ySurf - TOP_MARGIN) / L;
+			const room = TW - dX - 12;
+			const sH = a > 0.01 ? room / (L * Math.sin(a)) : Infinity;
+			return Math.min(sV, sH);
+		};
+
+		const niceSteps = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
+		let rulerKey = '';
+		const drawRuler = () => {
+			const minor = niceSteps.find((st) => st * scale >= 5) ?? 5;
+			const major = niceSteps.find((st) => st * scale >= 34 && st >= minor * 2) ?? 5;
+			const topM = (ySurf - 18) / scale;
+			const key = `${scale.toFixed(1)}|${minor}|${major}|${TH}`;
+			if (key === rulerKey) return;
+			rulerKey = key;
+			let d = `M${XR} ${ySurf}V${r1(ySurf - topM * scale)}`;
+			const nMinor = Math.floor(topM / minor + 1e-6);
+			for (let i = 0; i <= nMinor; i++) {
+				const m = i * minor;
+				const isMajor = Math.abs(m / major - Math.round(m / major)) < 1e-6;
+				const yy = r1(ySurf - m * scale);
+				d += `M${XR} ${yy}h${isMajor ? 9 : 5}`;
+			}
+			rulerPath.setAttribute('d', d);
+			const inMm = major < 1;
+			rulerUnit.textContent = inMm ? 'мм' : 'м';
+			rulerLabels.replaceChildren();
+			const nMajor = Math.floor(topM / major + 1e-6);
+			for (let i = 1; i <= nMajor; i++) {
+				const m = i * major;
+				const yy = ySurf - m * scale;
+				if (yy < 24) break;
+				const t = el('text', { x: XR - 4, y: r1(yy + 4), 'text-anchor': 'end' }, rulerLabels);
+				t.textContent = inMm ? String(Math.round(m * 1000)) : fmt(m, m % 1 ? 1 : 0);
+			}
+			const z = el('text', { x: XR - 4, y: ySurf + 4, 'text-anchor': 'end' }, rulerLabels);
+			z.textContent = '0';
+		};
+
+		// liquid between u1 and u2 (px from the open end along the tube); the meniscus bulges
+		// into the empty part: convex for mercury, concave for water.
+		const liquidShape = (u1: number, u2: number, meniscusAtTop: boolean, meniscusAtBottom: boolean) => {
+			const w = tubeInner / 2;
+			const b = liquid === 'hg' ? 2.2 : -2.2;
+			let d = `M${-w} ${-u1}`;
+			if (meniscusAtBottom) d = `M${-w} ${-u1}Q0 ${-u1 + 2 * b} ${w} ${-u1}`;
+			else d += `L${w} ${-u1}`;
+			d += `L${w} ${-u2}`;
+			if (meniscusAtTop) d += `Q0 ${-u2 - 2 * b} ${-w} ${-u2}`;
+			else d += `L${-w} ${-u2}`;
+			return d + 'Z';
+		};
+
+		const tubeGeometry = (Lpx: number) => {
+			const o = tubeOuter / 2;
+			const i = tubeInner / 2;
+			const outline = `M${-o} 0V${-Lpx + o}A${o} ${o} 0 0 1 ${o} ${-Lpx + o}V0`;
+			const interior = `M${-i} 2V${-Lpx + o}A${i} ${i} 0 0 1 ${i} ${-Lpx + o}V2Z`;
+			glass.setAttribute('d', outline);
+			glassIn.setAttribute('d', interior);
+			innerPath.setAttribute('d', interior);
+			set(shine, { x1: -o + 3, x2: -o + 3, y1: -10, y2: r1(-Lpx + o + 4) });
+		};
+
+		const drawExtras = (blend: number) => {
+			extras.style.opacity = String(blend);
+			extras.style.visibility = blend < 0.02 ? 'hidden' : 'visible';
+			if (blend < 0.02) return;
+			// a person 1,6 m tall, true scale
+			const hP = 1.6 * scale;
+			const xP = TW - 16;
+			const head = hP * 0.13;
+			const body = `M${xP - hP * 0.1} ${tableY}l${hP * 0.04} ${-hP * 0.47}h${hP * 0.12}l${hP * 0.04} ${hP * 0.47}h${-hP * 0.07}l${-hP * 0.03} ${-hP * 0.32}l${-hP * 0.03} ${hP * 0.32}z`;
+			const torso = `M${xP - hP * 0.12} ${tableY - hP * 0.45}v${-hP * 0.32}q0 ${-hP * 0.06} ${hP * 0.06} ${-hP * 0.06}h${hP * 0.12}q${hP * 0.06} 0 ${hP * 0.06} ${hP * 0.06}v${hP * 0.32}z`;
+			const headC = `M${xP - head / 2} ${tableY - hP + head / 2}a${head / 2} ${head / 2} 0 1 0 ${head} 0a${head / 2} ${head / 2} 0 1 0 ${-head} 0`;
+			person.setAttribute('d', body + torso + headC);
+			set(personText, { x: xP, y: r1(tableY - hP - 6) });
+			// a mercury barometer at the same scale
+			const xm = TW - 46;
+			const L = 1 * scale;
+			const md = `M${xm - 11} ${tableY - 9}V${tableY}H${xm + 11}V${tableY - 9}`;
+			miniDish.setAttribute('d', md);
+			miniTube.setAttribute('d', `M${xm - 3} ${tableY - 4}V${tableY - 4 - L + 3}a3 3 0 0 1 6 0V${tableY - 4}`);
+			const hHg = (pressureAt(alt) / (RHO_HG * G)) * scale;
+			set(miniHg, { x: xm - 2, y: r1(tableY - 6 - hHg), width: 4, height: r1(hHg + 2) });
+			set(miniText, { x: xm, y: r1(tableY - 10 - L) });
+		};
+
+		// ---------- dynamics ----------
+		const heq = () => pressureAt(alt) / ((liquid === 'hg' ? RHO_HG : RHO_WATER) * G);
+
+		const stepColumn = (dt: number) => {
+			const H = heq();
+			const top = TUBE_LEN[liquid] * Math.cos(alpha);
+			const c2 = Math.cos(alpha) ** 2;
+			const steps = Math.ceil(dt / 0.004);
+			const h = dt / steps;
+			for (let i = 0; i < steps; i++) {
+				const k = (G * c2) / Math.max(y, 0.25 * H);
+				const acc = k * (H - y) - 2 * ZETA[liquid] * Math.sqrt(k) * v;
+				v += acc * h;
+				y += v * h;
+				if (y >= top) {
+					y = top;
+					if (v > 0) v = 0;
+				}
+				if (y < 0) {
+					y = 0;
+					v = 0;
+				}
+			}
+		};
+
+		// ---------- the experiment: fill, close, turn over, open ----------
+		const RUN = { fill: [0, 1.3], finger: [1.45, 1.9], flip: [2.0, 3.4], lower: [3.4, 3.9], open: [4.1, 4.6] };
+		const runCaption = (t: number) => {
+			const hg = liquid === 'hg';
+			if (t < RUN.finger[0]) return `Наполняем запаянную с одного конца трубку ${hg ? 'ртутью' : 'водой'} доверху…`;
+			if (t < RUN.flip[0]) return 'Закрываем отверстие пальцем…';
+			if (t < RUN.open[0])
+				return `Переворачиваем трубку и опускаем открытым концом в чашку с ${hg ? 'ртутью' : 'водой'}…`;
+			return `Убираем палец. ${hg ? 'Ртуть' : 'Вода'} опускается, но не до конца: столб удерживает давление воздуха на ${hg ? 'ртуть' : 'воду'} в чашке.`;
+		};
+
+		const startRun = () => {
+			phase = 'run';
+			runT = 0;
+			alphaTarget = 0;
+			tiltIn.value = '0';
+			tiltOut.value = '0°';
+			setControlsDuringRun(true);
+			live.textContent = runCaption(0);
+			kick();
+		};
+		const finishRun = () => {
+			phase = 'done';
+			setControlsDuringRun(false);
+		};
+		const skipToEnd = () => {
+			phase = 'done';
+			y = heq();
+			v = 0;
+			setControlsDuringRun(false);
+		};
+		const setControlsDuringRun = (on: boolean) => {
+			tiltIn.disabled = on;
+			liqBtns.forEach((b) => (b.disabled = on));
+			runBtn.disabled = on;
+		};
+
+		// ---------- drawing ----------
+		const drawTube = (blendWater: number) => {
+			const L = TUBE_LEN[liquid];
+			const Lpx = L * scale + SUB;
+			tubeGeometry(Lpx);
+			const liqClass = liquid === 'hg' ? 'atm__liquid--hg' : 'atm__liquid--water';
+			const liqFill = liquid === 'hg' ? `url(#${uid}-hg)` : '';
+			liquidPath.setAttribute('class', liqClass);
+			liquidPath.style.fill = liqFill;
+			dishLiquid.setAttribute('class', liqClass);
+			dishLiquid.style.fill = liqFill;
+			drawExtras(blendWater);
+
+			let showLevel = false;
+			stream.style.visibility = 'hidden';
+			finger.style.visibility = 'hidden';
+			vacuumText.style.visibility = 'hidden';
+
+			if (phase === 'before' || phase === 'run') {
+				const t = phase === 'run' ? runT : 0;
+				const xA = Math.min(dX + dW / 2 + 26, TW - 18);
+				const fFill = ease(seg(t, RUN.fill[0], RUN.fill[1]));
+				const fFlip = ease(seg(t, RUN.flip[0], RUN.flip[1]));
+				const fLower = ease(seg(t, RUN.lower[0], RUN.lower[1]));
+				const k = -Math.cos(Math.PI * fFlip); // −1 → 1: the tube turns over
+				const lift = 16 * (1 - fLower);
+				const cx = xA + (dX - xA) * fFlip;
+				const cyStart = tableY - Lpx / 2;
+				const cyEnd = ySurf + SUB - Lpx / 2 - lift;
+				const cy = cyStart + (cyEnd - cyStart) * (fLower > 0 ? 1 : fFlip);
+				tube.setAttribute(
+					'transform',
+					`translate(${r1(cx)} ${r1(cy)}) scale(1 ${k.toFixed(4)}) translate(0 ${r1(Lpx / 2)})`,
+				);
+				if (t < RUN.open[0]) {
+					// the tube is full (or filling from the closed end)
+					const u1 = Lpx * (1 - fFill);
+					liquidPath.setAttribute('d', liquidShape(u1, Lpx + 10, false, fFill < 1));
+					if (phase === 'run' && fFill > 0 && fFill < 1) {
+						stream.style.visibility = 'visible';
+						const surfaceY = tableY - Lpx * fFill;
+						set(stream, { x1: r1(cx), x2: r1(cx), y1: 0, y2: r1(surfaceY) });
+					}
+					const fIn = seg(t, RUN.finger[0], RUN.finger[1]);
+					if (phase === 'run' && fIn > 0) {
+						finger.style.visibility = 'visible';
+						const fOut = ease(seg(t, RUN.open[0] - 0.2, RUN.open[0]));
+						finger.setAttribute('transform', `translate(${r1(-34 * fOut)} ${r1(30 * (1 - ease(fIn)))})`);
+						finger.style.opacity = String(Math.min(1, fIn * 2) * (1 - fOut));
+					}
+					y = TUBE_LEN[liquid];
+					v = 0;
+				}
+				if (phase === 'run' && t >= RUN.open[0]) {
+					drawSettled(Lpx);
+					showLevel = t > RUN.open[0] + 0.3;
+				}
+			} else {
+				drawSettled(Lpx);
+				showLevel = true;
+			}
+
+			// level line and its value
+			const lvl = ySurf - y * scale;
+			level.style.visibility = pill.style.visibility = pillText.style.visibility = showLevel ? 'visible' : 'hidden';
+			if (showLevel) {
+				const tipX = dX + (y / Math.max(Math.cos(alpha), 0.05)) * scale * Math.sin(alpha);
+				set(level, { x1: XR, x2: r1(tipX), y1: r1(lvl), y2: r1(lvl) });
+				const label = liquid === 'hg' ? fmt(y * 1000) : fmt(y, 2);
+				const pw = Math.max(34, 10 + 7.2 * label.length);
+				set(pill, { y: r1(lvl - 9), width: r1(pw) });
+				set(pillText, { y: r1(lvl + 4), x: r1(1 + pw / 2) });
+				pillText.textContent = label;
+			}
+			// ruler numbers hidden by the value pill fade out
+			for (const t of rulerLabels.children as HTMLCollectionOf<SVGTextElement>) {
+				const ty = Number(t.getAttribute('y')) - 4;
+				t.style.opacity = showLevel && Math.abs(ty - lvl) < 15 ? '0.15' : '1';
+			}
+			// hit area for tilting by dragging
+			const topX = dX + Lpx * Math.sin(alpha);
+			const topY = ySurf + SUB * Math.cos(alpha) - Lpx * Math.cos(alpha);
+			set(tubeHit, { x1: r1(dX), y1: r1(ySurf - 20), x2: r1(topX), y2: r1(topY) });
+			tubeHit.style.visibility = phase === 'done' ? 'visible' : 'hidden';
+		};
+
+		const drawSettled = (Lpx: number) => {
+			const ca = Math.cos(alpha);
+			const sa = Math.sin(alpha);
+			tube.setAttribute(
+				'transform',
+				`translate(${r1(dX - SUB * sa)} ${r1(ySurf + SUB * ca)}) rotate(${((alpha * 180) / Math.PI).toFixed(2)})`,
+			);
+			const lenPx = SUB + (y / Math.max(ca, 0.05)) * scale;
+			const full = lenPx >= Lpx - 0.5;
+			liquidPath.setAttribute('d', liquidShape(-4, full ? Lpx + 10 : lenPx, !full, false));
+			const gap = Lpx - lenPx;
+			if (gap > 46) {
+				vacuumText.style.visibility = 'visible';
+				vacuumText.textContent = liquid === 'hg' ? 'пустота' : 'почти пустота';
+				const mid = lenPx + gap * 0.55;
+				const vx = dX - SUB * sa + mid * sa + 12 * ca;
+				const vy = ySurf + SUB * ca - mid * ca + 12 * sa;
+				set(vacuumText, { x: r1(vx), y: r1(vy) });
+			}
+		};
+
+		const dialAngle = (p: number) => {
+			const mm = clamp(p / MMHG, DIAL_MIN - 6, DIAL_MAX + 6);
+			return -135 + ((mm - DIAL_MIN) / (DIAL_MAX - DIAL_MIN)) * 270;
+		};
+
+		const updateReadouts = () => {
+			const p = pressureAt(alt);
+			const H = heq();
+			outPmm.textContent = fmt(p / MMHG);
+			// kPa from the reading in mm that is shown, so that the numbers agree with each other
+			outPkpa.textContent = fmt(roundTo(Math.round(p / MMHG) * MMHG, 100) / 1000, 1);
+			altOut.value = `${fmt(Math.round(altTarget))} м`;
+			const L = TUBE_LEN[liquid];
+			const full = H / Math.cos(alpha) >= L - 1e-3;
+			const mOrMm = (h: number) => (liquid === 'hg' ? `${fmt(h * 1000)} мм` : `${fmt(h, 2)} м`);
+			if (full) {
+				// the tube is too short for the column: the liquid fills it, its top is lower than H
+				outColName.textContent = liquid === 'hg' ? 'Высота ртути по вертикали' : 'Высота воды по вертикали';
+				outCol.textContent = mOrMm(L * Math.cos(alpha));
+				outLen.textContent = `Трубка заполнена целиком. Воздух удержал бы столб ${mOrMm(H)}`;
+			} else {
+				outColName.textContent = liquid === 'hg' ? 'Высота столба ртути' : 'Высота столба воды';
+				outCol.textContent = mOrMm(H);
+				outLen.textContent =
+					alphaTarget > 0.004 || alpha > 0.004 ? `вдоль трубки: ${mOrMm(H / Math.cos(alpha))}` : '';
+			}
+			// live formula, built from the rounded height that is shown
+			const rho = liquid === 'hg' ? RHO_HG : RHO_WATER;
+			const hShown = liquid === 'hg' ? Math.round(H * 1000) / 1000 : Math.round(H * 100) / 100;
+			const pShown = roundTo(rho * G * hShown, 100);
+			const sub = liquid === 'hg' ? '\\text{рт}' : '\\text{в}';
+			const head = `p_{\\text{атм}} = g\\rho_{${sub}}h =`;
+			const tail =
+				`9{,}8 \\cdot ${tex(rho)} \\cdot \\htmlClass{atm-flash}{${tex(hShown, liquid === 'hg' ? 3 : 2)}} ` +
+				`\\approx \\htmlClass{atm-flash}{${tex(pShown)}}~\\text{Па}`;
+			const src =
+				formula.clientWidth < 440 ? `\\begin{gathered}${head}\\\\ = ${tail}\\end{gathered}` : `${head} ${tail}`;
+			if (src !== lastFormula) {
+				lastFormula = src;
+				katex.render(src, formula, {
+					displayMode: true,
+					throwOnError: false,
+					strict: 'ignore',
+					trust: (ctx) => ctx.command === '\\htmlClass',
+				});
+			}
+			chips.forEach((c) => c.setAttribute('aria-pressed', String(Number(c.dataset.go) === altTarget)));
+		};
+
+		const announce = (now: number) => {
+			if (phase !== 'done' || dragAlt || Math.abs(alt - altTarget) > 2 || now < announceAt) return;
+			const H = heq();
+			const H0 = pressureAt(0) / ((liquid === 'hg' ? RHO_HG : RHO_WATER) * G);
+			const name = liquid === 'hg' ? 'ртути' : 'воды';
+			const val = liquid === 'hg' ? `${fmt(H * 1000)} мм` : `${fmt(H, 2)} м`;
+			const diff = liquid === 'hg' ? `${fmt(Math.abs(H - H0) * 1000)} мм` : `${fmt(Math.abs(H - H0), 2)} м`;
+			let s = `На высоте ${fmt(Math.round(altTarget))} м столб ${name} — ${val}`;
+			if (Math.abs(altTarget) < 1) s += ': это нормальное атмосферное давление.';
+			else s += altTarget > 0 ? `, на ${diff} ниже, чем у моря.` : `, на ${diff} выше, чем у моря.`;
+			const L = TUBE_LEN[liquid];
+			if (H / Math.cos(alphaTarget) >= L) {
+				const top = L * Math.cos(alphaTarget);
+				const topS = liquid === 'hg' ? `${fmt(top * 1000)} мм` : `${fmt(top, 2)} м`;
+				s += ` Трубка наклонена так сильно, что ${name === 'ртути' ? 'ртуть' : 'вода'} заполнила её целиком: верхний конец трубки поднят над чашкой только на ${topS}, а воздух удержал бы столб ${val}.`;
+			}
+			else if (alphaTarget > 0.01) s += ' Трубка наклонена, а высота столба по вертикали та же.';
+			if (s !== lastAnnounced) {
+				lastAnnounced = s;
+				setLive(s);
+			}
+		};
+
+		let blendWater = 0;
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+			last = now;
+			time += dt;
+			if (glide) {
+				const f = clamp((now - glide.t0) / 1000 / glide.dur, 0, 1);
+				alt = glide.from + (glide.to - glide.from) * ease(f);
+				if (f >= 1) glide = null;
+			} else alt = approach(alt, altTarget, dt, 0.07);
+			if (Math.abs(alt - altTarget) < 0.5) alt = altTarget;
+			alpha = approach(alpha, alphaTarget, dt, 0.12);
+			blendWater = approach(blendWater, liquid === 'water' ? 1 : 0, dt, 0.18);
+			const sT = fitScale(phase === 'done' ? alpha : 0, liquid);
+			scale = Math.exp(approach(Math.log(scale), Math.log(sT), dt, 0.2));
+			if (phase === 'run') {
+				runT += dt;
+				setLive(runCaption(runT));
+				if (runT >= RUN.open[0]) stepColumn(dt);
+				if (runT > RUN.open[1] + 3) finishRun();
+			} else if (phase === 'done') {
+				if (motionOff) {
+					y = Math.min(heq(), TUBE_LEN[liquid] * Math.cos(alpha));
+					v = 0;
+				} else stepColumn(dt);
+			}
+			needleDeg = approach(needleDeg, dialAngle(pressureAt(alt)), dt, 0.25);
+			needle.setAttribute('transform', `rotate(${needleDeg.toFixed(2)} 110 110)`);
+			drawMarker();
+			drawAir(time);
+			drawRuler();
+			drawTube(blendWater);
+			updateReadouts();
+			announce(now);
+			// with reduced motion the air does not move: stop the loop once everything has settled
+			const settled =
+				motionOff &&
+				!dragAlt &&
+				!dragTilt &&
+				alt === altTarget &&
+				Math.abs(alpha - alphaTarget) < 1e-4 &&
+				Math.abs(blendWater - (liquid === 'water' ? 1 : 0)) < 1e-3 &&
+				Math.abs(scale - sT) < 0.01 &&
+				Math.abs(needleDeg - dialAngle(pressureAt(alt))) < 0.01 &&
+				now >= announceAt;
+			if ((visible || phase === 'run' || now < busyUntil) && !settled) raf = requestAnimationFrame(frame);
+			else raf = 0;
+		};
+		let busyUntil = 0;
+		const kick = () => {
+			busyUntil = Math.max(busyUntil, performance.now() + 2500);
+			if (!raf) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		};
+
+		// ---------- input ----------
+		const setAlt = (h: number, smooth = false, exact = false) => {
+			altTarget = clamp(exact ? h : Math.round(h / 10) * 10, -500, 10000);
+			altIn.value = String(altTarget);
+			glide =
+				smooth && !motionOff
+					? { from: alt, to: altTarget, t0: performance.now(), dur: 0.5 + 0.9 * Math.min(1, Math.abs(altTarget - alt) / 9000) }
+					: null;
+			announceAt = performance.now() + 250;
+			kick();
+		};
+		altIn.addEventListener('input', () => {
+			altTarget = Number(altIn.value);
+			glide = null;
+			announceAt = performance.now() + 400;
+			kick();
+		});
+		chips.forEach((c) => c.addEventListener('click', () => setAlt(Number(c.dataset.go), true, true)));
+
+		const svgY = (e: PointerEvent, svg: SVGSVGElement) => {
+			const r = svg.getBoundingClientRect();
+			return { x: e.clientX - r.left, y: e.clientY - r.top };
+		};
+		let tapStart: { x: number; y: number } | null = null;
+		altSvg.addEventListener('pointerdown', (e) => {
+			const onHit = e.target === hit;
+			if (onHit || e.pointerType !== 'touch') {
+				dragAlt = true;
+				altSvg.setPointerCapture(e.pointerId);
+				setAlt(ah(svgY(e, altSvg).y));
+				e.preventDefault();
+			} else tapStart = svgY(e, altSvg);
+		});
+		altSvg.addEventListener('pointermove', (e) => {
+			if (dragAlt) setAlt(ah(svgY(e, altSvg).y));
+		});
+		const endDrag = () => {
+			if (dragAlt) {
+				dragAlt = false;
+				announceAt = performance.now() + 200;
+				kick();
+			}
+		};
+		altSvg.addEventListener('pointerup', (e) => {
+			if (tapStart) {
+				const p = svgY(e, altSvg);
+				if (Math.hypot(p.x - tapStart.x, p.y - tapStart.y) < 10) setAlt(ah(p.y), true);
+				tapStart = null;
+			}
+			endDrag();
+		});
+		altSvg.addEventListener('pointercancel', () => {
+			tapStart = null;
+			endDrag();
+		});
+
+		const setTilt = (deg: number) => {
+			const d = clamp(Math.round(deg), 0, 45);
+			alphaTarget = (d * Math.PI) / 180;
+			tiltIn.value = String(d);
+			tiltOut.value = `${d}°`;
+			announceAt = performance.now() + 400;
+			kick();
+		};
+		tiltIn.addEventListener('input', () => setTilt(Number(tiltIn.value)));
+		let dragTilt = false;
+		tubeHit.addEventListener('pointerdown', (e) => {
+			if (phase !== 'done') return;
+			dragTilt = true;
+			tubeSvg.setPointerCapture(e.pointerId);
+			e.preventDefault();
+		});
+		tubeSvg.addEventListener('pointermove', (e) => {
+			if (!dragTilt) return;
+			const p = svgY(e, tubeSvg);
+			const a = Math.atan2(p.x - dX, ySurf - p.y);
+			setTilt((a * 180) / Math.PI);
+		});
+		const endTilt = () => (dragTilt = false);
+		tubeSvg.addEventListener('pointerup', endTilt);
+		tubeSvg.addEventListener('pointercancel', endTilt);
+
+		liqBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				const next = b.dataset.liquid as Liquid;
+				if (next === liquid) return;
+				liquid = next;
+				liqBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				if (phase === 'done') {
+					y = heq();
+					v = 0;
+				}
+				lastAnnounced = '';
+				announceAt = performance.now() + 300;
+				kick();
+			}),
+		);
+		runBtn.addEventListener('click', () => {
+			if (motionOff) {
+				skipToEnd();
+				live.textContent = runCaption(RUN.open[0]);
+				kick();
+			} else startRun();
+		});
+
+		// ---------- start ----------
+		layoutAlt();
+		layoutTube();
+		scale = fitScale(0, liquid);
+		needleDeg = dialAngle(pressureAt(0));
+		if (motionOff) skipToEnd();
+		live.textContent = motionOff
+			? runCaption(RUN.open[0])
+			: 'Сейчас мы повторим опыт Торричелли. Следите за трубкой.';
+		new ResizeObserver(() => {
+			layoutAlt();
+			layoutTube();
+			rulerKey = '';
+			kick();
+		}).observe(root);
+		new IntersectionObserver(
+			(entries) => {
+				for (const en of entries) {
+					visible = en.isIntersecting;
+					if (visible && phase === 'before' && en.intersectionRatio > 0.35) startRun();
+					if (visible) kick();
+				}
+			},
+			{ threshold: [0, 0.35, 0.6] },
+		).observe(tubeSvg);
+		kick();
+	}
+</script>

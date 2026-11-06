@@ -1,0 +1,662 @@
+---
+/**
+ * How an aneroid barometer works: a corrugated box with almost no air inside, a spring that holds
+ * its lid, a lever, a chain and the axle of the needle. The pressure slider moves the whole chain.
+ * The motion of the lid is shown greatly enlarged; the needle turns in proportion to the pressure.
+ */
+const C = 110;
+const P_MIN = 600;
+const P_MAX = 800;
+const ang = (mm: number) => -135 + ((mm - P_MIN) / (P_MAX - P_MIN)) * 270;
+const pt = (deg: number, r: number) => {
+	const a = (deg * Math.PI) / 180;
+	return [C + r * Math.sin(a), C - r * Math.cos(a)].map((v) => Math.round(v * 100) / 100);
+};
+const tick = (deg: number, r1: number, r2: number) => {
+	const [x1, y1] = pt(deg, r1);
+	const [x2, y2] = pt(deg, r2);
+	return `M${x1} ${y1}L${x2} ${y2}`;
+};
+let minor = '';
+let major = '';
+for (let mm = P_MIN; mm <= P_MAX; mm += 5) {
+	if (mm % 50 === 0) major += tick(ang(mm), 91, 77);
+	else if (mm % 10 === 0) minor += tick(ang(mm), 91, 83);
+	else minor += tick(ang(mm), 91, 87);
+}
+const labels = [600, 650, 700, 750, 800].map((mm) => {
+	const [x, y] = pt(ang(mm), 64);
+	return { mm, x, y: y + 5 };
+});
+// inner scale in kPa: 1 мм рт. ст. = 133,28 Па
+const MMHG = 13600 * 9.8 * 0.001;
+let kpaTicks = '';
+const kpaLabels: { k: number; x: number; y: number }[] = [];
+for (let k = 80; k <= 106; k++) {
+	const deg = ang((k * 1000) / MMHG);
+	kpaTicks += tick(deg, 52, k % 5 === 0 ? 44 : 48);
+	if (k % 5 === 0) {
+		const [x, y] = pt(deg, 35);
+		kpaLabels.push({ k, x, y: y + 4 });
+	}
+}
+const kpaArc = (() => {
+	const a1 = ang(80000 / MMHG);
+	const a2 = ang(106000 / MMHG);
+	const [x1, y1] = pt(a1, 52);
+	const [x2, y2] = pt(a2, 52);
+	return `M${x1} ${y1}A52 52 0 1 1 ${x2} ${y2}`;
+})();
+const arc = (() => {
+	const [x1, y1] = pt(ang(P_MIN), 91);
+	const [x2, y2] = pt(ang(P_MAX), 91);
+	return `M${x1} ${y1}A91 91 0 1 1 ${x2} ${y2}`;
+})();
+const parts = [
+	{ n: 1, text: 'коробочка с волнистой (гофрированной) крышкой, из которой откачан воздух' },
+	{ n: 2, text: 'пружина: не даёт воздуху раздавить коробочку' },
+	{ n: 3, text: 'тяга и рычаг: увеличивают малое движение крышки' },
+	{ n: 4, text: 'цепочка: поворачивает ось стрелки' },
+	{ n: 5, text: 'стрелка на оси показывает давление по шкале' },
+];
+---
+
+<figure class="anr not-content" data-anr>
+	<div class="anr__stage">
+		<svg class="anr__mech" viewBox="0 0 380 270" role="img" aria-label="Устройство барометра-анероида в разрезе">
+			<g data-static></g>
+			<g data-dyn></g>
+		</svg>
+		<svg class="anr__dial" viewBox="0 0 220 220" role="img" aria-label="Шкала барометра-анероида">
+			<circle class="anr__bezel" cx={C} cy={C} r="105"></circle>
+			<circle class="anr__face" cx={C} cy={C} r="97"></circle>
+			<path class="anr__scale" d={arc + minor}></path>
+			<path class="anr__scale anr__scale--major" d={major}></path>
+			{
+				labels.map((l) => (
+					<text class="anr__num" x={l.x} y={l.y} text-anchor="middle">
+						{l.mm}
+					</text>
+				))
+			}
+			<path class="anr__kpa" d={kpaArc + kpaTicks}></path>
+			{
+				kpaLabels.map((l) => (
+					<text class="anr__kpanum" x={l.x} y={l.y} text-anchor="middle">
+						{l.k}
+					</text>
+				))
+			}
+			<text class="anr__unit" x={C} y="166" text-anchor="middle">мм рт. ст.</text>
+			<text class="anr__unit anr__unit--kpa" x={C} y="184" text-anchor="middle">кПа</text>
+			<g data-needle data-part="5">
+				<path class="anr__needle" d={`M${C} ${C - 86}L${C + 3.6} ${C}L${C} ${C + 22}L${C - 3.6} ${C}Z`}></path>
+			</g>
+			<circle class="anr__cap" cx={C} cy={C} r="6.5"></circle>
+		</svg>
+	</div>
+
+	<div class="anr__controls">
+		<label class="anr__slider">
+			<span>Давление воздуха <i>p</i></span>
+			<output data-out>760 мм рт. ст.</output>
+			<input type="range" min={P_MIN} max={P_MAX} step="1" value="760" data-p />
+		</label>
+		<button type="button" class="anr__btn" data-play>Покачать давление</button>
+	</div>
+
+	<ol class="anr__parts">
+		{
+			parts.map((p) => (
+				<li>
+					<button type="button" data-hl={p.n}>
+						<span class="anr__badge">{p.n}</span>
+						{p.text}
+					</button>
+				</li>
+			))
+		}
+	</ol>
+	<p class="anr__live" data-live aria-live="polite"></p>
+	<figcaption class="anr__legend">
+		Наведите на название детали или нажмите на него — деталь подсветится. Движение крышки на рисунке
+		сильно увеличено: в настоящем приборе оно составляет доли миллиметра.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.anr {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.anr i {
+		font-family: var(--ig-font-math);
+	}
+	.anr__stage {
+		display: grid;
+		grid-template-columns: 1.75fr 1fr;
+		gap: 1rem;
+		align-items: center;
+	}
+	.anr__mech,
+	.anr__dial {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.anr__dial {
+		max-width: 15rem;
+		margin-inline: auto;
+	}
+	.anr__frame {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.anr__box {
+		fill: color-mix(in srgb, var(--sl-color-gray-6) 70%, transparent);
+	}
+	.anr__metal {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.2;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.anr__spring {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.anr__rod {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.anr__lever {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.anr__chain {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-dasharray: 3 2;
+	}
+	.anr__pivot {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--ig-surface);
+		stroke-width: 1.5;
+	}
+	.anr__pulley {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.anr__spoke {
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.anr__arrow {
+		stroke: var(--ig-vx);
+		stroke-width: 2.2;
+	}
+	.anr__arrowhead {
+		fill: var(--ig-vx);
+	}
+	.anr__air {
+		fill: var(--sl-color-gray-3);
+		opacity: 0.7;
+	}
+	.anr__text {
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+		font-size: 12px;
+	}
+	.anr__text--air {
+		fill: var(--ig-vx);
+	}
+	.anr__num-badge circle {
+		fill: var(--sl-color-accent);
+	}
+	.anr__num-badge text {
+		fill: var(--sl-color-black);
+		font-family: var(--__sl-font);
+		font-weight: 700;
+		font-size: 12px;
+	}
+	.anr [data-part] {
+		transition:
+			opacity 0.25s,
+			filter 0.25s;
+	}
+	.anr[data-hl] [data-part] {
+		opacity: 0.25;
+	}
+	.anr[data-hl='1'] [data-part='1'],
+	.anr[data-hl='2'] [data-part='2'],
+	.anr[data-hl='3'] [data-part='3'],
+	.anr[data-hl='4'] [data-part='4'],
+	.anr[data-hl='5'] [data-part='5'] {
+		opacity: 1;
+		filter: drop-shadow(0 0 5px var(--sl-color-accent));
+	}
+
+	.anr__bezel {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.anr__face {
+		fill: var(--ig-surface);
+	}
+	.anr__scale {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.anr__scale--major {
+		stroke-width: 2;
+	}
+	.anr__num {
+		fill: var(--sl-color-gray-1);
+		font-family: var(--__sl-font);
+		font-size: 15px;
+	}
+	.anr__kpa {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 1.4;
+	}
+	.anr__kpanum {
+		fill: var(--ig-vx);
+		font-family: var(--__sl-font);
+		font-size: 12px;
+	}
+	.anr__unit {
+		fill: var(--sl-color-gray-3);
+		font-family: var(--__sl-font);
+		font-size: 12px;
+	}
+	.anr__unit--kpa {
+		fill: var(--ig-vx);
+	}
+	.anr__needle {
+		fill: var(--ig-vy);
+		filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
+	}
+	.anr__cap {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-5);
+	}
+
+	.anr__controls {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.75rem 1.25rem;
+		align-items: end;
+		margin-top: 0.75rem;
+	}
+	.anr__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.anr__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.anr__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.anr__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.anr__parts {
+		list-style: none;
+		margin: 0.75rem 0 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+		gap: 0.35rem 1rem;
+	}
+	.anr__parts button {
+		display: flex;
+		gap: 0.5rem;
+		align-items: flex-start;
+		width: 100%;
+		padding: 0.3rem 0.4rem;
+		border: 0;
+		border-radius: 0.5rem;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		text-align: start;
+		cursor: pointer;
+	}
+	.anr__parts button:hover,
+	.anr__parts button:focus-visible,
+	.anr__parts button[aria-pressed='true'] {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+	}
+	.anr__badge {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 1.4rem;
+		height: 1.4rem;
+		border-radius: 50%;
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 700;
+		font-size: var(--sl-text-xs);
+	}
+	.anr__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.anr__legend {
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.anr {
+			padding: 0.75rem;
+		}
+		.anr__stage {
+			grid-template-columns: 1fr;
+		}
+		.anr__dial {
+			max-width: 13rem;
+		}
+		.anr__controls {
+			grid-template-columns: 1fr;
+		}
+		.anr__btn {
+			justify-self: start;
+		}
+		.anr__num {
+			font-size: 17px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.anr [data-part] {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { approach, fmt, reducedMotion, MMHG } from './physics';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const P_MIN = 600;
+	const P_MAX = 800;
+	const P_REF = 700;
+	// geometry of the mechanism, px
+	const BASE = 236; // top of the base plate
+	const BOX_L = 50;
+	const BOX_R = 190;
+	const BOX_CX = 120;
+	const LID = 198; // lid at P_REF
+	const STUD = 24; // from the lid to the end of the spring
+	const PIV = { x: 160, y: 74 }; // lever pivot
+	const SHORT = 40;
+	const LONG = 120;
+	const PUL = { x: 280, y: 34, r: 10 }; // axle of the needle
+	const CLAMP = { x: 262, y: 168 };
+	// the needle turns by 270° over 200 мм рт. ст.; the chain unwinds r·Δθ;
+	// the long arm moves 3 times more than the short one, the short one as much as the lid
+	const RAD_PER_MM = ((270 / 200) * Math.PI) / 180;
+	const LID_PER_MM = (PUL.r * RAD_PER_MM * SHORT) / LONG; // ≈ 0,079 px per мм рт. ст.
+
+	const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent: Element) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		parent.append(e);
+		return e;
+	};
+	const r1 = (v: number) => Math.round(v * 100) / 100;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-anr]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const stat = q<SVGGElement>('[data-static]');
+		const dyn = q<SVGGElement>('[data-dyn]');
+		const needle = q<SVGGElement>('[data-needle]');
+		const input = q<HTMLInputElement>('[data-p]');
+		const out = q<HTMLOutputElement>('[data-out]');
+		const live = q<HTMLElement>('[data-live]');
+		const play = q<HTMLButtonElement>('[data-play]');
+		const uid = `anr${Math.random().toString(36).slice(2, 8)}`;
+		const motionOff = reducedMotion();
+
+		// ----- static parts -----
+		const defs = el('defs', {}, stat);
+		const mk = el('marker', { id: `${uid}-a`, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto' }, defs);
+		el('path', { d: 'M0,0 L10,5 L0,10 z', class: 'anr__arrowhead' }, mk);
+		// air around
+		let dots = '';
+		let seed = 7;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		for (let i = 0; i < 70; i++) {
+			const x = 14 + rnd() * 352;
+			const y = 8 + rnd() * 222;
+			const inBox = x > BOX_L - 4 && x < BOX_R + 4 && y > LID - 14;
+			const nearMech = (x > 100 && x < 300 && y < 110) || (x > 110 && x < 270 && y > 150 && y < 186);
+			if (!inBox && !nearMech) dots += `M${r1(x - 1.3)} ${r1(y)}a1.3 1.3 0 1 0 2.6 0a1.3 1.3 0 1 0 -2.6 0`;
+		}
+		el('path', { d: dots, class: 'anr__air' }, stat);
+		// frame: base, posts, top bar
+		el('rect', { class: 'anr__frame', x: 18, y: BASE, width: 344, height: 12, rx: 3 }, stat);
+		el('rect', { class: 'anr__frame', x: CLAMP.x - 3, y: CLAMP.y - 6, width: 12, height: BASE - CLAMP.y + 6 }, stat);
+		el('rect', { class: 'anr__frame', x: 348, y: 10, width: 10, height: BASE - 10 }, stat);
+		el('rect', { class: 'anr__frame', x: 140, y: 10, width: 218, height: 8, rx: 2 }, stat);
+		el('rect', { class: 'anr__frame', x: PIV.x - 3, y: 18, width: 6, height: PIV.y - 18 }, stat);
+		el('rect', { class: 'anr__frame', x: PUL.x - 2, y: 18, width: 4, height: PUL.y - 18 }, stat);
+		const airLabel = el('text', { class: 'anr__text anr__text--air', x: 22, y: 150 }, stat);
+		airLabel.textContent = 'воздух давит';
+		const boxText = el('text', { class: 'anr__text', x: BOX_CX, y: BASE - 10, 'text-anchor': 'middle' }, stat);
+		boxText.textContent = 'воздуха почти нет';
+
+		// ----- moving parts -----
+		const gBox = el('g', { 'data-part': 1 }, dyn);
+		const boxFill = el('path', { class: 'anr__box' }, gBox);
+		const boxMetal = el('path', { class: 'anr__metal' }, gBox);
+		const arrows = [70, 95, 145, 170].map((x) =>
+			el('line', { class: 'anr__arrow', x1: x, x2: x, 'marker-end': `url(#${uid}-a)` }, dyn),
+		);
+		const gSpring = el('g', { 'data-part': 2 }, dyn);
+		const spring = el('path', { class: 'anr__spring' }, gSpring);
+		const stud = el('line', { class: 'anr__rod', x1: BOX_CX, x2: BOX_CX }, gSpring);
+		const gLever = el('g', { 'data-part': 3 }, dyn);
+		const rod = el('line', { class: 'anr__rod' }, gLever);
+		const lever = el('line', { class: 'anr__lever' }, gLever);
+		el('circle', { class: 'anr__pivot', cx: PIV.x, cy: PIV.y, r: 4.5 }, gLever);
+		const gChain = el('g', { 'data-part': 4 }, dyn);
+		const chain = el('line', { class: 'anr__chain' }, gChain);
+		const gAxle = el('g', { 'data-part': 5 }, dyn);
+		el('circle', { class: 'anr__pulley', cx: PUL.x, cy: PUL.y, r: PUL.r }, gAxle);
+		const spoke = el('line', { class: 'anr__spoke' }, gAxle);
+		el('circle', { class: 'anr__pivot', cx: PUL.x, cy: PUL.y, r: 3 }, gAxle);
+		// number badges
+		const badge = (n: number, x: number, y: number) => {
+			const g = el('g', { class: 'anr__num-badge', 'data-part': n }, dyn);
+			el('circle', { cx: x, cy: y, r: 9 }, g);
+			const t = el('text', { x, y: y + 4, 'text-anchor': 'middle' }, g);
+			t.textContent = String(n);
+		};
+		badge(1, BOX_L - 16, LID + 18);
+		badge(2, 220, 150);
+		badge(3, 240, 96);
+		badge(4, PUL.x + 22, 66);
+		badge(5, PUL.x + 24, PUL.y);
+
+		let p = 760;
+		let shown = 760;
+		let raf = 0;
+		let last = 0;
+		let playT = -1;
+
+		const lidPath = (delta: number, close: boolean) => {
+			// the lid bows in the middle; its edges are fixed to the walls
+			let d = `M${BOX_L} ${BASE}V${LID + 6}`;
+			const n = 56;
+			for (let i = 0; i <= n; i++) {
+				const x = BOX_L + ((BOX_R - BOX_L) * i) / n;
+				const u = (x - BOX_CX) / ((BOX_R - BOX_L) / 2);
+				const bow = delta * (1 - u * u);
+				const wave = 2.6 * Math.sin((i / n) * Math.PI * 14);
+				d += `L${r1(x)} ${r1(LID + bow + wave)}`;
+			}
+			d += `L${BOX_R} ${LID + 6}V${BASE}`;
+			return close ? d + 'Z' : d;
+		};
+
+		const draw = (pmm: number) => {
+			const delta = (pmm - P_REF) * LID_PER_MM; // px, down when the pressure grows
+			boxFill.setAttribute('d', lidPath(delta, true));
+			boxMetal.setAttribute('d', lidPath(delta, false));
+			const lidC = LID + delta;
+			// pressure arrows, their length grows with p
+			const len = 12 + ((pmm - P_MIN) / (P_MAX - P_MIN)) * 18;
+			for (const a of arrows) {
+				const x = Number(a.getAttribute('x1'));
+				const u = (x - BOX_CX) / ((BOX_R - BOX_L) / 2);
+				const yLid = LID + delta * (1 - u * u) - 6;
+				a.setAttribute('y1', String(r1(yLid - len)));
+				a.setAttribute('y2', String(r1(yLid)));
+			}
+			// spring from the clamp to the end above the lid
+			const tipY = lidC - STUD;
+			spring.setAttribute(
+				'd',
+				`M${CLAMP.x} ${CLAMP.y}C${CLAMP.x - 60} ${CLAMP.y} ${BOX_CX + 50} ${r1(tipY)} ${BOX_CX} ${r1(tipY)}`,
+			);
+			stud.setAttribute('y1', String(r1(lidC - 3)));
+			stud.setAttribute('y2', String(r1(tipY)));
+			// lever turns so that its short arm follows the end of the spring
+			const phi = Math.asin(Math.max(-0.9, Math.min(0.9, delta / SHORT)));
+			const sx = PIV.x - SHORT * Math.cos(phi);
+			const sy = PIV.y + SHORT * Math.sin(phi);
+			const ex = PIV.x + LONG * Math.cos(phi);
+			const ey = PIV.y - LONG * Math.sin(phi);
+			rod.setAttribute('x1', String(r1(BOX_CX)));
+			rod.setAttribute('y1', String(r1(tipY)));
+			rod.setAttribute('x2', String(r1(sx)));
+			rod.setAttribute('y2', String(r1(sy)));
+			lever.setAttribute('x1', String(r1(sx)));
+			lever.setAttribute('y1', String(r1(sy)));
+			lever.setAttribute('x2', String(r1(ex)));
+			lever.setAttribute('y2', String(r1(ey)));
+			chain.setAttribute('x1', String(r1(ex)));
+			chain.setAttribute('y1', String(r1(ey)));
+			chain.setAttribute('x2', String(PUL.x - PUL.r));
+			chain.setAttribute('y2', String(PUL.y));
+			// axle and needle turn together
+			const deg = -135 + ((pmm - P_MIN) / (P_MAX - P_MIN)) * 270;
+			const a = (deg * Math.PI) / 180;
+			spoke.setAttribute('x1', String(r1(PUL.x - PUL.r * 0.8 * Math.sin(a))));
+			spoke.setAttribute('y1', String(r1(PUL.y + PUL.r * 0.8 * Math.cos(a))));
+			spoke.setAttribute('x2', String(r1(PUL.x + PUL.r * 0.8 * Math.sin(a))));
+			spoke.setAttribute('y2', String(r1(PUL.y - PUL.r * 0.8 * Math.cos(a))));
+			needle.setAttribute('transform', `rotate(${deg.toFixed(2)} 110 110)`);
+		};
+
+		const label = (pmm: number) => {
+			const mm = Math.round(pmm);
+			return `${fmt(mm)} мм рт. ст. ≈ ${fmt((mm * MMHG) / 1000, 1)} кПа`;
+		};
+		const describe = (pmm: number) => {
+			const d = Math.round(pmm) - 760;
+			if (d === 0) return 'Нормальное атмосферное давление: 760 мм рт. ст.';
+			return d > 0
+				? `Давление на ${d} мм рт. ст. выше нормального: воздух сильнее прижимает крышку, пружина сильнее изгибается, рычаг поворачивает стрелку вправо.`
+				: `Давление на ${-d} мм рт. ст. ниже нормального: пружина отжимает крышку вверх, рычаг поворачивает стрелку влево.`;
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+			last = now;
+			if (playT >= 0) {
+				playT += dt;
+				// up to 800, down to 600 and back to 760, smoothly
+				const T = 7;
+				const t = Math.min(playT / T, 1);
+				p = 700 + 100 * Math.sin(2 * Math.PI * t + Math.asin(0.6));
+				if (t >= 1) {
+					playT = -1;
+					p = 760;
+				}
+				input.value = String(Math.round(p));
+			}
+			shown = motionOff ? p : approach(shown, p, dt, 0.18);
+			draw(shown);
+			out.value = label(shown);
+			if (Math.abs(shown - p) > 0.05 || playT >= 0) raf = requestAnimationFrame(frame);
+			else {
+				raf = 0;
+				live.textContent = describe(p);
+			}
+		};
+		const kick = () => {
+			if (!raf) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		};
+		input.addEventListener('input', () => {
+			playT = -1;
+			p = Number(input.value);
+			kick();
+		});
+		play.addEventListener('click', () => {
+			playT = 0;
+			kick();
+		});
+
+		// highlight a part from the list
+		const btns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-hl]'));
+		let pinned = '';
+		const setHl = (n: string) => {
+			if (n) root.dataset.hl = n;
+			else delete root.dataset.hl;
+		};
+		for (const b of btns) {
+			b.addEventListener('pointerenter', () => setHl(b.dataset.hl!));
+			b.addEventListener('pointerleave', () => setHl(pinned));
+			b.addEventListener('focus', () => setHl(b.dataset.hl!));
+			b.addEventListener('blur', () => setHl(pinned));
+			b.addEventListener('click', () => {
+				pinned = pinned === b.dataset.hl ? '' : b.dataset.hl!;
+				btns.forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.hl === pinned)));
+				setHl(pinned);
+			});
+		}
+
+		draw(p);
+		out.value = label(p);
+		live.textContent = describe(p);
+	}
+</script>
