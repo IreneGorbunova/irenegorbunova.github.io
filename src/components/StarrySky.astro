@@ -1,0 +1,307 @@
+---
+/**
+ * Animated night sky behind the page: slowly rotating star field, twinkling,
+ * a faint Milky Way band, shooting stars and a gentle parallax on pointer and scroll.
+ * With prefers-reduced-motion the sky is drawn once and stays still.
+ */
+---
+
+<canvas class="sky" aria-hidden="true"></canvas>
+
+<style>
+	.sky {
+		position: fixed;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		z-index: -1;
+		display: block;
+		pointer-events: none;
+		background:
+			radial-gradient(ellipse 70% 50% at 18% 12%, rgb(92 72 190 / 0.28), transparent 70%),
+			radial-gradient(ellipse 60% 45% at 88% 78%, rgb(28 96 170 / 0.24), transparent 70%),
+			radial-gradient(ellipse 120% 40% at 50% 115%, rgb(255 170 110 / 0.12), transparent 70%),
+			linear-gradient(180deg, #03050f 0%, #070b22 45%, #0d1236 80%, #151a40 100%);
+	}
+</style>
+
+<script>
+	type Star = {
+		dx: number;
+		dy: number;
+		size: number;
+		alpha: number;
+		twinkle: number;
+		freq: number;
+		phase: number;
+		color: string;
+		depth: number;
+		glow: boolean;
+		spikes: boolean;
+	};
+	type Dust = { dx: number; dy: number; radius: number; alpha: number; color: string };
+	type Meteor = { x: number; y: number; vx: number; vy: number; born: number; life: number; tail: number };
+
+	const canvas = document.querySelector<HTMLCanvasElement>('canvas.sky')!;
+	const ctx = canvas.getContext('2d')!;
+	const still = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+	const OMEGA = (2 * Math.PI) / (40 * 60); // one turn in 40 minutes
+	const COLORS = ['255,255,255', '214,226,255', '255,238,214', '188,204,255', '255,214,176'];
+	const COLOR_WEIGHTS = [0.52, 0.22, 0.14, 0.07, 0.05];
+
+	let W = 0;
+	let H = 0;
+	let dpr = 1;
+	let pole = { x: 0, y: 0 };
+	let stars: Star[] = [];
+	let dust: Dust[] = [];
+	let meteors: Meteor[] = [];
+	let nextMeteor = 0;
+	let raf = 0;
+	const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+
+	const rand = (a: number, b: number) => a + Math.random() * (b - a);
+	const gauss = () => {
+		let u = 0;
+		let v = 0;
+		while (u === 0) u = Math.random();
+		while (v === 0) v = Math.random();
+		return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+	};
+	const pickColor = () => {
+		let r = Math.random();
+		for (let i = 0; i < COLORS.length; i++) {
+			r -= COLOR_WEIGHTS[i];
+			if (r <= 0) return COLORS[i];
+		}
+		return COLORS[0];
+	};
+
+	const glowSprite = (() => {
+		const c = document.createElement('canvas');
+		c.width = c.height = 64;
+		const g = c.getContext('2d')!;
+		const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+		grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+		grad.addColorStop(0.15, 'rgba(225,232,255,0.45)');
+		grad.addColorStop(0.45, 'rgba(180,195,255,0.08)');
+		grad.addColorStop(1, 'rgba(180,195,255,0)');
+		g.fillStyle = grad;
+		g.fillRect(0, 0, 64, 64);
+		return c;
+	})();
+
+	function makeStar(dx: number, dy: number, faint: boolean): Star {
+		const roll = Math.random();
+		const bright = !faint && roll > 0.975;
+		const size = faint ? rand(0.35, 0.8) : bright ? rand(1.3, 2.0) : rand(0.4, 1.25);
+		return {
+			dx,
+			dy,
+			size,
+			alpha: faint ? rand(0.25, 0.6) : rand(0.45, 1),
+			twinkle: rand(0.08, bright ? 0.25 : 0.55),
+			freq: rand(0.6, 2.2),
+			phase: rand(0, Math.PI * 2),
+			color: pickColor(),
+			depth: bright ? 1 : size > 0.9 ? 0.6 : 0.3,
+			glow: bright,
+			spikes: bright && roll > 0.992,
+		};
+	}
+
+	function build() {
+		// Stars live in an annulus around a celestial pole above the screen,
+		// large enough to keep the viewport covered while the field turns.
+		pole = { x: W * 0.78, y: -Math.max(W, H) * 0.35 };
+		const corners = [
+			[0, 0],
+			[W, 0],
+			[0, H * 1.3],
+			[W, H * 1.3],
+		];
+		const rMax = Math.max(...corners.map(([x, y]) => Math.hypot(x - pole.x, y - pole.y))) + 40;
+		const rMin = Math.max(0, -pole.y - 40);
+		const area = Math.PI * (rMax * rMax - rMin * rMin);
+		const count = Math.min(14000, Math.round(area / (W < 700 ? 1500 : 1900)));
+
+		stars = [];
+		for (let i = 0; i < count; i++) {
+			const r = Math.sqrt(rand(rMin * rMin, rMax * rMax));
+			const th = rand(0, Math.PI * 2);
+			stars.push(makeStar(r * Math.cos(th), r * Math.sin(th), false));
+		}
+
+		// Milky Way: a band of faint stars and soft dust through the middle of the screen.
+		const bandAngle = -0.42;
+		const ux = Math.cos(bandAngle);
+		const uy = Math.sin(bandAngle);
+		const cx = W * 0.5 - pole.x;
+		const cy = H * 0.45 - pole.y;
+		const halfLength = rMax;
+		const width = Math.max(W, H) * 0.09;
+		const bandStars = Math.round(count * 0.45);
+		for (let i = 0; i < bandStars; i++) {
+			const s = rand(-halfLength, halfLength);
+			const n = gauss() * width;
+			stars.push(makeStar(cx + ux * s - uy * n, cy + uy * s + ux * n, true));
+		}
+		dust = [];
+		const dustCount = W < 700 ? 110 : 240;
+		for (let i = 0; i < dustCount; i++) {
+			const s = rand(-halfLength, halfLength);
+			const n = gauss() * width * 1.2;
+			dust.push({
+				dx: cx + ux * s - uy * n,
+				dy: cy + uy * s + ux * n,
+				radius: rand(70, 170),
+				alpha: rand(0.012, 0.03),
+				color: Math.random() < 0.6 ? '150,160,255' : '200,150,255',
+			});
+		}
+	}
+
+	function resize() {
+		const { width, height } = canvas.getBoundingClientRect();
+		const rebuild = Math.abs(width - W) > 1 || stars.length === 0;
+		W = width;
+		H = height;
+		dpr = Math.min(window.devicePixelRatio || 1, 2);
+		canvas.width = Math.round(W * dpr);
+		canvas.height = Math.round(H * dpr);
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		if (rebuild) build();
+		if (still.matches) draw(0);
+	}
+
+	function spawnMeteor(now: number) {
+		const angle = rand(0.62, 0.95) * Math.PI; // heading down and to the left
+		const speed = rand(650, 1050);
+		meteors.push({
+			x: rand(W * 0.25, W * 1.05),
+			y: rand(-H * 0.05, H * 0.4),
+			vx: Math.cos(angle) * speed,
+			vy: Math.sin(angle) * speed * 0.55,
+			born: now,
+			life: rand(0.7, 1.2),
+			tail: rand(130, 240),
+		});
+		nextMeteor = now + rand(4, 11);
+	}
+
+	function draw(time: number) {
+		ctx.clearRect(0, 0, W, H);
+		const rot = time * OMEGA;
+		const c = Math.cos(rot);
+		const s = Math.sin(rot);
+		pointer.x += (pointer.tx - pointer.x) * 0.04;
+		pointer.y += (pointer.ty - pointer.y) * 0.04;
+		const scroll = still.matches ? 0 : window.scrollY;
+
+		ctx.globalCompositeOperation = 'lighter';
+		for (const d of dust) {
+			const x = pole.x + d.dx * c - d.dy * s + pointer.x * 6;
+			const y = pole.y + d.dx * s + d.dy * c + pointer.y * 6 - scroll * 0.02;
+			if (x < -d.radius || x > W + d.radius || y < -d.radius || y > H + d.radius) continue;
+			const grad = ctx.createRadialGradient(x, y, 0, x, y, d.radius);
+			grad.addColorStop(0, `rgba(${d.color},${d.alpha})`);
+			grad.addColorStop(1, `rgba(${d.color},0)`);
+			ctx.fillStyle = grad;
+			ctx.fillRect(x - d.radius, y - d.radius, d.radius * 2, d.radius * 2);
+		}
+
+		for (const st of stars) {
+			const x = pole.x + st.dx * c - st.dy * s + pointer.x * 14 * st.depth;
+			const y = pole.y + st.dx * s + st.dy * c + pointer.y * 14 * st.depth - scroll * 0.05 * st.depth;
+			if (x < -12 || x > W + 12 || y < -12 || y > H + 12) continue;
+			const tw = 1 - st.twinkle * (0.5 + 0.5 * Math.sin(time * st.freq + st.phase));
+			const a = st.alpha * tw;
+			if (st.glow) {
+				const g = st.size * 9;
+				ctx.globalAlpha = a * 0.85;
+				ctx.drawImage(glowSprite, x - g / 2, y - g / 2, g, g);
+				if (st.spikes) {
+					ctx.globalAlpha = a * 0.35;
+					ctx.strokeStyle = `rgb(${st.color})`;
+					ctx.lineWidth = 0.6;
+					const l = st.size * 7;
+					ctx.beginPath();
+					ctx.moveTo(x - l, y);
+					ctx.lineTo(x + l, y);
+					ctx.moveTo(x, y - l);
+					ctx.lineTo(x, y + l);
+					ctx.stroke();
+				}
+				ctx.globalAlpha = 1;
+			}
+			ctx.fillStyle = `rgba(${st.color},${a})`;
+			if (st.size < 0.9) {
+				ctx.fillRect(x - st.size / 2, y - st.size / 2, st.size, st.size);
+			} else {
+				ctx.beginPath();
+				ctx.arc(x, y, st.size / 2, 0, Math.PI * 2);
+				ctx.fill();
+			}
+		}
+
+		ctx.globalCompositeOperation = 'source-over';
+		if (still.matches) return;
+
+		if (time > nextMeteor) spawnMeteor(time);
+		meteors = meteors.filter((m) => time - m.born < m.life);
+		for (const m of meteors) {
+			const age = time - m.born;
+			const k = age / m.life;
+			const fade = Math.sin(Math.PI * k);
+			const hx = m.x + m.vx * age;
+			const hy = m.y + m.vy * age;
+			const len = Math.hypot(m.vx, m.vy);
+			const tx = hx - (m.vx / len) * m.tail;
+			const ty = hy - (m.vy / len) * m.tail;
+			const grad = ctx.createLinearGradient(hx, hy, tx, ty);
+			grad.addColorStop(0, `rgba(255,255,255,${0.9 * fade})`);
+			grad.addColorStop(0.3, `rgba(200,215,255,${0.35 * fade})`);
+			grad.addColorStop(1, 'rgba(200,215,255,0)');
+			ctx.strokeStyle = grad;
+			ctx.lineWidth = 1.6;
+			ctx.lineCap = 'round';
+			ctx.beginPath();
+			ctx.moveTo(hx, hy);
+			ctx.lineTo(tx, ty);
+			ctx.stroke();
+			ctx.globalAlpha = fade;
+			ctx.drawImage(glowSprite, hx - 6, hy - 6, 12, 12);
+			ctx.globalAlpha = 1;
+		}
+	}
+
+	function loop(now: number) {
+		draw(now / 1000);
+		raf = requestAnimationFrame(loop);
+	}
+
+	function start() {
+		cancelAnimationFrame(raf);
+		if (still.matches) {
+			draw(0);
+		} else {
+			nextMeteor = performance.now() / 1000 + rand(1.5, 4);
+			raf = requestAnimationFrame(loop);
+		}
+	}
+
+	let resizeTimer = 0;
+	window.addEventListener('resize', () => {
+		clearTimeout(resizeTimer);
+		resizeTimer = window.setTimeout(resize, 120);
+	});
+	window.addEventListener('pointermove', (e) => {
+		pointer.tx = e.clientX / W - 0.5;
+		pointer.ty = e.clientY / H - 0.5;
+	});
+	still.addEventListener('change', start);
+
+	resize();
+	start();
+</script>
