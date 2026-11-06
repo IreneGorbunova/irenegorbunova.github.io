@@ -12,7 +12,6 @@ const grade = (/** @type {number} */ n, /** @type {any[]} */ chapters = []) => (
 
 export default defineConfig({
 	site: 'https://irenegorbunova.github.io',
-	base: '/IG_physics',
 	markdown: {
 		processor: satteri({ features: { math: true }, mdastPlugins: [katexPlugin] }),
 	},
