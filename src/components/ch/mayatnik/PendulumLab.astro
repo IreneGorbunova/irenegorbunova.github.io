@@ -1,0 +1,1443 @@
+---
+/**
+ * Main model of the chapter: a string pendulum and a spring pendulum side by side.
+ * One scale for both, 300 px per metre, so lengths, stretches and swings are true to proportion.
+ * The string pendulum is integrated exactly (θ'' = −(g/l)·sin θ), not in the small-angle form.
+ */
+import { PLANETS } from './physics';
+
+const uid = `pl-${Math.random().toString(36).slice(2, 8)}`;
+const S = 300;
+const PY = 26;
+const STR_X = 180;
+const SPR_X = 540;
+const RULER_X = 352;
+const ticks = Array.from({ length: 25 }, (_, i) => i * 0.05);
+const fmtM = (v: number) => v.toFixed(1).replace('.', ',');
+const hatch = Array.from({ length: 33 }, (_, i) => 44 + i * 19.5);
+---
+
+<figure class="pl not-content" data-pl>
+	<div class="pl__planets" role="group" aria-label="Где проводится опыт">
+		{
+			PLANETS.map((p, i) => (
+				<button type="button" class={`pl__planet pl__planet--${p.id}`} data-planet={i} aria-pressed={i === 0 ? 'true' : 'false'}>
+					<span class="pl__globe" aria-hidden="true" />
+					<span class="pl__planet-name">{p.name}</span>
+					<span class="pl__planet-g">
+						<i>g</i> = {String(p.g).replace('.', ',')} м/с²
+					</span>
+				</button>
+			))
+		}
+	</div>
+
+	<div class="pl__sliders">
+		<label class="pl__slider">
+			<span>Длина нити <i>l</i></span>
+			<output data-l-out></output>
+			<input type="range" min="0" max="1000" step="1" data-l />
+		</label>
+		<label class="pl__slider">
+			<span>Масса груза <i>m</i></span>
+			<output data-m-out></output>
+			<input type="range" min="0.05" max="0.5" step="0.01" value="0.4" data-m />
+		</label>
+		<label class="pl__slider">
+			<span>Жёсткость <i>k</i></span>
+			<output data-k-out></output>
+			<input type="range" min="0" max="1000" step="1" data-k />
+		</label>
+	</div>
+
+	<div class="pl__heads" aria-hidden="true">
+		<span class="pl__head pl__head--str">Нитяной маятник</span>
+		<span class="pl__head pl__head--spr">Пружинный маятник</span>
+	</div>
+
+	<svg class="pl__scene" viewBox="0 0 720 390" role="img" aria-label="Нитяной и пружинный маятники в одном масштабе">
+		<defs>
+			<radialGradient id={`${uid}-bob`} cx="35%" cy="30%" r="75%">
+				<stop offset="0" class="pl__stop-hi" />
+				<stop offset="0.45" class="pl__stop-str" />
+				<stop offset="1" class="pl__stop-str-dark" />
+			</radialGradient>
+			<linearGradient id={`${uid}-wt`} x1="0" x2="1" y1="0" y2="0">
+				<stop offset="0" class="pl__stop-spr-dark" />
+				<stop offset="0.35" class="pl__stop-spr-hi" />
+				<stop offset="0.6" class="pl__stop-spr" />
+				<stop offset="1" class="pl__stop-spr-dark" />
+			</linearGradient>
+			<marker id={`${uid}-arr`} class="pl__arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0,1 L10,5 L0,9 z" />
+			</marker>
+		</defs>
+
+		<!-- Ceiling beam -->
+		<g class="pl__beam">
+			{hatch.map((x) => <line x1={x} y1={16} x2={x + 9} y2={6} />)}
+			<rect x="40" y="16" width="640" height="10" rx="2" />
+		</g>
+
+		<!-- Ruler, true scale -->
+		<g class="pl__ruler" aria-hidden="true">
+			<line x1={RULER_X} y1={PY} x2={RULER_X} y2={PY + 1.2 * S} />
+			{
+				ticks.map((v, i) => (
+					<line class={i % 2 === 0 ? 'pl__tick-major' : ''} x1={RULER_X - (i % 2 === 0 ? 8 : 4)} y1={PY + v * S} x2={RULER_X} y2={PY + v * S} />
+				))
+			}
+			{
+				ticks
+					.filter((_, i) => i > 0 && i % 4 === 0)
+					.map((v) => (
+						<text x={RULER_X + 6} y={PY + v * S + 4}>
+							{fmtM(v)} м
+						</text>
+					))
+			}
+		</g>
+
+		<!-- String pendulum -->
+		<g class="pl__str">
+			<line class="pl__eq" x1={STR_X} y1={PY} x2={STR_X} y2={PY} data-str-eq />
+			<path class="pl__path" data-str-arc />
+			<g class="pl__dim" data-str-dim>
+				<line marker-start={`url(#${uid}-arr)`} marker-end={`url(#${uid}-arr)`} data-str-dim-line />
+				<text class="pl__sym" data-str-dim-text>A</text>
+			</g>
+			<line class="pl__string" x1={STR_X} y1={PY} x2={STR_X} y2={PY + 150} data-str-line />
+			<text class="pl__sym pl__sym--small" data-str-l>l</text>
+			<circle class="pl__pivot" cx={STR_X} cy={PY} r="4" />
+			<circle class="pl__bob" r="12" cx={STR_X} cy={PY + 150} fill={`url(#${uid}-bob)`} data-str-bob />
+			<circle
+				class="pl__hit"
+				r="40"
+				cx={STR_X}
+				cy={PY + 150}
+				tabindex="0"
+				role="slider"
+				aria-label="Отклонение шарика нитяного маятника. Стрелки меняют угол, Enter отпускает."
+				aria-valuemin="-45"
+				aria-valuemax="45"
+				aria-valuenow="12"
+				data-str-hit
+			/>
+		</g>
+
+		<!-- Spring pendulum -->
+		<g class="pl__spr">
+			<line class="pl__eq" data-spr-eq />
+			<g class="pl__dim pl__dim--dl" data-spr-dl>
+				<line class="pl__natural" data-spr-nat />
+				<line marker-start={`url(#${uid}-arr)`} marker-end={`url(#${uid}-arr)`} data-spr-dl-line />
+				<text class="pl__sym pl__sym--small" text-anchor="end" data-spr-dl-text>Δl</text>
+			</g>
+			<g class="pl__dim" data-spr-dim>
+				<line marker-start={`url(#${uid}-arr)`} marker-end={`url(#${uid}-arr)`} data-spr-dim-line />
+				<text class="pl__sym" data-spr-dim-text>A</text>
+			</g>
+			<path class="pl__coil" data-spr-coil />
+			<g data-spr-weight>
+				<circle class="pl__hook" r="3.5" cx="0" cy="-2" />
+				<rect class="pl__weight" fill={`url(#${uid}-wt)`} x="-16" y="3" width="32" height="28" rx="4" data-spr-body />
+			</g>
+			<circle
+				class="pl__hit"
+				r="40"
+				cx={SPR_X}
+				cy="150"
+				tabindex="0"
+				role="slider"
+				aria-label="Смещение груза пружинного маятника. Стрелки меняют смещение, Enter отпускает."
+				aria-valuemin="-10"
+				aria-valuemax="10"
+				aria-valuenow="6"
+				data-spr-hit
+			/>
+		</g>
+		<text class="pl__hint" x={STR_X} y="0" text-anchor="end" data-hint>потяните →</text>
+	</svg>
+
+	<svg class="pl__graph" viewBox="0 0 720 206" role="img" aria-label="График смещения от времени для обоих маятников">
+		<defs>
+			<clipPath id={`${uid}-clip`}>
+				<rect x="52" y="8" width="656" height="166" />
+			</clipPath>
+		</defs>
+		<g class="pl__ggrid" data-ggrid></g>
+		<line class="pl__gaxis" x1="52" y1="91" x2="708" y2="91" />
+		<line class="pl__gaxis" x1="52" y1="12" x2="52" y2="170" />
+		<g class="pl__glabels" data-glabels></g>
+		<text class="pl__gname" x="60" y="26">x, см</text>
+		<text class="pl__gname" x="704" y="164" text-anchor="end">t, с</text>
+		<g clip-path={`url(#${uid}-clip)`}>
+			<path class="pl__trace pl__trace--str" data-trace-str />
+			<path class="pl__trace pl__trace--spr" data-trace-spr />
+			<circle class="pl__pen pl__pen--str" r="4.5" data-pen-str />
+			<circle class="pl__pen pl__pen--spr" r="4.5" data-pen-spr />
+		</g>
+	</svg>
+
+	<div class="pl__controls">
+		<div class="pl__buttons">
+			<button type="button" class="pl__btn pl__btn--primary" data-run>Пуск</button>
+			<button type="button" class="pl__btn" data-restart>Отпустить заново</button>
+			<label class="pl__check"><input type="checkbox" data-damp /> Затухание</label>
+		</div>
+	</div>
+	<p class="pl__status" aria-live="polite" data-status></p>
+
+	<div class="pl__cards">
+		<section class="pl__card pl__card--str">
+			<p class="pl__card-title"><span class="pl__key pl__key--str"></span>Нитяной маятник</p>
+			<div class="pl__f" data-f-str-T></div>
+			<div class="pl__f" data-f-str-nu></div>
+			<p class="pl__amp">Амплитуда <i>A</i> = <b data-a-str></b></p>
+			<div class="pl__energy" aria-hidden="true"><span class="pl__ep" data-ep-str></span><span class="pl__ek" data-ek-str></span></div>
+			<p class="pl__note" data-note-str></p>
+		</section>
+		<section class="pl__card pl__card--spr">
+			<p class="pl__card-title"><span class="pl__key pl__key--spr"></span>Пружинный маятник</p>
+			<div class="pl__f" data-f-spr-T></div>
+			<div class="pl__f" data-f-spr-nu></div>
+			<p class="pl__amp">Амплитуда <i>A</i> = <b data-a-spr></b></p>
+			<div class="pl__energy" aria-hidden="true"><span class="pl__ep" data-ep-spr></span><span class="pl__ek" data-ek-spr></span></div>
+			<p class="pl__note" data-note-spr></p>
+		</section>
+	</div>
+	<p class="pl__elegend">
+		<span class="pl__swatch pl__swatch--ep"></span>потенциальная энергия
+		<span class="pl__swatch pl__swatch--ek"></span>кинетическая энергия.
+		Полоса во всю ширину — энергия в момент, когда маятник отпустили.
+	</p>
+
+	<div class="pl__sw">
+		<div class="pl__sw-face">
+			<span class="pl__sw-label">Секундомер</span>
+			<output class="pl__sw-time" data-sw-time>0,00 с</output>
+		</div>
+		<div class="pl__sw-row">
+			<button type="button" class="pl__btn pl__btn--primary" data-sw-go>Пуск</button>
+			<button type="button" class="pl__btn" data-sw-reset>Сброс</button>
+			<span class="pl__sw-n">
+				<span>Число колебаний <i>N</i></span>
+				<button type="button" class="pl__step" aria-label="Меньше колебаний" data-sw-dec>−</button>
+				<output data-sw-n>10</output>
+				<button type="button" class="pl__step" aria-label="Больше колебаний" data-sw-inc>+</button>
+			</span>
+		</div>
+		<div class="pl__sw-res" aria-live="polite" data-sw-res></div>
+	</div>
+
+	<figcaption class="pl__legend">
+		Шарик и груз можно тянуть мышью или пальцем. Масштаб у обоих маятников один и тот же, линейка — в метрах.
+		На графике <span class="pl__key pl__key--str"></span>смещение шарика по горизонтали,
+		<span class="pl__key pl__key--spr"></span>смещение груза по вертикали (вверх — плюс).
+	</figcaption>
+</figure>
+
+<style is:global>
+	.pl {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.pl i {
+		font-family: var(--ig-font-math);
+	}
+	.pl__nowrap {
+		white-space: nowrap;
+	}
+
+	/* Planet switch */
+	.pl__planets {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.pl__planet {
+		flex: 1 1 0;
+		min-width: 6.5rem;
+		display: grid;
+		grid-template-columns: auto 1fr;
+		grid-template-rows: auto auto;
+		column-gap: 0.55rem;
+		align-items: center;
+		margin: 0;
+		padding: 0.45rem 0.8rem;
+		font: inherit;
+		text-align: start;
+		color: var(--sl-color-gray-2);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.8rem;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background-color 0.2s;
+	}
+	.pl__planet:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.pl__planet[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		color: var(--sl-color-white);
+	}
+	.pl__globe {
+		grid-row: 1 / 3;
+		width: 1.6rem;
+		height: 1.6rem;
+		border-radius: 50%;
+		box-shadow: inset -0.3rem -0.25rem 0.5rem rgb(0 0 0 / 0.35);
+	}
+	.pl__planet--earth .pl__globe {
+		background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--ig-vx) 55%, white), var(--ig-vx));
+	}
+	.pl__planet--moon .pl__globe {
+		background: radial-gradient(circle at 35% 30%, var(--sl-color-gray-2), var(--sl-color-gray-4));
+	}
+	.pl__planet--mars .pl__globe {
+		background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--ig-vy) 55%, white), var(--ig-vy));
+	}
+	.pl__planet-name {
+		font-weight: 700;
+		line-height: 1.2;
+	}
+	.pl__planet-g {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		white-space: nowrap;
+	}
+
+	/* Scene */
+	.pl__heads {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		margin-top: 0.9rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-gray-2);
+		text-align: center;
+	}
+	.pl__head::before {
+		content: '';
+		display: inline-block;
+		width: 0.7rem;
+		height: 0.7rem;
+		margin-right: 0.4rem;
+		border-radius: 50%;
+		vertical-align: -0.05rem;
+	}
+	.pl__head--str::before {
+		background: var(--ig-vx);
+	}
+	.pl__head--spr::before {
+		background: var(--ig-vy);
+	}
+	.pl__scene,
+	.pl__graph {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: pan-y;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.pl__beam line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.pl__beam rect {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.pl__ruler line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.pl__ruler .pl__tick-major {
+		stroke: var(--sl-color-gray-3);
+	}
+	.pl__ruler text,
+	.pl__hint {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+	.pl__hint {
+		font-size: 14px;
+		fill: var(--sl-color-text-accent);
+		transition: opacity 0.6s;
+	}
+	.pl__eq {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 5;
+	}
+	.pl__path {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+		stroke-dasharray: 2 5;
+		stroke-linecap: round;
+	}
+	.pl__dim line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.pl__dim .pl__natural {
+		stroke-dasharray: 3 3;
+	}
+	.pl__arrowhead path {
+		fill: var(--sl-color-gray-3);
+	}
+	.pl__sym {
+		fill: var(--sl-color-gray-2);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 17px;
+	}
+	.pl__sym--small {
+		font-size: 15px;
+		fill: var(--sl-color-gray-3);
+	}
+	.pl__string {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.pl__pivot {
+		fill: var(--sl-color-gray-2);
+	}
+	.pl__stop-hi {
+		stop-color: color-mix(in srgb, var(--ig-vx) 30%, white);
+	}
+	.pl__stop-str {
+		stop-color: var(--ig-vx);
+	}
+	.pl__stop-str-dark {
+		stop-color: color-mix(in srgb, var(--ig-vx) 60%, black);
+	}
+	.pl__stop-spr {
+		stop-color: var(--ig-vy);
+	}
+	.pl__stop-spr-hi {
+		stop-color: color-mix(in srgb, var(--ig-vy) 45%, white);
+	}
+	.pl__stop-spr-dark {
+		stop-color: color-mix(in srgb, var(--ig-vy) 55%, black);
+	}
+	.pl__bob {
+		filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ig-vx) 60%, transparent));
+	}
+	.pl__coil {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.pl__hook {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.8;
+	}
+	.pl__weight {
+		filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ig-vy) 45%, transparent));
+	}
+	.pl__hit {
+		fill: transparent;
+		cursor: grab;
+		touch-action: none;
+		outline: none;
+	}
+	.pl__hit:active {
+		cursor: grabbing;
+	}
+	.pl__hit:focus-visible {
+		stroke: var(--sl-color-accent);
+		stroke-width: 2;
+		stroke-dasharray: 4 4;
+	}
+
+	/* Graph */
+	.pl__graph {
+		margin-top: 0.5rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+		padding-top: 0.25rem;
+	}
+	.pl__ggrid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.pl__gaxis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+	}
+	.pl__glabels text,
+	.pl__gname {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.pl__gname {
+		font-style: italic;
+	}
+	.pl__trace {
+		fill: none;
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.pl__trace--str,
+	.pl__pen--str {
+		stroke: var(--ig-vx);
+		fill: var(--ig-vx);
+	}
+	.pl__trace--spr,
+	.pl__pen--spr {
+		stroke: var(--ig-vy);
+		fill: var(--ig-vy);
+	}
+	.pl__trace--str,
+	.pl__trace--spr {
+		fill: none;
+	}
+	.pl__pen {
+		stroke-width: 0;
+		filter: drop-shadow(0 0 4px currentColor);
+	}
+
+	/* Controls */
+	.pl__sliders {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.75rem 1.25rem;
+		margin-top: 0.9rem;
+		align-items: end;
+	}
+	.pl__controls {
+		margin-top: 0.6rem;
+	}
+	.pl__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.pl__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.pl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.pl__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+	}
+	.pl__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.pl__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.pl__btn--primary {
+		min-width: 6.5rem;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.pl__btn--primary:hover {
+		filter: brightness(1.08);
+	}
+	.pl__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.pl__check input {
+		width: 1.05rem;
+		height: 1.05rem;
+		accent-color: var(--sl-color-accent);
+	}
+	.pl__status {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.pl__status.is-match {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+
+	/* Cards */
+	.pl__cards {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.6rem;
+		margin-top: 0.6rem;
+	}
+	.pl__card {
+		min-width: 0;
+		padding: 0.6rem 0.8rem 0.7rem;
+		border-radius: 0.7rem;
+		background: var(--sl-color-gray-6);
+		border-top: 3px solid var(--ig-vx);
+	}
+	.pl__card--spr {
+		border-top-color: var(--ig-vy);
+	}
+	.pl__card p {
+		margin: 0;
+	}
+	.pl__card-title {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-sm);
+	}
+	.pl__f {
+		overflow-x: auto;
+		overflow-y: hidden;
+		padding: 0.15rem 0;
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-sm);
+	}
+	.pl__f .katex {
+		font-size: 1.12em;
+	}
+	.pl__amp {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.pl__amp b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.pl__energy {
+		display: flex;
+		height: 0.55rem;
+		margin-top: 0.45rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		overflow: hidden;
+	}
+	.pl__ep,
+	.pl__swatch--ep {
+		background: var(--sl-color-accent);
+	}
+	.pl__ek,
+	.pl__swatch--ek {
+		background: repeating-linear-gradient(
+			-45deg,
+			var(--sl-color-accent) 0 3px,
+			color-mix(in srgb, var(--sl-color-accent) 35%, transparent) 3px 6px
+		);
+	}
+	.pl__note {
+		min-height: 0;
+		margin-top: 0.35rem !important;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.pl__note:empty {
+		display: none;
+	}
+	.pl__elegend,
+	.pl__legend {
+		margin: 0.45rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.pl__swatch {
+		display: inline-block;
+		width: 1.1rem;
+		height: 0.55rem;
+		margin: 0 0.3rem 0 0.2rem;
+		border-radius: 3px;
+		vertical-align: middle;
+	}
+	.pl__swatch--ek {
+		margin-left: 0.6rem;
+	}
+	.pl__key {
+		display: inline-block;
+		width: 0.7rem;
+		height: 0.7rem;
+		margin: 0 0.35rem 0 0.3rem;
+		border-radius: 50%;
+		vertical-align: -0.05rem;
+		background: var(--ig-vx);
+	}
+	.pl__key--spr {
+		background: var(--ig-vy);
+	}
+
+	/* Stopwatch */
+	.pl__sw {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 0.5rem 1rem;
+		align-items: center;
+		margin-top: 0.9rem;
+		padding: 0.75rem 0.9rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.8rem;
+	}
+	.pl__sw-face {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		min-width: 8.5rem;
+		padding: 0.3rem 0.8rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.pl__sw-label {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.pl__sw-time {
+		font-size: var(--sl-text-2xl);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.pl__sw.is-running .pl__sw-time {
+		color: var(--sl-color-text-accent);
+	}
+	.pl__sw-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.pl__sw-n {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		margin-left: 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.pl__sw-n output {
+		min-width: 1.6rem;
+		text-align: center;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.pl__step {
+		width: 2rem;
+		height: 2rem;
+		margin: 0;
+		padding: 0;
+		font: inherit;
+		font-weight: 700;
+		line-height: 1;
+		border-radius: 50%;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.pl__step:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.pl__sw-res {
+		grid-column: 1 / -1;
+		min-height: 1.5em;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+
+	@media (max-width: 40rem) {
+		.pl {
+			padding: 0.75rem;
+		}
+		.pl__planet {
+			min-width: 0;
+			padding: 0.4rem 0.5rem;
+			column-gap: 0.4rem;
+		}
+		.pl__globe {
+			width: 1.2rem;
+			height: 1.2rem;
+		}
+		.pl__planet-g {
+			font-size: 0.7rem;
+		}
+		.pl__ruler text {
+			font-size: 21px;
+		}
+		.pl__hint {
+			font-size: 24px;
+		}
+		.pl__sym {
+			font-size: 28px;
+		}
+		.pl__sym--small {
+			font-size: 24px;
+		}
+		.pl__glabels text,
+		.pl__gname {
+			font-size: 24px;
+		}
+		.pl__trace {
+			stroke-width: 3.5;
+		}
+		.pl__sliders {
+			grid-template-columns: 1fr;
+			gap: 0.5rem;
+		}
+		.pl__cards {
+			grid-template-columns: 1fr;
+		}
+		.pl__sw {
+			grid-template-columns: 1fr;
+		}
+		.pl__sw-n {
+			margin-left: 0;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.pl__planet,
+		.pl__hint {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { PLANETS, largeAngleFactor, periodSpring, periodString, rk4 } from './physics';
+	import { animator, fmt, logScale, reduceMotion, svgPoint, tex, tnum } from './util';
+
+	const S = 300; // px per metre in the scene
+	const PY = 26;
+	const STR_X = 180;
+	const SPR_X = 540;
+	const L0 = 0.15; // spring length without a load, m
+	const SPR_AMAX = 0.1; // largest displacement of the spring weight, m
+	const STR_DXMAX = 150; // largest sideways swing of the bob, px
+	const DEG = Math.PI / 180;
+	const H = 1 / 1000; // integration step, s
+	const BETA = 0.08; // damping, 1/s (amplitude falls as e^(−βt))
+	const W = 10; // graph window, s
+	const GX0 = 52;
+	const GX1 = 708;
+	const GMID = 91;
+	const GHALF = 74;
+	const L_SCALE = logScale(0.1, 1);
+	const K_SCALE = logScale(6, 60);
+	const RANGES = [5, 10, 15, 20, 30, 40, 50, 60];
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+
+	type Osc = {
+		x: number; // θ for the string pendulum (rad), y for the spring weight (m, up is +)
+		v: number;
+		x0: number; // where it is released from
+		held: boolean;
+		amp: number; // amplitude of the last swing
+		E0: number; // energy at release
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pl]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const scene = q<SVGSVGElement>('.pl__scene');
+		const el = {
+			planets: Array.from(root.querySelectorAll<HTMLButtonElement>('[data-planet]')),
+			lIn: q<HTMLInputElement>('[data-l]'),
+			mIn: q<HTMLInputElement>('[data-m]'),
+			kIn: q<HTMLInputElement>('[data-k]'),
+			lOut: q<HTMLOutputElement>('[data-l-out]'),
+			mOut: q<HTMLOutputElement>('[data-m-out]'),
+			kOut: q<HTMLOutputElement>('[data-k-out]'),
+			run: q<HTMLButtonElement>('[data-run]'),
+			restart: q<HTMLButtonElement>('[data-restart]'),
+			damp: q<HTMLInputElement>('[data-damp]'),
+			status: q<HTMLElement>('[data-status]'),
+			hint: q<SVGTextElement>('[data-hint]'),
+			strEq: q<SVGLineElement>('[data-str-eq]'),
+			strArc: q<SVGPathElement>('[data-str-arc]'),
+			strDim: q<SVGGElement>('[data-str-dim]'),
+			strDimLine: q<SVGLineElement>('[data-str-dim-line]'),
+			strDimText: q<SVGTextElement>('[data-str-dim-text]'),
+			strLine: q<SVGLineElement>('[data-str-line]'),
+			strL: q<SVGTextElement>('[data-str-l]'),
+			strBob: q<SVGCircleElement>('[data-str-bob]'),
+			strHit: q<SVGCircleElement>('[data-str-hit]'),
+			sprEq: q<SVGLineElement>('[data-spr-eq]'),
+			sprDl: q<SVGGElement>('[data-spr-dl]'),
+			sprNat: q<SVGLineElement>('[data-spr-nat]'),
+			sprDlLine: q<SVGLineElement>('[data-spr-dl-line]'),
+			sprDlText: q<SVGTextElement>('[data-spr-dl-text]'),
+			sprDim: q<SVGGElement>('[data-spr-dim]'),
+			sprDimLine: q<SVGLineElement>('[data-spr-dim-line]'),
+			sprDimText: q<SVGTextElement>('[data-spr-dim-text]'),
+			sprCoil: q<SVGPathElement>('[data-spr-coil]'),
+			sprWeight: q<SVGGElement>('[data-spr-weight]'),
+			sprBody: q<SVGRectElement>('[data-spr-body]'),
+			sprHit: q<SVGCircleElement>('[data-spr-hit]'),
+			ggrid: q<SVGGElement>('[data-ggrid]'),
+			glabels: q<SVGGElement>('[data-glabels]'),
+			traceStr: q<SVGPathElement>('[data-trace-str]'),
+			traceSpr: q<SVGPathElement>('[data-trace-spr]'),
+			penStr: q<SVGCircleElement>('[data-pen-str]'),
+			penSpr: q<SVGCircleElement>('[data-pen-spr]'),
+			fStrT: q<HTMLElement>('[data-f-str-T]'),
+			fStrNu: q<HTMLElement>('[data-f-str-nu]'),
+			fSprT: q<HTMLElement>('[data-f-spr-T]'),
+			fSprNu: q<HTMLElement>('[data-f-spr-nu]'),
+			aStr: q<HTMLElement>('[data-a-str]'),
+			aSpr: q<HTMLElement>('[data-a-spr]'),
+			epStr: q<HTMLElement>('[data-ep-str]'),
+			ekStr: q<HTMLElement>('[data-ek-str]'),
+			epSpr: q<HTMLElement>('[data-ep-spr]'),
+			ekSpr: q<HTMLElement>('[data-ek-spr]'),
+			noteStr: q<HTMLElement>('[data-note-str]'),
+			noteSpr: q<HTMLElement>('[data-note-spr]'),
+			sw: q<HTMLElement>('.pl__sw'),
+			swTime: q<HTMLOutputElement>('[data-sw-time]'),
+			swGo: q<HTMLButtonElement>('[data-sw-go]'),
+			swReset: q<HTMLButtonElement>('[data-sw-reset]'),
+			swDec: q<HTMLButtonElement>('[data-sw-dec]'),
+			swInc: q<HTMLButtonElement>('[data-sw-inc]'),
+			swN: q<HTMLOutputElement>('[data-sw-n]'),
+			swRes: q<HTMLElement>('[data-sw-res]'),
+		};
+
+		// ---- State -------------------------------------------------------------------------------
+		const p = { l: 0.5, m: 0.4, k: 20, planet: 0, damp: false };
+		const g = () => PLANETS[p.planet].g;
+		const str: Osc = { x: 12 * DEG, v: 0, x0: 12 * DEG, held: false, amp: 12 * DEG, E0: 0 };
+		const spr: Osc = { x: 0.08, v: 0, x0: 0.08, held: false, amp: 0.08, E0: 0 };
+		let t = 0;
+		let running = false;
+		let touched = false; // the reader has dragged a pendulum at least once
+		let sliding = false; // a slider is being dragged: hold both pendulums at their start
+		let dragging = false; // the bob or the weight is being dragged: time runs even on pause
+		let sampleAcc = 0;
+		const samples: { t: number; s: number; p: number }[] = [];
+		const sw = { on: false, t: 0, n: 10, done: false };
+
+		// ---- Physics -----------------------------------------------------------------------------
+		const accStr = (th: number, w: number) => -(g() / p.l) * Math.sin(th) - (p.damp ? 2 * BETA * w : 0);
+		const accSpr = (y: number, v: number) => -(p.k / p.m) * y - (p.damp ? 2 * BETA * v : 0);
+		const energyStr = (o: Osc) => {
+			const ep = p.m * g() * p.l * (1 - Math.cos(o.x));
+			const ek = 0.5 * p.m * (p.l * o.v) ** 2;
+			return { ep, ek };
+		};
+		const energySpr = (o: Osc) => ({ ep: 0.5 * p.k * o.x * o.x, ek: 0.5 * p.m * o.v * o.v });
+		const thetaMax = () => Math.min(45 * DEG, p.l * S > STR_DXMAX ? Math.asin(STR_DXMAX / (p.l * S)) : 45 * DEG);
+		const strDx = () => p.l * Math.sin(str.x); // horizontal displacement, m
+
+		const release = (o: Osc, x0: number, energy: (o: Osc) => { ep: number }) => {
+			o.x0 = x0;
+			o.x = x0;
+			o.v = 0;
+			o.amp = Math.abs(x0);
+			o.E0 = energy(o).ep;
+		};
+		const restartBoth = () => {
+			release(str, Math.min(Math.abs(str.x0), thetaMax()), energyStr);
+			release(spr, Math.min(Math.abs(spr.x0), SPR_AMAX), energySpr);
+			t = 0;
+			sampleAcc = 0;
+			samples.length = 0;
+			samples.push({ t: 0, s: strDx(), p: spr.x });
+			resetStopwatch();
+		};
+
+		const step = (o: Osc, acc: (x: number, v: number) => number, h: number) => {
+			if (o.held) return;
+			const before = o.v;
+			[o.x, o.v] = rk4(o.x, o.v, h, acc);
+			if (before !== 0 && Math.sign(before) !== Math.sign(o.v)) o.amp = Math.abs(o.x);
+		};
+		const advance = (dt: number) => {
+			let rest = dt;
+			while (rest > 1e-9) {
+				const h = Math.min(H, rest);
+				step(str, accStr, h);
+				step(spr, accSpr, h);
+				t += h;
+				rest -= h;
+				sampleAcc += h;
+				if (sampleAcc >= 0.01) {
+					sampleAcc -= 0.01;
+					samples.push({ t, s: strDx(), p: spr.x });
+				}
+			}
+			if (sw.on) sw.t += dt;
+			const keepFrom = t - W - 0.5;
+			let cut = 0;
+			while (cut < samples.length && samples[cut].t < keepFrom) cut++;
+			if (cut > 200) samples.splice(0, cut);
+		};
+
+		// ---- Drawing helpers ---------------------------------------------------------------------
+		const set = (node: Element, attrs: Record<string, number | string>) => {
+			for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, typeof v === 'number' ? v.toFixed(2) : v);
+		};
+		const show = (node: SVGElement | HTMLElement, on: boolean) => {
+			node.style.visibility = on ? 'visible' : 'hidden';
+		};
+
+		const bobR = () => 9 + 6 * Math.cbrt(p.m / 0.5);
+		const weightSize = () => {
+			const w = 20 + 16 * Math.cbrt(p.m / 0.5);
+			return { w, h: w * 0.85 };
+		};
+		const sprEnd = (y: number) => PY + (L0 + (p.m * g()) / p.k - y) * S; // lower end of the spring, px
+		const weightCentre = (y: number) => sprEnd(y) + 4 + weightSize().h / 2;
+
+		const coilPath = (y1: number, y2: number) => {
+			const lead = 5;
+			const turns = 12;
+			const a = y1 + lead;
+			const b = y2 - lead;
+			const n = turns * 2;
+			let d = `M ${SPR_X} ${y1} L ${SPR_X} ${a.toFixed(2)}`;
+			for (let i = 0; i < n; i++) {
+				const y = a + ((i + 0.5) / n) * (b - a);
+				d += ` L ${(SPR_X + (i % 2 ? -9 : 9)).toFixed(2)} ${y.toFixed(2)}`;
+			}
+			return `${d} L ${SPR_X} ${b.toFixed(2)} L ${SPR_X} ${y2.toFixed(2)}`;
+		};
+
+		// The scene keeps its scale and grows or shrinks to fit the pendulums.
+		let viewH = 390;
+		let tween = 0;
+		const neededH = () => {
+			const strBottom = PY + p.l * S + bobR() + 48;
+			const sprBottom = weightCentre(-SPR_AMAX) + weightSize().h / 2 + 14;
+			return Math.ceil(Math.max(220, strBottom, sprBottom) / 10) * 10;
+		};
+		const setViewH = (h: number) => {
+			viewH = h;
+			scene.setAttribute('viewBox', `0 0 720 ${h.toFixed(1)}`);
+		};
+		const fitHeight = (animate: boolean) => {
+			const target = neededH();
+			cancelAnimationFrame(tween);
+			if (!animate || reduceMotion() || Math.abs(target - viewH) < 1) return setViewH(target);
+			const from = viewH;
+			const start = performance.now();
+			const stepH = (now: number) => {
+				const k = Math.min(1, (now - start) / 350);
+				setViewH(from + (target - from) * (1 - (1 - k) ** 3));
+				if (k < 1) tween = requestAnimationFrame(stepH);
+			};
+			tween = requestAnimationFrame(stepH);
+		};
+
+		const drawScene = () => {
+			// String pendulum.
+			const L = p.l * S;
+			const bx = STR_X + L * Math.sin(str.x);
+			const by = PY + L * Math.cos(str.x);
+			const r = bobR();
+			set(el.strLine, { x2: bx, y2: by });
+			set(el.strBob, { cx: bx, cy: by, r });
+			set(el.strHit, { cx: bx, cy: by });
+			set(el.strEq, { y2: PY + L + r + 14 });
+			set(el.strL, { x: STR_X + (L / 2) * Math.sin(str.x) + (str.x >= 0 ? -16 : 8), y: PY + (L / 2) * Math.cos(str.x) + 5 });
+			const th = Math.abs(str.x0);
+			const ax = L * Math.sin(th);
+			const ay = PY + L * Math.cos(th);
+			el.strArc.setAttribute(
+				'd',
+				`M ${(STR_X - ax).toFixed(2)} ${ay.toFixed(2)} A ${L.toFixed(2)} ${L.toFixed(2)} 0 0 0 ${(STR_X + ax).toFixed(2)} ${ay.toFixed(2)}`,
+			);
+			const dimY = ay + r + 12;
+			set(el.strDimLine, { x1: STR_X, y1: dimY, x2: STR_X + ax, y2: dimY });
+			set(el.strDimText, { x: STR_X + ax / 2 - 5, y: dimY + 19 });
+			show(el.strDim, ax > 22);
+			el.strHit.setAttribute('aria-valuenow', String(Math.round(str.x / DEG)));
+
+			// Spring pendulum.
+			const dl = (p.m * g()) / p.k;
+			const end = sprEnd(spr.x);
+			const { w, h } = weightSize();
+			el.sprCoil.setAttribute('d', coilPath(PY, end));
+			set(el.sprBody, { x: -w / 2, y: 4, width: w, height: h });
+			el.sprWeight.setAttribute('transform', `translate(${SPR_X} ${end.toFixed(2)})`);
+			const c = weightCentre(spr.x);
+			set(el.sprHit, { cx: SPR_X, cy: c });
+			const c0 = weightCentre(0);
+			set(el.sprEq, { x1: SPR_X - 48, y1: c0, x2: SPR_X + 60, y2: c0 });
+			const nat = PY + L0 * S;
+			const eqEnd = sprEnd(0);
+			set(el.sprNat, { x1: SPR_X - 54, y1: nat, x2: SPR_X - 22, y2: nat });
+			set(el.sprDlLine, { x1: SPR_X - 44, y1: nat, x2: SPR_X - 44, y2: eqEnd });
+			set(el.sprDlText, { x: SPR_X - 52, y: (nat + eqEnd) / 2 + 5 });
+			show(el.sprDl, dl * S > 22);
+			const a0 = Math.abs(spr.x0) * S;
+			set(el.sprDimLine, { x1: SPR_X + 52, y1: c0, x2: SPR_X + 52, y2: c0 - a0 });
+			set(el.sprDimText, { x: SPR_X + 60, y: c0 - a0 / 2 + 6 });
+			show(el.sprDim, a0 > 20);
+			el.sprHit.setAttribute('aria-valuenow', String(Math.round(spr.x * 100)));
+
+			el.hint.setAttribute('y', String(by + 5));
+			el.hint.setAttribute('x', String(STR_X - 12));
+			el.hint.style.opacity = touched || running ? '0' : '1';
+		};
+
+		// Graph: a scrolling strip of the last W seconds.
+		const gridLines = Array.from({ length: W + 2 }, () => el.ggrid.appendChild(document.createElementNS(SVG_NS, 'line')));
+		const timeLabels = Array.from({ length: W + 2 }, () => el.glabels.appendChild(document.createElementNS(SVG_NS, 'text')));
+		const yLines = Array.from({ length: 4 }, () => el.ggrid.appendChild(document.createElementNS(SVG_NS, 'line')));
+		const yLabels = Array.from({ length: 5 }, () => el.glabels.appendChild(document.createElementNS(SVG_NS, 'text')));
+		let range = 15; // half-height of the graph, cm
+
+		const pickRange = () => {
+			const a = Math.max(p.l * Math.sin(Math.abs(str.x0)), Math.abs(spr.x0), 0.01) * 100;
+			range = RANGES.find((r) => r >= a * 1.08) ?? RANGES[RANGES.length - 1];
+			const ys = [range, range / 2, 0, -range / 2, -range];
+			ys.forEach((v, i) => {
+				const y = GMID - (v / range) * GHALF;
+				set(yLabels[i], { x: GX0 - 7, y: y + 4.5, 'text-anchor': 'end' });
+				yLabels[i].textContent = fmt(v, Number.isInteger(v) ? 0 : 1);
+			});
+			[range, range / 2, -range / 2, -range].forEach((v, i) => {
+				const y = GMID - (v / range) * GHALF;
+				set(yLines[i], { x1: GX0, y1: y, x2: GX1, y2: y });
+			});
+		};
+		const gx = (tt: number, t0: number) => GX0 + ((tt - t0) / W) * (GX1 - GX0);
+		const gy = (x: number) => GMID - ((x * 100) / range) * GHALF;
+
+		const drawGraph = () => {
+			const t0 = Math.max(0, t - W);
+			const first = Math.ceil(t0);
+			gridLines.forEach((ln, i) => {
+				const s = first + i;
+				const x = gx(s, t0);
+				const on = s <= t0 + W + 1e-9 && x >= GX0 - 0.5;
+				show(ln, on);
+				show(timeLabels[i], on && s > 0);
+				if (!on) return;
+				set(ln, { x1: x, y1: 12, x2: x, y2: 170 });
+				set(timeLabels[i], { x, y: 194, 'text-anchor': 'middle' });
+				timeLabels[i].textContent = String(s);
+			});
+			let ds = '';
+			let dp = '';
+			for (const smp of samples) {
+				if (smp.t < t0 - 0.02) continue;
+				const x = gx(smp.t, t0).toFixed(1);
+				ds += `${ds ? 'L' : 'M'}${x} ${gy(smp.s).toFixed(1)}`;
+				dp += `${dp ? 'L' : 'M'}${x} ${gy(smp.p).toFixed(1)}`;
+			}
+			el.traceStr.setAttribute('d', ds);
+			el.traceSpr.setAttribute('d', dp);
+			const xn = gx(t, t0);
+			set(el.penStr, { cx: xn, cy: gy(strDx()) });
+			set(el.penSpr, { cx: xn, cy: gy(spr.x) });
+		};
+
+		// ---- Numbers and formulas ----------------------------------------------------------------
+		const Tstr = () => periodString(p.l, g());
+		const Tspr = () => periodSpring(p.m, p.k);
+		// The true period of the string pendulum grows with the swing, so compare that one.
+		const ratio = () => (Tstr() * largeAngleFactor(str.amp)) / Tspr();
+		const matched = () => Math.abs(ratio() - 1) < 0.01;
+
+		const drawFormulas = () => {
+			const gg = g();
+			tex(
+				el.fStrT,
+				`T = 2\\pi\\sqrt{\\dfrac{l}{g}} = 2\\pi\\sqrt{\\dfrac{${tnum(p.l, 2)}~\\text{м}}{${tnum(gg, 1)}~\\text{м/с}^2}} \\approx ${tnum(Tstr(), 2)}~\\text{с}`,
+			);
+			tex(el.fStrNu, `\\nu = \\dfrac{1}{T} \\approx ${tnum(1 / Tstr(), 2)}~\\text{Гц}`);
+			tex(
+				el.fSprT,
+				`T = 2\\pi\\sqrt{\\dfrac{m}{k}} = 2\\pi\\sqrt{\\dfrac{${tnum(p.m, 2)}~\\text{кг}}{${tnum(p.k, 1)}~\\text{Н/м}}} \\approx ${tnum(Tspr(), 2)}~\\text{с}`,
+			);
+			tex(el.fSprNu, `\\nu = \\dfrac{1}{T} \\approx ${tnum(1 / Tspr(), 2)}~\\text{Гц}`);
+			const dl = (p.m * gg) / p.k;
+			el.noteSpr.innerHTML = `Груз растягивает пружину на <i>Δl</i> = ${fmt(dl * 100, 1)} см.`;
+		};
+
+		const drawLive = () => {
+			const es = energyStr(str);
+			const ep = energySpr(spr);
+			const bar = (eP: HTMLElement, eK: HTMLElement, e: { ep: number; ek: number }, e0: number) => {
+				const k = e0 > 1e-9 ? 100 / e0 : 0;
+				eP.style.width = `${Math.min(100, e.ep * k).toFixed(1)}%`;
+				eK.style.width = `${Math.min(100 - Math.min(100, e.ep * k), e.ek * k).toFixed(1)}%`;
+			};
+			bar(el.epStr, el.ekStr, es, str.E0);
+			bar(el.epSpr, el.ekSpr, ep, spr.E0);
+			el.aStr.textContent = `${fmt(p.l * Math.sin(str.amp) * 100, 1)} см (угол ${fmt(str.amp / DEG, 0)}°)`;
+			el.aSpr.textContent = `${fmt(spr.amp * 100, 1)} см`;
+			const extra = (largeAngleFactor(str.amp) - 1) * 100;
+			const note =
+				extra >= 0.5
+					? `Угол большой, и настоящий период на ${fmt(extra, 1)} % больше, чем по формуле: она верна для малых углов.`
+					: '';
+			if (el.noteStr.textContent !== note) el.noteStr.textContent = note;
+			el.swTime.textContent = `${fmt(sw.t, 2)} с`;
+		};
+
+		const setStatus = () => {
+			let msg = '';
+			const isMatch = matched();
+			if (str.held || spr.held) msg = 'Отпустите — и маятник начнёт качаться.';
+			else if (isMatch) msg = 'Маятники качаются в такт: их периоды совпадают!';
+			else if (!running) msg = 'Нажмите «Пуск» или потяните шарик либо груз и отпустите.';
+			else if (Math.abs(ratio() - 1) < 0.05) msg = 'Почти в такт! Чуть-чуть подправьте длину или жёсткость.';
+			if (el.status.textContent !== msg) el.status.textContent = msg;
+			el.status.classList.toggle('is-match', isMatch && !str.held && !spr.held);
+		};
+
+		const drawAll = () => {
+			drawScene();
+			drawGraph();
+			drawLive();
+			setStatus();
+		};
+
+		// ---- Stopwatch ---------------------------------------------------------------------------
+		const swTex = document.createElement('span');
+		swTex.className = 'pl__sw-tex';
+		const swCmp = document.createElement('span');
+		swCmp.className = 'pl__sw-cmp';
+		const showResult = () => {
+			if (!sw.done || sw.t <= 0) {
+				el.swRes.textContent = sw.on
+					? `Считайте полные колебания. Нажмите «Стоп», когда их будет ${sw.n}.`
+					: 'Запустите секундомер, когда шарик (или груз) в крайнем положении, и остановите через N полных колебаний.';
+				return;
+			}
+			const T = sw.t / sw.n;
+			el.swRes.replaceChildren(swTex, swCmp);
+			tex(swTex, `T = \\dfrac{t}{N} = \\dfrac{${tnum(sw.t, 2)}~\\text{с}}{${sw.n}} \\approx ${tnum(T, 2)}~\\text{с}`);
+			swCmp.textContent = `По формуле: нитяной — ${fmt(Tstr(), 2)} с, пружинный — ${fmt(Tspr(), 2)} с.`;
+		};
+		const resetStopwatch = () => {
+			sw.on = false;
+			sw.t = 0;
+			sw.done = false;
+			el.sw.classList.remove('is-running');
+			el.swGo.textContent = 'Пуск';
+			showResult();
+		};
+		el.swGo.addEventListener('click', () => {
+			if (sw.on) {
+				sw.on = false;
+				sw.done = true;
+			} else {
+				if (sw.done) sw.t = 0;
+				sw.on = true;
+				sw.done = false;
+				if (!running) setRunning(true);
+			}
+			el.sw.classList.toggle('is-running', sw.on);
+			el.swGo.textContent = sw.on ? 'Стоп' : 'Пуск';
+			showResult();
+			drawLive();
+		});
+		el.swReset.addEventListener('click', () => {
+			resetStopwatch();
+			drawLive();
+		});
+		const setN = (n: number) => {
+			sw.n = Math.max(1, Math.min(50, n));
+			el.swN.textContent = String(sw.n);
+			showResult();
+		};
+		el.swDec.addEventListener('click', () => setN(sw.n - 1));
+		el.swInc.addEventListener('click', () => setN(sw.n + 1));
+
+		// ---- Animation loop ----------------------------------------------------------------------
+		const wake = animator(
+			root,
+			() => running || dragging,
+			(dt) => {
+				if (running || dragging) advance(dt);
+				drawAll();
+			},
+		);
+		const setRunning = (on: boolean) => {
+			running = on;
+			el.run.textContent = on ? 'Пауза' : 'Пуск';
+			setStatus();
+			drawScene();
+			wake();
+		};
+
+		// ---- Controls ----------------------------------------------------------------------------
+		const readSliders = () => {
+			p.l = Math.round(L_SCALE.toValue(Number(el.lIn.value)) * 100) / 100;
+			p.m = Number(el.mIn.value);
+			p.k = Math.round(K_SCALE.toValue(Number(el.kIn.value)) * 10) / 10;
+			el.lOut.textContent = `${fmt(p.l, 2)} м`;
+			el.mOut.textContent = `${fmt(p.m, 2)} кг`;
+			el.kOut.textContent = `${fmt(p.k, 1)} Н/м`;
+		};
+		const onParams = () => {
+			readSliders();
+			fitHeight(true);
+			restartBoth();
+			pickRange();
+			drawFormulas();
+			drawAll();
+		};
+		for (const input of [el.lIn, el.mIn, el.kIn]) {
+			input.addEventListener('input', () => {
+				sliding = true;
+				str.held = spr.held = true;
+				onParams();
+			});
+			input.addEventListener('change', () => {
+				sliding = false;
+				str.held = spr.held = false;
+				drawAll();
+				wake();
+			});
+		}
+		el.planets.forEach((btn) =>
+			btn.addEventListener('click', () => {
+				p.planet = Number(btn.dataset.planet);
+				el.planets.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+				onParams();
+				wake();
+			}),
+		);
+		el.run.addEventListener('click', () => setRunning(!running));
+		el.restart.addEventListener('click', () => {
+			restartBoth();
+			drawAll();
+			setRunning(true);
+		});
+		el.damp.addEventListener('change', () => {
+			p.damp = el.damp.checked;
+			restartBoth();
+			drawAll();
+			wake();
+		});
+
+		// ---- Dragging the bob and the weight -------------------------------------------------------
+		const grab = (
+			hit: SVGCircleElement,
+			o: Osc,
+			fromPoint: (pt: { x: number; y: number }, off: { x: number; y: number }) => number,
+			energy: (o: Osc) => { ep: number },
+		) => {
+			let off = { x: 0, y: 0 };
+			hit.addEventListener('pointerdown', (e) => {
+				if (sliding) return;
+				e.preventDefault();
+				hit.setPointerCapture(e.pointerId);
+				const pt = svgPoint(scene, e);
+				off = { x: pt.x - Number(hit.getAttribute('cx')), y: pt.y - Number(hit.getAttribute('cy')) };
+				o.held = true;
+				dragging = true;
+				touched = true;
+				release(o, o.x, energy);
+				wake();
+			});
+			hit.addEventListener('pointermove', (e) => {
+				if (!dragging || !o.held || !hit.hasPointerCapture(e.pointerId)) return;
+				release(o, fromPoint(svgPoint(scene, e), off), energy);
+				pickRange();
+				drawFormulas();
+				if (!running) drawAll();
+			});
+			const letGo = (e: PointerEvent) => {
+				if (!hit.hasPointerCapture(e.pointerId)) return;
+				hit.releasePointerCapture(e.pointerId);
+				o.held = false;
+				dragging = false;
+				if (!running) setRunning(true);
+				drawAll();
+			};
+			hit.addEventListener('pointerup', letGo);
+			hit.addEventListener('pointercancel', letGo);
+
+			// Keyboard: arrows move, Enter or Space lets go.
+			hit.addEventListener('keydown', (e) => {
+				const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+				if (d !== undefined) {
+					e.preventDefault();
+					o.held = true;
+					touched = true;
+					const stepSize = o === str ? 1 * DEG : 0.005;
+					const lim = o === str ? thetaMax() : SPR_AMAX;
+					release(o, Math.max(-lim, Math.min(lim, o.x + d * stepSize)), energy);
+					pickRange();
+					drawFormulas();
+					drawAll();
+				} else if ((e.key === 'Enter' || e.key === ' ') && o.held) {
+					e.preventDefault();
+					o.held = false;
+					if (!running) setRunning(true);
+					drawAll();
+				}
+			});
+			hit.addEventListener('blur', () => {
+				if (o.held && !dragging) {
+					o.held = false;
+					drawAll();
+				}
+			});
+		};
+		grab(
+			el.strHit,
+			str,
+			(pt, off) => {
+				const th = Math.atan2(pt.x - off.x - STR_X, Math.max(1, pt.y - off.y - PY));
+				const lim = thetaMax();
+				return Math.max(-lim, Math.min(lim, th));
+			},
+			energyStr,
+		);
+		grab(
+			el.sprHit,
+			spr,
+			(pt, off) => {
+				const y = (weightCentre(0) - (pt.y - off.y)) / S;
+				return Math.max(-SPR_AMAX, Math.min(SPR_AMAX, y));
+			},
+			energySpr,
+		);
+
+		// ---- Start -------------------------------------------------------------------------------
+		el.lIn.value = String(Math.round(L_SCALE.toPos(p.l)));
+		el.kIn.value = String(Math.round(K_SCALE.toPos(p.k)));
+		el.mIn.value = String(p.m);
+		readSliders();
+		fitHeight(false);
+		restartBoth();
+		pickRange();
+		drawFormulas();
+		drawAll();
+		setN(10);
+	}
+</script>

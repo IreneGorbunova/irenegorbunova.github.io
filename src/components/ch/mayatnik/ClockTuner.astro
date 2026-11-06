@@ -1,0 +1,460 @@
+---
+/**
+ * A pendulum clock to regulate. The escapement moves the seconds hand by 1 s on every swing,
+ * so the clock is right only when one swing lasts 1 s, that is T = 2 s.
+ * The reader moves the nut under the bob (changes l) until the clock keeps time with the real one.
+ */
+import { PLANETS } from './physics';
+
+const DCX = 230;
+const DCY = 96;
+const DR = 62;
+const RCX = 555;
+const RCY = 250;
+const RR = 100;
+const ticks = (cx: number, cy: number, r: number) =>
+	Array.from({ length: 60 }, (_, i) => {
+		const a = (i * 6 * Math.PI) / 180;
+		const long = i % 5 === 0;
+		const r1 = r - (long ? 9 : 4);
+		return {
+			x1: cx + r1 * Math.sin(a),
+			y1: cy - r1 * Math.cos(a),
+			x2: cx + (r - 1) * Math.sin(a),
+			y2: cy - (r - 1) * Math.cos(a),
+			long,
+		};
+	});
+const nums = (cx: number, cy: number, r: number) =>
+	[12, 3, 6, 9].map((n) => {
+		const a = (n * 30 * Math.PI) / 180;
+		return { n, x: cx + (r - 20) * Math.sin(a), y: cy - (r - 20) * Math.cos(a) + 5 };
+	});
+---
+
+<figure class="ct not-content" data-ct>
+	<div class="ct__planets" role="group" aria-label="Где идут часы">
+		{
+			PLANETS.map((p, i) => (
+				<button type="button" class="ct__planet" data-planet={i} aria-pressed={i === 0 ? 'true' : 'false'}>
+					{p.name}
+				</button>
+			))
+		}
+	</div>
+
+	<svg class="ct__scene" viewBox="0 0 720 404" role="img" aria-label="Маятниковые часы и точные часы">
+		<!-- Pendulum clock -->
+		<rect class="ct__case" x="140" y="14" width="180" height="384" rx="16" />
+		<rect class="ct__window" x="160" y="174" width="140" height="212" rx="8" />
+		<circle class="ct__face" cx={DCX} cy={DCY} r={DR} />
+		{ticks(DCX, DCY, DR).map((t) => <line class={t.long ? 'ct__tick ct__tick--long' : 'ct__tick'} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />)}
+		{
+			nums(DCX, DCY, DR - 2).map((n) => (
+				<text class="ct__num" x={n.x} y={n.y} text-anchor="middle">
+					{n.n}
+				</text>
+			))
+		}
+		<line class="ct__hand ct__hand--h" x1={DCX} y1={DCY + 6} x2={DCX} y2={DCY - 30} data-ph />
+		<line class="ct__hand ct__hand--m" x1={DCX} y1={DCY + 8} x2={DCX} y2={DCY - 46} data-pm />
+		<line class="ct__hand ct__hand--s" x1={DCX} y1={DCY + 12} x2={DCX} y2={DCY - 52} data-ps />
+		<circle class="ct__cap" cx={DCX} cy={DCY} r="4" />
+		<g data-pendulum>
+			<line class="ct__rod" x1={DCX} y1="178" x2={DCX} y2="330" data-rod />
+			<circle class="ct__bob" cx={DCX} cy="330" r="15" data-bob />
+			<rect class="ct__nut" x={DCX - 6} y="347" width="12" height="7" rx="1.5" data-nut />
+		</g>
+		<circle class="ct__pivot" cx={DCX} cy="178" r="3.5" />
+
+		<!-- Reference clock -->
+		<circle class="ct__face ct__face--ref" cx={RCX} cy={RCY} r={RR} />
+		{ticks(RCX, RCY, RR).map((t) => <line class={t.long ? 'ct__tick ct__tick--long' : 'ct__tick'} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />)}
+		{
+			nums(RCX, RCY, RR).map((n) => (
+				<text class="ct__num" x={n.x} y={n.y} text-anchor="middle">
+					{n.n}
+				</text>
+			))
+		}
+		<line class="ct__hand ct__hand--h" x1={RCX} y1={RCY + 8} x2={RCX} y2={RCY - 44} data-rh />
+		<line class="ct__hand ct__hand--m" x1={RCX} y1={RCY + 10} x2={RCX} y2={RCY - 68} data-rm />
+		<line class="ct__hand ct__hand--s" x1={RCX} y1={RCY + 16} x2={RCX} y2={RCY - 78} data-rs />
+		<circle class="ct__cap" cx={RCX} cy={RCY} r="5" />
+		<text class="ct__label" x="400" y="44">маятниковые</text>
+		<text class="ct__digits ct__digits--p" x="700" y="46" text-anchor="end" data-pd>12:00:00</text>
+		<text class="ct__label" x="400" y="90">точные</text>
+		<text class="ct__digits" x="700" y="92" text-anchor="end" data-rd>12:00:00</text>
+		<line class="ct__sep" x1="400" y1="62" x2="700" y2="62" />
+		<text class="ct__label ct__label--small" x={RCX} y={RCY + RR + 22} text-anchor="middle">точные часы</text>
+	</svg>
+
+	<div class="ct__controls">
+		<label class="ct__slider">
+			<span>Длина маятника <i>l</i></span>
+			<output data-l-out></output>
+			<input type="range" min="0.1" max="1.2" step="0.001" data-l />
+		</label>
+		<div class="ct__nut-btns" role="group" aria-label="Регулировочная гайка">
+			<span class="ct__nut-label">Гайка:</span>
+			<button type="button" class="ct__btn" data-d="-0.001">вверх 1 мм</button>
+			<button type="button" class="ct__btn" data-d="-0.0001">вверх 0,1 мм</button>
+			<button type="button" class="ct__btn" data-d="0.0001">вниз 0,1 мм</button>
+			<button type="button" class="ct__btn" data-d="0.001">вниз 1 мм</button>
+		</div>
+		<div class="ct__f" data-f></div>
+		<p class="ct__verdict" aria-live="polite" data-verdict></p>
+		<div class="ct__buttons">
+			<button type="button" class="ct__btn ct__btn--primary" data-run>Пауза</button>
+			<button type="button" class="ct__btn" data-sync>Сверить часы</button>
+		</div>
+	</div>
+	<figcaption class="ct__legend">
+		Каждое качание маятника сдвигает секундную стрелку на одно деление. Гайка под грузом поднимает или опускает его — так
+		меняют длину маятника. Маятник качается с маленьким размахом, около 2°, поэтому период считаем по формуле для малых
+		размахов.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ct {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ct i {
+		font-family: var(--ig-font-math);
+	}
+	.ct__planets {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.ct__planet,
+	.ct__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ct__planet:hover,
+	.ct__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ct__planet[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.ct__btn--primary {
+		min-width: 6.5rem;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ct__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin-top: 0.5rem;
+	}
+	.ct__case {
+		fill: color-mix(in srgb, var(--ig-v) 14%, var(--sl-color-gray-6));
+		stroke: color-mix(in srgb, var(--ig-v) 45%, var(--sl-color-gray-4));
+		stroke-width: 2;
+	}
+	.ct__window {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-5);
+	}
+	.ct__face {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.ct__tick {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.ct__tick--long {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.ct__num {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.ct__hand {
+		stroke: var(--sl-color-white);
+		stroke-linecap: round;
+	}
+	.ct__hand--h {
+		stroke-width: 5;
+	}
+	.ct__hand--m {
+		stroke-width: 3.5;
+	}
+	.ct__hand--s {
+		stroke: var(--ig-vy);
+		stroke-width: 1.8;
+	}
+	.ct__cap {
+		fill: var(--ig-vy);
+	}
+	.ct__rod {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.ct__bob {
+		fill: var(--ig-v);
+		stroke: color-mix(in srgb, var(--ig-v) 60%, black);
+		stroke-width: 1.5;
+		filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ig-v) 50%, transparent));
+	}
+	.ct__nut {
+		fill: var(--sl-color-gray-2);
+	}
+	.ct__pivot {
+		fill: var(--sl-color-gray-2);
+	}
+	.ct__label {
+		fill: var(--sl-color-gray-3);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.ct__sep {
+		stroke: var(--sl-color-gray-5);
+	}
+	.ct__label--small {
+		font-size: 13px;
+	}
+	.ct__digits {
+		fill: var(--sl-color-white);
+		font-size: 26px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.ct__digits--p {
+		fill: var(--sl-color-text-accent);
+	}
+
+	.ct__controls {
+		display: grid;
+		gap: 0.6rem;
+		margin-top: 0.75rem;
+	}
+	.ct__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ct__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ct__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.ct__nut-btns,
+	.ct__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.ct__nut-label {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		margin-right: 0.2rem;
+	}
+	.ct__f {
+		padding: 0.4rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.ct__verdict {
+		margin: 0;
+		min-height: 3em;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ct__verdict.is-good {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+	.ct__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.ct {
+			padding: 0.75rem;
+		}
+		.ct__label,
+		.ct__label--small {
+			font-size: 24px;
+		}
+		.ct__digits {
+			font-size: 34px;
+		}
+		.ct__num {
+			font-size: 20px;
+		}
+		.ct__btn {
+			padding: 0.4rem 0.75rem;
+		}
+	}
+</style>
+
+<script>
+	import { PLANETS, periodString } from './physics';
+	import { animator, fmt, reduceMotion, tex, tnum } from './util';
+
+	const DCX = 230;
+	const DCY = 96;
+	const RCX = 555;
+	const RCY = 250;
+	const PIV_Y = 178;
+	const SC = 160; // px per metre
+	const AMP = 2 * (Math.PI / 180); // a clock pendulum swings little; the rate uses the small-swing period
+	const DAY = 86400;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ct]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const lIn = q<HTMLInputElement>('[data-l]');
+		const lOut = q<HTMLOutputElement>('[data-l-out]');
+		const run = q<HTMLButtonElement>('[data-run]');
+		const verdict = q<HTMLElement>('[data-verdict]');
+		const planets = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-planet]'));
+
+		let l = 1.02;
+		let planet = 0;
+		let phase = 0; // swings made since the clocks were set, with the fraction of the current one
+		let elapsed = 0; // real seconds since the clocks were set
+		let running = !reduceMotion();
+		const T = () => periodString(l, PLANETS[planet].g);
+
+		const hand = (sel: string, cx: number, cy: number, deg: number) =>
+			q(sel).setAttribute('transform', `rotate(${deg.toFixed(2)} ${cx} ${cy})`);
+		const clockText = (s: number) => {
+			const t = 12 * 3600 + Math.floor(s);
+			const hh = Math.floor(t / 3600) % 24;
+			const mm = Math.floor((t % 3600) / 60);
+			const ss = t % 60;
+			return [hh, mm, ss].map((v) => String(v).padStart(2, '0')).join(':');
+		};
+		const setClock = (prefix: 'p' | 'r', cx: number, cy: number, s: number) => {
+			const whole = Math.floor(s);
+			hand(`[data-${prefix}s]`, cx, cy, whole * 6);
+			hand(`[data-${prefix}m]`, cx, cy, (whole / 60) * 6);
+			hand(`[data-${prefix}h]`, cx, cy, (whole / 3600) * 30);
+			q(`[data-${prefix}d]`).textContent = clockText(whole);
+		};
+		const duration = (s: number) => {
+			const t = Math.round(Math.abs(s));
+			const h = Math.floor(t / 3600);
+			const m = Math.floor((t % 3600) / 60);
+			const sec = t % 60;
+			if (h > 0) return `${h} ч ${m} мин`;
+			if (m > 0) return `${m} мин ${sec} с`;
+			return `${sec} с`;
+		};
+
+		const draw = () => {
+			const len = l * SC;
+			const th = AMP * Math.cos(Math.PI * phase);
+			const bx = DCX + len * Math.sin(th);
+			const by = PIV_Y + len * Math.cos(th);
+			const rod = q('[data-rod]');
+			rod.setAttribute('x2', bx.toFixed(2));
+			rod.setAttribute('y2', by.toFixed(2));
+			q('[data-bob]').setAttribute('cx', bx.toFixed(2));
+			q('[data-bob]').setAttribute('cy', by.toFixed(2));
+			const nut = q('[data-nut]');
+			nut.setAttribute('transform', `rotate(${((th * 180) / Math.PI).toFixed(2)} ${bx.toFixed(2)} ${by.toFixed(2)})`);
+			nut.setAttribute('x', (bx - 6).toFixed(2));
+			nut.setAttribute('y', (by + 16).toFixed(2));
+			setClock('p', DCX, DCY, Math.floor(phase));
+			setClock('r', RCX, RCY, elapsed);
+		};
+
+		const describe = () => {
+			const g = PLANETS[planet].g;
+			const t = T();
+			lOut.textContent = `${fmt(l, 4)} м`;
+			tex(
+				q('[data-f]'),
+				`T = 2\\pi\\sqrt{\\frac{l}{g}} = 2\\pi\\sqrt{\\frac{${tnum(l, 4)}~\\text{м}}{${tnum(g, 1)}~\\text{м/с}^2}} \\approx ${tnum(t, 3)}~\\text{с}`,
+			);
+			const err = DAY * (2 / t - 1); // what the clock gains in a day, s
+			const good = Math.abs(err) < 60;
+			const swing = `Одно качание длится ${fmt(t / 2, 3)} с, а часы считают его за 1 с.`;
+			verdict.textContent = good
+				? `Часы идут точно: за сутки ошибка меньше минуты (${duration(err)}). Сравните длину с той, что получается по формуле в задаче ниже.`
+				: `${swing} За сутки часы ${err < 0 ? 'отстанут' : 'убегут вперёд'} на ${duration(err)}. ${err < 0 ? 'Маятник слишком длинный — поднимите груз.' : 'Маятник слишком короткий — опустите груз.'}`;
+			verdict.classList.toggle('is-good', good);
+		};
+
+		const wake = animator(
+			root,
+			() => running,
+			(dt) => {
+				elapsed += dt;
+				phase += (2 * dt) / T();
+				draw();
+			},
+		);
+		const setRunning = (on: boolean) => {
+			running = on;
+			run.textContent = on ? 'Пауза' : 'Пуск';
+			wake();
+		};
+		const setL = (v: number) => {
+			l = Math.min(1.2, Math.max(0.1, Math.round(v * 10000) / 10000));
+			lIn.value = String(l);
+			describe();
+			draw();
+		};
+
+		lIn.addEventListener('input', () => setL(Number(lIn.value)));
+		root.querySelectorAll<HTMLButtonElement>('[data-d]').forEach((b) =>
+			b.addEventListener('click', () => setL(l + Number(b.dataset.d))),
+		);
+		planets.forEach((b) =>
+			b.addEventListener('click', () => {
+				planet = Number(b.dataset.planet);
+				planets.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				describe();
+			}),
+		);
+		run.addEventListener('click', () => setRunning(!running));
+		q('[data-sync]').addEventListener('click', () => {
+			elapsed = 0;
+			phase = 0;
+			draw();
+			setRunning(true);
+		});
+
+		run.textContent = running ? 'Пауза' : 'Пуск';
+		setL(l);
+		wake();
+	}
+</script>

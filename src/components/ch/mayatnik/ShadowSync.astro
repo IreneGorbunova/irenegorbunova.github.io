@@ -1,0 +1,633 @@
+---
+/**
+ * A ball goes round a circle at a steady speed; light from above casts its shadow on a screen.
+ * Below, a weight on a spring slides on a smooth table. Both start from the same point.
+ * If k/m = 4π²/T², the weight moves exactly like the shadow. One scale: R = 10 cm = 100 px.
+ */
+const uid = `ss-${Math.random().toString(36).slice(2, 8)}`;
+const CX = 360;
+const CY = 118;
+const R = 100;
+const SCREEN_Y = 244;
+const TRACK_Y = 326;
+const WALL_X = 112;
+const rays = Array.from({ length: 13 }, (_, i) => 120 + i * 40);
+const floorHatch = Array.from({ length: 27 }, (_, i) => 100 + i * 20);
+const wallHatch = Array.from({ length: 4 }, (_, i) => 252 + i * 14);
+---
+
+<figure class="ss not-content" data-ss>
+	<svg class="ss__scene" viewBox="0 0 720 352" role="img" aria-label="Тень шарика, который движется по окружности, и груз на пружине">
+		<defs>
+			{
+				['a', 'ax', 'aw'].map((k) => (
+					<marker id={`${uid}-${k}`} class={`ss__head ss__head--${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+						<path d="M0,0 L10,5 L0,10 z" />
+					</marker>
+				))
+			}
+			<radialGradient id={`${uid}-ball`} cx="35%" cy="30%" r="75%">
+				<stop offset="0" class="ss__stop-hi" />
+				<stop offset="0.5" class="ss__stop" />
+				<stop offset="1" class="ss__stop-dark" />
+			</radialGradient>
+		</defs>
+
+		<g class="ss__light" aria-hidden="true">
+			{rays.map((x) => <line x1={x} y1={0} x2={x} y2={SCREEN_Y - 6} />)}
+			<text x={CX - R - 96} y={20}>свет сверху ↓</text>
+		</g>
+
+		<circle class="ss__disk" cx={CX} cy={CY} r={R} />
+		<line class="ss__axis" x1={CX} y1={CY} x2={CX} y2={TRACK_Y + 8} />
+		<line class="ss__radius" x1={CX} y1={CY} x2={CX + R} y2={CY} data-radius />
+		<circle class="ss__centre" cx={CX} cy={CY} r="3" />
+		<text class="ss__sym" x={CX + 8} y={CY - 8} data-rlabel>R</text>
+
+		<line class="ss__screen" x1={CX - R - 70} y1={SCREEN_Y} x2={CX + R + 70} y2={SCREEN_Y} />
+		<text class="ss__label" x={CX + R + 76} y={SCREEN_Y + 5}>экран</text>
+		<line class="ss__proj" data-proj />
+		<line class="ss__proj ss__proj--w" data-projw />
+		<ellipse class="ss__shadow" rx="10" ry="4" cy={SCREEN_Y} cx={CX + R} data-shadow />
+
+		<!-- Spring pendulum on a smooth table -->
+		<g class="ss__table">
+			<line x1={WALL_X - 10} y1={TRACK_Y} x2={640} y2={TRACK_Y} />
+			{floorHatch.map((x) => <line class="ss__hatch" x1={x} y1={TRACK_Y + 2} x2={x - 8} y2={TRACK_Y + 10} />)}
+			<line x1={WALL_X} y1={TRACK_Y} x2={WALL_X} y2={TRACK_Y - 56} />
+			{wallHatch.map((y) => <line class="ss__hatch" x1={WALL_X - 1} y1={y} x2={WALL_X - 9} y2={y + 8} />)}
+		</g>
+		<path class="ss__coil" data-coil />
+		<rect class="ss__weight" x={CX + R - 18} y={TRACK_Y - 30} width="36" height="30" rx="4" data-weight />
+		<text class="ss__label" x={CX} y={TRACK_Y + 22} text-anchor="middle">0</text>
+
+		<g class="ss__vecs" data-vecs>
+			<line class="ss__vec ss__vec--a" marker-end={`url(#${uid}-a)`} data-va />
+			<line class="ss__vec ss__vec--ax" marker-end={`url(#${uid}-ax)`} data-vax />
+			<line class="ss__vec ss__vec--aw" marker-end={`url(#${uid}-aw)`} data-vaw />
+			<text class="ss__sym ss__sym--a" data-ta>a</text>
+			<text class="ss__sym ss__sym--ax" data-tax>a<tspan class="ss__sub" dy="4">x</tspan></text>
+			<text class="ss__sym ss__sym--aw" data-taw>a<tspan class="ss__sub" dy="4">x</tspan></text>
+		</g>
+		<circle class="ss__ball" r="10" cx={CX + R} cy={CY} fill={`url(#${uid}-ball)`} data-ball />
+	</svg>
+
+	<div class="ss__controls">
+		<label class="ss__slider">
+			<span>Период обращения шарика <i>T</i></span>
+			<output data-t-out></output>
+			<input type="range" min="1.2" max="3" step="0.1" value="2" data-t />
+		</label>
+		<label class="ss__slider">
+			<span>Жёсткость пружины <i>k</i></span>
+			<output data-k-out></output>
+			<input type="range" min="0" max="1000" step="1" data-k />
+		</label>
+		<div class="ss__buttons">
+			<button type="button" class="ss__btn ss__btn--primary" data-run>Пауза</button>
+			<button type="button" class="ss__btn" data-sync>Запустить вместе</button>
+			<button type="button" class="ss__btn" data-fit>Подобрать <i>k</i></button>
+			<label class="ss__check"><input type="checkbox" checked data-show /> Ускорения</label>
+		</div>
+	</div>
+
+	<div class="ss__table-wrap">
+		<table class="ss__nums">
+			<thead>
+				<tr>
+					<th></th>
+					<th>смещение <i>x</i></th>
+					<th>ускорение <i>a<sub>x</sub></i></th>
+					<th><i>a<sub>x</sub></i> / <i>x</i></th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th><span class="ss__key ss__key--ax"></span>тень</th>
+					<td data-xs></td>
+					<td data-as></td>
+					<td data-rs></td>
+				</tr>
+				<tr>
+					<th><span class="ss__key ss__key--aw"></span>груз</th>
+					<td data-xw></td>
+					<td data-aw></td>
+					<td data-rw></td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+	<div class="ss__formulas">
+		<div class="ss__f" data-f-shadow></div>
+		<div class="ss__f" data-f-weight></div>
+	</div>
+	<p class="ss__status" aria-live="polite" data-status></p>
+	<figcaption class="ss__caption">
+		Радиус окружности <i>R</i> = 10 см, масса груза <i>m</i> = 1 кг, трения нет. Стрелки — ускорения:
+		<span class="ss__key ss__key--a"></span>шарика, <span class="ss__key ss__key--ax"></span>тени,
+		<span class="ss__key ss__key--aw"></span>груза.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ss {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ss i {
+		font-family: var(--ig-font-math);
+	}
+	.ss__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.ss__light line {
+		stroke: var(--sl-color-accent);
+		stroke-width: 1;
+		stroke-dasharray: 2 6;
+		opacity: 0.45;
+	}
+	.ss__light text,
+	.ss__label {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.ss__disk {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 45%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.ss__axis {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 4 5;
+	}
+	.ss__radius {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ss__centre {
+		fill: var(--sl-color-gray-3);
+	}
+	.ss__screen {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.ss__proj {
+		stroke: var(--ig-vx);
+		stroke-width: 1.2;
+		stroke-dasharray: 3 4;
+		opacity: 0.8;
+	}
+	.ss__proj--w {
+		stroke: var(--ig-vy);
+	}
+	.ss__shadow {
+		fill: var(--sl-color-gray-1);
+		opacity: 0.75;
+	}
+	:root[data-theme='light'] .ss__shadow {
+		fill: var(--sl-color-gray-2);
+	}
+	.ss__table line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ss__table .ss__hatch {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.ss__coil {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+	.ss__weight {
+		fill: var(--ig-vy);
+		filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ig-vy) 50%, transparent));
+	}
+	.ss__stop-hi {
+		stop-color: color-mix(in srgb, var(--ig-v) 30%, white);
+	}
+	.ss__stop {
+		stop-color: var(--ig-v);
+	}
+	.ss__stop-dark {
+		stop-color: color-mix(in srgb, var(--ig-v) 60%, black);
+	}
+	.ss__ball {
+		filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ig-v) 60%, transparent));
+	}
+	.ss__vec {
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.ss__vec--a {
+		stroke: var(--ig-v);
+	}
+	.ss__vec--ax {
+		stroke: var(--ig-vx);
+	}
+	.ss__vec--aw {
+		stroke: var(--ig-vy);
+	}
+	.ss__head--a path {
+		fill: var(--ig-v);
+	}
+	.ss__head--ax path {
+		fill: var(--ig-vx);
+	}
+	.ss__head--aw path {
+		fill: var(--ig-vy);
+	}
+	.ss__sym {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 17px;
+		fill: var(--sl-color-gray-2);
+	}
+	.ss__sym--a {
+		fill: var(--ig-v);
+	}
+	.ss__sym--ax {
+		fill: var(--ig-vx);
+	}
+	.ss__sym--aw {
+		fill: var(--ig-vy);
+	}
+	.ss__sub {
+		font-size: 12px;
+	}
+	.ss__vecs.is-off {
+		display: none;
+	}
+
+	.ss__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+		align-items: end;
+	}
+	.ss__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ss__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ss__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.ss__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+	}
+	.ss__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ss__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ss__btn--primary {
+		min-width: 6.5rem;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ss__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.ss__check input {
+		width: 1.05rem;
+		height: 1.05rem;
+		accent-color: var(--sl-color-accent);
+	}
+
+	.ss__table-wrap {
+		margin-top: 0.9rem;
+		overflow-x: auto;
+	}
+	.ss__nums {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+	}
+	.ss__nums th,
+	.ss__nums td {
+		padding: 0.3rem 0.5rem;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		text-align: end;
+		white-space: nowrap;
+	}
+	.ss__nums thead th {
+		font-weight: 400;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.ss__nums tbody th {
+		text-align: start;
+		font-weight: 600;
+		color: var(--sl-color-gray-2);
+	}
+	.ss__nums td {
+		color: var(--sl-color-white);
+	}
+	.ss__nums td:last-child {
+		font-weight: 700;
+	}
+	.ss__key {
+		display: inline-block;
+		width: 0.7rem;
+		height: 0.7rem;
+		margin: 0 0.35rem 0 0.3rem;
+		border-radius: 50%;
+		vertical-align: -0.05rem;
+	}
+	.ss__key--a {
+		background: var(--ig-v);
+	}
+	.ss__key--ax {
+		background: var(--ig-vx);
+	}
+	.ss__key--aw {
+		background: var(--ig-vy);
+	}
+	.ss__formulas {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.ss__f {
+		min-width: 0;
+		padding: 0.4rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.ss__status {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ss__caption {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.ss__status.is-match {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+
+	@media (max-width: 40rem) {
+		.ss {
+			padding: 0.75rem;
+		}
+		.ss__light text,
+		.ss__label {
+			font-size: 22px;
+		}
+		.ss__sym {
+			font-size: 28px;
+		}
+		.ss__sub {
+			font-size: 20px;
+		}
+		.ss__controls {
+			grid-template-columns: 1fr;
+		}
+		.ss__nums th,
+		.ss__nums td {
+			padding: 0.3rem 0.3rem;
+		}
+	}
+</style>
+
+<script>
+	import { rk4 } from './physics';
+	import { animator, fmt, logScale, tex, tnum } from './util';
+
+	const CX = 360;
+	const CY = 118;
+	const R = 100; // px; the radius stands for 10 cm
+	const RM = 0.1; // m
+	const PXM = R / RM;
+	const SCREEN_Y = 244;
+	const TRACK_Y = 326;
+	const WALL_X = 112;
+	const M = 1; // kg
+	const K_ACC = 40; // arrow length, px per (m/s²)
+	const K_SCALE = logScale(2, 50);
+	const H = 1 / 1000;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ss]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const el = {
+			tIn: q<HTMLInputElement>('[data-t]'),
+			kIn: q<HTMLInputElement>('[data-k]'),
+			tOut: q<HTMLOutputElement>('[data-t-out]'),
+			kOut: q<HTMLOutputElement>('[data-k-out]'),
+			run: q<HTMLButtonElement>('[data-run]'),
+			sync: q<HTMLButtonElement>('[data-sync]'),
+			fit: q<HTMLButtonElement>('[data-fit]'),
+			show: q<HTMLInputElement>('[data-show]'),
+			ball: q<SVGCircleElement>('[data-ball]'),
+			radius: q<SVGLineElement>('[data-radius]'),
+			rlabel: q<SVGTextElement>('[data-rlabel]'),
+			shadow: q<SVGEllipseElement>('[data-shadow]'),
+			proj: q<SVGLineElement>('[data-proj]'),
+			projw: q<SVGLineElement>('[data-projw]'),
+			coil: q<SVGPathElement>('[data-coil]'),
+			weight: q<SVGRectElement>('[data-weight]'),
+			vecs: q<SVGGElement>('[data-vecs]'),
+			va: q<SVGLineElement>('[data-va]'),
+			vax: q<SVGLineElement>('[data-vax]'),
+			vaw: q<SVGLineElement>('[data-vaw]'),
+			ta: q<SVGTextElement>('[data-ta]'),
+			tax: q<SVGTextElement>('[data-tax]'),
+			taw: q<SVGTextElement>('[data-taw]'),
+			xs: q<HTMLElement>('[data-xs]'),
+			as: q<HTMLElement>('[data-as]'),
+			rs: q<HTMLElement>('[data-rs]'),
+			xw: q<HTMLElement>('[data-xw]'),
+			aw: q<HTMLElement>('[data-aw]'),
+			rw: q<HTMLElement>('[data-rw]'),
+			fShadow: q<HTMLElement>('[data-f-shadow]'),
+			fWeight: q<HTMLElement>('[data-f-weight]'),
+			status: q<HTMLElement>('[data-status]'),
+		};
+
+		let T = 2;
+		let k = (4 * Math.PI * Math.PI * M) / (T * T);
+		let phi = 0;
+		let x = RM; // weight, m
+		let v = 0;
+		let running = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		const omega2 = () => (4 * Math.PI * Math.PI) / (T * T);
+		const matched = () => Math.abs(k / M / omega2() - 1) < 0.01;
+
+		const set = (node: Element, attrs: Record<string, number>) => {
+			for (const [a, val] of Object.entries(attrs)) node.setAttribute(a, val.toFixed(2));
+		};
+		const arrow = (line: SVGLineElement, label: SVGTextElement, x1: number, y1: number, dx: number, dy: number, lx: number, ly: number) => {
+			set(line, { x1, y1, x2: x1 + dx, y2: y1 + dy });
+			const on = Math.hypot(dx, dy) > 5;
+			line.style.visibility = on ? 'visible' : 'hidden';
+			label.style.visibility = on ? 'visible' : 'hidden';
+			set(label, { x: lx, y: ly });
+		};
+		const coilPath = (x2: number) => {
+			const y = TRACK_Y - 15;
+			const a = WALL_X + 6;
+			const b = x2 - 6;
+			const n = 20;
+			let d = `M ${WALL_X} ${y} L ${a} ${y}`;
+			for (let i = 0; i < n; i++) d += ` L ${(a + ((i + 0.5) / n) * (b - a)).toFixed(2)} ${y + (i % 2 ? -9 : 9)}`;
+			return `${d} L ${b.toFixed(2)} ${y} L ${x2.toFixed(2)} ${y}`;
+		};
+
+		const draw = () => {
+			const bx = CX + R * Math.cos(phi);
+			const by = CY - R * Math.sin(phi);
+			set(el.ball, { cx: bx, cy: by });
+			set(el.radius, { x2: bx, y2: by });
+			set(el.rlabel, { x: CX + R * 0.3 * Math.cos(phi) + 10 * Math.sin(phi) - 5, y: CY - R * 0.3 * Math.sin(phi) + 10 * Math.cos(phi) + 6 });
+			set(el.shadow, { cx: bx });
+			set(el.proj, { x1: bx, y1: by + 10, x2: bx, y2: SCREEN_Y - 4 });
+			const wx = CX + x * PXM;
+			set(el.projw, { x1: wx, y1: SCREEN_Y + 4, x2: wx, y2: TRACK_Y - 30 });
+			set(el.weight, { x: wx - 18 });
+			el.coil.setAttribute('d', coilPath(wx - 18));
+
+			// Accelerations.
+			const w2 = omega2();
+			const a = w2 * RM; // m/s², towards the centre
+			const xs = RM * Math.cos(phi);
+			const axs = -w2 * xs;
+			const axw = -(k / M) * x;
+			arrow(el.va, el.ta, bx, by, (CX - bx) * (a * K_ACC) / R, (CY - by) * (a * K_ACC) / R, bx + (CX - bx) * 0.25 + 10, by + (CY - by) * 0.25 - 10);
+			arrow(el.vax, el.tax, bx, SCREEN_Y - 12, axs * K_ACC, 0, bx + axs * K_ACC + (axs < 0 ? -24 : 8), SCREEN_Y - 7);
+			arrow(el.vaw, el.taw, wx, TRACK_Y - 42, axw * K_ACC, 0, wx + axw * K_ACC + (axw < 0 ? -24 : 8), TRACK_Y - 37);
+
+			// Numbers.
+			const cm = (val: number) => `${fmt(val * 100, 1)} см`;
+			const acm = (val: number) => `${fmt(val * 100, 0)} см/с²`;
+			const ratio = (ax: number, xx: number) => (Math.abs(xx) < 0.003 ? '—' : `${fmt(ax / xx, 2)} 1/с²`);
+			el.xs.textContent = cm(xs);
+			el.as.textContent = acm(axs);
+			el.rs.textContent = ratio(axs, xs);
+			el.xw.textContent = cm(x);
+			el.aw.textContent = acm(axw);
+			el.rw.textContent = ratio(axw, x);
+		};
+
+		const drawFormulas = () => {
+			const w2 = omega2();
+			tex(el.fShadow, `\\text{тень: }\\ \\frac{a_x}{x} = -\\frac{4\\pi^2}{T^2} = -\\frac{4\\pi^2}{(${tnum(T, 1)}~\\text{с})^2} \\approx ${tnum(-w2, 2)}~\\frac{1}{\\text{с}^2}`);
+			tex(el.fWeight, `\\text{груз: }\\ \\frac{a_x}{x} = -\\frac{k}{m} = -\\frac{${tnum(k, 2)}~\\text{Н/м}}{1~\\text{кг}} \\approx ${tnum(-k / M, 2)}~\\frac{1}{\\text{с}^2}`);
+			const ok = matched();
+			el.status.textContent = ok
+				? 'Числа равны — и груз движется в точности как тень шарика.'
+				: 'Числа разные — груз то обгоняет тень, то отстаёт от неё. Попробуйте подобрать жёсткость.';
+			el.status.classList.toggle('is-match', ok);
+			el.tOut.textContent = `${fmt(T, 1)} с`;
+			el.kOut.textContent = `${fmt(k, 2)} Н/м`;
+		};
+
+		const sync = () => {
+			phi = 0;
+			x = RM;
+			v = 0;
+			draw();
+		};
+
+		const wake = animator(
+			root,
+			() => running,
+			(dt) => {
+				let rest = dt;
+				while (rest > 1e-9) {
+					const h = Math.min(H, rest);
+					[x, v] = rk4(x, v, h, (xx) => -(k / M) * xx);
+					rest -= h;
+				}
+				phi = (phi + Math.sqrt(omega2()) * dt) % (2 * Math.PI);
+				draw();
+			},
+		);
+
+		const setRunning = (on: boolean) => {
+			running = on;
+			el.run.textContent = on ? 'Пауза' : 'Пуск';
+			wake();
+		};
+
+		el.tIn.addEventListener('input', () => {
+			T = Number(el.tIn.value);
+			drawFormulas();
+			sync();
+		});
+		el.kIn.addEventListener('input', () => {
+			k = K_SCALE.toValue(Number(el.kIn.value));
+			drawFormulas();
+			sync();
+		});
+		el.fit.addEventListener('click', () => {
+			k = M * omega2();
+			el.kIn.value = String(Math.round(K_SCALE.toPos(k)));
+			drawFormulas();
+			sync();
+			setRunning(true);
+		});
+		el.sync.addEventListener('click', () => {
+			sync();
+			setRunning(true);
+		});
+		el.run.addEventListener('click', () => setRunning(!running));
+		el.show.addEventListener('change', () => el.vecs.classList.toggle('is-off', !el.show.checked));
+
+		el.kIn.value = String(Math.round(K_SCALE.toPos(k)));
+		el.run.textContent = running ? 'Пауза' : 'Пуск';
+		drawFormulas();
+		sync();
+		wake();
+	}
+</script>

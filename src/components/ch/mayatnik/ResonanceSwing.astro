@@ -1,0 +1,801 @@
+---
+/**
+ * Swing pushed by hand or by pushes on a schedule. Shows why the push timing matters and builds
+ * the resonance curve: the amplitude the swing settles to for each period of the pushes.
+ * Side view, one scale (90 px per metre); the ropes are 2.5 m long, friction is small.
+ * The curve is computed at build time with the same equations the live model uses.
+ */
+import { SWING, periodString, swingSteady } from './physics';
+
+const uid = `rs-${Math.random().toString(36).slice(2, 8)}`;
+const S = 90;
+const PX = 360;
+const PY = 30;
+const GROUND = PY + (SWING.l + 0.45) * S;
+const LEG = 1.45 * S;
+const grass = Array.from({ length: 34 }, (_, i) => 40 + i * 19);
+
+// Resonance chart.
+const CX0 = 64;
+const CX1 = 700;
+const CY0 = 186;
+const CY1 = 22;
+const TMIN = 1.5;
+const TMAX = 5;
+const AMAX = 1;
+const cx = (T: number) => CX0 + ((T - TMIN) / (TMAX - TMIN)) * (CX1 - CX0);
+const cy = (A: number) => CY0 - (A / AMAX) * (CY0 - CY1);
+const curve = Array.from({ length: 141 }, (_, i) => {
+	const T = TMIN + (i * (TMAX - TMIN)) / 140;
+	return `${i ? 'L' : 'M'}${cx(T).toFixed(1)} ${cy(swingSteady(T)).toFixed(1)}`;
+}).join(' ');
+const T0 = periodString(SWING.l, SWING.g);
+const tTicks = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+const aTicks = [0.25, 0.5, 0.75, 1];
+const num = (v: number) => String(v).replace('.', ',');
+---
+
+<figure class="rs not-content" data-rsw>
+	<svg class="rs__scene" viewBox={`0 0 720 ${GROUND + 18}`} role="img" aria-label="Качели, которые раскачивают толчками">
+		<defs>
+			<marker id={`${uid}-push`} class="rs__head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+				<path d="M0,0 L10,5 L0,10 z" />
+			</marker>
+			<linearGradient id={`${uid}-seat`} x1="0" x2="0" y1="0" y2="1">
+				<stop offset="0" class="rs__stop-hi" />
+				<stop offset="1" class="rs__stop" />
+			</linearGradient>
+		</defs>
+		<g class="rs__frame">
+			<line x1={PX} y1={PY} x2={PX - LEG} y2={GROUND} />
+			<line x1={PX} y1={PY} x2={PX + LEG} y2={GROUND} />
+			<line class="rs__brace" x1={PX - LEG * 0.62} y1={PY + (GROUND - PY) * 0.62} x2={PX + LEG * 0.62} y2={PY + (GROUND - PY) * 0.62} />
+		</g>
+		<g class="rs__ground">
+			<line x1="30" y1={GROUND} x2="690" y2={GROUND} />
+			{grass.map((x) => <line class="rs__grass" x1={x} y1={GROUND + 1} x2={x - 7} y2={GROUND + 9} />)}
+		</g>
+		<line class="rs__eq" x1={PX} y1={PY} x2={PX} y2={GROUND - 4} />
+		<path class="rs__arc" data-arc />
+		<g data-swing>
+			<line class="rs__rope" x1={PX} y1={PY} x2={PX} y2={PY + SWING.l * S} />
+			<rect class="rs__seat" x={PX - 17} y={PY + SWING.l * S - 2} width="34" height="7" rx="3" fill={`url(#${uid}-seat)`} />
+		</g>
+		<g class="rs__push" data-push>
+			<line marker-end={`url(#${uid}-push)`} data-push-line />
+			<text class="rs__sym" data-push-text>F</text>
+		</g>
+		<circle class="rs__pivot" cx={PX} cy={PY} r="5" />
+	</svg>
+
+	<svg class="rs__strip" viewBox="0 0 720 132" role="img" aria-label="График смещения качелей от времени, отмечены толчки">
+		<defs>
+			<clipPath id={`${uid}-clip`}>
+				<rect x="52" y="6" width="656" height="104" />
+			</clipPath>
+		</defs>
+		<g class="rs__sgrid" data-sgrid></g>
+		<line class="rs__axis" x1="52" y1="58" x2="708" y2="58" />
+		<line class="rs__axis" x1="52" y1="6" x2="52" y2="110" />
+		<g class="rs__labels" data-slabels></g>
+		<text class="rs__name" x="60" y="18">x, м</text>
+		<text class="rs__name" x="704" y="104" text-anchor="end">t, с</text>
+		<g clip-path={`url(#${uid}-clip)`}>
+			<g data-bands></g>
+			<path class="rs__trace" data-trace />
+		</g>
+	</svg>
+
+	<div class="rs__controls">
+		<div class="rs__buttons">
+			<button type="button" class="rs__btn rs__btn--primary" data-kick>Толкнуть</button>
+			<button type="button" class="rs__btn" data-stop>Остановить качели</button>
+			<label class="rs__check"><input type="checkbox" data-sched /> Толчки по расписанию</label>
+			<label class="rs__check"><input type="checkbox" data-fast /> Время ×3</label>
+		</div>
+		<label class="rs__slider">
+			<span>Период толчков <i>T</i><sub>толч</sub></span>
+			<output data-tp-out></output>
+			<input type="range" min={TMIN} max={TMAX} step="0.01" value="2" data-tp />
+		</label>
+	</div>
+
+	<dl class="rs__stats">
+		<div>
+			<dt>Собственный период качелей</dt>
+			<dd data-f-t0></dd>
+		</div>
+		<div>
+			<dt>Амплитуда <i>A</i></dt>
+			<dd data-amp>0 м</dd>
+		</div>
+	</dl>
+	<p class="rs__status" aria-live="polite" data-status></p>
+
+	<svg class="rs__chart" viewBox="0 0 720 244" role="img" aria-label="Резонансная кривая: амплитуда качелей в зависимости от периода толчков">
+		<g class="rs__cgrid">
+			{tTicks.map((T) => <line x1={cx(T)} y1={CY0} x2={cx(T)} y2={CY1} />)}
+			{aTicks.map((A) => <line x1={CX0} y1={cy(A)} x2={CX1} y2={cy(A)} />)}
+		</g>
+		<line class="rs__axis" x1={CX0} y1={CY0} x2={CX1 + 6} y2={CY0} />
+		<line class="rs__axis" x1={CX0} y1={CY0} x2={CX0} y2={CY1 - 8} />
+		<g class="rs__labels">
+			{
+				tTicks.map((T) => (
+					<text x={cx(T)} y={CY0 + 20} text-anchor="middle">
+						{num(T)}
+					</text>
+				))
+			}
+			<text x={CX0 - 8} y={CY0 + 5} text-anchor="end">0</text>
+			{
+				aTicks.map((A) => (
+					<text x={CX0 - 8} y={cy(A) + 5} text-anchor="end">
+						{num(A)}
+					</text>
+				))
+			}
+		</g>
+		<text class="rs__name" x={CX0 + 8} y={CY1 - 2}>A, м</text>
+		<text class="rs__name rs__name--t" x={CX1} y={CY0 + 46} text-anchor="end">
+			T<tspan class="rs__sub" dy="4">толч</tspan><tspan dy="-4">, с</tspan>
+		</text>
+		<line class="rs__t0" x1={cx(T0)} y1={CY0} x2={cx(T0)} y2={CY1} />
+		<text class="rs__t0-text" x={cx(T0) + 6} y={CY1 + 12}>
+			T<tspan class="rs__sub" dy="4">0</tspan>
+		</text>
+		<path class="rs__curve" d={curve} data-curve />
+		<g class="rs__now" data-now>
+			<line class="rs__now-line" y1={CY0} y2={CY1} data-now-line />
+			<circle class="rs__now-dot" r="6" data-now-dot />
+		</g>
+	</svg>
+
+	<figcaption class="rs__legend">
+		Длина верёвок <i>l</i> = 2,5 м, <i>g</i> = 9,8 м/с². Каждый толчок длится 0,25 с и направлен вправо.
+		На графике <i>x</i>(<i>t</i>) вертикальные полосы — толчки. Кривая внизу — амплитуда, которая устанавливается, если
+		толкать качели с периодом <i>T</i><sub>толч</sub>; точка — амплитуда качелей сейчас.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rs {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rs i {
+		font-family: var(--ig-font-math);
+	}
+	.rs__scene,
+	.rs__strip,
+	.rs__chart {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.rs__frame line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 7;
+		stroke-linecap: round;
+	}
+	.rs__frame .rs__brace {
+		stroke-width: 4;
+	}
+	.rs__ground line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.rs__ground .rs__grass {
+		stroke: var(--sl-color-gray-5);
+	}
+	.rs__eq {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 5;
+	}
+	.rs__arc {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+		stroke-dasharray: 2 5;
+		stroke-linecap: round;
+	}
+	.rs__rope {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.rs__stop-hi {
+		stop-color: color-mix(in srgb, var(--ig-vy) 55%, white);
+	}
+	.rs__stop {
+		stop-color: var(--ig-vy);
+	}
+	.rs__seat {
+		filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ig-vy) 50%, transparent));
+	}
+	.rs__pivot {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 2;
+	}
+	.rs__push {
+		opacity: 0;
+		transition: opacity 0.12s;
+	}
+	.rs__push.is-on {
+		opacity: 1;
+	}
+	.rs__push line {
+		stroke: var(--ig-v);
+		stroke-width: 5;
+		stroke-linecap: round;
+		filter: drop-shadow(0 0 5px var(--ig-v));
+	}
+	.rs__head path {
+		fill: var(--ig-v);
+	}
+	.rs__sym {
+		fill: var(--ig-v);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 20px;
+		font-weight: 700;
+	}
+
+	.rs__strip {
+		margin-top: 0.35rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+		padding-top: 0.25rem;
+	}
+	.rs__sgrid line,
+	.rs__cgrid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.rs__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+	}
+	.rs__labels text,
+	.rs__name {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.rs__name,
+	.rs__t0-text {
+		font-style: italic;
+	}
+	.rs__sub {
+		font-size: 0.75em;
+		font-style: normal;
+	}
+	.rs__band {
+		fill: color-mix(in srgb, var(--ig-v) 30%, transparent);
+	}
+	.rs__trace {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+
+	.rs__controls {
+		display: grid;
+		gap: 0.6rem;
+		margin-top: 0.6rem;
+	}
+	.rs__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+	}
+	.rs__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rs__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.rs__btn--primary {
+		min-width: 7.5rem;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.rs__btn--primary:hover {
+		filter: brightness(1.08);
+	}
+	.rs__btn--primary:active {
+		transform: translateY(1px);
+	}
+	.rs__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.rs__check input {
+		width: 1.05rem;
+		height: 1.05rem;
+		accent-color: var(--sl-color-accent);
+	}
+	.rs__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		transition: opacity 0.2s;
+	}
+	.rs__slider.is-off {
+		opacity: 0.55;
+	}
+	.rs__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rs__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+
+	.rs__stats {
+		display: grid;
+		grid-template-columns: 1.6fr 1fr;
+		gap: 0.5rem;
+		margin: 0.8rem 0 0;
+	}
+	.rs__stats > div {
+		min-width: 0;
+		padding: 0.45rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.rs__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.rs__stats dd {
+		margin: 0;
+		overflow-x: auto;
+		overflow-y: hidden;
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rs__stats dd .katex {
+		font-size: 1em;
+		font-weight: 400;
+	}
+	.rs__status {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rs__status.is-good {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+	.rs__status.is-bad {
+		color: var(--ig-vy);
+		font-weight: 700;
+	}
+
+	.rs__chart {
+		margin-top: 0.4rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+		padding-top: 0.5rem;
+	}
+	.rs__curve {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.rs__t0 {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 4;
+	}
+	.rs__t0-text {
+		fill: var(--sl-color-gray-2);
+		font-family: var(--ig-font-math);
+		font-size: 16px;
+	}
+	.rs__now {
+		transition: opacity 0.3s;
+	}
+	.rs__now.is-off {
+		opacity: 0.35;
+	}
+	.rs__now-line {
+		stroke: var(--ig-vy);
+		stroke-width: 1.5;
+	}
+	.rs__now-dot {
+		fill: var(--ig-vy);
+		filter: drop-shadow(0 0 5px var(--ig-vy));
+	}
+	.rs__legend {
+		margin-top: 0.45rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+
+	@media (max-width: 40rem) {
+		.rs {
+			padding: 0.75rem;
+		}
+		.rs__labels text,
+		.rs__name {
+			font-size: 24px;
+		}
+		.rs__t0-text {
+			font-size: 26px;
+		}
+		.rs__sym {
+			font-size: 30px;
+		}
+		.rs__trace,
+		.rs__curve {
+			stroke-width: 3.5;
+		}
+		.rs__now-dot {
+			r: 9px;
+		}
+		.rs__stats {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.rs__push,
+		.rs__now,
+		.rs__slider {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { SWING, periodString, pushAcc, rk4t, swingAcc } from './physics';
+	import { animator, fmt, tex, tnum } from './util';
+
+	const S = 90;
+	const PX = 360;
+	const PY = 30;
+	const L = SWING.l * S;
+	const H = 1 / 1000;
+	const DEG = Math.PI / 180;
+	const W = 20; // strip graph window, s
+	const SX0 = 52;
+	const SX1 = 708;
+	const SMID = 58;
+	const SHALF = 46;
+	const CX0 = 64;
+	const CX1 = 700;
+	const CY0 = 186;
+	const CY1 = 22;
+	const TMIN = 1.5;
+	const TMAX = 5;
+	const AMAX = 1;
+	const TH_SAFE = 45 * DEG; // pushes stop above this swing
+	const T0 = periodString(SWING.l, SWING.g);
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const RANGES = [0.25, 0.5, 1, 2];
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rsw]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const el = {
+			swing: q<SVGGElement>('[data-swing]'),
+			arc: q<SVGPathElement>('[data-arc]'),
+			push: q<SVGGElement>('[data-push]'),
+			pushLine: q<SVGLineElement>('[data-push-line]'),
+			pushText: q<SVGTextElement>('[data-push-text]'),
+			sgrid: q<SVGGElement>('[data-sgrid]'),
+			slabels: q<SVGGElement>('[data-slabels]'),
+			bands: q<SVGGElement>('[data-bands]'),
+			trace: q<SVGPathElement>('[data-trace]'),
+			kick: q<HTMLButtonElement>('[data-kick]'),
+			stop: q<HTMLButtonElement>('[data-stop]'),
+			sched: q<HTMLInputElement>('[data-sched]'),
+			fast: q<HTMLInputElement>('[data-fast]'),
+			tp: q<HTMLInputElement>('[data-tp]'),
+			tpOut: q<HTMLOutputElement>('[data-tp-out]'),
+			slider: q<HTMLElement>('.rs__slider'),
+			fT0: q<HTMLElement>('[data-f-t0]'),
+			amp: q<HTMLElement>('[data-amp]'),
+			status: q<HTMLElement>('[data-status]'),
+			now: q<SVGGElement>('[data-now]'),
+			nowLine: q<SVGLineElement>('[data-now-line]'),
+			nowDot: q<SVGCircleElement>('[data-now-dot]'),
+		};
+
+		// ---- State -------------------------------------------------------------------------------
+		let th = 0;
+		let w = 0;
+		let t = 0;
+		let Tp = Number(el.tp.value);
+		let nextPush = Infinity; // time of the next scheduled push
+		const pushes: number[] = []; // start times of all pushes still on the graph
+		const samples: { t: number; x: number }[] = [{ t: 0, x: 0 }];
+		let sampleAcc = 0;
+		let manual: { start: number; e0: number; v0: number } | null = null;
+		let message = '';
+		let tone: '' | 'good' | 'bad' = '';
+
+		const energy = () => SWING.g * SWING.l * (1 - Math.cos(th)) + 0.5 * (SWING.l * w) ** 2; // per kg
+		// Swing amplitude from energy: the angle where all of it would be potential.
+		const thMax = () => Math.acos(Math.max(-1, 1 - energy() / (SWING.g * SWING.l)));
+		const force = (tt: number) => {
+			let f = 0;
+			for (let i = pushes.length - 1; i >= 0; i--) {
+				const s = tt - pushes[i];
+				if (s >= SWING.tau) break;
+				f += pushAcc(s);
+			}
+			return f;
+		};
+		const pushing = () => pushes.length > 0 && t - pushes[pushes.length - 1] < SWING.tau;
+		const moving = () => Math.abs(th) > 1e-4 || Math.abs(w) > 1e-4;
+
+		const addPush = () => {
+			if (thMax() > TH_SAFE) return false;
+			pushes.push(t);
+			return true;
+		};
+
+		const advance = (dt: number) => {
+			let rest = dt;
+			while (rest > 1e-9) {
+				const h = Math.min(H, rest);
+				if (el.sched.checked && t + 1e-9 >= nextPush) {
+					addPush();
+					nextPush += Tp;
+				}
+				[th, w] = rk4t(t, th, w, h, (tt, x, v) => swingAcc(x, v, force(tt)));
+				t += h;
+				rest -= h;
+				sampleAcc += h;
+				if (sampleAcc >= 0.02) {
+					sampleAcc -= 0.02;
+					samples.push({ t, x: SWING.l * Math.sin(th) });
+				}
+			}
+			while (samples.length > 2 && samples[1].t < t - W - 1) samples.shift();
+			while (pushes.length && pushes[0] < t - W - 1) pushes.shift();
+			if (manual && t - manual.start >= SWING.tau) {
+				const gain = energy() - manual.e0;
+				if (manual.e0 < 1e-6) {
+					message = 'Качели сдвинулись с места. Дождитесь, когда они снова пойдут вправо, и толкните ещё раз.';
+					tone = '';
+				} else if (gain > 0) {
+					message = 'Толчок помог: качели и так двигались вправо, и размах вырос.';
+					tone = 'good';
+				} else {
+					message = 'Толчок помешал: качели шли навстречу, и размах уменьшился.';
+					tone = 'bad';
+				}
+				manual = null;
+			}
+			if (!el.sched.checked && !pushing() && thMax() < 0.02 * DEG) {
+				th = 0;
+				w = 0;
+			}
+		};
+
+		// ---- Drawing -----------------------------------------------------------------------------
+		const set = (node: Element, attrs: Record<string, number | string>) => {
+			for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, typeof v === 'number' ? v.toFixed(2) : v);
+		};
+
+		const drawScene = () => {
+			el.swing.setAttribute('transform', `rotate(${(-th / DEG).toFixed(3)} ${PX} ${PY})`);
+			const a = thMax();
+			if (a > 0.3 * DEG) {
+				const x = L * Math.sin(a);
+				const y = PY + L * Math.cos(a);
+				el.arc.setAttribute('d', `M ${(PX - x).toFixed(1)} ${y.toFixed(1)} A ${L} ${L} 0 0 0 ${(PX + x).toFixed(1)} ${y.toFixed(1)}`);
+			} else el.arc.setAttribute('d', '');
+			// The push arrow points along the path, to the right, and ends at the seat.
+			const on = pushing();
+			el.push.classList.toggle('is-on', on);
+			if (on) {
+				const sx = PX + L * Math.sin(th);
+				const sy = PY + L * Math.cos(th);
+				const tx = Math.cos(th);
+				const ty = -Math.sin(th);
+				const strength = pushAcc(t - pushes[pushes.length - 1]) / pushAcc(SWING.tau / 2);
+				const len = 28 + 34 * strength;
+				set(el.pushLine, { x1: sx - (22 + len) * tx, y1: sy - (22 + len) * ty, x2: sx - 22 * tx, y2: sy - 22 * ty });
+				set(el.pushText, { x: sx - (30 + len / 2) * tx - 6, y: sy - (30 + len / 2) * ty - 12 });
+			}
+		};
+
+		const gridLines = Array.from({ length: W + 2 }, () => el.sgrid.appendChild(document.createElementNS(SVG_NS, 'line')));
+		const timeLabels = Array.from({ length: W + 2 }, () => el.slabels.appendChild(document.createElementNS(SVG_NS, 'text')));
+		const yLines = Array.from({ length: 2 }, () => el.sgrid.appendChild(document.createElementNS(SVG_NS, 'line')));
+		const yLabels = Array.from({ length: 3 }, () => el.slabels.appendChild(document.createElementNS(SVG_NS, 'text')));
+		let range = 0;
+		const setRange = (r: number) => {
+			if (r === range) return;
+			range = r;
+			[r, 0, -r].forEach((v, i) => {
+				const y = SMID - (v / r) * SHALF;
+				set(yLabels[i], { x: SX0 - 7, y: y + 4.5, 'text-anchor': 'end' });
+				yLabels[i].textContent = fmt(v, v === 0 ? 0 : r < 1 ? 2 : 0);
+			});
+			[r, -r].forEach((v, i) => {
+				const y = SMID - (v / r) * SHALF;
+				set(yLines[i], { x1: SX0, y1: y, x2: SX1, y2: y });
+			});
+		};
+		const gx = (tt: number, t0: number) => SX0 + ((tt - t0) / W) * (SX1 - SX0);
+
+		const drawStrip = () => {
+			const t0 = Math.max(0, t - W);
+			let peak = 0;
+			for (const s of samples) if (s.t >= t0) peak = Math.max(peak, Math.abs(s.x));
+			setRange(RANGES.find((r) => r >= peak * 1.05) ?? RANGES[RANGES.length - 1]);
+			const first = Math.ceil(t0 / 2) * 2;
+			gridLines.forEach((ln, i) => {
+				const s = first + 2 * i;
+				const on = s <= t0 + W + 1e-9;
+				ln.style.visibility = on ? 'visible' : 'hidden';
+				timeLabels[i].style.visibility = on && s > 0 ? 'visible' : 'hidden';
+				if (!on) return;
+				const x = gx(s, t0);
+				set(ln, { x1: x, y1: 6, x2: x, y2: 110 });
+				set(timeLabels[i], { x, y: 126, 'text-anchor': 'middle' });
+				timeLabels[i].textContent = String(s);
+			});
+			let d = '';
+			for (const s of samples) {
+				if (s.t < t0 - 0.05) continue;
+				d += `${d ? 'L' : 'M'}${gx(s.t, t0).toFixed(1)} ${(SMID - (s.x / range) * SHALF).toFixed(1)}`;
+			}
+			el.trace.setAttribute('d', d);
+			while (el.bands.children.length < pushes.length) {
+				const r = document.createElementNS(SVG_NS, 'rect');
+				r.setAttribute('class', 'rs__band');
+				el.bands.appendChild(r);
+			}
+			Array.from(el.bands.children).forEach((r, i) => {
+				const p = pushes[i];
+				if (p === undefined) return r.remove();
+				set(r, { x: gx(p, t0), y: 6, width: Math.max(2, (SWING.tau / W) * (SX1 - SX0)), height: 104 });
+			});
+		};
+
+		// Amplitude now: the largest displacement over the last swing (or the last push period).
+		const ampNow = () => {
+			const win = Math.max(Tp, T0) * 1.05;
+			let m = 0;
+			for (let i = samples.length - 1; i >= 0 && samples[i].t >= t - win; i--) m = Math.max(m, Math.abs(samples[i].x));
+			return Math.max(m, Math.abs(SWING.l * Math.sin(th)));
+		};
+
+		const drawChart = () => {
+			const x = CX0 + ((Tp - TMIN) / (TMAX - TMIN)) * (CX1 - CX0);
+			const a = ampNow();
+			set(el.nowLine, { x1: x, x2: x });
+			set(el.nowDot, { cx: x, cy: CY0 - (Math.min(a, AMAX * 1.08) / AMAX) * (CY0 - CY1) });
+			el.now.classList.toggle('is-off', !el.sched.checked);
+			const deg = Math.asin(Math.min(1, a / SWING.l)) / DEG;
+			el.amp.textContent = a < 0.005 ? '0 м' : `${fmt(a, 2)} м (${fmt(deg, 0)}°)`;
+		};
+
+		const schedText = () => {
+			const r = Tp / T0;
+			if (Math.abs(r - 1) < 0.025)
+				return { text: 'Толчки попадают в такт с качелями — резонанс! Каждый толчок приходится на движение вправо, и размах растёт.', tone: 'good' as const };
+			if (Math.abs(r - 1) < 0.08)
+				return { text: 'Почти в такт: размах заметно растёт. Подберите период толчков ещё точнее.', tone: '' as const };
+			return {
+				text: `Толчки идут ${r < 1 ? 'чаще' : 'реже'}, чем качаются качели: одни толчки помогают, другие мешают, и большого размаха не получается.`,
+				tone: '' as const,
+			};
+		};
+
+		const drawStatus = () => {
+			let text = message;
+			let cls = tone;
+			if (el.sched.checked && !manual) {
+				const s = schedText();
+				text = s.text;
+				cls = s.tone;
+			} else if (!text) text = 'Нажмите «Толкнуть». Потом толкайте снова — так, чтобы раскачать качели как можно сильнее.';
+			if (el.status.textContent !== text) el.status.textContent = text;
+			el.status.classList.toggle('is-good', cls === 'good');
+			el.status.classList.toggle('is-bad', cls === 'bad');
+		};
+
+		const drawAll = () => {
+			drawScene();
+			drawStrip();
+			drawChart();
+			drawStatus();
+		};
+
+		// ---- Loop and controls -------------------------------------------------------------------
+		const active = () => el.sched.checked || pushing() || moving();
+		const wake = animator(root, active, (dt) => {
+			advance(dt * (el.fast.checked ? 3 : 1));
+			drawAll();
+		});
+
+		el.kick.addEventListener('click', () => {
+			if (thMax() > TH_SAFE) {
+				message = 'Хватит! Раскачивать качели ещё сильнее опасно.';
+				tone = 'bad';
+				drawStatus();
+				return;
+			}
+			const e0 = energy();
+			if (addPush()) manual = { start: t, e0, v0: w };
+			message = '';
+			wake();
+			drawAll();
+		});
+		el.stop.addEventListener('click', () => {
+			th = 0;
+			w = 0;
+			pushes.length = 0;
+			samples.length = 0;
+			samples.push({ t, x: 0 });
+			manual = null;
+			message = '';
+			tone = '';
+			el.sched.checked = false;
+			nextPush = Infinity;
+			el.slider.classList.add('is-off');
+			drawAll();
+		});
+		el.sched.addEventListener('change', () => {
+			nextPush = el.sched.checked ? t : Infinity;
+			el.slider.classList.toggle('is-off', !el.sched.checked);
+			message = '';
+			wake();
+			drawAll();
+		});
+		el.tp.addEventListener('input', () => {
+			const last = nextPush - Tp;
+			Tp = Number(el.tp.value);
+			el.tpOut.textContent = `${fmt(Tp, 2)} с`;
+			if (el.sched.checked) nextPush = Math.max(t, last + Tp);
+			drawChart();
+			drawStatus();
+		});
+		el.fast.addEventListener('change', wake);
+
+		// ---- Start -------------------------------------------------------------------------------
+		tex(
+			el.fT0,
+			`T_0 = 2\\pi\\sqrt{\\dfrac{l}{g}} = 2\\pi\\sqrt{\\dfrac{${tnum(SWING.l, 1)}~\\text{м}}{${tnum(SWING.g, 1)}~\\text{м/с}^2}} \\approx ${tnum(T0, 2)}~\\text{с}`,
+		);
+		el.tpOut.textContent = `${fmt(Tp, 2)} с`;
+		el.slider.classList.add('is-off');
+		drawAll();
+	}
+</script>

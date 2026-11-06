@@ -1,0 +1,815 @@
+---
+/**
+ * Foucault's pendulum seen from above, as in the Panthéon (l = 67 m): the bob swings over a round
+ * floor; a stylus under it cuts marks in a ring of sand. Relative to the floor the swing plane turns
+ * at 15.04°·sin φ per hour (the Earth turns once in 23 h 56 min relative to the stars).
+ * Two views: from the hall (the floor is still, the plane turns) and from space (the plane is still,
+ * the floor turns under it). Time can be sped up; a fast swing is drawn as a blur, as a camera would see it.
+ */
+const R_FLOOR = 200;
+const R_SAND = 150;
+const C = 220;
+const ticks = Array.from({ length: 72 }, (_, i) => {
+	const a = (i * 5 * Math.PI) / 180;
+	const long = i % 6 === 0;
+	const r1 = R_FLOOR - (long ? 16 : 9);
+	const r2 = R_FLOOR - 3;
+	return { x1: C + r1 * Math.cos(a), y1: C - r1 * Math.sin(a), x2: C + r2 * Math.cos(a), y2: C - r2 * Math.sin(a), long };
+});
+const compass = [
+	{ t: 'С', a: 90 },
+	{ t: 'В', a: 0 },
+	{ t: 'Ю', a: 270 },
+	{ t: 'З', a: 180 },
+].map((c) => {
+	const r = R_FLOOR - 32;
+	const a = (c.a * Math.PI) / 180;
+	return { ...c, x: C + r * Math.cos(a), y: C - r * Math.sin(a) + 6 };
+});
+const PLACES = [
+	{ name: 'Северный полюс', lat: 90 },
+	{ name: 'Санкт-Петербург', lat: 59.9 },
+	{ name: 'Париж', lat: 48.8 },
+	{ name: 'Экватор', lat: 0 },
+	{ name: 'Южный полюс', lat: -90 },
+];
+const SPEEDS = [
+	{ k: 1, label: 'как в жизни' },
+	{ k: 60, label: '1 с = 1 мин' },
+	{ k: 600, label: '1 с = 10 мин' },
+	{ k: 3600, label: '1 с = 1 ч' },
+];
+const uid = `ft-${Math.random().toString(36).slice(2, 8)}`;
+// A long exposure of a swinging bob: the bob spends more time near the ends of its path, where it is slow.
+// Brightness ∝ time spent ∝ 1/√(1 − u²), u = x/A.
+const blur = [-1, -0.98, -0.93, -0.85, -0.7, -0.45, 0, 0.45, 0.7, 0.85, 0.93, 0.98, 1].map((u) => ({
+	o: ((u + 1) / 2).toFixed(3),
+	a: Math.min(0.95, 0.16 / Math.sqrt(Math.max(1e-6, 1 - u * u))).toFixed(3),
+}));
+// Globe.
+const GX = 130;
+const GY = 150;
+const GR = 100;
+---
+
+<figure class="ft not-content" data-ft>
+	<div class="ft__places" role="group" aria-label="Где висит маятник">
+		{
+			PLACES.map((p, i) => (
+				<button type="button" class="ft__chip" data-place={p.lat} aria-pressed={i === 2 ? 'true' : 'false'}>
+					{p.name}
+				</button>
+			))
+		}
+	</div>
+
+	<div class="ft__main">
+		<svg class="ft__floor" viewBox="0 0 440 440" role="img" aria-label="Маятник Фуко, вид сверху: пол, кольцо песка и шар маятника">
+			<defs>
+				<radialGradient id={`${uid}-stone`} cx="50%" cy="50%" r="50%">
+					<stop offset="0" class="ft__stop-floor-in" />
+					<stop offset="1" class="ft__stop-floor-out" />
+				</radialGradient>
+				<linearGradient id={`${uid}-blur`} gradientUnits="userSpaceOnUse" x1={C - R_SAND} y1={C} x2={C + R_SAND} y2={C}>
+					{blur.map((b) => <stop offset={b.o} stop-opacity={b.a} class="ft__stop-blur" />)}
+				</linearGradient>
+				<radialGradient id={`${uid}-bob`} cx="38%" cy="32%" r="70%">
+					<stop offset="0" class="ft__stop-bob-hi" />
+					<stop offset="0.5" class="ft__stop-bob" />
+					<stop offset="1" class="ft__stop-bob-dark" />
+				</radialGradient>
+			</defs>
+
+			<g data-floor>
+				<circle class="ft__disc" cx={C} cy={C} r={R_FLOOR} fill={`url(#${uid}-stone)`} />
+				{ticks.map((t) => <line class={t.long ? 'ft__tick ft__tick--long' : 'ft__tick'} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />)}
+				{
+					compass.map((c) => (
+						<text class="ft__compass" x={c.x} y={c.y} text-anchor="middle" data-cx={c.x} data-cy={c.y - 6}>
+							{c.t}
+						</text>
+					))
+				}
+				<circle class="ft__sand" cx={C} cy={C} r={R_SAND} />
+				<g data-hours></g>
+				<path class="ft__groove" data-groove1 />
+				<path class="ft__groove" data-groove2 />
+			</g>
+
+			<g data-plane>
+				<line class="ft__planeline" x1={C - R_SAND - 10} y1={C} x2={C + R_SAND + 10} y2={C} />
+				<line class="ft__streak" x1={C - R_SAND} y1={C} x2={C + R_SAND} y2={C} stroke={`url(#${uid}-blur)`} />
+				<line class="ft__wire" x1={C} y1={C} x2={C + R_SAND} y2={C} data-wire />
+				<circle class="ft__bob" r="14" cx={C + R_SAND} cy={C} fill={`url(#${uid}-bob)`} data-bob />
+			</g>
+			<circle class="ft__pivot" cx={C} cy={C} r="4" />
+		</svg>
+
+		<div class="ft__side">
+			<svg class="ft__globe" viewBox="0 0 260 290" role="img" aria-label="Где на Земле висит маятник" data-globe>
+				<circle class="ft__earth" cx={GX} cy={GY} r={GR} />
+				<line class="ft__axis" x1={GX} y1={GY - GR - 22} x2={GX} y2={GY + GR + 22} />
+				<line class="ft__equator" x1={GX - GR} y1={GY} x2={GX + GR} y2={GY} />
+				<path class="ft__spin" d={`M ${GX - 26} ${GY - GR - 12} A 26 8 0 0 0 ${GX + 22} ${GY - GR - 8}`} />
+				<path class="ft__spin-head" d={`M ${GX + 30} ${GY - GR - 10} l -11 -5 l 1 9 z`} />
+				<text class="ft__gtext" x={GX + 10} y={GY - GR - 22}>С</text>
+				<text class="ft__gtext" x={GX + 10} y={GY + GR + 30}>Ю</text>
+				<line class="ft__parallel" data-parallel />
+				<line class="ft__radius" x1={GX} y1={GY} x2={GX + GR} y2={GY} />
+				<line class="ft__radius" x1={GX} y1={GY} data-gradius />
+				<path class="ft__gangle" data-gangle />
+				<text class="ft__gsym" data-gphi>φ</text>
+				<circle class="ft__here" r="7" data-here />
+			</svg>
+			<p class="ft__where" data-where></p>
+			<dl class="ft__stats">
+				<div><dt>Прошло времени</dt><dd data-time>0 с</dd></div>
+				<div><dt>Поворот плоскости</dt><dd data-turn>0°</dd></div>
+				<div><dt>Полный оборот</dt><dd data-full>—</dd></div>
+			</dl>
+		</div>
+	</div>
+
+	<div class="ft__f" data-f></div>
+
+	<div class="ft__controls">
+		<label class="ft__slider">
+			<span>Широта <i>φ</i></span>
+			<output data-lat-out></output>
+			<input type="range" min="-90" max="90" step="0.1" value="48.8" data-lat />
+		</label>
+		<div class="ft__row">
+			<span class="ft__row-label">Скорость времени:</span>
+			<div class="ft__seg" role="group" aria-label="Скорость времени">
+				{
+					SPEEDS.map((s, i) => (
+						<button type="button" class="ft__seg-btn" data-speed={s.k} aria-pressed={i === 3 ? 'true' : 'false'}>
+							{s.label}
+						</button>
+					))
+				}
+			</div>
+		</div>
+		<div class="ft__row">
+			<span class="ft__row-label">Смотреть:</span>
+			<div class="ft__seg" role="group" aria-label="Откуда смотреть">
+				<button type="button" class="ft__seg-btn" data-view="hall" aria-pressed="true">из зала</button>
+				<button type="button" class="ft__seg-btn" data-view="space" aria-pressed="false">из космоса</button>
+			</div>
+		</div>
+		<div class="ft__row">
+			<button type="button" class="ft__btn ft__btn--primary" data-run>Пуск</button>
+			<button type="button" class="ft__btn" data-restart>Запустить заново</button>
+		</div>
+	</div>
+	<p class="ft__status" aria-live="polite" data-status></p>
+
+	<figcaption class="ft__legend">
+		Вид сверху. Маятник длиной 67 м, как в Пантеоне, качается с периодом 16,4 с. Острие под шаром чертит след
+		в кольце из песка; тонкие линии — положение плоскости качаний через каждый час. Относительно звёзд Земля делает
+		оборот за 23 ч 56 мин ≈ 23,93 ч, то есть поворачивается на 15,04° в час. Вид «из космоса» показывает только поворот
+		пола вокруг вертикали.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ft {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ft i {
+		font-family: var(--ig-font-math);
+	}
+	.ft__places {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.ft__chip,
+	.ft__seg-btn,
+	.ft__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.95rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background-color 0.2s;
+	}
+	.ft__chip:hover,
+	.ft__seg-btn:hover,
+	.ft__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ft__chip[aria-pressed='true'],
+	.ft__seg-btn[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.ft__btn--primary {
+		min-width: 6.5rem;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ft__btn--primary:hover {
+		filter: brightness(1.08);
+	}
+
+	.ft__main {
+		display: grid;
+		grid-template-columns: 1.35fr 1fr;
+		gap: 1rem;
+		align-items: center;
+		margin-top: 0.75rem;
+	}
+	.ft__floor,
+	.ft__globe {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.ft__stop-floor-in {
+		stop-color: color-mix(in srgb, var(--sl-color-gray-5) 55%, var(--ig-surface));
+	}
+	.ft__stop-floor-out {
+		stop-color: color-mix(in srgb, var(--sl-color-gray-5) 85%, var(--ig-surface));
+	}
+	.ft__disc {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.ft__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ft__tick--long {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.ft__compass {
+		fill: var(--sl-color-gray-2);
+		font-size: 17px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.ft__sand {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 18%, var(--sl-color-gray-5));
+		stroke-width: 18;
+	}
+	.ft__groove {
+		fill: none;
+		stroke: var(--sl-color-text-accent);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.ft__hour {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		opacity: 0.55;
+	}
+	.ft__planeline {
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 6;
+		opacity: 0.8;
+	}
+	.ft__streak {
+		stroke-width: 26;
+		stroke-linecap: butt;
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+	.ft__stop-blur {
+		stop-color: var(--ig-v);
+	}
+	.ft.is-blur .ft__streak {
+		opacity: 1;
+	}
+	.ft__wire {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+		transition: opacity 0.3s;
+	}
+	.ft__stop-bob-hi {
+		stop-color: color-mix(in srgb, var(--ig-v) 35%, white);
+	}
+	.ft__stop-bob {
+		stop-color: var(--ig-v);
+	}
+	.ft__stop-bob-dark {
+		stop-color: color-mix(in srgb, var(--ig-v) 55%, black);
+	}
+	.ft__bob {
+		filter: drop-shadow(0 0 7px color-mix(in srgb, var(--ig-v) 60%, transparent));
+		transition: opacity 0.3s;
+	}
+	.ft.is-blur .ft__bob,
+	.ft.is-blur .ft__wire {
+		opacity: 0;
+	}
+	.ft__pivot {
+		fill: var(--sl-color-gray-2);
+	}
+
+	.ft__side {
+		display: grid;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+	.ft__globe {
+		max-width: 16rem;
+		justify-self: center;
+	}
+	.ft__earth {
+		fill: color-mix(in srgb, var(--ig-vx) 22%, var(--ig-surface));
+		stroke: var(--ig-vx);
+		stroke-width: 1.5;
+	}
+	.ft__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 4;
+	}
+	.ft__equator {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.ft__parallel {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.ft__radius {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+	}
+	.ft__gangle {
+		fill: none;
+		stroke: var(--sl-color-text-accent);
+		stroke-width: 1.5;
+	}
+	.ft__spin {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.ft__spin-head {
+		fill: var(--sl-color-gray-2);
+	}
+	.ft__gtext {
+		fill: var(--sl-color-gray-2);
+		font-size: 16px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.ft__gsym {
+		fill: var(--sl-color-text-accent);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 19px;
+	}
+	.ft__here {
+		fill: var(--ig-v);
+		stroke: var(--sl-color-black);
+		stroke-width: 1.5;
+		filter: drop-shadow(0 0 5px var(--ig-v));
+	}
+	.ft__where {
+		margin: 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.ft__stats {
+		display: grid;
+		gap: 0.4rem;
+		margin: 0;
+	}
+	.ft__stats > div {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0.5rem;
+		padding: 0.35rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.ft__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.ft__stats dd {
+		margin: 0;
+		white-space: nowrap;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		text-align: end;
+	}
+	.ft__f {
+		margin-top: 0.75rem;
+		padding: 0.4rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.ft__controls {
+		display: grid;
+		gap: 0.6rem;
+		margin-top: 0.75rem;
+	}
+	.ft__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ft__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ft__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.ft__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem 0.6rem;
+	}
+	.ft__row-label {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ft__seg {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.ft__status {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ft__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+
+	@media (max-width: 40rem) {
+		.ft {
+			padding: 0.75rem;
+		}
+		.ft__main {
+			grid-template-columns: 1fr;
+			gap: 0.5rem;
+		}
+		.ft__side {
+			grid-template-columns: 7rem 1fr;
+			align-items: start;
+		}
+		.ft__globe {
+			grid-row: 1 / 3;
+			align-self: center;
+		}
+		.ft__stats > div {
+			display: block;
+		}
+		.ft__stats dd {
+			text-align: start;
+		}
+		.ft__where {
+			text-align: start;
+		}
+		.ft__compass {
+			font-size: 22px;
+		}
+		.ft__gtext {
+			font-size: 30px;
+		}
+		.ft__gsym {
+			font-size: 34px;
+		}
+		.ft__chip,
+		.ft__seg-btn {
+			padding: 0.35rem 0.7rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ft__chip,
+		.ft__seg-btn,
+		.ft__btn,
+		.ft__streak,
+		.ft__wire,
+		.ft__bob {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { periodString } from './physics';
+	import { SVG_NS, animator, fmt, reduceMotion, tex, tnum } from './util';
+
+	const C = 220;
+	const R_SAND = 150;
+	const AMP = 150; // swing amplitude on the floor, px
+	const DEG = Math.PI / 180;
+	const DAY = 23.9345; // sidereal day, h
+	const OMEGA = 360 / DAY; // degrees per hour
+	const T = periodString(67, 9.8); // s
+	const PSI0 = 90; // released along the north–south line
+	const GX = 130;
+	const GY = 150;
+	const GR = 100;
+	const MAX_HOURS = 60;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ft]')) {
+		const q = <E extends Element>(sel: string) => root.querySelector<E>(sel)!;
+		const compass = Array.from(root.querySelectorAll<SVGTextElement>('.ft__compass'));
+		const el = {
+			floor: q<SVGGElement>('[data-floor]'),
+			plane: q<SVGGElement>('[data-plane]'),
+			hours: q<SVGGElement>('[data-hours]'),
+			groove1: q<SVGPathElement>('[data-groove1]'),
+			groove2: q<SVGPathElement>('[data-groove2]'),
+			bob: q<SVGCircleElement>('[data-bob]'),
+			wire: q<SVGLineElement>('[data-wire]'),
+			parallel: q<SVGLineElement>('[data-parallel]'),
+			gradius: q<SVGLineElement>('[data-gradius]'),
+			gangle: q<SVGPathElement>('[data-gangle]'),
+			gphi: q<SVGTextElement>('[data-gphi]'),
+			here: q<SVGCircleElement>('[data-here]'),
+			where: q<HTMLElement>('[data-where]'),
+			time: q<HTMLElement>('[data-time]'),
+			turn: q<HTMLElement>('[data-turn]'),
+			full: q<HTMLElement>('[data-full]'),
+			f: q<HTMLElement>('[data-f]'),
+			lat: q<HTMLInputElement>('[data-lat]'),
+			latOut: q<HTMLOutputElement>('[data-lat-out]'),
+			run: q<HTMLButtonElement>('[data-run]'),
+			restart: q<HTMLButtonElement>('[data-restart]'),
+			status: q<HTMLElement>('[data-status]'),
+			places: Array.from(root.querySelectorAll<HTMLButtonElement>('[data-place]')),
+			speeds: Array.from(root.querySelectorAll<HTMLButtonElement>('[data-speed]')),
+			views: Array.from(root.querySelectorAll<HTMLButtonElement>('[data-view]')),
+		};
+
+		// ---- State ----------------------------------------------------------------------------------
+		let lat = Number(el.lat.value); // degrees, north is +
+		let speed = 3600; // model seconds per screen second
+		let t = 0; // model time since release, s
+		let psi = PSI0; // swing direction relative to the floor, degrees counter-clockwise from east
+		let nextHour = 3600;
+		let running = false;
+		let view: 'hall' | 'space' = 'hall';
+		let blend = 0; // 0 — from the hall, 1 — from space (tweened)
+		let tween = 0;
+
+		const rate = () => OMEGA * Math.sin(lat * DEG); // degrees per hour, + means clockwise seen from above
+		const sinLat = () => Math.sin(Math.abs(lat) * DEG);
+		const still = () => Math.abs(lat) < 0.05;
+
+		// ---- Formatting -----------------------------------------------------------------------------
+		const latText = (v: number) =>
+			Math.abs(v) < 0.05 ? '0°' : `${fmt(Math.abs(v), Number.isInteger(v) ? 0 : 1)}° ${v > 0 ? 'с. ш.' : 'ю. ш.'}`;
+		const duration = (s: number) => {
+			const total = Math.floor(s);
+			const h = Math.floor(total / 3600);
+			const m = Math.floor((total % 3600) / 60);
+			const sec = total % 60;
+			if (h > 0) return `${h} ч ${String(m).padStart(2, '0')} мин`;
+			if (m > 0) return `${m} мин ${String(sec).padStart(2, '0')} с`;
+			return `${sec} с`;
+		};
+
+		// ---- Drawing --------------------------------------------------------------------------------
+		const set = (node: Element, attrs: Record<string, number | string>) => {
+			for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, typeof v === 'number' ? v.toFixed(2) : v);
+		};
+		// A point on the floor at angle a (degrees, counter-clockwise from east) and radius r.
+		const pt = (a: number, r: number) => [C + r * Math.cos(a * DEG), C - r * Math.sin(a * DEG)];
+		const arc = (from: number, to: number) => {
+			const sweep = to - from;
+			if (Math.abs(sweep) < 0.05) return '';
+			const [x1, y1] = pt(from, R_SAND);
+			const [x2, y2] = pt(to, R_SAND);
+			// SVG y runs down, so a counter-clockwise turn on the page is sweep-flag 0.
+			return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${R_SAND} ${R_SAND} 0 0 ${sweep > 0 ? 0 : 1} ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+		};
+
+		const drawGrooves = () => {
+			const turned = psi - PSI0;
+			if (Math.abs(turned) >= 180) {
+				// Both ends of the swing have drawn half a ring each: the ring is complete.
+				const full = `M ${C + R_SAND} ${C} A ${R_SAND} ${R_SAND} 0 1 0 ${C - R_SAND} ${C} A ${R_SAND} ${R_SAND} 0 1 0 ${C + R_SAND} ${C}`;
+				el.groove1.setAttribute('d', full);
+				el.groove2.setAttribute('d', '');
+				return;
+			}
+			el.groove1.setAttribute('d', arc(PSI0, psi));
+			el.groove2.setAttribute('d', arc(PSI0 + 180, psi + 180));
+		};
+
+		const addHourLine = () => {
+			const line = document.createElementNS(SVG_NS, 'line');
+			line.setAttribute('class', 'ft__hour');
+			const [x1, y1] = pt(psi, R_SAND + 9);
+			const [x2, y2] = pt(psi + 180, R_SAND + 9);
+			set(line, { x1, y1, x2, y2 });
+			el.hours.appendChild(line);
+			while (el.hours.children.length > MAX_HOURS) el.hours.firstElementChild!.remove();
+		};
+
+		const drawScene = () => {
+			// From space the swing plane keeps its direction PSI0 and the floor turns under it.
+			const floorRot = blend * (PSI0 - psi);
+			el.floor.setAttribute('transform', `rotate(${(-floorRot).toFixed(3)} ${C} ${C})`);
+			// The letters ride on the floor but stay upright, so they can be read.
+			for (const c of compass) c.setAttribute('transform', `rotate(${floorRot.toFixed(3)} ${c.dataset.cx} ${c.dataset.cy})`);
+			el.plane.setAttribute('transform', `rotate(${(-(psi + floorRot)).toFixed(3)} ${C} ${C})`);
+			const s = AMP * Math.cos((2 * Math.PI * t) / T);
+			set(el.bob, { cx: C + s, cy: C });
+			set(el.wire, { x2: C + s, y2: C });
+			root.classList.toggle('is-blur', T / speed < 0.5 && running);
+			drawGrooves();
+		};
+
+		const drawNumbers = () => {
+			el.time.textContent = duration(t);
+			const turned = Math.abs(psi - PSI0);
+			const dir = psi < PSI0 ? 'по часовой' : 'против часовой';
+			el.turn.textContent = turned < 0.05 ? '0°' : `${fmt(turned, 1)}° ${dir}`;
+		};
+
+		const drawGlobe = () => {
+			const a = lat * DEG;
+			const x = GX + GR * Math.cos(a);
+			const y = GY - GR * Math.sin(a);
+			set(el.here, { cx: x, cy: y });
+			set(el.gradius, { x2: x, y2: y });
+			set(el.parallel, { x1: GX - GR * Math.cos(a), y1: y, x2: x, y2: y });
+			el.parallel.style.visibility = Math.abs(lat) > 1 && Math.abs(lat) < 89 ? 'visible' : 'hidden';
+			const r = 34;
+			const show = Math.abs(lat) >= 8;
+			el.gangle.style.visibility = show ? 'visible' : 'hidden';
+			el.gphi.style.visibility = show ? 'visible' : 'hidden';
+			if (show) {
+				const [ax, ay] = [GX + r * Math.cos(a), GY - r * Math.sin(a)];
+				el.gangle.setAttribute('d', `M ${GX + r} ${GY} A ${r} ${r} 0 0 ${lat > 0 ? 0 : 1} ${ax.toFixed(2)} ${ay.toFixed(2)}`);
+				set(el.gphi, { x: GX + (r + 10) * Math.cos(a / 2), y: GY - (r + 10) * Math.sin(a / 2) + 7 });
+			}
+		};
+
+		const drawFormula = () => {
+			const s = sinLat();
+			const per = OMEGA * s;
+			const phi = `${tnum(Math.abs(lat), Number.isInteger(lat) ? 0 : 1)}^\\circ`;
+			tex(
+				el.f,
+				`\\text{за 1 ч:}\\quad 15{,}04^\\circ\\cdot\\sin\\varphi = 15{,}04^\\circ\\cdot\\sin ${phi} \\approx 15{,}04^\\circ\\cdot ${tnum(s, 3)} \\approx ${tnum(per, 1)}^\\circ`,
+			);
+			el.full.textContent = still() ? 'не поворачивается' : `за ${fmt(DAY / s, 1)} ч`;
+			el.latOut.textContent = latText(lat);
+			const place = el.places.find((b) => Math.abs(Number(b.dataset.place) - lat) < 0.05);
+			el.places.forEach((b) => b.setAttribute('aria-pressed', String(b === place)));
+			el.where.textContent = place ? `${place.textContent!.trim()} · ${latText(lat)}` : latText(lat);
+		};
+
+		const drawStatus = () => {
+			let msg: string;
+			const north = lat > 0;
+			if (still()) {
+				msg = 'На экваторе пол не поворачивается вокруг вертикали, и плоскость качаний относительно пола остаётся прежней.';
+			} else if (speed === 1) {
+				const perSwing = (Math.abs(rate()) * T) / 3600;
+				msg = `В реальном времени поворот не заметен: за одно качание (${fmt(T, 1)} с) плоскость поворачивается всего на ${fmt(perSwing, 2)}°. Ускорьте время.`;
+			} else if (view === 'hall') {
+				msg = `Зрители в зале видят: плоскость качаний медленно поворачивается ${north ? 'по часовой стрелке' : 'против часовой стрелки'}.`;
+			} else {
+				msg = `Из космоса видно: маятник качается всё в той же плоскости, а пол поворачивается под ним ${north ? 'против часовой стрелки' : 'по часовой стрелке'}.`;
+			}
+			if (el.status.textContent !== msg) el.status.textContent = msg;
+		};
+
+		const drawAll = () => {
+			drawScene();
+			drawNumbers();
+		};
+
+		// ---- Loop -----------------------------------------------------------------------------------
+		const wake = animator(
+			root,
+			() => running,
+			(dt) => {
+				const h = dt * speed;
+				t += h;
+				psi -= (rate() * h) / 3600;
+				while (t >= nextHour) {
+					addHourLine();
+					nextHour += 3600;
+				}
+				drawAll();
+			},
+		);
+		const setRunning = (on: boolean) => {
+			running = on;
+			el.run.textContent = on ? 'Пауза' : 'Пуск';
+			drawScene();
+			wake();
+		};
+
+		const tweenView = () => {
+			cancelAnimationFrame(tween);
+			const target = view === 'space' ? 1 : 0;
+			if (reduceMotion()) {
+				blend = target;
+				drawScene();
+				return;
+			}
+			const from = blend;
+			const start = performance.now();
+			const stepTween = (now: number) => {
+				const k = Math.min(1, (now - start) / 700);
+				blend = from + (target - from) * (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2);
+				drawScene();
+				if (k < 1) tween = requestAnimationFrame(stepTween);
+			};
+			tween = requestAnimationFrame(stepTween);
+		};
+
+		// ---- Controls -------------------------------------------------------------------------------
+		// Back to the moment of release: no time, no turn, only the first hour line.
+		const reset = () => {
+			t = 0;
+			psi = PSI0;
+			nextHour = 3600;
+			el.hours.replaceChildren();
+			addHourLine();
+			drawAll();
+		};
+		// A new place is a new experiment: the old turn and hour lines belong to the old place.
+		const moveTo = (v: number) => {
+			setLat(v);
+			reset();
+		};
+		const setLat = (v: number) => {
+			lat = Math.max(-90, Math.min(90, Math.round(v * 10) / 10));
+			el.lat.value = String(lat);
+			drawGlobe();
+			drawFormula();
+			drawStatus();
+		};
+		el.lat.addEventListener('input', () => moveTo(Number(el.lat.value)));
+		el.places.forEach((b) => b.addEventListener('click', () => moveTo(Number(b.dataset.place))));
+		el.speeds.forEach((b) =>
+			b.addEventListener('click', () => {
+				speed = Number(b.dataset.speed);
+				el.speeds.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				drawStatus();
+				drawScene();
+				if (!running) setRunning(true);
+			}),
+		);
+		el.views.forEach((b) =>
+			b.addEventListener('click', () => {
+				view = b.dataset.view as 'hall' | 'space';
+				el.views.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				drawStatus();
+				tweenView();
+			}),
+		);
+		el.run.addEventListener('click', () => setRunning(!running));
+		el.restart.addEventListener('click', () => {
+			reset();
+			setRunning(true);
+		});
+
+		// ---- Start ----------------------------------------------------------------------------------
+		setLat(lat);
+		reset();
+		setRunning(!reduceMotion());
+	}
+</script>

@@ -42,6 +42,7 @@ export default defineConfig({
 				]),
 				grade(9, [
 					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['zakony-nyutona']),
+					section('Механические колебания и волны. Звук', '9-klass/kolebaniya-i-volny', ['mayatnik']),
 				]),
 				grade(10, [
 					section('Кинематика', '10-klass/kinematika', ['brosok-pod-uglom']),
