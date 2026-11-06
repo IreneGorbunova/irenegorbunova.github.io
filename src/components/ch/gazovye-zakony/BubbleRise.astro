@@ -1,0 +1,512 @@
+---
+/**
+ * A bubble of air rising in a lake: the Boyle–Mariotte law (the water temperature is the same at
+ * all depths). Depth scale 9 px per metre; the bubble is drawn greatly enlarged, its radius is
+ * proportional to the cube root of its volume. p = p0 + ρgh, V = V0·p0/p.
+ */
+const uid = `bub-${Math.random().toString(36).slice(2, 8)}`;
+const TOP = 40; // water surface, y
+const K = 9; // px per metre
+const HMAX = 40;
+const yAt = (h: number) => TOP + K * h;
+const ticks = Array.from({ length: HMAX / 5 + 1 }, (_, i) => i * 5);
+const pAt = (h: number) => (1e5 + 1000 * 9.8 * h) / 1e3; // кПа
+---
+
+<figure class="bub not-content" data-bubble data-uid={uid}>
+	<div class="bub__grid">
+		<svg class="bub__scene" viewBox="0 0 360 446" role="img" aria-label="Озеро глубиной 40 м и пузырёк воздуха">
+			<defs>
+				<linearGradient id={`${uid}-water`} x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="bub__w0" />
+					<stop offset="1" class="bub__w1" />
+				</linearGradient>
+				<radialGradient id={`${uid}-glass`} cx="0.35" cy="0.3" r="0.75">
+					<stop offset="0" class="bub__g0" />
+					<stop offset="0.7" class="bub__g1" />
+					<stop offset="1" class="bub__g2" />
+				</radialGradient>
+			</defs>
+			<rect class="bub__sky" x="0" y="0" width="360" height={TOP} />
+			<rect x="0" y={TOP} width="360" height={yAt(HMAX) - TOP} fill={`url(#${uid}-water)`} />
+			<g class="bub__rays">
+				<path d={`M 150 ${TOP} L 110 ${yAt(26)} L 150 ${yAt(26)} Z`} />
+				<path d={`M 230 ${TOP} L 215 ${yAt(20)} L 250 ${yAt(20)} Z`} />
+				<path d={`M 290 ${TOP} L 300 ${yAt(16)} L 325 ${yAt(16)} Z`} />
+			</g>
+			<path class="bub__bottom" d={`M 0 ${yAt(HMAX)} Q 90 ${yAt(HMAX) - 8} 180 ${yAt(HMAX)} T 360 ${yAt(HMAX) - 2} V 446 H 0 Z`} />
+			<path class="bub__surface" d={`M 0 ${TOP} q 15 -4 30 0 t 30 0 t 30 0 t 30 0 t 30 0 t 30 0 t 30 0 t 30 0 t 30 0 t 30 0 t 30 0 t 30 0`} />
+
+			<g class="bub__scale">
+				{
+					ticks.map((h) => (
+						<>
+							<line x1="44" x2={h % 10 === 0 ? 54 : 50} y1={yAt(h)} y2={yAt(h)} />
+							{h % 10 === 0 && (
+								<>
+									<text x="40" y={yAt(h) + (h === 0 ? 15 : 4.5)} text-anchor="end">
+										{h}
+									</text>
+									<text class="bub__p" x="352" y={yAt(h) + (h === 0 ? 15 : 4.5)} text-anchor="end">
+										{Math.round(pAt(h))}
+									</text>
+								</>
+							)}
+						</>
+					))
+				}
+				<line x1="44" x2="44" y1={TOP} y2={yAt(HMAX)} />
+				<text class="bub__unit" x="40" y={TOP - 10} text-anchor="end">
+					<tspan font-style="italic">h</tspan>, м
+				</text>
+				<text class="bub__unit" x="352" y={TOP - 10} text-anchor="end">
+					<tspan font-style="italic">p</tspan>, кПа
+				</text>
+			</g>
+
+			<g data-ghosts></g>
+			<g data-bub-g class="bub__drag">
+				<circle class="bub__b" r="10" fill={`url(#${uid}-glass)`} data-bub />
+				<ellipse class="bub__shine" rx="4" ry="2.5" data-shine />
+			</g>
+			<circle class="bub__pop" r="0" data-pop />
+			<text class="bub__tag" data-tag text-anchor="start"></text>
+		</svg>
+
+		<div class="bub__panel">
+			<label class="bub__slider">
+				<span>Глубина <i>h</i></span>
+				<output data-h-out>20 м</output>
+				<input type="range" min="0" max={HMAX} step="0.5" value="20" data-h-in />
+			</label>
+			<div class="bub__btns">
+				<button type="button" class="bub__btn bub__btn--primary" data-go>Отпустить пузырёк</button>
+				<button type="button" class="bub__btn" data-reset>На дно</button>
+			</div>
+			<div class="bub__formula" data-formula></div>
+			<dl class="bub__stats">
+				<div><dt>Объём пузырька</dt><dd data-v>—</dd></div>
+				<div><dt>У поверхности станет</dt><dd>1,00 см³</dd></div>
+			</dl>
+		</div>
+	</div>
+	<figcaption class="bub__cap">
+		Воздуха в пузырьке столько, что у поверхности он занимает 1 см³. Температуру воды считаем одинаковой на всех
+		глубинах, <span class="bub__nowrap"><i>p</i><sub>0</sub> = 100 кПа</span>,{' '}
+		<span class="bub__nowrap"><i>g</i> = 9,8 м/с²</span>. Пузырёк нарисован сильно увеличенным, подъём ускорен в 20 раз.
+		Пузырёк можно тянуть мышкой или пальцем.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.bub {
+		/* the glint of the bubble is light in both themes */
+		--bub-glint: var(--sl-color-white);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.bub i {
+		font-family: var(--ig-font-math);
+	}
+	.bub__grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: start;
+	}
+	.bub__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.7rem;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.bub__sky {
+		fill: var(--sl-color-gray-6);
+	}
+	.bub__w0 {
+		stop-color: color-mix(in oklab, var(--ig-vx) 45%, var(--ig-surface));
+	}
+	.bub__w1 {
+		stop-color: color-mix(in oklab, var(--ig-vx) 12%, var(--sl-color-black));
+	}
+	.bub__rays path {
+		fill: var(--sl-color-white);
+		opacity: 0.05;
+	}
+	.bub__bottom {
+		fill: color-mix(in oklab, var(--ig-v) 35%, var(--sl-color-gray-5));
+	}
+	.bub__surface {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-opacity: 0.6;
+		stroke-width: 1.5;
+	}
+	.bub__scale line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.bub__scale text {
+		font-family: var(--__sl-font);
+		font-size: 14px;
+		fill: var(--sl-color-gray-2);
+	}
+	.bub__scale .bub__p {
+		fill: var(--sl-color-gray-2);
+	}
+	:root[data-theme='light'] .bub {
+		--bub-glint: var(--sl-color-black);
+	}
+	.bub__g0 {
+		stop-color: var(--bub-glint);
+		stop-opacity: 0.55;
+	}
+	.bub__g1 {
+		stop-color: var(--ig-vx);
+		stop-opacity: 0.25;
+	}
+	.bub__g2 {
+		stop-color: var(--ig-vx);
+		stop-opacity: 0.6;
+	}
+	.bub__b {
+		stroke: color-mix(in oklab, var(--bub-glint) 75%, var(--ig-vx));
+		stroke-opacity: 0.85;
+		stroke-width: 1.5;
+	}
+	.bub__shine {
+		fill: var(--bub-glint);
+		opacity: 0.85;
+	}
+	.bub__drag {
+		cursor: grab;
+	}
+	.bub.is-dragging .bub__drag {
+		cursor: grabbing;
+	}
+	.bub__ghost {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-opacity: 0.55;
+		stroke-dasharray: 3 3;
+	}
+	.bub__ghost-t {
+		font-family: var(--__sl-font);
+		font-size: 13px;
+		fill: var(--sl-color-white);
+		opacity: 0.8;
+	}
+	.bub__pop {
+		fill: none;
+		stroke: var(--bub-glint);
+		stroke-width: 1.5;
+	}
+	.bub__tag {
+		font-family: var(--__sl-font);
+		font-size: 14px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		paint-order: stroke;
+		stroke: color-mix(in oklab, var(--ig-vx) 20%, var(--sl-color-black));
+		stroke-width: 3px;
+	}
+
+	.bub__panel {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.8rem;
+		min-width: 0;
+	}
+	.bub__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.bub__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.bub__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.bub__btns {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.bub__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.bub__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.bub__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.bub__formula {
+		min-height: 7.5rem;
+		font-size: 0.95em;
+	}
+	.bub__formula .katex-display {
+		margin: 0.4rem 0;
+	}
+	.bub__stats {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+		margin: 0;
+	}
+	.bub__stats > div {
+		padding: 0.45rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.bub__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.bub__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.bub__cap {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.bub__nowrap {
+		white-space: nowrap;
+	}
+	@media (max-width: 44rem) {
+		.bub {
+			padding: 0.75rem;
+		}
+		.bub__grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.bub__scene {
+			max-width: 24rem;
+			margin-inline: auto;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+
+	const TOP = 40;
+	const K = 9;
+	const HMAX = 40;
+	const X = 196;
+	const R0 = 22; // px, radius at the surface (volume 1 см³)
+	const P0 = 1e5;
+	const RHO_G = 1000 * 9.8;
+	const SPEED = 5; // м/с in the picture: a real bubble rises at about 0.25 м/с
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const capture = (e: Element, id: number) => {
+		try {
+			e.setPointerCapture(id);
+		} catch {
+			/* the pointer is already gone */
+		}
+	};
+
+	const fmt = (v: number, d: number) =>
+		v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d }).replace('-', '−');
+	const tex = (v: number, d: number) => v.toFixed(d).replace('.', '{,}');
+	const pAt = (h: number) => P0 + RHO_G * h;
+	const vAt = (h: number) => P0 / pAt(h); // см³
+	const rAt = (h: number) => R0 * Math.cbrt(vAt(h));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bubble]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const hIn = q<HTMLInputElement>('[data-h-in]');
+		const hOut = q<HTMLOutputElement>('[data-h-out]');
+		const bub = q<SVGCircleElement>('[data-bub]');
+		const shine = q<SVGEllipseElement>('[data-shine]');
+		const grp = q<SVGGElement>('[data-bub-g]');
+		const pop = q<SVGCircleElement>('[data-pop]');
+		const tag = q<SVGTextElement>('[data-tag]');
+		const ghosts = q<SVGGElement>('[data-ghosts]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const vOut = q<HTMLElement>('[data-v]');
+		const scene = q<SVGSVGElement>('.bub__scene');
+
+		let h = 20;
+		let start = 20;
+		let raf = 0;
+		let wobble = 0;
+		let lastKey = '';
+		let nextGhost = 0;
+
+		const draw = () => {
+			const r = rAt(h);
+			const y = TOP + K * h - (h === 0 ? r * 0.55 : 0);
+			const x = X + 4 * Math.sin(wobble);
+			bub.setAttribute('cx', x.toFixed(2));
+			bub.setAttribute('cy', y.toFixed(2));
+			bub.setAttribute('r', r.toFixed(2));
+			shine.setAttribute('cx', (x - r * 0.38).toFixed(2));
+			shine.setAttribute('cy', (y - r * 0.42).toFixed(2));
+			shine.setAttribute('rx', (r * 0.3).toFixed(2));
+			shine.setAttribute('ry', (r * 0.18).toFixed(2));
+			tag.setAttribute('x', (x + r + 8).toFixed(1));
+			tag.setAttribute('y', (y + 5).toFixed(1));
+			// All numbers are for the depth rounded to 0.5 m, so that they agree with each other.
+			const hd = Math.round(h * 2) / 2;
+			const hdDigits = hd % 1 ? 1 : 0;
+			tag.textContent = `${fmt(vAt(hd), 2)} см³`;
+			hIn.value = String(hd);
+			hOut.value = `${fmt(hd, hdDigits)} м`;
+			vOut.textContent = `${fmt(vAt(hd), 2)} см³`;
+			const p = pAt(hd);
+			const key = String(hd);
+			if (key !== lastKey) {
+				lastKey = key;
+				const pk = p / 1e3;
+				const rgh = (RHO_G * hd) / 1e3;
+				const lines = [
+					`\\rho g h = 1000 \\cdot 9{,}8 \\cdot ${tex(hd, hdDigits)}~\\text{Па} \\approx ${tex(rgh, 0)}~\\text{кПа}`,
+					`p = p_0 + \\rho g h \\approx ${tex(pk, 0)}~\\text{кПа}`,
+					`\\dfrac{V_{\\text{пов}}}{V} = \\dfrac{p}{p_0} \\approx \\dfrac{${tex(pk, 0)}}{100} \\approx ${tex(p / P0, 2)}`,
+				];
+				formula.innerHTML = lines.map((l) => katex.renderToString(l, { displayMode: true, throwOnError: false })).join('');
+			}
+		};
+
+		const addGhost = (depth: number) => {
+			const g = document.createElementNS(SVG_NS, 'g');
+			const c = document.createElementNS(SVG_NS, 'circle');
+			c.setAttribute('class', 'bub__ghost');
+			c.setAttribute('cx', String(X));
+			c.setAttribute('cy', String(TOP + K * depth));
+			c.setAttribute('r', rAt(depth).toFixed(2));
+			const t = document.createElementNS(SVG_NS, 'text');
+			t.setAttribute('class', 'bub__ghost-t');
+			t.setAttribute('x', String(X - rAt(depth) - 8));
+			t.setAttribute('y', String(TOP + K * depth + 4.5));
+			t.setAttribute('text-anchor', 'end');
+			t.textContent = `${fmt(vAt(depth), 2)} см³`;
+			g.append(c, t);
+			ghosts.append(g);
+		};
+
+		const stop = () => cancelAnimationFrame(raf);
+
+		const rise = () => {
+			stop();
+			ghosts.replaceChildren();
+			start = h;
+			if (h <= 0) return;
+			addGhost(h);
+			nextGhost = Math.floor((h - 0.01) / 10) * 10;
+			if (reduceMotion.matches) {
+				for (let d = nextGhost; d > 0; d -= 10) addGhost(d);
+				h = 0;
+				draw();
+				return;
+			}
+			let last = performance.now();
+			const frame = (now: number) => {
+				const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+				last = now;
+				h = Math.max(0, h - SPEED * dt);
+				wobble += dt * 9;
+				if (nextGhost > 0 && h <= nextGhost) {
+					addGhost(nextGhost);
+					nextGhost -= 10;
+				}
+				draw();
+				if (h > 0) raf = requestAnimationFrame(frame);
+				else {
+					wobble = 0;
+					draw();
+					popAt();
+				}
+			};
+			raf = requestAnimationFrame(frame);
+		};
+
+		const popAt = () => {
+			const t0 = performance.now();
+			const r0 = rAt(0);
+			pop.setAttribute('cx', String(X));
+			pop.setAttribute('cy', String(TOP));
+			const f = (now: number) => {
+				const k = Math.min(1, Math.max(0, (now - t0) / 600));
+				pop.setAttribute('r', (r0 * (1 + 1.6 * k)).toFixed(1));
+				pop.style.opacity = String(0.8 * (1 - k));
+				if (k < 1) requestAnimationFrame(f);
+			};
+			requestAnimationFrame(f);
+		};
+
+		hIn.addEventListener('input', () => {
+			stop();
+			wobble = 0;
+			h = Number(hIn.value);
+			draw();
+		});
+		q<HTMLButtonElement>('[data-go]').addEventListener('click', rise);
+		q<HTMLButtonElement>('[data-reset]').addEventListener('click', () => {
+			stop();
+			ghosts.replaceChildren();
+			wobble = 0;
+			h = HMAX;
+			draw();
+		});
+
+		let drag = false;
+		const fromEvent = (ev: PointerEvent) => {
+			const m = scene.getScreenCTM();
+			if (!m) return;
+			const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m.inverse());
+			h = Math.min(HMAX, Math.max(0, Math.round(((pt.y - TOP) / K) * 2) / 2));
+			draw();
+		};
+		grp.addEventListener('pointerdown', (ev) => {
+			stop();
+			wobble = 0;
+			drag = true;
+			root.classList.add('is-dragging');
+			capture(grp, ev.pointerId);
+			ev.preventDefault();
+		});
+		grp.addEventListener('pointermove', (ev) => drag && fromEvent(ev));
+		const end = () => {
+			drag = false;
+			root.classList.remove('is-dragging');
+		};
+		grp.addEventListener('pointerup', end);
+		grp.addEventListener('pointercancel', end);
+
+		draw();
+	}
+</script>

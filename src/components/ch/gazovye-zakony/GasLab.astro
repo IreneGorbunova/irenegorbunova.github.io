@@ -1,0 +1,1620 @@
+---
+/**
+ * Interactive model: an ideal gas in a vessel with a piston.
+ * Temperature sets the speeds of the molecules, the piston sets the volume, molecules can be pumped
+ * in or let out. The pressure sensor counts the momentum the molecules give to the walls; the three
+ * graphs p(V), V(T), p(T) show the state of the gas. In an isoprocess one of p, V, T is kept constant.
+ * Physics: gas-sim.ts. Real proportions: 1 px = 1 mm, the piston area is 1 dm², so 1 l = 1 dm of height.
+ */
+import { W, PX_PER_L, T_MIN, T_MAX, V_MIN, V_MAX } from './gas-sim';
+
+const uid = `gl-${Math.random().toString(36).slice(2, 8)}`;
+const X0 = 92; // left edge of the box for the molecule centres
+const YB = 390; // bottom of that box
+const RD = 3.5; // radius of a dot
+const WALL = 5;
+const inL = X0 - RD;
+const inR = X0 + W + RD;
+const inB = YB + RD;
+const glassTop = YB - V_MAX * PX_PER_L - RD - 16 - 8;
+const grads = [0.5, 1, 1.5, 2, 2.5, 3].map((v) => ({ v, y: YB - v * PX_PER_L - RD }));
+const TH_X = 324; // thermometer
+const thY = (t: number) => 372 - (t / 700) * 262;
+const thTicks = [100, 200, 300, 400, 500, 600];
+const valveY0 = YB - 38;
+const valveY1 = YB - 4;
+---
+
+<figure class="gl not-content" data-gaslab data-uid={uid}>
+	<div class="gl__top">
+		<div class="gl__scene-wrap">
+			<svg
+				class="gl__scene"
+				viewBox="0 0 360 430"
+				role="img"
+				aria-label="Сосуд с газом под поршнем: точки — молекулы, справа термометр, снизу нагреватель, слева кран"
+			>
+				<defs>
+					<clipPath id={`${uid}-gas`}>
+						<rect x={inL} y={0} width={inR - inL} height={inB} />
+					</clipPath>
+					<linearGradient id={`${uid}-steel`} x1="0" y1="0" x2="0" y2="1">
+						<stop offset="0" class="gl__steel-hi" />
+						<stop offset="1" class="gl__steel-lo" />
+					</linearGradient>
+				</defs>
+
+				<!-- heater / thermostat plate -->
+				<rect class="gl__heater" x={inL - 10} y={inB + WALL + 6} width={inR - inL + 20} height="10" rx="5" data-heater />
+
+				<!-- gas region -->
+				<rect class="gl__gasfill" x={inL} y="0" width={inR - inL} height={inB} data-gasfill />
+
+				<!-- graduations (volume scale on the glass) -->
+				<g class="gl__grad">
+					{
+						grads.map((g) => (
+							<>
+								<line x1={inL} x2={inL + (Number.isInteger(g.v) ? 10 : 6)} y1={g.y} y2={g.y} />
+								<text x={inL - WALL - 6} y={g.y + 4.5} text-anchor="end">
+									{String(g.v).replace('.', ',')}
+								</text>
+							</>
+						))
+					}
+					<text class="gl__unit" x={inL - WALL - 6} y={glassTop + 6} text-anchor="end">
+						<tspan font-style="italic">V</tspan>, л
+					</text>
+				</g>
+
+				<!-- molecules -->
+				<g clip-path={`url(#${uid}-gas)`}>
+					<g data-flashes></g>
+					<path class="gl__m gl__m0" data-m="0"></path>
+					<path class="gl__m gl__m1" data-m="1"></path>
+					<path class="gl__m gl__m2" data-m="2"></path>
+					<path class="gl__m gl__m3" data-m="3"></path>
+					<path class="gl__m gl__m4" data-m="4"></path>
+				</g>
+
+				<!-- valve on the left wall -->
+				<g class="gl__valve" data-valve>
+					<rect class="gl__pipe" x="22" y={valveY0} width={inL - WALL - 22} height={valveY1 - valveY0} />
+					<g data-escapes></g>
+					<g class="gl__tap-handle" data-tap>
+						<line x1="48" x2="48" y1={(valveY0 + valveY1) / 2} y2={valveY0 - 17} />
+						<circle cx="48" cy={valveY0 - 17} r="3.5" />
+					</g>
+					<circle class="gl__tap" cx="48" cy={(valveY0 + valveY1) / 2} r="9" />
+					<path class="gl__flow" d="" data-flow />
+				</g>
+
+				<!-- glass -->
+				<path
+					class="gl__glass"
+					d={`M ${inL - WALL} ${glassTop} V ${inB + WALL} H ${inR + WALL} V ${glassTop} H ${inR} V ${inB} H ${inL} V ${glassTop} Z`}
+				/>
+				<rect class="gl__valve-hole" x={inL - WALL - 0.5} y={valveY0} width={WALL + 1} height={valveY1 - valveY0} />
+
+				<!-- piston, rod, handle, load, stops -->
+				<g data-piston>
+					<g class="gl__stops" data-stops>
+						<path d={`M ${inL} -25 h 11 l -11 9 z`} />
+						<path d={`M ${inR} -25 h -11 l 11 9 z`} />
+					</g>
+					<rect class="gl__rod" x={X0 + W / 2 - 4} y="-62" width="8" height="46" />
+					<g class="gl__load" data-load>
+						<rect x={X0 + W / 2 - 52} y="-42" width="104" height="26" rx="4" />
+						<text x={X0 + W / 2} y="-24.5" text-anchor="middle">груз</text>
+					</g>
+					<g class="gl__handle" data-handle>
+						<rect x={X0 + W / 2 - 38} y="-74" width="76" height="16" rx="8" />
+						<path d={`M ${X0 + W / 2 - 22} -66 l 5 -4 l 5 4 M ${X0 + W / 2 + 12} -66 l 5 4 l 5 -4`} />
+					</g>
+					<rect class="gl__piston" x={inL} y="-16" width={inR - inL} height="16" rx="2" fill={`url(#${uid}-steel)`} />
+					<rect class="gl__piston-face" x={inL} y="-2" width={inR - inL} height="2" />
+					<g class="gl__lock" data-vlock transform={`translate(${X0 + W / 2 + 46} -78)`}>
+						<path d="M -4.5 -3 v -3 a 4.5 4.5 0 0 1 9 0 v 3" />
+						<rect x="-7" y="-3" width="14" height="11" rx="2" />
+					</g>
+					<rect class="gl__grab" x={inL - 10} y="-80" width={inR - inL + 20} height="84" data-grab />
+				</g>
+
+				<!-- thermometer -->
+				<g class="gl__thermo">
+					<rect class="gl__th-tube" x={TH_X - 6} y={thY(700) - 6} width="12" height={thY(0) - thY(700) + 12} rx="6" />
+					<circle class="gl__th-bulb" cx={TH_X} cy={thY(0) + 14} r="11" />
+					<rect class="gl__th-col" x={TH_X - 3} width="6" y={thY(300)} height={thY(0) - thY(300) + 10} data-thcol />
+					{
+						thTicks.map((t) => (
+							<>
+								<line x1={TH_X - 6} x2={TH_X - 1} y1={thY(t)} y2={thY(t)} />
+								<text x={TH_X + 10} y={thY(t) + 4.5} class="gl__thlabel">
+									{t}
+								</text>
+							</>
+						))
+					}
+					<text class="gl__unit" x={TH_X + 2} y={thY(700) - 16} text-anchor="middle">
+						<tspan font-style="italic">T</tspan>, К
+					</text>
+					<g class="gl__lock" data-tlock transform={`translate(${TH_X - 22} ${thY(700) - 2})`}>
+						<path d="M -4.5 -3 v -3 a 4.5 4.5 0 0 1 9 0 v 3" />
+						<rect x="-7" y="-3" width="14" height="11" rx="2" />
+					</g>
+				</g>
+			</svg>
+		</div>
+
+		<div class="gl__panel">
+			<div class="gl__modes" role="group" aria-label="Какой процесс проводим">
+				<button type="button" class="gl__mode" data-mode="free" aria-pressed="true">
+					Любой процесс<small>меняется всё</small>
+				</button>
+				<button type="button" class="gl__mode" data-mode="T" aria-pressed="false">
+					Изотермический<small><i>T</i> = const</small>
+				</button>
+				<button type="button" class="gl__mode" data-mode="p" aria-pressed="false">
+					Изобарный<small><i>p</i> = const</small>
+				</button>
+				<button type="button" class="gl__mode" data-mode="V" aria-pressed="false">
+					Изохорный<small><i>V</i> = const</small>
+				</button>
+			</div>
+
+			<label class="gl__slider" data-row="T">
+				<span class="gl__slider-name">Температура <i>T</i></span>
+				<output data-t-out>300 К</output>
+				<input type="range" min={T_MIN} max={T_MAX} step="1" value="300" data-t-in />
+			</label>
+			<label class="gl__slider" data-row="V">
+				<span class="gl__slider-name">Объём <i>V</i> <span class="gl__aside">— или тяните поршень</span></span>
+				<output data-v-out>2,00 л</output>
+				<input type="range" min={V_MIN} max={V_MAX} step="0.01" value="2" data-v-in />
+			</label>
+
+			<div class="gl__gas" data-row="N">
+				<div class="gl__gas-text">
+					<span class="gl__slider-name">Количество газа</span>
+					<output data-n-out><i>ν</i> = 0,080 моль</output>
+				</div>
+				<div class="gl__gas-btns">
+					<button type="button" class="gl__btn gl__btn--small" data-add>+ Накачать</button>
+					<button type="button" class="gl__btn gl__btn--small" data-release>− Выпустить</button>
+				</div>
+			</div>
+
+			<div class="gl__sensor">
+				<div class="gl__sensor-text">
+					<span class="gl__sensor-name">Датчик давления <span class="gl__aside">(удары молекул)</span></span>
+					<strong data-pmeas>— кПа</strong>
+				</div>
+				<svg class="gl__spark" viewBox="0 0 150 46" preserveAspectRatio="none" aria-hidden="true">
+					<path class="gl__spark-f" data-spark-f></path>
+					<path class="gl__spark-m" data-spark-m></path>
+				</svg>
+			</div>
+
+			<div class="gl__formula" data-formula aria-live="off"></div>
+		</div>
+	</div>
+
+	<div class="gl__plot-tabs" role="group" aria-label="Какой график показать">
+		<button type="button" aria-pressed="true" data-tab="0"><i>p</i>(<i>V</i>)</button>
+		<button type="button" aria-pressed="false" data-tab="1"><i>V</i>(<i>T</i>)</button>
+		<button type="button" aria-pressed="false" data-tab="2"><i>p</i>(<i>T</i>)</button>
+	</div>
+	<div class="gl__plots">
+		<div class="gl__plot is-active">
+			<p class="gl__plot-title"><i>p</i>(<i>V</i>)</p>
+			<svg viewBox="0 0 240 196" data-plot="pV" role="img" aria-label="График зависимости давления от объёма"></svg>
+		</div>
+		<div class="gl__plot">
+			<p class="gl__plot-title"><i>V</i>(<i>T</i>)</p>
+			<svg viewBox="0 0 240 196" data-plot="VT" role="img" aria-label="График зависимости объёма от температуры"></svg>
+		</div>
+		<div class="gl__plot">
+			<p class="gl__plot-title"><i>p</i>(<i>T</i>)</p>
+			<svg viewBox="0 0 240 196" data-plot="pT" role="img" aria-label="График зависимости давления от температуры"></svg>
+		</div>
+	</div>
+
+	<div class="gl__bar">
+		<button type="button" class="gl__btn" data-play>Пауза</button>
+		<button type="button" class="gl__btn" data-clear>Стереть след</button>
+		<p class="gl__hint" data-hint aria-live="polite"></p>
+	</div>
+
+	<figcaption class="gl__legend">
+		<span class="gl__ramp" aria-hidden="true"></span> Цвет молекулы — её скорость: от медленных к быстрым.
+		Каждая точка изображает 0,001 моль азота (6·10<sup>20</sup> молекул), движение замедлено в 3000 раз.
+		Столкновения молекул друг с другом не показаны: на давление они не влияют. Молекул в модели мало, поэтому
+		показания датчика колеблются на несколько процентов: на маленьком графике сплошная линия — датчик, штриховая —
+		давление по формуле. В среднем они совпадают. Точку состояния на графиках можно перетаскивать.
+	</figcaption>
+	<p class="gl__sr" data-live aria-live="polite"></p>
+</figure>
+
+<style is:global>
+	.gl {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		--gl-gas: color-mix(in srgb, var(--ig-vx) 7%, transparent);
+	}
+	.gl i {
+		font-family: var(--ig-font-math);
+	}
+	.gl__top {
+		display: grid;
+		grid-template-columns: minmax(0, 44fr) minmax(0, 56fr);
+		gap: 1rem;
+		align-items: start;
+	}
+	.gl__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.gl__scene text {
+		font-family: var(--__sl-font);
+		font-size: 14px;
+		fill: var(--sl-color-gray-3);
+	}
+	.gl__scene .gl__unit {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+	}
+	.gl__glass {
+		fill: color-mix(in srgb, var(--sl-color-gray-2) 22%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.gl__gasfill {
+		fill: var(--gl-gas);
+	}
+	.gl__grad line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.gl__m {
+		stroke: none;
+	}
+	.gl__m0 {
+		fill: var(--ig-vx);
+	}
+	.gl__m1 {
+		fill: color-mix(in oklab, var(--ig-vx) 50%, var(--ig-v));
+	}
+	.gl__m2 {
+		fill: var(--ig-v);
+	}
+	.gl__m3 {
+		fill: color-mix(in oklab, var(--ig-v) 45%, var(--ig-vy));
+	}
+	.gl__m4 {
+		fill: var(--ig-vy);
+	}
+	.gl__flash {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.2;
+	}
+	.gl__heater {
+		fill: color-mix(in oklab, var(--ig-vy) calc(var(--heat, 0.4) * 100%), var(--ig-vx));
+		filter: drop-shadow(0 0 calc(2px + var(--heat-glow, 0.4) * 9px) color-mix(in oklab, var(--ig-vy) calc(var(--heat, 0.4) * 100%), var(--ig-vx)));
+	}
+	.gl__steel-hi {
+		stop-color: var(--sl-color-gray-3);
+	}
+	.gl__steel-lo {
+		stop-color: var(--sl-color-gray-4);
+	}
+	.gl__piston {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	.gl__piston-face {
+		fill: var(--sl-color-gray-2);
+	}
+	.gl__rod {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.gl__handle rect {
+		fill: var(--sl-color-accent);
+	}
+	.gl__handle path {
+		fill: none;
+		stroke: var(--sl-color-black);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.gl__grab {
+		fill: transparent;
+		cursor: grab;
+	}
+	.gl.is-dragging .gl__grab {
+		cursor: grabbing;
+	}
+	.gl[data-mode='V'] .gl__grab {
+		cursor: not-allowed;
+	}
+	.gl[data-mode='V'] .gl__handle rect {
+		fill: var(--sl-color-gray-4);
+	}
+	.gl__load rect {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+	}
+	.gl__scene .gl__load text {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+	}
+	.gl__stops path {
+		fill: var(--sl-color-gray-2);
+	}
+	.gl__lock rect {
+		fill: var(--sl-color-accent);
+	}
+	.gl__lock path {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 2;
+	}
+	.gl__load,
+	.gl__stops,
+	.gl__lock {
+		opacity: 0;
+		transition: opacity 0.35s;
+	}
+	.gl[data-mode='p'] .gl__load,
+	.gl[data-mode='V'] .gl__stops,
+	.gl[data-mode='V'] [data-vlock],
+	.gl[data-mode='T'] [data-tlock] {
+		opacity: 1;
+	}
+	.gl__th-tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-2) 15%, transparent);
+		stroke: var(--sl-color-gray-3);
+	}
+	.gl__th-bulb {
+		fill: var(--ig-vy);
+	}
+	.gl__th-col {
+		fill: var(--ig-vy);
+	}
+	.gl__thermo line {
+		stroke: var(--sl-color-gray-3);
+	}
+	.gl__pipe {
+		fill: color-mix(in srgb, var(--sl-color-gray-2) 18%, transparent);
+		stroke: var(--sl-color-gray-3);
+	}
+	.gl__valve-hole {
+		fill: var(--gl-gas);
+	}
+	.gl__tap {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.gl__tap-handle {
+		stroke: var(--sl-color-accent);
+		stroke-width: 3.5;
+		stroke-linecap: round;
+		fill: var(--sl-color-accent);
+		transform-origin: 48px 369px;
+		transition: transform 0.3s;
+	}
+	.gl.is-valve-open .gl__tap-handle {
+		transform: rotate(-90deg);
+	}
+	.gl__escape {
+		fill: var(--ig-v);
+	}
+	.gl__flow {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	/* panel */
+	.gl__panel {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.7rem;
+		min-width: 0;
+	}
+	.gl__modes {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.4rem;
+	}
+	.gl__mode {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.05rem;
+		margin: 0;
+		padding: 0.4rem 0.7rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		line-height: 1.25;
+		text-align: start;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.7rem;
+		cursor: pointer;
+		transition:
+			background 0.2s,
+			border-color 0.2s;
+	}
+	.gl__mode small {
+		font-size: var(--sl-text-xs);
+		font-weight: 400;
+		color: var(--sl-color-gray-3);
+	}
+	.gl__mode:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.gl__mode[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.gl__mode[aria-pressed='true'] small {
+		color: var(--sl-color-black);
+		opacity: 0.8;
+	}
+	.gl__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.15rem 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.gl__slider output,
+	.gl__gas output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.gl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.gl__slider.is-locked,
+	.gl__gas.is-locked {
+		opacity: 0.5;
+	}
+	.gl__slider.is-locked .gl__slider-name::after,
+	.gl__gas.is-locked .gl__slider-name::after {
+		content: ' — не меняется';
+		font-weight: 600;
+		color: var(--sl-color-text-accent);
+	}
+	.gl__aside {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.gl__gas {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.4rem 0.75rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.gl__gas-text {
+		display: flex;
+		gap: 0.5rem;
+		align-items: baseline;
+		flex-wrap: wrap;
+	}
+	.gl__gas-btns {
+		display: flex;
+		gap: 0.4rem;
+	}
+	.gl__sensor {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.75rem;
+		align-items: center;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.7rem;
+		background: var(--sl-color-gray-6);
+	}
+	.gl__sensor-text {
+		display: flex;
+		flex-direction: column;
+	}
+	.gl__sensor-name {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.gl__sensor strong {
+		font-size: var(--sl-text-2xl);
+		line-height: 1.2;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.gl__spark {
+		width: 100%;
+		height: 46px;
+	}
+	.gl__spark-f {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 4;
+		vector-effect: non-scaling-stroke;
+	}
+	.gl__spark-m {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 1.6;
+		vector-effect: non-scaling-stroke;
+	}
+	.gl__formula {
+		min-height: 5.6rem;
+		padding: 0.1rem 0.25rem;
+		font-size: 0.95em;
+		color: var(--sl-color-text);
+	}
+	.gl__formula .katex-display {
+		margin: 0.35rem 0;
+	}
+	.gl__formula .gl-const {
+		color: var(--sl-color-text-accent);
+	}
+	.gl__formula-note {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+
+	/* plots */
+	.gl__plots {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.75rem;
+		margin-top: 1rem;
+	}
+	.gl__plot {
+		padding: 0.35rem 0.25rem 0.1rem;
+		border-radius: 0.7rem;
+		background: var(--sl-color-gray-6);
+	}
+	.gl__plot-title {
+		margin: 0 0 0 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.gl__plot svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: none;
+		cursor: crosshair;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.gl__plot text {
+		font-family: var(--__sl-font);
+		font-size: 12px;
+		fill: var(--sl-color-gray-3);
+	}
+	.gl__plot .gl__axname {
+		font-size: 13px;
+		fill: var(--sl-color-gray-2);
+	}
+	.gl__plot .gl__isolabel {
+		font-size: 12px;
+		fill: var(--ig-vx);
+	}
+	.gl__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.gl__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+		fill: none;
+	}
+	.gl__iso {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.gl__iso--x {
+		stroke-dasharray: 3 5;
+		opacity: 0.85;
+	}
+	.gl__trail {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0.55;
+	}
+	.gl__pt {
+		fill: var(--ig-v);
+		stroke: var(--ig-surface);
+		stroke-width: 1.5;
+	}
+	.gl__halo {
+		fill: var(--ig-v);
+		opacity: 0.22;
+	}
+
+	.gl__bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin-top: 0.75rem;
+	}
+	.gl__hint {
+		flex: 1 1 14rem;
+		margin: 0;
+		min-height: 1.4em;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-text-accent);
+	}
+	.gl__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.gl__btn:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+	}
+	.gl__btn:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+	.gl__btn--small {
+		padding: 0.3rem 0.75rem;
+	}
+	.gl__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.gl__ramp {
+		display: inline-block;
+		width: 3.2rem;
+		height: 0.55rem;
+		margin-right: 0.25rem;
+		border-radius: 999px;
+		vertical-align: 0.05rem;
+		background: linear-gradient(90deg, var(--ig-vx), var(--ig-v), var(--ig-vy));
+	}
+	.gl__sr {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	.gl__plot-tabs {
+		display: none;
+	}
+	@media (max-width: 50rem) {
+		.gl__top {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.gl__plot-tabs {
+			display: flex;
+			gap: 0.4rem;
+			margin-top: 1rem;
+		}
+		.gl__plot-tabs button {
+			flex: 1;
+			margin: 0;
+			padding: 0.35rem 0.5rem;
+			font: inherit;
+			font-size: var(--sl-text-sm);
+			color: var(--sl-color-white);
+			background: transparent;
+			border: 1px solid var(--sl-color-gray-4);
+			border-radius: 999px;
+			cursor: pointer;
+		}
+		.gl__plot-tabs button[aria-pressed='true'] {
+			background: var(--sl-color-accent);
+			border-color: var(--sl-color-accent);
+			color: var(--sl-color-black);
+		}
+		.gl__plots {
+			margin-top: 0.5rem;
+		}
+		.gl__plot:not(.is-active) {
+			display: none;
+		}
+		.gl__scene-wrap {
+			max-width: 26rem;
+			margin-inline: auto;
+		}
+		.gl__plots {
+			grid-template-columns: 1fr;
+		}
+		.gl__plot svg {
+			max-width: 26rem;
+			margin-inline: auto;
+		}
+		.gl__plot text {
+			font-size: 13px;
+		}
+	}
+	@media (max-width: 40rem) {
+		.gl {
+			padding: 0.75rem;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import {
+		GasSim,
+		R,
+		M,
+		NU_DOT,
+		W,
+		PX_PER_L,
+		T_MIN,
+		T_MAX,
+		V_MIN,
+		V_MAX,
+		N_MIN,
+		N_MAX,
+		sigma,
+	} from './gas-sim';
+
+	type Mode = 'free' | 'T' | 'p' | 'V';
+	type State = { T: number; V: number; p: number };
+	type PlotKind = 'pV' | 'VT' | 'pT';
+
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const X0 = 92;
+	const YB = 390;
+	const RD = 3.5;
+	const V_RATE = 0.7; // л/с — поршень двигают плавно
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const capture = (e: Element, id: number) => {
+		try {
+			e.setPointerCapture(id);
+		} catch {
+			/* the pointer is already gone */
+		}
+	};
+
+	const fmt = (v: number, d: number) =>
+		v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d }).replace('-', '−');
+	const tex = (v: number, d: number) => v.toFixed(d).replace('.', '{,}');
+	const kpaDigits = (p: number) => (p < 10 ? 2 : p < 100 ? 1 : 0);
+	const fmtKpa = (pa: number) => `${fmt(pa / 1e3, kpaDigits(pa / 1e3))} кПа`;
+	const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+	const pOf = (nu: number, T: number, V: number) => (nu * R * T) / (V * 1e-3); // Па
+	const NICE = [10, 20, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 600, 800, 1000, 1200, 1500, 2000];
+	const niceUp = (v: number) => NICE.find((n) => n >= v) ?? Math.ceil(v / 500) * 500;
+	const tickStep = (max: number) => {
+		const raw = max / 4;
+		const pow = 10 ** Math.floor(Math.log10(raw));
+		const m = [1, 2, 2.5, 5, 10].find((k) => k * pow >= raw)!;
+		return m * pow;
+	};
+	const el = <K extends keyof SVGElementTagNameMap>(name: K, attrs: Record<string, string | number> = {}) => {
+		const e = document.createElementNS(SVG_NS, name);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		return e;
+	};
+
+	/* ---------- plots ---------- */
+	const PL = { L: 44, R: 226, T: 30, B: 166 };
+	const ISO_NAMES: Record<Exclude<Mode, 'free'>, string> = { T: 'изотерма', p: 'изобара', V: 'изохора' };
+
+	class Plot {
+		kind: PlotKind;
+		svg: SVGSVGElement;
+		grid = el('g', { class: 'gl__grid' });
+		ticks = el('g');
+		iso = el('path', { class: 'gl__iso' });
+		isoX = el('path', { class: 'gl__iso gl__iso--x' });
+		isoLabel = el('text', { class: 'gl__isolabel' });
+		trail = el('path', { class: 'gl__trail' });
+		halo = el('circle', { class: 'gl__halo', r: 11 });
+		pt = el('circle', { class: 'gl__pt', r: 5.5 });
+		xMax = 1;
+		yMax = 1;
+		constructor(svg: SVGSVGElement, kind: PlotKind, uid: string) {
+			this.svg = svg;
+			this.kind = kind;
+			const clipId = `${uid}-${kind}-clip`;
+			const defs = el('defs');
+			const cp = el('clipPath', { id: clipId });
+			cp.append(el('rect', { x: PL.L, y: PL.T - 6, width: PL.R - PL.L + 6, height: PL.B - PL.T + 6 }));
+			defs.append(cp);
+			const clipped = el('g', { 'clip-path': `url(#${clipId})` });
+			clipped.append(this.isoX, this.iso, this.trail);
+			const axes = el('path', {
+				class: 'gl__axis',
+				d: `M ${PL.L} ${PL.T - 8} V ${PL.B} H ${PL.R + 8} M ${PL.L - 4} ${PL.T - 2} L ${PL.L} ${PL.T - 10} L ${PL.L + 4} ${PL.T - 2} M ${PL.R + 1} ${PL.B - 4} L ${PL.R + 9} ${PL.B} L ${PL.R + 1} ${PL.B + 4}`,
+			});
+			const [xn, yn] = { pV: ['V, л', 'p, кПа'], VT: ['T, К', 'V, л'], pT: ['T, К', 'p, кПа'] }[kind];
+			const xName = el('text', { class: 'gl__axname', x: PL.R + 8, y: PL.B + 26, 'text-anchor': 'end' });
+			xName.innerHTML = `<tspan font-style="italic">${xn[0]}</tspan>${xn.slice(1)}`;
+			const yName = el('text', { class: 'gl__axname', x: PL.L + 9, y: PL.T - 14 });
+			yName.innerHTML = `<tspan font-style="italic">${yn[0]}</tspan>${yn.slice(1)}`;
+			svg.append(defs, this.grid, axes, this.ticks, clipped, this.isoLabel, this.halo, this.pt, xName, yName);
+		}
+		X(v: number) {
+			return PL.L + (v / this.xMax) * (PL.R - PL.L);
+		}
+		Y(v: number) {
+			return PL.B - (v / this.yMax) * (PL.B - PL.T);
+		}
+		/** Data value of the x and y axes for a state. */
+		coords(s: State): [number, number] {
+			if (this.kind === 'pV') return [s.V, s.p / 1e3];
+			if (this.kind === 'VT') return [s.T, s.V];
+			return [s.T, s.p / 1e3];
+		}
+		setAxes(xMax: number, yMax: number) {
+			const changed = Math.abs(xMax - this.xMax) > 1e-9 || Math.abs(yMax - this.yMax) > 1e-6;
+			this.xMax = xMax;
+			this.yMax = yMax;
+			if (!changed) return;
+			this.grid.replaceChildren();
+			this.ticks.replaceChildren();
+			const xs = this.kind === 'pV' ? 1 : 200;
+			const ys = this.kind === 'VT' ? 1 : tickStep(yMax);
+			for (let v = xs; v <= xMax + 1e-9; v += xs) {
+				this.grid.append(el('line', { x1: this.X(v), x2: this.X(v), y1: PL.B, y2: PL.T }));
+				const t = el('text', { x: this.X(v), y: PL.B + 14, 'text-anchor': 'middle' });
+				t.textContent = String(v);
+				this.ticks.append(t);
+			}
+			for (let v = ys; v <= yMax + 1e-9; v += ys) {
+				this.grid.append(el('line', { x1: PL.L, x2: PL.R, y1: this.Y(v), y2: this.Y(v) }));
+				const t = el('text', { x: PL.L - 6, y: this.Y(v) + 4, 'text-anchor': 'end' });
+				t.textContent = fmt(v, Number.isInteger(v) ? 0 : 1);
+				this.ticks.append(t);
+			}
+			const z = el('text', { x: PL.L - 6, y: PL.B + 14, 'text-anchor': 'end' });
+			z.textContent = '0';
+			this.ticks.append(z);
+		}
+		/** Draw the isoline of the process through state s; nu is the amount of gas. */
+		drawIso(mode: Mode, s: State, nu: number) {
+			let d = '';
+			let dx = '';
+			type Lab = [number, number, 'start' | 'end'];
+			let cands: Lab[] = [];
+			const k = this.kind;
+			const vert = (x: number): Lab[] => [
+				[x + 5, PL.T + 12, 'start'],
+				[x + 5, PL.B - 8, 'start'],
+				[x - 5, PL.T + 12, 'end'],
+			];
+			const horiz = (y: number): Lab[] => [
+				[PL.R - 2, y - 7, 'end'],
+				[PL.L + 6, y - 7, 'start'],
+				[PL.R - 2, y + 16, 'end'],
+			];
+			const origin = (slope: number) => {
+				const tEnd = Math.min(this.xMax, this.yMax / slope);
+				d = `M ${this.X(T_MIN)} ${this.Y(slope * T_MIN)} L ${this.X(tEnd)} ${this.Y(slope * tEnd)}`;
+				dx = `M ${this.X(0)} ${this.Y(0)} L ${this.X(T_MIN)} ${this.Y(slope * T_MIN)}`;
+				cands = [0.88, 0.55, 0.35].map((f): Lab => [this.X(f * tEnd) - 7, this.Y(slope * f * tEnd) - 5, 'end']);
+			};
+			if (mode === 'T') {
+				if (k === 'pV') {
+					const C = nu * R * s.T; // pV in кПа·л (1 кПа·л = 1 Дж)
+					const pts: string[] = [];
+					const v0 = Math.max(0.05, C / (this.yMax * 1.05));
+					for (let i = 0; i <= 80; i++) {
+						const v = v0 + ((this.xMax - v0) * i) / 80;
+						pts.push(`${this.X(v).toFixed(1)},${this.Y(C / v).toFixed(1)}`);
+					}
+					d = `M ${pts.join(' L ')}`;
+					cands = [
+						[this.X(this.xMax) - 4, this.Y(C / this.xMax) - 8, 'end'],
+						[this.X(this.xMax) - 4, this.Y(C / this.xMax) + 17, 'end'],
+					];
+				} else {
+					d = `M ${this.X(s.T)} ${PL.B} V ${PL.T - 6}`;
+					cands = vert(this.X(s.T));
+				}
+			} else if (mode === 'p') {
+				const p = s.p / 1e3;
+				if (k === 'pV' || k === 'pT') {
+					d = `M ${PL.L} ${this.Y(p)} H ${PL.R}`;
+					cands = horiz(this.Y(p));
+				} else origin(((nu * R) / s.p) * 1e3); // V = νRT/p, л/К
+			} else if (mode === 'V') {
+				if (k === 'pV') {
+					d = `M ${this.X(s.V)} ${PL.B} V ${PL.T - 6}`;
+					cands = vert(this.X(s.V));
+				} else if (k === 'VT') {
+					d = `M ${PL.L} ${this.Y(s.V)} H ${PL.R}`;
+					cands = horiz(this.Y(s.V));
+				} else origin((nu * R) / (s.V * 1e-3) / 1e3); // p = νRT/V, кПа/К
+			}
+			this.iso.setAttribute('d', d);
+			this.isoX.setAttribute('d', dx);
+			if (mode === 'free' || !cands.length) {
+				this.isoLabel.textContent = '';
+				return;
+			}
+			// keep the label away from the state point
+			const [a, b] = this.coords(s);
+			const px = this.X(a);
+			const py = this.Y(b);
+			const dist = (c: Lab) => Math.hypot(c[0] + (c[2] === 'end' ? -26 : 26) - px, c[1] - 4 - py);
+			const lab = cands.find((c) => dist(c) > 42) ?? cands.reduce((m, c) => (dist(c) > dist(m) ? c : m));
+			this.isoLabel.textContent = ISO_NAMES[mode];
+			this.isoLabel.setAttribute('x', lab[0].toFixed(1));
+			this.isoLabel.setAttribute('y', Math.max(PL.T - 2, Math.min(PL.B - 6, lab[1])).toFixed(1));
+			this.isoLabel.setAttribute('text-anchor', lab[2]);
+		}
+		drawTrail(trail: State[]) {
+			if (trail.length < 2) {
+				this.trail.setAttribute('d', '');
+				return;
+			}
+			let d = '';
+			for (let i = 0; i < trail.length; i++) {
+				const [a, b] = this.coords(trail[i]);
+				d += `${i ? 'L' : 'M'}${this.X(a).toFixed(1)} ${this.Y(b).toFixed(1)}`;
+			}
+			this.trail.setAttribute('d', d);
+		}
+		drawPoint(s: State) {
+			const [a, b] = this.coords(s);
+			const x = this.X(a);
+			const y = this.Y(b);
+			const out = y < PL.T - 4;
+			for (const c of [this.pt, this.halo]) {
+				c.setAttribute('cx', x.toFixed(1));
+				c.setAttribute('cy', Math.max(PL.T - 4, y).toFixed(1));
+				c.style.opacity = out ? '0.35' : '';
+			}
+		}
+		/** Pointer position in data units. */
+		toData(ev: PointerEvent): [number, number] {
+			const m = this.svg.getScreenCTM();
+			if (!m) return [0, 0];
+			const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m.inverse());
+			return [((pt.x - PL.L) / (PL.R - PL.L)) * this.xMax, ((PL.B - pt.y) / (PL.B - PL.T)) * this.yMax];
+		}
+	}
+
+	/* ---------- the model ---------- */
+	for (const root of document.querySelectorAll<HTMLElement>('[data-gaslab]')) {
+		const uid = root.dataset.uid!;
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const tIn = q<HTMLInputElement>('[data-t-in]');
+		const vIn = q<HTMLInputElement>('[data-v-in]');
+		const tOut = q<HTMLOutputElement>('[data-t-out]');
+		const vOut = q<HTMLOutputElement>('[data-v-out]');
+		const nOut = q<HTMLOutputElement>('[data-n-out]');
+		const rowT = q<HTMLElement>('[data-row="T"]');
+		const rowV = q<HTMLElement>('[data-row="V"]');
+		const rowN = q<HTMLElement>('[data-row="N"]');
+		const addBtn = q<HTMLButtonElement>('[data-add]');
+		const relBtn = q<HTMLButtonElement>('[data-release]');
+		const pMeasOut = q<HTMLElement>('[data-pmeas]');
+		const sparkM = q<SVGPathElement>('[data-spark-m]');
+		const sparkF = q<SVGPathElement>('[data-spark-f]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const hint = q<HTMLElement>('[data-hint]');
+		const live = q<HTMLElement>('[data-live]');
+		const playBtn = q<HTMLButtonElement>('[data-play]');
+		const piston = q<SVGGElement>('[data-piston]');
+		const grab = q<SVGRectElement>('[data-grab]');
+		const heater = q<SVGRectElement>('[data-heater]');
+		const gasfill = q<SVGRectElement>('[data-gasfill]');
+		const thCol = q<SVGRectElement>('[data-thcol]');
+		const flashG = q<SVGGElement>('[data-flashes]');
+		const escG = q<SVGGElement>('[data-escapes]');
+		const flow = q<SVGPathElement>('[data-flow]');
+		const scene = q<SVGSVGElement>('.gl__scene');
+		const mPaths = [0, 1, 2, 3, 4].map((i) => q<SVGPathElement>(`[data-m="${i}"]`));
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+		const plots = (['pV', 'VT', 'pT'] as PlotKind[]).map((k) => new Plot(q<SVGSVGElement>(`[data-plot="${k}"]`), k, uid));
+
+		const sim = new GasSim(80, 300, 2);
+		sim.warmUp(8);
+
+		let mode: Mode = 'free';
+		let Tt = 300; // target temperature (slider)
+		let Vt = 2; // target volume
+		let Ts = 300; // current (smoothed) temperature
+		let Vs = 2; // current volume
+		let pLock = pOf(sim.nu, Ts, Vs);
+		let pAxis = 200;
+		let pAxisTarget = 200;
+		let trail: State[] = [];
+		let playing = !reduceMotion.matches;
+		let visible = false;
+		let raf = 0;
+		let last = 0;
+		let formulaKey = '';
+		let narrowFormula = false;
+		let formulaClock = 0;
+		let liveClock = 0;
+		let sparkClock = 0;
+		const spark: { m: number; f: number }[] = [];
+		let hintTimer = 0;
+
+		const nu = () => sim.nu;
+		const state = (): State => ({ T: Ts, V: Vs, p: pOf(nu(), Ts, Vs) });
+
+		const say = (text: string, ms = 4000) => {
+			hint.textContent = text;
+			clearTimeout(hintTimer);
+			if (ms) hintTimer = window.setTimeout(() => (hint.textContent = ''), ms);
+		};
+
+		/* --- flashes at the walls --- */
+		type Flash = { c: SVGCircleElement; t: number };
+		const flashes: Flash[] = [];
+		for (let i = 0; i < 30; i++) {
+			const c = el('circle', { class: 'gl__flash', r: 0 });
+			c.style.opacity = '0';
+			flashG.append(c);
+			flashes.push({ c, t: 1 });
+		}
+		let flashCursor = 0;
+		const addFlash = (x: number, y: number) => {
+			const f = flashes[flashCursor];
+			if (f.t < 0.12) return; // pool busy: skip
+			flashCursor = (flashCursor + 1) % flashes.length;
+			f.t = 0;
+			f.c.setAttribute('cx', (X0 + x).toFixed(1));
+			f.c.setAttribute('cy', (YB - y).toFixed(1));
+		};
+		type Esc = { c: SVGCircleElement; t: number; y: number };
+		const escapes: Esc[] = [];
+		const addEscape = (y: number) => {
+			const c = el('circle', { class: 'gl__escape', r: RD });
+			escG.append(c);
+			escapes.push({ c, t: 0, y: YB - y });
+		};
+
+		/* --- drawing --- */
+		const drawMolecules = () => {
+			const s300 = sigma(300);
+			const b = ['', '', '', '', ''];
+			const r = RD;
+			for (let i = 0; i < sim.n; i++) {
+				const sp = Math.hypot(sim.vx[i], sim.vy[i]) / s300;
+				const k = sp < 0.85 ? 0 : sp < 1.2 ? 1 : sp < 1.55 ? 2 : sp < 2 ? 3 : 4;
+				const x = X0 + sim.x[i];
+				const y = YB - sim.y[i];
+				b[k] += `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+			}
+			for (let k = 0; k < 5; k++) mPaths[k].setAttribute('d', b[k]);
+		};
+
+		const drawScene = () => {
+			const h = Vs * PX_PER_L;
+			piston.setAttribute('transform', `translate(0 ${(YB - h - RD).toFixed(2)})`);
+			gasfill.setAttribute('y', (YB - h - RD).toFixed(2));
+			gasfill.setAttribute('height', (h + 2 * RD).toFixed(2));
+			const heat = (Ts - T_MIN) / (T_MAX - T_MIN);
+			heater.style.setProperty('--heat', heat.toFixed(3));
+			heater.style.setProperty('--heat-glow', Math.abs(heat - 0.4).toFixed(3));
+			const top = 372 - (Ts / 700) * 262;
+			thCol.setAttribute('y', top.toFixed(1));
+			thCol.setAttribute('height', (372 - top + 10).toFixed(1));
+		};
+
+		const updateAxes = (dt: number) => {
+			const s = state();
+			const pk = s.p / 1e3;
+			let maxSeen = pk;
+			for (const t of trail) maxSeen = Math.max(maxSeen, t.p / 1e3);
+			if (mode === 'T') pAxisTarget = niceUp(1.08 * (pOf(nu(), Ts, V_MIN) / 1e3));
+			else if (mode === 'V') pAxisTarget = niceUp(1.08 * (pOf(nu(), T_MAX, Vs) / 1e3));
+			else if (mode === 'p') pAxisTarget = niceUp(1.5 * pk);
+			else pAxisTarget = niceUp(1.15 * maxSeen);
+			pAxis = dt > 0 ? pAxis + (pAxisTarget - pAxis) * (1 - Math.exp(-dt / 0.25)) : pAxisTarget;
+			if (Math.abs(pAxis - pAxisTarget) < 0.002 * pAxisTarget) pAxis = pAxisTarget;
+			plots[0].setAxes(3.5, pAxis);
+			plots[1].setAxes(700, 3.5);
+			plots[2].setAxes(700, pAxis);
+		};
+
+		const drawPlots = () => {
+			const s = state();
+			for (const p of plots) {
+				p.drawIso(mode, s, nu());
+				p.drawTrail(trail);
+				p.drawPoint(s);
+			}
+		};
+
+		const pushTrail = () => {
+			const s = state();
+			const lastS = trail[trail.length - 1];
+			if (
+				!lastS ||
+				Math.abs(lastS.T - s.T) / 700 + Math.abs(lastS.V - s.V) / 3.5 + Math.abs(lastS.p - s.p) / (pAxis * 1e3) > 0.004
+			) {
+				trail.push(s);
+				if (trail.length > 900) trail.shift();
+			}
+		};
+
+		const drawFormula = (force = false) => {
+			const s = state();
+			const n = nu();
+			const pk = s.p / 1e3;
+			const d = kpaDigits(pk);
+			const lines: string[] = [];
+			const frac = `\\dfrac{${tex(n, 3)} \\cdot 8{,}31 \\cdot ${tex(s.T, 0)}}{${tex(s.V, 2)} \\cdot 10^{-3}}~\\text{Па}`;
+			// when the line does not fit the panel, the result goes to a second line
+			lines.push(
+				narrowFormula
+					? `\\begin{aligned} p = \\dfrac{\\nu R T}{V} &= ${frac} \\\\ &\\approx ${tex(pk, d)}~\\text{кПа} \\end{aligned}`
+					: `p = \\dfrac{\\nu R T}{V} = ${frac} \\approx ${tex(pk, d)}~\\text{кПа}`,
+			);
+			const cls = (t: string) => `\\htmlClass{gl-const}{${t}}`;
+			if (mode === 'T') {
+				lines.push(`pV = ${tex(pk, d)}~\\text{кПа} \\cdot ${tex(s.V, 2)}~\\text{л} = ${cls(`${tex(pk * s.V, 0)}~\\text{Дж}`)}`);
+			} else if (mode === 'p') {
+				lines.push(
+					`\\dfrac{V}{T} = \\dfrac{${tex(s.V, 2)}~\\text{л}}{${tex(s.T, 0)}~\\text{К}} = ${cls(`${tex((s.V / s.T) * 1e3, 2)}~\\dfrac{\\text{мл}}{\\text{К}}`)}`,
+				);
+			} else if (mode === 'V') {
+				lines.push(
+					`\\dfrac{p}{T} = \\dfrac{${tex(pk, d)}~\\text{кПа}}{${tex(s.T, 0)}~\\text{К}} = ${cls(`${tex(s.p / s.T, 0)}~\\dfrac{\\text{Па}}{\\text{К}}`)}`,
+				);
+			} else {
+				lines.push(
+					`\\dfrac{pV}{T} = \\dfrac{${tex(pk, d)}~\\text{кПа} \\cdot ${tex(s.V, 2)}~\\text{л}}{${tex(s.T, 0)}~\\text{К}} = ${cls(`${tex((pk * s.V) / s.T, 3)}~\\dfrac{\\text{Дж}}{\\text{К}}`)}`,
+				);
+			}
+			const key = lines.join('|');
+			if (!force && key === formulaKey) return;
+			formulaKey = key;
+			const note =
+				mode === 'T'
+					? 'Произведение <i>pV</i> не меняется.'
+					: mode === 'p'
+						? 'Отношение <i>V</i>/<i>T</i> не меняется.'
+						: mode === 'V'
+							? 'Отношение <i>p</i>/<i>T</i> не меняется.'
+							: '<i>pV</i>/<i>T</i> = <i>νR</i> меняется, только если накачать или выпустить газ.';
+			formula.innerHTML =
+				lines
+					.map((l) =>
+						katex.renderToString(l, {
+							displayMode: true,
+							throwOnError: false,
+							trust: (c: { command: string }) => c.command === '\\htmlClass',
+							strict: false,
+						}),
+					)
+					.join('') + `<p class="gl__formula-note">${note}</p>`;
+			const first = formula.querySelector<HTMLElement>('.katex-display');
+			if (!narrowFormula && first && first.clientWidth > 0 && first.scrollWidth > first.clientWidth + 1) {
+				narrowFormula = true;
+				drawFormula(true);
+			}
+		};
+
+		const drawSpark = () => {
+			if (spark.length < 2) return;
+			let lo = Infinity;
+			let hi = -Infinity;
+			for (const s of spark) {
+				lo = Math.min(lo, s.m, s.f);
+				hi = Math.max(hi, s.m, s.f);
+			}
+			const pad = Math.max((hi - lo) * 0.15, 0.06 * hi);
+			lo -= pad;
+			hi += pad;
+			const n = 100;
+			const X = (i: number) => (150 * (i + n - spark.length)) / (n - 1);
+			const Y = (v: number) => 46 - ((v - lo) / (hi - lo)) * 46;
+			let dm = '';
+			let df = '';
+			spark.forEach((s, i) => {
+				dm += `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(s.m).toFixed(1)}`;
+				df += `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(s.f).toFixed(1)}`;
+			});
+			sparkM.setAttribute('d', dm);
+			sparkF.setAttribute('d', df);
+		};
+
+		const syncControls = () => {
+			tIn.value = String(Math.round(Tt));
+			vIn.value = Vt.toFixed(2);
+			tOut.value = `${Math.round(Tt)} К (${fmt(Math.round(Tt) - 273, 0)} °C)`;
+			vOut.value = `${fmt(Vt, 2)} л`;
+			const n = nu();
+			nOut.innerHTML = `<i>ν</i> = ${fmt(n, 3)} моль (${fmt(n * M * 1e3, 2)} г)`;
+			tIn.disabled = mode === 'T';
+			vIn.disabled = mode === 'V';
+			rowT.classList.toggle('is-locked', mode === 'T');
+			rowV.classList.toggle('is-locked', mode === 'V');
+			rowN.classList.toggle('is-locked', mode !== 'free');
+			addBtn.disabled = mode !== 'free' || sim.n + sim.toAdd >= N_MAX;
+			relBtn.disabled = mode !== 'free' || sim.n - sim.toRelease <= N_MIN;
+			root.classList.toggle('is-valve-open', sim.toRelease > 0 || sim.toAdd > 0);
+		};
+
+		/* --- control logic --- */
+		/** Allowed temperature range in the isobaric process (the piston has stops at V_MIN and V_MAX). */
+		const tRangeIsobaric = () => {
+			const k = (nu() * R) / pLock; // м³/К
+			return [Math.max(T_MIN, (V_MIN * 1e-3) / k), Math.min(T_MAX, (V_MAX * 1e-3) / k)];
+		};
+		const setT = (T: number) => {
+			if (mode === 'T') return;
+			if (mode === 'p') {
+				const [a, b] = tRangeIsobaric();
+				if (T < a - 0.5 || T > b + 0.5) say('Поршень упёрся в ограничитель: при этом давлении дальше менять температуру нельзя.');
+				T = clamp(T, a, b);
+				Vt = (nu() * R * T) / pLock / 1e-3;
+			}
+			Tt = clamp(T, T_MIN, T_MAX);
+		};
+		const setV = (V: number) => {
+			if (mode === 'V') {
+				say('В изохорном процессе объём не меняется: поршень закреплён.');
+				return;
+			}
+			V = clamp(V, V_MIN, V_MAX);
+			if (mode === 'p') {
+				setT((pLock * V * 1e-3) / (nu() * R));
+				return;
+			}
+			Vt = V;
+		};
+		const setP = (pPa: number) => {
+			// change pressure by changing V (isothermal, free) or T (isochoric)
+			if (mode === 'V') setT((pPa * Vs * 1e-3) / (nu() * R));
+			else if (mode === 'T' || mode === 'free') setV((nu() * R * Ts) / pPa / 1e-3);
+		};
+
+		const setMode = (m: Mode) => {
+			mode = m;
+			root.dataset.mode = m;
+			modeBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+			sim.toAdd = 0;
+			sim.toRelease = 0;
+			Tt = Ts;
+			Vt = Vs;
+			pLock = pOf(nu(), Ts, Vs);
+			trail = [];
+			pushTrail();
+			const msg: Record<Mode, string> = {
+				free: 'Меняйте температуру, объём и количество газа — давление подстроится само.',
+				T: 'Температура закреплена. Двигайте поршень и следите за давлением.',
+				p: 'На поршне груз, поршень движется свободно: давление постоянно. Нагревайте и охлаждайте газ.',
+				V: 'Поршень закреплён. Нагревайте и охлаждайте газ и следите за давлением.',
+			};
+			say(msg[m], 6000);
+			syncControls();
+			if (!playing) settle();
+		};
+
+		/* --- time step --- */
+		const advance = (dt: number) => {
+			const n = nu();
+			// temperature
+			if (mode !== 'T') {
+				let target = Tt;
+				const step = (target - Ts) * (1 - Math.exp(-dt / 0.3));
+				let dT = step;
+				if (mode === 'p') {
+					const maxRate = (V_RATE * 1e-3 * pLock) / (n * R); // К/с
+					dT = clamp(step, -maxRate * dt, maxRate * dt);
+				}
+				Ts += dT;
+				if (Math.abs(Tt - Ts) < 0.05) Ts = Tt;
+			}
+			// volume
+			if (mode === 'p') Vs = (n * R * Ts) / pLock / 1e-3;
+			else if (mode !== 'V') {
+				const step = (Vt - Vs) * (1 - Math.exp(-dt / 0.12));
+				Vs += clamp(step, -V_RATE * dt, V_RATE * dt);
+				if (Math.abs(Vt - Vs) < 1e-4) Vs = Vt;
+			}
+			Vs = clamp(Vs, V_MIN, V_MAX);
+			sim.T = Ts;
+			const nBefore = sim.n;
+			sim.step(dt, Vs * PX_PER_L, addFlash, addEscape);
+			if (sim.n !== nBefore || sim.toAdd || sim.toRelease) {
+				pLock = mode === 'p' ? pLock : pOf(nu(), Ts, Vs);
+				syncControls();
+			}
+		};
+
+		/** Jump to the targets at once (when paused or with reduced motion). */
+		const settle = () => {
+			if (mode !== 'T') Ts = Tt;
+			if (mode === 'p') Vs = (nu() * R * Ts) / pLock / 1e-3;
+			else if (mode !== 'V') Vs = Vt;
+			sim.T = Ts;
+			const hNew = Vs * PX_PER_L;
+			// rescale positions and speeds as after a slow (equilibrium) change
+			const k = hNew / sim.h;
+			const s = Math.sqrt(Ts / Math.max(1, sim.gasTemperature()));
+			for (let i = 0; i < sim.n; i++) {
+				sim.y[i] *= k;
+				sim.vx[i] *= s;
+				sim.vy[i] *= s;
+			}
+			sim.h = hNew;
+			sim.flux = sim.expectedFlux();
+			pMeasOut.textContent = fmtKpa(sim.measuredPressure());
+			pushTrail();
+			updateAxes(0);
+			render(0);
+		};
+
+		const render = (dt: number) => {
+			drawMolecules();
+			drawScene();
+			for (const f of flashes) {
+				if (f.t >= 1) continue;
+				f.t = Math.min(1, f.t + dt / 0.32);
+				f.c.setAttribute('r', (1.5 + 7 * f.t).toFixed(2));
+				f.c.style.opacity = (0.75 * (1 - f.t)).toFixed(3);
+			}
+			for (let i = escapes.length - 1; i >= 0; i--) {
+				const e = escapes[i];
+				e.t += dt / 0.9;
+				e.c.setAttribute('cx', (X0 - RD - 5 - 70 * e.t).toFixed(1));
+				e.c.setAttribute('cy', e.y.toFixed(1));
+				e.c.style.opacity = String(Math.max(0, 1 - e.t));
+				if (e.t >= 1) {
+					e.c.remove();
+					escapes.splice(i, 1);
+				}
+			}
+			const yMid = YB - 21;
+			flow.setAttribute(
+				'd',
+				sim.toAdd > 0
+					? `M 16 ${yMid - 9} l 9 9 l -9 9`
+					: sim.toRelease > 0
+						? `M 26 ${yMid - 9} l -9 9 l 9 9`
+						: '',
+			);
+			pushTrail();
+			drawPlots();
+			formulaClock += dt;
+			if (dt === 0 || formulaClock > 0.08) {
+				formulaClock = 0;
+				drawFormula();
+			}
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
+			last = now;
+			// two substeps keep fast molecules from skipping through thin layers near the piston
+			advance(dt / 2);
+			advance(dt / 2);
+			updateAxes(dt);
+			render(dt);
+			sparkClock += dt;
+			if (sparkClock > 0.1) {
+				sparkClock = 0;
+				spark.push({ m: sim.measuredPressure(), f: pOf(nu(), Ts, Vs) });
+				if (spark.length > 100) spark.shift();
+				drawSpark();
+				pMeasOut.textContent = fmtKpa(sim.measuredPressure());
+			}
+			liveClock += dt;
+			if (liveClock > 2) {
+				liveClock = 0;
+				const s = state();
+				live.textContent = `Давление ${fmtKpa(s.p)}, объём ${fmt(s.V, 2)} л, температура ${Math.round(s.T)} К.`;
+			}
+			raf = requestAnimationFrame(frame);
+		};
+
+		const run = () => {
+			cancelAnimationFrame(raf);
+			if (playing && visible) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		};
+
+		/* --- events --- */
+		tIn.addEventListener('input', () => {
+			setT(Number(tIn.value));
+			syncControls();
+			if (!playing) settle();
+		});
+		vIn.addEventListener('input', () => {
+			setV(Number(vIn.value));
+			syncControls();
+			if (!playing) settle();
+		});
+		modeBtns.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode as Mode)));
+		addBtn.addEventListener('click', () => {
+			if (!playing) {
+				say('Нажмите «Пуск» — молекулы влетают через кран, когда модель работает.');
+				return;
+			}
+			sim.add(10);
+			syncControls();
+		});
+		relBtn.addEventListener('click', () => {
+			if (!playing) {
+				say('Нажмите «Пуск» — молекулы вылетают через кран, когда модель работает.');
+				return;
+			}
+			sim.release(10);
+			say('Кран открыт: наружу вылетают молекулы, которые попадают в отверстие.');
+			syncControls();
+		});
+		playBtn.addEventListener('click', () => {
+			playing = !playing;
+			playBtn.textContent = playing ? 'Пауза' : 'Пуск';
+			if (!playing) settle();
+			run();
+		});
+		q<HTMLButtonElement>('[data-clear]').addEventListener('click', () => {
+			trail = [];
+			pushTrail();
+			updateAxes(0);
+			drawPlots();
+		});
+
+		// drag the piston
+		let dragging = false;
+		const pistonFromEvent = (ev: PointerEvent) => {
+			const m = scene.getScreenCTM();
+			if (!m) return;
+			const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m.inverse());
+			// the pointer holds the piston where it was grabbed
+			setV((YB - RD - (pt.y + grabOffset)) / PX_PER_L);
+			syncControls();
+			if (!playing) settle();
+		};
+		let grabOffset = 0;
+		grab.addEventListener('pointerdown', (ev) => {
+			if (mode === 'V') {
+				say('В изохорном процессе объём не меняется: поршень закреплён.');
+				return;
+			}
+			const m = scene.getScreenCTM();
+			if (!m) return;
+			const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m.inverse());
+			grabOffset = YB - RD - Vs * PX_PER_L - pt.y;
+			dragging = true;
+			root.classList.add('is-dragging');
+			capture(grab, ev.pointerId);
+			ev.preventDefault();
+		});
+		grab.addEventListener('pointermove', (ev) => dragging && pistonFromEvent(ev));
+		const endDrag = () => {
+			dragging = false;
+			root.classList.remove('is-dragging');
+		};
+		grab.addEventListener('pointerup', endDrag);
+		grab.addEventListener('pointercancel', endDrag);
+
+		// drag the state point on the graphs
+		for (const p of plots) {
+			let on = false;
+			const apply = (ev: PointerEvent) => {
+				const [a, b] = p.toData(ev);
+				const n = nu();
+				if (p.kind === 'pV') {
+					if (mode === 'free') {
+						const V = clamp(a, V_MIN, V_MAX);
+						setV(V);
+						setT((Math.max(b, 0.5) * 1e3 * V * 1e-3) / (n * R));
+					} else if (mode === 'V') setP(Math.max(b, 0.5) * 1e3);
+					else setV(a);
+				} else if (p.kind === 'VT') {
+					if (mode === 'free') {
+						setT(a);
+						setV(b);
+					} else if (mode === 'T') setV(b);
+					else setT(a);
+				} else {
+					if (mode === 'free') {
+						const T = clamp(a, T_MIN, T_MAX);
+						setT(T);
+						setV((n * R * T) / (Math.max(b, 0.5) * 1e3) / 1e-3);
+					} else if (mode === 'T') setP(Math.max(b, 0.5) * 1e3);
+					else setT(a);
+				}
+				syncControls();
+				if (!playing) settle();
+			};
+			p.svg.addEventListener('pointerdown', (ev) => {
+				on = true;
+				capture(p.svg, ev.pointerId);
+				apply(ev);
+				ev.preventDefault();
+			});
+			p.svg.addEventListener('pointermove', (ev) => on && apply(ev));
+			p.svg.addEventListener('pointerup', () => (on = false));
+			p.svg.addEventListener('pointercancel', () => (on = false));
+		}
+
+		const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tab]'));
+		const plotBoxes = Array.from(root.querySelectorAll<HTMLElement>('.gl__plot'));
+		tabs.forEach((t) =>
+			t.addEventListener('click', () => {
+				tabs.forEach((u) => u.setAttribute('aria-pressed', String(u === t)));
+				plotBoxes.forEach((b, i) => b.classList.toggle('is-active', i === Number(t.dataset.tab)));
+			}),
+		);
+
+		let formulaWidth = 0;
+		new ResizeObserver(() => {
+			if (Math.abs(formula.clientWidth - formulaWidth) < 1) return;
+			formulaWidth = formula.clientWidth;
+			narrowFormula = false;
+			drawFormula(true);
+		}).observe(formula);
+		new IntersectionObserver(
+			(entries) => {
+				visible = entries[0].isIntersecting;
+				run();
+			},
+			{ rootMargin: '100px' },
+		).observe(root);
+		reduceMotion.addEventListener('change', () => {
+			playing = !reduceMotion.matches;
+			playBtn.textContent = playing ? 'Пауза' : 'Пуск';
+			run();
+		});
+
+		// first picture
+		root.dataset.mode = mode;
+		playBtn.textContent = playing ? 'Пауза' : 'Пуск';
+		for (let i = 0; i < 60; i++) spark.push({ m: pOf(nu(), Ts, Vs), f: pOf(nu(), Ts, Vs) });
+		syncControls();
+		pushTrail();
+		updateAxes(0);
+		render(0);
+		drawFormula(true);
+		drawSpark();
+		pMeasOut.textContent = fmtKpa(sim.measuredPressure());
+		if (!playing) say('Нажмите «Пуск», чтобы молекулы задвигались.', 0);
+	}
+</script>

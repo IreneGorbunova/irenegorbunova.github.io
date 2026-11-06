@@ -1,0 +1,138 @@
+---
+/**
+ * A question with several answers and instant feedback. Text may contain $…$ (KaTeX, rendered at
+ * build time) and simple inline HTML. Without JavaScript the explanations are shown as a list.
+ */
+import katex from 'katex';
+
+interface Option {
+	text: string;
+	correct?: boolean;
+	why: string;
+}
+interface Props {
+	question: string;
+	options: Option[];
+}
+const { question, options } = Astro.props;
+const md = (s: string) =>
+	s.replace(/\$([^$]+)\$/g, (_, t) => katex.renderToString(t, { throwOnError: false }));
+---
+
+<div class="ch not-content" data-choice>
+	<p class="ch__q" set:html={md(question)} />
+	<div class="ch__opts" role="group" aria-label="Варианты ответа">
+		{
+			options.map((o, i) => (
+				<button type="button" class="ch__opt" data-i={i} data-ok={o.correct ? '1' : '0'} aria-pressed="false">
+					<span class="ch__mark" aria-hidden="true" />
+					<span set:html={md(o.text)} />
+				</button>
+			))
+		}
+	</div>
+	<div class="ch__why" data-why aria-live="polite">
+		{options.map((o, i) => <p data-w={i} set:html={md(o.why)} />)}
+	</div>
+</div>
+
+<style is:global>
+	.ch {
+		margin-block: 1.5rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ch__q {
+		margin: 0 0 0.7rem;
+		color: var(--sl-color-white);
+	}
+	.ch__opts {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+		gap: 0.5rem;
+	}
+	.ch__opt {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin: 0;
+		padding: 0.55rem 0.8rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		text-align: start;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.7rem;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s;
+	}
+	.ch__opt:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ch__mark {
+		flex: none;
+		width: 1.1rem;
+		height: 1.1rem;
+		border: 2px solid var(--sl-color-gray-3);
+		border-radius: 50%;
+	}
+	.ch__opt.is-right {
+		border-color: var(--sl-color-green);
+		background: color-mix(in srgb, var(--sl-color-green) 12%, transparent);
+	}
+	.ch__opt.is-right .ch__mark {
+		border-color: var(--sl-color-green);
+		background: var(--sl-color-green);
+	}
+	.ch__opt.is-wrong {
+		border-color: var(--sl-color-red);
+	}
+	.ch__opt.is-wrong .ch__mark {
+		border-color: var(--sl-color-red);
+	}
+	.ch__why p {
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+	}
+	.ch.is-ready .ch__why p {
+		display: none;
+	}
+	.ch.is-ready .ch__why p.is-shown {
+		display: block;
+		padding: 0.55rem 0.8rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		animation: ch-in 0.3s ease-out;
+	}
+	@keyframes ch-in {
+		from {
+			opacity: 0;
+			transform: translateY(3px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ch.is-ready .ch__why p.is-shown {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-choice]')) {
+		root.classList.add('is-ready');
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('.ch__opt'));
+		const whys = Array.from(root.querySelectorAll<HTMLElement>('[data-w]'));
+		opts.forEach((o) =>
+			o.addEventListener('click', () => {
+				o.classList.add(o.dataset.ok === '1' ? 'is-right' : 'is-wrong');
+				opts.forEach((u) => u.setAttribute('aria-pressed', String(u === o)));
+				whys.forEach((w) => w.classList.toggle('is-shown', w.dataset.w === o.dataset.i));
+			}),
+		);
+	}
+</script>

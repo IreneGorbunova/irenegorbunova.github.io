@@ -1,0 +1,432 @@
+---
+/**
+ * "Translate the graph": a cycle 1→2→3→4 is drawn in p, V axes; which picture shows it in V, T axes?
+ * States (in units p0, V0, T0 = p0V0/νR): 1 (p 2, V 1, T 2), 2 (2, 3, 6), 3 (1, 3, 3), 4 (1, 1, 1).
+ * Option В is correct; А keeps the rectangle; Б swaps the slopes of the two isobars.
+ * After the answer the state runs round the cycle in both graphs at once.
+ */
+const B = { L: 34, R: 214, T: 26, B: 170 }; // plot box in a 230 × 196 view box
+
+type Pt = [number, number];
+const box = (xMax: number, yMax: number) => ({
+	X: (u: number) => B.L + (u / xMax) * (B.R - B.L),
+	Y: (v: number) => B.B - (v / yMax) * (B.B - B.T),
+});
+const pv = box(3.6, 2.5); // x = V, y = p
+const T_AX = 6.6; // the T axis is kept short so that states 1 and 4 (T = 2 and 1) stand apart
+const vt = box(T_AX, 3.6); // x = T, y = V
+
+const cycPV: Pt[] = [
+	[1, 2],
+	[3, 2],
+	[3, 1],
+	[1, 1],
+];
+const options: { key: string; pts: Pt[]; isobars: boolean; correct: boolean; why: string }[] = [
+	{
+		key: 'А',
+		pts: [
+			[2, 1],
+			[6, 1],
+			[6, 3],
+			[2, 3],
+		],
+		isobars: false,
+		correct: false,
+		why: 'Нет. Прямоугольник не сохраняется. В координатах <i>V</i>, <i>T</i> горизонтальный отрезок означает постоянный объём, а 1→2 — расширение газа. Изобара здесь — прямая, продолжение которой проходит через начало координат: <i>V</i> = (<i>νR</i>/<i>p</i>)·<i>T</i>.',
+	},
+	{
+		key: 'Б',
+		pts: [
+			[1, 1],
+			[3, 3],
+			[6, 3],
+			[2, 1],
+		],
+		isobars: true,
+		correct: false,
+		why: 'Почти. Изобары и изохоры нарисованы правильно, но перепутаны наклоны. <i>V</i>/<i>T</i> = <i>νR</i>/<i>p</i>: чем больше давление, тем положе изобара. Процесс 1→2 идёт при большем давлении, значит, его прямая должна быть положе, чем у 3→4. Проверьте и температуры: в состоянии 2 газ самый горячий.',
+	},
+	{
+		key: 'В',
+		pts: [
+			[2, 1],
+			[6, 3],
+			[3, 3],
+			[1, 1],
+		],
+		isobars: true,
+		correct: true,
+		why: 'Верно! 1→2 и 3→4 — изобары: отрезки лежат на прямых, проходящих через начало координат, и изобара 1→2 (давление больше) положе. 2→3 и 4→1 — изохоры: горизонтальные отрезки. Температура каждого состояния пропорциональна произведению <i>pV</i>: 2, 6, 3 и 1.',
+	},
+];
+const f = (n: number) => n.toFixed(1);
+const poly = (pts: Pt[], m: ReturnType<typeof box>) =>
+	`M ${pts.map(([a, b]) => `${f(m.X(a))} ${f(m.Y(b))}`).join(' L ')} Z`;
+/** Arrow heads at the middle of every side, pointing along the cycle; a side too short for a head gets none. */
+const arrows = (pts: Pt[], m: ReturnType<typeof box>) =>
+	pts
+		.map((p, i) => {
+			const q = pts[(i + 1) % pts.length];
+			const x1 = m.X(p[0]);
+			const y1 = m.Y(p[1]);
+			const x2 = m.X(q[0]);
+			const y2 = m.Y(q[1]);
+			if (Math.hypot(x2 - x1, y2 - y1) < 34) return '';
+			const a = Math.atan2(y2 - y1, x2 - x1);
+			const mx = (x1 + x2) / 2;
+			const my = (y1 + y2) / 2;
+			const s = 7;
+			const p1 = [mx + s * Math.cos(a), my + s * Math.sin(a)];
+			const p2 = [mx - s * Math.cos(a) + s * 0.8 * Math.cos(a + Math.PI / 2), my - s * Math.sin(a) + s * 0.8 * Math.sin(a + Math.PI / 2)];
+			const p3 = [mx - s * Math.cos(a) - s * 0.8 * Math.cos(a + Math.PI / 2), my - s * Math.sin(a) - s * 0.8 * Math.sin(a + Math.PI / 2)];
+			return `M ${f(p1[0])} ${f(p1[1])} L ${f(p2[0])} ${f(p2[1])} L ${f(p3[0])} ${f(p3[1])} Z`;
+		})
+		.join(' ');
+/**
+ * Number labels: each one sits in the widest free angle around its point, i.e. away from the two sides
+ * of the cycle and from the dashed isobar that runs to the origin.
+ */
+const labels = (pts: Pt[], m: ReturnType<typeof box>, guides: Pt[] = []) =>
+	pts.map((p, i) => {
+		const x = m.X(p[0]);
+		const y = m.Y(p[1]);
+		const dirs = [pts[(i + pts.length - 1) % pts.length], pts[(i + 1) % pts.length]].map((q) =>
+			Math.atan2(m.Y(q[1]) - y, m.X(q[0]) - x),
+		);
+		for (const g of guides) {
+			const onLine = Math.abs(p[0] * g[1] - p[1] * g[0]) < 1e-9 && p[0] <= g[0] + 1e-9;
+			if (onLine) {
+				dirs.push(Math.atan2(m.Y(0) - y, m.X(0) - x));
+				if (p[0] < g[0] - 1e-9) dirs.push(Math.atan2(m.Y(g[1]) - y, m.X(g[0]) - x));
+			}
+		}
+		const a = dirs.map((d) => (d + 2 * Math.PI) % (2 * Math.PI)).sort((u, v) => u - v);
+		let best = 0;
+		let mid = 0;
+		a.forEach((d, k) => {
+			const next = k + 1 < a.length ? a[k + 1] : a[0] + 2 * Math.PI;
+			if (next - d > best) {
+				best = next - d;
+				mid = (d + next) / 2;
+			}
+		});
+		const r = 14;
+		const lx = Math.min(222, Math.max(10, x + r * Math.cos(mid)));
+		const ly = Math.min(188, Math.max(14, y + r * Math.sin(mid) + 5));
+		return { x: lx, y: ly, n: i + 1 };
+	});
+const axes = `M ${B.L} ${B.T - 12} V ${B.B} H ${B.R + 10} M ${B.L - 4} ${B.T - 4} L ${B.L} ${B.T - 12} L ${B.L + 4} ${B.T - 4} M ${B.R + 2} ${B.B - 4} L ${B.R + 10} ${B.B} L ${B.R + 2} ${B.B + 4}`;
+---
+
+<figure class="cq not-content" data-cq>
+	<p class="cq__q">
+		Газ совершает цикл 1→2→3→4→1 (масса газа не меняется). На первом графике цикл изображён
+		в координатах <i>p</i>, <i>V</i>. Какой из трёх графиков ниже изображает тот же цикл в координатах <i>V</i>, <i>T</i>?
+	</p>
+	<div class="cq__given">
+		<svg viewBox="0 0 230 196" class="cq__svg" role="img" aria-label="Цикл в координатах p, V: прямоугольник 1-2-3-4" data-src>
+			<path class="cq__axis" d={axes} />
+			<text class="cq__name" x={B.R + 10} y={B.B + 20} text-anchor="end">V</text>
+			<text class="cq__name" x={B.L + 8} y={B.T - 6}>p</text>
+			<text class="cq__tick" x={B.L - 8} y={B.B + 16} text-anchor="middle">0</text>
+			<path class="cq__cycle" d={poly(cycPV, pv)} />
+			<path class="cq__arrows" d={arrows(cycPV, pv)} />
+			{labels(cycPV, pv).map((l) => <text class="cq__num" x={l.x} y={l.y} text-anchor="middle">{l.n}</text>)}
+			<circle class="cq__dot" r="6" cx={pv.X(1)} cy={pv.Y(2)} data-dot />
+		</svg>
+		<p class="cq__stage" data-stage aria-live="polite">
+			Подсказка: найдите, какие участки цикла изобарные, а какие изохорные, и сравните температуры в точках 1–4.
+		</p>
+	</div>
+	<div class="cq__options">
+		{
+			options.map((o) => (
+				<button type="button" class="cq__opt" data-opt={o.key} data-correct={o.correct ? '1' : '0'} aria-pressed="false">
+					<span class="cq__key">{o.key}</span>
+					<svg viewBox="0 0 230 196" class="cq__svg" aria-hidden="true">
+						<path class="cq__axis" d={axes} />
+						<text class="cq__name" x={B.R + 10} y={B.B + 20} text-anchor="end">
+							T
+						</text>
+						<text class="cq__name" x={B.L + 8} y={B.T - 6}>
+							V
+						</text>
+						<text class="cq__tick" x={B.L - 8} y={B.B + 16} text-anchor="middle">
+							0
+						</text>
+						{o.isobars && (
+							<path
+								class="cq__guide"
+								d={[0, 2].map((i) => `M ${vt.X(0)} ${vt.Y(0)} L ${f(vt.X(o.pts[i][0]))} ${f(vt.Y(o.pts[i][1]))}`).join(' ')}
+							/>
+						)}
+						<path class="cq__cycle" d={poly(o.pts, vt)} />
+						<path class="cq__arrows" d={arrows(o.pts, vt)} />
+						{labels(o.pts, vt, o.isobars ? [o.pts[0], o.pts[2]] : []).map((l) => (
+							<text class="cq__num" x={l.x} y={l.y} text-anchor="middle">
+								{l.n}
+							</text>
+						))}
+						{o.correct && <circle class="cq__dot" r="6" cx={vt.X(2)} cy={vt.Y(1)} data-dot2 />}
+					</svg>
+				</button>
+			))
+		}
+	</div>
+	<div class="cq__feedback" data-feedback aria-live="polite" hidden>
+		{options.map((o) => <p data-why={o.key} hidden set:html={o.why} />)}
+	</div>
+	<button type="button" class="cq__play" data-play hidden>Пустить точку по циклу</button>
+</figure>
+
+<style is:global>
+	.cq {
+		margin-block: 1.5rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.cq i {
+		font-family: var(--ig-font-math);
+	}
+	.cq__q {
+		margin: 0 0 0.75rem;
+		color: var(--sl-color-white);
+	}
+	.cq__given {
+		display: grid;
+		grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: center;
+	}
+	.cq__stage {
+		margin: 0;
+		min-height: 3em;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-text-accent);
+	}
+	.cq__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.cq__axis {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+	}
+	.cq__name {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 16px;
+		fill: var(--sl-color-gray-2);
+	}
+	.cq__tick {
+		font-family: var(--__sl-font);
+		font-size: 13px;
+		fill: var(--sl-color-gray-3);
+	}
+	.cq__guide {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.cq__cycle {
+		fill: color-mix(in srgb, var(--ig-vx) 10%, transparent);
+		stroke: var(--ig-vx);
+		stroke-width: 2.2;
+		stroke-linejoin: round;
+	}
+	.cq__arrows {
+		fill: var(--ig-vx);
+	}
+	.cq__num {
+		font-family: var(--__sl-font);
+		font-size: 15px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+	.cq__dot {
+		fill: var(--ig-v);
+		stroke: var(--ig-surface);
+		stroke-width: 1.5;
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+	.cq.is-playing .cq__dot {
+		opacity: 1;
+	}
+	.cq__options {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.6rem;
+		margin-top: 0.9rem;
+	}
+	.cq__opt {
+		position: relative;
+		margin: 0;
+		padding: 0.35rem;
+		font: inherit;
+		background: transparent;
+		border: 2px solid var(--sl-color-gray-5);
+		border-radius: 0.8rem;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			transform 0.2s;
+	}
+	.cq__opt:hover {
+		border-color: var(--sl-color-accent);
+		transform: translateY(-2px);
+	}
+	.cq__key {
+		position: absolute;
+		top: 0.45rem;
+		right: 0.6rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.cq__opt.is-right {
+		border-color: var(--sl-color-green);
+	}
+	.cq__opt.is-wrong {
+		border-color: var(--sl-color-red);
+		opacity: 0.75;
+	}
+	.cq__feedback {
+		margin-top: 0.8rem;
+		padding: 0.6rem 0.9rem;
+		border-radius: 0.7rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+	}
+	.cq__feedback p {
+		margin: 0;
+	}
+	.cq__feedback.is-right {
+		border-left: 4px solid var(--sl-color-green);
+	}
+	.cq__feedback.is-wrong {
+		border-left: 4px solid var(--sl-color-red);
+	}
+	.cq__play {
+		margin: 0.75rem 0 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.cq__play[hidden],
+	.cq__feedback[hidden] {
+		display: none;
+	}
+	@media (max-width: 40rem) {
+		.cq {
+			padding: 0.75rem;
+		}
+		.cq__given {
+			grid-template-columns: 1fr;
+		}
+		.cq__given .cq__svg {
+			max-width: 16rem;
+		}
+		.cq__options {
+			grid-template-columns: 1fr 1fr;
+		}
+		.cq__options .cq__num {
+			font-size: 19px;
+		}
+		.cq__options .cq__name {
+			font-size: 20px;
+		}
+	}
+</style>
+
+<script>
+	// States of the cycle: [V, p, T] in units of V0, p0, T0
+	const S = [
+		[1, 2, 2],
+		[3, 2, 6],
+		[3, 1, 3],
+		[1, 1, 1],
+	];
+	const STAGES = [
+		'1→2: изобарное расширение — давление постоянно, газ нагревается от 2<i>T</i><sub>0</sub> до 6<i>T</i><sub>0</sub>.',
+		'2→3: изохорное охлаждение — объём постоянен, давление падает вдвое, температура — тоже.',
+		'3→4: изобарное сжатие — давление постоянно, газ охлаждается до <i>T</i><sub>0</sub>.',
+		'4→1: изохорное нагревание — объём постоянен, давление и температура растут вдвое.',
+	];
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const B = { L: 34, R: 214, T: 26, B: 170 };
+	const X = (u: number, max: number) => B.L + (u / max) * (B.R - B.L);
+	const Y = (v: number, max: number) => B.B - (v / max) * (B.B - B.T);
+	const T_AX = 6.6;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-cq]')) {
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-opt]'));
+		const fb = root.querySelector<HTMLElement>('[data-feedback]')!;
+		const whys = Array.from(fb.querySelectorAll<HTMLElement>('[data-why]'));
+		const play = root.querySelector<HTMLButtonElement>('[data-play]')!;
+		const dot = root.querySelector<SVGCircleElement>('[data-dot]')!;
+		const dot2 = root.querySelector<SVGCircleElement>('[data-dot2]')!;
+		const stage = root.querySelector<HTMLElement>('[data-stage]')!;
+		let raf = 0;
+
+		opts.forEach((o) =>
+			o.addEventListener('click', () => {
+				const ok = o.dataset.correct === '1';
+				o.classList.add(ok ? 'is-right' : 'is-wrong');
+				opts.forEach((u) => u.setAttribute('aria-pressed', String(u === o)));
+				fb.hidden = false;
+				fb.classList.toggle('is-right', ok);
+				fb.classList.toggle('is-wrong', !ok);
+				whys.forEach((w) => (w.hidden = w.dataset.why !== o.dataset.opt));
+				if (ok) play.hidden = false;
+			}),
+		);
+
+		// The state moves with a constant speed along each process; p, V and T follow pV = νRT.
+		const place = (k: number, s: number) => {
+			const a = S[k];
+			const b = S[(k + 1) % 4];
+			const V = a[0] + (b[0] - a[0]) * s;
+			const p = a[1] + (b[1] - a[1]) * s;
+			const T = p * V;
+			dot.setAttribute('cx', X(V, 3.6).toFixed(1));
+			dot.setAttribute('cy', Y(p, 2.5).toFixed(1));
+			dot2.setAttribute('cx', X(T, T_AX).toFixed(1));
+			dot2.setAttribute('cy', Y(V, 3.6).toFixed(1));
+		};
+		play.addEventListener('click', () => {
+			cancelAnimationFrame(raf);
+			root.classList.add('is-playing');
+			const per = reduceMotion.matches ? 0 : 2600;
+			const t0 = performance.now();
+			let shown = -1;
+			const frame = (now: number) => {
+				// the frame time may be a little earlier than the click
+				const t = per ? Math.max(0, (now - t0) / per) : 4;
+				const k = Math.min(3, Math.floor(t));
+				const s = Math.min(1, t - k);
+				if (k !== shown) {
+					shown = k;
+					stage.innerHTML = STAGES[k];
+				}
+				place(k, s);
+				if (t < 4) raf = requestAnimationFrame(frame);
+				else stage.innerHTML += ' Цикл замкнулся: газ вернулся в состояние 1.';
+			};
+			raf = requestAnimationFrame(frame);
+		});
+	}
+</script>

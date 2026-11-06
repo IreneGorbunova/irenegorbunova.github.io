@@ -1,0 +1,378 @@
+---
+/**
+ * The three isoprocesses in three pairs of axes: a family of three isolines per process.
+ * Pointing at a line (or its label) highlights the same line in all three graphs.
+ * Graphs are schematic (no numbers), as in the textbook; the proportions are true:
+ * isotherms are hyperbolas pV = const, isobars and isochores in (T) axes pass through the origin.
+ */
+import katex from 'katex';
+
+const uid = `iso-${Math.random().toString(36).slice(2, 8)}`;
+const G = { L: 30, R: 186, T: 22, B: 146 }; // plot box in a 200 × 172 view box
+const X = (u: number) => G.L + u * (G.R - G.L);
+const Y = (v: number) => G.B - v * (G.B - G.T);
+const f = (n: number) => n.toFixed(1);
+const SUB = ['₁', '₂', '₃'];
+
+type Line = { d: string; dx?: string; lx: number; ly: number; anchor: 'start' | 'end' | 'middle' };
+type Graph = { x: string; y: string; lines: Line[] };
+
+// A line through the origin, v = s·u, solid from u = 0.18 on, dashed below (extrapolation to 0 K).
+const origin = (s: number): Line => {
+	const uEnd = Math.min(0.95, 0.95 / s);
+	const u0 = 0.18;
+	return {
+		d: `M ${f(X(u0))} ${f(Y(s * u0))} L ${f(X(uEnd))} ${f(Y(s * uEnd))}`,
+		dx: `M ${f(X(0))} ${f(Y(0))} L ${f(X(u0))} ${f(Y(s * u0))}`,
+		lx: X(uEnd) + 3,
+		ly: Y(s * uEnd) + 4,
+		anchor: 'start',
+	};
+};
+const vline = (u: number): Line => ({ d: `M ${f(X(u))} ${f(Y(0))} V ${f(Y(0.92))}`, lx: X(u), ly: Y(0.92) - 5, anchor: 'middle' });
+const hline = (v: number): Line => ({ d: `M ${f(X(0))} ${f(Y(v))} H ${f(X(0.92))}`, lx: X(0.92) + 4, ly: Y(v) + 4, anchor: 'start' });
+const hyperbola = (c: number): Line => {
+	const pts: string[] = [];
+	const u0 = c / 0.95;
+	for (let i = 0; i <= 40; i++) {
+		const u = u0 + ((0.95 - u0) * i) / 40;
+		pts.push(`${f(X(u))},${f(Y(c / u))}`);
+	}
+	return { d: `M ${pts.join(' L ')}`, lx: X(0.95) + 3, ly: Y(c / 0.95) + 4, anchor: 'start' };
+};
+
+const T = [0.32, 0.55, 0.8]; // T₁ < T₂ < T₃ (same order everywhere)
+const P = [0.3, 0.52, 0.76]; // p₁ < p₂ < p₃
+const V = [0.3, 0.52, 0.76]; // V₁ < V₂ < V₃
+const K = 0.24; // V/T·p and p/T·V in plot units for the isobars and isochores
+const KH = 0.5; // pV/T in plot units for the isotherms (larger, so that the three curves stand apart)
+
+const processes = [
+	{
+		key: 'T',
+		name: 'Изотермический',
+		law: 'закон Бойля — Мариотта',
+		tex: 'pV = \\text{const}',
+		sym: 'T',
+		note: 'Изотерма в координатах <i>p</i>, <i>V</i> — гипербола. Чем выше температура, тем дальше изотерма от осей: произведение <i>pV</i> = <i>νRT</i> больше.',
+		graphs: [
+			{ x: 'V', y: 'p', lines: T.map((t) => hyperbola(KH * t)) },
+			{ x: 'T', y: 'V', lines: T.map((t) => vline(t)) },
+			{ x: 'T', y: 'p', lines: T.map((t) => vline(t)) },
+		] as Graph[],
+	},
+	{
+		key: 'p',
+		name: 'Изобарный',
+		law: 'закон Гей‑Люссака',
+		tex: '\\dfrac{V}{T} = \\text{const}',
+		sym: 'p',
+		note: 'Изобара в координатах <i>V</i>, <i>T</i> — прямая, продолжение которой проходит через начало координат. Чем больше давление, тем положе прямая: <i>V</i>/<i>T</i> = <i>νR</i>/<i>p</i>.',
+		graphs: [
+			{ x: 'V', y: 'p', lines: P.map((p) => hline(p)) },
+			{ x: 'T', y: 'V', lines: P.map((p) => origin(K / p)) },
+			{ x: 'T', y: 'p', lines: P.map((p) => hline(p)) },
+		] as Graph[],
+	},
+	{
+		key: 'V',
+		name: 'Изохорный',
+		law: 'закон Шарля',
+		tex: '\\dfrac{p}{T} = \\text{const}',
+		sym: 'V',
+		note: 'Изохора в координатах <i>p</i>, <i>T</i> — тоже прямая через начало координат. Чем больше объём, тем положе прямая: <i>p</i>/<i>T</i> = <i>νR</i>/<i>V</i>.',
+		graphs: [
+			{ x: 'V', y: 'p', lines: V.map((v) => vline(v)) },
+			{ x: 'T', y: 'V', lines: V.map((v) => hline(v)) },
+			{ x: 'T', y: 'p', lines: V.map((v) => origin(K / v)) },
+		] as Graph[],
+	},
+].map((p) => ({ ...p, html: katex.renderToString(p.tex, { throwOnError: false }) }));
+---
+
+<figure class="iso not-content" data-iso>
+	<div class="iso__tabs" role="group" aria-label="Изопроцесс">
+		{
+			processes.map((p, i) => (
+				<button type="button" class="iso__tab" aria-pressed={i === 0 ? 'true' : 'false'} data-tab={p.key}>
+					{p.name}
+					<small>
+						<i>{p.sym}</i> = const
+					</small>
+				</button>
+			))
+		}
+	</div>
+	{
+		processes.map((p, i) => (
+			<div class="iso__panel" data-panel={p.key} hidden={i !== 0}>
+				<p class="iso__law">
+					<span set:html={p.html} /> — {p.law}
+				</p>
+				<div class="iso__graphs">
+					{p.graphs.map((g) => (
+						<svg viewBox="0 0 200 172" class="iso__g" role="img" aria-label={`${p.name} процесс в координатах ${g.y}, ${g.x}`}>
+							<path
+								class="iso__axis"
+								d={`M ${G.L} ${G.T - 14} V ${G.B} H ${G.R + 8} M ${G.L - 4} ${G.T - 6} L ${G.L} ${G.T - 14} L ${G.L + 4} ${G.T - 6} M ${G.R + 1} ${G.B - 4} L ${G.R + 9} ${G.B} L ${G.R + 1} ${G.B + 4}`}
+							/>
+							<text class="iso__ax" x={G.L - 8} y={G.B + 15} text-anchor="middle">
+								0
+							</text>
+							<text class="iso__ax iso__ax--name" x={G.R + 8} y={G.B + 18} text-anchor="end">
+								{g.x}
+							</text>
+							<text class="iso__ax iso__ax--name" x={G.L + 8} y={G.T - 6}>
+								{g.y}
+							</text>
+							{g.lines.map((l, k) => (
+								<g class={`iso__line iso__line--${k + 1}`} data-line={k + 1} tabindex="0" role="button" aria-label={`${p.sym}${SUB[k]}`}>
+									<path class="iso__hit" d={l.d} />
+									{l.dx && <path class="iso__x" d={l.dx} />}
+									<path class="iso__l" d={l.d} />
+									<text x={l.lx} y={l.ly} text-anchor={l.anchor}>
+										<tspan font-style="italic">{p.sym}</tspan>
+										<tspan class="iso__sub">{SUB[k]}</tspan>
+									</text>
+								</g>
+							))}
+						</svg>
+					))}
+				</div>
+				<p class="iso__note">
+					<span class="iso__order">
+						<i>{p.sym}</i>₁ &lt; <i>{p.sym}</i>₂ &lt; <i>{p.sym}</i>₃.
+					</span>{' '}
+					<Fragment set:html={p.note} />
+				</p>
+			</div>
+		))
+	}
+	<figcaption class="iso__cap">
+		Наведите на линию или коснитесь её: та же линия выделится на всех трёх графиках. Штриховые участки у начала координат — мысленное продолжение: при сильном охлаждении газ становится жидкостью.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.iso {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.iso i {
+		font-family: var(--ig-font-math);
+	}
+	.iso__tabs {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.4rem;
+	}
+	.iso__tab {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		margin: 0;
+		padding: 0.4rem 0.5rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.7rem;
+		cursor: pointer;
+	}
+	.iso__tab small {
+		font-weight: 400;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.iso__tab:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.iso__tab[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.iso__tab[aria-pressed='true'] small {
+		color: var(--sl-color-black);
+	}
+	.iso__panel[hidden] {
+		display: none;
+	}
+	.iso__panel:not([hidden]) {
+		animation: iso-in 0.4s ease-out;
+	}
+	@keyframes iso-in {
+		from {
+			opacity: 0;
+			transform: translateY(4px);
+		}
+	}
+	.iso__law {
+		margin: 0.9rem 0 0.3rem;
+		text-align: center;
+		color: var(--sl-color-white);
+	}
+	.iso__graphs {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.5rem;
+	}
+	.iso__g {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		overflow: visible;
+	}
+	.iso__axis {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+	}
+	.iso__ax {
+		font-family: var(--__sl-font);
+		font-size: 13px;
+		fill: var(--sl-color-gray-3);
+	}
+	.iso__ax--name {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 15px;
+		fill: var(--sl-color-gray-2);
+	}
+	.iso__line {
+		cursor: pointer;
+		outline: none;
+		transition: opacity 0.25s;
+	}
+	.iso__line--1 {
+		--c: var(--ig-vx);
+	}
+	.iso__line--2 {
+		--c: var(--ig-v);
+	}
+	.iso__line--3 {
+		--c: var(--ig-vy);
+	}
+	.iso__l {
+		fill: none;
+		stroke: var(--c);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		transition: stroke-width 0.25s;
+	}
+	.iso__x {
+		fill: none;
+		stroke: var(--c);
+		stroke-width: 1.6;
+		stroke-dasharray: 3 4;
+	}
+	.iso__hit {
+		fill: none;
+		stroke: transparent;
+		stroke-width: 14;
+	}
+	.iso__line text {
+		font-family: var(--ig-font-math);
+		font-size: 15px;
+		fill: var(--c);
+	}
+	.iso__sub {
+		font-family: var(--__sl-font);
+		font-style: normal;
+	}
+	.iso.has-focus .iso__line {
+		opacity: 0.18;
+	}
+	.iso.has-focus .iso__line.is-on {
+		opacity: 1;
+	}
+	.iso .iso__line.is-on .iso__l {
+		stroke-width: 4;
+	}
+	.iso__note {
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.iso__order {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		white-space: nowrap;
+	}
+	.iso__cap {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.iso {
+			padding: 0.75rem;
+		}
+		.iso__graphs {
+			grid-template-columns: 1fr 1fr;
+		}
+		.iso__tabs {
+			gap: 0.3rem;
+		}
+		.iso__tab {
+			padding-inline: 0.1rem;
+			font-size: 0.74rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.iso__panel:not([hidden]) {
+			animation: none;
+		}
+		.iso__line,
+		.iso__l {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-iso]')) {
+		const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tab]'));
+		const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-panel]'));
+		let pinned = 0;
+		const focus = (n: number) => {
+			root.classList.toggle('has-focus', n > 0);
+			root.querySelectorAll<SVGGElement>('[data-line]').forEach((g) =>
+				g.classList.toggle('is-on', Number(g.dataset.line) === n),
+			);
+		};
+		tabs.forEach((t) =>
+			t.addEventListener('click', () => {
+				tabs.forEach((u) => u.setAttribute('aria-pressed', String(u === t)));
+				panels.forEach((p) => (p.hidden = p.dataset.panel !== t.dataset.tab));
+				pinned = 0;
+				focus(0);
+			}),
+		);
+		root.querySelectorAll<SVGGElement>('[data-line]').forEach((g) => {
+			const n = Number(g.dataset.line);
+			g.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && focus(n));
+			g.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && focus(pinned));
+			g.addEventListener('click', () => {
+				pinned = pinned === n ? 0 : n;
+				focus(pinned);
+			});
+			g.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					pinned = pinned === n ? 0 : n;
+					focus(pinned);
+				}
+			});
+			g.addEventListener('focus', () => focus(n));
+			g.addEventListener('blur', () => focus(pinned));
+		});
+	}
+</script>

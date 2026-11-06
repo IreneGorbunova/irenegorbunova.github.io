@@ -1,0 +1,510 @@
+---
+/**
+ * A hot-air balloon. The air in the envelope and the air outside have the same pressure p, so their
+ * densities differ only by temperature: ρ = pM/(RT). The balloon can hold up the mass (ρ_out − ρ_in)·V.
+ * With height p falls (isothermal atmosphere, p = p0·e^(−h/H), H = RT/(Mg)), so the lift falls too, and the
+ * balloon stops where the lift equals its mass. Between the stops it moves with its terminal speed:
+ * (lift − mass)·g = ½·C·ρ·A·υ². Altitude scale 47.5 px per km; the balloon itself is drawn greatly enlarged.
+ */
+const uid = `bl-${Math.random().toString(36).slice(2, 8)}`;
+const G0 = 420; // ground, y
+const KM = 47.5; // px per km
+const yAt = (km: number) => G0 - KM * km;
+const kms = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+// heights of famous gas-balloon flights (see the scientists below)
+const marks: { km: number; text: string; below?: boolean }[] = [
+	{ km: 3, text: 'Шарль, 1783', below: true }, // below its line: Mendeleev's mark is close above
+	{ km: 3.35, text: 'Менделеев, 1887' },
+	{ km: 7, text: 'Гей-Люссак, 1804' },
+];
+// envelope (local coordinates: origin at the bottom of the basket, y up is negative)
+const envelope = 'M -8 -32 C -20 -46 -35 -62 -35 -84 A 35 35 0 0 1 35 -84 C 35 -62 20 -46 8 -32 Z';
+const gore = (k: number) => {
+	// the band between the seams k and k + 1 of six seams; the seams are meridians of a sphere seen from the side
+	const sx = (j: number) => -8 + (16 * j) / 5; // at the mouth
+	const mid = (j: number) => 37 * Math.sin(((-90 + 36 * j) * Math.PI) / 180); // at the widest place
+	const cx = (j: number) => (2 * (mid(j) - 0.25 * sx(j))).toFixed(1);
+	return `M ${sx(k).toFixed(1)} -32 Q ${cx(k)} -78 0 -119 Q ${cx(k + 1)} -78 ${sx(k + 1).toFixed(1)} -32 Z`;
+};
+---
+
+<figure class="bl not-content" data-balloon data-uid={uid}>
+	<div class="bl__grid">
+		<svg class="bl__scene" viewBox="0 0 360 446" role="img" aria-label="Воздушный шар с горячим воздухом и шкала высоты до 8 км">
+			<defs>
+				<linearGradient id={`${uid}-sky`} x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="bl__sky0" />
+					<stop offset="1" class="bl__sky1" />
+				</linearGradient>
+				<radialGradient id={`${uid}-glow`} cx="0.5" cy="0.62" r="0.6">
+					<stop offset="0" class="bl__glow0" />
+					<stop offset="1" class="bl__glow1" />
+				</radialGradient>
+				<clipPath id={`${uid}-env`}>
+					<path d={envelope} />
+				</clipPath>
+			</defs>
+			<rect x="0" y="0" width="360" height={G0} fill={`url(#${uid}-sky)`} />
+			<g class="bl__clouds" data-clouds>
+				<ellipse cx="90" cy={yAt(1.6)} rx="38" ry="8" />
+				<ellipse cx="112" cy={yAt(1.6) - 6} rx="22" ry="8" />
+				<ellipse cx="270" cy={yAt(4.6)} rx="44" ry="7" />
+				<ellipse cx="250" cy={yAt(4.6) - 5} rx="20" ry="7" />
+			</g>
+			<path class="bl__ground" d={`M 0 ${G0} Q 90 ${G0 - 6} 180 ${G0} T 360 ${G0} V 446 H 0 Z`} />
+
+			<g class="bl__scale">
+				<line x1="44" x2="44" y1={yAt(8)} y2={G0} />
+				{
+					kms.map((k) => (
+						<>
+							<line x1="44" x2="52" y1={yAt(k)} y2={yAt(k)} />
+							<text x="38" y={yAt(k) + 4.5} text-anchor="end">
+								{k}
+							</text>
+						</>
+					))
+				}
+				<text class="bl__unit" x="38" y={yAt(8) - 14} text-anchor="end">
+					<tspan font-style="italic">h</tspan>, км
+				</text>
+			</g>
+			<g class="bl__marks">
+				{
+					marks.map((m) => (
+						<>
+							<line x1="262" x2="354" y1={yAt(m.km)} y2={yAt(m.km)} />
+							<text x="354" y={yAt(m.km) + (m.below ? 14 : -5)} text-anchor="end">
+								{m.text}
+							</text>
+						</>
+					))
+				}
+			</g>
+			<line class="bl__eq" x1="52" x2="250" data-eq />
+
+			<g data-balloon-g>
+				<line class="bl__rope" x1="-8" y1="-14" x2="-7" y2="-32" />
+				<line class="bl__rope" x1="8" y1="-14" x2="7" y2="-32" />
+				<path class="bl__flame" data-flame />
+				<path class="bl__flame-core" data-flame-core />
+				<g clip-path={`url(#${uid}-env)`}>
+					<path class="bl__env" d={envelope} />
+					{[0, 2, 4].map((k) => <path class="bl__gore" d={gore(k)} />)}
+					<rect class="bl__glow" x="-36" y="-120" width="72" height="90" fill={`url(#${uid}-glow)`} data-glow />
+					<ellipse class="bl__shine" cx="-14" cy="-96" rx="9" ry="14" />
+				</g>
+				<path class="bl__env-edge" d={envelope} />
+				<rect class="bl__basket" x="-9" y="-14" width="18" height="14" rx="2" />
+			</g>
+		</svg>
+
+		<div class="bl__panel">
+			<label class="bl__slider">
+				<span>Воздух в оболочке <i>t</i><sub>вн</sub></span>
+				<output data-tin-out>50 °C</output>
+				<input type="range" min="20" max="120" step="1" value="50" data-tin />
+			</label>
+			<label class="bl__slider">
+				<span>Воздух снаружи <i>t</i><sub>сн</sub></span>
+				<output data-tout-out>20 °C</output>
+				<input type="range" min="-10" max="30" step="1" value="20" data-tout />
+			</label>
+			<div class="bl__formula" data-formula></div>
+			<dl class="bl__stats">
+				<div><dt>Высота шара</dt><dd data-h>0 м</dd></div>
+				<div><dt>Давление воздуха</dt><dd data-p>100 кПа</dd></div>
+				<div><dt>Шар может поднять</dt><dd data-lift>—</dd></div>
+				<div><dt>Масса шара с людьми</dt><dd>450 кг</dd></div>
+			</dl>
+			<p class="bl__status" data-status aria-live="polite"></p>
+		</div>
+	</div>
+	<figcaption class="bl__cap">
+		Объём оболочки 2500 м³; оболочка, корзина, горелка с баллонами и два человека вместе имеют массу 450 кг. Снизу
+		оболочка открыта, поэтому давление внутри такое же, как снаружи. С высотой давление падает: на каждый километр
+		примерно на 11–12 %. Температуру наружного воздуха для простоты считаем одинаковой на всех высотах. Шар нарисован
+		сильно увеличенным, подъём ускорен в 100 раз. Справа — высоты знаменитых полётов на шарах с водородом.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.bl {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		--bl-light: var(--sl-color-white);
+	}
+	:root[data-theme='light'] .bl {
+		--bl-light: var(--sl-color-black);
+	}
+	.bl i {
+		font-family: var(--ig-font-math);
+	}
+	.bl__grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: start;
+	}
+	.bl__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.7rem;
+	}
+	.bl__sky0 {
+		stop-color: color-mix(in oklab, var(--ig-vx) 8%, var(--sl-color-black));
+	}
+	.bl__sky1 {
+		stop-color: color-mix(in oklab, var(--ig-vx) 40%, var(--ig-surface));
+	}
+	.bl__clouds ellipse {
+		fill: var(--bl-light);
+		opacity: 0.12;
+	}
+	.bl__ground {
+		fill: color-mix(in oklab, var(--sl-color-green) 30%, var(--sl-color-gray-5));
+	}
+	.bl__scale line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.bl__scale text,
+	.bl__marks text {
+		font-family: var(--__sl-font);
+		font-size: 14px;
+		fill: var(--sl-color-gray-2);
+	}
+	.bl__marks line {
+		stroke: var(--sl-color-gray-2);
+		stroke-opacity: 0.6;
+		stroke-dasharray: 3 4;
+	}
+	.bl__marks text {
+		font-size: 12.5px;
+	}
+	.bl__eq {
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 5;
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+	.bl__env {
+		fill: var(--ig-vy);
+	}
+	.bl__gore {
+		fill: var(--ig-v);
+	}
+	.bl__env-edge {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-vy) 60%, var(--sl-color-black));
+		stroke-width: 1;
+	}
+	.bl__glow0 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0.9;
+	}
+	.bl__glow1 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0;
+	}
+	.bl__shine {
+		fill: var(--bl-light);
+		opacity: 0.22;
+	}
+	.bl__rope {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.bl__basket {
+		fill: color-mix(in oklab, var(--ig-v) 45%, var(--sl-color-gray-4));
+		stroke: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-black));
+		stroke-width: 1;
+	}
+	.bl__flame {
+		fill: var(--ig-v);
+		filter: drop-shadow(0 0 4px var(--ig-v));
+	}
+	.bl__flame-core {
+		fill: var(--bl-light);
+		opacity: 0.85;
+	}
+
+	.bl__panel {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.75rem;
+		min-width: 0;
+	}
+	.bl__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.bl__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.bl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.bl__formula {
+		min-height: 9rem;
+		font-size: 0.95em;
+	}
+	.bl__formula .katex-display {
+		margin: 0.35rem 0;
+	}
+	.bl__formula .bl-ok {
+		color: var(--sl-color-green);
+	}
+	.bl__formula .bl-no {
+		color: var(--sl-color-text-accent);
+	}
+	.bl__stats {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+		margin: 0;
+	}
+	.bl__stats > div {
+		padding: 0.4rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.bl__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.bl__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.bl__status {
+		margin: 0;
+		min-height: 3em;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-text-accent);
+	}
+	.bl__cap {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 44rem) {
+		.bl {
+			padding: 0.75rem;
+		}
+		.bl__grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.bl__scene {
+			max-width: 24rem;
+			margin-inline: auto;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+
+	const G0 = 420;
+	const KM = 47.5;
+	const X = 200;
+	const R = 8.31;
+	const M_AIR = 0.029;
+	const g = 9.8;
+	const P0 = 1e5;
+	const V = 2500; // м³
+	const LOAD = 450; // кг
+	const CD = 0.5; // drag coefficient of the envelope
+	const AREA = Math.PI * ((3 * V) / (4 * Math.PI)) ** (2 / 3); // м², cross-section
+	const SPEED = 100; // the motion is shown 100 times faster
+	const H_MAX = 8000;
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+	const fmt = (v: number, d: number) =>
+		v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d }).replace('-', '−');
+	const tex = (v: number, d: number) => v.toFixed(d).replace('.', '{,}');
+	const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-balloon]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const tinIn = q<HTMLInputElement>('[data-tin]');
+		const toutIn = q<HTMLInputElement>('[data-tout]');
+		const tinOut = q<HTMLOutputElement>('[data-tin-out]');
+		const toutOut = q<HTMLOutputElement>('[data-tout-out]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const hOut = q<HTMLElement>('[data-h]');
+		const pOut = q<HTMLElement>('[data-p]');
+		const liftOut = q<HTMLElement>('[data-lift]');
+		const status = q<HTMLElement>('[data-status]');
+		const balloon = q<SVGGElement>('[data-balloon-g]');
+		const flame = q<SVGPathElement>('[data-flame]');
+		const flameCore = q<SVGPathElement>('[data-flame-core]');
+		const glow = q<SVGRectElement>('[data-glow]');
+		const eqLine = q<SVGLineElement>('[data-eq]');
+
+		let tIn = Number(tinIn.value) + 273; // K, actual temperature in the envelope
+		let tInTarget = tIn;
+		let tOut = Number(toutIn.value) + 273;
+		let h = 0; // m
+		let raf = 0;
+		let last = 0;
+		let visible = false;
+		let lastKey = '';
+		let lastStatus = '';
+
+		const scaleH = () => (R * tOut) / (M_AIR * g); // м
+		const pAt = (z: number) => P0 * Math.exp(-z / scaleH());
+		const rho = (p: number, T: number) => (p * M_AIR) / (R * T);
+		const liftAt = (z: number) => (rho(pAt(z), tOut) - rho(pAt(z), tIn)) * V; // кг
+		/** Height where the lift equals the mass of the balloon (0 if it cannot take off). */
+		const hEq = () => {
+			const l0 = liftAt(0);
+			return l0 > LOAD ? Math.min(H_MAX, scaleH() * Math.log(l0 / LOAD)) : 0;
+		};
+
+		const drawFlame = (now: number) => {
+			const heating = clamp((tInTarget - tIn) / 6, 0, 1);
+			const flick = reduceMotion.matches ? 1 : 1 + 0.12 * Math.sin(now / 47) + 0.08 * Math.sin(now / 23);
+			const len = (4 + 16 * heating) * flick;
+			const w = 2.6 + 1.6 * heating;
+			const y0 = -17;
+			flame.setAttribute('d', `M 0 ${y0} C ${-w} ${y0 - len * 0.35} ${-w * 0.4} ${y0 - len * 0.75} 0 ${y0 - len} C ${w * 0.4} ${y0 - len * 0.75} ${w} ${y0 - len * 0.35} 0 ${y0} Z`);
+			const c = 0.45;
+			flameCore.setAttribute('d', `M 0 ${y0} C ${-w * c} ${y0 - len * 0.2} ${-w * c * 0.4} ${y0 - len * 0.45} 0 ${y0 - len * 0.6} C ${w * c * 0.4} ${y0 - len * 0.45} ${w * c} ${y0 - len * 0.2} 0 ${y0} Z`);
+		};
+
+		const draw = (now = performance.now()) => {
+			const y = G0 - (KM * h) / 1000;
+			balloon.setAttribute('transform', `translate(${X} ${y.toFixed(2)})`);
+			glow.style.opacity = clamp((tIn - tOut) / 110, 0, 1).toFixed(3);
+			drawFlame(now);
+			const he = hEq();
+			eqLine.setAttribute('y1', (G0 - (KM * he) / 1000).toFixed(1));
+			eqLine.setAttribute('y2', (G0 - (KM * he) / 1000).toFixed(1));
+			eqLine.style.opacity = he > 20 ? '0.8' : '0';
+
+			const p = pAt(h);
+			const ro = rho(p, tOut);
+			const ri = rho(p, tIn);
+			const lift = (ro - ri) * V;
+			tinOut.value = `${fmt(Math.round(tInTarget - 273), 0)} °C`;
+			toutOut.value = `${fmt(Math.round(tOut - 273), 0)} °C`;
+			hOut.textContent = h < 995 ? `${fmt(Math.round(h / 10) * 10, 0)} м` : `${fmt(h / 1000, 2)} км`;
+			pOut.textContent = `${fmt(p / 1e3, 1)} кПа`;
+			liftOut.textContent = `${fmt(Math.max(0, lift), 0)} кг`;
+
+			const key = `${ro.toFixed(3)}|${ri.toFixed(3)}|${Math.round(lift)}`;
+			if (key !== lastKey) {
+				lastKey = key;
+				const enough = lift >= LOAD - 0.5;
+				const cmp = enough ? (Math.abs(lift - LOAD) < 1.5 ? '=' : '>') : '<';
+				const cls = enough ? 'bl-ok' : 'bl-no';
+				const lines = [
+					`\\rho_{\\text{сн}} = \\dfrac{pM}{RT_{\\text{сн}}} \\approx ${tex(ro, 3)}~\\dfrac{\\text{кг}}{\\text{м}^3}`,
+					`\\rho_{\\text{вн}} = \\dfrac{pM}{RT_{\\text{вн}}} \\approx ${tex(ri, 3)}~\\dfrac{\\text{кг}}{\\text{м}^3}`,
+					`(\\rho_{\\text{сн}} - \\rho_{\\text{вн}})\\,V \\approx \\htmlClass{${cls}}{${tex(Math.max(0, lift), 0)}~\\text{кг} ${cmp} 450~\\text{кг}}`,
+				];
+				formula.innerHTML = lines
+					.map((l) =>
+						katex.renderToString(l, {
+							displayMode: true,
+							throwOnError: false,
+							trust: (c: { command: string }) => c.command === '\\htmlClass',
+							strict: false,
+						}),
+					)
+					.join('');
+			}
+			let s: string;
+			if (h < 1 && lift < LOAD) s = 'Шар стоит на земле: горячий воздух в оболочке пока недостаточно лёгкий. Нагрейте его.';
+			else if (Math.abs(h - he) < 8 && he > 0) s = `Шар висит на высоте ${fmt(he / 1000, 1)} км: здесь воздух реже, и шар может поднять ровно свою массу.`;
+			else if (h < he) s = 'Шар поднимается. Чем выше, тем меньше давление и плотность воздуха — и тем меньше масса, которую шар может поднять.';
+			else s = 'Шар опускается: воздух в оболочке остыл или наружный воздух потеплел.';
+			if (s !== lastStatus) {
+				lastStatus = s;
+				status.textContent = s;
+			}
+		};
+
+		const step = (dt: number) => {
+			// the burner heats (or the envelope cools) smoothly
+			tIn += (tInTarget - tIn) * (1 - Math.exp(-dt / 0.8));
+			if (Math.abs(tInTarget - tIn) < 0.02) tIn = tInTarget;
+			// the balloon moves with its terminal speed and stops at the height of equilibrium
+			const he = hEq();
+			const lift = liftAt(h);
+			const F = (lift - LOAD) * g;
+			if (h <= 0 && F <= 0) {
+				h = 0;
+				return;
+			}
+			const v = Math.sign(F) * Math.sqrt((2 * Math.abs(F)) / (CD * rho(pAt(h), tOut) * AREA));
+			let hn = h + v * dt * SPEED;
+			if ((h < he && hn > he) || (h > he && hn < he)) hn = he;
+			h = clamp(hn, 0, H_MAX);
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+			last = now;
+			step(dt);
+			draw(now);
+			raf = requestAnimationFrame(frame);
+		};
+		const run = () => {
+			cancelAnimationFrame(raf);
+			if (visible && !reduceMotion.matches) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		};
+		const settleIfStill = () => {
+			if (reduceMotion.matches) {
+				tIn = tInTarget;
+				h = hEq();
+				draw();
+			}
+		};
+
+		tinIn.addEventListener('input', () => {
+			tInTarget = Number(tinIn.value) + 273;
+			settleIfStill();
+			if (!raf || reduceMotion.matches) draw();
+		});
+		toutIn.addEventListener('input', () => {
+			tOut = Number(toutIn.value) + 273;
+			settleIfStill();
+			if (!raf || reduceMotion.matches) draw();
+		});
+		new IntersectionObserver(
+			(entries) => {
+				visible = entries[0].isIntersecting;
+				if (!visible) {
+					cancelAnimationFrame(raf);
+					raf = 0;
+				} else run();
+			},
+			{ rootMargin: '100px' },
+		).observe(root);
+		reduceMotion.addEventListener('change', run);
+		draw();
+	}
+</script>
