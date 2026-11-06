@@ -2,6 +2,7 @@
 """Download a public-domain portrait from Wikimedia Commons into the site.
 
     python3 scripts/fetch_portrait.py "File:Justus Sustermans - Portrait of Galileo Galilei, 1636.jpg" galileo "Галилео Галилей"
+    python3 scripts/fetch_portrait.py "File:Emil_Lenz.jpg" lenz "Эмилий Ленц" "неизвестен"   # override a messy author
 
 Saves public/portraits/<slug>.jpg (square crop, 480 px) and src/data/portraits/<slug>.json
 with the source page, author and license for the credits page. Refuses anything that is not
@@ -30,13 +31,20 @@ def get(url: str) -> bytes:
 
 
 def plain(html: str) -> str:
-    return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', html or '')).strip()
+    html = re.sub(r'<(\w+)[^>]*display:\s*none[^>]*>.*?</\1>', '', html or '', flags=re.S)  # Commons hides a duplicate
+    return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', html)).strip()
+
+
+def artist(meta: dict) -> str:
+    name = plain(meta.get('Artist', {}).get('value', ''))
+    return 'неизвестен' if re.fullmatch(r'(unknown( author)?)?', name, re.I) else name
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         sys.exit(__doc__)
     title, slug, person = sys.argv[1], sys.argv[2], sys.argv[3]
+    author = sys.argv[4] if len(sys.argv) == 5 else None
     if not title.startswith('File:'):
         title = 'File:' + title
     if not re.fullmatch(r'[a-z0-9-]+', slug):
@@ -68,7 +76,7 @@ def main() -> None:
         'file': f'{slug}.jpg',
         'person': person,
         'source': info['descriptionurl'],
-        'author': plain(meta.get('Artist', {}).get('value', '')) or 'неизвестен',
+        'author': author or artist(meta),
         'license': license_name,
     }
     (ROOT / 'src' / 'data' / 'portraits' / f'{slug}.json').write_text(
