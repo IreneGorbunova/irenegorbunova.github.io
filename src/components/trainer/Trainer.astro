@@ -1,0 +1,365 @@
+---
+/**
+ * «Решите сами»: problems of the chapter with new numbers each time (templates in src/data/problems/<slug>.mjs).
+ * The reply is checked at once; a typical mistake gets its own hint; after two misses the solution can be shown.
+ * The count of solved problems lives in localStorage['ig:trainer'] only.
+ */
+interface Props {
+	slug: string;
+}
+const { slug } = Astro.props;
+---
+
+<section class="tr not-content" data-trainer={slug}>
+	<p class="tr__nojs">Чтобы решать задачи с новыми числами, включите в браузере JavaScript.</p>
+	<div class="tr__ui" hidden>
+		<div class="tr__head">
+			<span class="tr__num" data-tr-num></span>
+			<span class="tr__count" data-tr-count></span>
+		</div>
+		<div class="tr__text" data-tr-text></div>
+		<form class="tr__form" data-tr-form autocomplete="off">
+			<label class="tr__label" for={`tr-${slug}`}>Ответ:</label>
+			<span class="tr__field">
+				<input id={`tr-${slug}`} class="tr__input" type="text" inputmode="decimal" enterkeyhint="done" spellcheck="false" data-tr-input />
+				<span class="tr__unit" data-tr-unit></span>
+			</span>
+			<button type="submit" class="tr__btn tr__btn--primary">Проверить</button>
+		</form>
+		<p class="tr__fb" data-tr-fb aria-live="polite"></p>
+		<div class="tr__actions">
+			<button type="button" class="tr__btn" data-tr-show hidden>Показать решение</button>
+			<button type="button" class="tr__btn" data-tr-again>Другие числа</button>
+			<button type="button" class="tr__btn" data-tr-next>Следующая задача →</button>
+		</div>
+		<div class="tr__sol" data-tr-sol hidden>
+			<p class="tr__sol-title">Решение</p>
+			<ol data-tr-steps></ol>
+		</div>
+	</div>
+</section>
+
+<style is:global>
+	.tr {
+		margin-block: 1.5rem 2rem;
+		padding: 1.1rem 1.25rem 1.25rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.tr__nojs {
+		margin: 0;
+		color: var(--sl-color-gray-2);
+	}
+	.tr__ui[hidden],
+	.tr__sol[hidden],
+	.tr__btn[hidden] {
+		display: none;
+	}
+	.tr__head {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: 0.25rem 1rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.tr__count.is-up {
+		animation: tr-pop 0.6s ease-out;
+	}
+	.tr__text {
+		margin-top: 0.6rem;
+		font-size: 1.08rem;
+		line-height: 1.6;
+		color: var(--sl-color-white);
+	}
+	.tr__form {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem 0.75rem;
+		margin-top: 1rem;
+	}
+	.tr__label {
+		color: var(--sl-color-gray-2);
+	}
+	.tr__field {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.tr__input {
+		width: 8.5rem;
+		padding: 0.5rem 0.75rem;
+		font: inherit;
+		font-size: 1.1rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-white);
+		background: var(--sl-color-bg);
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.6rem;
+	}
+	.tr__input:focus {
+		outline: none;
+		border-color: var(--sl-color-accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--sl-color-accent) 30%, transparent);
+	}
+	.tr__input.is-ok {
+		border-color: var(--sl-color-green);
+	}
+	.tr__input.is-bad {
+		border-color: var(--sl-color-red);
+		animation: tr-shake 0.4s;
+	}
+	.tr__unit {
+		white-space: nowrap;
+		color: var(--sl-color-white);
+	}
+	.tr__btn {
+		margin: 0;
+		padding: 0.5rem 1rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.tr__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.tr__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.tr__btn--primary:hover {
+		filter: brightness(1.08);
+	}
+	.tr__fb {
+		min-height: 1.5em;
+		margin: 0.75rem 0 0;
+		line-height: 1.55;
+	}
+	.tr__fb b {
+		color: var(--sl-color-white);
+	}
+	.tr__fb.is-ok b {
+		color: var(--sl-color-green);
+	}
+	.tr__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.tr__sol {
+		margin-top: 1rem;
+		padding-top: 0.75rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.tr__sol-title {
+		margin: 0;
+		font-family: var(--ig-font-display);
+		font-size: 1.9rem;
+		line-height: 1.2;
+		color: var(--sl-color-white);
+	}
+	.tr__sol ol {
+		margin: 0.25rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.tr__sol li p {
+		margin: 0.5rem 0 0;
+	}
+	.tr__sol .katex-display {
+		margin: 0.4rem 0;
+	}
+	@keyframes tr-shake {
+		25% {
+			transform: translateX(-4px);
+		}
+		75% {
+			transform: translateX(4px);
+		}
+	}
+	@keyframes tr-pop {
+		40% {
+			color: var(--sl-color-accent);
+			transform: scale(1.15);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tr__input.is-bad,
+		.tr__count.is-up {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { generate, judge, n, parse, shown } from './engine.mjs';
+	import { PROBLEMS } from '../../data/problems/index.mjs';
+
+	const KEY = 'ig:trainer';
+	type Store = Record<string, { solved: number }>;
+	const load = (): Store => {
+		try {
+			return JSON.parse(localStorage.getItem(KEY) ?? '{}') ?? {};
+		} catch {
+			return {};
+		}
+	};
+	const save = (s: Store) => {
+		try {
+			localStorage.setItem(KEY, JSON.stringify(s));
+		} catch {
+			/* storage off: the counter just is not kept */
+		}
+	};
+	const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	/** Text with inline math in $…$. */
+	const rich = (s: string) =>
+		s
+			.split(/(\$[^$]+\$)/)
+			.map((p) => (p.length > 1 && p.startsWith('$') && p.endsWith('$') ? katex.renderToString(p.slice(1, -1), { throwOnError: false }) : esc(p)))
+			.join('');
+	const plural = (k: number) => {
+		const a = k % 10;
+		const b = k % 100;
+		return a === 1 && b !== 11 ? 'задача' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'задачи' : 'задач';
+	};
+	const newSeed = () => Math.floor(Math.random() * 2 ** 31);
+
+	const init = async (root: HTMLElement) => {
+		const slug = root.dataset.trainer!;
+		const loader = PROBLEMS[slug as keyof typeof PROBLEMS];
+		if (!loader) return;
+		const templates = (await loader()).default as any[];
+		const $ = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
+		const ui = $('.tr__ui');
+		const num = $('[data-tr-num]');
+		const count = $('[data-tr-count]');
+		const text = $('[data-tr-text]');
+		const form = $<HTMLFormElement>('[data-tr-form]');
+		const input = $<HTMLInputElement>('[data-tr-input]');
+		const unit = $('[data-tr-unit]');
+		const fb = $('[data-tr-fb]');
+		const show = $<HTMLButtonElement>('[data-tr-show]');
+		const sol = $('[data-tr-sol]');
+		const steps = $('[data-tr-steps]');
+
+		let k = 0;
+		let tpl: any;
+		let inst: any;
+		let misses = 0;
+		let done = false;
+		let peeked = false;
+
+		const solved = () => load()[slug]?.solved ?? 0;
+		const showCount = (bump = false) => {
+			const s = solved();
+			count.textContent = s ? `Решено: ${s} ${plural(s)}` : '';
+			if (bump) {
+				count.classList.remove('is-up');
+				void count.offsetWidth;
+				count.classList.add('is-up');
+			}
+		};
+
+		const draw = (index: number) => {
+			k = (index + templates.length) % templates.length;
+			tpl = templates[k];
+			inst = generate(tpl, newSeed());
+			misses = 0;
+			done = false;
+			peeked = false;
+			num.textContent = `Задача ${k + 1} из ${templates.length}`;
+			text.innerHTML = rich(tpl.text(inst.v));
+			unit.textContent = tpl.unit;
+			input.value = '';
+			input.classList.remove('is-ok', 'is-bad');
+			fb.textContent = '';
+			fb.classList.remove('is-ok');
+			show.hidden = true;
+			sol.hidden = true;
+			steps.innerHTML = '';
+		};
+
+		const solution = () => {
+			steps.innerHTML = tpl
+				.solution(inst.v)
+				.map((s: string | { tex: string }) =>
+					typeof s === 'string'
+						? `<li><p>${rich(s)}</p></li>`
+						: `<li>${katex.renderToString(s.tex, { displayMode: true, throwOnError: false })}</li>`,
+				)
+				.join('');
+			sol.hidden = false;
+			show.hidden = true;
+			peeked = true;
+		};
+
+		form.addEventListener('submit', (e) => {
+			e.preventDefault();
+			const x = parse(input.value);
+			input.classList.remove('is-ok', 'is-bad');
+			void input.offsetWidth;
+			if (x === null) {
+				fb.innerHTML = 'Введите число, например <b>2,5</b>.';
+				return;
+			}
+			const r = judge(tpl, inst, x);
+			if (r.ok) {
+				input.classList.add('is-ok');
+				fb.classList.add('is-ok');
+				const a = shown(tpl, inst.answer);
+				const o = tpl.dec !== undefined ? { dec: tpl.dec } : { sig: tpl.sig ?? 3 };
+				const note = tpl.note ? ' ' + rich(tpl.note(inst.v)) : '';
+				let head = `<b>Верно!</b> Ответ: ${n(a, o)}&nbsp;${esc(tpl.unit)}.`;
+				if (!done && !peeked) {
+					const s = load();
+					s[slug] = { solved: (s[slug]?.solved ?? 0) + 1 };
+					save(s);
+					showCount(true);
+					document.dispatchEvent(new CustomEvent('ig:trainer', { detail: { slug, solved: s[slug].solved } }));
+				} else if (peeked && !done) {
+					head += ' Эту задачу вы решили с подсказкой, поэтому в счёт она не идёт — попробуйте её же с другими числами.';
+				}
+				done = true;
+				fb.innerHTML = head + note;
+				return;
+			}
+			input.classList.add('is-bad');
+			fb.classList.remove('is-ok');
+			misses += 1;
+			fb.innerHTML = r.why
+				? `<b>Не совсем.</b> ${rich(r.why)}`
+				: r.scale
+					? `<b>Не совсем.</b> Число похоже на верное, но, кажется, в других единицах. Ответ нужен в ${esc(tpl.unit)}.`
+					: '<b>Пока неверно.</b> Проверьте формулу и вычисления.';
+			if (misses >= 2 && sol.hidden) show.hidden = false;
+		});
+		show.addEventListener('click', solution);
+		$('[data-tr-again]').addEventListener('click', () => {
+			draw(k);
+			input.focus();
+		});
+		$('[data-tr-next]').addEventListener('click', () => {
+			draw(k + 1);
+			input.focus();
+		});
+
+		draw(0);
+		showCount();
+		root.querySelector<HTMLElement>('.tr__nojs')!.hidden = true;
+		ui.hidden = false;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-trainer]')) init(root);
+</script>
