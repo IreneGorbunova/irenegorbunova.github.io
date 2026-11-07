@@ -37,7 +37,7 @@ export default defineConfig({
 					section('Давление твёрдых тел, жидкостей и газов', '7-klass/davlenie', ['atmosfernoe-davlenie', 'arhimedova-sila']),
 				]),
 				grade(8, [
-					section('Тепловые явления', '8-klass/teplovye-yavleniya', ['vnutrennyaya-energiya', 'kolichestvo-teploty']),
+					section('Тепловые явления', '8-klass/teplovye-yavleniya', ['vnutrennyaya-energiya', 'kolichestvo-teploty', 'energiya-topliva']),
 					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['zakon-oma']),
 					section('Световые явления', '8-klass/svetovye-yavleniya', ['linzy']),
 				]),

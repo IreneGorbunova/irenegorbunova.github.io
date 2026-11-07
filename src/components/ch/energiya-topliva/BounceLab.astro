@@ -1,0 +1,475 @@
+---
+/**
+ * A ball dropped on the floor. In flight its potential energy turns into kinetic and back
+ * (air resistance neglected, g = 9.8 N/kg, true free-fall motion). At every impact a share of the
+ * mechanical energy turns into internal energy of the ball and the floor; the sum stays the same.
+ * Scene: 130 px per metre, height of the ball's bottom above the floor.
+ */
+const S = 130;
+const FLOOR = 318;
+const balls = [
+	{ id: 'super', name: 'Мячик-попрыгунчик', k: 0.8 },
+	{ id: 'tennis', name: 'Теннисный мяч', k: 0.55 },
+	{ id: 'clay', name: 'Пластилиновый шарик', k: 0 },
+];
+---
+
+<figure class="bl not-content" data-bl>
+	<div class="bl__chips" role="radiogroup" aria-label="Что бросаем">
+		{
+			balls.map((b, i) => (
+				<button type="button" class="bl__chip" role="radio" aria-checked={i === 1 ? 'true' : 'false'} data-k={b.k} data-id={b.id}>
+					{b.name}
+				</button>
+			))
+		}
+	</div>
+	<div class="bl__stage">
+		<svg viewBox="0 0 170 340" class="bl__scene" role="img" aria-label="Мяч падает и отскакивает">
+			<g class="bl__ruler">
+				<line x1="34" y1={FLOOR} x2="34" y2={FLOOR - 2 * S - 4} />
+				{
+					[0, 0.5, 1, 1.5, 2].map((v) => (
+						<g>
+							<line x1="30" y1={FLOOR - v * S} x2="38" y2={FLOOR - v * S} />
+							<text x="27" y={FLOOR - v * S + 4} text-anchor="end">
+								{String(v).replace('.', ',')}
+							</text>
+						</g>
+					))
+				}
+				<text x="27" y={FLOOR - 2 * S - 14} text-anchor="end">
+					м
+				</text>
+			</g>
+			<g data-apexes></g>
+			<line class="bl__floor" x1="40" y1={FLOOR} x2="166" y2={FLOOR} />
+			<g class="bl__hatch">
+				{[50, 66, 82, 98, 114, 130, 146, 162].map((x) => <line x1={x} y1={FLOOR + 2} x2={x - 10} y2={FLOOR + 12} />)}
+			</g>
+			<ellipse class="bl__ball" cx="104" cy="0" rx="11" ry="11" data-ball />
+			<text class="bl__hlabel" x="160" y="0" text-anchor="end" data-hlabel></text>
+		</svg>
+		<svg viewBox="0 0 320 340" class="bl__bars" role="img" aria-label="Энергия мяча">
+			<line class="bl__base" x1="10" y1="276" x2="314" y2="276" />
+			<line class="bl__total" x1="10" y1="56" x2="314" y2="56" />
+			<text class="bl__total-t" x="314" y="48" text-anchor="end" data-total-t></text>
+			{
+				[
+					{ k: 'p', x: 18, l1: 'Потенци-', l2: 'альная' },
+					{ k: 'k', x: 88, l1: 'Кинети-', l2: 'ческая' },
+					{ k: 'u', x: 158, l1: 'Внутрен-', l2: 'няя*' },
+				].map((b) => (
+					<g>
+						<rect class={`bl__bar bl__bar--${b.k}`} x={b.x} y="276" width="52" height="0" data-bar={b.k} />
+						<text class="bl__val" x={b.x + 26} y="270" text-anchor="middle" data-val={b.k} />
+						<text class="bl__lab" x={b.x + 26} y="298" text-anchor="middle">
+							{b.l1}
+						</text>
+						<text class="bl__lab" x={b.x + 26} y="316" text-anchor="middle">
+							{b.l2}
+						</text>
+					</g>
+				))
+			}
+			<text class="bl__plus" x="79" y="200" text-anchor="middle">+</text>
+			<text class="bl__plus" x="149" y="200" text-anchor="middle">+</text>
+			<text class="bl__plus" x="226" y="200" text-anchor="middle">=</text>
+			<g data-sum>
+				<rect class="bl__bar bl__bar--p" x="240" y="276" width="62" height="0" data-sum-p />
+				<rect class="bl__bar bl__bar--k" x="240" y="276" width="62" height="0" data-sum-k />
+				<rect class="bl__bar bl__bar--u" x="240" y="276" width="62" height="0" data-sum-u />
+			</g>
+			<text class="bl__lab" x="271" y="298" text-anchor="middle">Сумма</text>
+		</svg>
+	</div>
+	<div class="bl__controls">
+		<label class="bl__slider">
+			<span>Высота, с которой бросаем, <i>h</i></span>
+			<output data-out-h></output>
+			<input type="range" min="0.5" max="2" step="0.1" value="1.5" data-in-h />
+		</label>
+		<div class="bl__buttons">
+			<button type="button" class="bl__btn bl__btn--primary" data-go>Отпустить</button>
+			<label class="bl__check"><input type="checkbox" checked data-slow /> замедлить в 3 раза</label>
+		</div>
+	</div>
+	<p class="bl__live" data-live aria-live="polite"></p>
+	<figcaption class="bl__caption">
+		Масса мяча 100 г, <i>g</i> = 9,8 Н/кг, сопротивление воздуха не учитываем. При каждом ударе мяч сохраняет только часть механической энергии: попрыгунчик — около 80 %, теннисный мяч — около 55 %, пластилин — ничего. *Внутренняя энергия мяча и пола — показано, насколько она увеличилась.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.bl {
+		margin-block: 1.5rem 2rem;
+		padding: 1rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.bl i {
+		font-family: var(--ig-font-math);
+	}
+	.bl__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.bl__chip {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.bl__chip[aria-checked='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 15%, transparent);
+		color: var(--sl-color-white);
+	}
+	.bl__stage {
+		display: grid;
+		grid-template-columns: 17fr 32fr;
+		gap: 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		padding: 0.4rem;
+	}
+	.bl__stage svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.bl__ruler line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+	}
+	.bl__ruler text {
+		font-size: 13px;
+		fill: var(--sl-color-gray-3);
+	}
+	.bl__floor {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.bl__hatch line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+	}
+	.bl__ball {
+		fill: var(--ig-v);
+		stroke: color-mix(in srgb, var(--ig-v) 55%, black);
+		stroke-width: 1.5;
+	}
+	.bl[data-ball='clay'] .bl__ball {
+		fill: color-mix(in srgb, var(--ig-vy) 70%, var(--ig-v));
+	}
+	.bl[data-ball='tennis'] .bl__ball {
+		fill: hsl(70, 80%, 55%);
+	}
+	.bl__apex line {
+		stroke: var(--sl-color-gray-3);
+		stroke-dasharray: 3 3;
+	}
+	.bl__apex text,
+	.bl__hlabel {
+		font-size: 12px;
+		fill: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.bl__base {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.bl__total {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 4;
+	}
+	.bl__total-t {
+		font-size: 13px;
+		fill: var(--sl-color-gray-2);
+	}
+	.bl__bar--p {
+		fill: var(--ig-v);
+	}
+	.bl__bar--k {
+		fill: var(--ig-vx);
+	}
+	.bl__bar--u {
+		fill: var(--ig-vy);
+	}
+	.bl__val {
+		font-size: 13px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.bl__lab {
+		font-size: 13.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.bl__plus {
+		font-size: 20px;
+		fill: var(--sl-color-gray-3);
+	}
+	.bl__controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: end;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+	}
+	.bl__slider {
+		flex: 1 1 14rem;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.bl__slider output {
+		font-weight: 700;
+		color: var(--ig-v);
+		font-variant-numeric: tabular-nums;
+	}
+	.bl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--ig-v);
+	}
+	.bl__buttons {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+	}
+	.bl__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		padding: 0.5rem 1.2rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.bl__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.bl__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.bl__caption {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 30rem) {
+		.bl {
+			padding: 0.75rem 0.6rem;
+		}
+		.bl__stage {
+			gap: 0.3rem;
+		}
+	}
+</style>
+
+<script>
+	import { ru, reduceMotion, loop } from './et';
+
+	const S = 130;
+	const FLOOR = 318;
+	const G = 9.8;
+	const MASS = 0.1;
+	const R = 11; // drawn radius, px (≈ 8.5 cm)
+	const BAR = 220; // px for the full energy
+	const NS = 'http://www.w3.org/2000/svg';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bl]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('.bl__chip'));
+		const hIn = $<HTMLInputElement>('[data-in-h]');
+		const go = $<HTMLButtonElement>('[data-go]');
+		const slow = $<HTMLInputElement>('[data-slow]');
+		const ball = $<SVGEllipseElement>('[data-ball]');
+		const hLabel = $<SVGTextElement>('[data-hlabel]');
+		const apexG = $<SVGGElement>('[data-apexes]');
+		const live = $<HTMLElement>('[data-live]');
+		const bar = (k: string) => $<SVGRectElement>(`[data-bar="${k}"]`);
+		const val = (k: string) => $<SVGTextElement>(`[data-val="${k}"]`);
+		const sum = { p: $<SVGRectElement>('[data-sum-p]'), k: $<SVGRectElement>('[data-sum-k]'), u: $<SVGRectElement>('[data-sum-u]') };
+
+		let kE = Number(chips.find((c) => c.getAttribute('aria-checked') === 'true')!.dataset.k);
+		root.dataset.ball = 'tennis';
+		let y = 0; // height of the bottom of the ball, m
+		let v = 0; // velocity, m/s, up is positive
+		let U = 0; // internal energy gained, J
+		let E0 = 0;
+		let running = false;
+		let hits = 0;
+		let squash = 0; // visual squash after an impact, 0…1
+		let flat = false;
+
+		const h0 = () => Number(hIn.value);
+
+		const draw = () => {
+			const Ep = MASS * G * y;
+			const Ek = (MASS * v * v) / 2;
+			const sc = BAR / Math.max(E0, 1e-9);
+			const set = (k: string, e: number) => {
+				const hh = e * sc;
+				bar(k).setAttribute('y', String(276 - hh));
+				bar(k).setAttribute('height', String(hh));
+				val(k).setAttribute('y', String(270 - hh));
+				val(k).textContent = `${ru(e, 2)} Дж`;
+			};
+			set('p', Ep);
+			set('k', Ek);
+			set('u', U);
+			let base = 276;
+			for (const [k, e] of [
+				['u', U],
+				['k', Ek],
+				['p', Ep],
+			] as const) {
+				const hh = e * sc;
+				sum[k].setAttribute('y', String(base - hh));
+				sum[k].setAttribute('height', String(hh));
+				base -= hh;
+			}
+			$<SVGTextElement>('[data-total-t]').textContent = `Полная энергия ${ru(E0, 2)} Дж`;
+			const sq = flat ? 0.45 : squash * 0.25;
+			const ry = R * (1 - sq);
+			const rx = R * (1 + sq * 0.9);
+			ball.setAttribute('cy', String(FLOOR - y * S - ry));
+			ball.setAttribute('ry', String(ry));
+			ball.setAttribute('rx', String(rx));
+			hLabel.setAttribute('y', String(FLOOR - y * S - 2 * ry - 6));
+			hLabel.textContent = running || y > 0 ? `${ru(y, 2)} м` : '';
+		};
+
+		const addApex = (h: number) => {
+			const g = document.createElementNS(NS, 'g');
+			g.setAttribute('class', 'bl__apex');
+			const yy = FLOOR - h * S;
+			g.innerHTML = `<line x1="38" y1="${yy}" x2="86" y2="${yy}"/><text x="40" y="${yy - 3}">${ru(h, 2)} м</text>`;
+			apexG.append(g);
+		};
+
+		const describe = () => {
+			const mech = MASS * G * y + (MASS * v * v) / 2;
+			if (hits === 0) {
+				live.innerHTML = running
+					? 'Мяч падает: потенциальная энергия переходит в кинетическую, а их сумма не меняется.'
+					: 'Нажмите «Отпустить». Пока мяч висит, вся его энергия — потенциальная.';
+				return;
+			}
+			const tail =
+				kE === 0
+					? 'Пластилин не отскочил: вся механическая энергия перешла во внутреннюю энергию шарика и пола.'
+					: !running
+						? 'Мяч остановился: вся механическая энергия перешла во внутреннюю.'
+						: `Механическая энергия: ${ru(mech, 2)} Дж, внутренняя энергия выросла на ${ru(U, 2)} Дж.`;
+			live.innerHTML = `Ударов о пол: ${hits}. ${tail} Сумма всё время равна ${ru(E0, 2)} Дж.`;
+		};
+
+		const step = (dt: number) => {
+			// exact free fall inside the step, exact time of the impact
+			let left = dt;
+			while (left > 0 && running) {
+				const tHit = (v + Math.sqrt(v * v + 2 * G * y)) / G; // time until y = 0
+				if (tHit > left) {
+					y += v * left - (G * left * left) / 2;
+					v -= G * left;
+					left = 0;
+				} else {
+					left -= tHit;
+					const vHit = v - G * tHit; // negative
+					const Ek = (MASS * vHit * vHit) / 2;
+					hits += 1;
+					squash = 1;
+					y = 0;
+					const keep = kE * Ek;
+					U += Ek - keep;
+					v = Math.sqrt((2 * keep) / MASS);
+					const apex = (v * v) / (2 * G);
+					if (apex < 0.004) {
+						// the last tiny bounces: the rest of the energy also becomes internal
+						U = E0;
+						v = 0;
+						running = false;
+						if (kE === 0) flat = true;
+					} else addApex(apex);
+				}
+			}
+		};
+
+		const frame = (dt: number) => {
+			if (running) step(dt * (slow.checked ? 1 / 3 : 1));
+			squash = Math.max(0, squash - dt * 8);
+			draw();
+			describe();
+			if (!running) go.textContent = 'Ещё раз';
+		};
+		const wake = loop(root, frame, () => running || squash > 0);
+
+		const prepare = () => {
+			running = false;
+			y = h0();
+			v = 0;
+			U = 0;
+			hits = 0;
+			flat = false;
+			squash = 0;
+			E0 = MASS * G * y;
+			apexG.innerHTML = '';
+			addApex(y);
+			$<HTMLOutputElement>('[data-out-h]').value = `${ru(y, 1)} м`;
+			go.textContent = 'Отпустить';
+			draw();
+			describe();
+		};
+
+		go.addEventListener('click', () => {
+			if (running) return;
+			if (hits > 0 || y < h0()) prepare();
+			if (reduceMotion()) {
+				// no animation: jump to the end of the story
+				running = true;
+				step(60);
+				running = false;
+				frame(0);
+				return;
+			}
+			running = true;
+			go.textContent = 'Летит…';
+			wake();
+		});
+		hIn.addEventListener('input', prepare);
+		chips.forEach((ch) =>
+			ch.addEventListener('click', () => {
+				chips.forEach((x) => x.setAttribute('aria-checked', String(x === ch)));
+				kE = Number(ch.dataset.k);
+				root.dataset.ball = ch.dataset.id;
+				prepare();
+			}),
+		);
+		prepare();
+	}
+</script>

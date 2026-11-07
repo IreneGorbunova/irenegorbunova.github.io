@@ -1,0 +1,999 @@
+---
+/**
+ * Main model: choose a fuel and its mass, burn it, and see the heat Q = qm it gives:
+ * how much water it could bring from 20 °C to the boil, or how high it could lift a 1-tonne load
+ * (if all of the energy went into that one job). Scales are linear and zoom to the result.
+ */
+const fuels = [
+	{ id: 'wood', name: 'Дрова сухие', q: 1.0 },
+	{ id: 'coal', name: 'Каменный уголь', q: 2.7 },
+	{ id: 'spirit', name: 'Спирт', q: 2.7 },
+	{ id: 'gas', name: 'Природный газ', q: 4.4 },
+	{ id: 'petrol', name: 'Бензин', q: 4.6 },
+	{ id: 'hydrogen', name: 'Водород', q: 12 },
+];
+const fmtQ = (q: number) => q.toLocaleString('ru-RU', { minimumFractionDigits: q < 10 ? 1 : 0 });
+// Coal lumps: [x, y, r, sides, turn] around the grate centre (120, 262).
+const lumps = [
+	[96, 252, 11, 5, 0.3],
+	[120, 254, 12, 6, 1.1],
+	[144, 252, 11, 5, 2.0],
+	[108, 236, 11, 5, 0.8],
+	[133, 237, 12, 6, 2.6],
+	[120, 220, 10, 5, 1.7],
+	[84, 258, 7, 5, 0.5],
+	[157, 258, 7, 5, 1.4],
+];
+const poly = ([x, y, r, n, t]: number[]) =>
+	Array.from({ length: n }, (_, i) => {
+		const a = t + (i * 2 * Math.PI) / n;
+		const rr = r * (0.82 + 0.18 * Math.sin(i * 2.3 + t));
+		return `${(x + rr * Math.cos(a)).toFixed(1)},${(y + rr * Math.sin(a)).toFixed(1)}`;
+	}).join(' ');
+---
+
+<figure class="fuel not-content" data-fuel>
+	<div class="fuel__pick" role="radiogroup" aria-label="Топливо и его удельная теплота сгорания">
+		{
+			fuels.map((f) => (
+				<button
+					type="button"
+					class="fuel__opt"
+					role="radio"
+					aria-checked={f.id === 'petrol' ? 'true' : 'false'}
+					data-id={f.id}
+					data-q={f.q * 1e7}
+					data-name={f.name}
+				>
+					<span class="fuel__opt-name">{f.name}</span>
+					<span class="fuel__opt-bar">
+						<span style={`width:${(f.q / 12) * 100}%`} />
+					</span>
+					<span class="fuel__opt-q">
+						{fmtQ(f.q)}·10<sup>7</sup>
+					</span>
+				</button>
+			))
+		}
+		<p class="fuel__pick-note">Полоски — удельная теплота сгорания <i>q</i>, Дж/кг</p>
+	</div>
+
+	<div class="fuel__controls">
+		<label class="fuel__slider">
+			<span>Масса топлива <i>m</i></span>
+			<output data-out-m></output>
+			<input type="range" min="0" max="9" step="1" value="3" data-in-m aria-label="Масса топлива" />
+		</label>
+		<button type="button" class="fuel__btn" data-burn>Сжечь</button>
+	</div>
+
+	<div class="fuel__stage">
+		<div class="fuel__card fuel__card--fire">
+			<p class="fuel__card-title" data-fuel-title>Бензин</p>
+			<svg viewBox="0 0 240 300" role="img" aria-label="Сгорание топлива">
+				<defs>
+					<filter id="fuel-glow" x="-50%" y="-50%" width="200%" height="200%">
+						<feGaussianBlur stdDeviation="2.2" />
+					</filter>
+					<clipPath id="fuel-lamp-clip">
+						<path d="M84,262 h72 a10,10 0 0 0 10,-10 v-22 q0,-26 -34,-30 h-24 q-34,4 -34,30 v22 a10,10 0 0 0 10,10z" />
+					</clipPath>
+					<clipPath id="fuel-bowl-clip">
+						<path d="M66,228 L174,228 L160,262 L80,262 Z" />
+					</clipPath>
+				</defs>
+				<text class="fuel__count" x="120" y="22" text-anchor="middle" data-count></text>
+				<text class="fuel__left" x="120" y="42" text-anchor="middle" data-left></text>
+				<line class="fuel__ground" x1="10" y1="272" x2="230" y2="272" />
+
+				<!-- wood -->
+				<g data-kind="wood">
+					<ellipse class="fuel__ash" cx="120" cy="264" rx="0" ry="0" data-ash />
+					<g class="fuel__grate">
+						<line x1="62" y1="264" x2="178" y2="264" />
+						<line x1="70" y1="264" x2="66" y2="272" />
+						<line x1="170" y1="264" x2="174" y2="272" />
+					</g>
+					<g data-pile>
+						<rect class="fuel__log" x="70" y="238" width="100" height="20" rx="10" transform="rotate(-7 120 248)" />
+						<rect class="fuel__log" x="70" y="238" width="100" height="20" rx="10" transform="rotate(7 120 248)" />
+						<rect class="fuel__log fuel__log--top" x="80" y="222" width="80" height="17" rx="8.5" />
+						<circle class="fuel__ring" cx="80" cy="230.5" r="6" />
+						<circle class="fuel__ring" cx="160" cy="230.5" r="6" />
+						<rect class="fuel__char" x="66" y="218" width="108" height="46" rx="12" data-char />
+					</g>
+				</g>
+				<!-- coal -->
+				<g data-kind="coal">
+					<ellipse class="fuel__ash" cx="120" cy="264" rx="0" ry="0" data-ash />
+					<g class="fuel__grate">
+						<line x1="62" y1="264" x2="178" y2="264" />
+						<line x1="70" y1="264" x2="66" y2="272" />
+						<line x1="170" y1="264" x2="174" y2="272" />
+					</g>
+					<g data-pile>
+						{lumps.map((l) => <polygon class="fuel__lump" points={poly(l)} />)}
+						<g data-embers>{lumps.slice(0, 6).map((l) => <polygon class="fuel__ember" points={poly([l[0], l[1], l[2] * 0.55, l[3], l[4] + 0.4])} />)}</g>
+					</g>
+				</g>
+				<!-- spirit lamp -->
+				<g data-kind="spirit">
+					<g clip-path="url(#fuel-lamp-clip)">
+						<rect class="fuel__liquid fuel__liquid--spirit" x="60" y="200" width="120" height="70" data-liquid />
+					</g>
+					<path class="fuel__glass" d="M84,262 h72 a10,10 0 0 0 10,-10 v-22 q0,-26 -34,-30 h-24 q-34,4 -34,30 v22 a10,10 0 0 0 10,10z" />
+					<rect class="fuel__metal" x="108" y="188" width="24" height="13" rx="2" />
+					<line class="fuel__wick" x1="120" y1="188" x2="120" y2="178" />
+				</g>
+				<!-- petrol in a bowl -->
+				<g data-kind="petrol">
+					<g clip-path="url(#fuel-bowl-clip)">
+						<rect class="fuel__liquid fuel__liquid--petrol" x="60" y="228" width="120" height="40" data-liquid />
+					</g>
+					<path class="fuel__bowl" d="M66,228 L174,228 L160,262 L80,262 Z" />
+					<line class="fuel__metal-line" x1="80" y1="262" x2="76" y2="272" />
+					<line class="fuel__metal-line" x1="160" y1="262" x2="164" y2="272" />
+				</g>
+				<!-- gas from a bag -->
+				<g data-kind="bag">
+					<path class="fuel__tube" d="" data-tube />
+					<ellipse class="fuel__bag" cx="64" cy="150" rx="40" ry="44" data-bag />
+					<rect class="fuel__metal" x="150" y="226" width="16" height="46" rx="3" />
+					<rect class="fuel__metal" x="144" y="222" width="28" height="7" rx="2" />
+				</g>
+
+				<g data-smoke></g>
+				<g data-flame filter="url(#fuel-glow)" opacity="0">
+					<path data-f0 />
+					<path data-f1 />
+					<path data-f2 />
+				</g>
+				<g data-flame-sharp opacity="0">
+					<path data-g0 />
+					<path data-g1 />
+					<path data-g2 />
+				</g>
+				<g data-sparks></g>
+				<text class="fuel__hint" x="120" y="120" text-anchor="middle" data-hint></text>
+			</svg>
+		</div>
+
+		<div class="fuel__card">
+			<p class="fuel__card-title">Нагреть воду от 20 °C до кипения</p>
+			<svg viewBox="0 0 210 300" role="img" aria-label="Сколько воды можно нагреть">
+				<g data-wticks></g>
+				<rect class="fuel__water" x="63" y="270" width="58" height="0" data-water />
+				<path class="fuel__wave" d="" data-wave />
+				<g data-wbubbles></g>
+				<path class="fuel__tank" d="M62,26 V270 H122 V26" />
+				<g data-wmarks></g>
+				<line class="fuel__ground" x1="10" y1="272" x2="200" y2="272" />
+			</svg>
+			<p class="fuel__result"><span data-res-w></span></p>
+		</div>
+
+		<div class="fuel__card">
+			<p class="fuel__card-title">Поднять груз массой 1&nbsp;т</p>
+			<svg viewBox="0 0 210 300" role="img" aria-label="На какую высоту можно поднять груз">
+				<g data-hticks></g>
+				<line class="fuel__axis" x1="58" y1="272" x2="58" y2="24" />
+				<g data-hmarks></g>
+				<line class="fuel__hline" x1="83" y1="272" x2="83" y2="272" data-hline />
+				<g data-load>
+					<rect class="fuel__load" x="66" y="-24" width="34" height="24" rx="3" />
+					<text class="fuel__load-t" x="83" y="-7" text-anchor="middle">1 т</text>
+				</g>
+				<line class="fuel__ground" x1="10" y1="272" x2="200" y2="272" />
+			</svg>
+			<p class="fuel__result"><span data-res-h></span></p>
+		</div>
+	</div>
+
+	<div class="fuel__formula" data-formula aria-live="polite"></div>
+	<figcaption class="fuel__caption">
+		Считаем, что топливо сгорает полностью и вся выделившаяся энергия идёт на одно дело — либо на нагревание воды, либо на подъём груза. На самом деле часть энергии всегда уходит в окружающий воздух. Шкалы линейные и сами подстраиваются под результат.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.fuel {
+		--fire-1: hsl(14, 95%, 52%);
+		--fire-2: hsl(34, 100%, 55%);
+		--fire-3: hsl(50, 100%, 78%);
+		margin-block: 1.5rem 2rem;
+		padding: 1rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-text);
+	}
+	.fuel i {
+		font-family: var(--ig-font-math);
+	}
+	.fuel__pick {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.2rem;
+		margin: 0 0 0.9rem;
+	}
+	.fuel__pick-note {
+		grid-column: 1 / -1;
+		margin: 0.1rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.fuel__opt {
+		display: grid;
+		grid-template-columns: 8.2rem 1fr 4.6rem;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0;
+		padding: 0.2rem 0.55rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		text-align: start;
+		color: var(--sl-color-gray-2);
+		background: transparent;
+		border: 1px solid transparent;
+		border-radius: 0.6rem;
+		cursor: pointer;
+		transition:
+			background 0.25s,
+			border-color 0.25s,
+			color 0.25s;
+	}
+	.fuel__opt:hover {
+		border-color: var(--sl-color-gray-5);
+	}
+	.fuel__opt[aria-checked='true'] {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 12%, transparent);
+	}
+	.fuel__opt-bar {
+		height: 0.55rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.fuel__opt-bar > span {
+		display: block;
+		height: 100%;
+		border-radius: inherit;
+		background: var(--sl-color-gray-4);
+		transition: background 0.25s;
+	}
+	.fuel__opt[aria-checked='true'] .fuel__opt-bar > span {
+		background: var(--sl-color-accent);
+	}
+	.fuel__opt-q {
+		text-align: end;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.fuel__controls {
+		display: flex;
+		align-items: end;
+		gap: 1rem;
+		margin-bottom: 0.8rem;
+	}
+	.fuel__slider {
+		flex: 1;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fuel__slider output {
+		font-weight: 700;
+		color: var(--ig-v);
+		font-variant-numeric: tabular-nums;
+	}
+	.fuel__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--ig-v);
+	}
+	.fuel__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		padding: 0.55rem 1.3rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.fuel__btn:hover {
+		filter: brightness(1.08);
+	}
+	.fuel__btn:disabled {
+		opacity: 0.55;
+		cursor: default;
+	}
+	.fuel__stage {
+		display: grid;
+		grid-template-columns: 1.15fr 1fr 1fr;
+		gap: 0.6rem;
+	}
+	.fuel__card {
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		padding: 0.5rem 0.4rem 0.4rem;
+		display: flex;
+		flex-direction: column;
+	}
+	.fuel__card svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		overflow: visible;
+	}
+	.fuel__card-title {
+		margin: 0 0.3rem 0.2rem;
+		min-height: 2.6em;
+		font-size: var(--sl-text-sm);
+		line-height: 1.3;
+		font-weight: 600;
+		color: var(--sl-color-white);
+		text-align: center;
+	}
+	.fuel__result {
+		margin: 0.2rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-base);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.fuel__count {
+		font-size: 17px;
+		font-weight: 700;
+		fill: var(--ig-vy);
+		font-variant-numeric: tabular-nums;
+	}
+	.fuel__left,
+	.fuel__hint {
+		font-size: 13px;
+		fill: var(--sl-color-gray-3);
+	}
+	.fuel__ground {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.fuel__grate line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.fuel__log {
+		fill: hsl(26, 42%, 38%);
+		stroke: hsl(24, 40%, 24%);
+		stroke-width: 1.5;
+	}
+	.fuel__log--top {
+		fill: hsl(28, 45%, 44%);
+	}
+	.fuel__ring {
+		fill: hsl(34, 55%, 62%);
+		stroke: hsl(26, 42%, 34%);
+		stroke-width: 1.5;
+	}
+	.fuel__char {
+		fill: hsl(20, 25%, 10%);
+		opacity: 0;
+		mix-blend-mode: multiply;
+	}
+	.fuel__ash {
+		fill: hsl(30, 6%, 62%);
+	}
+	.fuel__lump {
+		fill: hsl(220, 8%, 16%);
+		stroke: hsl(220, 8%, 34%);
+		stroke-width: 1.2;
+	}
+	.fuel__ember {
+		fill: hsl(12, 95%, 52%);
+		opacity: 0;
+	}
+	.fuel__glass {
+		fill: color-mix(in srgb, var(--ig-vx) 8%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.fuel__liquid--spirit {
+		fill: color-mix(in srgb, var(--ig-vx) 35%, transparent);
+	}
+	.fuel__liquid--petrol {
+		fill: hsl(48, 80%, 60%);
+		opacity: 0.75;
+	}
+	.fuel__metal {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.fuel__metal-line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.fuel__wick {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.fuel__bowl {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.fuel__bag {
+		fill: color-mix(in srgb, var(--ig-vx) 22%, transparent);
+		stroke: var(--ig-vx);
+		stroke-width: 1.5;
+	}
+	.fuel__tube {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.fuel__smoke circle {
+		fill: var(--sl-color-gray-3);
+	}
+	.fuel__spark {
+		fill: hsl(42, 100%, 65%);
+	}
+	.fuel__tank {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.fuel__water {
+		fill: color-mix(in srgb, var(--ig-vy) 45%, var(--ig-vx));
+		opacity: 0.75;
+	}
+	.fuel__wave {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vy) 45%, var(--ig-vx));
+		stroke-width: 2;
+	}
+	.fuel__bubble {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1;
+		opacity: 0.6;
+	}
+	.fuel__tick line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.fuel__tick text {
+		font-size: 12px;
+		fill: var(--sl-color-gray-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.fuel__mark line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.fuel__mark text {
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-1);
+	}
+	.fuel__mark text.fuel__mark-v {
+		font-size: 11.5px;
+		fill: var(--sl-color-gray-3);
+	}
+	.fuel__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.fuel__hline {
+		stroke: var(--ig-v);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 3;
+	}
+	.fuel__load {
+		fill: var(--ig-v);
+		stroke: color-mix(in srgb, var(--ig-v) 60%, black);
+		stroke-width: 1.5;
+	}
+	.fuel__load-t {
+		font-size: 12px;
+		font-weight: 700;
+		fill: var(--sl-color-black);
+	}
+	.fuel__formula {
+		margin-top: 0.8rem;
+		padding: 0.3rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		min-height: 3rem;
+		overflow-x: auto;
+	}
+	.fuel__formula .katex-display {
+		margin: 0.45rem 0;
+	}
+	.fuel .et-q {
+		color: var(--ig-v);
+	}
+	.fuel .et-m {
+		color: var(--sl-color-accent-high);
+	}
+	.fuel .et-Q {
+		color: var(--ig-vy);
+	}
+	.fuel .et-w {
+		color: var(--ig-vx);
+	}
+	.fuel__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 50rem) {
+		.fuel__stage {
+			grid-template-columns: 1fr 1fr;
+		}
+		.fuel__card--fire {
+			grid-column: 1 / -1;
+		}
+		.fuel__card--fire svg {
+			max-height: 15rem;
+		}
+	}
+	@media (max-width: 30rem) {
+		.fuel {
+			padding: 0.75rem 0.6rem;
+		}
+		.fuel__opt {
+			grid-template-columns: 7.4rem 1fr 4.2rem;
+			padding: 0.25rem 0.4rem;
+		}
+		.fuel__card-title {
+			font-size: var(--sl-text-xs);
+		}
+		.fuel__result {
+			font-size: var(--sl-text-sm);
+		}
+	}
+</style>
+
+<script>
+	import { ru, sig, isRounded, texSci, tex, renderTex, c, niceMax, tickStep, reduceMotion, loop } from './et';
+
+	const MASSES = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]; // grams
+	const C_WATER = 4200; // J/(kg·°C)
+	const DT = 80; // from 20 °C to 100 °C
+	const G = 9.8;
+	const LOAD = 1000; // kg
+	const BURN_TIME = 3.6; // s, the same for every portion in the model
+	const KIND: Record<string, string> = {
+		wood: 'wood',
+		coal: 'coal',
+		spirit: 'spirit',
+		petrol: 'petrol',
+		gas: 'bag',
+		hydrogen: 'bag',
+	};
+	// Flame colours [outer, middle, inner] and size per fuel.
+	type Look = { col: [string, string, string]; op: [number, number, number]; w: number; h: number; sparks: boolean; smoke: boolean };
+	const LOOK: Record<string, Look> = {
+		wood: { col: ['hsl(14,95%,52%)', 'hsl(34,100%,55%)', 'hsl(50,100%,78%)'], op: [0.9, 0.95, 1], w: 70, h: 120, sparks: true, smoke: false },
+		coal: { col: ['hsl(8,90%,48%)', 'hsl(26,100%,52%)', 'hsl(46,100%,68%)'], op: [0.85, 0.9, 0.9], w: 64, h: 70, sparks: true, smoke: false },
+		spirit: { col: ['hsl(215,90%,62%)', 'hsl(200,95%,72%)', 'hsl(46,100%,72%)'], op: [0.45, 0.55, 0.5], w: 22, h: 62, sparks: false, smoke: false },
+		petrol: { col: ['hsl(16,95%,50%)', 'hsl(36,100%,55%)', 'hsl(52,100%,74%)'], op: [0.9, 0.95, 1], w: 92, h: 120, sparks: false, smoke: true },
+		gas: { col: ['hsl(220,95%,58%)', 'hsl(205,100%,66%)', 'hsl(190,100%,82%)'], op: [0.6, 0.75, 0.85], w: 22, h: 48, sparks: false, smoke: false },
+		hydrogen: { col: ['hsl(210,70%,75%)', 'hsl(200,80%,82%)', 'hsl(195,90%,90%)'], op: [0.14, 0.18, 0.22], w: 20, h: 50, sparks: false, smoke: false },
+	};
+	const WATER_MARKS = [
+		{ v: 0.2, name: 'стакан', val: '0,2 л' },
+		{ v: 1.7, name: 'чайник', val: '1,7 л' },
+		{ v: 10, name: 'ведро', val: '10 л' },
+		{ v: 200, name: 'ванна', val: '≈ 200 л' },
+	];
+	const HEIGHT_MARKS = [
+		{ v: 1.7, name: 'человек', val: '1,7 м' },
+		{ v: 15, name: 'дом в 5 этажей', val: '≈ 15 м' },
+		{ v: 101.5, name: 'Исаакиевский', val: 'собор, 101,5 м' },
+		{ v: 540, name: 'Останкинская', val: 'башня, 540 м' },
+		{ v: 5642, name: 'Эльбрус', val: '5642 м' },
+		{ v: 8849, name: 'Эверест', val: '8849 м' },
+	];
+	const Y0 = 270; // ground of the gauges
+	const YH = 236; // gauge height, px
+	const NS = 'http://www.w3.org/2000/svg';
+
+	const energy = (j: number) =>
+		j >= 1e6 ? `${sig(j / 1e6)} МДж` : j >= 1e3 ? `${sig(j / 1e3)} кДж` : `${sig(j)} Дж`;
+	const massText = (g: number) => (g >= 1000 ? `${ru(g / 1000)} кг` : `${g} г`);
+
+	const flamePath = (cx: number, by: number, w: number, h: number, sway: number) => {
+		const l = cx - w / 2;
+		const r = cx + w / 2;
+		const tx = cx + sway;
+		const ty = by - h;
+		return `M${l},${by} C${l},${by - h * 0.5} ${tx - w * 0.12},${by - h * 0.72} ${tx},${ty} C${tx + w * 0.12},${by - h * 0.72} ${r},${by - h * 0.5} ${r},${by} Q${cx},${by + w * 0.22} ${l},${by}Z`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fuel]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('.fuel__opt'));
+		const mIn = $<HTMLInputElement>('[data-in-m]');
+		const burnBtn = $<HTMLButtonElement>('[data-burn]');
+		const kinds = Array.from(root.querySelectorAll<SVGGElement>('[data-kind]'));
+		const flame = $<SVGGElement>('[data-flame]');
+		const flameSharp = $<SVGGElement>('[data-flame-sharp]');
+		const fp = [0, 1, 2].map((i) => $<SVGPathElement>(`[data-f${i}]`));
+		const gp = [0, 1, 2].map((i) => $<SVGPathElement>(`[data-g${i}]`));
+		const sparksG = $<SVGGElement>('[data-sparks]');
+		const smokeG = $<SVGGElement>('[data-smoke]');
+		smokeG.classList.add('fuel__smoke');
+		const count = $<SVGTextElement>('[data-count]');
+		const left = $<SVGTextElement>('[data-left]');
+		const hint = $<SVGTextElement>('[data-hint]');
+		const water = $<SVGRectElement>('[data-water]');
+		const wave = $<SVGPathElement>('[data-wave]');
+		const wBubbles = $<SVGGElement>('[data-wbubbles]');
+		const wTicks = $<SVGGElement>('[data-wticks]');
+		const wMarks = $<SVGGElement>('[data-wmarks]');
+		const hTicks = $<SVGGElement>('[data-hticks]');
+		const hMarks = $<SVGGElement>('[data-hmarks]');
+		const hLine = $<SVGLineElement>('[data-hline]');
+		const load = $<SVGGElement>('[data-load]');
+		const resW = $<HTMLElement>('[data-res-w]');
+		const resH = $<HTMLElement>('[data-res-h]');
+		const formula = $<HTMLElement>('[data-formula]');
+		const title = $<HTMLElement>('[data-fuel-title]');
+
+		let fuel = opts.find((o) => o.getAttribute('aria-checked') === 'true')!;
+		let p = 1; // burnt fraction shown on the gauges (1 = result)
+		let rest = 1; // fuel left in the burner
+		let burning = false;
+		let t = 0;
+		let wMax = 1;
+		let hMax = 1;
+		const sparks: { x: number; y: number; vx: number; vy: number; life: number; el: SVGCircleElement }[] = [];
+		const puffs: { x: number; y: number; r: number; life: number; el: SVGCircleElement }[] = [];
+		const bubbles: { x: number; y: number; el: SVGCircleElement }[] = [];
+
+		const state = () => {
+			const q = Number(fuel.dataset.q);
+			const g = MASSES[Number(mIn.value)];
+			const m = g / 1000;
+			const Q = q * m;
+			return { q, g, m, Q, mw: Q / (C_WATER * DT), h: Q / (G * LOAD) };
+		};
+
+		const writeFormula = () => {
+			const { q, m, Q, mw, h } = state();
+			const narrow = root.clientWidth < 600;
+			const unit = '~\\tfrac{\\text{Дж}}{\\text{кг}}';
+			const mTex = tex(ru(m, 3));
+			const Qs = `${texSci(Q)}~\\text{Дж}`;
+			const Qalt = Q >= 1e6 ? `${tex(sig(Q / 1e6))}~\\text{МДж}` : `${tex(sig(Q / 1e3))}~\\text{кДж}`;
+			const eqW = isRounded(mw) ? '\\approx' : '=';
+			const eqH = isRounded(h) ? '\\approx' : '=';
+			const br = narrow ? '\\\\ &' : '';
+			const lines = [
+				`${c('Q', 'Q')} &= ${c('q', 'q')}${c('m', 'm')} = ${c('q', texSci(q) + unit)} \\cdot ${c('m', mTex + '~\\text{кг}')} ${br}= ${c('Q', Qs)} = ${c('Q', Qalt)}`,
+				`${c('w', 'm_{\\text{в}}')} &= \\dfrac{${c('Q', 'Q')}}{c\\,(t_2 - t_1)} = \\dfrac{${c('Q', Qs)}}{4200~\\tfrac{\\text{Дж}}{\\text{кг}\\cdot{}^\\circ\\text{C}} \\cdot 80~{}^\\circ\\text{C}} ${br}${eqW} ${c('w', tex(sig(mw)) + '~\\text{кг}')}`,
+				`h &= \\dfrac{${c('Q', 'Q')}}{g\\,m_{\\text{гр}}} = \\dfrac{${c('Q', Qs)}}{9{,}8~\\tfrac{\\text{Н}}{\\text{кг}} \\cdot 1000~\\text{кг}} ${br}${eqH} ${tex(sig(h))}~\\text{м}`,
+			];
+			renderTex(formula, `\\begin{aligned}${lines.join('\\\\[0.9em]')}\\end{aligned}`);
+		};
+
+		const placeMarks = (g: SVGGElement, marks: typeof WATER_MARKS, max: number, x1: number, x2: number, tx: number) => {
+			const shown: { y: number; m: (typeof marks)[number] }[] = [];
+			for (const mk of [...marks].sort((a, b) => b.v - a.v)) {
+				if (mk.v > max * 1.001 || mk.v < max * 0.07) continue;
+				const y = Y0 - (mk.v / max) * YH;
+				if (shown.some((s) => Math.abs(s.y - y) < 30)) continue;
+				shown.push({ y, m: mk });
+			}
+			g.innerHTML = shown
+				.map(
+					({ y, m }) =>
+						`<g class="fuel__mark"><line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}"/><text x="${tx}" y="${y - 2}">${m.name}</text><text class="fuel__mark-v" x="${tx}" y="${y + 12}">${m.val}</text></g>`,
+				)
+				.join('');
+		};
+		const placeTicks = (g: SVGGElement, max: number, x: number, unit: string) => {
+			const step = tickStep(max);
+			let s = `<g class="fuel__tick"><text x="${x - 7}" y="16" text-anchor="end">${unit}</text></g>`;
+			for (let v = 0; v <= max * 1.0001; v += step) {
+				const y = Y0 - (v / max) * YH;
+				s += `<g class="fuel__tick"><line x1="${x - 4}" y1="${y}" x2="${x + 2}" y2="${y}"/><text x="${x - 7}" y="${y + 4}" text-anchor="end">${ru(v, 3)}</text></g>`;
+			}
+			g.innerHTML = s;
+		};
+
+		const drawGauges = (tSec: number) => {
+			const { mw, h } = state();
+			const w = mw * p;
+			const hh = h * p;
+			const wy = Y0 - (w / wMax) * YH;
+			water.setAttribute('y', String(wy));
+			water.setAttribute('height', String(Y0 - wy));
+			const amp = burning ? 1.6 : 0.8;
+			let d = '';
+			for (let x = 63; x <= 121; x += 2) {
+				const yy = wy + amp * Math.sin(x * 0.25 + tSec * 3) * Math.min(1, (Y0 - wy) / 6);
+				d += `${x === 63 ? 'M' : 'L'}${x},${yy.toFixed(2)}`;
+			}
+			wave.setAttribute('d', w > 0 ? d : '');
+			const ly = Y0 - (hh / hMax) * YH;
+			load.setAttribute('transform', `translate(0 ${ly})`);
+			hLine.setAttribute('y2', String(ly));
+			resW.textContent = `${sig(w)} кг воды`;
+			resH.textContent = `на высоту ${sig(hh)} м`;
+			// bubbles in the water while it boils
+			const wantB = burning && Y0 - wy > 14 ? 6 : 0;
+			while (bubbles.length < wantB) {
+				const el = document.createElementNS(NS, 'circle');
+				el.setAttribute('class', 'fuel__bubble');
+				el.setAttribute('r', String(1.5 + Math.random() * 2));
+				wBubbles.append(el);
+				bubbles.push({ x: 68 + Math.random() * 48, y: Y0 - 3, el });
+			}
+			for (let i = bubbles.length - 1; i >= 0; i--) {
+				const b = bubbles[i];
+				b.y -= 0.9 + Math.random() * 0.4;
+				if (b.y < wy + 3 || bubbles.length > wantB) {
+					if (bubbles.length > wantB) {
+						b.el.remove();
+						bubbles.splice(i, 1);
+						continue;
+					}
+					b.y = Y0 - 3;
+					b.x = 68 + Math.random() * 48;
+				}
+				b.el.setAttribute('cx', b.x.toFixed(1));
+				b.el.setAttribute('cy', b.y.toFixed(1));
+			}
+		};
+
+		const drawFuel = () => {
+			const id = fuel.dataset.id!;
+			const kind = KIND[id];
+			const r = Math.max(0, rest);
+			const s = Math.cbrt(r);
+			for (const k of kinds) k.style.display = k.dataset.kind === kind ? '' : 'none';
+			const k = kinds.find((k) => k.dataset.kind === kind)!;
+			if (kind === 'wood' || kind === 'coal') {
+				k.querySelector('[data-pile]')!.setAttribute('transform', `translate(120 264) scale(${s}) translate(-120 -264)`);
+				const ash = k.querySelector('[data-ash]')!;
+				ash.setAttribute('rx', String(46 * Math.sqrt(1 - r)));
+				ash.setAttribute('ry', String(6 * Math.sqrt(1 - r)));
+				const ch = k.querySelector<SVGElement>('[data-char]');
+				if (ch) ch.style.opacity = String(0.75 * (1 - r) * (burning || r < 1 ? 1 : 0));
+				const emb = k.querySelector<SVGElement>('[data-embers]');
+				if (emb) emb.style.opacity = burning ? String(0.55 + 0.35 * Math.sin(t * 9)) : '0';
+				emb?.querySelectorAll<SVGElement>('polygon').forEach((e) => (e.style.opacity = '1'));
+			} else if (kind === 'spirit') {
+				const top = 258 - 54 * r;
+				k.querySelector('[data-liquid]')!.setAttribute('y', String(top));
+			} else if (kind === 'petrol') {
+				const top = 260 - 30 * r;
+				k.querySelector('[data-liquid]')!.setAttribute('y', String(top));
+			} else {
+				const R = 6 + 38 * s;
+				const bag = k.querySelector('[data-bag]')!;
+				bag.setAttribute('rx', String(R * 0.92));
+				bag.setAttribute('ry', String(R));
+				bag.setAttribute('cy', String(170 - R));
+				const by = 170;
+				k.querySelector('[data-tube]')!.setAttribute('d', `M64,${by} C64,250 120,268 158,268`);
+			}
+		};
+
+		// Base point and size factor of the flame for the current fuel and rest.
+		const flameBase = () => {
+			const id = fuel.dataset.id!;
+			const kind = KIND[id];
+			const s = Math.cbrt(Math.max(0, rest));
+			if (kind === 'wood') return { x: 120, y: 264 - 42 * s, k: 0.35 + 0.65 * s };
+			if (kind === 'coal') return { x: 120, y: 264 - 50 * s, k: 0.35 + 0.65 * s };
+			if (kind === 'spirit') return { x: 120, y: 179, k: rest > 0.02 ? 1 : 0 };
+			if (kind === 'petrol') return { x: 120, y: 262 - 30 * rest, k: 0.3 + 0.7 * Math.sqrt(rest) };
+			return { x: 158, y: 221, k: rest > 0.02 ? 1 : 0 };
+		};
+
+		const drawFlame = (dt: number) => {
+			const id = fuel.dataset.id!;
+			const L = LOOK[id];
+			const on = burning && rest > 0.005;
+			flame.setAttribute('opacity', on ? '1' : '0');
+			flameSharp.setAttribute('opacity', on ? '0.85' : '0');
+			const b = flameBase();
+			if (on) {
+				const sizes = [1, 0.72, 0.42];
+				const tongues = id === 'petrol' ? [-26, 0, 26] : [0];
+				for (let i = 0; i < 3; i++) {
+					let d = '';
+					for (const off of tongues) {
+						const f = tongues.length > 1 ? (off === 0 ? 1 : 0.72) : 1;
+						const w = (L.w / tongues.length) * 1.25 * sizes[i] * b.k;
+						const hh =
+							L.h * sizes[i] * b.k * f * (1 + 0.1 * Math.sin(t * 11 + i * 1.7 + off) + 0.06 * Math.sin(t * 23 + off * 0.3));
+						const sway = (5 * Math.sin(t * 5.3 + i + off) + 3 * Math.sin(t * 13.1 + off)) * sizes[i] * b.k;
+						d += flamePath(b.x + off * b.k, b.y, Math.max(2, w), Math.max(2, hh), sway);
+					}
+					fp[i].setAttribute('d', d);
+					fp[i].setAttribute('fill', L.col[i]);
+					fp[i].setAttribute('opacity', String(L.op[i]));
+					gp[i].setAttribute('d', d);
+					gp[i].setAttribute('fill', L.col[i]);
+					gp[i].setAttribute('opacity', String(L.op[i] * 0.6));
+				}
+			}
+			// sparks
+			if (on && L.sparks && Math.random() < dt * 14) {
+				const el = document.createElementNS(NS, 'circle');
+				el.setAttribute('class', 'fuel__spark');
+				el.setAttribute('r', String(1 + Math.random() * 1.2));
+				sparksG.append(el);
+				sparks.push({ x: b.x + (Math.random() - 0.5) * 40 * b.k, y: b.y - 10, vx: (Math.random() - 0.5) * 30, vy: -60 - Math.random() * 60, life: 1, el });
+			}
+			for (let i = sparks.length - 1; i >= 0; i--) {
+				const s = sparks[i];
+				s.life -= dt * 0.9;
+				s.x += s.vx * dt + Math.sin(t * 8 + i) * 0.3;
+				s.y += s.vy * dt;
+				if (s.life <= 0 || s.y < 50) {
+					s.el.remove();
+					sparks.splice(i, 1);
+					continue;
+				}
+				s.el.setAttribute('cx', s.x.toFixed(1));
+				s.el.setAttribute('cy', s.y.toFixed(1));
+				s.el.setAttribute('opacity', s.life.toFixed(2));
+			}
+			// smoke over burning petrol
+			if (on && L.smoke && Math.random() < dt * 10) {
+				const el = document.createElementNS(NS, 'circle');
+				smokeG.append(el);
+				puffs.push({ x: b.x + (Math.random() - 0.5) * 30, y: b.y - L.h * b.k * 0.9, r: 6, life: 1, el });
+			}
+			for (let i = puffs.length - 1; i >= 0; i--) {
+				const s = puffs[i];
+				s.life -= dt * 0.45;
+				s.y -= 32 * dt;
+				s.x += Math.sin(t * 2 + i) * 0.25;
+				s.r += 9 * dt;
+				if (s.life <= 0 || s.y < 30) {
+					s.el.remove();
+					puffs.splice(i, 1);
+					continue;
+				}
+				s.el.setAttribute('cx', s.x.toFixed(1));
+				s.el.setAttribute('cy', s.y.toFixed(1));
+				s.el.setAttribute('r', s.r.toFixed(1));
+				s.el.setAttribute('opacity', (0.22 * s.life).toFixed(2));
+			}
+		};
+
+		const drawText = () => {
+			const { Q, g } = state();
+			if (burning || rest < 1) {
+				count.textContent = `Выделилось: ${energy(Q * (1 - rest))}`;
+				left.textContent = rest > 0 ? `Осталось топлива: ${massText(g * rest >= 1 ? Math.round(g * rest) : Math.round(g * rest * 10) / 10)}` : 'Топливо сгорело полностью';
+			} else {
+				count.textContent = `Масса топлива: ${massText(g)}`;
+				left.textContent = 'Нажмите «Сжечь»';
+			}
+			const id = fuel.dataset.id;
+			hint.textContent = burning && id === 'hydrogen' ? 'пламя водорода почти не видно' : '';
+		};
+
+		const frame = (dt: number) => {
+			t += dt;
+			if (burning) {
+				p = Math.min(1, p + dt / BURN_TIME);
+				rest = 1 - p;
+				if (p >= 1) {
+					burning = false;
+					burnBtn.disabled = false;
+					burnBtn.textContent = 'Новая порция';
+				}
+			}
+			const { mw, h } = state();
+			const tw = Math.log(niceMax(Math.max(mw, 0.02) * 1.08));
+			const th = Math.log(niceMax(Math.max(h, 1) * 1.08));
+			const k = reduceMotion() ? 1 : Math.min(1, dt * 5);
+			const lw = Math.log(wMax) + (tw - Math.log(wMax)) * k;
+			const lh = Math.log(hMax) + (th - Math.log(hMax)) * k;
+			wMax = Math.exp(lw);
+			hMax = Math.exp(lh);
+			placeTicks(wTicks, wMax, 58, 'кг');
+			placeMarks(wMarks, WATER_MARKS, wMax, 62, 128, 128);
+			placeTicks(hTicks, hMax, 58, 'м');
+			placeMarks(hMarks, HEIGHT_MARKS, hMax, 58, 108, 112);
+			drawGauges(t);
+			drawFuel();
+			drawFlame(dt);
+			drawText();
+		};
+		const settled = () => {
+			const { mw, h } = state();
+			const tw = niceMax(Math.max(mw, 0.02) * 1.08);
+			const th = niceMax(Math.max(h, 1) * 1.08);
+			return Math.abs(Math.log(wMax / tw)) < 1e-3 && Math.abs(Math.log(hMax / th)) < 1e-3;
+		};
+		const wake = loop(root, frame, () => burning || sparks.length > 0 || puffs.length > 0 || bubbles.length > 0 || !settled());
+
+		const reset = () => {
+			burning = false;
+			for (const s of [...sparks, ...puffs]) s.el.remove();
+			sparks.length = 0;
+			puffs.length = 0;
+			p = 1;
+			rest = 1;
+			burnBtn.disabled = false;
+			burnBtn.textContent = 'Сжечь';
+			title.textContent = fuel.dataset.name!;
+			const g = MASSES[Number(mIn.value)];
+			$<HTMLOutputElement>('[data-out-m]').value = g >= 1000 ? '1 кг' : `${g} г = ${ru(g / 1000, 3)} кг`;
+			writeFormula();
+			frame(0);
+			wake();
+		};
+
+		opts.forEach((o) =>
+			o.addEventListener('click', () => {
+				opts.forEach((x) => x.setAttribute('aria-checked', String(x === o)));
+				fuel = o;
+				reset();
+			}),
+		);
+		root.querySelector('.fuel__pick')!.addEventListener('keydown', (e) => {
+			const ev = e as KeyboardEvent;
+			const i = opts.indexOf(fuel);
+			const j = ev.key === 'ArrowDown' || ev.key === 'ArrowRight' ? i + 1 : ev.key === 'ArrowUp' || ev.key === 'ArrowLeft' ? i - 1 : -9;
+			if (j === -9) return;
+			ev.preventDefault();
+			const n = opts[(j + opts.length) % opts.length];
+			n.click();
+			n.focus();
+		});
+		mIn.addEventListener('input', reset);
+		burnBtn.addEventListener('click', () => {
+			if (burning) return;
+			if (reduceMotion()) {
+				p = 1;
+				rest = 0;
+				burnBtn.textContent = 'Новая порция';
+				frame(0);
+				return;
+			}
+			if (rest < 1) {
+				reset();
+				return;
+			}
+			burning = true;
+			p = 0;
+			rest = 1;
+			burnBtn.disabled = true;
+			burnBtn.textContent = 'Горит…';
+			wake();
+		});
+		let lastW = root.clientWidth;
+		new ResizeObserver(() => {
+			if (Math.abs(root.clientWidth - lastW) > 20) {
+				lastW = root.clientWidth;
+				writeFormula();
+			}
+		}).observe(root);
+		reset();
+	}
+</script>
