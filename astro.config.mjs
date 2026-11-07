@@ -57,6 +57,7 @@ export default defineConfig({
 				grade(11, [
 					section('Электродинамика', '11-klass/elektrodinamika', ['elektromagnitnaya-indukciya']),
 					section('Квантовая физика', '11-klass/kvantovaya-fizika', ['fotoeffekt']),
+					section('Строение Вселенной', '11-klass/stroenie-vselennoy', ['vselennaya']),
 				]),
 				{ label: 'Источники иллюстраций', slug: 'uchebnik/istochniki' },
 			],

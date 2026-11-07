@@ -1,0 +1,673 @@
+---
+/**
+ * The expanding Universe: galaxies sit still on a grid that stretches with time. Distances grow as a(t) = t/t₀
+ * (a coasting model, which gives H = 1/t and, today, H ≈ 71 км/(с·Мпк)); every galaxy sees the others receding
+ * with υ = H·r — the reader can move «home» to any galaxy and see the same law from there. The Hubble diagram and
+ * the spectrum of a chosen galaxy (lines shifted by z ≈ υ/c) follow along.
+ */
+---
+
+<figure class="ve not-content" data-ve>
+	<div class="ve__grid">
+		<div class="ve__stage">
+			<canvas class="ve__canvas" aria-label="Галактики на растягивающейся сетке"></canvas>
+			<p class="ve__hud" data-hud></p>
+			<p class="ve__hint">Нажмите на любую галактику — и посмотрите на Вселенную из неё. Другую галактику можно выбрать для спектра кнопкой «Спектр».</p>
+		</div>
+		<div class="ve__side">
+			<canvas class="ve__hubble" aria-label="Диаграмма Хаббла: скорость удаления и расстояние"></canvas>
+			<p class="ve__law" data-law></p>
+			<canvas class="ve__spec" aria-label="Спектр выбранной галактики в сравнении с лабораторным"></canvas>
+			<p class="ve__spec-text" data-spec></p>
+		</div>
+	</div>
+	<div class="ve__controls">
+		<label class="ve__slider">
+			<span class="ve__slider-name">Время от Большого взрыва: <output data-t-out>13,8 млрд лет</output></span>
+			<input type="range" min="0.3" max="27.6" step="0.05" value="13.8" data-t aria-label="Время от Большого взрыва" />
+		</label>
+		<div class="ve__buttons">
+			<button type="button" class="ve__btn ve__btn--primary" data-play aria-pressed="false">Пустить время</button>
+			<button type="button" class="ve__btn" data-back>Назад к Большому взрыву</button>
+			<button type="button" class="ve__btn" data-now>Сейчас</button>
+			<button type="button" class="ve__btn" data-spec-mode aria-pressed="false">Спектр</button>
+		</div>
+	</div>
+	<figcaption class="ve__caption">
+		Галактики не летят сквозь пространство — растягивается само пространство между ними, и сетка растягивается вместе
+		с ним. В модели расстояния растут пропорционально времени (на самом деле расширение сначала замедлялось,
+		а последние миллиарды лет ускоряется). Скорости и красные смещения вычислены по закону Хаббла с <i>H</i> = 1/<i>t</i>;
+		сегодня это 71 км/(с·Мпк). Формула <i>z</i> ≈ <i>υ</i>/<i>c</i> верна, пока <i>υ</i> ≪ <i>c</i>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ve {
+		margin-block: 2rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ve i {
+		font-family: var(--ig-font-math);
+	}
+	.ve__grid {
+		display: grid;
+		grid-template-columns: 3fr 2fr;
+		gap: 0.75rem;
+		align-items: start;
+	}
+	.ve__stage {
+		position: relative;
+		min-width: 0;
+	}
+	.ve__canvas {
+		display: block;
+		width: 100%;
+		aspect-ratio: 1 / 1;
+		border-radius: 0.75rem;
+		background: #02030a;
+		cursor: pointer;
+		touch-action: pan-y;
+	}
+	.ve__hud {
+		position: absolute;
+		left: 0.5rem;
+		top: 0.5rem;
+		margin: 0 0.5rem 0 0;
+		padding: 0.15rem 0.45rem;
+		border-radius: 0.5rem;
+		background: rgb(2 3 10 / 0.65);
+		font-size: var(--sl-text-sm);
+		color: #ffe9b0;
+		pointer-events: none;
+		text-shadow: 0 1px 6px rgb(0 0 0 / 0.9);
+	}
+	.ve__hint {
+		margin: 0.4rem 0 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.4;
+		color: var(--sl-color-gray-3);
+	}
+	.ve__side {
+		display: grid;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+	.ve__hubble {
+		display: block;
+		width: 100%;
+		aspect-ratio: 4 / 3;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.ve__law,
+	.ve__spec-text {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.45;
+		color: var(--sl-color-gray-2);
+	}
+	.ve__law b,
+	.ve__spec-text b {
+		color: var(--sl-color-white);
+	}
+	.ve__spec {
+		display: block;
+		width: 100%;
+		aspect-ratio: 5 / 2;
+		border-radius: 0.6rem;
+		background: #02030a;
+	}
+	.ve__controls {
+		display: grid;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.ve__slider {
+		display: grid;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ve__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ve__slider input {
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.ve__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.ve__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ve__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ve__btn[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.ve__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ve__btn--primary[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+	}
+	.ve__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 48rem) {
+		.ve {
+			padding: 0.5rem;
+		}
+		.ve__grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>
+
+<script>
+	import { C } from './physics';
+	import { clamp, fitCanvas, fmt, prng, reducedMotion, sig } from './util';
+
+	const T0 = 13.8; // Gyr, now
+	const MPC_KM = 3.086e19; // km in a megaparsec
+	const GYR_S = 3.156e16; // seconds in a gigayear
+	/** H in km/(s·Mpc) for the coasting model: H = 1/t. */
+	const hubble = (t: number) => MPC_KM / (t * GYR_S);
+	const SIDE = 640; // comoving side of the box today, Mpc
+	const N = 64;
+
+	type Gal = { x: number; y: number; kind: number; rot: number; size: number; tint: string };
+	type Line = { nm: number; name: string };
+	const LINES: Line[] = [
+		{ nm: 393.4, name: 'Ca K' },
+		{ nm: 396.8, name: 'Ca H' },
+		{ nm: 434.0, name: 'Hγ' },
+		{ nm: 486.1, name: 'Hβ' },
+		{ nm: 517.3, name: 'Mg' },
+		{ nm: 589.3, name: 'Na' },
+		{ nm: 656.3, name: 'Hα' },
+	];
+	/** Approximate colour of visible light of wavelength nm. */
+	const wl = (nm: number) => {
+		let r = 0;
+		let g = 0;
+		let b = 0;
+		if (nm < 440) {
+			r = -(nm - 440) / 60;
+			b = 1;
+		} else if (nm < 490) {
+			g = (nm - 440) / 50;
+			b = 1;
+		} else if (nm < 510) {
+			g = 1;
+			b = -(nm - 510) / 20;
+		} else if (nm < 580) {
+			r = (nm - 510) / 70;
+			g = 1;
+		} else if (nm < 645) {
+			r = 1;
+			g = -(nm - 645) / 65;
+		} else {
+			r = 1;
+		}
+		const f = nm < 420 ? 0.3 + (0.7 * (nm - 380)) / 40 : nm > 700 ? 0.3 + (0.7 * (780 - nm)) / 80 : 1;
+		return `rgb(${Math.round(255 * r * f)},${Math.round(255 * g * f)},${Math.round(255 * b * f)})`;
+	};
+
+	const sprite = (kind: number, seed: number) => {
+		const s = 56;
+		const c = document.createElement('canvas');
+		c.width = c.height = s;
+		const g = c.getContext('2d')!;
+		const rnd = prng(seed);
+		g.globalCompositeOperation = 'lighter';
+		if (kind === 0) {
+			// spiral
+			const pitch = Math.tan(0.3);
+			for (let arm = 0; arm < 2; arm++) {
+				for (let i = 0; i < 160; i++) {
+					const th = rnd() * 2.6 * Math.PI;
+					const r = 3 * Math.exp(pitch * th);
+					if (r > 24) continue;
+					const a = th + arm * Math.PI;
+					const n = (rnd() - 0.5) * 3;
+					g.fillStyle = `rgba(${200 + Math.floor(rnd() * 55)},${210 + Math.floor(rnd() * 30)},255,${0.25 + rnd() * 0.4})`;
+					g.beginPath();
+					g.arc(s / 2 + (r + n) * Math.cos(a), s / 2 + (r + n) * Math.sin(a), 0.8 + rnd() * 1.4, 0, 2 * Math.PI);
+					g.fill();
+				}
+			}
+			const core = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, 9);
+			core.addColorStop(0, 'rgba(255,245,215,1)');
+			core.addColorStop(0.5, 'rgba(255,225,170,0.5)');
+			core.addColorStop(1, 'rgba(255,215,160,0)');
+			g.fillStyle = core;
+			g.fillRect(0, 0, s, s);
+		} else {
+			// elliptical
+			const core = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, 22);
+			core.addColorStop(0, 'rgba(255,240,210,1)');
+			core.addColorStop(0.25, 'rgba(255,225,175,0.6)');
+			core.addColorStop(0.6, 'rgba(255,210,160,0.15)');
+			core.addColorStop(1, 'rgba(255,210,160,0)');
+			g.fillStyle = core;
+			g.save();
+			g.translate(s / 2, s / 2);
+			g.scale(1, 0.65);
+			g.beginPath();
+			g.arc(0, 0, 24, 0, 2 * Math.PI);
+			g.fill();
+			g.restore();
+		}
+		return c;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ve]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const canvas = q<HTMLCanvasElement>('.ve__canvas');
+		const ctx = canvas.getContext('2d')!;
+		const hub = q<HTMLCanvasElement>('.ve__hubble');
+		const hctx = hub.getContext('2d')!;
+		const spec = q<HTMLCanvasElement>('.ve__spec');
+		const sctx = spec.getContext('2d')!;
+		const hud = q<HTMLElement>('[data-hud]');
+		const lawOut = q<HTMLElement>('[data-law]');
+		const specOut = q<HTMLElement>('[data-spec]');
+		const tIn = q<HTMLInputElement>('[data-t]');
+		const tOut = q<HTMLOutputElement>('[data-t-out]');
+		const playBtn = q<HTMLButtonElement>('[data-play]');
+		const backBtn = q<HTMLButtonElement>('[data-back]');
+		const nowBtn = q<HTMLButtonElement>('[data-now]');
+		const specBtn = q<HTMLButtonElement>('[data-spec-mode]');
+		const still = reducedMotion();
+		const font = getComputedStyle(document.documentElement).getPropertyValue('--sl-font') || 'Alice, Georgia, serif';
+		const css = (name: string) => getComputedStyle(root).getPropertyValue(name).trim();
+
+		const rnd = prng(2026);
+		const sprites = [sprite(0, 1), sprite(0, 2), sprite(0, 3), sprite(1, 4), sprite(1, 5)];
+		const gals: Gal[] = [];
+		// comoving positions: a jittered grid with a few clumps, no two too close
+		while (gals.length < N) {
+			const x = (rnd() - 0.5) * SIDE;
+			const y = (rnd() - 0.5) * SIDE;
+			if (gals.some((g) => Math.hypot(g.x - x, g.y - y) < 42)) continue;
+			gals.push({ x, y, kind: rnd() < 0.7 ? Math.floor(rnd() * 3) : 3 + Math.floor(rnd() * 2), rot: rnd() * Math.PI * 2, size: 0.75 + rnd() * 0.6, tint: '' });
+		}
+		gals.push({ x: 0, y: 0, kind: 0, rot: 0.6, size: 1, tint: '' }); // ours, at the comoving origin
+		let home = gals.length - 1;
+		let chosen = gals.findIndex((g, i) => i !== home && Math.hypot(g.x, g.y) > 120 && Math.hypot(g.x, g.y) < 220);
+		if (chosen < 0) chosen = 0;
+		let t = T0;
+		let dirn = 1;
+		let playing = false;
+		let specMode = false;
+		let raf = 0;
+		let last = 0;
+		let W = 0;
+		let H = 0;
+		let HW = 0;
+		let HH = 0;
+		let SW = 0;
+		let SH = 0;
+		const view = { x: 0, y: 0 }; // comoving centre of the view (follows home smoothly)
+
+		const a = () => t / T0;
+		const pxPerMpc = () => W / 700; // today the box is 640 Mpc across
+		const rel = (g: Gal) => {
+			const hx = gals[home].x;
+			const hy = gals[home].y;
+			return { dx: (g.x - hx) * a(), dy: (g.y - hy) * a() }; // Mpc, physical
+		};
+		const toScreen = (g: Gal) => {
+			const s = pxPerMpc();
+			return { x: W / 2 + (g.x - view.x) * a() * s, y: H / 2 + (g.y - view.y) * a() * s };
+		};
+
+		const draw = () => {
+			if (W < 40) return;
+			ctx.fillStyle = '#02030a';
+			ctx.fillRect(0, 0, W, H);
+			const s = pxPerMpc();
+			const sc = a() * s;
+			// the comoving grid, 100 Mpc today
+			ctx.strokeStyle = 'rgba(180,195,255,0.16)';
+			ctx.lineWidth = 1;
+			const step = 100;
+			const x0 = Math.floor((view.x - W / 2 / sc) / step) * step;
+			const y0 = Math.floor((view.y - H / 2 / sc) / step) * step;
+			for (let gx = x0; (gx - view.x) * sc < W / 2 + step * sc; gx += step) {
+				const x = W / 2 + (gx - view.x) * sc;
+				ctx.beginPath();
+				ctx.moveTo(x, 0);
+				ctx.lineTo(x, H);
+				ctx.stroke();
+			}
+			for (let gy = y0; (gy - view.y) * sc < H / 2 + step * sc; gy += step) {
+				const y = H / 2 + (gy - view.y) * sc;
+				ctx.beginPath();
+				ctx.moveTo(0, y);
+				ctx.lineTo(W, y);
+				ctx.stroke();
+			}
+			// velocity arrows from home: υ = H r
+			const Hn = hubble(t);
+			const kv = (0.09 * W) / 10000; // px per km/s
+			ctx.strokeStyle = 'rgba(255,120,120,0.75)';
+			ctx.fillStyle = 'rgba(255,120,120,0.75)';
+			ctx.lineWidth = 1.2;
+			for (const [i, g] of gals.entries()) {
+				if (i === home) continue;
+				const { dx, dy } = rel(g);
+				const r = Math.hypot(dx, dy);
+				if (r === 0) continue;
+				const v = Hn * r;
+				const p = toScreen(g);
+				if (p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40) continue;
+				const len = Math.min(v * kv, 70);
+				const ux = dx / r;
+				const uy = dy / r;
+				const x2 = p.x + ux * len;
+				const y2 = p.y + uy * len;
+				ctx.beginPath();
+				ctx.moveTo(p.x + ux * 10, p.y + uy * 10);
+				ctx.lineTo(x2, y2);
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(x2 + ux * 5, y2 + uy * 5);
+				ctx.lineTo(x2 - uy * 3.5, y2 + ux * 3.5);
+				ctx.lineTo(x2 + uy * 3.5, y2 - ux * 3.5);
+				ctx.closePath();
+				ctx.fill();
+			}
+			// galaxies
+			for (const [i, g] of gals.entries()) {
+				const p = toScreen(g);
+				if (p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40) continue;
+				const sz = 30 * g.size * clamp(W / 520, 0.7, 1.2) * Math.min(1, a()) ** 0.5;
+				ctx.save();
+				ctx.translate(p.x, p.y);
+				ctx.rotate(g.rot);
+				if (g.kind < 3) ctx.scale(1, 0.55 + 0.45 * ((i * 37) % 10) / 10);
+				ctx.drawImage(sprites[g.kind], -sz / 2, -sz / 2, sz, sz);
+				ctx.restore();
+				if (i === home) {
+					ctx.strokeStyle = '#ffe9b0';
+					ctx.lineWidth = 1.5;
+					ctx.beginPath();
+					ctx.arc(p.x, p.y, 13, 0, 2 * Math.PI);
+					ctx.stroke();
+					ctx.fillStyle = '#ffe9b0';
+					ctx.font = `12px ${font}`;
+					ctx.textAlign = 'left';
+					ctx.textBaseline = 'middle';
+					ctx.fillText('мы', p.x + 17, p.y - 10);
+				}
+				if (i === chosen) {
+					ctx.strokeStyle = 'rgba(140,210,255,0.95)';
+					ctx.lineWidth = 1.5;
+					ctx.setLineDash([3, 3]);
+					ctx.beginPath();
+					ctx.arc(p.x, p.y, 13, 0, 2 * Math.PI);
+					ctx.stroke();
+					ctx.setLineDash([]);
+					ctx.fillStyle = 'rgba(140,210,255,0.95)';
+					ctx.font = `12px ${font}`;
+					ctx.textAlign = 'left';
+					ctx.textBaseline = 'middle';
+					ctx.fillText('спектр', p.x + 17, p.y + 10);
+				}
+			}
+			hud.textContent = `${t < 1 ? `${fmt(t * 1000, 0)} млн лет` : `${fmt(t, 1)} млрд лет`} после Большого взрыва · расстояния ×${fmt(a(), 2)}`;
+		};
+
+		const drawHubble = () => {
+			if (HW < 40) return;
+			hctx.clearRect(0, 0, HW, HH);
+			const grid = css('--sl-color-gray-5');
+			const text = css('--sl-color-gray-3');
+			const white = css('--sl-color-white');
+			const accent = css('--sl-color-accent');
+			const RMAX = 500;
+			const VMAX = 40000;
+			const px = (r: number) => 40 + (r / RMAX) * (HW - 50);
+			const py = (v: number) => HH - 28 - (v / VMAX) * (HH - 40);
+			hctx.font = `11px ${font}`;
+			hctx.textBaseline = 'middle';
+			hctx.strokeStyle = grid;
+			hctx.fillStyle = text;
+			hctx.textAlign = 'center';
+			for (const r of [100, 200, 300, 400, 500]) {
+				hctx.beginPath();
+				hctx.moveTo(px(r), py(0));
+				hctx.lineTo(px(r), py(VMAX));
+				hctx.stroke();
+				hctx.fillText(String(r), px(r), HH - 16);
+			}
+			hctx.textAlign = 'right';
+			for (const v of [10000, 20000, 30000, 40000]) {
+				hctx.beginPath();
+				hctx.moveTo(px(0), py(v));
+				hctx.lineTo(px(RMAX), py(v));
+				hctx.stroke();
+				hctx.fillText(`${v / 1000}`, px(0) - 4, py(v));
+			}
+			hctx.fillStyle = white;
+			hctx.font = `italic 12px ${font}`;
+			hctx.textAlign = 'right';
+			hctx.fillText('r, Мпк', HW - 6, HH - 5);
+			hctx.textAlign = 'left';
+			hctx.fillText('υ, тыс. км/с', 4, 9);
+			const Hn = hubble(t);
+			hctx.strokeStyle = accent;
+			hctx.lineWidth = 1.5;
+			hctx.beginPath();
+			hctx.moveTo(px(0), py(0));
+			const rEnd = Math.min(RMAX, VMAX / Hn);
+			hctx.lineTo(px(rEnd), py(Hn * rEnd));
+			hctx.stroke();
+			for (const [i, g] of gals.entries()) {
+				if (i === home) continue;
+				const { dx, dy } = rel(g);
+				const r = Math.hypot(dx, dy);
+				const v = Hn * r;
+				if (r > RMAX || v > VMAX) continue;
+				hctx.fillStyle = i === chosen ? 'rgba(140,210,255,1)' : 'rgba(235,238,255,0.85)';
+				hctx.beginPath();
+				hctx.arc(px(r), py(v), i === chosen ? 4 : 2.5, 0, 2 * Math.PI);
+				hctx.fill();
+			}
+			lawOut.innerHTML = `Каждая точка — галактика: её расстояние от нас и скорость удаления. Все они ложатся на прямую <b><i>υ</i> = <i>H</i>·<i>r</i></b>, <b><i>H</i> = ${fmt(Hn, 0)} км/(с·Мпк)</b>${Math.abs(t - T0) < 0.03 ? ' — как сегодня.' : t < T0 ? ' — в молодой Вселенной расширение было быстрее.' : ' — в далёком будущем постоянная Хаббла меньше.'}`;
+		};
+
+		const drawSpec = () => {
+			if (SW < 40) return;
+			sctx.clearRect(0, 0, SW, SH);
+			const g = gals[chosen];
+			const { dx, dy } = rel(g);
+			const r = Math.hypot(dx, dy);
+			const v = hubble(t) * r;
+			const z = (v * 1000) / C;
+			const L0 = 380;
+			const L1 = 720;
+			const x = (nm: number) => 8 + ((nm - L0) / (L1 - L0)) * (SW - 16);
+			const rowH = (SH - 34) / 2;
+			const drawStrip = (y: number, shift: number, label: string) => {
+				for (let px = 8; px < SW - 8; px++) {
+					const nm = L0 + ((px - 8) / (SW - 16)) * (L1 - L0);
+					sctx.fillStyle = wl(nm);
+					sctx.fillRect(px, y, 1.5, rowH);
+				}
+				sctx.fillStyle = 'rgba(0,0,0,0.9)';
+				for (const ln of LINES) {
+					const nm = ln.nm * (1 + shift);
+					if (nm > L1) continue;
+					sctx.fillRect(x(nm) - 1, y, 2, rowH);
+				}
+				sctx.fillStyle = 'rgba(255,255,255,0.9)';
+				sctx.font = `11px ${font}`;
+				sctx.textAlign = 'left';
+				sctx.textBaseline = 'middle';
+				sctx.fillText(label, 10, y - 8);
+			};
+			drawStrip(14, 0, 'в лаборатории');
+			drawStrip(14 + rowH + 14, z, `в спектре галактики (z = ${fmt(z, 3)})`);
+			// line names under the strips
+			sctx.fillStyle = 'rgba(235,238,255,0.8)';
+			sctx.font = `10px ${font}`;
+			sctx.textAlign = 'center';
+			for (const ln of LINES) {
+				if (ln.name === 'Ca H') continue;
+				sctx.fillText(ln.name, x(ln.nm), SH - 7);
+			}
+			const dl = 656.3 * z;
+			specOut.innerHTML = `Выбранная галактика: <b><i>r</i> = ${fmt(r, 0)} Мпк</b> ≈ ${fmt(r * 3.26, 0)} млн св. лет, <b><i>υ</i> = ${fmt(v, 0)} км/с</b>. Красное смещение <i>z</i> = <i>υ</i>/<i>c</i> = ${fmt(z, 3)}: линия H<sub>α</sub> сдвинулась с 656,3 нм на <b>${fmt(656.3 + dl, 1)} нм</b> (на ${fmt(dl, 1)} нм).`;
+		};
+
+		const drawAll = () => {
+			draw();
+			drawHubble();
+			drawSpec();
+		};
+
+		const setT = (v: number) => {
+			t = clamp(v, 0.3, 27.6);
+			tIn.value = t.toFixed(2);
+			tOut.value = t < 1 ? `${fmt(t * 1000, 0)} млн лет` : `${fmt(t, 1)} млрд лет`;
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.1);
+			last = now;
+			// the view glides to the home galaxy
+			const hx = gals[home].x;
+			const hy = gals[home].y;
+			const k = still.matches ? 1 : 1 - Math.exp(-dt * 5);
+			view.x += (hx - view.x) * k;
+			view.y += (hy - view.y) * k;
+			if (playing) {
+				setT(t + dirn * dt * 1.6);
+				if ((dirn < 0 && t <= 0.3) || (dirn > 0 && t >= 27.6)) stop();
+			}
+			drawAll();
+			const settled = Math.hypot(hx - view.x, hy - view.y) < 0.05;
+			if (playing || !settled) raf = requestAnimationFrame(frame);
+		};
+		const run = () => {
+			cancelAnimationFrame(raf);
+			last = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+		const stop = () => {
+			playing = false;
+			playBtn.textContent = 'Пустить время';
+			playBtn.setAttribute('aria-pressed', 'false');
+		};
+		const play = (d: number) => {
+			dirn = d;
+			if (still.matches) {
+				setT(d > 0 ? 27.6 : 0.3);
+				drawAll();
+				return;
+			}
+			playing = true;
+			playBtn.textContent = 'Пауза';
+			playBtn.setAttribute('aria-pressed', 'true');
+			run();
+		};
+
+		tIn.addEventListener('input', () => {
+			stop();
+			setT(Number(tIn.value));
+			drawAll();
+		});
+		playBtn.addEventListener('click', () => {
+			if (playing) {
+				stop();
+				return;
+			}
+			if (t >= 27.5) setT(0.3);
+			play(1);
+		});
+		backBtn.addEventListener('click', () => play(-1));
+		nowBtn.addEventListener('click', () => {
+			stop();
+			setT(T0);
+			drawAll();
+		});
+		specBtn.addEventListener('click', () => {
+			specMode = !specMode;
+			specBtn.setAttribute('aria-pressed', String(specMode));
+		});
+		canvas.addEventListener('pointerdown', (e) => {
+			const rect = canvas.getBoundingClientRect();
+			const x = ((e.clientX - rect.left) / rect.width) * W;
+			const y = ((e.clientY - rect.top) / rect.height) * H;
+			let best = -1;
+			let bd = 22;
+			for (const [i, g] of gals.entries()) {
+				const p = toScreen(g);
+				const d = Math.hypot(p.x - x, p.y - y);
+				if (d < bd) {
+					bd = d;
+					best = i;
+				}
+			}
+			if (best < 0) return;
+			if (specMode) {
+				if (best !== home) chosen = best;
+				specMode = false;
+				specBtn.setAttribute('aria-pressed', 'false');
+			} else {
+				home = best;
+				if (chosen === home) chosen = gals.findIndex((g, i) => i !== home && Math.hypot(g.x - gals[home].x, g.y - gals[home].y) > 100);
+			}
+			run();
+		});
+
+		const resize = () => {
+			const s = fitCanvas(canvas, ctx);
+			W = s.w;
+			H = s.h;
+			const h = fitCanvas(hub, hctx);
+			HW = h.w;
+			HH = h.h;
+			const sp = fitCanvas(spec, sctx);
+			SW = sp.w;
+			SH = sp.h;
+			drawAll();
+		};
+		setT(T0);
+		new ResizeObserver(resize).observe(root);
+		resize();
+		new IntersectionObserver((entries) => {
+			for (const e of entries) {
+				if (e.isIntersecting && playing) run();
+				else if (!e.isIntersecting) cancelAnimationFrame(raf);
+			}
+		}).observe(root);
+	}
+</script>

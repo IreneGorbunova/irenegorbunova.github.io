@@ -1,0 +1,727 @@
+---
+/**
+ * A live Solar System obeying Kepler's laws. Orbits are the true ellipses (JPL J2000 elements), the Sun at a focus,
+ * positions from Kepler's equation for the shown date (the model starts at today's date). The selected body shows
+ * the sector swept in the last tenth of its period (equal areas), its distance and speed (vis-viva), and the
+ * T–a diagram fills in as bodies complete a revolution. Equal axis scales; the Sun and the bodies are drawn larger
+ * than life (at this scale even Jupiter would be a fraction of a pixel).
+ */
+import { BODIES } from './physics';
+
+const views = [
+	{ id: 'inner', name: 'Планеты земной группы', ids: ['mercury', 'venus', 'earth', 'mars'], half: 1.75, speed: 30, sel: 'mercury' },
+	{ id: 'outer', name: 'Планеты-гиганты, Плутон и комета', ids: ['jupiter', 'saturn', 'uranus', 'neptune', 'pluto', 'halley'], half: 52, speed: 3 * 365.25, sel: 'halley' },
+];
+const bodies = BODIES.map((b) => ({ id: b.id, name: b.name, a: b.a, e: b.e, T: b.T, color: b.color }));
+---
+
+<figure class="vo not-content" data-vo data-bodies={JSON.stringify(bodies)} data-views={JSON.stringify(views)}>
+	<div class="vo__top">
+		<div class="vo__views" role="group" aria-label="Что показать">
+			{
+				views.map((v, i) => (
+					<button type="button" class="vo__chip" data-view={v.id} aria-pressed={i === 0 ? 'true' : 'false'}>
+						{v.name}
+					</button>
+				))
+			}
+		</div>
+	</div>
+	<div class="vo__grid">
+		<div class="vo__stage">
+			<canvas class="vo__canvas" aria-label="Орбиты планет вокруг Солнца"></canvas>
+			<p class="vo__date" data-date></p>
+		</div>
+		<div class="vo__side">
+			<div class="vo__bodies" role="group" aria-label="Выбрать тело" data-body-chips></div>
+			<dl class="vo__stats">
+				<div><dt>Расстояние до Солнца <i>r</i></dt><dd data-r>—</dd></div>
+				<div><dt>Скорость <i>υ</i></dt><dd data-v>—</dd></div>
+				<div><dt>Перигелий</dt><dd data-peri>—</dd></div>
+				<div><dt>Афелий</dt><dd data-apo>—</dd></div>
+			</dl>
+			<p class="vo__sector" data-sector aria-live="polite"></p>
+		</div>
+		<div class="vo__side">
+			<canvas class="vo__graph" aria-label="Диаграмма: период обращения и большая полуось"></canvas>
+			<table class="vo__table">
+				<thead><tr><th>Тело</th><th><i>a</i>, а.е.</th><th><i>T</i>, лет</th><th><i>T</i>²/<i>a</i>³</th></tr></thead>
+				<tbody data-rows></tbody>
+			</table>
+		</div>
+	</div>
+	<div class="vo__controls">
+		<label class="vo__slider">
+			<span class="vo__slider-name">Скорость времени: <output data-speed-out></output></span>
+			<input type="range" min="0" max="4" step="0.01" value="1.48" data-speed aria-label="Скорость времени" />
+		</label>
+		<div class="vo__buttons">
+			<button type="button" class="vo__btn vo__btn--primary" data-play aria-pressed="true">Пауза</button>
+			<button type="button" class="vo__btn" data-pin>Запомнить сектор</button>
+			<button type="button" class="vo__btn" data-reset>Сегодня</button>
+		</div>
+	</div>
+	<figcaption class="vo__caption">
+		Орбиты — настоящие эллипсы с Солнцем в фокусе, масштаб по обеим осям одинаковый, положения тел соответствуют
+		дате (с точностью до нескольких градусов). Размеры Солнца и тел не в масштабе: при такой ширине кадра даже
+		Юпитер был бы меньше пикселя. Орбиты показаны в проекции на плоскость орбиты Земли; комета Галлея движется
+		по своей орбите в обратную сторону — так и есть на самом деле.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.vo {
+		margin-block: 2rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.vo i {
+		font-family: var(--ig-font-math);
+	}
+	.vo__views,
+	.vo__bodies {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.vo__chip {
+		margin: 0;
+		padding: 0.3rem 0.8rem;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s;
+	}
+	.vo__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.vo__chip[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.vo__chip--body {
+		padding-left: 0.5rem;
+	}
+	.vo__chip--body::before {
+		content: '';
+		display: inline-block;
+		width: 0.6rem;
+		height: 0.6rem;
+		margin-right: 0.4rem;
+		border-radius: 50%;
+		background: var(--c);
+		vertical-align: -0.05em;
+	}
+	.vo__grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+		margin-top: 0.6rem;
+		align-items: start;
+	}
+	.vo__stage {
+		grid-column: 1 / -1;
+		position: relative;
+		border-radius: 0.75rem;
+		overflow: hidden;
+		background: #02030a;
+	}
+	.vo__canvas {
+		display: block;
+		width: 100%;
+		aspect-ratio: 1 / 1;
+	}
+	.vo__date {
+		position: absolute;
+		left: 0.8rem;
+		top: 0.6rem;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: #ffe9b0;
+		font-variant-numeric: tabular-nums;
+		pointer-events: none;
+		text-shadow: 0 1px 6px rgb(0 0 0 / 0.9);
+	}
+	.vo__side {
+		display: grid;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+	.vo__stats {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.4rem;
+		margin: 0;
+	}
+	.vo__stats > div {
+		padding: 0.4rem 0.6rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.vo__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vo__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-base);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vo__sector {
+		margin: 0;
+		min-height: 2.6em;
+		font-size: var(--sl-text-xs);
+		line-height: 1.4;
+		color: var(--sl-color-gray-2);
+	}
+	.vo__sector b {
+		color: var(--sl-color-white);
+	}
+	.vo__graph {
+		display: block;
+		width: 100%;
+		aspect-ratio: 4 / 3;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.vo__table {
+		width: 100%;
+		margin: 0;
+		border-collapse: collapse;
+		font-size: var(--sl-text-xs);
+		font-variant-numeric: tabular-nums;
+	}
+	.vo__table th,
+	.vo__table td {
+		padding: 0.2rem 0.3rem;
+		text-align: right;
+		white-space: nowrap;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+	.vo__table th:first-child,
+	.vo__table td:first-child {
+		text-align: left;
+	}
+	.vo__table th {
+		font-weight: 600;
+		color: var(--sl-color-gray-2);
+	}
+	.vo__table td {
+		color: var(--sl-color-white);
+	}
+	.vo__table tr.is-new td {
+		animation: vo-row 0.8s ease-out;
+	}
+	@keyframes vo-row {
+		from {
+			background: var(--sl-color-accent-low);
+		}
+	}
+	.vo__controls {
+		display: grid;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.vo__slider {
+		display: grid;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vo__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vo__slider input {
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.vo__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.vo__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.vo__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.vo__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.vo__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 48rem) {
+		.vo {
+			padding: 0.5rem;
+		}
+		.vo__grid {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.vo__table tr.is-new td {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { BODIES, orbitPos, orbitSpeed, type Body } from './physics';
+	import { fitCanvas, fmt, reducedMotion, sig } from './util';
+
+	type View = { id: string; name: string; ids: string[]; half: number; speed: number; sel: string };
+	const J2000 = Date.UTC(2000, 0, 1, 12);
+	const YEAR_MS = 365.25 * 86400e3;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vo]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const VIEWS: View[] = JSON.parse(root.dataset.views!);
+		const canvas = q<HTMLCanvasElement>('.vo__canvas');
+		const ctx = canvas.getContext('2d')!;
+		const graph = q<HTMLCanvasElement>('.vo__graph');
+		const gctx = graph.getContext('2d')!;
+		const dateOut = q<HTMLElement>('[data-date]');
+		const chipsBox = q<HTMLElement>('[data-body-chips]');
+		const rOut = q<HTMLElement>('[data-r]');
+		const vOut = q<HTMLElement>('[data-v]');
+		const periOut = q<HTMLElement>('[data-peri]');
+		const apoOut = q<HTMLElement>('[data-apo]');
+		const sectorOut = q<HTMLElement>('[data-sector]');
+		const rows = q<HTMLElement>('[data-rows]');
+		const speedIn = q<HTMLInputElement>('[data-speed]');
+		const speedOut = q<HTMLOutputElement>('[data-speed-out]');
+		const playBtn = q<HTMLButtonElement>('[data-play]');
+		const pinBtn = q<HTMLButtonElement>('[data-pin]');
+		const resetBtn = q<HTMLButtonElement>('[data-reset]');
+		const still = reducedMotion();
+		const font = getComputedStyle(document.documentElement).getPropertyValue('--sl-font') || 'Alice, Georgia, serif';
+		const css = (name: string) => getComputedStyle(root).getPropertyValue(name).trim();
+
+		let view = VIEWS[0];
+		let bodies: Body[] = [];
+		let selected: Body;
+		let t = (Date.now() - J2000) / YEAR_MS; // years since J2000
+		let t0 = t; // when the model started (for the periods)
+		let playing = !still.matches;
+		let last = 0;
+		let raf = 0;
+		let W = 0;
+		let H = 0;
+		let GW = 0;
+		let GH = 0;
+		const done = new Map<string, number>(); // measured periods
+		const pinned: { id: string; t1: number; t2: number; area: number }[] = [];
+
+		const speedDays = () => 10 ** Number(speedIn.value); // days of model time per second
+		const speedText = () => {
+			const d = speedDays();
+			if (d < 30) return `${sig(d, 2)} сут/с`;
+			if (d < 365.25) return `${sig(d / 30.4375, 2)} мес/с`;
+			return `${sig(d / 365.25, 2)} лет/с`;
+		};
+
+		const scale = () => (Math.min(W, H) / 2 - 10) / view.half; // px per а.е.
+		const toScreen = (x: number, y: number) => ({ x: W / 2 + x * scale(), y: H / 2 - y * scale() });
+
+		/** Area of the sector swept between t1 and t2 (а.е.²): polygon with the Sun. */
+		const sectorArea = (b: Body, t1: number, t2: number) => {
+			const n = 40;
+			let area = 0;
+			let prev = orbitPos(b, t1);
+			for (let i = 1; i <= n; i++) {
+				const p = orbitPos(b, t1 + ((t2 - t1) * i) / n);
+				area += (prev.x * p.y - p.x * prev.y) / 2;
+				prev = p;
+			}
+			return Math.abs(area);
+		};
+		const sectorPath = (b: Body, t1: number, t2: number) => {
+			const n = 40;
+			ctx.beginPath();
+			const s0 = toScreen(0, 0);
+			ctx.moveTo(s0.x, s0.y);
+			for (let i = 0; i <= n; i++) {
+				const p = orbitPos(b, t1 + ((t2 - t1) * i) / n);
+				const s = toScreen(p.x, p.y);
+				ctx.lineTo(s.x, s.y);
+			}
+			ctx.closePath();
+		};
+
+		const dateText = (ty: number) => {
+			const d = new Date(J2000 + ty * YEAR_MS);
+			if (d.getUTCFullYear() > 9999 || d.getUTCFullYear() < 1) return `${Math.round(2000 + ty)} год`;
+			return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+		};
+
+		const draw = () => {
+			if (!selected || W < 40 || H < 40) return;
+			ctx.fillStyle = '#02030a';
+			ctx.fillRect(0, 0, W, H);
+			const s = scale();
+			ctx.font = `12px ${font}`;
+			ctx.textBaseline = 'middle';
+			const sun = toScreen(0, 0);
+			// orbits
+			for (const b of bodies) {
+				const isSel = b === selected;
+				const w = (b.w * Math.PI) / 180;
+				const cx = -b.a * b.e * Math.cos(w);
+				const cy = -b.a * b.e * Math.sin(w);
+				const c = toScreen(cx, cy);
+				const bb = b.a * Math.sqrt(1 - b.e * b.e);
+				ctx.beginPath();
+				ctx.ellipse(c.x, c.y, b.a * s, bb * s, -w, 0, 2 * Math.PI);
+				ctx.strokeStyle = isSel ? b.color : 'rgba(180,195,255,0.35)';
+				ctx.lineWidth = isSel ? 1.6 : 1;
+				ctx.stroke();
+				if (isSel && b.e > 0.015) {
+					// major axis, second focus, perihelion and aphelion
+					const p1 = toScreen(b.a * (1 - b.e) * Math.cos(w), b.a * (1 - b.e) * Math.sin(w));
+					const p2 = toScreen(-b.a * (1 + b.e) * Math.cos(w), -b.a * (1 + b.e) * Math.sin(w));
+					ctx.setLineDash([3, 4]);
+					ctx.strokeStyle = 'rgba(255,233,176,0.5)';
+					ctx.lineWidth = 1;
+					ctx.beginPath();
+					ctx.moveTo(p1.x, p1.y);
+					ctx.lineTo(p2.x, p2.y);
+					ctx.stroke();
+					ctx.setLineDash([]);
+					const f2 = toScreen(2 * cx, 2 * cy);
+					ctx.strokeStyle = 'rgba(255,233,176,0.8)';
+					ctx.beginPath();
+					ctx.moveTo(f2.x - 4, f2.y - 4);
+					ctx.lineTo(f2.x + 4, f2.y + 4);
+					ctx.moveTo(f2.x - 4, f2.y + 4);
+					ctx.lineTo(f2.x + 4, f2.y - 4);
+					ctx.stroke();
+					ctx.fillStyle = '#ffe9b0';
+					ctx.textAlign = 'center';
+					ctx.fillText('П', p1.x + 10 * Math.cos(w), p1.y - 10 * Math.sin(w));
+					ctx.fillText('А', p2.x - 10 * Math.cos(w), p2.y + 10 * Math.sin(w));
+				}
+			}
+			// pinned sectors
+			for (const pin of pinned) {
+				const b = bodies.find((x) => x.id === pin.id);
+				if (!b) continue;
+				sectorPath(b, pin.t1, pin.t2);
+				ctx.fillStyle = 'rgba(255,233,176,0.22)';
+				ctx.fill();
+				ctx.strokeStyle = 'rgba(255,233,176,0.6)';
+				ctx.lineWidth = 1;
+				ctx.stroke();
+			}
+			// the trailing sector of the selected body: the last tenth of its period
+			const dT = selected.T / 10;
+			const t1 = Math.max(t - dT, t0 - 1e-9);
+			if (t - t1 > 1e-6) {
+				sectorPath(selected, t1, t);
+				ctx.fillStyle = 'rgba(255,233,176,0.35)';
+				ctx.fill();
+			}
+			// the Sun
+			const g = ctx.createRadialGradient(sun.x, sun.y, 0, sun.x, sun.y, 14);
+			g.addColorStop(0, 'rgba(255,240,200,0.9)');
+			g.addColorStop(0.3, 'rgba(255,210,120,0.5)');
+			g.addColorStop(1, 'rgba(255,180,80,0)');
+			ctx.fillStyle = g;
+			ctx.fillRect(sun.x - 14, sun.y - 14, 28, 28);
+			ctx.fillStyle = '#ffd56b';
+			ctx.beginPath();
+			ctx.arc(sun.x, sun.y, 4.5, 0, 2 * Math.PI);
+			ctx.fill();
+			// bodies
+			ctx.textAlign = 'left';
+			for (const b of bodies) {
+				const p = orbitPos(b, t);
+				const sp = toScreen(p.x, p.y);
+				const isSel = b === selected;
+				const r = isSel ? 5 : 3.5;
+				if (b.kind === 'comet') {
+					// the tail points away from the Sun and is longest near perihelion
+					const len = Math.min(60, 24 / Math.max(p.r, 0.4));
+					const ux = p.x / p.r;
+					const uy = p.y / p.r;
+					const tg = ctx.createLinearGradient(sp.x, sp.y, sp.x + ux * len, sp.y - uy * len);
+					tg.addColorStop(0, 'rgba(200,230,255,0.8)');
+					tg.addColorStop(1, 'rgba(200,230,255,0)');
+					ctx.strokeStyle = tg;
+					ctx.lineWidth = 3;
+					ctx.lineCap = 'round';
+					ctx.beginPath();
+					ctx.moveTo(sp.x, sp.y);
+					ctx.lineTo(sp.x + ux * len, sp.y - uy * len);
+					ctx.stroke();
+				}
+				if (isSel) {
+					ctx.fillStyle = b.color;
+					ctx.globalAlpha = 0.35;
+					ctx.beginPath();
+					ctx.arc(sp.x, sp.y, 10, 0, 2 * Math.PI);
+					ctx.fill();
+					ctx.globalAlpha = 1;
+				}
+				ctx.fillStyle = b.color;
+				ctx.beginPath();
+				ctx.arc(sp.x, sp.y, r, 0, 2 * Math.PI);
+				ctx.fill();
+				ctx.fillStyle = isSel ? '#fff' : 'rgba(235,238,255,0.85)';
+				ctx.fillText(b.name, sp.x + r + 4, sp.y - 7);
+			}
+			// radius vector of the selected body
+			const ps = orbitPos(selected, t);
+			const sps = toScreen(ps.x, ps.y);
+			ctx.strokeStyle = 'rgba(255,233,176,0.7)';
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(sun.x, sun.y);
+			ctx.lineTo(sps.x, sps.y);
+			ctx.stroke();
+
+			dateOut.textContent = dateText(t);
+			rOut.textContent = `${fmt(ps.r, ps.r < 10 ? 3 : 2)} а.е.`;
+			vOut.textContent = `${fmt(orbitSpeed(selected, ps.r), 1)} км/с`;
+			const rp = selected.a * (1 - selected.e);
+			const ra = selected.a * (1 + selected.e);
+			periOut.textContent = `${fmt(rp, rp < 10 ? 3 : 2)} а.е., ${fmt(orbitSpeed(selected, rp), 1)} км/с`;
+			apoOut.textContent = `${fmt(ra, ra < 10 ? 3 : 2)} а.е., ${fmt(orbitSpeed(selected, ra), 1)} км/с`;
+			if (t - t1 > 1e-6) {
+				const area = sectorArea(selected, t1, t);
+				const days = (t - t1) * 365.25;
+				const dtxt = days < 60 ? `${fmt(days, 1)} сут` : `${fmt((t - t1), 2)} года`;
+				sectorOut.innerHTML = `Сектор, заметённый радиус-вектором за последние <b>${dtxt}</b> (десятую часть периода): площадь <b>${sig(area, 3)} а.е.²</b>. ${pinned.length ? 'Сравните с запомненными секторами: площади одинаковы.' : 'Запомните его и сравните с сектором в другой части орбиты.'}`;
+			}
+		};
+
+		// ---- the T–a diagram (log–log)
+		const LABEL: Record<string, [string, number, number]> = {
+			mercury: ['left', 7, 9],
+			venus: ['right', -7, 7],
+			earth: ['left', 7, -8],
+			mars: ['right', -7, -8],
+			jupiter: ['left', 7, 9],
+			saturn: ['right', -7, -8],
+			uranus: ['left', 7, 9],
+			neptune: ['right', -7, -8],
+			pluto: ['left', 7, 9],
+			halley: ['left', 7, 10],
+		};
+		const LA = [Math.log10(0.25), Math.log10(60)];
+		const LT = [Math.log10(0.1), Math.log10(400)];
+		const gx = (a: number) => 44 + ((Math.log10(a) - LA[0]) / (LA[1] - LA[0])) * (GW - 54);
+		const gy = (T: number) => GH - 30 - ((Math.log10(T) - LT[0]) / (LT[1] - LT[0])) * (GH - 42);
+		const drawGraph = () => {
+			if (!selected || GW < 40 || GH < 40) return;
+			gctx.clearRect(0, 0, GW, GH);
+			gctx.font = `11px ${font}`;
+			gctx.textBaseline = 'middle';
+			const grid = css('--sl-color-gray-5');
+			const text = css('--sl-color-gray-3');
+			const white = css('--sl-color-white');
+			const accent = css('--sl-color-accent');
+			gctx.strokeStyle = grid;
+			gctx.lineWidth = 1;
+			gctx.fillStyle = text;
+			gctx.textAlign = 'center';
+			for (const a of [0.3, 1, 3, 10, 30]) {
+				gctx.beginPath();
+				gctx.moveTo(gx(a), gy(0.1));
+				gctx.lineTo(gx(a), gy(400));
+				gctx.stroke();
+				gctx.fillText(String(a).replace('.', ','), gx(a), GH - 18);
+			}
+			gctx.textAlign = 'right';
+			for (const T of [0.1, 1, 10, 100]) {
+				gctx.beginPath();
+				gctx.moveTo(gx(0.25), gy(T));
+				gctx.lineTo(gx(60), gy(T));
+				gctx.stroke();
+				gctx.fillText(String(T).replace('.', ','), gx(0.25) - 5, gy(T));
+			}
+			gctx.textAlign = 'right';
+			gctx.fillStyle = white;
+			gctx.font = `italic 12px ${font}`;
+			gctx.fillText('a, а.е.', GW - 6, GH - 6);
+			gctx.textAlign = 'left';
+			gctx.fillText('T, лет', 6, 10);
+			// the law T = a^(3/2)
+			gctx.strokeStyle = accent;
+			gctx.setLineDash([4, 4]);
+			gctx.beginPath();
+			gctx.moveTo(gx(0.25), gy(0.25 ** 1.5));
+			gctx.lineTo(gx(60), gy(60 ** 1.5));
+			gctx.stroke();
+			gctx.setLineDash([]);
+			gctx.font = `11px ${font}`;
+			gctx.fillStyle = accent;
+			gctx.textAlign = 'left';
+			gctx.fillText('T² = a³', gx(2.5) + 8, gy(2.5 ** 1.5) + 13);
+			// measured points
+			gctx.font = `11px ${font}`;
+			for (const b of bodies) {
+				const T = done.get(b.id);
+				const x = gx(b.a);
+				if (T === undefined) {
+					// a hollow marker climbs as the body goes round
+					const frac = Math.min((t - t0) / b.T, 1);
+					gctx.strokeStyle = b.color;
+					gctx.globalAlpha = 0.6;
+					gctx.beginPath();
+					gctx.arc(x, gy(Math.max(0.1, frac * b.T)), 3.5, 0, 2 * Math.PI);
+					gctx.stroke();
+					gctx.globalAlpha = 1;
+					continue;
+				}
+				gctx.fillStyle = b.color;
+				gctx.beginPath();
+				gctx.arc(x, gy(T), 4, 0, 2 * Math.PI);
+				gctx.fill();
+				gctx.fillStyle = white;
+				const [ax, dx, dy] = LABEL[b.id] ?? ['left', 7, -9];
+				gctx.textAlign = ax as CanvasTextAlign;
+				gctx.fillText(b.name.replace('Комета ', ''), x + dx, gy(T) + dy);
+			}
+		};
+
+		const addRow = (b: Body, T: number) => {
+			const tr = document.createElement('tr');
+			tr.classList.add('is-new');
+			tr.innerHTML = `<td>${b.name}</td><td>${fmt(b.a, b.a < 10 ? 3 : 2)}</td><td>${fmt(T, T < 10 ? 3 : 2)}</td><td>${fmt((T * T) / (b.a * b.a * b.a), 3)}</td>`;
+			rows.append(tr);
+		};
+
+		const step = (dt: number) => {
+			t += (dt * speedDays()) / 365.25;
+			for (const b of bodies) {
+				if (!done.has(b.id) && t - t0 >= b.T) {
+					done.set(b.id, b.T);
+					addRow(b, b.T);
+				}
+			}
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.1);
+			last = now;
+			if (playing) step(dt);
+			draw();
+			drawGraph();
+			raf = requestAnimationFrame(frame);
+		};
+
+		const setView = (v: View) => {
+			view = v;
+			bodies = v.ids.map((id) => BODIES.find((b) => b.id === id)!);
+			selected = bodies.find((b) => b.id === v.sel)!;
+			speedIn.value = String(Math.log10(v.speed));
+			speedOut.value = speedText();
+			pinned.length = 0;
+			done.clear();
+			rows.replaceChildren();
+			t0 = t;
+			chipsBox.replaceChildren(
+				...bodies.map((b) => {
+					const btn = document.createElement('button');
+					btn.type = 'button';
+					btn.className = 'vo__chip vo__chip--body';
+					btn.textContent = b.name;
+					btn.style.setProperty('--c', b.color);
+					btn.setAttribute('aria-pressed', String(b === selected));
+					btn.addEventListener('click', () => {
+						selected = b;
+						for (const c of chipsBox.children) c.setAttribute('aria-pressed', String(c === btn));
+						draw();
+					});
+					return btn;
+				}),
+			);
+			for (const c of root.querySelectorAll<HTMLButtonElement>('[data-view]')) c.setAttribute('aria-pressed', String(c.dataset.view === v.id));
+			draw();
+			drawGraph();
+		};
+
+		const resize = () => {
+			const s = fitCanvas(canvas, ctx);
+			W = s.w;
+			H = s.h;
+			const g = fitCanvas(graph, gctx);
+			GW = g.w;
+			GH = g.h;
+			draw();
+			drawGraph();
+		};
+
+		for (const c of root.querySelectorAll<HTMLButtonElement>('[data-view]')) {
+			c.addEventListener('click', () => setView(VIEWS.find((v) => v.id === c.dataset.view)!));
+		}
+		speedIn.addEventListener('input', () => (speedOut.value = speedText()));
+		playBtn.addEventListener('click', () => {
+			playing = !playing;
+			playBtn.textContent = playing ? 'Пауза' : 'Пуск';
+			playBtn.setAttribute('aria-pressed', String(playing));
+		});
+		pinBtn.addEventListener('click', () => {
+			const dT = selected.T / 10;
+			const t1 = Math.max(t - dT, t0);
+			if (t - t1 < dT * 0.999) return; // not a full tenth yet
+			pinned.push({ id: selected.id, t1, t2: t, area: sectorArea(selected, t1, t) });
+			if (pinned.length > 6) pinned.shift();
+			draw();
+		});
+		resetBtn.addEventListener('click', () => {
+			t = (Date.now() - J2000) / YEAR_MS;
+			setView(view);
+		});
+		resize();
+		setView(view);
+		new ResizeObserver(resize).observe(root);
+		if (!still.matches) playBtn.textContent = 'Пауза';
+		else {
+			playing = false;
+			playBtn.textContent = 'Пуск';
+			playBtn.setAttribute('aria-pressed', 'false');
+		}
+		last = performance.now();
+		raf = requestAnimationFrame(frame);
+		// stop the loop when the figure is far off screen
+		new IntersectionObserver((entries) => {
+			for (const e of entries) {
+				if (e.isIntersecting) {
+					cancelAnimationFrame(raf);
+					last = performance.now();
+					raf = requestAnimationFrame(frame);
+				} else cancelAnimationFrame(raf);
+			}
+		}).observe(root);
+	}
+</script>

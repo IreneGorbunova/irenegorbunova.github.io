@@ -1,0 +1,826 @@
+---
+/**
+ * The Hertzsprung–Russell diagram with real stars, and the life of a star of chosen mass played on it:
+ * main sequence → giant (or supergiant) → white dwarf, neutron star or black hole. The track is built from
+ * standard approximate relations (main-sequence table, t ≈ 10¹⁰ лет·(M/M☉)^−2,5, L = 4πR²σT⁴ for the radius),
+ * so the numbers are right to a factor of about two, which the caption says.
+ */
+import { STARS, bbColor } from './physics';
+const stars = STARS.map((s) => ({ ...s, color: bbColor(s.T) }));
+const classes = [
+	{ c: 'O', T: 38000 },
+	{ c: 'B', T: 17000 },
+	{ c: 'A', T: 8700 },
+	{ c: 'F', T: 6700 },
+	{ c: 'G', T: 5600 },
+	{ c: 'K', T: 4400 },
+	{ c: 'M', T: 3100 },
+].map((x) => ({ ...x, color: bbColor(x.T) }));
+---
+
+<figure class="vh not-content" data-vh data-stars={JSON.stringify(stars)} data-classes={JSON.stringify(classes)}>
+	<div class="vh__controls">
+		<label class="vh__slider">
+			<span class="vh__slider-name">Масса звезды: <output data-m-out>1,0 M☉</output></span>
+			<input type="range" min="-1" max="1.778" step="0.01" value="0" data-m aria-label="Масса звезды" />
+		</label>
+		<div class="vh__buttons">
+			<button type="button" class="vh__btn vh__btn--primary" data-go>Зажечь звезду</button>
+			<button type="button" class="vh__btn" data-pause hidden>Пауза</button>
+		</div>
+		<label class="vh__slider">
+			<span class="vh__slider-name">Жизнь звезды: <output data-age>—</output></span>
+			<input type="range" min="0" max="1000" step="1" value="0" data-prog aria-label="Момент жизни звезды" />
+		</label>
+	</div>
+	<div class="vh__grid">
+		<div class="vh__stage">
+			<canvas class="vh__canvas" aria-label="Диаграмма Герцшпрунга — Рассела"></canvas>
+			<p class="vh__hover" data-hover aria-live="polite">Наведите на точку — узнаете звезду. Диагонали — линии одинакового радиуса.</p>
+		</div>
+		<div class="vh__side">
+			<canvas class="vh__portrait" width="200" height="200" aria-label="Как выглядит звезда"></canvas>
+			<p class="vh__stage-name" data-stage>Выберите массу и зажгите звезду</p>
+			<p class="vh__story" data-story>Масса — главное, что определяет судьбу звезды: сколько она проживёт и чем станет в конце.</p>
+			<dl class="vh__stats">
+				<div><dt>Температура</dt><dd data-T>—</dd></div>
+				<div><dt>Светимость</dt><dd data-L>—</dd></div>
+				<div><dt>Радиус</dt><dd data-R>—</dd></div>
+				<div><dt>Главная последовательность</dt><dd data-life>—</dd></div>
+			</dl>
+		</div>
+	</div>
+	<figcaption class="vh__caption">
+		Точки — настоящие звёзды (температура поверхности и светимость из каталогов, округлены). Путь звезды построен
+		по приближённым формулам: светимость и температура на главной последовательности — по стандартной таблице,
+		время жизни <i>t</i> ≈ 10 млрд лет · (<i>M</i>/<i>M</i>☉)<sup>−2,5</sup>, радиус — из <i>L</i> = 4π<i>R</i>²σ<i>T</i>⁴.
+		Настоящие треки рассчитывают на компьютерах, и они отличаются от этой схемы в деталях, но не в главном.
+		Анимация идёт с разной скоростью на разных этапах: иначе миллиарды лет на главной последовательности заняли бы всё время.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.vh {
+		margin-block: 2rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.vh i {
+		font-family: var(--ig-font-math);
+	}
+	.vh__controls {
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		gap: 0.5rem 1rem;
+		align-items: end;
+	}
+	.vh__slider {
+		display: grid;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vh__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vh__slider input {
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.vh__buttons {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.vh__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.vh__btn[hidden] {
+		display: none;
+	}
+	.vh__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.vh__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.vh__grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+		margin-top: 0.75rem;
+		align-items: start;
+	}
+	.vh__stage {
+		min-width: 0;
+	}
+	.vh__canvas {
+		display: block;
+		width: 100%;
+		aspect-ratio: 5 / 4;
+		border-radius: 0.75rem;
+		background: #02030a;
+		touch-action: pan-y;
+	}
+	.vh__hover {
+		min-height: 2.6em;
+		margin: 0.4rem 0 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.4;
+		color: var(--sl-color-gray-2);
+	}
+	.vh__hover b {
+		color: var(--sl-color-white);
+	}
+	.vh__side {
+		display: grid;
+		grid-template-columns: 200px minmax(0, 1fr);
+		grid-template-areas: 'portrait stage' 'portrait story' 'stats stats';
+		align-items: start;
+		gap: 0.4rem 0.9rem;
+		min-width: 0;
+	}
+	.vh__portrait {
+		grid-area: portrait;
+		width: 200px;
+		height: 200px;
+		max-width: 100%;
+	}
+	.vh__stage-name {
+		grid-area: stage;
+		margin: 0;
+		font-family: var(--ig-font-display);
+		font-size: 1.8rem;
+		line-height: 1.15;
+		color: var(--sl-color-white);
+	}
+	.vh__story {
+		grid-area: story;
+		margin: 0;
+		min-height: 4.2em;
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+		color: var(--sl-color-gray-2);
+	}
+	.vh__stats {
+		grid-area: stats;
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 0.4rem;
+		width: 100%;
+		margin: 0;
+	}
+	.vh__stats > div {
+		padding: 0.4rem 0.6rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.vh__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vh__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vh__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 48rem) {
+		.vh {
+			padding: 0.5rem;
+		}
+		.vh__controls {
+			grid-template-columns: 1fr;
+		}
+		.vh__canvas {
+			aspect-ratio: 1 / 1;
+		}
+		.vh__side {
+			grid-template-columns: 1fr;
+			grid-template-areas: 'portrait' 'stage' 'story' 'stats';
+			justify-items: center;
+		}
+		.vh__stage-name,
+		.vh__story {
+			text-align: center;
+		}
+		.vh__stats {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+</style>
+
+<script>
+	import { bbColor, mainSequence, msLifetime, radiusOf, spectralClass, T_SUN } from './physics';
+	import { clamp, fitCanvas, fmt, reducedMotion, sig, yearsText, lerp } from './util';
+
+	type Star = { name: string; T: number; L: number; kind: string; color: string };
+	type Cls = { c: string; T: number; color: string };
+	type Pt = { T: number; L: number };
+	type Phase = { name: string; story: string; dur: number; anim: number; from: Pt; to: Pt; shape: 'line' | 'giant' | 'cool' | 'burst' | 'ns' | 'bh' | 'stay' };
+
+	const LT = [Math.log10(45000), Math.log10(2300)]; // x: hot on the left
+	const LL = [-4.5, 6.3]; // y: log L
+
+	/** The life of a star of mass M (solar masses): phases with real durations (years) and animation shares. */
+	const life = (M: number): Phase[] => {
+		const ms = mainSequence(M);
+		const tMS = msLifetime(M);
+		const zams: Pt = { T: ms.T, L: ms.L };
+		const endMS: Pt = { T: ms.T * 0.95, L: ms.L * 1.7 };
+		const p: Phase[] = [
+			{
+				name: 'Главная последовательность',
+				story: 'В ядре водород превращается в гелий. Давление горячего газа уравновешивает тяжесть — звезда спокойна и почти не меняется.',
+				dur: tMS,
+				anim: 0.42,
+				from: zams,
+				to: endMS,
+				shape: 'line',
+			},
+		];
+		if (M < 0.5) {
+			p.push({
+				name: 'Жизнь дольше возраста Вселенной',
+				story: `Водород в такой звезде перемешивается целиком и горит очень медленно: главная последовательность длится ${yearsText(tMS)}. Ни один красный карлик во Вселенной ещё не успел умереть. В конце, без стадии гиганта, он станет белым карликом.`,
+				dur: 0,
+				anim: 0.58,
+				from: endMS,
+				to: endMS,
+				shape: 'stay',
+			});
+			return p;
+		}
+		if (M < 8) {
+			const Lg = 2500 * M;
+			const Tg = 3800 - 500 * Math.log2(Math.max(M, 0.5));
+			const giant: Pt = { T: Tg, L: Lg };
+			p.push({
+				name: 'Красный гигант',
+				story: 'Водород в ядре кончился. Ядро сжимается и греется, оболочка раздувается и остывает: звезда красная, огромная и яркая. В ядре загорается гелий и превращается в углерод и кислород.',
+				dur: tMS * 0.12,
+				anim: 0.2,
+				from: endMS,
+				to: giant,
+				shape: 'giant',
+			});
+			const Rwd = 0.012;
+			const wdHot: Pt = { T: 100000, L: Rwd * Rwd * (100000 / T_SUN) ** 4 };
+			p.push({
+				name: 'Планетарная туманность',
+				story: 'Оболочка сброшена и улетает в космос, обнажилось раскалённое ядро — будущий белый карлик. Из такого сброшенного вещества потом рождаются новые звёзды и планеты.',
+				dur: 2e4,
+				anim: 0.1,
+				from: giant,
+				to: wdHot,
+				shape: 'line',
+			});
+			const wdCold: Pt = { T: 4000, L: Rwd * Rwd * (4000 / T_SUN) ** 4 };
+			p.push({
+				name: 'Белый карлик',
+				story: 'Ядерных реакций больше нет. Размером с Землю, с массой как у Солнца: чайная ложка его вещества весит тонны. Он лишь медленно остывает — миллиарды лет.',
+				dur: 1e10,
+				anim: 0.28,
+				from: wdHot,
+				to: wdCold,
+				shape: 'cool',
+			});
+			return p;
+		}
+		const sg: Pt = { T: 3500, L: ms.L * 1.6 };
+		p.push({
+			name: 'Красный сверхгигант',
+			story: 'Оболочка раздулась до размеров орбиты Марса или Юпитера, а в ядре один за другим горят гелий, углерод, неон, кислород, кремний — пока не образуется железо. Железо «не горит»: энергии оно не даёт.',
+			dur: tMS * 0.1,
+			anim: 0.2,
+			from: endMS,
+			to: sg,
+			shape: 'giant',
+		});
+		p.push({
+			name: 'Взрыв сверхновой',
+			story: 'Железное ядро не выдерживает и за доли секунды схлопывается. Оболочка отскакивает и взрывается: несколько недель звезда светит, как целая галактика. В этом взрыве рождаются элементы тяжелее железа.',
+			dur: 1,
+			anim: 0.1,
+			from: sg,
+			to: { T: 6000, L: 2e6 },
+			shape: 'burst',
+		});
+		if (M < 25) {
+			p.push({
+				name: 'Нейтронная звезда',
+				story: 'От звезды остался шар диаметром около 20 км с массой больше солнечной. Он раскалён до миллиона градусов — на диаграмме это далеко за левым краем. Быстро вращаясь, он посылает радиоимпульсы: это пульсар.',
+				dur: 1e7,
+				anim: 0.28,
+				from: { T: 6000, L: 2e6 },
+				to: { T: 1e6, L: 0.2 },
+				shape: 'ns',
+			});
+		} else {
+			p.push({
+				name: 'Чёрная дыра',
+				story: 'Ядро такой массы не может удержать даже давление нейтронов. Оно сжимается без остановки, и тяготение не выпускает наружу даже свет. На диаграмме чёрной дыре места нет: она не светит.',
+				dur: 1e7,
+				anim: 0.28,
+				from: { T: 6000, L: 2e6 },
+				to: { T: 6000, L: 2e6 },
+				shape: 'bh',
+			});
+		}
+		return p;
+	};
+
+	/** The point on the diagram at a fraction f of a phase. */
+	const pointAt = (ph: Phase, f: number): Pt => {
+		const lT = (p: Pt) => Math.log10(p.T);
+		const lL = (p: Pt) => Math.log10(p.L);
+		switch (ph.shape) {
+			case 'giant': {
+				// first the subgiant branch: cooling at nearly constant luminosity, then the steep climb
+				const k = 0.45;
+				if (f < k) {
+					const g = f / k;
+					return { T: 10 ** lerp(lT(ph.from), Math.log10(Math.max(ph.to.T * 1.3, 4600)), g), L: 10 ** lerp(lL(ph.from), lL(ph.from) + 0.25, g) };
+				}
+				const g = (f - k) / (1 - k);
+				return { T: 10 ** lerp(Math.log10(Math.max(ph.to.T * 1.3, 4600)), lT(ph.to), g ** 0.6), L: 10 ** lerp(lL(ph.from) + 0.25, lL(ph.to), g ** 1.6) };
+			}
+			case 'cool': {
+				// cooling slows down: T falls quickly at first
+				const g = 1 - (1 - f) ** 0.5;
+				const T = 10 ** lerp(lT(ph.from), lT(ph.to), g);
+				return { T, L: ph.from.L * (T / ph.from.T) ** 4 };
+			}
+			case 'burst': {
+				const g = Math.sin(Math.PI * Math.min(f, 1));
+				return { T: 10 ** lerp(lT(ph.from), lT(ph.to), f), L: 10 ** lerp(lL(ph.from), lL(ph.to), g) };
+			}
+			case 'ns':
+				return { T: 10 ** lerp(lT(ph.from), lT(ph.to), Math.min(1, f * 8)), L: 10 ** lerp(lL(ph.from), lL(ph.to), Math.min(1, f * 8)) };
+			case 'bh':
+			case 'stay':
+				return ph.to;
+			default:
+				return { T: 10 ** lerp(lT(ph.from), lT(ph.to), f), L: 10 ** lerp(lL(ph.from), lL(ph.to), f) };
+		}
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vh]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const STARS: Star[] = JSON.parse(root.dataset.stars!);
+		const CLASSES: Cls[] = JSON.parse(root.dataset.classes!);
+		const canvas = q<HTMLCanvasElement>('.vh__canvas');
+		const ctx = canvas.getContext('2d')!;
+		const portrait = q<HTMLCanvasElement>('.vh__portrait');
+		const pctx = portrait.getContext('2d')!;
+		const mIn = q<HTMLInputElement>('[data-m]');
+		const mOut = q<HTMLOutputElement>('[data-m-out]');
+		const goBtn = q<HTMLButtonElement>('[data-go]');
+		const pauseBtn = q<HTMLButtonElement>('[data-pause]');
+		const progIn = q<HTMLInputElement>('[data-prog]');
+		const ageOut = q<HTMLOutputElement>('[data-age]');
+		const hover = q<HTMLElement>('[data-hover]');
+		const stageOut = q<HTMLElement>('[data-stage]');
+		const storyOut = q<HTMLElement>('[data-story]');
+		const TOut = q<HTMLElement>('[data-T]');
+		const LOut = q<HTMLElement>('[data-L]');
+		const ROut = q<HTMLElement>('[data-R]');
+		const lifeOut = q<HTMLElement>('[data-life]');
+		const still = reducedMotion();
+		const font = getComputedStyle(document.documentElement).getPropertyValue('--sl-font') || 'Alice, Georgia, serif';
+
+		let W = 0;
+		let H = 0;
+		let M = 1;
+		let phases = life(M);
+		let prog = 0; // 0..1 of the animation
+		let playing = false;
+		let started = false;
+		let raf = 0;
+		let last = 0;
+		const TOTAL = 26; // seconds for a whole life
+		let trail: Pt[] = [];
+		let clock = 0; // for the pulsar beams
+
+		const PAD = { l: 44, r: 14, t: 30, b: 34 };
+		const gx = (T: number) => PAD.l + ((Math.log10(T) - LT[0]) / (LT[1] - LT[0])) * (W - PAD.l - PAD.r);
+		const gy = (L: number) => PAD.t + ((LL[1] - Math.log10(L)) / (LL[1] - LL[0])) * (H - PAD.t - PAD.b);
+
+		const massText = (m: number) => `${m < 1 ? fmt(m, 2) : m < 10 ? fmt(m, 1) : fmt(m, 0)} M☉`;
+		const lumText = (L: number) => (L >= 1000 || L < 0.01 ? `${sig(L, 2)} L☉` : `${fmt(L, L < 1 ? 2 : 1)} L☉`);
+		const radText = (R: number) => (R >= 1000 || R < 0.01 ? `${sig(R, 2)} R☉` : `${fmt(R, R < 1 ? 2 : 1)} R☉`);
+		const tempText = (T: number) => `${Math.round(T / 10) * 10 >= 1e6 ? '≈ 1 000 000' : (Math.round(T / 10) * 10).toLocaleString('ru-RU')} K`;
+
+		/** Where we are: the phase, the fraction inside it, the age. */
+		const locate = (f: number) => {
+			let acc = 0;
+			let age = 0;
+			for (const ph of phases) {
+				if (f <= acc + ph.anim || ph === phases[phases.length - 1]) {
+					const g = clamp((f - acc) / ph.anim, 0, 1);
+					return { ph, g, age: age + ph.dur * g };
+				}
+				acc += ph.anim;
+				age += ph.dur;
+			}
+			const ph = phases[phases.length - 1];
+			return { ph, g: 1, age };
+		};
+
+		const drawDiagram = () => {
+			if (W < 40) return;
+			ctx.fillStyle = '#02030a';
+			ctx.fillRect(0, 0, W, H);
+			ctx.font = `11px ${font}`;
+			ctx.textBaseline = 'middle';
+			// spectral classes along the top
+			const bounds = [45000, 30000, 10000, 7500, 6000, 5200, 3700, 2300];
+			for (let i = 0; i < CLASSES.length; i++) {
+				const x0 = gx(bounds[i]);
+				const x1 = gx(bounds[i + 1]);
+				ctx.fillStyle = CLASSES[i].color;
+				ctx.globalAlpha = 0.55;
+				ctx.fillRect(x0, PAD.t - 16, x1 - x0, 7);
+				ctx.globalAlpha = 1;
+				ctx.fillStyle = 'rgba(235,238,255,0.9)';
+				ctx.textAlign = 'center';
+				ctx.fillText(CLASSES[i].c, (x0 + x1) / 2, PAD.t - 22);
+			}
+			// grid
+			ctx.strokeStyle = 'rgba(180,195,255,0.14)';
+			ctx.lineWidth = 1;
+			ctx.fillStyle = 'rgba(200,208,240,0.8)';
+			ctx.textAlign = 'center';
+			for (const T of [30000, 10000, 6000, 4000, 3000]) {
+				ctx.beginPath();
+				ctx.moveTo(gx(T), PAD.t);
+				ctx.lineTo(gx(T), H - PAD.b);
+				ctx.stroke();
+				ctx.fillText(T.toLocaleString('ru-RU'), gx(T), H - PAD.b + 10);
+			}
+			ctx.textAlign = 'right';
+			for (let e = -4; e <= 6; e += 2) {
+				const L = 10 ** e;
+				ctx.beginPath();
+				ctx.moveTo(PAD.l, gy(L));
+				ctx.lineTo(W - PAD.r, gy(L));
+				ctx.stroke();
+				ctx.fillText(e === 0 ? '1' : `10${String(e).replace('-', '⁻').replace(/\d/g, (d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[Number(d)])}`, PAD.l - 5, gy(L));
+			}
+			// lines of constant radius: L = R² (T/T☉)⁴
+			ctx.strokeStyle = 'rgba(255,233,176,0.18)';
+			ctx.setLineDash([3, 5]);
+			ctx.fillStyle = 'rgba(255,233,176,0.6)';
+			ctx.textAlign = 'left';
+			for (const R of [0.01, 0.1, 1, 10, 100, 1000]) {
+				const Lof = (T: number) => R * R * (T / T_SUN) ** 4;
+				ctx.beginPath();
+				ctx.moveTo(gx(45000), gy(Lof(45000)));
+				ctx.lineTo(gx(2300), gy(Lof(2300)));
+				ctx.stroke();
+				// label where the line meets the right or the top edge
+				let T = 2300;
+				let y = gy(Lof(T));
+				if (y < PAD.t + 8) {
+					// solve for the T where L reaches the top
+					T = T_SUN * (10 ** LL[1] / (R * R)) ** 0.25;
+					y = PAD.t + 8;
+				}
+				const txt = R < 1 ? `${String(R).replace('.', ',')} R☉` : R === 1 ? 'R☉' : `${R} R☉`;
+				ctx.fillText(txt, Math.min(gx(T) + 2, W - PAD.r - 40), Math.min(y - 6, H - PAD.b - 8));
+			}
+			ctx.setLineDash([]);
+			// axis names
+			ctx.fillStyle = 'rgba(235,238,255,0.9)';
+			ctx.font = `italic 12px ${font}`;
+			ctx.textAlign = 'center';
+			ctx.fillText('T, K', (PAD.l + W - PAD.r) / 2, H - PAD.b + 24);
+			ctx.textAlign = 'left';
+			ctx.fillText('L / L☉', 4, PAD.t - 22);
+			ctx.font = `11px ${font}`;
+			// region names
+			ctx.fillStyle = 'rgba(200,208,240,0.55)';
+			ctx.textAlign = 'center';
+			ctx.save();
+			ctx.translate(gx(13000), gy(60));
+			ctx.rotate(0.62);
+			ctx.fillText('главная последовательность', 0, 0);
+			ctx.restore();
+			ctx.fillText('гиганты', gx(4100), gy(1500));
+			ctx.fillText('сверхгиганты', gx(22000), gy(7e5));
+			ctx.fillText('белые карлики', gx(14000), gy(3e-4));
+			// stars
+			for (const s of STARS) {
+				const x = gx(s.T);
+				const y = gy(s.L);
+				const r = 2 + 0.9 * clamp(Math.log10(s.L) + 4, 0, 10) / 3;
+				ctx.fillStyle = s.color;
+				ctx.beginPath();
+				ctx.arc(x, y, r, 0, 2 * Math.PI);
+				ctx.fill();
+			}
+			// the Sun, labelled
+			const sun = STARS.find((s) => s.name === 'Солнце')!;
+			ctx.strokeStyle = '#ffe9b0';
+			ctx.beginPath();
+			ctx.arc(gx(sun.T), gy(sun.L), 6, 0, 2 * Math.PI);
+			ctx.stroke();
+			ctx.fillStyle = '#ffe9b0';
+			ctx.textAlign = 'left';
+			ctx.fillText('Солнце', gx(sun.T) + 9, gy(sun.L) + 9);
+			// the track and the star
+			if (started) {
+				ctx.strokeStyle = 'rgba(255,233,176,0.55)';
+				ctx.lineWidth = 1.5;
+				ctx.beginPath();
+				trail.forEach((p, i) => {
+					const x = clamp(gx(p.T), PAD.l, W - PAD.r);
+					const y = clamp(gy(p.L), PAD.t, H - PAD.b);
+					if (i) ctx.lineTo(x, y);
+					else ctx.moveTo(x, y);
+				});
+				ctx.stroke();
+				const { ph, g } = locate(prog);
+				const p = pointAt(ph, g);
+				if (ph.shape !== 'bh' && !(ph.shape === 'ns' && g > 0.125)) {
+					const x = clamp(gx(p.T), PAD.l - 6, W);
+					const y = clamp(gy(p.L), PAD.t - 6, H);
+					const col = bbColor(p.T);
+					const rad = ph.shape === 'burst' ? 6 + 26 * Math.sin(Math.PI * g) : 6;
+					const gl = ctx.createRadialGradient(x, y, 0, x, y, rad * 2.4);
+					gl.addColorStop(0, col.replace('rgb', 'rgba').replace(')', ',0.9)'));
+					gl.addColorStop(0.4, col.replace('rgb', 'rgba').replace(')', ',0.35)'));
+					gl.addColorStop(1, col.replace('rgb', 'rgba').replace(')', ',0)'));
+					ctx.fillStyle = gl;
+					ctx.fillRect(x - rad * 2.4, y - rad * 2.4, rad * 4.8, rad * 4.8);
+					ctx.fillStyle = col;
+					ctx.beginPath();
+					ctx.arc(x, y, rad * 0.55, 0, 2 * Math.PI);
+					ctx.fill();
+				}
+				if (ph.shape === 'ns' && g > 0.125) {
+					ctx.fillStyle = 'rgba(235,238,255,0.9)';
+					ctx.textAlign = 'left';
+					ctx.fillText('← нейтронная звезда, T ≈ 10⁶ K', PAD.l + 4, gy(0.2));
+				}
+			}
+		};
+
+		const drawPortrait = (p: Pt, ph: Phase, g: number) => {
+			const s = 200;
+			pctx.clearRect(0, 0, s, s);
+			const cx = s / 2;
+			const cy = s / 2;
+			if (ph.shape === 'bh') {
+				const ring = pctx.createRadialGradient(cx, cy, 30, cx, cy, 70);
+				ring.addColorStop(0, 'rgba(255,170,80,0)');
+				ring.addColorStop(0.25, 'rgba(255,190,110,0.85)');
+				ring.addColorStop(0.5, 'rgba(255,120,60,0.3)');
+				ring.addColorStop(1, 'rgba(255,120,60,0)');
+				pctx.fillStyle = ring;
+				pctx.save();
+				pctx.translate(cx, cy);
+				pctx.scale(1, 0.32);
+				pctx.beginPath();
+				pctx.arc(0, 0, 75, 0, 2 * Math.PI);
+				pctx.fill();
+				pctx.restore();
+				pctx.fillStyle = '#000';
+				pctx.beginPath();
+				pctx.arc(cx, cy, 30, 0, 2 * Math.PI);
+				pctx.fill();
+				pctx.strokeStyle = 'rgba(255,200,140,0.9)';
+				pctx.lineWidth = 2;
+				pctx.beginPath();
+				pctx.arc(cx, cy, 31, 0, 2 * Math.PI);
+				pctx.stroke();
+				return;
+			}
+			if (ph.shape === 'ns' && g > 0.125) {
+				const a = clock * 6;
+				pctx.save();
+				pctx.translate(cx, cy);
+				pctx.rotate(a);
+				for (const dirn of [1, -1]) {
+					const beam = pctx.createLinearGradient(0, 0, 0, dirn * 95);
+					beam.addColorStop(0, 'rgba(180,220,255,0.9)');
+					beam.addColorStop(1, 'rgba(180,220,255,0)');
+					pctx.fillStyle = beam;
+					pctx.beginPath();
+					pctx.moveTo(0, 0);
+					pctx.lineTo(-14, dirn * 95);
+					pctx.lineTo(14, dirn * 95);
+					pctx.closePath();
+					pctx.fill();
+				}
+				pctx.restore();
+				pctx.fillStyle = '#eef3ff';
+				pctx.beginPath();
+				pctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+				pctx.fill();
+				return;
+			}
+			const R = radiusOf(p.L, p.T);
+			const rad = clamp(14 + 15 * (Math.log10(R) + 2), 4, 86);
+			const col = bbColor(p.T);
+			const glow = pctx.createRadialGradient(cx, cy, rad * 0.8, cx, cy, rad * 1.5 + 8);
+			glow.addColorStop(0, col.replace('rgb', 'rgba').replace(')', ',0.55)'));
+			glow.addColorStop(1, col.replace('rgb', 'rgba').replace(')', ',0)'));
+			pctx.fillStyle = glow;
+			pctx.fillRect(0, 0, s, s);
+			const body = pctx.createRadialGradient(cx - rad * 0.3, cy - rad * 0.3, rad * 0.1, cx, cy, rad);
+			body.addColorStop(0, 'rgba(255,255,255,0.85)');
+			body.addColorStop(0.3, col);
+			body.addColorStop(1, col.replace('rgb', 'rgba').replace(')', ',0.75)'));
+			pctx.fillStyle = body;
+			pctx.beginPath();
+			pctx.arc(cx, cy, rad, 0, 2 * Math.PI);
+			pctx.fill();
+			if (ph.shape === 'burst') {
+				pctx.strokeStyle = `rgba(255,240,220,${0.9 * Math.sin(Math.PI * g)})`;
+				pctx.lineWidth = 3;
+				pctx.beginPath();
+				pctx.arc(cx, cy, 20 + 80 * g, 0, 2 * Math.PI);
+				pctx.stroke();
+			}
+			if (ph.name === 'Планетарная туманность') {
+				pctx.strokeStyle = `rgba(120,220,200,${0.7 * (1 - g)})`;
+				pctx.lineWidth = 6;
+				pctx.beginPath();
+				pctx.arc(cx, cy, 40 + 55 * g, 0, 2 * Math.PI);
+				pctx.stroke();
+			}
+		};
+
+		const update = () => {
+			const { ph, g, age } = locate(prog);
+			const p = pointAt(ph, g);
+			stageOut.textContent = started ? ph.name : 'Выберите массу и зажгите звезду';
+			storyOut.textContent = started ? ph.story : 'Масса — главное, что определяет судьбу звезды: сколько она проживёт и чем станет в конце.';
+			const R = radiusOf(p.L, p.T);
+			const offScale = ph.shape === 'bh' || (ph.shape === 'ns' && g > 0.125);
+			TOut.textContent = started && !offScale ? `${tempText(p.T)} (класс ${spectralClass(p.T)})` : started && ph.shape === 'ns' ? '≈ 1 000 000 K' : '—';
+			LOut.textContent = started && !offScale ? lumText(p.L) : started && ph.shape === 'ns' ? '≈ 0,2 L☉' : '—';
+			ROut.textContent = started && !offScale ? radText(R) : started && ph.shape === 'ns' ? '≈ 10 км' : started ? 'горизонт ≈ 30–100 км' : '—';
+			lifeOut.textContent = `≈ ${yearsText(msLifetime(M))}`;
+			ageOut.value = started ? `возраст ${yearsText(Math.max(age, 1e3))}` : '—';
+			progIn.value = String(Math.round(prog * 1000));
+			drawDiagram();
+			drawPortrait(p, ph, g);
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.1);
+			last = now;
+			clock += dt;
+			if (playing) {
+				prog = Math.min(prog + dt / TOTAL, 1);
+				const { ph, g } = locate(prog);
+				if (ph.shape !== 'bh' && ph.shape !== 'stay') trail.push(pointAt(ph, g));
+				if (prog >= 1) {
+					playing = false;
+					pauseBtn.hidden = true;
+					goBtn.textContent = 'Зажечь снова';
+				}
+			}
+			update();
+			const { ph } = locate(prog);
+			if (playing || (ph.shape === 'ns' && started)) raf = requestAnimationFrame(frame);
+		};
+
+		const rebuildTrail = () => {
+			trail = [];
+			const { ph: cur } = locate(prog);
+			let acc = 0;
+			for (const ph of phases) {
+				const n = 60;
+				for (let i = 0; i <= n; i++) {
+					const f = acc + (ph.anim * i) / n;
+					if (f > prog) break;
+					if (ph.shape !== 'bh' && ph.shape !== 'stay') trail.push(pointAt(ph, i / n));
+				}
+				if (ph === cur) break;
+				acc += ph.anim;
+			}
+		};
+
+		const start = () => {
+			cancelAnimationFrame(raf);
+			M = 10 ** Number(mIn.value);
+			phases = life(M);
+			prog = 0;
+			trail = [];
+			started = true;
+			if (still.matches) {
+				// no autoplay: the reader scrubs the slider
+				prog = 0.001;
+				rebuildTrail();
+				update();
+				return;
+			}
+			playing = true;
+			pauseBtn.hidden = false;
+			pauseBtn.textContent = 'Пауза';
+			goBtn.textContent = 'Зажечь снова';
+			last = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+
+		mIn.addEventListener('input', () => {
+			M = 10 ** Number(mIn.value);
+			mOut.value = massText(M);
+			phases = life(M);
+			if (started) {
+				rebuildTrail();
+			}
+			update();
+		});
+		goBtn.addEventListener('click', start);
+		pauseBtn.addEventListener('click', () => {
+			playing = !playing;
+			pauseBtn.textContent = playing ? 'Пауза' : 'Дальше';
+			if (playing) {
+				last = performance.now();
+				cancelAnimationFrame(raf);
+				raf = requestAnimationFrame(frame);
+			}
+		});
+		progIn.addEventListener('input', () => {
+			if (!started) {
+				started = true;
+				phases = life(M);
+			}
+			playing = false;
+			pauseBtn.hidden = !still.matches ? false : true;
+			pauseBtn.textContent = 'Дальше';
+			prog = Number(progIn.value) / 1000;
+			rebuildTrail();
+			cancelAnimationFrame(raf);
+			last = performance.now();
+			raf = requestAnimationFrame(frame);
+		});
+		// hovering a star
+		const near = (ex: number, ey: number) => {
+			const rect = canvas.getBoundingClientRect();
+			const x = ((ex - rect.left) / rect.width) * W;
+			const y = ((ey - rect.top) / rect.height) * H;
+			let best: Star | null = null;
+			let bd = 14;
+			for (const s of STARS) {
+				const d = Math.hypot(gx(s.T) - x, gy(s.L) - y);
+				if (d < bd) {
+					bd = d;
+					best = s;
+				}
+			}
+			return best;
+		};
+		const kindName: Record<string, string> = { ms: 'главная последовательность', giant: 'гигант', super: 'сверхгигант', wd: 'белый карлик' };
+		canvas.addEventListener('pointermove', (e) => {
+			const s = near(e.clientX, e.clientY);
+			if (s) {
+				const R = radiusOf(s.L, s.T);
+				hover.innerHTML = `<b>${s.name}</b> — ${kindName[s.kind]}: <i>T</i> ≈ ${s.T.toLocaleString('ru-RU')} K (класс ${spectralClass(s.T)}), <i>L</i> ≈ ${lumText(s.L)}, радиус ≈ ${radText(R)}.`;
+			}
+		});
+		canvas.addEventListener('pointerdown', (e) => {
+			const s = near(e.clientX, e.clientY);
+			if (s) {
+				const R = radiusOf(s.L, s.T);
+				hover.innerHTML = `<b>${s.name}</b> — ${kindName[s.kind]}: <i>T</i> ≈ ${s.T.toLocaleString('ru-RU')} K (класс ${spectralClass(s.T)}), <i>L</i> ≈ ${lumText(s.L)}, радиус ≈ ${radText(R)}.`;
+			}
+		});
+
+		const resize = () => {
+			const s = fitCanvas(canvas, ctx);
+			W = s.w;
+			H = s.h;
+			update();
+		};
+		mOut.value = massText(M);
+		new ResizeObserver(resize).observe(canvas);
+		resize();
+	}
+</script>

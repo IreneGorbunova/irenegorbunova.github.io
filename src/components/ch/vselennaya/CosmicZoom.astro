@@ -1,0 +1,1142 @@
+---
+/**
+ * «От человека до края Вселенной»: a continuous zoom through the scales of the Universe.
+ * The frame width is 10^lg metres; inside a frame every size and distance is true to scale
+ * (the Earth, the Moon's orbit, the planets' orbits, the nearest stars, the Galaxy, the Local Group,
+ * the observable Universe). The zoom itself is logarithmic. Positions in the plane are real distances
+ * in chosen directions; crowds of stars and the cosmic web are drawn schematically (too many to draw).
+ */
+const LEVELS = [
+	{ lg: 0.6, name: 'Человек' },
+	{ lg: 7.3, name: 'Земля' },
+	{ lg: 9.05, name: 'Земля и Луна' },
+	{ lg: 13.0, name: 'Солнечная система' },
+	{ lg: 17.6, name: 'Ближайшие звёзды' },
+	{ lg: 21.1, name: 'Галактика' },
+	{ lg: 23.0, name: 'Местная группа' },
+	{ lg: 27.0, name: 'Вселенная' },
+];
+---
+
+<figure class="vz not-content" data-vz>
+	<div class="vz__stage">
+		<canvas class="vz__canvas" aria-label="Масштабы Вселенной: от человека до наблюдаемой Вселенной"></canvas>
+		<div class="vz__hud">
+			<p class="vz__title" data-title>Человек</p>
+			<p class="vz__sub" data-sub></p>
+		</div>
+		<div class="vz__bar" aria-hidden="true">
+			<span class="vz__bar-line" data-bar-line></span>
+			<span class="vz__bar-text" data-bar-text></span>
+		</div>
+		<p class="vz__light" data-light aria-live="polite"></p>
+	</div>
+
+	<div class="vz__controls">
+		<label class="vz__slider">
+			<span class="vz__slider-name">Ширина кадра: <output data-width>2 м</output></span>
+			<input type="range" min="0.3" max="27.2" step="0.01" value="0.6" data-lg aria-label="Масштаб" />
+		</label>
+		<div class="vz__levels" role="group" aria-label="Уровни">
+			{
+				LEVELS.map((l) => (
+					<button type="button" class="vz__chip" data-level={l.lg}>
+						{l.name}
+					</button>
+				))
+			}
+		</div>
+		<div class="vz__buttons">
+			<button type="button" class="vz__btn vz__btn--primary" data-fly>Полёт до края Вселенной</button>
+			<button type="button" class="vz__btn" data-home>К человеку</button>
+		</div>
+	</div>
+
+	<figcaption class="vz__caption">
+		Внутри каждого кадра все размеры и расстояния настоящие, в одном масштабе. Сам переход между кадрами —
+		логарифмический: каждое деление ползунка увеличивает ширину кадра в 10 раз. Планеты и звёзды, которые
+		меньше пикселя, показаны точками; направления на плоскости выбраны условно, а скопления звёзд и галактик
+		нарисованы схематично — их слишком много, чтобы нарисовать каждую.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.vz {
+		margin-block: 2rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.vz__stage {
+		position: relative;
+		border-radius: 0.75rem;
+		overflow: hidden;
+		background: #02030a;
+	}
+	.vz__canvas {
+		display: block;
+		width: 100%;
+		aspect-ratio: 16 / 10;
+		touch-action: pan-y;
+	}
+	.vz__stage::before {
+		content: '';
+		position: absolute;
+		inset: 0 0 auto;
+		height: 5.5rem;
+		background: linear-gradient(180deg, rgb(2 3 10 / 0.8), rgb(2 3 10 / 0));
+		pointer-events: none;
+	}
+	.vz__hud {
+		position: absolute;
+		left: 0.9rem;
+		top: 0.7rem;
+		right: 0.9rem;
+		pointer-events: none;
+	}
+	.vz__title {
+		margin: 0;
+		font-family: var(--ig-font-display);
+		font-size: 2.1rem;
+		line-height: 1.1;
+		color: #ffe9b0;
+		text-shadow: 0 0 18px rgb(255 220 140 / 0.45);
+	}
+	.vz__sub {
+		display: inline-block;
+		margin: 0.15rem 0 0 -0.45rem;
+		padding: 0.15rem 0.45rem;
+		border-radius: 0.5rem;
+		background: rgb(2 3 10 / 0.6);
+		max-width: 34rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.4;
+		color: rgb(225 230 255 / 0.85);
+		text-shadow: 0 1px 6px rgb(0 0 0 / 0.9);
+	}
+	.vz__bar {
+		position: absolute;
+		left: 0.9rem;
+		bottom: 0.8rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		pointer-events: none;
+	}
+	.vz__bar-line {
+		display: block;
+		height: 0;
+		border-top: 2px solid #ffe9b0;
+		position: relative;
+		width: 120px;
+	}
+	.vz__bar-line::before,
+	.vz__bar-line::after {
+		content: '';
+		position: absolute;
+		top: -5px;
+		height: 8px;
+		border-left: 2px solid #ffe9b0;
+	}
+	.vz__bar-line::before {
+		left: 0;
+	}
+	.vz__bar-line::after {
+		right: 0;
+	}
+	.vz__bar-text {
+		font-size: var(--sl-text-xs);
+		color: #ffe9b0;
+		font-variant-numeric: tabular-nums;
+	}
+	.vz__light {
+		position: absolute;
+		right: 0.9rem;
+		bottom: 0.7rem;
+		margin: 0;
+		max-width: 50%;
+		text-align: right;
+		font-size: var(--sl-text-xs);
+		line-height: 1.35;
+		color: rgb(225 230 255 / 0.8);
+		text-shadow: 0 1px 6px rgb(0 0 0 / 0.9);
+		pointer-events: none;
+	}
+	.vz__controls {
+		display: grid;
+		gap: 0.6rem;
+		margin-top: 0.75rem;
+	}
+	.vz__slider {
+		display: grid;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vz__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vz__slider input {
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.vz__levels {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.vz__chip {
+		margin: 0;
+		padding: 0.3rem 0.8rem;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background 0.2s;
+	}
+	.vz__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.vz__chip[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.vz__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.vz__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.vz__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.vz__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.vz__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.vz {
+			padding: 0.5rem;
+		}
+		.vz__canvas {
+			aspect-ratio: 1 / 1;
+		}
+		.vz__title {
+			font-size: 1.7rem;
+		}
+		.vz__sub {
+			font-size: var(--sl-text-xs);
+		}
+		.vz__light {
+			max-width: 60%;
+		}
+	}
+</style>
+
+<script>
+	import { AU, LY, R_EARTH, C } from './physics';
+	import { fitCanvas, prng, reducedMotion, sig, timeText, clamp, easeInOut } from './util';
+
+	const DEG = Math.PI / 180;
+	const R_MOON = 1.737e6;
+	const R_SUN = 6.957e8;
+	const D_MOON = 3.844e8;
+	const GAL_R = 5e4 * LY; // radius of the Galaxy's disc
+	const GAL_D = 2.6e4 * LY; // distance from the Sun to the galactic centre
+	const UNIVERSE_R = 46.5e9 * LY; // radius of the observable Universe
+
+	type P = { x: number; y: number };
+	const dir = (deg: number, d: number): P => ({ x: Math.cos(deg * DEG) * d, y: Math.sin(deg * DEG) * d });
+	const add = (a: P, b: P): P => ({ x: a.x + b.x, y: a.y + b.y });
+
+	const EARTH: P = { x: 0, y: R_EARTH };
+	const MOON = add(EARTH, dir(28, D_MOON));
+	const SUN = add(EARTH, dir(200, AU));
+	const GC = dir(35, GAL_D);
+
+	// continents for the picture of the Earth: [x, y, rx, ry, rotation] in units of the radius (schematic)
+	const LAND: [number, number, number, number, number][] = [
+		[-0.42, -0.3, 0.2, 0.3, 0.5],
+		[-0.3, -0.05, 0.14, 0.18, -0.3],
+		[-0.22, 0.42, 0.11, 0.28, 0.25],
+		[0.15, -0.35, 0.2, 0.14, 0.2],
+		[0.42, -0.3, 0.26, 0.16, -0.4],
+		[0.22, 0.05, 0.16, 0.25, 0.1],
+		[0.5, 0.45, 0.14, 0.1, 0.3],
+		[0.05, 0.62, 0.08, 0.06, 0],
+	];
+	type Planet = { name: string; a: number; R: number; ang: number; color: string };
+	const PLANETS: Planet[] = [
+		{ name: 'Меркурий', a: 0.387, R: 2.44e6, ang: 70, color: '#b8b2a8' },
+		{ name: 'Венера', a: 0.723, R: 6.05e6, ang: 150, color: '#e8d4a2' },
+		{ name: 'Земля', a: 1.0, R: R_EARTH, ang: 20, color: '#6fa8ff' },
+		{ name: 'Марс', a: 1.524, R: 3.39e6, ang: 300, color: '#e07a4f' },
+		{ name: 'Юпитер', a: 5.203, R: 6.99e7, ang: 20, color: '#e3b98a' },
+		{ name: 'Сатурн', a: 9.537, R: 5.82e7, ang: 230, color: '#f0d9a0' },
+		{ name: 'Уран', a: 19.19, R: 2.54e7, ang: 120, color: '#9fe3e8' },
+		{ name: 'Нептун', a: 30.07, R: 2.46e7, ang: 330, color: '#5c7cff' },
+	];
+	type Star = { name: string; d: number; ang: number; color: string; size: number };
+	// the nearest stars: distances in light years; the directions in the plane are chosen for the picture
+	const NEAR: Star[] = [
+		{ name: 'Проксима Центавра', d: 4.25, ang: 205, color: '#ff9c6b', size: 0.6 },
+		{ name: 'α Центавра A и B', d: 4.37, ang: 200, color: '#fff4dc', size: 1.1 },
+		{ name: 'Звезда Барнарда', d: 5.96, ang: 95, color: '#ff9c6b', size: 0.6 },
+		{ name: 'Вольф 359', d: 7.86, ang: 150, color: '#ff8c5a', size: 0.5 },
+		{ name: 'Лаланд 21185', d: 8.31, ang: 120, color: '#ffb37a', size: 0.6 },
+		{ name: 'Сириус', d: 8.6, ang: 330, color: '#dfe8ff', size: 1.5 },
+		{ name: 'Лейтен 726-8', d: 8.79, ang: 278, color: '#ff8c5a', size: 0.5 },
+		{ name: 'Росс 154', d: 9.71, ang: 60, color: '#ff9c6b', size: 0.5 },
+		{ name: 'Росс 248', d: 10.3, ang: 20, color: '#ff9c6b', size: 0.5 },
+		{ name: 'ε Эридана', d: 10.5, ang: 290, color: '#ffd9a0', size: 0.8 },
+		{ name: 'Лакайль 9352', d: 10.7, ang: 222, color: '#ffb37a', size: 0.6 },
+		{ name: 'Росс 128', d: 11.0, ang: 175, color: '#ff9c6b', size: 0.5 },
+		{ name: '61 Лебедя', d: 11.4, ang: 40, color: '#ffc78a', size: 0.7 },
+		{ name: 'Процион', d: 11.5, ang: 350, color: '#fff9ec', size: 1.2 },
+		{ name: 'τ Кита', d: 11.9, ang: 250, color: '#fff0c8', size: 0.8 },
+		{ name: 'Альтаир', d: 16.7, ang: 75, color: '#f4f6ff', size: 1.2 },
+		{ name: 'Вега', d: 25.0, ang: 82, color: '#dfe8ff', size: 1.4 },
+		{ name: 'Арктур', d: 36.7, ang: 140, color: '#ffc78a', size: 1.4 },
+	];
+	type Gal = { name: string; d: number; ang: number; r: number; tilt: number; squash: number; kind: 'spiral' | 'irr' | 'ell' };
+	const GALAXIES: Gal[] = [
+		{ name: 'Большое Магелланово Облако', d: 1.63e5, ang: 130, r: 7e3, tilt: 20, squash: 0.8, kind: 'irr' },
+		{ name: 'Малое Магелланово Облако', d: 2.0e5, ang: 140, r: 3.5e3, tilt: 50, squash: 0.7, kind: 'irr' },
+		{ name: 'Андромеда (M31)', d: 2.54e6, ang: -60, r: 7.6e4, tilt: -35, squash: 0.33, kind: 'spiral' },
+		{ name: 'Треугольник (M33)', d: 2.73e6, ang: -50, r: 3e4, tilt: 20, squash: 0.7, kind: 'spiral' },
+	];
+
+	type Level = { from: number; title: string; sub: string };
+	const INFO: Level[] = [
+		{ from: 0, title: 'Человек', sub: 'Рост 1,7 м. Свет пробегает такое расстояние за 6 наносекунд.' },
+		{ from: 5.0, title: 'Земля', sub: 'Диаметр 12 742 км. Свет обогнул бы Землю по экватору за 0,13 с — семь раз за секунду.' },
+		{ from: 8.2, title: 'Земля и Луна', sub: 'До Луны 384 400 км: свет идёт 1,3 с. Между Землёй и Луной уместились бы все остальные планеты.' },
+		{ from: 10.5, title: 'Орбита Земли', sub: '1 а.е. = 149,6 млн км — свет от Солнца идёт до нас 8 мин 19 с. Солнце здесь — крошечный диск.' },
+		{ from: 12.0, title: 'Солнечная система', sub: 'Орбита Нептуна — 30 а.е. от Солнца; свет идёт туда 4 ч 10 мин. Дальше — пояс Койпера.' },
+		{ from: 14.6, title: 'Облако Оорта', sub: 'Предполагаемое облако кометных ядер простирается до 100 000 а.е. — это 1,6 светового года.' },
+		{ from: 16.5, title: 'Ближайшие звёзды', sub: 'Проксима Центавра — 4,2 светового года. Звёзды показаны точками: при этой ширине кадра даже Солнце меньше пикселя.' },
+		{ from: 19.0, title: 'Галактика Млечный Путь', sub: 'Диск диаметром около 100 000 св. лет, сотни миллиардов звёзд. Солнце — в 26 000 св. лет от центра. Звёзды и газ нарисованы схематично.' },
+		{ from: 22.0, title: 'Местная группа галактик', sub: 'Туманность Андромеды — 2,5 млн св. лет. Её свет вышел, когда на Земле ещё не было людей. Карликовые галактики — условно.' },
+		{ from: 24.0, title: 'Сверхскопления и пустоты', sub: 'Галактики собраны в нити и стенки вокруг огромных пустот. Скопление Девы — 54 млн св. лет. Структура показана схематично.' },
+		{ from: 26.0, title: 'Наблюдаемая Вселенная', sub: 'Радиус 46 млрд св. лет; на таких масштабах Вселенная почти однородна. Свет от её края — реликтовое излучение — шёл к нам 13,8 млрд лет, а Вселенная тем временем расширялась.' },
+	];
+
+	const WIDTH_UNITS: [number, string][] = [
+		[1, 'м'],
+		[1e3, 'км'],
+		[AU, 'а.е.'],
+		[LY, 'св. лет'],
+	];
+	const widthText = (m: number) => {
+		if (m < 1e3) return `${sig(m, 2)} м`;
+		if (m < 1e6) return `${sig(m / 1e3, 2)} км`;
+		if (m < 1e9) return `${sig(m / 1e6, 2)} тыс. км`;
+		if (m < 0.05 * AU) return `${sig(m / 1e9, 2)} млн км`;
+		if (m < 0.03 * LY) return `${sig(m / AU, 2)} а.е.`;
+		if (m < 1e3 * LY) return `${sig(m / LY, 2)} св. лет`;
+		if (m < 1e6 * LY) return `${sig(m / LY / 1e3, 2)} тыс. св. лет`;
+		if (m < 1e9 * LY) return `${sig(m / LY / 1e6, 2)} млн св. лет`;
+		return `${sig(m / LY / 1e9, 2)} млрд св. лет`;
+	};
+	/** A «nice» scale-bar length: 1, 2 or 5 times a power of ten in the natural unit of the frame. */
+	const niceBar = (frameM: number) => {
+		let unit = WIDTH_UNITS[0];
+		for (const u of WIDTH_UNITS) if (frameM / u[0] >= 3) unit = u;
+		const target = (frameM / unit[0]) * 0.25;
+		const p = 10 ** Math.floor(Math.log10(target));
+		const m = target / p >= 5 ? 5 : target / p >= 2 ? 2 : 1;
+		const val = m * p;
+		let label = `${val.toLocaleString('ru-RU')} ${unit[1]}`;
+		if (unit[1] === 'км' && val >= 1e6) label = `${(val / 1e6).toLocaleString('ru-RU')} млн км`;
+		else if (unit[1] === 'км' && val >= 1e3) label = `${(val / 1e3).toLocaleString('ru-RU')} тыс. км`;
+		else if (unit[1] === 'св. лет' && val >= 1e9) label = `${(val / 1e9).toLocaleString('ru-RU')} млрд св. лет`;
+		else if (unit[1] === 'св. лет' && val >= 1e6) label = `${(val / 1e6).toLocaleString('ru-RU')} млн св. лет`;
+		else if (unit[1] === 'св. лет' && val >= 1e3) label = `${(val / 1e3).toLocaleString('ru-RU')} тыс. св. лет`;
+		else if (unit[1] === 'св. лет' && val === 1) label = '1 св. год';
+		else if (unit[1] === 'св. лет' && (val === 2 || val === 3 || val === 4)) label = `${val} св. года`;
+		return { m: val * unit[0], label };
+	};
+
+	/** Soft glow sprite. */
+	const glow = (color: string, size = 64) => {
+		const c = document.createElement('canvas');
+		c.width = c.height = size;
+		const g = c.getContext('2d')!;
+		const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+		grad.addColorStop(0, color);
+		grad.addColorStop(0.25, color.replace(/[\d.]+\)$/, '0.35)'));
+		grad.addColorStop(1, color.replace(/[\d.]+\)$/, '0)'));
+		g.fillStyle = grad;
+		g.fillRect(0, 0, size, size);
+		return c;
+	};
+
+	/** A procedural spiral galaxy, face-on, in a square sprite; the disc radius is 0.47 of the side. */
+	const spiralSprite = (side: number, seed: number) => {
+		const c = document.createElement('canvas');
+		c.width = c.height = side;
+		const g = c.getContext('2d')!;
+		const rnd = prng(seed);
+		const cx = side / 2;
+		const cy = side / 2;
+		const R = side * 0.47;
+		g.globalCompositeOperation = 'lighter';
+		// faint disc haze
+		let grad = g.createRadialGradient(cx, cy, 0, cx, cy, R);
+		grad.addColorStop(0, 'rgba(255,236,200,0.35)');
+		grad.addColorStop(0.2, 'rgba(225,215,255,0.12)');
+		grad.addColorStop(0.7, 'rgba(150,160,255,0.035)');
+		grad.addColorStop(1, 'rgba(120,140,255,0)');
+		g.fillStyle = grad;
+		g.fillRect(0, 0, side, side);
+		// arms: logarithmic spirals r = r0·e^(θ·tg 13°); two main arms and two fainter ones
+		const pitch = Math.tan(13 * DEG);
+		const blob = glow('rgba(185,200,255,0.9)', 64);
+		const warm = glow('rgba(255,235,200,0.9)', 64);
+		const pink = glow('rgba(255,160,190,0.9)', 64);
+		const armOf = (th: number, arm: number) => {
+			const r = R * 0.1 * Math.exp(pitch * th);
+			const a = th + (arm * Math.PI) / 2;
+			return { r, a };
+		};
+		for (let arm = 0; arm < 4; arm++) {
+			const strength = arm % 2 ? 0.45 : 1;
+			for (let i = 0; i < 2200; i++) {
+				const th = rnd() * 3.6 * Math.PI;
+				const { r, a } = armOf(th, arm);
+				if (r > R * 0.98) continue;
+				const spread = (0.025 + 0.045 * (r / R)) * R;
+				const n = (rnd() + rnd() - 1) * spread;
+				const x = cx + (r + n) * Math.cos(a);
+				const y = cy + (r + n) * Math.sin(a);
+				const sz = 2.5 + rnd() * 9 * (1 - (0.6 * r) / R);
+				g.globalAlpha = strength * (0.08 + rnd() * 0.12) * (1 - (0.5 * r) / R);
+				const roll = rnd();
+				g.drawImage(roll < 0.1 ? pink : roll < 0.4 ? warm : blob, x - sz / 2, y - sz / 2, sz, sz);
+			}
+		}
+		// stars: along the arms and scattered in the disc
+		g.globalAlpha = 1;
+		for (let i = 0; i < 5000; i++) {
+			let x: number;
+			let y: number;
+			if (rnd() < 0.65) {
+				const arm = Math.floor(rnd() * 4);
+				const { r, a } = armOf(rnd() * 3.6 * Math.PI, arm);
+				if (r > R) continue;
+				const n = (rnd() + rnd() - 1) * (0.03 + 0.05 * (r / R)) * R;
+				x = cx + (r + n) * Math.cos(a);
+				y = cy + (r + n) * Math.sin(a);
+			} else {
+				const r = R * Math.sqrt(rnd()) * (0.2 + 0.8 * rnd());
+				const a = rnd() * 2 * Math.PI;
+				x = cx + r * Math.cos(a);
+				y = cy + r * Math.sin(a);
+			}
+			const warmStar = rnd() < 0.5;
+			g.fillStyle = warmStar ? `rgba(255,240,215,${0.3 + rnd() * 0.5})` : `rgba(215,225,255,${0.3 + rnd() * 0.5})`;
+			const sz = rnd() < 0.15 ? 2 : 1;
+			g.fillRect(x, y, sz, sz);
+		}
+		// the bulge
+		grad = g.createRadialGradient(cx, cy, 0, cx, cy, R * 0.2);
+		grad.addColorStop(0, 'rgba(255,246,220,0.95)');
+		grad.addColorStop(0.3, 'rgba(255,228,175,0.55)');
+		grad.addColorStop(0.7, 'rgba(255,215,160,0.15)');
+		grad.addColorStop(1, 'rgba(255,210,150,0)');
+		g.fillStyle = grad;
+		g.fillRect(0, 0, side, side);
+		return c;
+	};
+	/** An irregular dwarf galaxy (like the Magellanic Clouds). */
+	const irregularSprite = (side: number, seed: number) => {
+		const c = document.createElement('canvas');
+		c.width = c.height = side;
+		const g = c.getContext('2d')!;
+		const rnd = prng(seed);
+		const blob = glow('rgba(220,225,255,0.9)', 64);
+		g.globalCompositeOperation = 'lighter';
+		for (let i = 0; i < 260; i++) {
+			const r = side * 0.42 * Math.sqrt(rnd());
+			const a = rnd() * 2 * Math.PI;
+			const s = side * (0.06 + rnd() * 0.18);
+			g.globalAlpha = 0.05 + rnd() * 0.1;
+			g.drawImage(blob, side / 2 + r * Math.cos(a) * 1.3 - s / 2, side / 2 + r * Math.sin(a) * 0.8 - s / 2, s, s);
+		}
+		return c;
+	};
+
+	type WebPt = { x: number; y: number; a: number };
+	/** Points of the cosmic web: galaxies near the borders between «voids» (schematic), inside a disc of radius `half`. */
+	const web = (seed: number, half: number, voidSize: number, count: number): WebPt[] => {
+		const rnd = prng(seed);
+		const cells = Math.max(3, Math.round((2 * half) / voidSize));
+		const cell = (2 * half) / cells;
+		const grid: P[][] = Array.from({ length: cells * cells }, () => []);
+		for (let i = 0; i < cells * cells; i++) {
+			const p = { x: (rnd() * 2 - 1) * half, y: (rnd() * 2 - 1) * half };
+			const ix = Math.min(cells - 1, Math.floor((p.x + half) / cell));
+			const iy = Math.min(cells - 1, Math.floor((p.y + half) / cell));
+			grid[iy * cells + ix].push(p);
+		}
+		const pts: WebPt[] = [];
+		let tries = 0;
+		while (pts.length < count && tries < count * 10) {
+			tries++;
+			const p = { x: (rnd() * 2 - 1) * half, y: (rnd() * 2 - 1) * half };
+			const d = Math.hypot(p.x, p.y) / half;
+			if (d > 1) continue;
+			const ix = Math.min(cells - 1, Math.floor((p.x + half) / cell));
+			const iy = Math.min(cells - 1, Math.floor((p.y + half) / cell));
+			let d1 = Infinity;
+			let d2 = Infinity;
+			for (let jy = Math.max(0, iy - 2); jy <= Math.min(cells - 1, iy + 2); jy++)
+				for (let jx = Math.max(0, ix - 2); jx <= Math.min(cells - 1, ix + 2); jx++)
+					for (const s of grid[jy * cells + jx]) {
+						const dd = Math.hypot(p.x - s.x, p.y - s.y);
+						if (dd < d1) {
+							d2 = d1;
+							d1 = dd;
+						} else if (dd < d2) d2 = dd;
+					}
+			if ((d2 - d1) / voidSize < 0.08 + 0.1 * rnd() ** 3) pts.push({ x: p.x, y: p.y, a: 1 - d * d });
+		}
+		return pts;
+	};
+	/** On the largest scales the Universe is nearly uniform: evenly scattered galaxies with mild clustering. */
+	const uniformWeb = (seed: number, radius: number, count: number): WebPt[] => {
+		const rnd = prng(seed);
+		const pts: WebPt[] = [];
+		const clusters = Math.round(count / 12);
+		for (let i = 0; i < clusters; i++) {
+			const r = radius * Math.sqrt(rnd());
+			const a = rnd() * 2 * Math.PI;
+			const cx = r * Math.cos(a);
+			const cy = r * Math.sin(a);
+			const spread = radius * 0.012 * (0.5 + rnd());
+			for (let k = 0; k < 12; k++) {
+				const x = cx + (rnd() + rnd() + rnd() - 1.5) * spread;
+				const y = cy + (rnd() + rnd() + rnd() - 1.5) * spread;
+				if (Math.hypot(x, y) < radius) pts.push({ x, y, a: 1 });
+			}
+		}
+		return pts;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vz]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const canvas = q<HTMLCanvasElement>('canvas');
+		const ctx = canvas.getContext('2d')!;
+		const lgIn = q<HTMLInputElement>('[data-lg]');
+		const widthOut = q<HTMLOutputElement>('[data-width]');
+		const title = q<HTMLElement>('[data-title]');
+		const sub = q<HTMLElement>('[data-sub]');
+		const barLine = q<HTMLElement>('[data-bar-line]');
+		const barText = q<HTMLElement>('[data-bar-text]');
+		const lightOut = q<HTMLElement>('[data-light]');
+		const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-level]'));
+		const flyBtn = q<HTMLButtonElement>('[data-fly]');
+		const homeBtn = q<HTMLButtonElement>('[data-home]');
+		const still = reducedMotion();
+		const font = getComputedStyle(document.documentElement).getPropertyValue('--sl-font') || 'Alice, Georgia, serif';
+
+		const starGlow = glow('rgba(255,255,255,0.95)');
+		const sunGlow = glow('rgba(255,225,150,0.95)', 128);
+		const galaxy = spiralSprite(1024, 7);
+		const galaxySmall = spiralSprite(512, 11);
+		const irr = irregularSprite(256, 5);
+		const irr2 = irregularSprite(256, 9);
+		const galGlow = glow('rgba(200,210,255,0.9)', 32);
+		const rnd = prng(42);
+		// star field of the local neighbourhood (schematic, for frames of a few hundred light years and more)
+		const FIELD = Array.from({ length: 2400 }, () => ({ x: (rnd() * 2 - 1) * 2500 * LY, y: (rnd() * 2 - 1) * 2500 * LY, s: 0.4 + rnd() * 1.2, c: rnd() }));
+		const belt = Array.from({ length: 420 }, () => {
+			const r = (2.2 + rnd() * 1.1) * AU;
+			const a = rnd() * 2 * Math.PI;
+			return { x: SUN.x + r * Math.cos(a), y: SUN.y + r * Math.sin(a) };
+		});
+		const kuiper = Array.from({ length: 700 }, () => {
+			const r = (30 + rnd() * 20) * AU;
+			const a = rnd() * 2 * Math.PI;
+			return { x: SUN.x + r * Math.cos(a), y: SUN.y + r * Math.sin(a) };
+		});
+		const oort = Array.from({ length: 1400 }, () => {
+			const r = (2000 + 98000 * rnd() ** 0.5) * AU;
+			const a = rnd() * 2 * Math.PI;
+			return { x: SUN.x + r * Math.cos(a), y: SUN.y + r * Math.sin(a) };
+		});
+		const dwarfs = Array.from({ length: 26 }, () => {
+			const r = (0.3 + rnd() * 4.5) * 1e6 * LY;
+			const a = rnd() * 2 * Math.PI;
+			return { x: r * Math.cos(a) * 0.9, y: r * Math.sin(a), s: 0.4 + rnd() * 0.8 };
+		});
+		const virgo = Array.from({ length: 320 }, () => {
+			const r = 7.5e6 * LY * Math.sqrt(rnd()) * (0.4 + 0.6 * rnd());
+			const a = rnd() * 2 * Math.PI;
+			const c = dir(-100, 54e6 * LY);
+			return { x: c.x + r * Math.cos(a), y: c.y + r * Math.sin(a) };
+		});
+		const WEB1 = web(3, 3e24, 4e23, 2600); // within ~300 million light years; voids of ~40 million light years
+		const WEB2 = web(4, 4e25, 3e24, 9000);
+		const WEB3 = uniformWeb(5, UNIVERSE_R, 9000);
+
+		let lg = Number(lgIn.value);
+		let W = 0;
+		let H = 0;
+		let raf = 0;
+		let flying = false;
+		let flyFrom = 0;
+		let flyTo = 0;
+		let flyStart = 0;
+		let flyDur = 0;
+
+		/** The centre of the frame drifts from the person to the Earth, the Sun, the Galaxy, as the frame grows. */
+		const centre = (lg: number): P => {
+			const seg = (a: number, b: number, p: P, qq: P) => {
+				const t = easeInOut(clamp((lg - a) / (b - a), 0, 1));
+				return { x: p.x + (qq.x - p.x) * t, y: p.y + (qq.y - p.y) * t };
+			};
+			if (lg < 7.4) return seg(5.8, 7.4, { x: 0, y: -0.85 }, EARTH);
+			if (lg < 12.2) return seg(10.4, 12.2, EARTH, SUN);
+			if (lg < 21.2) return seg(19.6, 21.2, SUN, GC);
+			const lgMid: P = { x: GC.x / 2 + (dir(-60, 2.54e6 * LY).x * 0.5), y: GC.y / 2 + (dir(-60, 2.54e6 * LY).y * 0.5) };
+			if (lg < 23.2) return seg(22.2, 23.2, GC, lgMid);
+			return seg(24.2, 25.2, lgMid, { x: 0, y: 0 });
+		};
+
+		const fade = (v: number, a: number, b: number) => clamp((v - a) / (b - a), 0, 1);
+		/** Points crowd as the frame grows: dim a layer of n points spread over extent (m) once there is more than one point per 3 px². */
+		const crowd = (n: number, extent: number, mpp: number) => {
+			const area = (extent / mpp) ** 2;
+			return clamp(area / (3 * n), 0, 1);
+		};
+
+		const draw = () => {
+			const frame = 10 ** lg;
+			const mpp = frame / W;
+			const c = centre(lg);
+			const sx = (x: number) => W / 2 + (x - c.x) / mpp;
+			const sy = (y: number) => H / 2 + (y - c.y) / mpp;
+			const px = (m: number) => m / mpp;
+
+			ctx.fillStyle = '#02030a';
+			ctx.fillRect(0, 0, W, H);
+			ctx.font = `13px ${font}`;
+			ctx.textBaseline = 'middle';
+
+			const label = (text: string, x: number, y: number, color = 'rgba(235,238,255,0.9)', align: CanvasTextAlign = 'left') => {
+				ctx.fillStyle = 'rgba(2,3,10,0.75)';
+				ctx.textAlign = align;
+				const w = ctx.measureText(text).width;
+				const x0 = align === 'left' ? x - 3 : align === 'right' ? x - w - 3 : x - w / 2 - 3;
+				ctx.fillRect(x0, y - 8, w + 6, 16);
+				ctx.fillStyle = color;
+				ctx.fillText(text, x, y);
+			};
+			const inView = (x: number, y: number, r: number) => x + r > -50 && x - r < W + 50 && y + r > -50 && y - r < H + 50;
+
+			// ---- observable Universe and the cosmic web (lg > 23.5)
+			if (lg > 23.3) {
+				const ux = sx(0);
+				const uy = sy(0);
+				const ur = px(UNIVERSE_R);
+				ctx.globalCompositeOperation = 'lighter';
+				const layers: [WebPt[], number, number, number, number, number][] = [
+					[WEB1, 23.3, 24.2, 24.8, 25.3, 5.3e24],
+					[WEB2, 24.3, 25.2, 26.1, 26.7, 7e25],
+					[WEB3, 25.5, 26.4, 28, 29, 7.8e26],
+				];
+				for (const [pts, a0, a1, b0, b1, extent] of layers) {
+					const alpha = fade(lg, a0, a1) * (1 - fade(lg, b0, b1)) * crowd(pts.length, extent, mpp);
+					if (alpha <= 0.002) continue;
+					const sz = clamp(px(extent) / 300, 2.5, 5);
+					for (const p of pts) {
+						if (Math.hypot(p.x, p.y) > UNIVERSE_R) continue;
+						const x = sx(p.x);
+						const y = sy(p.y);
+						if (!inView(x, y, 4)) continue;
+						ctx.globalAlpha = alpha * 0.7 * p.a;
+						ctx.drawImage(galGlow, x - sz / 2, y - sz / 2, sz, sz);
+					}
+				}
+				ctx.globalAlpha = 1;
+				ctx.globalCompositeOperation = 'source-over';
+				if (ur < 6000) {
+					// the edge: the cosmic microwave background
+					const a = fade(lg, 25.2, 26.2);
+					const g = ctx.createRadialGradient(ux, uy, ur * 0.9, ux, uy, ur * 1.02);
+					g.addColorStop(0, 'rgba(255,170,120,0)');
+					g.addColorStop(0.85, `rgba(255,170,120,${0.35 * a})`);
+					g.addColorStop(1, 'rgba(255,170,120,0)');
+					ctx.fillStyle = g;
+					ctx.beginPath();
+					ctx.arc(ux, uy, ur * 1.03, 0, 2 * Math.PI);
+					ctx.fill();
+					ctx.strokeStyle = `rgba(255,190,150,${0.7 * a})`;
+					ctx.lineWidth = 1.5;
+					ctx.beginPath();
+					ctx.arc(ux, uy, ur, 0, 2 * Math.PI);
+					ctx.stroke();
+					if (a > 0.5 && ur < W) label('реликтовое излучение — край наблюдаемой Вселенной', ux, uy + ur < H - 12 ? uy + ur + 12 : H - 62, 'rgba(255,205,170,0.95)', 'center');
+					if (lg > 24.4) {
+						const vx = sx(dir(-100, 54e6 * LY).x);
+						const vy = sy(dir(-100, 54e6 * LY).y);
+						if (px(7.5e6 * LY) > 4 && px(7.5e6 * LY) < W) label('скопление Девы', vx, vy + px(7.5e6 * LY) + 10, 'rgba(235,238,255,0.9)', 'center');
+					}
+				}
+			}
+			// Virgo cluster galaxies
+			if (lg > 23.6 && lg < 26.2) {
+				const alpha = fade(lg, 23.6, 24.3) * (1 - fade(lg, 25.0, 25.6)) * crowd(virgo.length, 1.5e7 * LY, mpp);
+				ctx.globalCompositeOperation = 'lighter';
+				ctx.globalAlpha = alpha * 0.8;
+				for (const p of virgo) {
+					const x = sx(p.x);
+					const y = sy(p.y);
+					if (inView(x, y, 4)) ctx.drawImage(galGlow, x - 3.5, y - 3.5, 7, 7);
+				}
+				ctx.globalAlpha = 1;
+				ctx.globalCompositeOperation = 'source-over';
+			}
+
+			// ---- galaxies of the Local Group
+			if (lg > 19.5) {
+				// the Milky Way
+				const gr = px(GAL_R);
+				const gx = sx(GC.x);
+				const gy = sy(GC.y);
+				if (gr < 9000 && inView(gx, gy, gr)) {
+					const side = gr / 0.47;
+					ctx.globalCompositeOperation = 'lighter';
+					ctx.globalAlpha = fade(lg, 19.5, 20.6) * (1 - fade(gr, 700, 2500));
+					ctx.save();
+					ctx.translate(gx, gy);
+					ctx.rotate(-0.4);
+					ctx.drawImage(galaxy, -side / 2, -side / 2, side, side);
+					ctx.restore();
+					ctx.globalAlpha = 1;
+					ctx.globalCompositeOperation = 'source-over';
+				}
+				for (const [i, g] of GALAXIES.entries()) {
+					const p = dir(g.ang, g.d * LY);
+					const x = sx(p.x);
+					const y = sy(p.y);
+					const r = px(g.r * LY);
+					if (r < 0.3 || r > 9000 || !inView(x, y, r)) continue;
+					const alpha = fade(lg, 20.5, 21.3);
+					ctx.globalCompositeOperation = 'lighter';
+					ctx.globalAlpha = alpha;
+					ctx.save();
+					ctx.translate(x, y);
+					ctx.rotate(g.tilt * DEG);
+					ctx.scale(1, g.squash);
+					const spr = g.kind === 'spiral' ? (g.r > 5e4 ? galaxy : galaxySmall) : i % 2 ? irr2 : irr;
+					const side = g.kind === 'spiral' ? r / 0.47 : r / 0.42;
+					if (r < 2.2) {
+						ctx.drawImage(galGlow, -3, -3, 6, 6);
+					} else ctx.drawImage(spr, -side / 2, -side / 2, side, side);
+					ctx.restore();
+					ctx.globalAlpha = 1;
+					ctx.globalCompositeOperation = 'source-over';
+					if (r > 2 && r < W / 2.5 && lg > 21.5) label(g.name, x, y + Math.max(r * g.squash, 6) + 10, 'rgba(235,238,255,0.9)', 'center');
+				}
+				if (lg > 21.8 && lg < 24.6) {
+					ctx.globalCompositeOperation = 'lighter';
+					ctx.globalAlpha = fade(lg, 21.8, 22.6) * (1 - fade(lg, 23.6, 24.3)) * crowd(dwarfs.length, 9e6 * LY, mpp);
+					for (const d of dwarfs) {
+						const x = sx(d.x);
+						const y = sy(d.y);
+						if (inView(x, y, 3)) ctx.drawImage(galGlow, x - 3 * d.s, y - 3 * d.s, 6 * d.s, 6 * d.s);
+					}
+					ctx.globalAlpha = 1;
+					ctx.globalCompositeOperation = 'source-over';
+				}
+				if (lg > 20.2 && lg < 23.8) {
+					const x = sx(GC.x);
+					const y = sy(GC.y);
+					if (px(GAL_R) < W / 2.2) label('Млечный Путь', x, y + px(GAL_R) + 10, 'rgba(235,238,255,0.9)', 'center');
+				}
+			}
+
+			// ---- local star field (schematic) and the nearest stars
+			if (lg > 17.2 && lg < 20.9) {
+				const alpha = fade(lg, 17.2, 18.6) * (1 - fade(lg, 20.2, 20.9)) * crowd(FIELD.length, 5000 * LY, mpp);
+				ctx.globalAlpha = alpha;
+				for (const s of FIELD) {
+					const x = sx(s.x);
+					const y = sy(s.y);
+					if (x < 0 || x > W || y < 0 || y > H) continue;
+					ctx.fillStyle = s.c < 0.6 ? 'rgba(255,245,225,0.8)' : s.c < 0.85 ? 'rgba(200,215,255,0.8)' : 'rgba(255,190,150,0.8)';
+					ctx.fillRect(x, y, s.s, s.s);
+				}
+				ctx.globalAlpha = 1;
+			}
+			if (lg > 14.5 && lg < 20.6) {
+				const alpha = 1 - fade(lg, 19.4, 20.6);
+				for (const s of NEAR) {
+					const p = dir(s.ang, s.d * LY);
+					const x = sx(p.x);
+					const y = sy(p.y);
+					if (!inView(x, y, 10)) continue;
+					const g = 10 * s.size;
+					ctx.globalAlpha = alpha * 0.9;
+					ctx.drawImage(starGlow, x - g, y - g, 2 * g, 2 * g);
+					ctx.globalAlpha = alpha;
+					ctx.fillStyle = s.color;
+					ctx.beginPath();
+					ctx.arc(x, y, 0.9 + s.size * 0.8, 0, 2 * Math.PI);
+					ctx.fill();
+					ctx.globalAlpha = 1;
+					if (lg < 18.9 && px(s.d * LY) > 40) label(s.name, x + 8, y - 8);
+				}
+			}
+
+			// ---- Oort cloud, Kuiper belt, asteroid belt
+			const dots = (pts: P[], a0: number, a1: number, b0: number, b1: number, color: string, size: number, extent: number) => {
+				const alpha = fade(lg, a0, a1) * (1 - fade(lg, b0, b1)) * crowd(pts.length, extent, mpp);
+				if (alpha <= 0) return;
+				ctx.globalAlpha = alpha;
+				ctx.fillStyle = color;
+				for (const p of pts) {
+					const x = sx(p.x);
+					const y = sy(p.y);
+					if (x >= 0 && x <= W && y >= 0 && y <= H) ctx.fillRect(x, y, size, size);
+				}
+				ctx.globalAlpha = 1;
+			};
+			dots(oort, 14.2, 15.2, 16.6, 17.3, 'rgba(190,215,255,0.5)', 1, 2e5 * AU);
+			dots(kuiper, 12.0, 12.8, 14.6, 15.3, 'rgba(190,215,255,0.6)', 1, 100 * AU);
+			dots(belt, 10.9, 11.6, 13.6, 14.2, 'rgba(220,215,200,0.55)', 1, 6.6 * AU);
+			if (lg > 15 && lg < 17.4 && px(1e5 * AU) < W) {
+				const a = fade(lg, 15, 15.6) * (1 - fade(lg, 16.8, 17.4));
+				ctx.globalAlpha = a;
+				label('облако Оорта', sx(SUN.x), sy(SUN.y) + px(1e5 * AU) + 10, 'rgba(190,215,255,0.9)', 'center');
+				ctx.globalAlpha = 1;
+			}
+			if (lg > 12.4 && lg < 14.8 && px(50 * AU) < W / 1.8) {
+				label('пояс Койпера', sx(SUN.x), sy(SUN.y) + px(50 * AU) + 10, 'rgba(190,215,255,0.9)', 'center');
+			}
+
+			// ---- the Sun, orbits and planets
+			const sunR = px(R_SUN);
+			const sunX = sx(SUN.x);
+			const sunY = sy(SUN.y);
+			if (lg > 8.5 && lg < 19.5) {
+				// orbits
+				ctx.lineWidth = 1;
+				for (const pl of PLANETS) {
+					const r = px(pl.a * AU);
+					if (r < 3 || r > 20000 || !inView(sunX, sunY, r)) continue;
+					ctx.strokeStyle = 'rgba(180,195,255,0.35)';
+					ctx.beginPath();
+					ctx.arc(sunX, sunY, r, 0, 2 * Math.PI);
+					ctx.stroke();
+				}
+				for (const pl of PLANETS) {
+					const p = add(SUN, dir(pl.ang, pl.a * AU));
+					const x = sx(p.x);
+					const y = sy(p.y);
+					const rr = Math.max(px(pl.R), 1.6);
+					if (!inView(x, y, rr)) continue;
+					if (pl.name === 'Земля' && lg < 10.2) continue; // the Earth is drawn with its own disc below
+					ctx.fillStyle = pl.color;
+					ctx.beginPath();
+					ctx.arc(x, y, rr, 0, 2 * Math.PI);
+					ctx.fill();
+					if (px(pl.a * AU) > 26 && rr < W) label(pl.name, x + rr + 5, y - 6);
+				}
+			}
+			if (sunR > 0.2 && sunR < 50000 && inView(sunX, sunY, sunR * 3) && lg < 19.5) {
+				const g = Math.max(sunR * 3.2, 16);
+				ctx.globalAlpha = sunR > 1 ? 0.9 : 0.6;
+				ctx.drawImage(sunGlow, sunX - g, sunY - g, 2 * g, 2 * g);
+				ctx.globalAlpha = 1;
+				const grad = ctx.createRadialGradient(sunX - sunR * 0.3, sunY - sunR * 0.3, sunR * 0.1, sunX, sunY, Math.max(sunR, 1.5));
+				grad.addColorStop(0, '#fff7dc');
+				grad.addColorStop(0.7, '#ffd56b');
+				grad.addColorStop(1, '#ff9a3c');
+				ctx.fillStyle = grad;
+				ctx.beginPath();
+				ctx.arc(sunX, sunY, Math.max(sunR, 1.5), 0, 2 * Math.PI);
+				ctx.fill();
+				if (lg > 9.6 && lg < 17.2) label('Солнце', sunX + Math.max(sunR, 2) + 6, sunY - 10, '#ffe9b0');
+			}
+			// the Sun's position in the Galaxy
+			if (lg >= 17.2 && lg < 23.2) {
+				const x = sx(0);
+				const y = sy(0);
+				ctx.strokeStyle = '#ffe9b0';
+				ctx.lineWidth = 1.2;
+				ctx.beginPath();
+				ctx.arc(x, y, 5, 0, 2 * Math.PI);
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(x - 10, y);
+				ctx.lineTo(x - 5, y);
+				ctx.moveTo(x + 5, y);
+				ctx.lineTo(x + 10, y);
+				ctx.moveTo(x, y - 10);
+				ctx.lineTo(x, y - 5);
+				ctx.moveTo(x, y + 5);
+				ctx.lineTo(x, y + 10);
+				ctx.stroke();
+				label(lg < 19 ? 'Солнце' : 'Солнце здесь', x + 12, y - 10, '#ffe9b0');
+			}
+
+			// ---- the Moon and its orbit
+			const er = px(R_EARTH);
+			const ex = sx(EARTH.x);
+			const ey = sy(EARTH.y);
+			if (lg > 7.6 && lg < 11.6) {
+				const r = px(D_MOON);
+				if (r > 3 && inView(ex, ey, r)) {
+					ctx.strokeStyle = 'rgba(180,195,255,0.35)';
+					ctx.setLineDash([4, 5]);
+					ctx.beginPath();
+					ctx.arc(ex, ey, r, 0, 2 * Math.PI);
+					ctx.stroke();
+					ctx.setLineDash([]);
+				}
+				const mx = sx(MOON.x);
+				const my = sy(MOON.y);
+				const mr = Math.max(px(R_MOON), 1.2);
+				if (inView(mx, my, mr)) {
+					const grad = ctx.createRadialGradient(mx - mr * 0.3, my - mr * 0.3, 0, mx, my, mr);
+					grad.addColorStop(0, '#e6e6e0');
+					grad.addColorStop(1, '#8c8c86');
+					ctx.fillStyle = grad;
+					ctx.beginPath();
+					ctx.arc(mx, my, mr, 0, 2 * Math.PI);
+					ctx.fill();
+					if (r > 30) label('Луна', mx + mr + 5, my - 6);
+				}
+			}
+
+			// ---- the Earth
+			if (lg < 11.4) {
+				const atmH = Math.max(px(1e5), 2); // the atmosphere is about 100 km thick
+				if (er > 60000) {
+					// we are near the ground: the Earth is a flat floor under a sky
+					const ground = sy(0);
+					const sky = ctx.createLinearGradient(0, Math.max(0, ground - atmH), 0, ground);
+					sky.addColorStop(0, '#02030a');
+					sky.addColorStop(0.5, '#0a1a3a');
+					sky.addColorStop(1, '#3a6fb0');
+					ctx.fillStyle = sky;
+					ctx.fillRect(0, 0, W, ground);
+					const g = ctx.createLinearGradient(0, ground, 0, H);
+					g.addColorStop(0, '#355a30');
+					g.addColorStop(1, '#13200f');
+					ctx.fillStyle = g;
+					ctx.fillRect(0, ground, W, H - ground);
+				} else if (inView(ex, ey, er)) {
+					const atm = ctx.createRadialGradient(ex, ey, er, ex, ey, er + atmH);
+					atm.addColorStop(0, 'rgba(110,170,255,0.75)');
+					atm.addColorStop(0.4, 'rgba(90,150,255,0.25)');
+					atm.addColorStop(1, 'rgba(90,150,255,0)');
+					ctx.fillStyle = atm;
+					ctx.beginPath();
+					ctx.arc(ex, ey, er + atmH, 0, 2 * Math.PI);
+					ctx.fill();
+					const grad = ctx.createRadialGradient(ex - er * 0.35, ey - er * 0.35, er * 0.05, ex, ey, Math.max(er, 1.5));
+					grad.addColorStop(0, '#8fcaff');
+					grad.addColorStop(0.5, '#2b78d4');
+					grad.addColorStop(0.9, '#164a8a');
+					grad.addColorStop(1, '#0a2a55');
+					ctx.fillStyle = grad;
+					ctx.beginPath();
+					ctx.arc(ex, ey, Math.max(er, 1.5), 0, 2 * Math.PI);
+					ctx.fill();
+					if (er > 10) {
+						ctx.save();
+						ctx.beginPath();
+						ctx.arc(ex, ey, er, 0, 2 * Math.PI);
+						ctx.clip();
+						// land (schematic): a few continents from overlapping ellipses, in disc coordinates
+						ctx.fillStyle = 'rgba(98,158,86,0.9)';
+						for (const [dx, dy, rx, ry, rot] of LAND) {
+							ctx.beginPath();
+							ctx.ellipse(ex + dx * er, ey + dy * er, rx * er, ry * er, rot, 0, 2 * Math.PI);
+							ctx.fill();
+						}
+						ctx.fillStyle = 'rgba(240,245,255,0.85)';
+						ctx.beginPath();
+						ctx.ellipse(ex - er * 0.97, ey, er * 0.08, er * 0.3, 0, 0, 2 * Math.PI);
+						ctx.fill();
+						ctx.beginPath();
+						ctx.ellipse(ex + er * 0.97, ey, er * 0.07, er * 0.36, 0, 0, 2 * Math.PI);
+						ctx.fill();
+						// the night side: the Sun lies in the direction of SUN from the Earth
+						const ux = SUN.x - EARTH.x;
+						const uy = SUN.y - EARTH.y;
+						const un = Math.hypot(ux, uy);
+						const night = ctx.createLinearGradient(ex + (ux / un) * er, ey + (uy / un) * er, ex - (ux / un) * er, ey - (uy / un) * er);
+						night.addColorStop(0, 'rgba(0,0,0,0)');
+						night.addColorStop(0.55, 'rgba(0,0,0,0.05)');
+						night.addColorStop(0.8, 'rgba(0,0,0,0.6)');
+						night.addColorStop(1, 'rgba(0,0,0,0.85)');
+						ctx.fillStyle = night;
+						ctx.fillRect(ex - er, ey - er, 2 * er, 2 * er);
+						ctx.restore();
+					}
+					if (lg > 6.3 && lg < 10.4 && er > 2) label('Земля', ex + er + 6, ey - 6);
+				}
+			}
+
+			// ---- the person
+			const hp = px(1.7);
+			if (hp > 1.2 && lg < 4.5) {
+				const x = sx(0);
+				const foot = sy(0);
+				ctx.strokeStyle = '#ffe9b0';
+				ctx.fillStyle = '#ffe9b0';
+				ctx.lineWidth = Math.max(1, hp * 0.045);
+				ctx.lineCap = 'round';
+				const h = hp;
+				ctx.beginPath();
+				ctx.arc(x, foot - h * 0.9, h * 0.09, 0, 2 * Math.PI);
+				ctx.fill();
+				ctx.beginPath();
+				ctx.moveTo(x, foot - h * 0.8);
+				ctx.lineTo(x, foot - h * 0.42);
+				ctx.moveTo(x, foot - h * 0.42);
+				ctx.lineTo(x - h * 0.16, foot);
+				ctx.moveTo(x, foot - h * 0.42);
+				ctx.lineTo(x + h * 0.16, foot);
+				ctx.moveTo(x - h * 0.2, foot - h * 0.5);
+				ctx.lineTo(x, foot - h * 0.75);
+				ctx.lineTo(x + h * 0.2, foot - h * 0.5);
+				ctx.stroke();
+				if (hp > 40) {
+					ctx.strokeStyle = 'rgba(255,233,176,0.5)';
+					ctx.lineWidth = 1;
+					ctx.setLineDash([3, 4]);
+					ctx.beginPath();
+					ctx.moveTo(x + h * 0.3, foot);
+					ctx.lineTo(x + h * 0.3, foot - h);
+					ctx.stroke();
+					ctx.setLineDash([]);
+					label('1,7 м', x + h * 0.3 + 6, foot - h / 2, '#ffe9b0');
+				}
+			}
+
+			// ---- HUD
+			const info = INFO.filter((l) => lg >= l.from).pop()!;
+			title.textContent = info.title;
+			sub.textContent = info.sub;
+			const bar = niceBar(frame);
+			barLine.style.width = `${px(bar.m).toFixed(1)}px`;
+			barText.textContent = bar.label;
+			widthOut.value = widthText(frame);
+			lightOut.textContent = lg < 25.5 ? `Свет пересекает кадр за ${timeText(frame / C)}` : '';
+			for (const ch of chips) ch.setAttribute('aria-pressed', String(Math.abs(Number(ch.dataset.level) - lg) < 0.35));
+		};
+
+		const resize = () => {
+			const s = fitCanvas(canvas, ctx);
+			W = s.w;
+			H = s.h;
+			draw();
+		};
+
+		const stopFly = () => {
+			flying = false;
+			cancelAnimationFrame(raf);
+			flyBtn.textContent = 'Полёт до края Вселенной';
+			flyBtn.setAttribute('aria-pressed', 'false');
+		};
+		const frameFly = (now: number) => {
+			const t = clamp((now - flyStart) / flyDur, 0, 1);
+			lg = flyFrom + (flyTo - flyFrom) * (flyDur > 4000 ? t : easeInOut(t));
+			lgIn.value = lg.toFixed(2);
+			draw();
+			if (t < 1) raf = requestAnimationFrame(frameFly);
+			else stopFly();
+		};
+		const goTo = (target: number, speed = 1.6) => {
+			cancelAnimationFrame(raf);
+			if (still.matches) {
+				lg = target;
+				lgIn.value = lg.toFixed(2);
+				draw();
+				return;
+			}
+			flying = true;
+			flyFrom = lg;
+			flyTo = target;
+			flyStart = performance.now();
+			flyDur = Math.max(350, (Math.abs(target - lg) / speed) * 1000);
+			raf = requestAnimationFrame(frameFly);
+		};
+
+		lgIn.addEventListener('input', () => {
+			cancelAnimationFrame(raf);
+			if (flying) stopFly();
+			lg = Number(lgIn.value);
+			draw();
+		});
+		for (const ch of chips) ch.addEventListener('click', () => goTo(Number(ch.dataset.level), 4));
+		flyBtn.addEventListener('click', () => {
+			if (flying) {
+				stopFly();
+				return;
+			}
+			if (lg > 26.9) lg = 0.6;
+			goTo(27.0, 1.0);
+			flyBtn.textContent = 'Остановить';
+			flyBtn.setAttribute('aria-pressed', 'true');
+		});
+		homeBtn.addEventListener('click', () => {
+			if (flying) stopFly();
+			goTo(0.6, 6);
+		});
+		// drag up and down on the picture to zoom
+		let dragY: number | null = null;
+		let dragLg = 0;
+		canvas.addEventListener('pointerdown', (e) => {
+			dragY = e.clientY;
+			dragLg = lg;
+			canvas.setPointerCapture(e.pointerId);
+		});
+		canvas.addEventListener('pointermove', (e) => {
+			if (dragY === null) return;
+			if (flying) stopFly();
+			lg = clamp(dragLg + (dragY - e.clientY) / 40, 0.3, 27.2);
+			lgIn.value = lg.toFixed(2);
+			draw();
+		});
+		const endDrag = () => (dragY = null);
+		canvas.addEventListener('pointerup', endDrag);
+		canvas.addEventListener('pointercancel', endDrag);
+
+		new ResizeObserver(resize).observe(canvas);
+		resize();
+	}
+</script>
