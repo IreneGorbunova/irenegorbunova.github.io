@@ -1,0 +1,514 @@
+---
+/**
+ * Circuit builder: a closed loop with four places for parts. Choose a place, then a part from the palette.
+ * Simple and true rules: no current if the loop has a gap, the key is open or there is no source;
+ * a voltmeter in series lets almost no current through and shows the voltage of the source;
+ * a loop of sources, wires and ammeters only is a short circuit. Otherwise I = U / (sum of resistances):
+ * cell 1,5 В, battery 4,5 В, lamp 12 Ом, resistor 10 Ом, bell 8 Ом, ammeter and wires ≈ 0.
+ */
+import { PARTS, icon } from './symbols';
+
+const gid = `cb-glow-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="cb not-content" data-cb data-gid={gid}>
+	<svg class="cb__svg" viewBox="0 0 560 300" role="img" aria-label="Конструктор электрической цепи: четыре места для деталей в замкнутом контуре">
+		<defs>
+			<radialGradient id={gid}>
+				<stop offset="0" stop-color="var(--ig-v)" stop-opacity="0.9"></stop>
+				<stop offset="0.4" stop-color="var(--ig-v)" stop-opacity="0.35"></stop>
+				<stop offset="1" stop-color="var(--ig-v)" stop-opacity="0"></stop>
+			</radialGradient>
+		</defs>
+		<g class="cb__wires" data-wires>
+			<path d="M 235 60 H 70 V 110"></path>
+			<path d="M 325 60 H 490 V 110"></path>
+			<path d="M 490 200 V 250 H 325"></path>
+			<path d="M 235 250 H 70 V 200"></path>
+		</g>
+		<path class="cb__flow" d="M 70 60 H 490 V 250 H 70 Z" data-flow></path>
+		<g data-slots></g>
+		<g class="cb__texts" data-texts></g>
+	</svg>
+
+	<p class="cb__ask" data-ask>Выберите место в цепи, а потом — что туда поставить:</p>
+	<div class="cb__palette" role="group" aria-label="Детали цепи">
+		{
+			PARTS.map((p) => (
+				<button type="button" class="cb__part" data-part={p.kind} title={p.name}>
+					<Fragment set:html={icon(p.kind)} />
+					<span>{p.short}</span>
+				</button>
+			))
+		}
+	</div>
+	<div class="cb__buttons">
+		<button type="button" class="cb__btn cb__btn--primary" data-key-btn>Замкнуть ключ</button>
+		<button type="button" class="cb__btn cb__btn--quiet" data-reset>Начать сначала</button>
+	</div>
+	<p class="cb__live" data-live aria-live="polite"></p>
+	<ul class="cb__tasks" data-tasks>
+		<li data-task="lamp">Зажгите лампу.</li>
+		<li data-task="amm">Измерьте амперметром силу тока в цепи с горящей лампой.</li>
+		<li data-task="bright">Сделайте так, чтобы лампа горела ярче (или тусклее).</li>
+		<li data-task="volt">Включите вольтметр последовательно с лампой. Что произошло?</li>
+	</ul>
+</figure>
+
+<style is:global>
+	.cb {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.cb__svg {
+		display: block;
+		width: 100%;
+		max-width: 560px;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.cb__wires path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.cb__flow {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 2.5;
+		stroke-dasharray: 3 15;
+		stroke-linecap: round;
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+	.cb.is-on .cb__flow {
+		opacity: 0.9;
+		animation: cb-flow var(--cb-period, 1.5s) linear infinite;
+	}
+	.cb.is-short .cb__wires path,
+	.cb.is-short .cb__svg .cb__w {
+		stroke: var(--sl-color-red);
+		animation: cb-alarm 0.6s ease-in-out infinite alternate;
+	}
+	@keyframes cb-flow {
+		to {
+			stroke-dashoffset: -18;
+		}
+	}
+	@keyframes cb-alarm {
+		to {
+			opacity: 0.35;
+		}
+	}
+	.cb__slot {
+		cursor: pointer;
+	}
+	.cb__texts {
+		pointer-events: none;
+	}
+	.cb__slot-bg {
+		fill: var(--ig-surface);
+	}
+	.cb__sel {
+		fill: none;
+		stroke: transparent;
+		stroke-width: 2;
+		stroke-dasharray: 5 4;
+	}
+	.cb__slot:hover .cb__sel {
+		stroke: var(--sl-color-gray-4);
+	}
+	.cb__slot.is-sel .cb__sel {
+		stroke: var(--sl-color-accent);
+	}
+	.cb__w {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.cb__end {
+		fill: var(--sl-color-gray-3);
+	}
+	.cb__hole {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 4;
+	}
+	.cb__q {
+		fill: var(--sl-color-gray-3);
+		font-size: 17px;
+		font-family: var(--__sl-font);
+	}
+	.cb__plate {
+		stroke: var(--sl-color-white);
+		stroke-width: 2.2;
+	}
+	.cb__plate--minus {
+		stroke-width: 5;
+	}
+	.cb__dash {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.5;
+		stroke-dasharray: 3 3;
+	}
+	.cb__pm {
+		fill: var(--sl-color-gray-2);
+		font-size: 15px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.cb__lever {
+		stroke: var(--sl-color-white);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.cb__contact {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.8;
+	}
+	.cb__ring {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-white);
+		stroke-width: 2.2;
+	}
+	.cb__glow {
+		opacity: 0;
+		transition: opacity 0.35s;
+	}
+	.cb__letter {
+		fill: var(--sl-color-white);
+		font-size: 16px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.cb__label {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.cb__value {
+		font-size: 17px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.cb__value--i {
+		fill: var(--ig-vx);
+	}
+	.cb__value--u {
+		fill: var(--ig-vy);
+	}
+	.cb__value--bad {
+		fill: var(--sl-color-red);
+	}
+	.cb__bell {
+		transform-box: fill-box;
+		transform-origin: 50% 100%;
+	}
+	.cb.is-ringing .cb__bell {
+		animation: cb-ring 0.09s linear infinite alternate;
+	}
+	@keyframes cb-ring {
+		from {
+			transform: rotate(-9deg);
+		}
+		to {
+			transform: rotate(9deg);
+		}
+	}
+	.cb__ask {
+		margin: 0.5rem 0 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.cb__palette {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(5.6rem, 1fr));
+		gap: 0.4rem;
+	}
+	.cb__part {
+		display: grid;
+		justify-items: center;
+		gap: 0.1rem;
+		padding: 0.35rem 0.25rem;
+		border-radius: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		line-height: 1.2;
+		cursor: pointer;
+	}
+	.cb__part:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.cb__icon {
+		width: 4.2rem;
+		height: auto;
+	}
+	.cb__icon .cb__glow {
+		display: none;
+	}
+	.cb__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.cb__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.cb__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.cb__btn[disabled] {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.cb__btn--quiet {
+		color: var(--sl-color-gray-2);
+		border-color: var(--sl-color-gray-5);
+	}
+	.cb__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.cb.is-short .cb__live {
+		color: var(--sl-color-red-high);
+	}
+	.cb__tasks {
+		list-style: none;
+		margin: 0.6rem 0 0;
+		padding: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.cb__tasks li {
+		position: relative;
+		padding-left: 1.6rem;
+		margin: 0.2rem 0;
+	}
+	.cb__tasks li::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 0.2em;
+		width: 1rem;
+		height: 1rem;
+		border-radius: 50%;
+		border: 1.5px solid var(--sl-color-gray-4);
+	}
+	.cb__tasks li.is-done {
+		color: var(--sl-color-white);
+	}
+	.cb__tasks li.is-done::before {
+		content: '✓';
+		display: grid;
+		place-items: center;
+		font-size: 0.7rem;
+		font-weight: 700;
+		color: var(--sl-color-black);
+		background: var(--sl-color-green);
+		border-color: var(--sl-color-green);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.cb.is-on .cb__flow,
+		.cb.is-ringing .cb__bell,
+		.cb.is-short .cb__wires path,
+		.cb.is-short .cb__svg .cb__w {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { symbol, PARTS, type Kind } from './symbols';
+	import { fixed, ru } from './et';
+
+	const SLOTS = [
+		{ x: 280, y: 60, rot: 0 },
+		{ x: 490, y: 155, rot: 90 },
+		{ x: 280, y: 250, rot: 180 },
+		{ x: 70, y: 155, rot: 270 },
+	];
+	const START: Kind[] = ['lamp', 'key', 'empty', 'battery'];
+	const U: Partial<Record<Kind, number>> = { cell: 1.5, battery: 4.5 };
+	const R: Partial<Record<Kind, number>> = { lamp: 12, resistor: 10, bell: 8 };
+	const NAME = Object.fromEntries(PARTS.map((p) => [p.kind, p.short])) as Record<Kind, string>;
+	NAME.empty = 'разрыв';
+	const LAMP_NOMINAL = 0.3; // А: the lamp glows at full brightness
+
+	/** Rotates a local point of a symbol into the drawing. */
+	const place = (s: (typeof SLOTS)[number], x: number, y: number) => {
+		const a = (s.rot * Math.PI) / 180;
+		return { x: s.x + x * Math.cos(a) - y * Math.sin(a), y: s.y + x * Math.sin(a) + y * Math.cos(a) };
+	};
+	/** Where the label of a place goes: outside on top and bottom, inside on the sides. */
+	const labelAt = (k: number) =>
+		[
+			{ x: 280, y: 24, a: 'middle' },
+			{ x: 458, y: 160, a: 'end' },
+			{ x: 280, y: 292, a: 'middle' },
+			{ x: 102, y: 160, a: 'start' },
+		][k];
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-cb]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const gid = root.dataset.gid!;
+		const slotsG = $<SVGGElement>('[data-slots]');
+		const textsG = $<SVGGElement>('[data-texts]');
+		const live = $<HTMLElement>('[data-live]');
+		const ask = $<HTMLElement>('[data-ask]');
+		const keyBtn = $<HTMLButtonElement>('[data-key-btn]');
+		const tasks = Object.fromEntries([...root.querySelectorAll<HTMLElement>('[data-task]')].map((li) => [li.dataset.task, li]));
+		let parts: Kind[] = [...START];
+		let closed = false;
+		let sel = 2;
+		let lastGlow = -1;
+
+		const solve = () => {
+			const has = (k: Kind) => parts.includes(k);
+			const Usum = parts.reduce((s, k) => s + (U[k] ?? 0), 0);
+			const Rsum = parts.reduce((s, k) => s + (R[k] ?? 0), 0);
+			const nV = parts.filter((k) => k === 'voltmeter').length;
+			if (has('empty')) return { mode: 'gap' as const, I: 0, Uv: 0 };
+			if (has('key') && !closed) return { mode: 'open' as const, I: 0, Uv: 0 };
+			if (Usum === 0) return { mode: 'nosource' as const, I: 0, Uv: 0 };
+			if (nV) return { mode: 'volt' as const, I: 0, Uv: Usum / nV };
+			if (Rsum === 0) return { mode: 'short' as const, I: Infinity, Uv: 0 };
+			return { mode: 'on' as const, I: Usum / Rsum, Uv: 0, U: Usum };
+		};
+
+		const render = () => {
+			const s = solve();
+			const on = s.mode === 'on';
+			slotsG.innerHTML = '';
+			let texts = '';
+			parts.forEach((kind, k) => {
+				const sl = SLOTS[k];
+				const sym = symbol(kind, closed);
+				const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+				g.setAttribute('class', `cb__slot${k === sel ? ' is-sel' : ''}`);
+				g.setAttribute('transform', `translate(${sl.x} ${sl.y}) rotate(${sl.rot})`);
+				g.setAttribute('tabindex', '0');
+				g.setAttribute('role', 'button');
+				g.setAttribute('aria-label', `Место ${k + 1}: ${NAME[kind]}. Выбрать`);
+				g.dataset.k = String(k);
+				g.innerHTML =
+					'<rect class="cb__slot-bg" x="-45" y="-30" width="90" height="60"/>' +
+					sym.body.replace('class="cb__glow"', `class="cb__glow" fill="url(#${gid})"`) +
+					'<rect class="cb__sel" x="-48" y="-33" width="96" height="66" rx="10"/>';
+				slotsG.appendChild(g);
+				for (const t of sym.texts) {
+					const p = place(sl, t.x, t.y - 5);
+					texts += `<text class="${t.cls}" x="${p.x}" y="${p.y + 5}" text-anchor="middle">${t.t}</text>`;
+				}
+				const L = labelAt(k);
+				let value = '';
+				if (kind === 'ammeter') value = s.mode === 'short' ? ' зашкаливает!' : ` ${fixed(s.I, 2)} А`;
+				if (kind === 'voltmeter') value = ` ${ru(s.Uv, 2)} В`;
+				const cls = kind === 'ammeter' ? (s.mode === 'short' ? 'cb__value cb__value--bad' : 'cb__value cb__value--i') : 'cb__value cb__value--u';
+				texts += `<text class="cb__label" x="${L.x}" y="${L.y}" text-anchor="${L.a}">${NAME[kind]}${value ? `<tspan class="${cls}">${value}</tspan>` : ''}</text>`;
+			});
+			textsG.innerHTML = texts;
+			const glow = on ? Math.min(1, (s.I / LAMP_NOMINAL) ** 2) : 0;
+			root.querySelectorAll<SVGCircleElement>('.cb__glow').forEach((c) => {
+				c.style.transition = 'none';
+				c.style.opacity = String(lastGlow < 0 ? glow : lastGlow);
+				void c.getBoundingClientRect();
+				c.style.transition = '';
+				c.style.opacity = String(glow);
+			});
+			lastGlow = glow;
+			root.classList.toggle('is-on', on);
+			root.classList.toggle('is-short', s.mode === 'short');
+			root.classList.toggle('is-ringing', on && parts.includes('bell') && s.I >= 0.1);
+			if (on) root.style.setProperty('--cb-period', `${Math.min(4, 0.45 / s.I).toFixed(2)}s`);
+			const hasKey = parts.includes('key');
+			keyBtn.disabled = !hasKey;
+			keyBtn.textContent = closed ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+			const lamps = parts.filter((k) => k === 'lamp').length;
+			const msg: Record<string, string> = {
+				gap: 'В цепи разрыв: одно место пустое. Ток может идти только по замкнутой цепи.',
+				open: 'Ключ разомкнут — цепь разорвана, и тока нет.',
+				nosource: 'В цепи нет источника тока. Без него свободные электроны движутся только беспорядочно — тока нет.',
+				volt: `Вольтметр включён последовательно. Его сопротивление очень велико, поэтому ток почти не идёт${lamps ? ' и лампа не горит' : ''}. Вольтметр показывает напряжение источника. Чтобы измерить напряжение на лампе, вольтметр подключают параллельно ей.`,
+				short: 'Короткое замыкание! В цепи нет ни лампы, ни резистора, ни звонка, сопротивление цепи очень мало, а ток огромен. Источник нагреется и быстро испортится. Так соединять нельзя!',
+				on: `Цепь замкнута: ток идёт от «+» источника к «−». Сила тока ${fixed(s.I, 2)} А${lamps ? (glow > 0.6 ? ', лампа горит ярко' : glow > 0.15 ? ', лампа горит' : ', лампа горит тускло') : ''}.`,
+			};
+			live.textContent = msg[s.mode];
+			if (on && lamps) tasks.lamp.classList.add('is-done');
+			if (on && lamps && parts.includes('ammeter')) tasks.amm.classList.add('is-done');
+			if (on && lamps && lastBright >= 0 && Math.abs(glow - lastBright) > 0.05) tasks.bright.classList.add('is-done');
+			if (on && lamps) lastBright = glow;
+			if (s.mode === 'volt' && lamps) tasks.volt.classList.add('is-done');
+			ask.textContent = `Выбрано место ${sel + 1}${parts[sel] === 'empty' ? ' (пустое)' : `: ${NAME[parts[sel]]}`}. Что туда поставить?`;
+		};
+		let lastBright = -1;
+
+		slotsG.addEventListener('click', (e) => {
+			const g = (e.target as Element).closest<SVGGElement>('.cb__slot');
+			if (!g) return;
+			sel = Number(g.dataset.k);
+			render();
+		});
+		slotsG.addEventListener('keydown', (e) => {
+			const g = (e.target as Element).closest<SVGGElement>('.cb__slot');
+			if (!g || (e.key !== 'Enter' && e.key !== ' ')) return;
+			e.preventDefault();
+			sel = Number(g.dataset.k);
+			render();
+			root.querySelector<HTMLElement>(`.cb__slot[data-k="${sel}"]`)?.focus();
+		});
+		root.querySelectorAll<HTMLButtonElement>('[data-part]').forEach((b) =>
+			b.addEventListener('click', () => {
+				parts[sel] = b.dataset.part as Kind;
+				if (!parts.includes('key')) closed = false;
+				const next = parts.findIndex((k) => k === 'empty');
+				render();
+				if (next >= 0) {
+					sel = next;
+					render();
+				}
+			}),
+		);
+		keyBtn.addEventListener('click', () => {
+			closed = !closed;
+			render();
+		});
+		$('[data-reset]').addEventListener('click', () => {
+			parts = [...START];
+			closed = false;
+			sel = 2;
+			lastBright = -1;
+			Object.values(tasks).forEach((li) => li.classList.remove('is-done'));
+			render();
+		});
+		render();
+	}
+</script>

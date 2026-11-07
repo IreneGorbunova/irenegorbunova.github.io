@@ -1,0 +1,934 @@
+---
+/**
+ * Main model of the chapter: a wire «under a microscope» inside a simple circuit.
+ * Top: the circuit diagram — a regulated source, a key, an ammeter in series and a voltmeter in parallel
+ * with the wire. Bottom: the inside of the wire on a canvas — ions of the crystal lattice vibrate in place,
+ * free electrons move chaotically and, when the key is closed, also drift against the current.
+ * A charge counter at a cross-section counts the electrons (each dot stands for 0,1 Кл) and gives I = q/t.
+ * Physics kept true: R = ρl/S, I = U/R; the number of dots per unit length is proportional to S, the drift
+ * speed to I/S, so the dot flux through the section is exactly proportional to I.
+ */
+import { WIRE } from './wire';
+
+const ang = (k: number, n: number) => ((-50 + (100 * k) / n) * Math.PI) / 180;
+/** A meter dial: scale arc of ±50° above a pivot placed below the centre. */
+const dial = (cx: number, cy: number, r: number, n: number, majorEvery: number) => {
+	const py = cy + 0.42 * r;
+	const ra = 0.95 * r;
+	const ticks = Array.from({ length: n + 1 }, (_, k) => {
+		const a = ang(k, n);
+		const major = k % majorEvery === 0;
+		const r1 = ra * (major ? 0.8 : 0.88);
+		return { x1: cx + r1 * Math.sin(a), y1: py - r1 * Math.cos(a), x2: cx + ra * Math.sin(a), y2: py - ra * Math.cos(a), major };
+	});
+	const a0 = ang(0, n);
+	const arc = `M ${cx + ra * Math.sin(a0)} ${py - ra * Math.cos(a0)} A ${ra} ${ra} 0 0 1 ${cx - ra * Math.sin(a0)} ${py - ra * Math.cos(a0)}`;
+	return { cx, py, len: 0.9 * ra, ticks, arc };
+};
+const S = { XL: 30, XR: 530, YT: 104, YB: 186, XP: 100, XM: 112, XK1: 196, XK2: 246, XA: 404, RA: 27, XV: 280, YV: 42, RV: 27, XN1: 160, XN2: 404, X1: 206, X2: 354 };
+const am = dial(S.XA, S.YB, S.RA, 12, 4);
+const vm = dial(S.XV, S.YV, S.RV, 12, 2);
+---
+
+<figure class="wl not-content" data-wl>
+	<svg class="wl__scheme" viewBox="0 0 560 222" role="img" aria-label="Схема цепи: источник, ключ, амперметр и проволока соединены последовательно, вольтметр подключён параллельно проволоке">
+		<g class="wl__wires">
+			<path d={`M ${S.XP} ${S.YB} H ${S.XL} V ${S.YT} H ${S.X1}`}></path>
+			<path d={`M ${S.X2} ${S.YT} H ${S.XR} V ${S.YB} H ${S.XA + S.RA}`}></path>
+			<path d={`M ${S.XA - S.RA} ${S.YB} H ${S.XK2}`}></path>
+			<path d={`M ${S.XK1} ${S.YB} H ${S.XM}`}></path>
+			<path d={`M ${S.XN1} ${S.YT} V ${S.YV} H ${S.XV - S.RV}`}></path>
+			<path d={`M ${S.XV + S.RV} ${S.YV} H ${S.XN2} V ${S.YT}`}></path>
+		</g>
+		<path class="wl__flow" d={`M ${S.XP} ${S.YB} H ${S.XL} V ${S.YT} H ${S.XR} V ${S.YB} H ${S.XM}`} data-flow></path>
+		<circle class="wl__node" cx={S.XN1} cy={S.YT} r="4.5"></circle>
+		<circle class="wl__node" cx={S.XN2} cy={S.YT} r="4.5"></circle>
+
+		<!-- the wire, drawn as a resistor -->
+		<rect class="wl__res" x={S.X1} y={S.YT - 12} width={S.X2 - S.X1} height="24" rx="2"></rect>
+		<g class="wl__lens" transform={`translate(${(S.X1 + S.X2) / 2} ${S.YT})`}>
+			<circle r="7" cx="-3" cy="-1"></circle>
+			<line x1="2" y1="4" x2="8" y2="10"></line>
+		</g>
+		<text class="wl__cap" x={(S.X1 + S.X2) / 2} y={S.YT + 30} text-anchor="middle">проволока</text>
+
+		<!-- source -->
+		<rect class="wl__bg" x={S.XP - 5} y={S.YB - 24} width={S.XM - S.XP + 10} height="48"></rect>
+		<line class="wl__plate" x1={S.XP} y1={S.YB - 21} x2={S.XP} y2={S.YB + 21}></line>
+		<line class="wl__plate wl__plate--minus" x1={S.XM} y1={S.YB - 10} x2={S.XM} y2={S.YB + 10}></line>
+		<text class="wl__sign" x={S.XP - 11} y={S.YB - 26} text-anchor="middle">+</text>
+		<text class="wl__sign" x={S.XM + 11} y={S.YB - 26} text-anchor="middle">−</text>
+		<text class="wl__cap" x={(S.XP + S.XM) / 2} y={S.YB + 34} text-anchor="middle">источник</text>
+
+		<!-- key -->
+		<g class="wl__key" data-key>
+			<rect class="wl__hit" x={S.XK1 - 12} y={S.YB - 42} width={S.XK2 - S.XK1 + 24} height="58"></rect>
+			<line class="wl__lever" x1={S.XK1} y1={S.YB} x2={S.XK2} y2={S.YB} data-lever></line>
+			<circle class="wl__contact" cx={S.XK1} cy={S.YB} r="4"></circle>
+			<circle class="wl__contact" cx={S.XK2} cy={S.YB} r="4"></circle>
+		</g>
+		<text class="wl__cap" x={(S.XK1 + S.XK2) / 2} y={S.YB + 34} text-anchor="middle">ключ</text>
+
+		<!-- ammeter -->
+		<g class="wl__meter wl__meter--a">
+			<circle class="wl__face" cx={S.XA} cy={S.YB} r={S.RA}></circle>
+			<path class="wl__arc" d={am.arc}></path>
+			{am.ticks.map((t) => <line class={t.major ? 'wl__tick wl__tick--major' : 'wl__tick'} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />)}
+			<line class="wl__needle" x1={S.XA} y1={am.py} x2={S.XA} y2={am.py - am.len} data-needle-a></line>
+			<circle class="wl__pivot" cx={S.XA} cy={am.py} r="2.6"></circle>
+			<text class="wl__letter" x={S.XA} y={S.YB + 20} text-anchor="middle">A</text>
+			<text class="wl__pm" x={S.XA + S.RA + 7} y={S.YB - 9} text-anchor="middle">+</text>
+			<text class="wl__pm" x={S.XA - S.RA - 7} y={S.YB - 9} text-anchor="middle">−</text>
+		</g>
+		<text class="wl__read wl__read--i" x={S.XA} y={S.YB - S.RA - 10} text-anchor="middle" data-read-i>0 А</text>
+
+		<!-- voltmeter -->
+		<g class="wl__meter wl__meter--v">
+			<circle class="wl__face" cx={S.XV} cy={S.YV} r={S.RV}></circle>
+			<path class="wl__arc" d={vm.arc}></path>
+			{vm.ticks.map((t) => <line class={t.major ? 'wl__tick wl__tick--major' : 'wl__tick'} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />)}
+			<line class="wl__needle" x1={S.XV} y1={vm.py} x2={S.XV} y2={vm.py - vm.len} data-needle-v></line>
+			<circle class="wl__pivot" cx={S.XV} cy={vm.py} r="2.6"></circle>
+			<text class="wl__letter" x={S.XV} y={S.YV + 20} text-anchor="middle">V</text>
+			<text class="wl__pm" x={S.XV - S.RV - 7} y={S.YV - 9} text-anchor="middle">+</text>
+			<text class="wl__pm" x={S.XV + S.RV + 7} y={S.YV - 9} text-anchor="middle">−</text>
+		</g>
+		<text class="wl__read wl__read--u" x={S.XV - S.RV - 20} y={S.YV - 13} text-anchor="end" data-read-u>0 В</text>
+
+		<!-- current direction -->
+		<g class="wl__dir" data-dir>
+			<line x1={S.XL + 14} y1={164} x2={S.XL + 14} y2={128}></line>
+			<path d={`M ${S.XL + 8} ${133} L ${S.XL + 14} ${122} L ${S.XL + 20} ${133} z`}></path>
+			<text x={S.XL + 24} y={152}>I</text>
+		</g>
+	</svg>
+
+	<div class="wl__zoom">
+		<canvas class="wl__canvas" data-canvas aria-label="Проволока изнутри: ионы кристаллической решётки и свободные электроны"></canvas>
+		<div class="wl__counter" aria-live="off">
+			<span class="wl__cnt-title">Счётчик у сечения</span>
+			<span class="wl__cnt"><span class="wl__cnt-k">время <i>t</i></span><b data-ct>0,0 с</b></span>
+			<span class="wl__cnt"><span class="wl__cnt-k">прошёл заряд <i>q</i></span><b class="et-q" data-cq>0,0 Кл</b></span>
+			<span class="wl__cnt"><span class="wl__cnt-k"><i>q</i>&thinsp;/&thinsp;<i>t</i></span><b class="et-i" data-ci>—</b></span>
+		</div>
+	</div>
+
+	<div class="wl__buttons">
+		<button type="button" class="wl__btn wl__btn--primary" data-key-btn>Замкнуть ключ</button>
+		<button type="button" class="wl__btn wl__btn--quiet" data-reset>Сбросить счётчик</button>
+	</div>
+
+	<div class="wl__mats" role="radiogroup" aria-label="Вещество проволоки" data-mats>
+		{
+			WIRE.materials.map((m, k) => (
+				<button type="button" class="wl__mat" role="radio" aria-checked={k === WIRE.defaultMaterial ? 'true' : 'false'} data-mat={k}>
+					{m.name}
+				</button>
+			))
+		}
+	</div>
+
+	<div class="wl__controls">
+		<label class="wl__slider wl__slider--u">
+			<span>Напряжение источника <i>U</i></span>
+			<output data-u-out></output>
+			<input type="range" min="0" max={WIRE.UMAX} step="0.5" value={WIRE.U0} data-u />
+		</label>
+		<label class="wl__slider wl__slider--r">
+			<span>Длина проволоки <i>l</i></span>
+			<output data-l-out></output>
+			<input type="range" min="0.5" max="10" step="0.5" value={WIRE.L0} data-l />
+		</label>
+		<label class="wl__slider wl__slider--r">
+			<span>Площадь сечения <i>S</i></span>
+			<output data-s-out></output>
+			<input type="range" min="0.2" max="1.5" step="0.1" value={WIRE.S0} data-s />
+		</label>
+	</div>
+
+	<div class="wl__formula" data-formula></div>
+	<p class="wl__live" data-live aria-live="polite"></p>
+
+	<figcaption class="wl__legend">
+		Внизу — кусочек проволоки «под микроскопом». Кружки «+» — ионы кристаллической решётки (в сплавах — ионы двух разных металлов), точки — свободные
+		электроны. Ток <i>I</i> направлен слева направо, электроны дрейфуют справа налево. Каждая точка изображает заряд
+		0,1 Кл — огромное число электронов. Скорости показаны условно: на самом деле беспорядочное движение электронов
+		в миллиарды раз быстрее их упорядоченного движения, которое составляет доли миллиметра в секунду. Ключ можно нажимать
+		прямо на схеме.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.wl {
+		--wl-i: var(--ig-vx);
+		--wl-u: var(--ig-vy);
+		--wl-r: var(--ig-v);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.wl i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.et-i {
+		color: var(--ig-vx);
+	}
+	.et-u {
+		color: var(--ig-vy);
+	}
+	.et-r {
+		color: var(--ig-v);
+	}
+	.et-q {
+		color: var(--sl-color-green-high);
+	}
+	.wl__scheme {
+		display: block;
+		width: 100%;
+		max-width: 620px;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.wl__wires path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.wl__flow {
+		fill: none;
+		stroke: var(--wl-i);
+		stroke-width: 2.5;
+		stroke-dasharray: 3 15;
+		stroke-linecap: round;
+		opacity: 0;
+		transition: opacity 0.4s;
+	}
+	.wl.is-on .wl__flow {
+		opacity: 0.9;
+		animation: wl-flow 1.1s linear infinite;
+	}
+	@keyframes wl-flow {
+		to {
+			stroke-dashoffset: -18;
+		}
+	}
+	.wl__node {
+		fill: var(--sl-color-gray-2);
+	}
+	.wl__res {
+		fill: color-mix(in srgb, var(--wl-r) 18%, var(--ig-surface));
+		stroke: var(--wl-r);
+		stroke-width: 2.5;
+	}
+	.wl__lens circle {
+		fill: none;
+		stroke: var(--wl-r);
+		stroke-width: 2;
+	}
+	.wl__lens line {
+		stroke: var(--wl-r);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.wl__bg {
+		fill: var(--ig-surface);
+	}
+	.wl__plate {
+		stroke: var(--sl-color-white);
+		stroke-width: 2.5;
+	}
+	.wl__plate--minus {
+		stroke-width: 6;
+	}
+	.wl__sign {
+		fill: var(--sl-color-white);
+		font-size: 18px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.wl__cap {
+		fill: var(--sl-color-gray-3);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.wl__key {
+		cursor: pointer;
+	}
+	.wl__hit {
+		fill: transparent;
+	}
+	.wl__lever {
+		stroke: var(--sl-color-white);
+		stroke-width: 3;
+		stroke-linecap: round;
+		transform-box: view-box;
+		transition: transform 0.35s cubic-bezier(0.3, 1.4, 0.5, 1);
+	}
+	.wl__contact {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.wl__face {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.wl__arc {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.wl__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.wl__tick--major {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+	}
+	.wl__needle {
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	.wl__meter--a .wl__needle {
+		stroke: var(--wl-i);
+	}
+	.wl__meter--v .wl__needle {
+		stroke: var(--wl-u);
+	}
+	.wl__pivot {
+		fill: var(--sl-color-gray-2);
+	}
+	.wl__letter {
+		fill: var(--sl-color-white);
+		font-size: 12px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.wl__pm {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.wl__read {
+		font-size: 19px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.wl__read--i {
+		fill: var(--wl-i);
+	}
+	.wl__read--u {
+		fill: var(--wl-u);
+	}
+	.wl.is-over .wl__read--i {
+		fill: var(--sl-color-red);
+	}
+	.wl__dir {
+		opacity: 0;
+		transition: opacity 0.4s;
+	}
+	.wl.is-on .wl__dir {
+		opacity: 1;
+	}
+	.wl__dir line {
+		stroke: var(--wl-i);
+		stroke-width: 2.5;
+	}
+	.wl__dir path,
+	.wl__dir text {
+		fill: var(--wl-i);
+	}
+	.wl__dir text {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 20px;
+	}
+
+	.wl__zoom {
+		margin-top: 0.5rem;
+		border: 2px solid color-mix(in srgb, var(--wl-r) 55%, transparent);
+		border-radius: 0.8rem;
+		overflow: hidden;
+		background: var(--sl-color-black);
+	}
+	.wl__canvas {
+		display: block;
+		width: 100%;
+		height: 200px;
+	}
+	.wl__counter {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.25rem 1.25rem;
+		padding: 0.45rem 0.8rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		background: var(--ig-surface);
+	}
+	.wl__cnt-title {
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.wl__cnt {
+		display: inline-flex;
+		gap: 0.4rem;
+		align-items: baseline;
+		white-space: nowrap;
+	}
+	.wl__cnt b {
+		font-variant-numeric: tabular-nums;
+	}
+
+	.wl__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.wl__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.wl__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.wl__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.wl__btn--quiet {
+		color: var(--sl-color-gray-2);
+		border-color: var(--sl-color-gray-5);
+	}
+	.wl__mats {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-top: 0.75rem;
+	}
+	.wl__mat {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.8rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.wl__mat[aria-checked='true'] {
+		border-color: var(--wl-r);
+		background: color-mix(in srgb, var(--wl-r) 20%, transparent);
+		color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.wl__controls {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.75rem 1.25rem;
+		margin-top: 0.75rem;
+	}
+	@media (max-width: 40rem) {
+		.wl__controls {
+			grid-template-columns: 1fr;
+		}
+	}
+	.wl__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.wl__slider output {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.wl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+	}
+	.wl__slider--u output {
+		color: var(--wl-u);
+	}
+	.wl__slider--u input {
+		accent-color: var(--wl-u);
+	}
+	.wl__slider--r output {
+		color: var(--wl-r);
+	}
+	.wl__slider--r input {
+		accent-color: var(--wl-r);
+	}
+	.wl__formula {
+		min-height: 6.5rem;
+		margin: 0.75rem 0 0;
+		padding: 0.2rem 0.6rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		display: grid;
+		place-items: center;
+		overflow-x: auto;
+	}
+	.wl__formula .katex-display {
+		margin: 0.4rem 0;
+		overflow: visible;
+	}
+	.wl__formula .katex {
+		font-size: 1.15em;
+	}
+	@media (max-width: 30rem) {
+		.wl__formula .katex {
+			font-size: 0.92em;
+		}
+	}
+	.wl__live {
+		min-height: 1.5em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.wl.is-over .wl__live {
+		color: var(--sl-color-red-high);
+	}
+	.wl__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		line-height: 1.5;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.wl.is-on .wl__flow {
+			animation: none;
+		}
+		.wl__lever {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { WIRE, resistance } from './wire';
+	import { ru, fixed, sig, tsig, rounded, renderTex, c, themeColours } from './et';
+
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const H = 200; // canvas height, CSS px
+	const Q0 = 0.1; // charge of one dot, Кл
+	const LAMBDA = 0.6; // dots per px of length for S = 1 mm² (∝ S)
+	const VTH = 75; // speed of the chaotic motion, px/s (shown slowly on purpose)
+	const AMP = 11; // how far an electron wanders from its «average» place, px
+	const ION_GAP = 20; // lattice spacing, px
+	const DEG = Math.PI / 180;
+	const meterAngle = (v: number, max: number) => -50 + 100 * Math.min(Math.max(v / max, 0), 1.04);
+
+	type El = { gx: number; fy: number; ox: number; oy: number; vx: number; vy: number; next: number; flash: number };
+	type Ion = { x: number; y: number; ph: number; alt: boolean };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-wl]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const canvas = $<HTMLCanvasElement>('[data-canvas]');
+		const ctx = canvas.getContext('2d')!;
+		const uIn = $<HTMLInputElement>('[data-u]');
+		const lIn = $<HTMLInputElement>('[data-l]');
+		const sIn = $<HTMLInputElement>('[data-s]');
+		const formula = $<HTMLElement>('[data-formula]');
+		const live = $<HTMLElement>('[data-live]');
+		const keyBtn = $<HTMLButtonElement>('[data-key-btn]');
+		const lever = $<SVGLineElement>('[data-lever]');
+		const needleA = $<SVGLineElement>('[data-needle-a]');
+		const needleV = $<SVGLineElement>('[data-needle-v]');
+		const readI = $<SVGTextElement>('[data-read-i]');
+		const readU = $<SVGTextElement>('[data-read-u]');
+		const ct = $<HTMLElement>('[data-ct]');
+		const cq = $<HTMLElement>('[data-cq]');
+		const ci = $<HTMLElement>('[data-ci]');
+		const mats = [...root.querySelectorAll<HTMLButtonElement>('[data-mat]')];
+
+		let mat = WIRE.defaultMaterial;
+		let closed = false;
+		let W = 560;
+		let hNow = 0; // drawn tube height, eases to the target
+		let els: El[] = [];
+		let ions: Ion[] = [];
+		let count = 0;
+		let tRun = 0;
+		let col: Record<string, string> = {};
+		const needle = { a: { ang: -50, w: 0 }, v: { ang: -50, w: 0 } };
+
+		const state = () => {
+			const U = Number(uIn.value);
+			const l = Number(lIn.value);
+			const S = Number(sIn.value);
+			const rho = WIRE.materials[mat].rho;
+			const R = resistance(rho, l, S);
+			const Iwould = U / R;
+			const over = closed && Iwould > WIRE.IMAX;
+			const I = closed && !over ? Iwould : 0;
+			return { U, l, S, rho, R, Iwould, over, I, Uv: closed && !over ? U : 0 };
+		};
+
+		const tubeH = (S: number) => 70 * Math.sqrt(S / 0.5);
+
+		const buildIons = () => {
+			const h = tubeH(Number(sIn.value));
+			const rows = Math.max(1, Math.floor((h - 10) / ION_GAP));
+			ions = [];
+			let seed = 7;
+			const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+			for (let x = ION_GAP / 2 - 20; x < W + 20; x += ION_GAP)
+				for (let r = 0; r < rows; r++) ions.push({ x, y: (r - (rows - 1) / 2) * ION_GAP, ph: rnd() * 6.28, alt: rnd() < 0.4 });
+		};
+
+		const buildElectrons = () => {
+			const S = Number(sIn.value);
+			const span = W + 40;
+			const n = Math.round(LAMBDA * S * span);
+			els = Array.from({ length: n }, (_, k) => {
+				const a = Math.random() * 6.283;
+				return {
+					gx: -20 + ((k + 0.2 + 0.6 * Math.random()) / n) * span,
+					fy: Math.random() * 2 - 1,
+					ox: (Math.random() * 2 - 1) * AMP,
+					oy: (Math.random() * 2 - 1) * AMP,
+					vx: VTH * Math.cos(a),
+					vy: VTH * Math.sin(a),
+					next: Math.random() * 0.3,
+					flash: 0,
+				};
+			});
+		};
+
+		const resetCounter = () => {
+			count = 0;
+			tRun = 0;
+			showCounter();
+		};
+		const showCounter = () => {
+			ct.textContent = `${fixed(tRun, 1)} с`;
+			cq.textContent = `${fixed(count * Q0, 1)} Кл`;
+			ci.textContent = tRun >= 1 ? `${sig(count * Q0 / tRun, 3)} А` : '—';
+		};
+
+		const resize = () => {
+			const w = Math.round(canvas.clientWidth);
+			if (!w) return;
+			const dpr = Math.min(window.devicePixelRatio || 1, 2);
+			canvas.width = Math.round(w * dpr);
+			canvas.height = Math.round(H * dpr);
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			if (w !== W || !els.length) {
+				W = w;
+				buildIons();
+				buildElectrons();
+			}
+		};
+
+		const update = (resetCount = true) => {
+			const s = state();
+			root.querySelector('[data-u-out]')!.textContent = `${ru(s.U, 1)} В`;
+			root.querySelector('[data-l-out]')!.textContent = `${ru(s.l, 1)} м`;
+			root.querySelector('[data-s-out]')!.innerHTML = `${ru(s.S, 1)} мм²`;
+			root.classList.toggle('is-on', s.I > 0);
+			root.classList.toggle('is-over', s.over);
+			keyBtn.textContent = closed ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+			lever.style.transform = closed ? '' : `rotate(-28deg)`;
+			lever.style.transformOrigin = `${lever.x1.baseVal.value}px ${lever.y1.baseVal.value}px`;
+			readI.textContent = s.over ? '0 А' : `${s.I === 0 ? '0' : sig(s.I, 3)} А`;
+			readU.textContent = `${ru(s.Uv, 1)} В`;
+			const rhoU = '\\text{Ом}\\cdot\\text{мм}^2/\\text{м}';
+			const Rline = `${c('r', 'R')} &= \\frac{\\rho l}{S} = \\frac{${tsig(s.rho, 2)}~${rhoU}\\cdot ${tsig(s.l)}~\\text{м}}{${tsig(s.S)}~\\text{мм}^2} ${rounded(s.R) ? '\\approx' : '='} ${tsig(s.R)}~\\text{Ом}`;
+			let Iline: string;
+			if (!closed) Iline = `${c('i', 'I')} &= 0 \\quad \\text{(ключ разомкнут)}`;
+			else if (s.over) Iline = `${c('i', 'I')} &= \\frac{${c('u', 'U')}}{${c('r', 'R')}} \\approx ${tsig(s.Iwould)}~\\text{А} > 3~\\text{А}\\ \\text{!}`;
+			else
+				Iline = `${c('i', 'I')} &= \\frac{${c('u', 'U')}}{${c('r', 'R')}} = \\frac{${tsig(s.U)}~\\text{В}}{${tsig(s.R)}~\\text{Ом}} ${rounded(s.U / s.R) || rounded(s.R) ? '\\approx' : '='} ${s.I === 0 ? '0' : tsig(s.I)}~\\text{А}`;
+			renderTex(formula, `\\begin{aligned} ${Rline} \\\\ ${Iline} \\end{aligned}`);
+			if (s.over)
+				live.textContent = `Сработала защита источника! Сопротивление проволоки всего ${sig(s.R, 2)} Ом, и сила тока получилась бы около ${sig(s.Iwould, 2)} А — проволока и источник сильно нагрелись бы. Возьмите проволоку длиннее, тоньше или из другого вещества либо уменьшите напряжение.`;
+			else if (!closed) live.textContent = 'Ключ разомкнут: тока нет, электроны движутся только беспорядочно.';
+			else if (s.U === 0) live.textContent = 'Напряжение равно нулю: электрическое поле не действует на электроны, и тока нет.';
+			else live.textContent = `Ток идёт. Электроны дрейфуют справа налево — навстречу направлению тока.`;
+			if (resetCount) resetCounter();
+		};
+
+		const toggleKey = () => {
+			closed = !closed;
+			update();
+			kick();
+		};
+		keyBtn.addEventListener('click', toggleKey);
+		$('[data-key]').addEventListener('click', toggleKey);
+		$('[data-reset]').addEventListener('click', () => resetCounter());
+		uIn.addEventListener('input', () => (update(), kick()));
+		lIn.addEventListener('input', () => (update(), kick()));
+		sIn.addEventListener('input', () => {
+			buildIons();
+			buildElectrons();
+			update();
+			kick();
+		});
+		mats.forEach((b) =>
+			b.addEventListener('click', () => {
+				mat = Number(b.dataset.mat);
+				mats.forEach((m) => m.setAttribute('aria-checked', String(m === b)));
+				update();
+				kick();
+			}),
+		);
+
+		const step = (dt: number) => {
+			const s = state();
+			const S = s.S;
+			const h = tubeH(S);
+			hNow = hNow ? hNow + (h - hNow) * Math.min(1, dt / 0.15) : h;
+			const drift = s.I / (Q0 * LAMBDA * S); // px/s: flux = λ S v = I / Q0
+			const rho = s.rho;
+			const tau = 0.06 + 0.25 / (1 + 4 * rho); // time between collisions: shorter in alloys
+			const vth = reduceMotion.matches ? 0 : VTH;
+			const xs = W / 2;
+			const span = W + 40;
+			for (const e of els) {
+				const before = e.gx;
+				e.gx -= drift * dt;
+				if (before >= xs && e.gx < xs) {
+					count += 1;
+					e.flash = 0.45;
+				}
+				if (e.gx < -20) {
+					e.gx += span;
+					e.fy = Math.random() * 2 - 1;
+				}
+				e.flash = Math.max(0, e.flash - dt);
+				if (!vth) continue;
+				e.next -= dt;
+				if (e.next <= 0) {
+					const a = Math.random() * 6.283;
+					e.vx = vth * Math.cos(a);
+					e.vy = vth * Math.sin(a);
+					e.next = tau * (0.4 + 1.2 * Math.random());
+				}
+				e.ox += e.vx * dt;
+				e.oy += e.vy * dt;
+				if (Math.abs(e.ox) > AMP) (e.ox = Math.sign(e.ox) * AMP), (e.vx = -e.vx);
+				if (Math.abs(e.oy) > AMP) (e.oy = Math.sign(e.oy) * AMP), (e.vy = -e.vy);
+			}
+			if (s.I > 0) tRun += dt;
+		};
+
+		let frame = 0;
+		const draw = (time: number) => {
+			if (frame++ % 30 === 0)
+				col = themeColours(root, ['--ig-vx', '--ig-vy', '--ig-v', '--sl-color-gray-2', '--sl-color-gray-3', '--sl-color-gray-5', '--sl-color-gray-6', '--sl-color-white', '--sl-color-black', '--sl-color-green-high', '--ig-font-math']);
+			const s = state();
+			const cy = H / 2 + 8;
+			const h = hNow;
+			const top = cy - h / 2;
+			ctx.clearRect(0, 0, W, H);
+			// tube
+			const g = ctx.createLinearGradient(0, top, 0, top + h);
+			g.addColorStop(0, col['--sl-color-gray-5']);
+			g.addColorStop(0.35, col['--sl-color-gray-6']);
+			g.addColorStop(1, col['--sl-color-gray-6']);
+			ctx.globalAlpha = 0.9;
+			ctx.fillStyle = g;
+			ctx.fillRect(-2, top, W + 4, h);
+			ctx.globalAlpha = 1;
+			ctx.strokeStyle = col['--sl-color-gray-3'];
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			ctx.moveTo(0, top);
+			ctx.lineTo(W, top);
+			ctx.moveTo(0, top + h);
+			ctx.lineTo(W, top + h);
+			ctx.stroke();
+			// ions of the lattice: vibrate about their places
+			const alloy = WIRE.materials[mat].alloy;
+			const amp = reduceMotion.matches ? 0 : 1.2;
+			const scaleY = (h - 10) / (tubeH(s.S) - 10 || 1);
+			for (const ion of ions) {
+				const y = cy + ion.y * scaleY;
+				if (Math.abs(y - cy) > h / 2 - 5) continue;
+				const x = ion.x + amp * Math.sin(time * 0.013 + ion.ph);
+				const yy = y + amp * Math.cos(time * 0.011 + ion.ph * 1.7);
+				const big = !(alloy && ion.alt);
+				const r = big ? 5.2 : 3.8;
+				ctx.beginPath();
+				ctx.arc(x, yy, r, 0, 6.283);
+				ctx.fillStyle = big ? col['--ig-vy'] : col['--ig-v'];
+				ctx.globalAlpha = 0.28;
+				ctx.fill();
+				ctx.globalAlpha = 0.8;
+				ctx.strokeStyle = big ? col['--ig-vy'] : col['--ig-v'];
+				ctx.lineWidth = 1.2;
+				ctx.stroke();
+				if (big) {
+					ctx.beginPath();
+					ctx.moveTo(x - 2.4, yy);
+					ctx.lineTo(x + 2.4, yy);
+					ctx.moveTo(x, yy - 2.4);
+					ctx.lineTo(x, yy + 2.4);
+					ctx.lineWidth = 1.1;
+					ctx.stroke();
+				}
+				ctx.globalAlpha = 1;
+			}
+			// the cross-section with the counter
+			const xs = W / 2;
+			ctx.beginPath();
+			ctx.ellipse(xs, cy, Math.max(6, h * 0.16), h / 2 + 5, 0, 0, 6.283);
+			ctx.fillStyle = col['--sl-color-green-high'];
+			ctx.globalAlpha = 0.1;
+			ctx.fill();
+			ctx.globalAlpha = 0.85;
+			ctx.strokeStyle = col['--sl-color-green-high'];
+			ctx.lineWidth = 2;
+			ctx.setLineDash([5, 4]);
+			ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.globalAlpha = 1;
+			// electrons
+			const lo = top + 3;
+			const hi = top + h - 3;
+			for (const e of els) {
+				const x = e.gx + e.ox;
+				let y = cy + e.fy * (h / 2 - 6) + e.oy;
+				if (y < lo) y = 2 * lo - y;
+				if (y > hi) y = 2 * hi - y;
+				y = Math.min(Math.max(y, lo), hi);
+				ctx.beginPath();
+				if (e.flash > 0) {
+					ctx.arc(x, y, 2.2 + 3 * e.flash, 0, 6.283);
+					ctx.fillStyle = col['--sl-color-green-high'];
+				} else {
+					ctx.arc(x, y, 2.3, 0, 6.283);
+					ctx.fillStyle = col['--ig-vx'];
+				}
+				ctx.fill();
+			}
+			// labels
+			ctx.font = `600 13px ${getComputedStyle(root).fontFamily}`;
+			ctx.textBaseline = 'alphabetic';
+			ctx.fillStyle = col['--sl-color-white'];
+			ctx.textAlign = 'left';
+			ctx.fillText(WIRE.materials[mat].name, 10, 18);
+			ctx.textAlign = 'center';
+			ctx.fillStyle = col['--sl-color-green-high'];
+			ctx.fillText('сечение', xs, Math.max(14, top - 10));
+			if (s.I > 0) {
+				// current direction (right) and electron drift (left)
+				const yA = H - 8;
+				ctx.strokeStyle = col['--ig-vx'];
+				ctx.fillStyle = col['--ig-vx'];
+				ctx.lineWidth = 2;
+				ctx.textAlign = 'right';
+				ctx.font = `13px ${getComputedStyle(root).fontFamily}`;
+				const xr = W - 12;
+				ctx.beginPath();
+				ctx.moveTo(xr - 46, yA - 4);
+				ctx.lineTo(xr, yA - 4);
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(xr + 2, yA - 4);
+				ctx.lineTo(xr - 7, yA - 9);
+				ctx.lineTo(xr - 7, yA + 1);
+				ctx.fill();
+				ctx.font = `italic 17px ${col['--ig-font-math'] ?? 'KaTeX_Math, serif'}`;
+				ctx.fillText('I', xr - 52, yA);
+				ctx.textAlign = 'left';
+				ctx.font = `13px ${getComputedStyle(root).fontFamily}`;
+				ctx.beginPath();
+				ctx.moveTo(14, yA - 4);
+				ctx.lineTo(56, yA - 4);
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(10, yA - 4);
+				ctx.lineTo(19, yA - 9);
+				ctx.lineTo(19, yA + 1);
+				ctx.fill();
+				ctx.fillText('дрейф электронов', 62, yA);
+			}
+		};
+
+		const meters = (dt: number) => {
+			const s = state();
+			const goals = { a: meterAngle(s.I, WIRE.IMAX), v: meterAngle(s.Uv, WIRE.UMAX) };
+			let moving = false;
+			for (const k of ['a', 'v'] as const) {
+				const n = needle[k];
+				if (reduceMotion.matches) {
+					n.ang = goals[k];
+					n.w = 0;
+				} else {
+					const acc = 140 * (goals[k] - n.ang) - 16 * n.w; // damped like a real pointer meter
+					n.w += acc * dt;
+					n.ang += n.w * dt;
+				}
+				if (Math.abs(goals[k] - n.ang) > 0.05 || Math.abs(n.w) > 0.05) moving = true;
+				const el = k === 'a' ? needleA : needleV;
+				const x1 = el.x1.baseVal.value;
+				const y1 = el.y1.baseVal.value;
+				const len = Math.hypot(el.x2.baseVal.value - x1, el.y2.baseVal.value - y1);
+				el.setAttribute('x2', String(x1 + len * Math.sin(n.ang * DEG)));
+				el.setAttribute('y2', String(y1 - len * Math.cos(n.ang * DEG)));
+			}
+			return moving;
+		};
+
+		let visible = false;
+		let raf = 0;
+		let last = 0;
+		let lastShown = -1;
+		const loop = (time: number) => {
+			const dt = Math.min(0.05, last ? (time - last) / 1000 : 0.016);
+			last = time;
+			step(dt);
+			draw(time);
+			meters(dt);
+			if (Math.floor(tRun * 10) !== lastShown) {
+				lastShown = Math.floor(tRun * 10);
+				showCounter();
+			}
+			raf = visible ? requestAnimationFrame(loop) : 0;
+		};
+		const kick = () => {
+			if (!raf && visible) {
+				last = 0;
+				raf = requestAnimationFrame(loop);
+			}
+		};
+
+		new ResizeObserver(() => {
+			resize();
+			draw(performance.now());
+		}).observe(canvas);
+		new IntersectionObserver((entries) => {
+			visible = entries[0].isIntersecting;
+			kick();
+		}).observe(root);
+		resize();
+		update();
+		draw(0);
+	}
+</script>
