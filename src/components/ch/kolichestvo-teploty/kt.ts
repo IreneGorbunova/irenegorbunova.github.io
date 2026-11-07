@@ -22,8 +22,8 @@ export const ru = (v: number, digits = 1) =>
 
 /** Integer with thin-space groups for TeX: 336000 → «336\,000». */
 export const texInt = (v: number) => {
-	const s = String(Math.round(v));
-	return s.length > 4 ? s.replace(/\B(?=(\d{3})+(?!\d))/g, '\\,') : s;
+	const s = String(Math.abs(Math.round(v)));
+	return (v < 0 ? '-' : '') + (s.length > 4 ? s.replace(/\B(?=(\d{3})+(?!\d))/g, '\\,') : s);
 };
 
 /** Integer with groups for HTML text: 336000 → «336 000» (narrow no-break spaces). */

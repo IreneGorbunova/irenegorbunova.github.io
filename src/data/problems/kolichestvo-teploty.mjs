@@ -124,8 +124,8 @@ export default [
 		solution: (v) => {
 			const th = (v.m1 * v.t1 + v.m2 * v.t2) / (v.m1 + v.m2);
 			return [
-				'Горячая вода отдаёт столько теплоты, сколько получает холодная:',
-				{ tex: `cm_1(t_1 - \\theta) = cm_2(\\theta - t_2).` },
+				'По уравнению теплового баланса $Q_1 + Q_2 = 0$ (горячая вода отдаёт теплоту, и её $Q_1 < 0$):',
+				{ tex: `cm_1(\\theta - t_1) + cm_2(\\theta - t_2) = 0.` },
 				'Сократим $c$ и выразим температуру смеси:',
 				{
 					tex: `\\begin{aligned} \\theta &= \\frac{m_1 t_1 + m_2 t_2}{m_1 + m_2} = \\\\ &= \\frac{${t(v.m1)} \\cdot ${v.t1} + ${t(v.m2)} \\cdot ${v.t2}}{${t(v.m1)} + ${t(v.m2)}}~{}^\\circ\\text{C} \\approx ${t(th, { dec: 1 })}~{}^\\circ\\text{C}. \\end{aligned}`,
@@ -160,8 +160,8 @@ export default [
 		solution: (v) => {
 			const c = (4200 * v.m2 * (v.th - v.t2)) / (v.m1 * (100 - v.th));
 			return [
-				'Цилиндр, остывая, отдал воде столько теплоты, сколько она получила:',
-				{ tex: `c\\,m_1 (100 - \\theta) = c_{\\text{в}} m_2 (\\theta - t_2).` },
+				'По уравнению теплового баланса $Q_1 + Q_2 = 0$ (цилиндр отдаёт теплоту, и его $Q_1 < 0$):',
+				{ tex: `c\\,m_1 (\\theta - 100) + c_{\\text{в}} m_2 (\\theta - t_2) = 0.` },
 				'Отсюда',
 				{
 					tex: `\\begin{aligned} c &= \\frac{c_{\\text{в}} m_2 (\\theta - t_2)}{m_1 (100 - \\theta)} = \\\\ &= \\frac{4200 \\cdot ${t(v.m2)} \\cdot (${t(v.th, { dec: 1 })} - ${v.t2})}{${t(v.m1)} \\cdot (100 - ${t(v.th, { dec: 1 })})} \\approx \\\\ &\\approx ${t(c)}~${C}. \\end{aligned}`,
