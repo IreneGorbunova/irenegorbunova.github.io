@@ -2,4 +2,5 @@
 export const PROBLEMS = {
 	'arhimedova-sila': () => import('./arhimedova-sila.mjs'),
 	'kolichestvo-teploty': () => import('./kolichestvo-teploty.mjs'),
+	'brosok-pod-uglom': () => import('./brosok-pod-uglom.mjs'),
 };
