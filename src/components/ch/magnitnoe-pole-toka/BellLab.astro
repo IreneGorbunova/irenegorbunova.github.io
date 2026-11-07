@@ -1,0 +1,481 @@
+---
+/**
+ * Electric bell with an interrupter. While the button is pressed: current → the electromagnet pulls the
+ * armature → the hammer strikes the gong, and the armature leaves the contact screw → no current →
+ * the flat spring returns the armature → the contact closes again, and so on.
+ * The armature is a rigid rod turning about its lower end (a flat spring): φ = 0 — resting on the screw.
+ * Dynamics (real time): spring 10 Hz, attraction ∝ I²/(gap)², the current lags by L/R ≈ 1 ms,
+ * the gong and the screw are stops. It rings at about 50 strikes per second.
+ */
+const B = { x: 345, y: 320 }; // the lower end of the armature
+---
+
+<figure class="bl not-content" data-bl>
+	<div class="bl__wrap">
+		<svg class="bl__svg" viewBox="20 -22 480 402" role="img" aria-label="Электрический звонок: кнопка, батарейка, электромагнит, якорь с молоточком, чашка звонка и контактный винт">
+			<!-- base and posts -->
+			<rect class="bl__base" x="40" y="330" width="440" height="14" rx="3"></rect>
+			<rect class="bl__post" x="116" y="70" width="10" height="260"></rect>
+			<rect class="bl__post" x="121" y="66" width="134" height="8" rx="2"></rect>
+			<rect class="bl__post" x="176" y="208" width="14" height="122"></rect>
+			<rect class="bl__post" x="394" y="150" width="12" height="180"></rect>
+			<rect class="bl__post" x={B.x - 10} y={B.y - 2} width="20" height="12" rx="2"></rect>
+
+			<!-- gong -->
+			<g class="bl__gong" data-gong>
+				<path class="bl__dome" d="M 196 112 C 196 46 314 46 314 112 Z"></path>
+				<path class="bl__rim" d="M 196 112 H 314"></path>
+			</g>
+			<g class="bl__waves" data-waves></g>
+
+			<!-- wires -->
+			<g class="bl__wires">
+				<path d="M 70 246 V 200"></path>
+				<path d="M 70 150 V 130 H 160 V 190 H 192"></path>
+				<path d="M 298 222 V 300 H 335"></path>
+				<path d="M 406 290 H 460 V 362 H 70 V 268"></path>
+			</g>
+			<g class="bl__flow" data-flow>
+				<path d="M 70 246 V 200"></path>
+				<path d="M 70 150 V 130 H 160 V 190 H 192"></path>
+				<path d="M 298 222 V 300 H 335"></path>
+				<path d="M 406 290 H 460 V 362 H 70 V 268"></path>
+			</g>
+			<!-- battery -->
+			<g>
+				<rect x="50" y="244" width="40" height="26" class="bl__bg"></rect>
+				<line x1="52" y1="248" x2="88" y2="248" class="bl__plate-p"></line>
+				<line x1="61" y1="263" x2="79" y2="263" class="bl__plate-n"></line>
+			</g>
+			<!-- button -->
+			<g class="bl__button" data-button tabindex="0" role="button" aria-label="Кнопка звонка">
+				<rect class="bl__hit" x="40" y="140" width="70" height="72"></rect>
+				<circle class="bl__contact" cx="70" cy="150" r="4"></circle>
+				<circle class="bl__contact" cx="70" cy="200" r="4"></circle>
+				<line class="bl__lever" x1="70" y1="200" x2="92" y2="158" data-lever></line>
+			</g>
+
+			<!-- electromagnet -->
+			<rect class="bl__iron" x="168" y="192" width="152" height="16"></rect>
+			<rect class="bl__coil" x="192" y="178" width="106" height="44" rx="4"></rect>
+			<g class="bl__turns" data-turns>
+				{Array.from({ length: 15 }, (_, k) => <line x1={196 + k * 7} x2={200 + k * 7} y1="178" y2="222" />)}
+			</g>
+
+			<!-- contact screw -->
+			<rect class="bl__screw" x="362" y="146" width="34" height="8" rx="2"></rect>
+			<path class="bl__strip" data-strip></path>
+
+			<!-- armature with the hammer -->
+			<g data-arm>
+				<rect class="bl__arm" x={B.x - 5} y="104" width="10" height={B.y - 104} rx="2"></rect>
+				<rect class="bl__arm-iron" x={B.x - 6} y="172" width="12" height="56" rx="2"></rect>
+				<circle class="bl__hammer" cx={B.x} cy="96" r="10"></circle>
+			</g>
+
+			<!-- captions -->
+			<g class="bl__cap">
+				<text x="188" y="64" text-anchor="end">чашка звонка</text>
+				<text x="245" y="244" text-anchor="middle">электромагнит</text>
+				<text x="365" y="88">молоточек</text>
+				<text x="362" y="214">якорь</text>
+				<text x="372" y="138">контактный винт</text>
+				<text x="62" y="300" text-anchor="middle">батарейка</text>
+				<text x="98" y="190">кнопка</text>
+			</g>
+		</svg>
+
+		<ol class="bl__steps" data-steps>
+			<li>Кнопку нажали — цепь замкнута, по обмотке электромагнита идёт ток.</li>
+			<li>Электромагнит притягивает железный якорь, и молоточек ударяет по чашке.</li>
+			<li>Якорь отошёл от контактного винта — цепь разорвалась, ток пропал, электромагнит больше не притягивает.</li>
+			<li>Пружина возвращает якорь к винту, цепь снова замыкается — и всё повторяется.</li>
+		</ol>
+	</div>
+
+	<div class="bl__buttons">
+		<button type="button" class="bl__btn bl__btn--primary" data-press>Нажать кнопку</button>
+		<div class="bl__seg" role="group" aria-label="Скорость">
+			<button type="button" class="is-active" data-speed="0.0333333">Медленно</button>
+			<button type="button" data-speed="1">Как в жизни</button>
+		</div>
+	</div>
+	<figcaption class="bl__legend">
+		Точки на проводах показывают ток: он то идёт, то пропадает. В режиме «Медленно» всё происходит в 30 раз медленнее, чем в жизни. Настоящий звонок ударяет по чашке много раз в секунду, поэтому мы слышим непрерывную трель.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.bl {
+		--bl-i: var(--ig-vx);
+		--bl-cu: var(--ig-v);
+		--bl-hit: var(--ig-vy);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.bl__wrap {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+		align-items: center;
+	}
+	.bl__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.bl__base,
+	.bl__post {
+		fill: var(--sl-color-gray-5);
+	}
+	.bl__dome {
+		fill: color-mix(in srgb, var(--bl-cu) 30%, var(--ig-surface));
+		stroke: var(--bl-cu);
+		stroke-width: 2;
+	}
+	.bl__rim {
+		stroke: var(--bl-cu);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.bl__waves path {
+		fill: none;
+		stroke: var(--bl-hit);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.bl__wires path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.bl__flow path {
+		fill: none;
+		stroke: var(--bl-i);
+		stroke-width: 2.5;
+		stroke-dasharray: 3 12;
+		stroke-linecap: round;
+		opacity: 0;
+	}
+	.bl__flow.is-on path {
+		opacity: 1;
+	}
+	.bl__bg {
+		fill: var(--ig-surface);
+	}
+	.bl__plate-p {
+		stroke: var(--sl-color-white);
+		stroke-width: 3;
+	}
+	.bl__plate-n {
+		stroke: var(--sl-color-white);
+		stroke-width: 7;
+	}
+	.bl__button {
+		cursor: pointer;
+		outline: none;
+	}
+	.bl__hit {
+		fill: transparent;
+	}
+	.bl__contact {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.bl__lever {
+		stroke: var(--sl-color-white);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.bl__button:hover .bl__lever,
+	.bl__button:focus-visible .bl__lever {
+		stroke: var(--sl-color-accent);
+	}
+	.bl__iron,
+	.bl__arm-iron {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+	}
+	.bl__coil {
+		fill: color-mix(in srgb, var(--bl-cu) 12%, var(--ig-surface));
+		stroke: var(--sl-color-gray-4);
+	}
+	.bl__turns line {
+		stroke: var(--bl-cu);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.bl__turns.is-on line {
+		filter: drop-shadow(0 0 3px var(--bl-cu));
+	}
+	.bl__arm {
+		fill: var(--sl-color-gray-3);
+	}
+	.bl__hammer {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--sl-color-gray-3);
+	}
+	.bl__screw {
+		fill: var(--bl-cu);
+	}
+	.bl__strip {
+		stroke: var(--bl-cu);
+		stroke-width: 3;
+		stroke-linecap: round;
+		fill: none;
+	}
+	.bl__cap text {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.bl__steps {
+		margin: 0;
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+		gap: 0 0.5rem;
+		padding-left: 1.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.bl__steps li {
+		margin: 0.3rem 0;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.5rem;
+		transition:
+			background 0.2s,
+			color 0.2s;
+	}
+	.bl__steps li.is-now {
+		background: color-mix(in srgb, var(--sl-color-accent) 18%, transparent);
+		color: var(--sl-color-white);
+	}
+	.bl__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.6rem;
+	}
+	.bl__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.bl__seg {
+		display: inline-flex;
+		padding: 0.2rem;
+		gap: 0.2rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.bl__seg button {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.35rem 0.9rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.bl__seg button.is-active {
+		background: var(--sl-color-gray-4);
+		color: var(--sl-color-white);
+	}
+	.bl__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+</style>
+
+<script>
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const NS = 'http://www.w3.org/2000/svg';
+	const B = { x: 345, y: 320 };
+	const L_POLE = B.y - 200; // lever arm of the iron piece facing the pole, px
+	const PHI_POLE = 20 / L_POLE; // the armature would touch the pole here
+	const PHI_BELL = 0.105; // the hammer touches the gong
+	const PHI_CONTACT = 0.02; // the springy contact leaves the screw
+	const W0 = 2 * Math.PI * 10; // flat spring: 10 Hz
+	const K = W0 * W0;
+	const DAMP = 20;
+	const MAG = 9000 * 0.047; // attraction: about 9000 rad/s² at rest
+	const G0 = 0.05;
+	const TAU = 0.001; // the current in the winding grows and dies away in about a millisecond (its inductance);
+	// this delay makes the pull stronger on the way to the magnet than on the way back and keeps the bell ringing
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bl]')) {
+		const arm = root.querySelector<SVGGElement>('[data-arm]')!;
+		const strip = root.querySelector<SVGPathElement>('[data-strip]')!;
+		const flow = root.querySelector<SVGGElement>('[data-flow]')!;
+		const turns = root.querySelector<SVGGElement>('[data-turns]')!;
+		const gong = root.querySelector<SVGGElement>('[data-gong]')!;
+		const waves = root.querySelector<SVGGElement>('[data-waves]')!;
+		const steps = [...root.querySelectorAll<HTMLLIElement>('[data-steps] li')];
+		const lever = root.querySelector<SVGLineElement>('[data-lever]')!;
+		const button = root.querySelector<SVGGElement>('[data-button]')!;
+		const press = root.querySelector<HTMLButtonElement>('[data-press]')!;
+		const speedBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-speed]')];
+
+		let pressed = false;
+		let speed = 1 / 30;
+		let phi = 0;
+		let w = 0;
+		let amp = 0; // the current in the winding, relative
+		let shake = 0;
+		let shift = 0;
+		let lastWave = 0;
+		let running = false;
+		let visible = true;
+		let last = 0;
+		let stage = -1;
+		const ring: { el: SVGPathElement; t: number }[] = [];
+
+		const contact = () => phi < PHI_CONTACT;
+		const current = () => pressed && contact();
+
+		const draw = () => {
+			const deg = (-phi * 180) / Math.PI;
+			arm.setAttribute('transform', `rotate(${deg.toFixed(3)} ${B.x} ${B.y})`);
+			// springy contact strip: from the armature to the screw while touching
+			const ay = 150;
+			const r = B.y - ay;
+			const ax = B.x + 5 * Math.cos(phi) - r * Math.sin(phi);
+			const ayy = B.y - r * Math.cos(phi) - 5 * Math.sin(phi);
+			const tipX = contact() ? 362 : ax + 17 - (17 * phi) / PHI_CONTACT / 8;
+			strip.setAttribute('d', `M ${ax.toFixed(1)} ${ayy.toFixed(1)} Q ${((ax + tipX) / 2).toFixed(1)} ${(ayy + 2).toFixed(1)} ${tipX.toFixed(1)} 150`);
+			gong.setAttribute('transform', `rotate(${(shake * 2.5).toFixed(2)} 255 112)`);
+		};
+
+		const hit = (now: number, strength: number) => {
+			shake = Math.min(1, shake + strength);
+			if (now - lastWave < 110) return;
+			lastWave = now;
+			const el = document.createElementNS(NS, 'path');
+			waves.append(el);
+			ring.push({ el, t: now });
+		};
+
+		const sim = (dt: number, now: number) => {
+			let h = dt * speed;
+			const n = Math.max(1, Math.ceil(h / 0.0002));
+			h /= n;
+			for (let i = 0; i < n; i++) {
+				const gap = PHI_POLE - phi;
+				amp += ((current() ? 1 : 0) - amp) * Math.min(1, h / TAU);
+				const a = (MAG * amp * amp) / ((gap + G0) * (gap + G0)) - K * phi - DAMP * w;
+				w += a * h;
+				phi += w * h;
+				if (phi > PHI_BELL) {
+					phi = PHI_BELL;
+					if (w > 0) {
+						hit(now, Math.min(1, w / 15));
+						w = -0.4 * w; // the hammer bounces off the gong
+					}
+				}
+				if (phi < 0) {
+					phi = 0;
+					if (w < 0) w = -0.25 * w; // stopped by the contact screw
+				}
+			}
+		};
+
+		const setStage = () => {
+			let s = -1;
+			if (pressed) {
+				if (contact()) s = w > 0.5 || phi > 0.003 ? 1 : 0;
+				else s = w >= 0 ? 2 : 3;
+				if (!contact() && phi >= PHI_BELL - 1e-4) s = 2;
+				if (contact() && w < -0.5) s = 3;
+			}
+			if (speed >= 1 && pressed) s = -1;
+			if (s !== stage) {
+				stage = s;
+				steps.forEach((li, k) => li.classList.toggle('is-now', k === s));
+			}
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.04, (now - last) / 1000);
+			last = now;
+			if (reduceMotion.matches) {
+				phi = 0;
+				w = 0;
+				amp = 0;
+			} else sim(dt, now);
+			shake *= Math.exp(-dt * 10);
+			const cur = current();
+			flow.classList.toggle('is-on', cur);
+			turns.classList.toggle('is-on', cur);
+			if (cur && !reduceMotion.matches) {
+				shift -= dt * 40;
+				flow.querySelectorAll('path').forEach((p) => (p.style.strokeDashoffset = shift.toFixed(1)));
+			}
+			for (let k = ring.length - 1; k >= 0; k--) {
+				const t = (now - ring[k].t) / 700;
+				if (t >= 1) {
+					ring[k].el.remove();
+					ring.splice(k, 1);
+					continue;
+				}
+				const R = 62 + t * 42;
+				ring[k].el.setAttribute('d', `M ${255 - R * 0.7} ${80 - R * 0.55} A ${R} ${R} 0 0 1 ${255 + R * 0.7} ${80 - R * 0.55}`);
+				ring[k].el.style.opacity = String(0.9 * (1 - t));
+			}
+			setStage();
+			draw();
+			const busy = pressed || Math.abs(w) > 0.01 || phi > 1e-4 || amp > 0.01 || shake > 0.01 || ring.length > 0;
+			if (busy && visible) requestAnimationFrame(frame);
+			else running = false;
+		};
+		const kick = () => {
+			if (running || !visible) return;
+			running = true;
+			last = performance.now();
+			requestAnimationFrame(frame);
+		};
+		new IntersectionObserver((es) => {
+			visible = es.some((e) => e.isIntersecting);
+			if (visible) kick();
+		}).observe(root);
+
+		const toggle = () => {
+			pressed = !pressed;
+			lever.setAttribute('x2', pressed ? '70' : '92');
+			lever.setAttribute('y2', pressed ? '150' : '158');
+			press.textContent = pressed ? 'Отпустить кнопку' : 'Нажать кнопку';
+			kick();
+		};
+		press.addEventListener('click', toggle);
+		button.addEventListener('click', toggle);
+		button.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				toggle();
+			}
+		});
+		speedBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				speed = Number(b.dataset.speed);
+				speedBtns.forEach((o) => o.classList.toggle('is-active', o === b));
+				kick();
+			}),
+		);
+		draw();
+	}
+</script>

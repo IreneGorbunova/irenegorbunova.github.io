@@ -1,0 +1,934 @@
+---
+/**
+ * Main model: a horizontal sheet of cardboard seen from above, with small compasses on it.
+ * Mode «Прямой провод»: a long straight wire pierces the sheet at its centre.
+ * Mode «Катушка»: the sheet passes through the axis of a coil of 20 turns.
+ * Every needle turns along the total field B = B(current) + B(Earth) and swings like a real needle
+ * (a damped pendulum whose stiffness grows with |B|). Field lines: of the current only.
+ * Wire lines are circles at radii with equal magnetic flux between them, so their density shows the
+ * field strength and grows with the current. Coil lines are traced at build time from the exact field.
+ * Iron filings (canvas) align only where the field of the current is strong and only when the sheet is tapped.
+ */
+import { SHEET, COIL, WIRE_R, coilTurnsX, coilLines, coilField, wireField, crossings } from './field';
+
+const S = 20; // px per cm
+const W = SHEET.W * S;
+const H = SHEET.H * S;
+const X = (x: number) => W / 2 + x * S;
+const Y = (y: number) => H / 2 - y * S;
+const f1 = (v: number) => Math.round(v * 10) / 10;
+
+// coil field lines (for dir = +1), drawn under the compasses
+const raw = coilLines(4, 0.8, { x: 19, y: 15 });
+raw.push({ pts: [[-19, 0], [19, 0]], closed: false });
+const lines = raw.map((l) => ({
+	d: 'M' + l.pts.map(([x, y]) => `${f1(X(x))} ${f1(Y(y))}`).join('L') + (l.closed ? 'Z' : ''),
+	pts: l.pts,
+}));
+const arrows: { x: number; y: number; deg: number }[] = [];
+for (const l of lines) {
+	for (const c of crossings(l.pts, [0, -10.5, 10.5])) {
+		if (Math.abs(c.x) < 1 && Math.abs(c.y) < 0.2) continue; // the axis: arrows at the sides only
+		if (Math.abs(c.y) > SHEET.H / 2 - 0.6) continue;
+		if (arrows.some((a) => Math.hypot(a.x - X(c.x), a.y - Y(c.y)) < 22)) continue;
+		arrows.push({ x: f1(X(c.x)), y: f1(Y(c.y)), deg: f1((-c.ang * 180) / Math.PI) });
+	}
+}
+for (const x of [-12.8, 12.8]) arrows.push({ x: f1(X(x)), y: Y(0), deg: 0 });
+
+const turns = coilTurnsX();
+const xsCols = Array.from({ length: 10 }, (_, i) => -14.4 + 3.2 * i);
+const posWire = xsCols.flatMap((x) => [-9.6, -6.4, -3.2, 0, 3.2, 6.4, 9.6].map((y) => [x, y]));
+const posCoil = xsCols.flatMap((x) => [-10.6, -7.4, -4.2, 0, 4.2, 7.4, 10.6].map((y) => [x, y]));
+const r3 = (v: number) => Math.round(v * 1000) / 1000;
+const data = {
+	wire: posWire.map(([x, y]) => [x, y, ...wireField(x, y).map(r3)]),
+	coil: posCoil.map(([x, y]) => [x, y, ...coilField(x, y).map(r3)]),
+};
+---
+
+<figure class="mpt not-content" data-mpt data-fields={JSON.stringify(data)}>
+	<div class="mpt__head">
+		<div class="mpt__tabs" role="tablist" aria-label="Что стоит на листе">
+			<button type="button" role="tab" class="mpt__tab is-active" aria-selected="true" data-mode="wire">Прямой провод</button>
+			<button type="button" role="tab" class="mpt__tab" aria-selected="false" data-mode="coil">Катушка</button>
+		</div>
+		<p class="mpt__north" aria-label="Верх листа направлен на север"><span aria-hidden="true">↑</span> север</p>
+		<div class="mpt__setup" aria-hidden="true">
+			<svg viewBox="0 0 170 100">
+				<path class="mpt__sk-sheet" d="M 12 76 L 118 76 L 158 44 L 52 44 Z"></path>
+				<g class="mpt__sk-wire" data-sk="wire">
+					<line class="mpt__sk-hidden" x1="85" y1="60" x2="85" y2="96"></line>
+					<line x1="85" y1="6" x2="85" y2="60"></line>
+					<path class="mpt__sk-arrow" d="M 79 30 L 85 18 L 91 30 Z" data-sk-arrow></path>
+				</g>
+				<g class="mpt__sk-coil" data-sk="coil" opacity="0">
+					{[0, 1, 2, 3, 4, 5, 6].map((k) => (
+						<g transform={`translate(${58 + k * 9} 60)`}>
+							<path d="M 0 -15 A 5 15 0 0 1 0 15" />
+							<path class="mpt__sk-back" d="M 0 15 A 5 15 0 0 1 0 -15" />
+						</g>
+					))}
+				</g>
+				<text x="2" y="16" class="mpt__sk-text">вид сбоку</text>
+			</svg>
+		</div>
+	</div>
+
+	<div class="mpt__stage">
+		<canvas class="mpt__filings" data-canvas aria-hidden="true"></canvas>
+		<svg
+			class="mpt__svg"
+			viewBox={`0 0 ${W} ${H}`}
+			role="img"
+			aria-label="Лист картона с магнитными стрелками, вид сверху. Сквозь лист проходит провод с током или катушка с током."
+		>
+			<defs>
+				<clipPath id="mpt-clip">
+					<rect x="0" y="0" width={W} height={H} rx="14"></rect>
+				</clipPath>
+			</defs>
+			<g clip-path="url(#mpt-clip)">
+				<!-- field lines of the wire -->
+				<g class="mpt__lines mpt__lines--wire" data-wire-lines></g>
+
+				<!-- field lines of the coil -->
+				<g class="mpt__lines mpt__lines--coil" data-coil-lines opacity="0">
+					{lines.map((l) => <path d={l.d} />)}
+					<g class="mpt__arrows">
+						{arrows.map((a) => (
+							<g transform={`translate(${a.x} ${a.y}) rotate(${a.deg})`}>
+								<path class="mpt__flip" d="M -6 -5 L 6 0 L -6 5 Z" />
+							</g>
+						))}
+					</g>
+				</g>
+
+				<!-- the coil: the parts of the turns above the sheet and the cross-sections in it -->
+				<g class="mpt__coil" data-coil opacity="0">
+					<rect class="mpt__tube" x={X(-COIL.len / 2) - 4} y={Y(COIL.a) - 2} width={COIL.len * S + 8} height={2 * COIL.a * S + 4} rx="4"></rect>
+					{turns.map((x) => (
+						<line class="mpt__turn-top" x1={X(x)} y1={Y(COIL.a)} x2={X(x + COIL.len / COIL.turns / 2)} y2={Y(-COIL.a)} />
+					))}
+					{turns.map((x) => (
+						<g class="mpt__xs" transform={`translate(${f1(X(x))} ${Y(COIL.a)})`}>
+							<circle r={COIL.wire * S} />
+							<g class="mpt__dot" data-top-dot><circle r="1.7" /></g>
+							<g class="mpt__cross" data-top-cross><path d="M -2.6 -2.6 L 2.6 2.6 M -2.6 2.6 L 2.6 -2.6" /></g>
+						</g>
+					))}
+					{turns.map((x) => (
+						<g class="mpt__xs" transform={`translate(${f1(X(x))} ${Y(-COIL.a)})`}>
+							<circle r={COIL.wire * S} />
+							<g class="mpt__dot" data-bot-dot><circle r="1.7" /></g>
+							<g class="mpt__cross" data-bot-cross><path d="M -2.6 -2.6 L 2.6 2.6 M -2.6 2.6 L 2.6 -2.6" /></g>
+						</g>
+					))}
+					<g class="mpt__pole" data-pole-r transform={`translate(${X(6.4)} ${Y(0)})`}>
+						<circle r="13"></circle>
+						<text y="7" text-anchor="middle">N</text>
+					</g>
+					<g class="mpt__pole" data-pole-l transform={`translate(${X(-6.4)} ${Y(0)})`}>
+						<circle r="13"></circle>
+						<text y="7" text-anchor="middle">S</text>
+					</g>
+				</g>
+
+				<!-- the wire -->
+				<g class="mpt__wire" data-wire transform={`translate(${X(0)} ${Y(0)})`}>
+					<circle class="mpt__glow" r={WIRE_R * S + 9} data-glow></circle>
+					<circle class="mpt__wire-body" r={WIRE_R * S}></circle>
+					<g class="mpt__dot" data-w-dot><circle r="3.4" /></g>
+					<g class="mpt__cross" data-w-cross><path d="M -5 -5 L 5 5 M -5 5 L 5 -5" /></g>
+				</g>
+
+				<!-- compasses -->
+				<g class="mpt__compasses" data-compasses>
+					{posWire.map(([x, y]) => (
+						<g class="mpt__cmp" transform={`translate(${X(x)} ${Y(y)})`}>
+							<circle class="mpt__case" r="15" />
+							<g class="mpt__needle">
+								<path class="mpt__n" d="M 0 -12.5 L 3.4 0 L -3.4 0 Z" />
+								<path class="mpt__s" d="M 0 12.5 L 3.4 0 L -3.4 0 Z" />
+								<circle class="mpt__pin" r="1.6" />
+							</g>
+						</g>
+					))}
+				</g>
+			</g>
+		</svg>
+	</div>
+
+	<div class="mpt__controls">
+		<div class="mpt__buttons">
+			<button type="button" class="mpt__btn mpt__btn--primary" data-power>Включить ток</button>
+			<button type="button" class="mpt__btn" data-dir>Сменить направление тока</button>
+			<button type="button" class="mpt__btn" data-filings>Насыпать железные опилки</button>
+			<button type="button" class="mpt__btn mpt__btn--quiet" data-clear hidden>Убрать опилки</button>
+		</div>
+		<label class="mpt__slider">
+			<span>Сила тока <i>I</i></span>
+			<output data-i-out>10 А</output>
+			<input type="range" min="0.5" max="20" step="0.5" value="10" data-i />
+		</label>
+		<div class="mpt__checks">
+			<label><input type="checkbox" checked data-earth /> магнитное поле Земли</label>
+			<label><input type="checkbox" checked data-show-cmp /> магнитные стрелки</label>
+		</div>
+	</div>
+	<p class="mpt__status" data-status aria-live="polite"></p>
+
+	<figcaption class="mpt__legend">
+		<span class="mpt__key mpt__key--n"></span>северный конец стрелки
+		<span class="mpt__key mpt__key--line"></span>магнитные линии поля тока
+		<span class="mpt__key mpt__key--sym">⊙</span>ток идёт к нам
+		<span class="mpt__key mpt__key--sym">⊗</span>ток идёт от нас.
+		Лист размером 32 × 24 см. Стрелки чувствуют и поле тока, и магнитное поле Земли: вдали от провода
+		слабое поле тока не может развернуть их от направления на север.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.mpt {
+		--mpt-line: var(--sl-color-gray-2);
+		--mpt-n: var(--ig-vx);
+		--mpt-s: var(--ig-vy);
+		--mpt-cu: var(--ig-v);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.mpt i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.mpt__head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem 1rem;
+		margin-bottom: 0.6rem;
+	}
+	.mpt__tabs {
+		display: inline-flex;
+		padding: 0.2rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		gap: 0.2rem;
+	}
+	.mpt__tab {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 1rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		transition:
+			background 0.25s,
+			color 0.25s;
+	}
+	.mpt__tab.is-active {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.mpt__setup svg {
+		display: block;
+		width: 8.5rem;
+		height: auto;
+	}
+	.mpt__sk-sheet {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 55%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.mpt__sk-wire line,
+	.mpt__sk-coil path {
+		stroke: var(--mpt-cu);
+		stroke-width: 3;
+		fill: none;
+	}
+	.mpt__sk-coil path {
+		stroke-width: 2;
+	}
+	.mpt__sk-hidden {
+		stroke-dasharray: 3 3;
+		opacity: 0.5;
+	}
+	.mpt__sk-back {
+		opacity: 0.45;
+	}
+	.mpt__sk-arrow {
+		fill: var(--mpt-cu);
+		transform-box: fill-box;
+		transform-origin: center;
+		transition: transform 0.4s;
+	}
+	.mpt__sk-arrow.is-down {
+		transform: scaleY(-1) translateY(-16px);
+	}
+	.mpt__sk-wire,
+	.mpt__sk-coil {
+		transition: opacity 0.4s;
+	}
+	.mpt__sk-text {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+
+	.mpt__stage {
+		position: relative;
+		border-radius: 0.8rem;
+		overflow: hidden;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 75%, var(--ig-surface));
+		border: 1px solid var(--sl-color-gray-5);
+	}
+	.mpt__filings {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+	.mpt__svg {
+		position: relative;
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.mpt__north {
+		margin: 0 0 0 auto;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mpt__north span {
+		font-weight: 700;
+		color: var(--sl-color-gray-1);
+	}
+	.mpt__lines path,
+	.mpt__lines circle {
+		fill: none;
+		stroke: var(--mpt-line);
+		stroke-width: 1.8;
+		opacity: 0.8;
+	}
+	.mpt__lines .mpt__flip,
+	.mpt__lines .mpt__warrow path {
+		fill: var(--mpt-line);
+		stroke: none;
+		opacity: 1;
+	}
+	.mpt__tube {
+		fill: color-mix(in srgb, var(--mpt-cu) 7%, transparent);
+		stroke: color-mix(in srgb, var(--mpt-cu) 35%, transparent);
+		stroke-width: 1;
+		stroke-dasharray: 4 4;
+	}
+	.mpt__turn-top {
+		stroke: color-mix(in srgb, var(--mpt-cu) 22%, transparent);
+		stroke-width: 2;
+	}
+	.mpt__xs > circle,
+	.mpt__wire-body {
+		fill: var(--ig-surface);
+		stroke: var(--mpt-cu);
+		stroke-width: 2.2;
+	}
+	.mpt__dot circle {
+		fill: var(--mpt-cu);
+		stroke: none;
+	}
+	.mpt__cross path {
+		stroke: var(--mpt-cu);
+		stroke-width: 1.6;
+		fill: none;
+	}
+	.mpt__wire-body {
+		stroke-width: 3;
+	}
+	.mpt__wire .mpt__cross path {
+		stroke-width: 2.4;
+	}
+	.mpt__glow {
+		fill: color-mix(in srgb, var(--mpt-cu) 30%, transparent);
+		stroke: none;
+		filter: blur(4px);
+	}
+	.mpt__dot,
+	.mpt__cross {
+		transition: opacity 0.25s;
+	}
+	.mpt__pole circle {
+		fill: var(--ig-surface);
+		stroke-width: 2.5;
+	}
+	.mpt__pole text {
+		font-size: 19px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.mpt__pole.is-n circle {
+		stroke: var(--mpt-n);
+	}
+	.mpt__pole.is-n text {
+		fill: var(--mpt-n);
+	}
+	.mpt__pole.is-s circle {
+		stroke: var(--mpt-s);
+	}
+	.mpt__pole.is-s text {
+		fill: var(--mpt-s);
+	}
+	.mpt__case {
+		fill: color-mix(in srgb, var(--ig-surface) 82%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.3;
+	}
+	.mpt__n {
+		fill: var(--mpt-n);
+	}
+	.mpt__s {
+		fill: var(--mpt-s);
+	}
+	.mpt__pin {
+		fill: var(--sl-color-gray-1);
+	}
+	.mpt__compasses {
+		transition: opacity 0.35s;
+	}
+	.mpt__compasses.is-hidden {
+		opacity: 0;
+	}
+
+	.mpt__controls {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.6rem;
+		margin-top: 0.75rem;
+	}
+	.mpt__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.mpt__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.mpt__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.mpt__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.mpt__btn--quiet {
+		color: var(--sl-color-gray-2);
+		border-color: var(--sl-color-gray-5);
+	}
+	.mpt__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mpt__slider output {
+		font-weight: 700;
+		color: var(--mpt-cu);
+		font-variant-numeric: tabular-nums;
+	}
+	.mpt__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--mpt-cu);
+	}
+	.mpt__checks {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem 1.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mpt__checks input {
+		accent-color: var(--sl-color-accent);
+	}
+	.mpt__status {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.mpt__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.6;
+		color: var(--sl-color-gray-3);
+	}
+	.mpt__key {
+		display: inline-block;
+		vertical-align: middle;
+		margin: 0 0.3rem 0 0.6rem;
+	}
+	.mpt__key:first-child {
+		margin-left: 0;
+	}
+	.mpt__key--n {
+		width: 0;
+		height: 0;
+		border-left: 4px solid transparent;
+		border-right: 4px solid transparent;
+		border-bottom: 13px solid var(--mpt-n);
+	}
+	.mpt__key--line {
+		width: 1.4rem;
+		height: 2px;
+		background: var(--mpt-line);
+	}
+	.mpt__key--sym {
+		color: var(--mpt-cu);
+		font-size: 1.1em;
+		margin-right: 0.2rem;
+	}
+	@media (min-width: 50rem) {
+		.mpt__controls {
+			grid-template-columns: 1fr 1fr;
+			align-items: center;
+		}
+		.mpt__buttons {
+			grid-column: 1 / -1;
+		}
+	}
+</style>
+
+<script>
+	import { SHEET, WIRE_R, COIL, B_EARTH, coilTurnsX, coilField, wireField } from './field';
+
+	const S = 20;
+	const W = SHEET.W * S;
+	const H = SHEET.H * S;
+	const NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const OMEGA0 = (2 * Math.PI) / 1.4; // period of a needle in the Earth's field alone, 1/s
+	const R_ANCHOR = 30; // cm: wire lines at r_k = R·exp(−k·C_LINES/|I|) — equal flux between neighbours
+	const C_LINES = 6; // A
+	const MAX_WIRE_LINES = 32;
+	const B_FIL1 = 10; // μT: filings start to turn along the field of the current
+	const B_FIL2 = 40; // μT: and line up well
+
+	type Mode = 'wire' | 'coil';
+	type Needle = { el: SVGGElement; x: number; y: number; px: number; py: number; a: number; w: number };
+	type Filing = { x: number; y: number; a: number; a0: number; a1: number; dx: number; dy: number; born: number };
+
+	const ru = (v: number, d = 1) => v.toFixed(d).replace('.', ',').replace(/,0$/, '');
+	const wrapPi = (v: number) => Math.atan2(Math.sin(v), Math.cos(v));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-mpt]')) {
+		const fields = JSON.parse(root.dataset.fields!) as Record<Mode, number[][]>;
+		const svg = root.querySelector<SVGSVGElement>('.mpt__svg')!;
+		const canvas = root.querySelector<HTMLCanvasElement>('[data-canvas]')!;
+		const ctx = canvas.getContext('2d')!;
+		const wireLines = root.querySelector<SVGGElement>('[data-wire-lines]')!;
+		const coilLinesG = root.querySelector<SVGGElement>('[data-coil-lines]')!;
+		const coilG = root.querySelector<SVGGElement>('[data-coil]')!;
+		const wireG = root.querySelector<SVGGElement>('[data-wire]')!;
+		const glow = root.querySelector<SVGCircleElement>('[data-glow]')!;
+		const flips = [...root.querySelectorAll<SVGPathElement>('.mpt__flip')];
+		const poleR = root.querySelector<SVGGElement>('[data-pole-r]')!;
+		const poleL = root.querySelector<SVGGElement>('[data-pole-l]')!;
+		const cmpG = root.querySelector<SVGGElement>('[data-compasses]')!;
+		const powerBtn = root.querySelector<HTMLButtonElement>('[data-power]')!;
+		const dirBtn = root.querySelector<HTMLButtonElement>('[data-dir]')!;
+		const filBtn = root.querySelector<HTMLButtonElement>('[data-filings]')!;
+		const clearBtn = root.querySelector<HTMLButtonElement>('[data-clear]')!;
+		const iInput = root.querySelector<HTMLInputElement>('[data-i]')!;
+		const iOut = root.querySelector<HTMLOutputElement>('[data-i-out]')!;
+		const earthBox = root.querySelector<HTMLInputElement>('[data-earth]')!;
+		const cmpBox = root.querySelector<HTMLInputElement>('[data-show-cmp]')!;
+		const status = root.querySelector<HTMLElement>('[data-status]')!;
+		const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-mode]')];
+		const skWire = root.querySelector<SVGGElement>('[data-sk="wire"]')!;
+		const skCoil = root.querySelector<SVGGElement>('[data-sk="coil"]')!;
+		const skArrow = root.querySelector<SVGPathElement>('[data-sk-arrow]')!;
+
+		let mode: Mode = 'wire';
+		let on = false;
+		let dir = 1; // +1: towards the viewer (wire) / north pole on the right (coil)
+		let cur = 0; // the current as drawn, A, with sign; follows the goal smoothly
+		let modeMix = 0; // 0 — wire, 1 — coil
+		let earth = true;
+		let filings: Filing[] = [];
+		let tapStart = -1;
+		let running = false;
+		let visible = true;
+		let last = 0;
+
+		// ---- compasses
+		const needles: Needle[] = [...cmpG.querySelectorAll<SVGGElement>('.mpt__cmp')].map((el, k) => {
+			const [x, y] = fields.wire[k];
+			return { el, x, y, px: x, py: y, a: 0, w: 0 };
+		});
+		const needleEls = needles.map((n) => n.el.querySelector<SVGGElement>('.mpt__needle')!);
+		const unitField = (k: number, m: number): [number, number] => {
+			const a = fields.wire[k];
+			const b = fields.coil[k];
+			return [a[2] * (1 - m) + b[2] * m, a[3] * (1 - m) + b[3] * m];
+		};
+
+		// ---- wire field lines: circles drawn in the direction of the field
+		const wirePaths: SVGPathElement[] = [];
+		const wireArrows: SVGGElement[] = [];
+		for (let k = 0; k < MAX_WIRE_LINES; k++) {
+			const p = document.createElementNS(NS, 'path');
+			wireLines.append(p);
+			wirePaths.push(p);
+			for (let j = 0; j < 2; j++) {
+				const g = document.createElementNS(NS, 'g');
+				g.setAttribute('class', 'mpt__warrow');
+				const a = document.createElementNS(NS, 'path');
+				a.setAttribute('d', 'M -6 -5 L 6 0 L -6 5 Z');
+				g.append(a);
+				wireLines.append(g);
+				wireArrows.push(g);
+			}
+		}
+		const cx = W / 2;
+		const cy = H / 2;
+		const drawWireLines = () => {
+			const amp = Math.abs(cur);
+			const sweep = cur >= 0 ? 0 : 1; // towards the viewer: counter-clockwise on the screen
+			for (let k = 0; k < MAX_WIRE_LINES; k++) {
+				const r = amp > 0.01 ? R_ANCHOR * Math.exp((-(k + 1) * C_LINES) / amp) : 0;
+				const p = wirePaths[k];
+				const arrows = [wireArrows[2 * k], wireArrows[2 * k + 1]];
+				if (r < WIRE_R + 0.15 || r > 21) {
+					p.setAttribute('d', '');
+					arrows.forEach((g) => g.setAttribute('display', 'none'));
+					continue;
+				}
+				const R = r * S;
+				p.setAttribute('d', `M ${cx + R} ${cy} A ${R} ${R} 0 1 ${sweep} ${cx - R} ${cy} A ${R} ${R} 0 1 ${sweep} ${cx + R} ${cy}`);
+				// fade the line in as it comes out from under the wire
+				p.style.opacity = String(Math.min(1, (r - WIRE_R - 0.15) / 0.8) * 0.8);
+				arrows.forEach((g, j) => {
+					const th = 0.62 * k + 0.4 + j * Math.PI; // maths angle of the arrow on the circle
+					const ax = cx + R * Math.cos(th);
+					const ay = cy - R * Math.sin(th);
+					if (ax < 10 || ax > W - 10 || ay < 10 || ay > H - 10 || R < 26) {
+						g.setAttribute('display', 'none');
+						return;
+					}
+					g.removeAttribute('display');
+					// tangent for counter-clockwise (maths) motion: angle th + 90°; on screen y is flipped
+					const deg = (-(th + Math.PI / 2) * 180) / Math.PI + (cur >= 0 ? 0 : 180);
+					g.setAttribute('transform', `translate(${ax.toFixed(1)} ${ay.toFixed(1)}) rotate(${deg.toFixed(1)})`);
+				});
+			}
+		};
+
+		// ---- iron filings
+		let filingField: [number, number][] | null = null;
+		let filingMode: Mode | null = null;
+		const turnsX = coilTurnsX();
+		const makeFilings = (now: number) => {
+			const out: Filing[] = [];
+			const step = 0.5;
+			for (let x = -SHEET.W / 2 + 0.3; x < SHEET.W / 2 - 0.2; x += step) {
+				for (let y = -SHEET.H / 2 + 0.3; y < SHEET.H / 2 - 0.2; y += step) {
+					const fx = x + (Math.random() - 0.5) * step * 0.9;
+					const fy = y + (Math.random() - 0.5) * step * 0.9;
+					if (mode === 'wire' && Math.hypot(fx, fy) < WIRE_R + 0.2) continue;
+					if (mode === 'coil' && turnsX.some((tx) => Math.hypot(fx - tx, Math.abs(fy) - COIL.a) < COIL.wire + 0.2)) continue;
+					const a = Math.random() * Math.PI;
+					out.push({ x: fx, y: fy, a, a0: a, a1: a, dx: 0, dy: 0, born: now + Math.random() * 600 });
+				}
+			}
+			filingMode = mode;
+			filingField = out.map((f) => (mode === 'wire' ? wireField(f.x, f.y) : coilField(f.x, f.y)));
+			return out;
+		};
+		const tap = (now: number) => {
+			if (!filingField) return;
+			const amp = on ? Number(iInput.value) : 0;
+			filings.forEach((f, k) => {
+				const [bx, by] = filingField![k];
+				const b = Math.hypot(bx, by) * amp;
+				const s = Math.max(0, Math.min(1, (b - B_FIL1) / (B_FIL2 - B_FIL1)));
+				const target = Math.atan2(by, bx);
+				// a filing has no «north end»: it turns the shorter way, to the line or opposite to it
+				let d = wrapPi(target - f.a);
+				if (d > Math.PI / 2) d -= Math.PI;
+				if (d < -Math.PI / 2) d += Math.PI;
+				const jiggle = (Math.random() - 0.5) * (0.5 * (1 - s) + 0.1);
+				f.a0 = f.a;
+				f.a1 = f.a + d * Math.min(1, 1.6 * s) * (0.5 + 0.45 * s) + jiggle;
+				f.dx = (Math.random() - 0.5) * 0.08;
+				f.dy = (Math.random() - 0.5) * 0.08;
+			});
+			tapStart = now;
+		};
+		let colFiling = '#888';
+		const readColours = () => {
+			colFiling = getComputedStyle(root).getPropertyValue('--sl-color-gray-2').trim() || '#888';
+		};
+		readColours();
+		new MutationObserver(() => {
+			readColours();
+			drawFilings(performance.now());
+		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+		const sizeCanvas = () => {
+			const r = svg.getBoundingClientRect();
+			const dpr = Math.min(window.devicePixelRatio || 1, 2);
+			canvas.width = Math.round(r.width * dpr);
+			canvas.height = Math.round(r.height * dpr);
+			ctx.setTransform((canvas.width / W), 0, 0, canvas.height / H, 0, 0);
+		};
+		new ResizeObserver(() => {
+			sizeCanvas();
+			drawFilings(performance.now());
+		}).observe(svg);
+
+		const drawFilings = (now: number) => {
+			ctx.clearRect(0, 0, W, H);
+			if (!filings.length) return false;
+			let busy = false;
+			const tp = tapStart < 0 ? 1 : Math.min(1, (now - tapStart) / 380);
+			const e = reduceMotion.matches ? 1 : 1 - Math.pow(1 - tp, 3);
+			if (tp < 1) busy = true;
+			ctx.strokeStyle = colFiling;
+			ctx.lineWidth = 1.5;
+			ctx.lineCap = 'round';
+			const L = 0.17 * S;
+			for (const f of filings) {
+				let fall = reduceMotion.matches ? 1 : Math.max(0, Math.min(1, (now - f.born) / 260));
+				if (fall < 1) busy = true;
+				if (fall <= 0) continue;
+				f.a = f.a0 + (f.a1 - f.a0) * e;
+				const shake = tp < 1 ? Math.sin(tp * Math.PI) : 0;
+				const x = W / 2 + (f.x + f.dx * shake) * S;
+				const y = H / 2 - (f.y + f.dy * shake) * S - (1 - fall) * 14;
+				ctx.globalAlpha = 0.85 * fall;
+				const c = Math.cos(f.a) * L;
+				const s = Math.sin(f.a) * L;
+				ctx.beginPath();
+				ctx.moveTo(x - c, y + s);
+				ctx.lineTo(x + c, y - s);
+				ctx.stroke();
+			}
+			ctx.globalAlpha = 1;
+			if (tp >= 1 && tapStart >= 0) {
+				filings.forEach((f) => (f.a0 = f.a = f.a1));
+				tapStart = -1;
+			}
+			return busy;
+		};
+
+		// ---- user interface
+		const goal = () => (on ? dir * Number(iInput.value) : 0);
+		const say = () => {
+			const I = ru(Number(iInput.value));
+			if (!on) {
+				status.innerHTML =
+					mode === 'wire'
+						? 'Ток выключен. Все стрелки показывают на север: на них действует только магнитное поле Земли.'
+						: 'Ток выключен. Стрелки повернулись на север — их разворачивает магнитное поле Земли.';
+				if (!earth) status.innerHTML = 'Ток выключен, а поле Земли мы «выключили»: на стрелки ничего не действует, и каждая стоит так, как остановилась.';
+				return;
+			}
+			if (mode === 'wire') {
+				status.innerHTML =
+					`Ток ${I} А идёт ${dir > 0 ? '<b>к нам</b> (точка — это острие стрелы)' : '<b>от нас</b> (крестик — это оперение стрелы)'}. ` +
+					`Магнитные линии — окружности, направлены ${dir > 0 ? '<b>против часовой стрелки</b>' : '<b>по часовой стрелке</b>'}.`;
+			} else {
+				status.innerHTML =
+					`Ток ${I} А в верхних витках идёт ${dir > 0 ? 'к нам' : 'от нас'}, в нижних — ${dir > 0 ? 'от нас' : 'к нам'}. ` +
+					`Северный полюс <b>N</b> катушки — <b>${dir > 0 ? 'справа' : 'слева'}</b>: оттуда выходят магнитные линии.`;
+			}
+		};
+		const setPower = (v: boolean) => {
+			on = v;
+			powerBtn.textContent = on ? 'Выключить ток' : 'Включить ток';
+			say();
+			kick();
+		};
+		powerBtn.addEventListener('click', () => setPower(!on));
+		dirBtn.addEventListener('click', () => {
+			dir = -dir;
+			if (!on) setPower(true);
+			say();
+			kick();
+		});
+		iInput.addEventListener('input', () => {
+			iOut.textContent = `${ru(Number(iInput.value))} А`;
+			say();
+			kick();
+		});
+		earthBox.addEventListener('change', () => {
+			earth = earthBox.checked;
+			say();
+			kick();
+		});
+		cmpBox.addEventListener('change', () => cmpG.classList.toggle('is-hidden', !cmpBox.checked));
+		filBtn.addEventListener('click', () => {
+			const now = performance.now();
+			if (!filings.length || filingMode !== mode) {
+				filings = makeFilings(now);
+				filBtn.textContent = 'Постучать по листу';
+				clearBtn.hidden = false;
+			} else tap(now);
+			kick();
+		});
+		clearBtn.addEventListener('click', () => {
+			filings = [];
+			filingField = null;
+			filBtn.textContent = 'Насыпать железные опилки';
+			clearBtn.hidden = true;
+			drawFilings(performance.now());
+		});
+		tabs.forEach((t) =>
+			t.addEventListener('click', () => {
+				const m = t.dataset.mode as Mode;
+				if (m === mode) return;
+				mode = m;
+				tabs.forEach((b) => {
+					b.classList.toggle('is-active', b === t);
+					b.setAttribute('aria-selected', String(b === t));
+				});
+				filings = [];
+				filingField = null;
+				filBtn.textContent = 'Насыпать железные опилки';
+				clearBtn.hidden = true;
+				skWire.setAttribute('opacity', m === 'wire' ? '1' : '0');
+				skCoil.setAttribute('opacity', m === 'coil' ? '1' : '0');
+				say();
+				kick();
+			}),
+		);
+
+		// ---- animation
+		const render = (now: number, dt: number) => {
+			let busy = false;
+			// mode cross-fade and the current
+			const mGoal = mode === 'coil' ? 1 : 0;
+			if (reduceMotion.matches) {
+				modeMix = mGoal;
+				cur = goal();
+			} else {
+				const dm = mGoal - modeMix;
+				modeMix += Math.sign(dm) * Math.min(Math.abs(dm), dt / 0.6);
+				const g = goal();
+				// the current changes smoothly; when it is reversed it passes through zero
+				cur += (g - cur) * Math.min(1, dt / 0.22);
+				if (Math.abs(g - cur) < 0.01) cur = g;
+			}
+			if (modeMix !== mGoal || cur !== goal()) busy = true;
+			const sm = modeMix * modeMix * (3 - 2 * modeMix);
+
+			// the two scenes
+			wireG.setAttribute('opacity', String(1 - sm));
+			wireLines.setAttribute('opacity', String(1 - sm));
+			coilG.setAttribute('opacity', String(sm));
+			const amp = Math.abs(cur);
+			const lineAlpha = Math.min(1, amp / 1.5) * (0.35 + 0.65 * Math.min(1, amp / 10));
+			coilLinesG.setAttribute('opacity', String(sm * lineAlpha));
+			glow.setAttribute('opacity', String(Math.min(1, amp / 20)));
+			const sgn = cur > 0 ? 1 : cur < 0 ? -1 : dir;
+			flips.forEach((f) => f.setAttribute('transform', sgn > 0 ? '' : 'scale(-1 1)'));
+			drawWireLines();
+			root.querySelectorAll<SVGGElement>('[data-w-dot],[data-top-dot]').forEach((g) => g.setAttribute('opacity', amp > 0.05 && sgn > 0 ? '1' : '0'));
+			root.querySelectorAll<SVGGElement>('[data-w-cross],[data-top-cross]').forEach((g) => g.setAttribute('opacity', amp > 0.05 && sgn < 0 ? '1' : '0'));
+			root.querySelectorAll<SVGGElement>('[data-bot-dot]').forEach((g) => g.setAttribute('opacity', amp > 0.05 && sgn < 0 ? '1' : '0'));
+			root.querySelectorAll<SVGGElement>('[data-bot-cross]').forEach((g) => g.setAttribute('opacity', amp > 0.05 && sgn > 0 ? '1' : '0'));
+			const poleA = Math.min(1, amp / 2);
+			poleR.setAttribute('class', `mpt__pole ${sgn > 0 ? 'is-n' : 'is-s'}`);
+			poleL.setAttribute('class', `mpt__pole ${sgn > 0 ? 'is-s' : 'is-n'}`);
+			poleR.querySelector('text')!.textContent = sgn > 0 ? 'N' : 'S';
+			poleL.querySelector('text')!.textContent = sgn > 0 ? 'S' : 'N';
+			poleR.setAttribute('opacity', String(poleA));
+			poleL.setAttribute('opacity', String(poleA));
+			skArrow.classList.toggle('is-down', sgn < 0);
+
+			// the needles: damped swings towards the total field
+			const steps = Math.max(1, Math.ceil(dt / (1 / 240)));
+			const h = dt / steps;
+			needles.forEach((n, k) => {
+				const wf = fields.wire[k];
+				const cf = fields.coil[k];
+				const tx = wf[0] + (cf[0] - wf[0]) * sm;
+				const ty = wf[1] + (cf[1] - wf[1]) * sm;
+				if (tx !== n.px || ty !== n.py) {
+					n.px = tx;
+					n.py = ty;
+					n.el.setAttribute('transform', `translate(${(W / 2 + tx * S).toFixed(1)} ${(H / 2 - ty * S).toFixed(1)})`);
+				}
+				const [ux, uy] = unitField(k, sm);
+				const bx = ux * cur;
+				const by = uy * cur + (earth ? B_EARTH : 0);
+				const b = Math.hypot(bx, by);
+				if (b < 1e-6) {
+					// no field: the needle slows down and stops where it is
+					n.w *= Math.exp(-3 * dt);
+					n.a += n.w * dt;
+				} else {
+					const target = Math.atan2(bx, by); // clockwise from north, as on the screen
+					if (reduceMotion.matches) {
+						n.a = target;
+						n.w = 0;
+					} else {
+						const ratio = Math.min(b / B_EARTH, 25);
+						const om = OMEGA0 * Math.sqrt(ratio);
+						const gamma = 1.6 + 0.32 * om;
+						for (let i = 0; i < steps; i++) {
+							n.w += (-om * om * Math.sin(n.a - target) - gamma * n.w) * h;
+							n.a += n.w * h;
+						}
+						n.a = wrapPi(n.a - target) + target;
+					}
+				}
+				if (Math.abs(n.w) > 0.003 || (b > 1e-6 && Math.abs(wrapPi(n.a - Math.atan2(bx, by))) > 0.002)) busy = true;
+				needleEls[k].setAttribute('transform', `rotate(${((n.a * 180) / Math.PI).toFixed(2)})`);
+			});
+			if (drawFilings(now)) busy = true;
+			return busy;
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, (now - last) / 1000);
+			last = now;
+			const busy = render(now, dt);
+			if (busy && visible) requestAnimationFrame(frame);
+			else running = false;
+		};
+		function kick() {
+			if (running || !visible) return;
+			running = true;
+			last = performance.now();
+			requestAnimationFrame(frame);
+		}
+		new IntersectionObserver((entries) => {
+			visible = entries.some((e) => e.isIntersecting);
+			if (visible) kick();
+		}).observe(root);
+
+		// start: the needles point north, the current is off
+		sizeCanvas();
+		say();
+		render(performance.now(), 0);
+	}
+</script>

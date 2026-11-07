@@ -1,0 +1,699 @@
+---
+/**
+ * A home-made electromagnet over a dish of paper clips: the current I, the number of turns N and
+ * the iron core can be changed. The field of the coil is proportional to N·I; the iron core strengthens it
+ * many times but «saturates» at large N·I. The number of clips lifted is an illustrative function of the field
+ * (see `clipsLifted`): it shows the trends, not the numbers of a particular magnet.
+ * Falling clips move with g = 9,8 м/с² at the scale of the picture (10 px = 1 cm).
+ */
+const X0 = 300; // axis of the electromagnet
+const CORE = { x: X0 - 15, w: 30, y: 62, h: 186 }; // iron core
+const TUBE = { x: X0 - 27, w: 54, y: 92, h: 140 }; // cardboard tube with the winding
+const uid = `em-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="em not-content" data-em>
+	<svg class="em__svg" viewBox="0 0 600 440" role="img" aria-label="Электромагнит, подвешенный над чашкой со скрепками; источник тока, ключ и амперметр">
+		<defs>
+			<linearGradient id={`${uid}-iron`} x1="0" x2="1" y1="0" y2="0">
+				<stop offset="0" class="em__iron-a"></stop>
+				<stop offset="0.45" class="em__iron-b"></stop>
+				<stop offset="1" class="em__iron-a"></stop>
+			</linearGradient>
+			<symbol id={`${uid}-clip`} viewBox="-6 -15 12 30">
+				<path d="M -1.6 8 V -8.5 a 2.6 2.6 0 0 1 5.2 0 V 10.5 a 3.9 3.9 0 0 1 -7.8 0 V -10.8 a 4.6 4.6 0 0 1 9.2 0 V 6.5"></path>
+			</symbol>
+		</defs>
+
+		<!-- stand -->
+		<g class="em__stand">
+			<rect x="40" y="420" width="140" height="10" rx="3"></rect>
+			<rect x="58" y="34" width="10" height="390" rx="3"></rect>
+			<rect x="58" y="30" width={X0 - 50} height="10" rx="3"></rect>
+			<rect x={X0 - 4} y="38" width="8" height="26"></rect>
+		</g>
+
+		<!-- wires and current -->
+		<g class="em__wires">
+			<path d={`M 520 158 V 100 H ${TUBE.x + TUBE.w}`}></path>
+			<path d={`M ${TUBE.x + TUBE.w} ${TUBE.y + TUBE.h - 8} H 400 V 360 H 520 V 300`}></path>
+			<path d="M 520 254 V 172"></path>
+		</g>
+		<g class="em__flow" data-flow>
+			<path d={`M 520 158 V 100 H ${TUBE.x + TUBE.w}`}></path>
+			<path d={`M ${TUBE.x + TUBE.w} ${TUBE.y + TUBE.h - 8} H 400 V 360 H 520 V 300`}></path>
+			<path d="M 520 254 V 172"></path>
+		</g>
+
+		<!-- source -->
+		<g class="em__source">
+			<rect x="498" y="150" width="44" height="30" class="em__bg"></rect>
+			<line class="em__plate-p" x1="500" y1="158" x2="540" y2="158"></line>
+			<line class="em__plate-n" x1="510" y1="172" x2="530" y2="172"></line>
+			<text x="553" y="160" class="em__sign">+</text>
+			<text x="553" y="181" class="em__sign">−</text>
+		</g>
+		<!-- key -->
+		<g class="em__key" data-key tabindex="0" role="button" aria-label="Ключ">
+			<rect class="em__hit" x="490" y="244" width="70" height="70"></rect>
+			<circle class="em__contact" cx="520" cy="254" r="4.5"></circle>
+			<circle class="em__contact" cx="520" cy="300" r="4.5"></circle>
+			<line class="em__lever" x1="520" y1="300" x2="520" y2="254" data-lever></line>
+			<text x="540" y="282" class="em__cap">ключ</text>
+		</g>
+		<!-- ammeter -->
+		<g class="em__meter">
+			<circle cx="440" cy="100" r="17" class="em__bg em__face"></circle>
+			<text x="440" y="105.5" text-anchor="middle" class="em__letter">A</text>
+		</g>
+		<text x="440" y="70" text-anchor="middle" class="em__reading" data-read-i>1 А</text>
+
+		<!-- the electromagnet -->
+		<g class="em__core" data-core>
+			<rect x={CORE.x} y={CORE.y} width={CORE.w} height={CORE.h} rx="3" fill={`url(#${uid}-iron)`}></rect>
+		</g>
+		<rect class="em__tube" x={TUBE.x} y={TUBE.y} width={TUBE.w} height={TUBE.h} rx="4"></rect>
+		<g class="em__turns" data-turns></g>
+		<text x={TUBE.x - 10} y={TUBE.y + 16} text-anchor="end" class="em__cap" data-core-cap>железный сердечник</text>
+		<text x={TUBE.x - 10} y={TUBE.y + 36} text-anchor="end" class="em__cap em__cap--n" data-n-cap>100 витков</text>
+
+		<!-- dish -->
+		<path class="em__dish" d="M 150 396 Q 160 422 190 424 H 410 Q 440 422 450 396"></path>
+
+		<!-- clips -->
+		<g class="em__clips" data-clips></g>
+	</svg>
+
+	<div class="em__controls">
+		<label class="em__slider em__slider--i">
+			<span>Сила тока <i>I</i></span>
+			<output data-i-out>1,0 А</output>
+			<input type="range" min="0" max="2" step="0.1" value="1" data-i />
+		</label>
+		<label class="em__slider em__slider--n">
+			<span>Число витков <i>N</i></span>
+			<output data-n-out>100</output>
+			<input type="range" min="50" max="250" step="50" value="100" data-n />
+		</label>
+	</div>
+	<div class="em__buttons">
+		<button type="button" class="em__btn em__btn--primary" data-power>Замкнуть ключ</button>
+		<div class="em__seg" role="group" aria-label="Сердечник">
+			<button type="button" class="is-active" data-core-btn="1">С сердечником</button>
+			<button type="button" data-core-btn="0">Без сердечника</button>
+		</div>
+	</div>
+
+	<div class="em__panel">
+		<div class="em__formula" data-formula></div>
+		<div class="em__meterbar">
+			<span class="em__meterbar-name">Магнитное действие</span>
+			<span class="em__track"><span class="em__fill" data-bar></span></span>
+		</div>
+		<p class="em__count"><span data-count>0</span> <span data-count-word>скрепок</span> подняты</p>
+	</div>
+
+	<figcaption class="em__legend">
+		Ток регулируют реостатом (на рисунке его нет), амперметр показывает силу тока. Видны не все витки: один нарисованный виток обозначает десять настоящих.
+		Число скрепок в модели рассчитано по упрощённой формуле. В настоящем опыте числа будут другими, но закономерности — те же.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.em {
+		--em-cu: var(--ig-v);
+		--em-i: var(--ig-vx);
+		--em-n: var(--ig-vy);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.em i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.em__svg {
+		display: block;
+		width: 100%;
+		max-width: 40rem;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.em__stand rect {
+		fill: var(--sl-color-gray-5);
+	}
+	.em__wires path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.em__flow path {
+		fill: none;
+		stroke: var(--em-i);
+		stroke-width: 2.5;
+		stroke-dasharray: 3 13;
+		stroke-linecap: round;
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+	.em__flow.is-on path {
+		opacity: 0.95;
+	}
+	.em__bg {
+		fill: var(--ig-surface);
+	}
+	.em__plate-p {
+		stroke: var(--sl-color-white);
+		stroke-width: 3;
+	}
+	.em__plate-n {
+		stroke: var(--sl-color-white);
+		stroke-width: 8;
+	}
+	.em__sign {
+		fill: var(--sl-color-gray-2);
+		font-size: 18px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.em__key {
+		cursor: pointer;
+		outline: none;
+	}
+	.em__hit {
+		fill: transparent;
+	}
+	.em__contact {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.em__lever {
+		stroke: var(--sl-color-white);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.em__key:hover .em__lever,
+	.em__key:focus-visible .em__lever {
+		stroke: var(--sl-color-accent);
+	}
+	.em__face {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.em__letter {
+		fill: var(--sl-color-white);
+		font-size: 15px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.em__reading {
+		fill: var(--em-i);
+		font-size: 20px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.em__iron-a {
+		stop-color: var(--sl-color-gray-4);
+	}
+	.em__iron-b {
+		stop-color: var(--sl-color-gray-2);
+	}
+	.em__core {
+		transition:
+			transform 0.7s cubic-bezier(0.5, 0, 0.3, 1),
+			opacity 0.7s;
+	}
+	.em__core.is-out {
+		transform: translateY(-40px);
+		opacity: 0;
+	}
+	.em__tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 40%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.em__turns line {
+		stroke: var(--em-cu);
+		stroke-width: 3;
+		stroke-linecap: round;
+		transition: filter 0.3s;
+	}
+	.em__turns.is-on line {
+		filter: drop-shadow(0 0 3px color-mix(in srgb, var(--em-cu) 70%, transparent));
+	}
+	.em__cap {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+		transition: opacity 0.4s;
+	}
+	.em__cap--n {
+		fill: var(--em-cu);
+		font-weight: 600;
+	}
+	.em__dish {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 50%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.em__clips use {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+
+	.em__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+	}
+	.em__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.em__slider output {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.em__slider--i output {
+		color: var(--em-i);
+	}
+	.em__slider--n output {
+		color: var(--em-cu);
+	}
+	.em__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+	}
+	.em__slider--i input {
+		accent-color: var(--em-i);
+	}
+	.em__slider--n input {
+		accent-color: var(--em-cu);
+	}
+	.em__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.em__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.em__seg {
+		display: inline-flex;
+		padding: 0.2rem;
+		gap: 0.2rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.em__seg button {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.35rem 0.9rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.em__seg button.is-active {
+		background: var(--sl-color-gray-4);
+		color: var(--sl-color-white);
+	}
+	.em__panel {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+		padding: 0.6rem 0.9rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+	.em__formula {
+		min-height: 2.6rem;
+		display: grid;
+		place-items: center;
+		overflow-x: auto;
+		color: var(--sl-color-white);
+	}
+	.em__formula .katex {
+		font-size: 1.2em;
+	}
+	.em__meterbar {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		align-items: center;
+		gap: 0.75rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.em__track {
+		height: 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		overflow: hidden;
+	}
+	.em__fill {
+		display: block;
+		height: 100%;
+		width: 0;
+		border-radius: 999px;
+		background: linear-gradient(90deg, var(--em-i), var(--em-n));
+		transition: width 0.45s ease-out;
+	}
+	.em__count {
+		margin: 0;
+		text-align: center;
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.em__count [data-count] {
+		color: var(--em-n);
+		font-variant-numeric: tabular-nums;
+	}
+	.em__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 30rem) {
+		.em__controls {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.em__core,
+		.em__fill {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { clipsLifted, magneticAction, MAX_CLIPS } from './em';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const X0 = 300;
+	const CORE_BOTTOM = 62 + 186; // bottom face of the core
+	const TUBE_BOTTOM = 92 + 140;
+	const G = 9.8 * 1000; // px/s²: 10 px = 1 cm
+	const N_CLIPS = 30;
+	const CHAINS = [
+		{ dx: -21, ang: 9 },
+		{ dx: -7, ang: 3 },
+		{ dx: 7, ang: -3 },
+		{ dx: 21, ang: -9 },
+	];
+	const STEP = 21; // a hanging clip below the previous one, px
+
+	const ru = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
+	const plural = (n: number) => {
+		const a = n % 10;
+		const b = n % 100;
+		if (a === 1 && b !== 11) return ['скрепка', 'поднята'];
+		if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return ['скрепки', 'подняты'];
+		return ['скрепок', 'поднято'];
+	};
+
+	type Clip = {
+		el: SVGUseElement;
+		state: 'pile' | 'fly' | 'hung' | 'fall';
+		x: number;
+		y: number;
+		rot: number;
+		hx: number; // home in the dish
+		hy: number;
+		hrot: number;
+		t0: number;
+		fx: number;
+		fy: number;
+		frot: number;
+		vy: number;
+		slot: number;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-em]')) {
+		const iIn = root.querySelector<HTMLInputElement>('[data-i]')!;
+		const nIn = root.querySelector<HTMLInputElement>('[data-n]')!;
+		const iOut = root.querySelector<HTMLOutputElement>('[data-i-out]')!;
+		const nOut = root.querySelector<HTMLOutputElement>('[data-n-out]')!;
+		const power = root.querySelector<HTMLButtonElement>('[data-power]')!;
+		const key = root.querySelector<SVGGElement>('[data-key]')!;
+		const lever = root.querySelector<SVGLineElement>('[data-lever]')!;
+		const flow = root.querySelector<SVGGElement>('[data-flow]')!;
+		const flowPaths = [...flow.querySelectorAll<SVGPathElement>('path')];
+		const core = root.querySelector<SVGGElement>('[data-core]')!;
+		const coreCap = root.querySelector<SVGTextElement>('[data-core-cap]')!;
+		const nCap = root.querySelector<SVGTextElement>('[data-n-cap]')!;
+		const turnsG = root.querySelector<SVGGElement>('[data-turns]')!;
+		const clipsG = root.querySelector<SVGGElement>('[data-clips]')!;
+		const readI = root.querySelector<SVGTextElement>('[data-read-i]')!;
+		const formula = root.querySelector<HTMLElement>('[data-formula]')!;
+		const bar = root.querySelector<HTMLElement>('[data-bar]')!;
+		const count = root.querySelector<HTMLElement>('[data-count]')!;
+		const countWord = root.querySelector<HTMLElement>('[data-count-word]')!;
+		const coreBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-core-btn]')];
+		const symId = root.querySelector('symbol')!.id;
+
+		let on = false;
+		let withCore = true;
+		let hung: Clip[] = []; // in the order of the slots
+		let lastLaunch = 0;
+		let running = false;
+		let last = 0;
+		let flowShift = 0;
+
+		// the dish: clips lie in a heap
+		const clips: Clip[] = [];
+		const homeSpot = () => {
+			const hx = 200 + Math.random() * 200;
+			const hy = 404 + Math.random() * 10 - Math.max(0, 6 - Math.abs(hx - 300) / 20);
+			return [hx, hy, 60 + Math.random() * 60 * (Math.random() < 0.5 ? 1 : -1) + (Math.random() < 0.5 ? 0 : 180)];
+		};
+		for (let k = 0; k < N_CLIPS; k++) {
+			const el = document.createElementNS(NS, 'use');
+			el.setAttribute('href', `#${symId}`);
+			el.setAttribute('width', '12');
+			el.setAttribute('height', '30');
+			el.setAttribute('x', '-6');
+			el.setAttribute('y', '-15');
+			clipsG.append(el);
+			const [hx, hy, hrot] = homeSpot();
+			clips.push({ el, state: 'pile', x: hx, y: hy, rot: hrot, hx, hy, hrot, t0: 0, fx: 0, fy: 0, frot: 0, vy: 0, slot: -1 });
+		}
+		const place = (c: Clip) => c.el.setAttribute('transform', `translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${c.rot.toFixed(1)})`);
+		clips.forEach(place);
+
+		const bottom = () => (withCore ? CORE_BOTTOM : TUBE_BOTTOM);
+		const slotPos = (k: number) => {
+			const ch = CHAINS[k % CHAINS.length];
+			const depth = Math.floor(k / CHAINS.length);
+			const a = (ch.ang * Math.PI) / 180;
+			const d = 15 + depth * STEP;
+			return { x: X0 + ch.dx - Math.sin(a) * d, y: bottom() + Math.cos(a) * d, rot: -ch.ang };
+		};
+
+		const drawTurns = () => {
+			const N = Number(nIn.value);
+			const n = N / 10;
+			turnsG.replaceChildren();
+			const y0 = 92 + 6;
+			const y1 = 92 + 140 - 8;
+			for (let k = 0; k < n; k++) {
+				const y = y0 + ((y1 - y0) * (k + 0.5)) / n;
+				const l = document.createElementNS(NS, 'line');
+				l.setAttribute('x1', String(X0 - 27));
+				l.setAttribute('x2', String(X0 + 27));
+				l.setAttribute('y1', (y - 2.5).toFixed(1));
+				l.setAttribute('y2', (y + 2.5).toFixed(1));
+				turnsG.append(l);
+			}
+			nCap.textContent = `${N} витков`;
+		};
+
+		const update = () => {
+			const I = Number(iIn.value);
+			const N = Number(nIn.value);
+			iOut.textContent = `${ru(I)} А`;
+			nOut.textContent = String(N);
+			readI.textContent = `${on ? ru(I) : '0'} А`;
+			const NI = on ? N * I : 0;
+			katex.render(
+				`N \\cdot I = ${N} \\cdot ${on ? ru(I) : '0'}~\\text{А} = ${ru(NI, 0)}~\\text{А}`,
+				formula,
+				{ throwOnError: false, displayMode: false },
+			);
+			bar.style.width = `${(100 * magneticAction(NI, withCore)).toFixed(1)}%`;
+			const n = clipsLifted(NI, withCore);
+			count.textContent = String(n);
+			const [w, verb] = plural(n);
+			countWord.textContent = w;
+			count.parentElement!.lastChild!.textContent = ` ${verb}`;
+			lever.setAttribute('x2', on ? '520' : '548');
+			lever.setAttribute('y2', on ? '254' : '262');
+			power.textContent = on ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+			flow.classList.toggle('is-on', on && I > 0);
+			turnsG.classList.toggle('is-on', on && I > 0);
+			core.classList.toggle('is-out', !withCore);
+			coreCap.style.opacity = withCore ? '1' : '0';
+			kick();
+		};
+
+		const goal = () => clipsLifted(on ? Number(nIn.value) * Number(iIn.value) : 0, withCore);
+
+		const step = (now: number, dt: number) => {
+			let busy = false;
+			const target = goal();
+			const up = hung.length;
+			// attach more clips, one after another
+			if (up < target && now - lastLaunch > 70) {
+				const free = clips.filter((c) => c.state === 'pile');
+				if (free.length) {
+					const c = free[Math.floor(Math.random() * free.length)];
+					c.state = 'fly';
+					c.slot = up;
+					c.t0 = now;
+					c.fx = c.x;
+					c.fy = c.y;
+					c.frot = c.rot;
+					hung.push(c);
+					lastLaunch = now;
+				}
+			}
+			// release the lowest clips
+			while (hung.length > target) {
+				const c = hung.pop()!;
+				c.state = 'fall';
+				c.vy = 0;
+				const [hx, hy, hrot] = homeSpot();
+				c.hx = c.x + (hx - c.x) * 0.25;
+				c.hy = hy;
+				c.hrot = hrot;
+				c.frot = c.rot;
+			}
+			for (const c of clips) {
+				if (c.state === 'fly') {
+					const s = slotPos(c.slot);
+					const t = reduceMotion.matches ? 1 : Math.min(1, (now - c.t0) / 320);
+					const e = t * t; // the pull grows as the clip comes closer
+					c.x = c.fx + (s.x - c.fx) * e;
+					c.y = c.fy + (s.y - c.fy) * e;
+					c.rot = c.frot + (s.rot - c.frot) * Math.min(1, t * 1.6);
+					if (t >= 1) c.state = 'hung';
+					busy = true;
+					place(c);
+				} else if (c.state === 'hung') {
+					const s = slotPos(c.slot);
+					if (Math.abs(c.y - s.y) > 0.2) {
+						c.x += (s.x - c.x) * Math.min(1, dt * 12);
+						c.y += (s.y - c.y) * Math.min(1, dt * 12);
+						busy = true;
+					}
+					c.rot = s.rot;
+					place(c);
+				} else if (c.state === 'fall') {
+					c.vy += G * dt;
+					c.y += c.vy * dt;
+					c.x += (c.hx - c.x) * Math.min(1, dt * 6);
+					c.rot += (c.hrot - c.rot) * Math.min(1, dt * 7);
+					if (c.y >= c.hy || reduceMotion.matches) {
+						c.y = c.hy;
+						c.x = c.hx;
+						c.rot = c.hrot;
+						c.state = 'pile';
+					}
+					busy = true;
+					place(c);
+				}
+			}
+			if (hung.length !== target) busy = true;
+			// the current: dashes run from «+» of the source through the coil to «−»
+			if (on && Number(iIn.value) > 0 && !reduceMotion.matches) {
+				flowShift -= dt * 30 * Number(iIn.value);
+				flowPaths.forEach((p) => (p.style.strokeDashoffset = flowShift.toFixed(1)));
+				busy = true;
+			}
+			return busy;
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.04, (now - last) / 1000);
+			last = now;
+			if (step(now, dt)) requestAnimationFrame(frame);
+			else running = false;
+		};
+		let visible = true;
+		function kick() {
+			if (running || !visible) return;
+			running = true;
+			last = performance.now();
+			requestAnimationFrame(frame);
+		}
+		new IntersectionObserver((es) => {
+			visible = es.some((e) => e.isIntersecting);
+			if (visible) kick();
+		}).observe(root);
+
+		const toggle = () => {
+			on = !on;
+			update();
+		};
+		power.addEventListener('click', toggle);
+		key.addEventListener('click', toggle);
+		key.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				toggle();
+			}
+		});
+		iIn.addEventListener('input', update);
+		nIn.addEventListener('input', () => {
+			drawTurns();
+			update();
+		});
+		coreBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				withCore = b.dataset.coreBtn === '1';
+				coreBtns.forEach((o) => o.classList.toggle('is-active', o === b));
+				// with the core taken out, the hanging clips fall; they will be attracted again to the new pole
+				while (hung.length) {
+					const c = hung.pop()!;
+					c.state = 'fall';
+					c.vy = 0;
+					const [hx, hy, hrot] = homeSpot();
+					c.hx = c.x + (hx - c.x) * 0.25;
+					c.hy = hy;
+					c.hrot = hrot;
+				}
+				update();
+			}),
+		);
+		drawTurns();
+		update();
+		void MAX_CLIPS;
+	}
+</script>
