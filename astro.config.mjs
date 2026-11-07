@@ -33,6 +33,7 @@ export default defineConfig({
 			],
 			sidebar: [
 				{ label: 'Об учебнике', slug: 'uchebnik' },
+				{ label: 'Формулы', slug: 'uchebnik/formuly' },
 				grade(7, [
 					section('Давление твёрдых тел, жидкостей и газов', '7-klass/davlenie', ['atmosfernoe-davlenie', 'arhimedova-sila']),
 				]),

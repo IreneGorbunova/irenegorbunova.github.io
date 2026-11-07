@@ -1,0 +1,119 @@
+---
+/**
+ * The page of all formulas: chapters with `formulas:` in their frontmatter, in sidebar (textbook) order,
+ * grouped by grade and section, with the card deck for a grade and for the cards due today.
+ */
+import { getCollection } from 'astro:content';
+import CardDeck from './CardDeck.astro';
+import FormulaList from './FormulaList.astro';
+import { cardParts, chapterLabel } from './render';
+
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const entries = await getCollection('docs', (e) => Boolean(e.data.formulas?.length));
+const byId = new Map(entries.map((e) => [e.id, e]));
+const idOf = (href: string) => href.slice(base.length).replace(/\/$/, '');
+
+type Item = (typeof Astro.locals.starlightRoute.sidebar)[number];
+const links = (items: Item[]): string[] =>
+	items.flatMap((x) => (x.type === 'link' ? [x.href] : links(x.entries)));
+
+const grades = Astro.locals.starlightRoute.sidebar
+	.filter((g) => g.type === 'group')
+	.map((g) => ({
+		label: g.label,
+		sections: g.entries
+			.filter((s) => s.type === 'group')
+			.map((s) => ({
+				label: s.label,
+				chapters: links(s.entries)
+					.map((h) => byId.get(idOf(h)))
+					.filter((e) => e !== undefined),
+			}))
+			.filter((s) => s.chapters.length > 0),
+	}))
+	.filter((g) => g.sections.length > 0)
+	.map((g) => ({
+		...g,
+		cards: g.sections.flatMap((s) =>
+			s.chapters.flatMap((c) =>
+				c.data.formulas!.map((f) => cardParts(c.id, chapterLabel(c), `${base}${c.id}/`, f)),
+			),
+		),
+	}));
+const all = grades.flatMap((g) => g.cards);
+const deckId = 'deck-all';
+---
+
+<div class="fi">
+	<p class="fi__due" data-deck-due-wrap={deckId} hidden>
+		<button type="button" class="fi-btn" data-deck-open={deckId} data-deck-due>
+			Повторить сегодня (<span data-deck-due-count={deckId}>0</span>)
+		</button>
+	</p>
+	{
+		grades.map((g) => (
+			<>
+				<h2>{g.label}</h2>
+				<p>
+					<button type="button" class="fi-btn" data-deck-open={deckId} data-deck-keys={g.cards.map((c) => c.key).join(' ')}>
+						Учить все карточки класса ({g.cards.length})
+					</button>
+				</p>
+				{g.sections.map((s) => (
+					<>
+						<h3>{s.label}</h3>
+						{s.chapters.map((c) => (
+							<div class="fi__chapter not-content">
+								<a class="fi__link" href={`${base}${c.id}/`}>
+									{chapterLabel(c)}
+								</a>
+								<FormulaList items={c.data.formulas!} />
+							</div>
+						))}
+					</>
+				))}
+			</>
+		))
+	}
+	<CardDeck id={deckId} cards={all} />
+</div>
+
+<style>
+	.fi-btn {
+		margin: 0;
+		padding: 0.55rem 1.1rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.fi-btn:hover {
+		filter: brightness(1.08);
+	}
+	.fi__chapter {
+		margin-top: 1rem;
+		padding: 0.9rem 1.1rem 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.fi__link {
+		display: inline-block;
+		margin-bottom: 0.2rem;
+		font-family: var(--ig-font-display);
+		font-size: 1.75rem;
+		line-height: 1.2;
+		text-decoration: none;
+		color: var(--sl-color-white);
+	}
+	.fi__link:hover {
+		color: var(--sl-color-text-accent);
+	}
+	.fi__due[hidden] {
+		display: none;
+	}
+</style>

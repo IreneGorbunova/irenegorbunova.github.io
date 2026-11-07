@@ -1,0 +1,410 @@
+---
+/**
+ * A window with flip cards. Buttons with data-deck-open="<id>" open it: with data-deck-keys="k1 k2"
+ * for those cards, with data-deck-due for the cards due today, otherwise with every card of the deck.
+ * Elements with data-deck-due-count="<id>" show how many cards are due; data-deck-due-wrap="<id>"
+ * is hidden while none are. «Помню / Не помню» are kept in localStorage only (see leitner.mjs).
+ */
+import type { CardParts } from './render';
+
+interface Props {
+	id: string;
+	cards: CardParts[];
+}
+const { id, cards } = Astro.props;
+const parts = ['chapter', 'name', 'ask', 'tex', 'def', 'symbols', 'note'] as const;
+---
+
+<div class="deck-src" hidden data-deck-src={id}>
+	{
+		cards.map((c) => (
+			<div data-key={c.key} data-href={c.href}>
+				{parts.map((p) => c[p] && <div data-p={p} set:html={c[p]} />)}
+			</div>
+		))
+	}
+</div>
+
+<dialog id={id} class="ig-dialog deck not-content" aria-labelledby={`${id}-title`} data-deck>
+	<button type="button" class="ig-dialog__close" aria-label="Закрыть" data-deck-close>×</button>
+	<div class="deck__top">
+		<p class="deck__title" id={`${id}-title`}>Карточки</p>
+		<span class="deck__count" data-deck-count></span>
+	</div>
+	<label class="deck__rev">
+		<input type="checkbox" data-deck-rev />
+		Сначала формула, вспомнить смысл
+	</label>
+	<div class="deck__play" data-deck-play>
+		<div class="deck__card" role="button" tabindex="0" aria-describedby={`${id}-hint`} data-deck-card>
+			<div class="deck__inner">
+				<div class="deck__face deck__face--front" data-face="front"></div>
+				<div class="deck__face deck__face--back" data-face="back"></div>
+			</div>
+		</div>
+		<p class="deck__hint" id={`${id}-hint`} data-deck-hint>Вспомните ответ и нажмите на карточку.</p>
+		<div class="deck__grade" data-deck-grade hidden>
+			<button type="button" class="deck__btn deck__btn--no" data-deck-no>Не помню</button>
+			<button type="button" class="deck__btn deck__btn--yes" data-deck-yes>Помню</button>
+		</div>
+	</div>
+	<div class="deck__done" data-deck-done hidden>
+		<p class="deck__done-title">Готово!</p>
+		<p data-deck-summary></p>
+		<div class="deck__grade">
+			<button type="button" class="deck__btn" data-deck-again>Ещё раз</button>
+			<button type="button" class="deck__btn deck__btn--yes" data-deck-close>Закрыть</button>
+		</div>
+	</div>
+</dialog>
+
+<style is:global>
+	.deck {
+		width: min(34rem, 100vw - 2rem);
+	}
+	.deck__top {
+		display: flex;
+		align-items: baseline;
+		gap: 1rem;
+		padding-right: 2.5rem;
+	}
+	.deck__title {
+		margin: 0;
+		font-family: var(--ig-font-display);
+		font-size: 2.4rem;
+		line-height: 1.1;
+		color: var(--sl-color-white);
+	}
+	.deck__count {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.deck__rev {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0.5rem 0 1rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.deck__rev input {
+		accent-color: var(--sl-color-accent);
+		width: 1.05rem;
+		height: 1.05rem;
+	}
+	.deck__card {
+		perspective: 1400px;
+		cursor: pointer;
+		border-radius: 1rem;
+	}
+	.deck__card:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 4px;
+	}
+	.deck__inner {
+		display: grid;
+		transform-style: preserve-3d;
+		transition: transform 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
+	}
+	.deck__card.is-flipped .deck__inner {
+		transform: rotateY(180deg);
+	}
+	.deck__face {
+		grid-area: 1 / 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 0.5rem;
+		min-height: 15rem;
+		min-width: 0;
+		padding: 1.25rem 1.25rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;
+		text-align: center;
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sl-color-accent) 25%, transparent);
+	}
+	.deck__face--back {
+		transform: rotateY(180deg);
+		text-align: start;
+		justify-content: flex-start;
+		border-color: color-mix(in srgb, var(--sl-color-accent) 55%, var(--sl-color-gray-5));
+	}
+	.deck__face p {
+		margin: 0;
+	}
+	.deck__chapter {
+		font-size: var(--sl-text-xs);
+		letter-spacing: 0.04em;
+		color: var(--sl-color-gray-3);
+	}
+	.deck__ask {
+		font-size: 1.35rem;
+		line-height: 1.4;
+		color: var(--sl-color-white);
+	}
+	.deck__name {
+		font-family: var(--ig-font-display);
+		font-size: 2rem;
+		line-height: 1.15;
+		color: var(--sl-color-white);
+	}
+	.deck__sub {
+		font-style: italic;
+		color: var(--sl-color-gray-2);
+	}
+	.deck__face .katex-display {
+		margin: 0.25rem 0;
+		color: var(--sl-color-white);
+	}
+	.deck__face .katex-display > .katex {
+		font-size: 1.35em;
+	}
+	.deck__def {
+		line-height: 1.55;
+	}
+	.deck__face--front .deck__def {
+		font-size: 1.1rem;
+		color: var(--sl-color-white);
+	}
+	.deck__note {
+		font-size: var(--sl-text-sm);
+		font-style: italic;
+		color: var(--sl-color-gray-2);
+	}
+	.deck__face .kf-sym {
+		font-size: var(--sl-text-sm);
+	}
+	.deck__hint {
+		margin: 0.75rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.deck__hint[hidden],
+	.deck__grade[hidden],
+	.deck__play[hidden],
+	.deck__done[hidden] {
+		display: none;
+	}
+	.deck__grade {
+		display: flex;
+		justify-content: center;
+		gap: 0.75rem;
+		margin-top: 1rem;
+	}
+	.deck__btn {
+		flex: 1 1 0;
+		max-width: 12rem;
+		margin: 0;
+		padding: 0.6rem 1rem;
+		font: inherit;
+		font-weight: 600;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.deck__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.deck__btn--yes {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.deck__btn--yes:hover {
+		filter: brightness(1.08);
+	}
+	.deck__done {
+		padding: 1.5rem 0 0.5rem;
+		text-align: center;
+	}
+	.deck__done p {
+		margin: 0.5rem 0 0;
+	}
+	.deck__done-title {
+		font-family: var(--ig-font-display);
+		font-size: 2.6rem;
+		line-height: 1.1;
+		color: var(--sl-color-white);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.deck__inner {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { answer, isDue, load, order, save, today } from './leitner.mjs';
+
+	const REV_KEY = 'ig:cards:rev';
+	const plural = (n: number, one: string, few: string, many: string) => {
+		const a = n % 10;
+		const b = n % 100;
+		return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
+	};
+
+	for (const dialog of document.querySelectorAll<HTMLDialogElement>('dialog[data-deck]')) {
+		const id = dialog.id;
+		const src = document.querySelector<HTMLElement>(`[data-deck-src="${id}"]`)!;
+		const cards = new Map(
+			Array.from(src.children as HTMLCollectionOf<HTMLElement>).map((el) => [el.dataset.key!, el]),
+		);
+		const $ = <T extends HTMLElement>(sel: string) => dialog.querySelector<T>(sel)!;
+		const card = $('[data-deck-card]');
+		const front = $('[data-face="front"]');
+		const back = $('[data-face="back"]');
+		const hint = $('[data-deck-hint]');
+		const grade = $('[data-deck-grade]');
+		const play = $('[data-deck-play]');
+		const done = $('[data-deck-done]');
+		const count = $('[data-deck-count]');
+		const summary = $('[data-deck-summary]');
+		const rev = $<HTMLInputElement>('[data-deck-rev]');
+
+		try {
+			rev.checked = localStorage.getItem(REV_KEY) === '1';
+		} catch {
+			/* storage off */
+		}
+
+		let queue: string[] = [];
+		let i = 0;
+		let flipped = false;
+		let remembered = 0;
+
+		const part = (el: HTMLElement, p: string, cls: string, tag = 'div') => {
+			const node = el.querySelector<HTMLElement>(`[data-p="${p}"]`);
+			if (!node) return '';
+			return `<${tag} class="${cls}">${node.innerHTML}</${tag}>`;
+		};
+
+		const render = () => {
+			const el = cards.get(queue[i])!;
+			const hasTex = Boolean(el.querySelector('[data-p="tex"]'));
+			const chapter = part(el, 'chapter', 'deck__chapter', 'p');
+			const name = part(el, 'name', 'deck__name', 'p');
+			const tex = part(el, 'tex', 'deck__tex');
+			const def = part(el, 'def', 'deck__def', 'p');
+			const symbols = part(el, 'symbols', 'deck__symbols');
+			const note = part(el, 'note', 'deck__note', 'p');
+			const askNode = el.querySelector<HTMLElement>('[data-p="ask"]');
+			const nameNode = el.querySelector<HTMLElement>('[data-p="name"]');
+			const askDiffers = askNode && nameNode && askNode.innerHTML !== nameNode.innerHTML;
+			const ask = part(el, 'ask', 'deck__ask', 'p');
+			if (rev.checked) {
+				front.innerHTML = chapter + (hasTex ? tex : def);
+				back.innerHTML =
+					name + (askDiffers ? part(el, 'ask', 'deck__sub', 'p') : '') + symbols + note;
+			} else {
+				front.innerHTML = chapter + ask;
+				back.innerHTML = name + tex + def + symbols + note;
+			}
+			count.textContent = `${i + 1} из ${queue.length}`;
+			setFlipped(false);
+		};
+
+		const setFlipped = (on: boolean) => {
+			flipped = on;
+			card.classList.toggle('is-flipped', on);
+			front.setAttribute('aria-hidden', String(on));
+			back.setAttribute('aria-hidden', String(!on));
+			card.setAttribute('aria-label', on ? 'Ответ на карточке' : 'Карточка: нажмите, чтобы увидеть ответ');
+			hint.hidden = on;
+			grade.hidden = !on;
+		};
+
+		const start = (keys: string[]) => {
+			queue = order(keys.filter((k) => cards.has(k)), load(), today());
+			if (!queue.length) return;
+			i = 0;
+			remembered = 0;
+			play.hidden = false;
+			done.hidden = true;
+			render();
+			if (!dialog.open) dialog.showModal();
+			card.focus();
+		};
+
+		const finish = () => {
+			play.hidden = true;
+			done.hidden = false;
+			count.textContent = '';
+			const n = queue.length;
+			const forgot = n - remembered;
+			summary.textContent =
+				`Вы вспомнили ${remembered} ${plural(remembered, 'карточку', 'карточки', 'карточек')} из ${n}. ` +
+				(forgot
+					? 'Те, что не вспомнились, покажутся снова завтра, остальные — через несколько дней.'
+					: 'Эти карточки покажутся снова через несколько дней.');
+			done.querySelector<HTMLButtonElement>('[data-deck-again]')!.focus();
+		};
+
+		const grading = (yes: boolean) => {
+			const states = load();
+			const key = queue[i];
+			states[key] = answer(states[key], yes, today());
+			save(states);
+			if (yes) remembered += 1;
+			i += 1;
+			if (i < queue.length) {
+				render();
+				card.focus();
+			} else finish();
+		};
+
+		card.addEventListener('click', () => setFlipped(!flipped));
+		card.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				setFlipped(!flipped);
+			}
+		});
+		$('[data-deck-yes]').addEventListener('click', () => grading(true));
+		$('[data-deck-no]').addEventListener('click', () => grading(false));
+		$('[data-deck-again]').addEventListener('click', () => start(queue));
+		rev.addEventListener('change', () => {
+			try {
+				localStorage.setItem(REV_KEY, rev.checked ? '1' : '0');
+			} catch {
+				/* storage off */
+			}
+			if (!play.hidden) render();
+		});
+		for (const b of dialog.querySelectorAll('[data-deck-close]')) {
+			b.addEventListener('click', () => dialog.close());
+		}
+		dialog.addEventListener('click', (e) => {
+			if (e.target === dialog) dialog.close();
+		});
+
+		const updateDue = () => {
+			const states = load();
+			const day = today();
+			const due = [...cards.keys()].filter((k) => isDue(states[k], day));
+			for (const el of document.querySelectorAll<HTMLElement>(`[data-deck-due-count="${id}"]`)) {
+				el.textContent = String(due.length);
+			}
+			for (const el of document.querySelectorAll<HTMLElement>(`[data-deck-due-wrap="${id}"]`)) {
+				el.hidden = due.length === 0;
+			}
+			return due;
+		};
+		dialog.addEventListener('close', updateDue);
+		updateDue();
+
+		for (const btn of document.querySelectorAll<HTMLElement>(`[data-deck-open="${id}"]`)) {
+			btn.addEventListener('click', () => {
+				if ('deckDue' in btn.dataset) start(updateDue());
+				else start(btn.dataset.deckKeys ? btn.dataset.deckKeys.split(' ') : [...cards.keys()]);
+			});
+		}
+	}
+</script>
