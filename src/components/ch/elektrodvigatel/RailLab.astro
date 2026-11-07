@@ -1,0 +1,652 @@
+---
+/**
+ * The classic experiment: a light metal tube lies on two rails that pass between the poles of a
+ * horseshoe magnet. Close the key — the tube rolls out of the magnet. Oblique projection, x along the rails,
+ * y up, z towards the viewer; 1 px = 1 mm.
+ * Physics: F = B·I·l inside the gap (B = 0,1 Тл, l = 80 мм — the depth of the poles), it fades out
+ * beyond the poles; a rolling thin-walled tube has a = F / (2m), m = 5 г; small rolling friction.
+ * The motion is shown 5 times slower than in reality (can be switched off).
+ */
+const uid = `rl-${Math.random().toString(36).slice(2, 8)}`;
+const RL = { W: 620, H: 340, CX: 300, CY: 176, AX: -0.42, AY: 0.28, X0: -240, X1: 220, ZR: 62, PX: 46, PY0: 58, PY1: 88, ZB: 112 };
+const P = (x: number, y: number, z: number) => [RL.CX + x + z * RL.AX, RL.CY - y + z * RL.AY];
+const pts = (a: number[][]) => a.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) => ({
+	front: pts([P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1)]),
+	top: pts([P(x0, y1, z1), P(x1, y1, z1), P(x1, y1, z0), P(x0, y1, z0)]),
+	right: pts([P(x1, y0, z1), P(x1, y0, z0), P(x1, y1, z0), P(x1, y1, z1)]),
+});
+const { PX, PY0, PY1, ZR, ZB } = RL;
+// the horseshoe: the bend is behind the far rail, the poles reach to the front rail
+const bend = box(-PX, PX, -PY1, PY1, -ZB, -ZR - 18);
+const poleT = box(-PX, PX, PY0, PY1, -ZR - 18, ZR + 8);
+const poleB = box(-PX, PX, -PY1, -PY0, -ZR - 18, ZR + 8);
+const lblT = P(0, (PY0 + PY1) / 2, ZR + 8);
+const lblB = P(0, -(PY0 + PY1) / 2, ZR + 8);
+const rails = [-ZR, ZR].map((z) => ({ a: P(RL.X0, 0, z), b: P(RL.X1, 0, z), z }));
+const stops = [RL.X0 + 8, RL.X1 - 8].flatMap((x) => [-ZR, ZR].map((z) => box(x - 6, x + 6, 0, 14, z - 7, z + 7)));
+---
+
+<figure class="rl not-content" data-rail data-uid={uid}>
+	<svg class="rl__scene" viewBox={`0 0 ${RL.W} ${RL.H}`} role="img" aria-label="Проводник на рельсах между полюсами подковообразного магнита">
+		<defs>
+			{
+				['f', 'i', 'b'].map((k) => (
+					<marker id={`${uid}-${k}`} class={`rl__head rl__head--${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+						<path d="M0,0 L10,5 L0,10 z" />
+					</marker>
+				))
+			}
+		</defs>
+		<g data-magnet-back>
+			<polygon class="rl__face rl__face--bend-top" points={bend.top}></polygon>
+			<polygon class="rl__face rl__face--bend-side" points={bend.right}></polygon>
+			<polygon class="rl__face rl__face--bend" points={bend.front}></polygon>
+			<polygon class="rl__face" data-pb="top" points={poleB.top}></polygon>
+			<polygon class="rl__face" data-pb="side" points={poleB.right}></polygon>
+			<polygon class="rl__face" data-pb="front" points={poleB.front}></polygon>
+			<text class="rl__pole" x={lblB[0]} y={lblB[1] + 7} text-anchor="middle" data-lbl-b>S</text>
+		</g>
+		<g class="rl__field" data-field></g>
+		{rails.map((r) => <line class="rl__rail" x1={r.a[0]} y1={r.a[1]} x2={r.b[0]} y2={r.b[1]} />)}
+		{stops.map((b) => <><polygon class="rl__stop rl__stop--top" points={b.top} /><polygon class="rl__stop rl__stop--side" points={b.right} /><polygon class="rl__stop" points={b.front} /></>)}
+		<g class="rl__wires" data-wires></g>
+		<g data-rod></g>
+		<g data-arrows-low></g>
+		<g data-magnet-top>
+			<polygon class="rl__face" data-pt="top" points={poleT.top}></polygon>
+			<polygon class="rl__face" data-pt="side" points={poleT.right}></polygon>
+			<polygon class="rl__face" data-pt="front" points={poleT.front}></polygon>
+			<text class="rl__pole" x={lblT[0]} y={lblT[1] + 7} text-anchor="middle" data-lbl-t>N</text>
+		</g>
+		<g data-arrows></g>
+	</svg>
+
+	<div class="rl__predict" data-predict>
+		<span>Сначала предскажите: куда покатится проводник?</span>
+		<span class="rl__pbtns">
+			<button type="button" class="rl__chip" data-guess="-1">← влево</button>
+			<button type="button" class="rl__chip" data-guess="1">вправо →</button>
+		</span>
+	</div>
+
+	<div class="rl__controls">
+		<label class="rl__slider">
+			<span>Сила тока <i>I</i></span>
+			<output data-i-out>3 А</output>
+			<input type="range" min="1" max="5" step="0.5" value="3" data-i />
+		</label>
+		<label class="rl__check"><input type="checkbox" checked data-slow /> замедлить в 5 раз</label>
+		<div class="rl__buttons">
+			<button type="button" class="rl__btn rl__btn--primary" data-key>Замкнуть ключ</button>
+			<button type="button" class="rl__btn" data-flip-i>Поменять направление тока</button>
+			<button type="button" class="rl__btn" data-flip-m>Перевернуть магнит</button>
+			<button type="button" class="rl__btn" data-reset>Вернуть проводник</button>
+		</div>
+	</div>
+	<p class="rl__live" data-live aria-live="polite"></p>
+	<figcaption class="rl__legend">
+		<span class="rl__key rl__key--i"></span>направление тока <i>I</i>;
+		<span class="rl__key rl__key--b"></span>магнитные линии (от N к S);
+		<span class="rl__key rl__key--f"></span>сила <i>F</i>, с которой поле действует на проводник. Проводник — лёгкая алюминиевая трубка.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rl {
+		--rl-n: var(--ig-vx);
+		--rl-s: var(--ig-vy);
+		--rl-f: var(--ig-v);
+		--rl-i: var(--sl-color-green);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rl i {
+		font-family: var(--ig-font-math);
+	}
+	.rl__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.rl__face {
+		stroke: color-mix(in srgb, var(--sl-color-black) 35%, transparent);
+		stroke-width: 1;
+		stroke-linejoin: round;
+		transition: fill 0.4s;
+	}
+	.rl__face--bend {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 70%, var(--ig-surface));
+	}
+	.rl__face--bend-top {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 45%, var(--ig-surface));
+	}
+	.rl__face--bend-side {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 60%, var(--sl-color-black));
+	}
+	.rl__face.is-n {
+		fill: color-mix(in srgb, var(--rl-n) 78%, var(--ig-surface));
+	}
+	.rl__face.is-n.is-top {
+		fill: color-mix(in srgb, var(--rl-n) 92%, white);
+	}
+	.rl__face.is-n.is-side {
+		fill: color-mix(in srgb, var(--rl-n) 55%, var(--sl-color-black));
+	}
+	.rl__face.is-s {
+		fill: color-mix(in srgb, var(--rl-s) 78%, var(--ig-surface));
+	}
+	.rl__face.is-s.is-top {
+		fill: color-mix(in srgb, var(--rl-s) 88%, white);
+	}
+	.rl__face.is-s.is-side {
+		fill: color-mix(in srgb, var(--rl-s) 55%, var(--sl-color-black));
+	}
+	.rl__pole {
+		fill: white;
+		font-size: 20px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.rl__rail {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.rl__stop {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.rl__stop--top {
+		fill: var(--sl-color-gray-3);
+	}
+	.rl__stop--side {
+		fill: var(--sl-color-gray-5);
+	}
+	.rl__field line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+		stroke-dasharray: 4 4;
+	}
+	.rl__field .rl__ftip {
+		stroke-dasharray: none;
+	}
+	.rl__wires path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.2;
+		stroke-linejoin: round;
+	}
+	.rl__rod-body {
+		fill: color-mix(in srgb, var(--sl-color-gray-2) 85%, var(--ig-surface));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.rl__rod-end {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.rl__rod-hole {
+		fill: var(--sl-color-gray-5);
+	}
+	.rl__rod-shine {
+		stroke: white;
+		stroke-opacity: 0.55;
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.rl__vec {
+		stroke-width: 3.2;
+		stroke-linecap: round;
+	}
+	.rl__vec--f {
+		stroke: var(--rl-f);
+	}
+	.rl__vec--i {
+		stroke: var(--rl-i);
+		stroke-width: 2.6;
+	}
+	.rl__head--f path {
+		fill: var(--rl-f);
+	}
+	.rl__head--i path {
+		fill: var(--rl-i);
+	}
+	.rl__head--b path {
+		fill: var(--sl-color-gray-3);
+	}
+	.rl__lbl {
+		font-size: 20px;
+		font-style: italic;
+		font-family: var(--ig-font-math);
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 5px;
+		stroke-linejoin: round;
+	}
+	.rl__lbl--f {
+		fill: var(--rl-f);
+	}
+	.rl__lbl--i {
+		fill: var(--sl-color-green-high);
+	}
+	.rl__bat-body {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-4);
+	}
+	.rl__bat-plus {
+		fill: color-mix(in srgb, var(--rl-s) 70%, var(--ig-surface));
+		stroke: var(--sl-color-gray-4);
+	}
+	.rl__bat-txt {
+		fill: var(--sl-color-white);
+		font-size: 17px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.rl__knob {
+		fill: var(--sl-color-gray-2);
+	}
+	.rl__blade {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+		transition: transform 0.25s ease-out;
+	}
+	.rl__predict {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rl__pbtns {
+		display: inline-flex;
+		gap: 0.4rem;
+	}
+	.rl__chip {
+		margin: 0;
+		font: inherit;
+		padding: 0.3rem 0.8rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rl__chip.is-chosen {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.rl__controls {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+		align-items: end;
+	}
+	.rl__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rl__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.rl__check {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		white-space: nowrap;
+	}
+	.rl__check input {
+		accent-color: var(--sl-color-accent);
+	}
+	.rl__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.rl__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rl__btn:hover,
+	.rl__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.rl__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.rl__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rl__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.rl__key {
+		display: inline-block;
+		width: 1.1rem;
+		height: 3px;
+		margin: 0 0.3rem 0.2rem 0.4rem;
+		vertical-align: middle;
+		border-radius: 2px;
+	}
+	.rl__key:first-child {
+		margin-left: 0;
+	}
+	.rl__key--f {
+		background: var(--rl-f);
+	}
+	.rl__key--i {
+		background: var(--rl-i);
+	}
+	.rl__key--b {
+		background: repeating-linear-gradient(90deg, var(--sl-color-gray-3) 0 4px, transparent 4px 7px);
+	}
+	@media (max-width: 40rem) {
+		.rl {
+			padding: 0.75rem;
+		}
+		.rl__controls {
+			grid-template-columns: 1fr;
+		}
+		.rl__lbl {
+			font-size: 28px;
+		}
+		.rl__pole {
+			font-size: 26px;
+		}
+		.rl__bat-txt {
+			font-size: 24px;
+		}
+	}
+</style>
+
+<script>
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const RL = { CX: 300, CY: 176, AX: -0.42, AY: 0.28, X0: -240, X1: 220, ZR: 62, PX: 46, PY0: 58, PY1: 88 };
+	const P = (x: number, y: number, z: number): [number, number] => [RL.CX + x + z * RL.AX, RL.CY - y + z * RL.AY];
+	// physics, SI
+	const B0 = 0.1; // Тл
+	const LEN = 0.08; // м, the part of the tube in the field
+	const MASS = 0.005; // кг
+	const FRICT = 0.3; // м/с², rolling friction
+	const PXM = 1000; // px per metre (1 px = 1 mm)
+	const ROD_R = 7;
+	const XMIN = RL.X0 + 8 + 6 + ROD_R;
+	const XMAX = RL.X1 - 8 - 6 - ROD_R;
+	const FK = 14; // px of the force arrow per ampere
+
+	/** Field profile along the rails: 1 between the poles, fading to 0 within 25 mm outside. */
+	const fieldAt = (xpx: number) => {
+		const d = Math.abs(xpx) - RL.PX;
+		if (d <= 0) return 1;
+		if (d >= 25) return 0;
+		return Math.cos((d / 25) * (Math.PI / 2)) ** 2;
+	};
+
+	const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent?: Element) => {
+		const e = document.createElementNS(SVG_NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		parent?.append(e);
+		return e;
+	};
+	const line = (a: number[], b: number[]) => `M ${a[0].toFixed(1)} ${a[1].toFixed(1)} L ${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rail]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const uid = root.dataset.uid!;
+		const gRod = q<SVGGElement>('[data-rod]');
+		const gArrows = q<SVGGElement>('[data-arrows]');
+		const gLow = q<SVGGElement>('[data-arrows-low]');
+		const gField = q<SVGGElement>('[data-field]');
+		const gWires = q<SVGGElement>('[data-wires]');
+		const iIn = q<HTMLInputElement>('[data-i]');
+		const iOut = q<HTMLOutputElement>('[data-i-out]');
+		const slow = q<HTMLInputElement>('[data-slow]');
+		const keyBtn = q<HTMLButtonElement>('[data-key]');
+		const live = q<HTMLElement>('[data-live]');
+		const chips = root.querySelectorAll<HTMLButtonElement>('[data-guess]');
+
+		let x = 0; // px
+		let v = 0; // m/s
+		let on = false;
+		let curDir = 1; // +1: current along the tube towards the viewer (+z)
+		let nTop = true; // N pole on top: field points down
+		let guess = 0;
+		let judged = false;
+		let raf = 0;
+		let last = 0;
+
+		/** Force along x for a unit current: F = I l × B, I along ±z, B along ∓y. */
+		const forceSign = () => {
+			// (curDir·ẑ) × (By·ŷ) = −curDir·By·x̂
+			const By = nTop ? -1 : 1;
+			return -curDir * By;
+		};
+		const I = () => Number(iIn.value);
+
+		const paintPoles = () => {
+			const set = (sel: string, n: boolean) =>
+				root.querySelectorAll<SVGPolygonElement>(sel).forEach((p) => {
+					p.classList.toggle('is-n', n);
+					p.classList.toggle('is-s', !n);
+					p.classList.toggle('is-top', p.dataset.pt === 'top' || p.dataset.pb === 'top');
+					p.classList.toggle('is-side', p.dataset.pt === 'side' || p.dataset.pb === 'side');
+				});
+			set('[data-pt]', nTop);
+			set('[data-pb]', !nTop);
+			q<SVGTextElement>('[data-lbl-t]').textContent = nTop ? 'N' : 'S';
+			q<SVGTextElement>('[data-lbl-b]').textContent = nTop ? 'S' : 'N';
+			gField.replaceChildren();
+			for (const fx of [-28, 0, 28]) {
+				for (const fz of [-36, 34]) {
+					const a = P(fx, RL.PY0, fz);
+					const b = P(fx, -RL.PY0, fz);
+					el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1] }, gField);
+					const m = P(fx, nTop ? -6 : 6, fz);
+					const m0 = P(fx, nTop ? 0 : 0, fz);
+					el('line', { class: 'rl__ftip', x1: m0[0], y1: m0[1], x2: m[0], y2: m[1], 'marker-end': `url(#${uid}-b)` }, gField);
+				}
+			}
+		};
+
+		const drawWires = () => {
+			gWires.replaceChildren();
+			// battery to the right in front; «+» goes to the back rail when curDir = +1
+			const back = P(RL.X1, 0, -RL.ZR);
+			const front = P(RL.X1, 0, RL.ZR);
+			const bx = 470;
+			const by = 306;
+			el('path', { d: `M ${back[0]} ${back[1]} H ${back[0] + 24} V ${by} H ${bx + 52}` }, gWires);
+			const kx = front[0] + 14;
+			el('path', { d: `M ${front[0]} ${front[1]} H ${kx} V ${front[1] + 18}` }, gWires);
+			el('path', { d: `M ${kx} ${front[1] + 54} V ${by} H ${bx - 52}` }, gWires);
+			el('circle', { class: 'rl__knob', cx: kx, cy: front[1] + 18, r: 4 }, gWires);
+			el('circle', { class: 'rl__knob', cx: kx, cy: front[1] + 54, r: 4 }, gWires);
+			const blade = el('line', { class: 'rl__blade', x1: kx, y1: front[1] + 54, x2: kx, y2: front[1] + 16 }, gWires);
+			blade.style.transformOrigin = `${kx}px ${front[1] + 54}px`;
+			blade.style.transform = on ? 'rotate(0deg)' : 'rotate(-30deg)';
+			const g = el('g', {}, gWires);
+			const plusRight = curDir > 0; // «+» wired to the back rail sits on the right end of the battery
+			el('rect', { class: 'rl__bat-body', x: bx - 52, y: by - 15, width: 104, height: 30, rx: 6 }, g);
+			el('rect', { class: 'rl__bat-plus', x: plusRight ? bx + 18 : bx - 52, y: by - 15, width: 34, height: 30, rx: 6 }, g);
+			const tp = el('text', { class: 'rl__bat-txt', x: plusRight ? bx + 35 : bx - 35, y: by + 6, 'text-anchor': 'middle' }, g);
+			tp.textContent = '+';
+			const tm = el('text', { class: 'rl__bat-txt', x: plusRight ? bx - 30 : bx + 30, y: by + 6, 'text-anchor': 'middle' }, g);
+			tm.textContent = '−';
+		};
+
+		const drawRod = () => {
+			gRod.replaceChildren();
+			gArrows.replaceChildren();
+			gLow.replaceChildren();
+			const z0 = -RL.ZR - 12;
+			const z1 = RL.ZR + 12;
+			const a = P(x, ROD_R, z0);
+			const b = P(x, ROD_R, z1);
+			// tube: a band between the two silhouette lines + the front end
+			const nl = Math.hypot(RL.AX, RL.AY);
+			const nx = RL.AY / nl, ny = -RL.AX / nl; // unit normal to the projected axis of the tube
+			const r = ROD_R;
+			el('polygon', { class: 'rl__rod-body', points: `${a[0] + nx * r},${a[1] + ny * r} ${b[0] + nx * r},${b[1] + ny * r} ${b[0] - nx * r},${b[1] - ny * r} ${a[0] - nx * r},${a[1] - ny * r}` }, gRod);
+			el('line', { class: 'rl__rod-shine', x1: a[0] - nx * r * 0.45, y1: a[1] - ny * r * 0.45, x2: b[0] - nx * r * 0.45, y2: b[1] - ny * r * 0.45 }, gRod);
+			el('circle', { class: 'rl__rod-end', cx: b[0], cy: b[1], r }, gRod);
+			el('circle', { class: 'rl__rod-hole', cx: b[0], cy: b[1], r: r * 0.55 }, gRod);
+			// current along the tube
+			if (on) {
+				const c0 = P(x, ROD_R + 16, curDir > 0 ? -30 : 34);
+				const c1 = P(x, ROD_R + 16, curDir > 0 ? 34 : -30);
+				el('line', { class: 'rl__vec rl__vec--i', x1: c0[0], y1: c0[1], x2: c1[0], y2: c1[1], 'marker-end': `url(#${uid}-i)` }, gArrows);
+				const tl = el('text', { class: 'rl__lbl rl__lbl--i', x: c1[0] - 20, y: c1[1] + 4 }, gArrows);
+				tl.textContent = 'I';
+				const f = forceSign() * I() * fieldAt(x);
+				if (Math.abs(f) > 0.05) {
+					const p0 = P(x, ROD_R, RL.ZR + 30);
+					const p1 = [p0[0] + f * FK, p0[1]];
+					el('line', { class: 'rl__vec rl__vec--f', x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1], 'marker-end': `url(#${uid}-f)` }, gArrows);
+					const t = el('text', { class: 'rl__lbl rl__lbl--f', x: p1[0] + (f > 0 ? 6 : -18), y: p1[1] - 8 }, gArrows);
+					t.textContent = 'F';
+				}
+			}
+		};
+
+		const msg = () => {
+			if (!on) return 'Ключ разомкнут — тока нет, проводник лежит неподвижно.';
+			const dir = forceSign() > 0 ? 'вправо' : 'влево';
+			if (Math.abs(v) < 1e-4 && fieldAt(x) < 0.02) {
+				return 'Проводник выкатился из магнита и остановился. Вдали от полюсов магнитного поля почти нет, поэтому и сила на проводник почти не действует. Нажмите «Вернуть проводник».';
+			}
+			if (fieldAt(x) < 0.02) return 'Проводник выкатился из магнита и катится дальше по инерции.';
+			return `Ток идёт — поле толкает проводник ${dir}.`;
+		};
+
+		const judge = () => {
+			if (!guess || judged) return '';
+			judged = true;
+			return guess === forceSign() ? ' Ваше предсказание верно!' : ' Предсказание не сбылось — посмотрите, как направлены ток и магнитные линии.';
+		};
+		let verdict = '';
+
+		const frame = (now: number) => {
+			const dtReal = Math.min((now - last) / 1000, 0.05);
+			last = now;
+			const dt = dtReal / (slow.checked ? 5 : 1);
+			const steps = 20;
+			for (let k = 0; k < steps; k++) {
+				const h = dt / steps;
+				const F = on ? forceSign() * B0 * I() * LEN * fieldAt(x) : 0;
+				let a = F / (2 * MASS);
+				if (v !== 0) a -= FRICT * Math.sign(v);
+				else if (Math.abs(a) <= FRICT) a = 0;
+				else a -= FRICT * Math.sign(a);
+				const v1 = v + a * h;
+				v = v !== 0 && Math.sign(v1) !== Math.sign(v) ? 0 : v1;
+				x += v * h * PXM;
+				if (x < XMIN) {
+					x = XMIN;
+					v = Math.abs(v) * 0.25 < 0.02 ? 0 : -v * 0.25;
+				}
+				if (x > XMAX) {
+					x = XMAX;
+					v = Math.abs(v) * 0.25 < 0.02 ? 0 : -v * 0.25;
+				}
+			}
+			if (on && Math.abs(v) > 1e-3 && !verdict) verdict = judge();
+			drawRod();
+			live.textContent = msg() + verdict;
+			const moving = Math.abs(v) > 1e-5 || (on && fieldAt(x) > 0);
+			raf = moving ? requestAnimationFrame(frame) : 0;
+			if (!moving) live.textContent = msg() + verdict;
+		};
+		const kick = () => {
+			if (!raf) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		};
+
+		const reset = () => {
+			x = 0;
+			v = 0;
+			on = false;
+			judged = false;
+			verdict = '';
+			keyBtn.textContent = 'Замкнуть ключ';
+			drawWires();
+			drawRod();
+			live.textContent = msg();
+		};
+
+		keyBtn.addEventListener('click', () => {
+			on = !on;
+			keyBtn.textContent = on ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+			drawWires();
+			drawRod();
+			if (reduceMotion.matches) slow.checked = true;
+			kick();
+		});
+		q<HTMLButtonElement>('[data-flip-i]').addEventListener('click', () => {
+			curDir = -curDir;
+			drawWires();
+			drawRod();
+			kick();
+		});
+		q<HTMLButtonElement>('[data-flip-m]').addEventListener('click', () => {
+			nTop = !nTop;
+			paintPoles();
+			drawRod();
+			kick();
+		});
+		q<HTMLButtonElement>('[data-reset]').addEventListener('click', reset);
+		iIn.addEventListener('input', () => {
+			const i = Number(iIn.value);
+			iOut.value = `${i.toLocaleString('ru-RU')} А`;
+			drawRod();
+		});
+		chips.forEach((c) =>
+			c.addEventListener('click', () => {
+				guess = Number(c.dataset.guess);
+				chips.forEach((o) => o.classList.toggle('is-chosen', o === c));
+				judged = false;
+				verdict = '';
+			}),
+		);
+
+		paintPoles();
+		reset();
+	}
+</script>

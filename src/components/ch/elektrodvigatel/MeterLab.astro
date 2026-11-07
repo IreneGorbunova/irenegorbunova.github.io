@@ -1,0 +1,344 @@
+---
+/**
+ * A moving-coil meter (demonstration galvanometer with the zero in the middle), front view.
+ * The coil turns in the gap between the concave poles and an iron core, where the magnetic lines are radial:
+ * the forces on the coil sides are always tangential, so the turning moment is proportional to the current
+ * and does not depend on the angle. The spiral spring gives a moment proportional to the angle, hence
+ * the deflection is proportional to the current. The needle is a damped oscillator.
+ */
+const uid = `gm-${Math.random().toString(36).slice(2, 8)}`;
+const C = { W: 420, H: 330, X: 210, Y: 220, RS: 168, RC: 36, RG: 58, RP: 66, A: 50 };
+const rad = (d: number) => (d * Math.PI) / 180;
+const at = (r: number, deg: number) => [C.X + r * Math.sin(rad(deg)), C.Y - r * Math.cos(rad(deg))];
+const ticks = Array.from({ length: 21 }, (_, k) => k - 10).map((v) => {
+	const deg = (v / 10) * C.A;
+	const big = v % 2 === 0;
+	const a = at(C.RS, deg);
+	const b = at(C.RS - (big ? 14 : 8), deg);
+	const t = at(C.RS + 14, deg);
+	return { a, b, t, big, label: big ? String(v / 2).replace('-', '−') : '' };
+});
+const arc = (r: number, d0: number, d1: number) => {
+	const a = at(r, d0);
+	const b = at(r, d1);
+	return `M ${a[0]} ${a[1]} A ${r} ${r} 0 0 1 ${b[0]} ${b[1]}`;
+};
+// concave pole pieces: N on the left, S on the right
+const pole = (side: -1 | 1) => {
+	const x0 = C.X + side * C.RP;
+	const xo = C.X + side * (C.RP + 44);
+	const top = C.Y - 52;
+	const bot = C.Y + 52;
+	const yy = Math.sqrt(C.RP * C.RP - 52 * 52);
+	const xi = C.X + side * yy;
+	return `M ${xo} ${top} L ${xi} ${top} A ${C.RP} ${C.RP} 0 0 ${side > 0 ? 1 : 0} ${xi} ${bot} L ${xo} ${bot} Z`;
+};
+const radial = [-40, -15, 15, 40].flatMap((d) => [
+	{ a: at(C.RP - 1, -90 + d), b: at(C.RC + 1, -90 + d) },
+	{ a: at(C.RC + 1, 90 + d), b: at(C.RP - 1, 90 + d) },
+]);
+---
+
+<figure class="gm not-content" data-meter data-uid={uid}>
+	<div class="gm__wrap">
+		<svg class="gm__svg" viewBox={`0 0 ${C.W} ${C.H}`} role="img" aria-label="Устройство гальванометра: катушка между полюсами магнита, пружина и стрелка">
+			<defs>
+				{
+					['f', 'b'].map((k) => (
+						<marker id={`${uid}-${k}`} class={`gm__head gm__head--${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+							<path d="M0,0 L10,5 L0,10 z" />
+						</marker>
+					))
+				}
+			</defs>
+			<path class="gm__dial" d={`${arc(C.RS + 30, -C.A - 8, C.A + 8)} L ${at(C.RS - 26, C.A + 8)[0]} ${at(C.RS - 26, C.A + 8)[1]} ${arc(C.RS - 26, C.A + 8, -C.A - 8).replace('0 0 1', '0 0 0').replace(/^M/, 'L')} Z`}></path>
+			<path class="gm__scale" d={arc(C.RS, -C.A, C.A)}></path>
+			{ticks.map((t) => <line class={t.big ? 'gm__tick gm__tick--big' : 'gm__tick'} x1={t.a[0]} y1={t.a[1]} x2={t.b[0]} y2={t.b[1]} />)}
+			{ticks.filter((t) => t.label).map((t) => <text class="gm__num" x={t.t[0]} y={t.t[1] + 5} text-anchor="middle">{t.label}</text>)}
+			<text class="gm__unit" x={C.X} y={C.Y - C.RS + 44} text-anchor="middle">мА</text>
+
+			<path class="gm__pole gm__pole--n" d={pole(-1)}></path>
+			<path class="gm__pole gm__pole--s" d={pole(1)}></path>
+			<text class="gm__pl" x={C.X - C.RP - 24} y={C.Y + 7} text-anchor="middle">N</text>
+			<text class="gm__pl" x={C.X + C.RP + 24} y={C.Y + 7} text-anchor="middle">S</text>
+			<g class="gm__field">
+				{radial.map((l) => <line x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} marker-end={`url(#${uid}-b)`} />)}
+			</g>
+			<circle class="gm__core" cx={C.X} cy={C.Y} r={C.RC}></circle>
+			<g data-dyn></g>
+		</svg>
+	</div>
+	<div class="gm__controls">
+		<label class="gm__slider">
+			<span>Сила тока через прибор <i>I</i></span>
+			<output data-out>2 мА</output>
+			<input type="range" min="-5" max="5" step="0.5" value="2" data-i />
+		</label>
+	</div>
+	<figcaption class="gm__legend">
+		Стрелка прикреплена к лёгкой катушке, которая может поворачиваться вокруг оси. Железный цилиндр в середине — сердечник. Спиральная пружина у оси закручивается, когда катушка поворачивается, и возвращает стрелку к нулю, когда тока нет. <span class="gm__k"></span><i>F</i> — силы, действующие на стороны катушки.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.gm {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.gm i {
+		font-family: var(--ig-font-math);
+	}
+	.gm__wrap {
+		max-width: 30rem;
+		margin-inline: auto;
+	}
+	.gm__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.gm__dial {
+		fill: color-mix(in srgb, var(--sl-color-gray-6) 60%, var(--ig-surface));
+		stroke: var(--sl-color-gray-5);
+	}
+	.gm__scale {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.gm__tick {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.gm__tick--big {
+		stroke-width: 2;
+	}
+	.gm__num {
+		fill: var(--sl-color-gray-1);
+		font-size: 16px;
+		font-family: var(--__sl-font);
+	}
+	.gm__unit {
+		fill: var(--sl-color-gray-3);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.gm__pole {
+		stroke: color-mix(in srgb, var(--sl-color-black) 35%, transparent);
+	}
+	.gm__pole--n {
+		fill: color-mix(in srgb, var(--ig-vx) 78%, var(--ig-surface));
+	}
+	.gm__pole--s {
+		fill: color-mix(in srgb, var(--ig-vy) 78%, var(--ig-surface));
+	}
+	.gm__pl {
+		fill: white;
+		font-size: 20px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.gm__core {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 55%, var(--ig-surface));
+		stroke: var(--sl-color-gray-4);
+	}
+	.gm__field line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.1;
+		stroke-dasharray: 3 3;
+	}
+	.gm__head--b path {
+		fill: var(--sl-color-gray-3);
+	}
+	.gm__head--f path {
+		fill: var(--ig-v);
+	}
+	.gm__coil {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.gm__side {
+		fill: var(--ig-surface);
+		stroke: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		stroke-width: 2.5;
+	}
+	.gm__mark {
+		stroke: var(--sl-color-green);
+		fill: var(--sl-color-green);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.gm__needle {
+		stroke: var(--sl-color-white);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.gm__hub {
+		fill: var(--sl-color-white);
+	}
+	.gm__spring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.gm__f {
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.gm__controls {
+		margin-top: 0.5rem;
+	}
+	.gm__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.gm__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.gm__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.gm__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.gm__k {
+		display: inline-block;
+		width: 1.1rem;
+		height: 3px;
+		margin: 0 0.3rem 0.2rem 0;
+		vertical-align: middle;
+		border-radius: 2px;
+		background: var(--ig-v);
+	}
+	@media (max-width: 40rem) {
+		.gm {
+			padding: 0.75rem;
+		}
+		.gm__num {
+			font-size: 20px;
+		}
+		.gm__pl {
+			font-size: 24px;
+		}
+	}
+</style>
+
+<script>
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const C = { X: 210, Y: 220, RS: 168, RC: 36, RG: 51, A: 50 };
+	const W0 = 2 * Math.PI * 1.6; // natural angular frequency of the needle, 1/s
+	const ZETA = 0.28; // damping ratio
+	const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent?: Element) => {
+		const e = document.createElementNS(SVG_NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		parent?.append(e);
+		return e;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-meter]')) {
+		const uid = root.dataset.uid!;
+		const g = root.querySelector<SVGGElement>('[data-dyn]')!;
+		const iIn = root.querySelector<HTMLInputElement>('[data-i]')!;
+		const out = root.querySelector<HTMLOutputElement>('[data-out]')!;
+		let th = 0; // needle angle, degrees (clockwise from the vertical)
+		let om = 0;
+		let raf = 0;
+		let last = 0;
+		const target = () => (Number(iIn.value) / 5) * C.A;
+
+		const draw = () => {
+			g.replaceChildren();
+			const i = Number(iIn.value);
+			const t = (th * Math.PI) / 180;
+			// coil sides: at zero they sit left and right of the core
+			const side = (s: number) => [C.X + s * C.RG * Math.cos(t), C.Y + s * C.RG * Math.sin(t)];
+			const L = side(-1);
+			const R = side(1);
+			// spiral spring around the hub: one end fixed, the other turns with the coil
+			let d = '';
+			for (let k = 0; k <= 90; k++) {
+				const u = k / 90; // 0 at the axis, 1 at the fixed outer end
+				const ang = -Math.PI / 2 + (u - 1) * 2.5 * 2 * Math.PI + (1 - u) * t;
+				const r = 7 + u * 21;
+				d += `${k ? 'L' : 'M'} ${(C.X + r * Math.cos(ang)).toFixed(1)} ${(C.Y + r * Math.sin(ang)).toFixed(1)} `;
+			}
+			el('path', { class: 'gm__spring', d }, g);
+			el('path', { class: 'gm__coil', d: `M ${L[0]} ${L[1]} L ${R[0]} ${R[1]}` }, g);
+			// forces: tangential, proportional to the current
+			if (Math.abs(i) > 0.01) {
+				for (const s of [-1, 1]) {
+					const p = side(s);
+					// tangent for clockwise turning at the side s
+					const tx = -s * Math.sin(t);
+					const ty = s * Math.cos(t);
+					const sg = Math.sign(i);
+					const len = 7 * Math.abs(i);
+					el('line', { class: 'gm__f', x1: p[0], y1: p[1], x2: p[0] + sg * tx * len, y2: p[1] + sg * ty * len, 'marker-end': `url(#${uid}-f)` }, g);
+				}
+			}
+			for (const s of [-1, 1]) {
+				const [x, y] = side(s);
+				el('circle', { class: 'gm__side', cx: x, cy: y, r: 8 }, g);
+				// positive current: towards the viewer in the left side, away in the right side
+				const towards = Math.sign(Number(iIn.value)) * -s;
+				if (towards > 0) el('circle', { class: 'gm__mark', cx: x, cy: y, r: 2.4 }, g);
+				else if (towards < 0) el('path', { class: 'gm__mark', d: `M ${x - 4.5} ${y - 4.5} L ${x + 4.5} ${y + 4.5} M ${x + 4.5} ${y - 4.5} L ${x - 4.5} ${y + 4.5}` }, g);
+			}
+			const tip = [C.X + (C.RS - 4) * Math.sin(t), C.Y - (C.RS - 4) * Math.cos(t)];
+			el('line', { class: 'gm__needle', x1: C.X - 18 * Math.sin(t), y1: C.Y + 18 * Math.cos(t), x2: tip[0], y2: tip[1] }, g);
+			el('circle', { class: 'gm__hub', cx: C.X, cy: C.Y, r: 5 }, g);
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.04);
+			last = now;
+			const n = 20;
+			for (let k = 0; k < n; k++) {
+				const h = dt / n;
+				const a = W0 * W0 * (target() - th) - 2 * ZETA * W0 * om;
+				om += a * h;
+				th += om * h;
+			}
+			th = Math.max(-C.A - 6, Math.min(C.A + 6, th)); // the stops at the ends of the scale
+			draw();
+			if (Math.abs(target() - th) > 0.02 || Math.abs(om) > 0.05) raf = requestAnimationFrame(frame);
+			else {
+				th = target();
+				om = 0;
+				draw();
+				raf = 0;
+			}
+		};
+		iIn.addEventListener('input', () => {
+			const i = Number(iIn.value);
+			out.value = `${i.toLocaleString('ru-RU').replace('-', '−')} мА`;
+			if (reduceMotion.matches) {
+				th = target();
+				draw();
+				return;
+			}
+			if (!raf) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		});
+		th = target();
+		draw();
+	}
+</script>

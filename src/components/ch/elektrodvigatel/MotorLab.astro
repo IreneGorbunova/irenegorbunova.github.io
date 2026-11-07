@@ -1,0 +1,1010 @@
+---
+/**
+ * Main model of the chapter: a DC motor with one frame (armature), a commutator and brushes.
+ * Left: the motor in an oblique projection (the frame turns in its true shape). Right: the view along
+ * the axis with the forces, the arm and the turning direction. Physics and geometry: ./motor.ts.
+ * The frame can be grabbed and turned by hand at any time; «Пауза» freezes the motion.
+ */
+import { M, P } from './motor';
+
+const uid = `mot-${Math.random().toString(36).slice(2, 8)}`;
+const pt = (p: [number, number]) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+const poly = (pts: [number, number][]) => pts.map(pt).join(' ');
+
+/** Visible faces (front, top, right) of a box x0..x1, y0..y1, z0..z1. */
+const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) => ({
+	front: poly([P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1)]),
+	top: poly([P(x0, y1, z1), P(x1, y1, z1), P(x1, y1, z0), P(x0, y1, z0)]),
+	right: poly([P(x1, y0, z1), P(x1, y0, z0), P(x1, y1, z0), P(x1, y1, z1)]),
+});
+const { RP, PW, PH, D, BASE } = M;
+const base = box(-RP - PW, RP + PW, -PH - BASE, -PH, -D, D);
+const poleN = box(-RP - PW, -RP, -PH, PH, -D, D);
+const poleS = box(RP, RP + PW, -PH, PH, -D, D);
+const lblN = P(-RP - PW / 2, 0, D);
+const lblS = P(RP + PW / 2, 0, D);
+const fieldY = [-62, -22, 22, 62];
+const fieldLines = fieldY.map((y) => ({ a: P(-RP, y, -10), b: P(RP, y, -10), m: P(-RP / 2 - 30, y, -10), m2: P(RP / 2 + 30, y, -10) }));
+const shaftA = P(0, 0, -146);
+const lblC = P(0, -M.RC, M.ZC);
+const lblB = P(M.RC + 22, 0, M.ZC);
+const shaftB = P(0, 0, M.ZC + 24);
+
+// end view (right panel)
+const E = { W: 260, H: 260, C: 130, r: 66, RP: 98, PW: 24, PH: 92 };
+const eField = [-62, -24, 24, 62];
+---
+
+<figure class="mot not-content" data-motor>
+	<div class="mot__views">
+		<svg class="mot__scene" viewBox={`0 0 ${M.W} ${M.H}`} role="group" aria-label="Электродвигатель: рамка между полюсами подковообразного магнита, коллектор, щётки и батарея" data-scene>
+			<defs>
+				{
+					['f', 'i', 'b'].map((k) => (
+						<marker id={`${uid}-${k}`} class={`mot__head mot__head--${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+							<path d="M0,0 L10,5 L0,10 z" />
+						</marker>
+					))
+				}
+			</defs>
+
+			<g class="mot__magnet">
+				<polygon class="mot__face mot__face--base-top" points={base.top}></polygon>
+				<polygon class="mot__face mot__face--base-side" points={base.right}></polygon>
+				<polygon class="mot__face mot__face--base" points={base.front}></polygon>
+				<polygon class="mot__face mot__face--n-top" points={poleN.top}></polygon>
+				<polygon class="mot__face mot__face--n-side" points={poleN.right}></polygon>
+				<polygon class="mot__face mot__face--n" points={poleN.front}></polygon>
+				<polygon class="mot__face mot__face--s-top" points={poleS.top}></polygon>
+				<polygon class="mot__face mot__face--s-side" points={poleS.right}></polygon>
+				<polygon class="mot__face mot__face--s" points={poleS.front}></polygon>
+				<text class="mot__pole" x={lblN[0]} y={lblN[1] + 9} text-anchor="middle">N</text>
+				<text class="mot__pole" x={lblS[0]} y={lblS[1] + 9} text-anchor="middle">S</text>
+			</g>
+			<g class="mot__field">
+				{
+					fieldLines.map((l) => (
+						<>
+							<line x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} />
+							<line class="mot__field-tip" x1={l.m[0] - 6} y1={l.m[1]} x2={l.m[0]} y2={l.m[1]} marker-end={`url(#${uid}-b)`} />
+							<line class="mot__field-tip" x1={l.m2[0] - 6} y1={l.m2[1]} x2={l.m2[0]} y2={l.m2[1]} marker-end={`url(#${uid}-b)`} />
+						</>
+					))
+				}
+			</g>
+			<line class="mot__shaft" x1={shaftA[0]} y1={shaftA[1]} x2={shaftB[0]} y2={shaftB[1]}></line>
+
+			<g data-frame-back></g>
+			<g class="mot__frame" data-frame></g>
+			<path class="mot__flow" data-flow></path>
+			<g data-front></g>
+			<g class="mot__wires" data-wires></g>
+			<g data-battery></g>
+			<g class="mot__names" aria-hidden="true">
+				<line x1={lblC[0] - 4} y1={lblC[1] + 6} x2={lblC[0] - 40} y2={lblC[1] + 44}></line>
+				<text x={lblC[0] - 44} y={lblC[1] + 60} text-anchor="middle">коллектор</text>
+				<line x1={lblB[0] - 6} y1={lblB[1] + 8} x2={lblB[0] + 12} y2={lblB[1] + 40}></line>
+				<text x={lblB[0] + 16} y={lblB[1] + 56} text-anchor="middle">щётка</text>
+			</g>
+			<g data-arrows></g>
+			<circle class="mot__grab" cx={M.CX} cy={M.CY} r={M.r + 34} data-grab></circle>
+		</svg>
+
+		<div class="mot__side">
+			<svg class="mot__end" viewBox={`0 0 ${E.W} ${E.H}`} role="img" aria-label="Вид вдоль оси: силы, действующие на стороны рамки, и их плечи" data-end>
+				<defs>
+					{
+						['f', 'b', 't'].map((k) => (
+							<marker id={`${uid}-e${k}`} class={`mot__head mot__head--${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+								<path d="M0,0 L10,5 L0,10 z" />
+							</marker>
+						))
+					}
+				</defs>
+				<rect class="mot__face mot__face--n" x={E.C - E.RP - E.PW} y={E.C - E.PH} width={E.PW} height={2 * E.PH} rx="3"></rect>
+				<rect class="mot__face mot__face--s" x={E.C + E.RP} y={E.C - E.PH} width={E.PW} height={2 * E.PH} rx="3"></rect>
+				<text class="mot__pole mot__pole--sm" x={E.C - E.RP - E.PW / 2} y={E.C + 6} text-anchor="middle">N</text>
+				<text class="mot__pole mot__pole--sm" x={E.C + E.RP + E.PW / 2} y={E.C + 6} text-anchor="middle">S</text>
+				<g class="mot__field">
+					{eField.map((y) => <line x1={E.C - E.RP} y1={E.C - y} x2={E.C + E.RP} y2={E.C - y} />)}
+					{eField.map((y) => <line class="mot__field-tip" x1={E.C + 52} y1={E.C - y} x2={E.C + 58} y2={E.C - y} marker-end={`url(#${uid}-eb)`} />)}
+				</g>
+				<circle class="mot__orbit" cx={E.C} cy={E.C} r={E.r}></circle>
+				<g data-end-dyn></g>
+				<circle class="mot__grab" cx={E.C} cy={E.C} r={E.r + 26} data-grab-end></circle>
+			</svg>
+			<p class="mot__endcap">Вид спереди, вдоль оси. <span class="mot__sym">⊗</span> — ток уходит от нас, <span class="mot__sym">⊙</span> — идёт к нам; <i>l</i> — плечо силы.</p>
+		</div>
+	</div>
+
+	<div class="mot__controls">
+		<label class="mot__slider">
+			<span>Напряжение <i>U</i></span>
+			<output data-u-out>4,5 В</output>
+			<input type="range" min="0" max="6" step="0.5" value="4.5" data-u />
+		</label>
+		<div class="mot__seg" role="group" aria-label="Как рамка соединена со щётками">
+			<button type="button" class="mot__segbtn is-on" data-mode="comm" aria-pressed="true">С коллектором</button>
+			<button type="button" class="mot__segbtn" data-mode="rings" aria-pressed="false">Без коллектора</button>
+		</div>
+		<div class="mot__buttons">
+			<button type="button" class="mot__btn mot__btn--primary" data-key>Замкнуть ключ</button>
+			<button type="button" class="mot__btn" data-flip>Поменять полюсы батареи</button>
+			<button type="button" class="mot__btn" data-pause>Пауза</button>
+		</div>
+	</div>
+
+	<dl class="mot__stats">
+		<div><dt>Сила тока <i>I</i></dt><dd data-i>0 А</dd></div>
+		<div><dt>Частота вращения</dt><dd data-n>0 об/с</dd></div>
+		<div><dt>Направление</dt><dd data-dir>—</dd></div>
+	</dl>
+	<p class="mot__live" data-live aria-live="polite"></p>
+
+	<figcaption class="mot__legend">
+		<span class="mot__key mot__key--f"></span><i>F</i> — силы, с которыми поле действует на стороны рамки;
+		<span class="mot__key mot__key--i"></span>бегущие штрихи показывают направление тока;
+		<span class="mot__key mot__key--b"></span>магнитные линии. Рамку можно повернуть мышкой или пальцем. Модель вращается гораздо медленнее настоящего двигателя, чтобы всё было видно.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.mot {
+		--mot-n: var(--ig-vx);
+		--mot-s: var(--ig-vy);
+		--mot-f: var(--ig-v);
+		--mot-i: var(--sl-color-green);
+		--mot-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.mot i {
+		font-family: var(--ig-font-math);
+	}
+	.mot__views {
+		display: grid;
+		grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
+		gap: 0.75rem;
+		align-items: center;
+	}
+	.mot__scene,
+	.mot__end {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: pan-y;
+	}
+	.mot__side {
+		min-width: 0;
+	}
+	.mot__endcap {
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		line-height: 1.4;
+	}
+	.mot__sym {
+		font-family: var(--ig-font-math);
+		color: var(--mot-i);
+	}
+
+	.mot__face {
+		stroke: color-mix(in srgb, var(--sl-color-black) 35%, transparent);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.mot__face--n {
+		fill: color-mix(in srgb, var(--mot-n) 78%, var(--ig-surface));
+	}
+	.mot__face--n-top {
+		fill: color-mix(in srgb, var(--mot-n) 92%, white);
+	}
+	.mot__face--n-side {
+		fill: color-mix(in srgb, var(--mot-n) 55%, var(--sl-color-black));
+	}
+	.mot__face--s {
+		fill: color-mix(in srgb, var(--mot-s) 78%, var(--ig-surface));
+	}
+	.mot__face--s-top {
+		fill: color-mix(in srgb, var(--mot-s) 88%, white);
+	}
+	.mot__face--s-side {
+		fill: color-mix(in srgb, var(--mot-s) 55%, var(--sl-color-black));
+	}
+	.mot__face--base {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 70%, var(--ig-surface));
+	}
+	.mot__face--base-top {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 40%, var(--ig-surface));
+	}
+	.mot__face--base-side {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 60%, var(--sl-color-black));
+	}
+	.mot__pole {
+		fill: white;
+		font-size: 28px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.mot__pole--sm {
+		font-size: 18px;
+	}
+	.mot__field line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 5;
+		opacity: 0.8;
+	}
+	.mot__field .mot__field-tip {
+		stroke-dasharray: none;
+		opacity: 1;
+	}
+	.mot__shaft {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 7;
+		stroke-linecap: round;
+	}
+	.mot__wire-cu {
+		fill: none;
+		stroke: var(--mot-cu);
+		stroke-width: 6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.mot__wire-back {
+		fill: none;
+		stroke: color-mix(in srgb, var(--mot-cu) 65%, var(--sl-color-black));
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.mot__flow {
+		fill: none;
+		stroke: var(--mot-i);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-dasharray: 3 13;
+	}
+	.mot__ring {
+		fill: none;
+		stroke-width: 9;
+	}
+	.mot__ring--a {
+		stroke: var(--mot-cu);
+	}
+	.mot__ring--b {
+		stroke: color-mix(in srgb, var(--mot-cu) 70%, white);
+	}
+	.mot__ring-back {
+		fill: none;
+		stroke-width: 9;
+		stroke: color-mix(in srgb, var(--mot-cu) 55%, var(--sl-color-black));
+	}
+	.mot__brush {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.mot__wires path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.2;
+		stroke-linejoin: round;
+	}
+	.mot__bat {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+	}
+	.mot__bat-body {
+		fill: var(--sl-color-gray-6);
+	}
+	.mot__bat-plus {
+		fill: color-mix(in srgb, var(--mot-s) 70%, var(--ig-surface));
+	}
+	.mot__bat-cap {
+		fill: var(--sl-color-gray-3);
+	}
+	.mot__bat-txt {
+		fill: var(--sl-color-white);
+		font-size: 17px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		stroke: none;
+	}
+	.mot__bat-u {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+		stroke: none;
+	}
+	.mot__keyknob {
+		fill: var(--sl-color-gray-2);
+	}
+	.mot__keyblade {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+		transition: transform 0.25s ease-out;
+	}
+	.mot__vec {
+		stroke-width: 3.2;
+		stroke-linecap: round;
+	}
+	.mot__vec--f {
+		stroke: var(--mot-f);
+	}
+	.mot__vec--i {
+		stroke: var(--mot-i);
+		stroke-width: 2.4;
+	}
+	.mot__head--f path {
+		fill: var(--mot-f);
+	}
+	.mot__head--i path {
+		fill: var(--mot-i);
+	}
+	.mot__head--b path {
+		fill: var(--sl-color-gray-3);
+	}
+	.mot__head--t path {
+		fill: var(--sl-color-white);
+	}
+	.mot__lbl {
+		font-size: 19px;
+		font-style: italic;
+		font-family: var(--ig-font-math);
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 5px;
+		stroke-linejoin: round;
+	}
+	.mot__lbl--f {
+		fill: var(--mot-f);
+	}
+	.mot__lbl--d {
+		fill: var(--sl-color-gray-2);
+	}
+	.mot__names line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.mot__names text {
+		fill: var(--sl-color-gray-1);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 5px;
+		stroke-linejoin: round;
+	}
+	.mot__grab {
+		fill: transparent;
+		cursor: grab;
+	}
+	.mot.is-dragging .mot__grab {
+		cursor: grabbing;
+	}
+	.mot__orbit {
+		fill: none;
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 5;
+	}
+	.mot__eframe {
+		stroke: var(--mot-cu);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.mot__eside {
+		fill: var(--ig-surface);
+		stroke: var(--mot-cu);
+		stroke-width: 2.5;
+	}
+	.mot__emark {
+		stroke: var(--mot-i);
+		stroke-width: 2.2;
+		fill: var(--mot-i);
+		stroke-linecap: round;
+	}
+	.mot__arm {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+		stroke-dasharray: 4 3;
+	}
+	.mot__fline {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 2 4;
+	}
+	.mot__turn {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+
+	.mot__controls {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+		align-items: end;
+	}
+	.mot__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mot__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.mot__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.mot__seg {
+		display: inline-flex;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.mot__segbtn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.45rem 0.9rem;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.mot__segbtn.is-on {
+		background: var(--sl-color-accent-low);
+		color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.mot__buttons {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.mot__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.mot__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.mot__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.mot__stats {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
+		margin: 1rem 0 0;
+	}
+	.mot__stats > div {
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.mot__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.mot__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.mot__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mot__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.mot__key {
+		display: inline-block;
+		width: 1.1rem;
+		height: 3px;
+		margin: 0 0.3rem 0.2rem 0.4rem;
+		vertical-align: middle;
+		border-radius: 2px;
+	}
+	.mot__key:first-child {
+		margin-left: 0;
+	}
+	.mot__key--f {
+		background: var(--mot-f);
+	}
+	.mot__key--i {
+		background: repeating-linear-gradient(90deg, var(--mot-i) 0 3px, transparent 3px 7px);
+	}
+	.mot__key--b {
+		background: repeating-linear-gradient(90deg, var(--sl-color-gray-3) 0 4px, transparent 4px 7px);
+	}
+
+	@media (max-width: 50rem) {
+		.mot__views {
+			grid-template-columns: 1fr;
+		}
+		.mot__side {
+			display: grid;
+			grid-template-columns: 9.5rem 1fr;
+			gap: 0.75rem;
+			align-items: center;
+		}
+	}
+	@media (max-width: 40rem) {
+		.mot {
+			padding: 0.75rem;
+		}
+		.mot__controls {
+			grid-template-columns: 1fr;
+		}
+		.mot__stats {
+			grid-template-columns: 1fr;
+		}
+		.mot__stats > div {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+		}
+		.mot__stats dd {
+			font-size: var(--sl-text-lg);
+		}
+		.mot__lbl {
+			font-size: 26px;
+		}
+		.mot__pole {
+			font-size: 34px;
+		}
+		.mot__names text {
+			font-size: 20px;
+		}
+		.mot__bat-txt {
+			font-size: 24px;
+		}
+		.mot__bat-u {
+			font-size: 20px;
+		}
+	}
+</style>
+
+<script>
+	import { M, P, PH, step, current, armFactor, onGap, type Pt, type State } from './motor';
+
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const DT = 1 / 600;
+	const FK = 20; // force arrow, px per ampere
+	const FLOW = 55; // speed of the current dashes, px/s per ampere
+	const E = { C: 130, r: 66 };
+
+	const fmt = (v: number, d = 1) => v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
+	const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent?: Element) => {
+		const e = document.createElementNS(SVG_NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		parent?.append(e);
+		return e;
+	};
+	const path = (pts: Pt[]) => pts.map((p, k) => `${k ? 'L' : 'M'} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+	const arcPts = (cx: number, cy: number, z: number, r: number, a0: number, a1: number, n = 24): Pt[] => {
+		const out: Pt[] = [];
+		for (let k = 0; k <= n; k++) {
+			const a = a0 + ((a1 - a0) * k) / n;
+			out.push(P(cx + r * Math.cos(a), cy + r * Math.sin(a), z));
+		}
+		return out;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-motor]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-scene]');
+		const endSvg = q<SVGSVGElement>('[data-end]');
+		const gBack = q<SVGGElement>('[data-frame-back]');
+		const gFrame = q<SVGGElement>('[data-frame]');
+		const gFront = q<SVGGElement>('[data-front]');
+		const gWires = q<SVGGElement>('[data-wires]');
+		const gBat = q<SVGGElement>('[data-battery]');
+		const gArrows = q<SVGGElement>('[data-arrows]');
+		const gEnd = q<SVGGElement>('[data-end-dyn]');
+		const flow = q<SVGPathElement>('[data-flow]');
+		const uIn = q<HTMLInputElement>('[data-u]');
+		const uOut = q<HTMLOutputElement>('[data-u-out]');
+		const keyBtn = q<HTMLButtonElement>('[data-key]');
+		const flipBtn = q<HTMLButtonElement>('[data-flip]');
+		const pauseBtn = q<HTMLButtonElement>('[data-pause]');
+		const modeBtns = root.querySelectorAll<HTMLButtonElement>('[data-mode]');
+		const outI = q<HTMLElement>('[data-i]');
+		const outN = q<HTMLElement>('[data-n]');
+		const outDir = q<HTMLElement>('[data-dir]');
+		const live = q<HTMLElement>('[data-live]');
+		const uidF = (q<SVGMarkerElement>('marker.mot__head--f').id);
+		const uidI = (q<SVGMarkerElement>('marker.mot__head--i').id);
+		const endF = endSvg.querySelector<SVGMarkerElement>('marker.mot__head--f')!.id;
+		const endT = endSvg.querySelector<SVGMarkerElement>('marker.mot__head--t')!.id;
+
+		const st: State = { phi: (165 * Math.PI) / 180, w: 0, i: 0 };
+		let on = false;
+		let pol = 1; // +1: «+» of the battery on the right
+		let comm = true;
+		let paused = false;
+		let dragging = false;
+		let dashOff = 0;
+		let last = 0;
+		let raf = 0;
+		let wAvg = 0;
+		let visible = true;
+
+		const V = () => pol * Number(uIn.value);
+
+		// ---------- drawing ----------
+		const drawBattery = () => {
+			gBat.replaceChildren();
+			const bx = M.CX - 40;
+			const by = 392;
+			const g = el('g', { class: 'mot__bat' }, gBat);
+			el('rect', { class: 'mot__bat-body', x: bx - 62, y: by - 17, width: 124, height: 34, rx: 6 }, g);
+			const plusX = pol > 0 ? bx + 22 : bx - 62;
+			el('rect', { class: 'mot__bat-plus', x: plusX, y: by - 17, width: 40, height: 34, rx: pol > 0 ? 0 : 6 }, g);
+			el('rect', { class: 'mot__bat-cap', x: pol > 0 ? bx + 62 : bx - 68, y: by - 7, width: 6, height: 14, rx: 2 }, g);
+			const tp = el('text', { class: 'mot__bat-txt', x: pol > 0 ? bx + 42 : bx - 42, y: by + 6, 'text-anchor': 'middle' }, g);
+			tp.textContent = '+';
+			const tm = el('text', { class: 'mot__bat-txt', x: pol > 0 ? bx - 42 : bx + 42, y: by + 6, 'text-anchor': 'middle' }, g);
+			tm.textContent = '−';
+			const tu = el('text', { class: 'mot__bat-u', x: bx, y: by + 34, 'text-anchor': 'middle' }, g);
+			tu.textContent = `${fmt(Number(uIn.value), Number(uIn.value) % 1 ? 1 : 0)} В`;
+		};
+
+		/** Points of the brushes' outer ends (where the wires start). */
+		const brushOut = (side: 1 | -1): Pt => {
+			const z = comm ? M.ZC : side > 0 ? M.ZR1 : M.ZR2;
+			return P(side * (M.RC + 22), 0, z);
+		};
+
+		const drawWires = () => {
+			gWires.replaceChildren();
+			const bx = M.CX - 40;
+			const by = 392;
+			const R = brushOut(1);
+			const L = brushOut(-1);
+			// right brush → right terminal; left brush → key → left terminal
+			el('path', { d: path([R, [R[0] + 70, R[1]], [R[0] + 70, by], [bx + 68, by]]) }, gWires);
+			const kx = L[0] - 60;
+			el('path', { d: path([L, [kx, L[1]], [kx, by - 70]]) }, gWires);
+			el('path', { d: path([[kx, by - 30], [kx, by], [bx - 68, by]]) }, gWires);
+			// the key: a blade hinged at the lower contact
+			el('circle', { class: 'mot__keyknob', cx: kx, cy: by - 30, r: 4 }, gWires);
+			el('circle', { class: 'mot__keyknob', cx: kx, cy: by - 70, r: 4 }, gWires);
+			const blade = el('line', { class: 'mot__keyblade', x1: kx, y1: by - 30, x2: kx, y2: by - 72 }, gWires);
+			blade.style.transformOrigin = `${kx}px ${by - 30}px`;
+			blade.style.transform = on ? 'rotate(0deg)' : 'rotate(32deg)';
+		};
+
+		/** The circuit as one path in the direction of a positive current (in at the right brush). */
+		const circuit = (phi: number): Pt[] => {
+			const bx = M.CX - 40;
+			const by = 392;
+			const R = brushOut(1);
+			const L = brushOut(-1);
+			const kx = L[0] - 60;
+			// which side is connected to the right brush
+			const right = comm ? (Math.cos(phi) >= 0 ? phi : phi + Math.PI) : phi;
+			const left = right + Math.PI;
+			const cR = Math.cos(right), sR = Math.sin(right), cL = Math.cos(left), sL = Math.sin(left);
+			const zIn = comm ? M.ZC : M.ZR1;
+			const zOut = comm ? M.ZC : M.ZR2;
+			return [
+				[bx + 68, by],
+				[R[0] + 70, by],
+				[R[0] + 70, R[1]],
+				R,
+				P(M.RC * cR, M.RC * sR, zIn),
+				P(M.RC * cR, M.RC * sR, M.L2),
+				P(M.r * cR, M.r * sR, M.L2),
+				P(M.r * cR, M.r * sR, -M.L2),
+				P(M.r * cL, M.r * sL, -M.L2),
+				P(M.r * cL, M.r * sL, M.L2),
+				P(M.RC * cL, M.RC * sL, M.L2),
+				P(M.RC * cL, M.RC * sL, zOut),
+				L,
+				[kx, L[1]],
+				[kx, by],
+				[bx - 68, by],
+			];
+		};
+
+		const drawFrame = () => {
+			const phi = st.phi;
+			const c = Math.cos(phi), s = Math.sin(phi);
+			const A = (z: number, sign = 1, rr = M.r): Pt => P(sign * rr * c, sign * rr * s, z);
+			gBack.replaceChildren();
+			gFrame.replaceChildren();
+			gFront.replaceChildren();
+			// back end of the frame
+			el('path', { class: 'mot__wire-back', d: path([A(-M.L2), A(-M.L2, -1)]) }, gBack);
+			// long sides and the leads to the commutator
+			el('path', { class: 'mot__wire-cu', d: path([A(M.L2, 1, M.RC), A(M.L2), A(-M.L2)]) }, gFrame);
+			el('path', { class: 'mot__wire-cu', d: path([A(M.L2, -1, M.RC), A(M.L2, -1), A(-M.L2, -1)]) }, gFrame);
+			const g = M.GAP * (Math.PI / 180);
+			if (comm) {
+				for (const [sign, cls] of [[1, 'a'], [-1, 'b']] as const) {
+					const a0 = phi + (sign > 0 ? 0 : Math.PI) - Math.PI / 2 + g;
+					const a1 = a0 + Math.PI - 2 * g;
+					el('path', { class: 'mot__ring-back', d: path(arcPts(0, 0, M.ZC - 9, M.RC, a0, a1)) }, gFront);
+					el('path', { class: `mot__ring mot__ring--${cls}`, d: path(arcPts(0, 0, M.ZC + 2, M.RC, a0, a1)) }, gFront);
+					el('path', { class: 'mot__wire-cu', d: path([A(M.L2, sign, M.RC), A(M.ZC - 9, sign, M.RC)]) }, gFrame);
+				}
+			} else {
+				const rings: [number, 1 | -1, string][] = [
+					[M.ZR1, 1, 'a'],
+					[M.ZR2, -1, 'b'],
+				];
+				for (const [z, sign, cls] of rings) {
+					el('path', { class: 'mot__ring-back', d: path(arcPts(0, 0, z - 6, M.RC, 0, 2 * Math.PI, 40)) }, gFront);
+					el('path', { class: `mot__ring mot__ring--${cls}`, d: path(arcPts(0, 0, z + 2, M.RC, 0, 2 * Math.PI, 40)) }, gFront);
+					el('path', { class: 'mot__wire-cu', d: path([A(M.L2, sign, M.RC), A(z - 6, sign, M.RC)]) }, gFrame);
+				}
+			}
+			// brushes
+			for (const side of [1, -1] as const) {
+				const z = comm ? M.ZC : side > 0 ? M.ZR1 : M.ZR2;
+				const a = P(side * (M.RC + 4), 0, z);
+				const b = brushOut(side);
+				const x0 = Math.min(a[0], b[0]);
+				el('rect', { class: 'mot__brush', x: x0, y: a[1] - 7, width: Math.abs(b[0] - a[0]), height: 14, rx: 2 }, gFront);
+			}
+		};
+
+		const drawArrows = () => {
+			gArrows.replaceChildren();
+			const i = st.i;
+			if (Math.abs(i) < 1e-3) return;
+			const phi = st.phi;
+			// direction of the current in side «+1» (at angle phi): +1 away from the viewer
+			const rightIsA = Math.cos(phi) >= 0;
+			const awayA = comm ? Math.sign(i) * (rightIsA ? 1 : -1) : Math.sign(i);
+			for (const sign of [1, -1]) {
+				const x = sign * M.r * Math.cos(phi);
+				const y = sign * M.r * Math.sin(phi);
+				const away = sign * awayA; // the other side carries the opposite current
+				const fy = -away * FK * Math.abs(i); // into the screen + field to the right → force down
+				const p0 = P(x, y, 0);
+				const p1 = P(x, y + fy, 0);
+				el('line', { class: 'mot__vec mot__vec--f', x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1], 'marker-end': `url(#${uidF})` }, gArrows);
+				const t = el('text', { class: 'mot__lbl mot__lbl--f', x: p1[0] + 8, y: p1[1] + (fy > 0 ? 4 : 14) }, gArrows);
+				t.textContent = 'F';
+				// small current arrow along the side
+				const za = away > 0 ? 62 : 30;
+				const zb = away > 0 ? 30 : 62;
+				const a = P(x, y, za);
+				const b = P(x, y, zb);
+				el('line', { class: 'mot__vec mot__vec--i', x1: a[0], y1: a[1], x2: b[0], y2: b[1], 'marker-end': `url(#${uidI})` }, gArrows);
+			}
+		};
+
+		const drawEnd = () => {
+			gEnd.replaceChildren();
+			const phi = st.phi;
+			const i = st.i;
+			const rightIsA = Math.cos(phi) >= 0;
+			const awayA = comm ? Math.sign(i) * (rightIsA ? 1 : -1) : Math.sign(i);
+			const pts = [1, -1].map((sg) => [E.C + sg * E.r * Math.cos(phi), E.C - sg * E.r * Math.sin(phi)] as Pt);
+			el('line', { class: 'mot__eframe', x1: pts[0][0], y1: pts[0][1], x2: pts[1][0], y2: pts[1][1] }, gEnd);
+			el('circle', { class: 'mot__eside', cx: E.C, cy: E.C, r: 4 }, gEnd);
+			const fs: number[] = [];
+			[1, -1].forEach((sg, k) => {
+				const [x, y] = pts[k];
+				const away = Math.abs(i) < 1e-3 ? 0 : sg * awayA;
+				if (away !== 0) {
+					const fy = away * 14 * Math.abs(i); // screen y down
+					fs.push(fy);
+					el('line', { class: 'mot__fline', x1: x, y1: y - 70, x2: x, y2: y + 70 }, gEnd);
+					el('line', { class: 'mot__vec mot__vec--f', x1: x, y1: y, x2: x, y2: y + fy, 'marker-end': `url(#${endF})` }, gEnd);
+				}
+				el('circle', { class: 'mot__eside', cx: x, cy: y, r: 9 }, gEnd);
+				if (away > 0) {
+					el('path', { class: 'mot__emark', d: `M ${x - 5} ${y - 5} L ${x + 5} ${y + 5} M ${x + 5} ${y - 5} L ${x - 5} ${y + 5}` }, gEnd);
+				} else if (away < 0) {
+					el('circle', { class: 'mot__emark', cx: x, cy: y, r: 2.6 }, gEnd);
+				}
+			});
+			if (Math.abs(i) > 1e-3) {
+				// the arm: from the axis to the line of the force
+				const xr = pts[Math.cos(phi) >= 0 ? 0 : 1][0];
+				const armPx = Math.abs(xr - E.C);
+				if (armPx > 6) {
+					el('line', { class: 'mot__arm', x1: E.C, y1: E.C, x2: xr, y2: E.C }, gEnd);
+					const t = el('text', { class: 'mot__lbl mot__lbl--d', x: (E.C + xr) / 2 - 5, y: E.C - 8 }, gEnd);
+					t.textContent = 'l';
+				}
+				// turning direction: an arc whose length grows with the moment
+				const tau = -PH.k * i * armFactor(phi, comm);
+				const mag = Math.min(Math.abs(tau) / (PH.k * 3), 1);
+				if (mag > 0.04) {
+					const span = 0.35 + 1.6 * mag;
+					const dir = Math.sign(tau); // +1 anticlockwise
+					const rr = 30;
+					const a0 = Math.PI / 2 + (dir > 0 ? -span / 2 : span / 2);
+					const a1 = Math.PI / 2 + (dir > 0 ? span / 2 : -span / 2);
+					const p = (a: number) => [E.C + rr * Math.cos(a), E.C - rr * Math.sin(a)];
+					const [x0, y0] = p(a0);
+					const [x1, y1] = p(a1);
+					el('path', { class: 'mot__turn', d: `M ${x0} ${y0} A ${rr} ${rr} 0 0 ${dir > 0 ? 0 : 1} ${x1} ${y1}`, 'marker-end': `url(#${endT})` }, gEnd);
+				}
+			}
+		};
+
+		const message = () => {
+			if (!on) {
+				if (Math.abs(st.w) > 0.05) return 'Ключ разомкнут: тока нет, и рамка вращается только по инерции, постепенно останавливаясь.';
+				return 'Ключ разомкнут — тока нет. Замкните ключ.';
+			}
+			if (Number(uIn.value) === 0) return 'Напряжение равно нулю — тока нет. Подвиньте ползунок.';
+			if (comm) {
+				if (Math.abs(st.w) < 1e-3 && onGap(st.phi)) {
+					return 'Рамка стоит вертикально, в «мёртвой точке»: щётки касаются промежутков между полукольцами, и тока в рамке нет. Да и с током силы только растягивали бы рамку — их плечо равно нулю. Поверните рамку мышкой.';
+				}
+				if (Math.abs(st.w) < 1e-3) return 'Сил не хватает, чтобы сдвинуть рамку: мешает трение. Увеличьте напряжение или поверните рамку.';
+				return 'Коллектор каждые пол-оборота меняет направление тока в рамке, поэтому силы всё время поворачивают её в одну сторону.';
+			}
+			if (Math.abs(st.w) < 1e-3 && Math.abs(Math.cos(st.phi)) < 0.05) {
+				return 'Без коллектора рамка повернулась, покачалась и остановилась вертикально: силы тянут её стороны вверх и вниз, но больше не поворачивают.';
+			}
+			return 'Без коллектора ток в рамке всё время идёт в одну сторону. Следите: перейдя вертикальное положение, рамка начинает тормозить.';
+		};
+
+		const render = () => {
+			drawFrame();
+			drawArrows();
+			drawEnd();
+			flow.setAttribute('d', path(circuit(st.phi)));
+			flow.style.visibility = Math.abs(st.i) > 1e-3 ? 'visible' : 'hidden';
+			flow.style.strokeDashoffset = String(dashOff);
+			outI.textContent = `${fmt(Math.abs(st.i), 2)} А`;
+			const n = Math.abs(wAvg) / (2 * Math.PI);
+			outN.textContent = `${fmt(n < 0.005 ? 0 : n, 2)} об/с`;
+			outDir.textContent = Math.abs(wAvg) < 0.03 ? '—' : wAvg < 0 ? '↻ по часовой' : '↺ против часовой';
+			live.textContent = message();
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.05);
+			last = now;
+			if (!paused && !dragging) {
+				for (let k = 0; k < Math.round(dt / DT); k++) step(st, DT, V(), comm, on);
+				wAvg += (st.w - wAvg) * Math.min(dt * 2.5, 1);
+			} else {
+				st.i = current(st.phi, st.w, V(), comm, on);
+			}
+			if (!reduceMotion.matches) dashOff -= Math.sign(st.i) * FLOW * Math.abs(st.i) * (paused ? 0 : dt);
+			render();
+			raf = visible ? requestAnimationFrame(frame) : 0;
+		};
+		const kick = () => {
+			if (!raf && visible) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		};
+
+		// ---------- controls ----------
+		const setKey = () => {
+			keyBtn.textContent = on ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+			drawWires();
+		};
+		keyBtn.addEventListener('click', () => {
+			on = !on;
+			setKey();
+			kick();
+		});
+		flipBtn.addEventListener('click', () => {
+			pol = -pol;
+			drawBattery();
+			kick();
+		});
+		pauseBtn.addEventListener('click', () => {
+			paused = !paused;
+			pauseBtn.textContent = paused ? 'Продолжить' : 'Пауза';
+			kick();
+		});
+		uIn.addEventListener('input', () => {
+			const u = Number(uIn.value);
+			uOut.value = `${fmt(u, u % 1 ? 1 : 0)} В`;
+			drawBattery();
+			kick();
+		});
+		modeBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				comm = b.dataset.mode === 'comm';
+				modeBtns.forEach((o) => {
+					o.classList.toggle('is-on', o === b);
+					o.setAttribute('aria-pressed', String(o === b));
+				});
+				drawWires();
+				kick();
+			}),
+		);
+
+		// ---------- turning the frame by hand ----------
+		const grab = (svgEl: SVGSVGElement, cx: number, cy: number) => {
+			const angleAt = (e: PointerEvent) => {
+				const m = svgEl.getScreenCTM();
+				if (!m) return st.phi;
+				const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+				return Math.atan2(-(p.y - cy), p.x - cx);
+			};
+			let off = 0;
+			const target = svgEl.querySelector<SVGCircleElement>('.mot__grab')!;
+			target.addEventListener('pointerdown', (e) => {
+				dragging = true;
+				root.classList.add('is-dragging');
+				target.setPointerCapture(e.pointerId);
+				// grab the frame where it is, so it does not jump
+				const a = angleAt(e);
+				const d0 = Math.atan2(Math.sin(st.phi - a), Math.cos(st.phi - a));
+				const d1 = Math.atan2(Math.sin(st.phi + Math.PI - a), Math.cos(st.phi + Math.PI - a));
+				off = Math.abs(d0) < Math.abs(d1) ? d0 : d1;
+				st.w = 0;
+				wAvg = 0;
+				kick();
+			});
+			target.addEventListener('pointermove', (e) => {
+				if (!dragging) return;
+				const a = angleAt(e) + off;
+				// keep the angle continuous
+				const d = Math.atan2(Math.sin(a - st.phi), Math.cos(a - st.phi));
+				st.phi += d;
+				st.w = 0;
+				kick();
+			});
+			const up = () => {
+				dragging = false;
+				root.classList.remove('is-dragging');
+			};
+			target.addEventListener('pointerup', up);
+			target.addEventListener('pointercancel', up);
+		};
+		grab(svg, M.CX, M.CY);
+		grab(endSvg, E.C, E.C);
+
+		const io = new IntersectionObserver((entries) => {
+			visible = entries.some((en) => en.isIntersecting);
+			if (visible) kick();
+		});
+		io.observe(root);
+
+		drawBattery();
+		setKey();
+		st.i = current(st.phi, 0, V(), comm, on);
+		render();
+	}
+</script>

@@ -1,0 +1,139 @@
+---
+/**
+ * A static view along the axis of the frame (for the derivation steps): poles, magnetic lines,
+ * the frame, the current in its sides (⊗ away from us, ⊙ towards us), the forces and their arms.
+ * `phi` is the angle of side A from the horizontal (degrees, anticlockwise); `awayA` is +1 when the
+ * current in side A flows away from us, −1 towards us, 0 for no current.
+ */
+interface Props {
+	phi: number;
+	awayA: 1 | -1 | 0;
+	caption: string;
+}
+const { phi, awayA, caption } = Astro.props;
+const uid = `fs-${Math.random().toString(36).slice(2, 8)}`;
+const C = 110;
+const r = 56;
+const RP = 84;
+const a = (phi * Math.PI) / 180;
+const sides = [1, -1].map((s) => ({ x: C + s * r * Math.cos(a), y: C - s * r * Math.sin(a), away: awayA === 0 ? 0 : s * awayA }));
+const FL = 34;
+const right = sides[0].x >= sides[1].x ? sides[0] : sides[1];
+const arm = Math.abs(right.x - C);
+const field = [-60, -22, 22, 60];
+---
+
+<div class="fsk">
+	<svg viewBox="0 0 220 220" role="img" aria-label={caption}>
+		<defs>
+			<marker id={`${uid}-f`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+				<path class="fsk__hf" d="M0,0 L10,5 L0,10 z"></path>
+			</marker>
+			<marker id={`${uid}-b`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+				<path class="fsk__hb" d="M0,0 L10,5 L0,10 z"></path>
+			</marker>
+		</defs>
+		<rect class="fsk__n" x={C - RP - 20} y={C - 84} width="20" height="168" rx="3"></rect>
+		<rect class="fsk__s" x={C + RP} y={C - 84} width="20" height="168" rx="3"></rect>
+		<text class="fsk__pl" x={C - RP - 10} y={C + 5} text-anchor="middle">N</text>
+		<text class="fsk__pl" x={C + RP + 10} y={C + 5} text-anchor="middle">S</text>
+		{field.map((y) => <line class="fsk__b" x1={C - RP} y1={C + y} x2={C + RP} y2={C + y} />)}
+		{field.map((y) => <line class="fsk__bt" x1={C + 42} y1={C + y} x2={C + 48} y2={C + y} marker-end={`url(#${uid}-b)`} />)}
+		<line class="fsk__frame" x1={sides[0].x} y1={sides[0].y} x2={sides[1].x} y2={sides[1].y}></line>
+		<circle class="fsk__axis" cx={C} cy={C} r="3.5"></circle>
+		{awayA !== 0 && arm > 4 && <line class="fsk__arm" x1={C} y1={C} x2={right.x} y2={C} />}
+		{awayA !== 0 && arm > 4 && <text class="fsk__d" x={(C + right.x) / 2 - 4} y={C - 6}>l</text>}
+		{
+			sides.map((s) => (
+				<>
+					{s.away !== 0 && <line class="fsk__f" x1={s.x} y1={s.y} x2={s.x} y2={s.y + s.away * FL} marker-end={`url(#${uid}-f)`} />}
+					<circle class="fsk__side" cx={s.x} cy={s.y} r="8.5" />
+					{s.away > 0 && <path class="fsk__m" d={`M ${s.x - 4.5} ${s.y - 4.5} L ${s.x + 4.5} ${s.y + 4.5} M ${s.x + 4.5} ${s.y - 4.5} L ${s.x - 4.5} ${s.y + 4.5}`} />}
+					{s.away < 0 && <circle class="fsk__m" cx={s.x} cy={s.y} r="2.4" />}
+				</>
+			))
+		}
+	</svg>
+	<p>{caption}</p>
+</div>
+
+<style is:global>
+	.fsk {
+		margin: 0;
+		text-align: center;
+	}
+	.fsk svg {
+		display: block;
+		width: 100%;
+		max-width: 13rem;
+		height: auto;
+		margin-inline: auto;
+	}
+	.fsk p {
+		margin: 0.2rem 0 0 !important;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		line-height: 1.35;
+	}
+	.fsk__n {
+		fill: color-mix(in srgb, var(--ig-vx) 78%, var(--ig-surface));
+	}
+	.fsk__s {
+		fill: color-mix(in srgb, var(--ig-vy) 78%, var(--ig-surface));
+	}
+	.fsk__pl {
+		fill: white;
+		font-size: 16px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.fsk__b {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.1;
+		stroke-dasharray: 4 4;
+	}
+	.fsk__bt {
+		stroke: var(--sl-color-gray-3);
+	}
+	.fsk__hb {
+		fill: var(--sl-color-gray-3);
+	}
+	.fsk__hf {
+		fill: var(--ig-v);
+	}
+	.fsk__frame {
+		stroke: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.fsk__axis {
+		fill: var(--sl-color-gray-2);
+	}
+	.fsk__side {
+		fill: var(--ig-surface);
+		stroke: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		stroke-width: 2.5;
+	}
+	.fsk__m {
+		stroke: var(--sl-color-green);
+		fill: var(--sl-color-green);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.fsk__f {
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.fsk__arm {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+		stroke-dasharray: 4 3;
+	}
+	.fsk__d {
+		fill: var(--sl-color-gray-2);
+		font-size: 16px;
+		font-style: italic;
+		font-family: var(--ig-font-math);
+	}
+</style>

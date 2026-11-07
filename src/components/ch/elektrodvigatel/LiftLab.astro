@@ -1,0 +1,385 @@
+---
+/**
+ * A small geared motor lifts a load by h = 0,5 м; the formulas of the efficiency update live.
+ * Motor model (a typical small DC motor with a gearbox): R = 4 Ом, k = 0,005 В·с, no-load current 0,1 А,
+ * gear ratio 100, drum radius 2 см. Steady lifting: I = (m g r / G + k·I0) / k, ω = (U − I R) / k,
+ * υ = ω r / G. The numbers in the formulas are the rounded «measured» ones: I to 0,01 А, t to 0,1 с.
+ */
+const uid = `lf-${Math.random().toString(36).slice(2, 8)}`;
+const S = 440; // px per metre for heights
+const Y0 = 300; // floor of the load path (h = 0)
+const XR = 340; // ruler
+const ruler = Array.from({ length: 11 }, (_, k) => k * 5);
+---
+
+<figure class="lf not-content" data-lift data-uid={uid}>
+	<div class="lf__grid">
+		<svg class="lf__scene" viewBox="0 0 420 330" role="img" aria-label="Электродвигатель с барабаном поднимает груз на нити">
+			<rect class="lf__floor" x="20" y={Y0 + 18} width="380" height="6" rx="2"></rect>
+			<rect class="lf__post" x="96" y="44" width="12" height={Y0 - 26}></rect>
+			<rect class="lf__post" x="96" y="44" width="176" height="12"></rect>
+			<!-- motor with a gearbox -->
+			<rect class="lf__motor" x="196" y="16" width="60" height="28" rx="6"></rect>
+			<rect class="lf__gear" x="256" y="20" width="22" height="20" rx="3"></rect>
+			<text class="lf__mlabel" x="226" y="35" text-anchor="middle">М</text>
+			<g data-drum>
+				<circle class="lf__drum" cx="296" cy="30" r="9"></circle>
+				<line class="lf__spoke" x1="296" y1="21" x2="296" y2="39"></line>
+				<line class="lf__spoke" x1="287" y1="30" x2="305" y2="30"></line>
+			</g>
+			<line class="lf__thread" x1="305" y1="30" x2="305" y2={Y0 - 40} data-thread></line>
+			<g data-load>
+				<rect class="lf__load" x="279" y={Y0 - 40} width="52" height="40" rx="4"></rect>
+				<text class="lf__ltext" x="305" y={Y0 - 15} text-anchor="middle" data-mtext>100 г</text>
+			</g>
+			<g class="lf__ruler">
+				<rect x={XR} y={Y0 - 0.5 * S - 4} width="16" height={0.5 * S + 8} rx="2"></rect>
+				{ruler.map((c) => <line x1={XR} y1={Y0 - (c / 100) * S} x2={XR + (c % 10 === 0 ? 12 : 7)} y2={Y0 - (c / 100) * S} />)}
+				{ruler.filter((c) => c % 10 === 0).map((c) => <text x={XR + 22} y={Y0 - (c / 100) * S + 5}>{c}</text>)}
+				<text x={XR + 22} y={Y0 - 0.5 * S - 14}>см</text>
+			</g>
+			<line class="lf__hmark" x1="276" y1={Y0} x2={XR - 4} y2={Y0}></line>
+			<line class="lf__hmark" x1="276" y1={Y0 - 0.5 * S} x2={XR - 4} y2={Y0 - 0.5 * S}></line>
+			<g class="lf__readout">
+				<rect x="20" y="70" width="64" height="38" rx="6"></rect>
+				<text class="lf__rname" x="52" y="64" text-anchor="middle">амперметр</text>
+				<text class="lf__rval" x="52" y="96" text-anchor="middle" data-r-i>0,00 А</text>
+				<rect x="20" y="140" width="64" height="38" rx="6"></rect>
+				<text class="lf__rname" x="52" y="134" text-anchor="middle">секундомер</text>
+				<text class="lf__rval" x="52" y="166" text-anchor="middle" data-r-t>0,0 с</text>
+			</g>
+		</svg>
+		<div class="lf__calc">
+			<p class="lf__ctitle">Считаем КПД</p>
+			<div class="lf__f" data-f1></div>
+			<div class="lf__f" data-f2></div>
+			<div class="lf__f" data-f3></div>
+			<div class="lf__bar" aria-hidden="true"><span class="lf__bar-use" data-bar></span></div>
+			<p class="lf__barcap"><span class="lf__sw lf__sw--use"></span>полезная работа <span class="lf__sw lf__sw--loss"></span>нагревание обмотки, трение</p>
+		</div>
+	</div>
+	<div class="lf__controls">
+		<label class="lf__slider">
+			<span>Масса груза <i>m</i></span>
+			<output data-m-out>100 г</output>
+			<input type="range" min="50" max="300" step="50" value="100" data-m />
+		</label>
+		<label class="lf__slider">
+			<span>Напряжение <i>U</i></span>
+			<output data-u-out>4,5 В</output>
+			<input type="range" min="3" max="6" step="1.5" value="4.5" data-u />
+		</label>
+		<div class="lf__buttons">
+			<button type="button" class="lf__btn lf__btn--primary" data-go>Поднять груз</button>
+		</div>
+	</div>
+	<figcaption class="lf__legend">Груз поднимают на высоту <i>h</i> = 0,5 м; <i>g</i> = 9,8 Н/кг. В формулы подставлены показания приборов: сила тока округлена до 0,01 А, время — до 0,1 с.</figcaption>
+</figure>
+
+<style is:global>
+	.lf {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.lf i {
+		font-family: var(--ig-font-math);
+	}
+	.lf__grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+		gap: 1rem;
+		align-items: center;
+	}
+	.lf__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.lf__floor,
+	.lf__post {
+		fill: var(--sl-color-gray-4);
+	}
+	.lf__motor {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 60%, var(--ig-surface));
+		stroke: var(--sl-color-gray-4);
+	}
+	.lf__gear {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.lf__mlabel {
+		fill: var(--sl-color-white);
+		font-size: 15px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.lf__drum {
+		fill: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+	}
+	.lf__spoke {
+		stroke: var(--ig-surface);
+		stroke-width: 2;
+	}
+	.lf__thread {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.lf__load {
+		fill: color-mix(in srgb, var(--ig-vx) 45%, var(--ig-surface));
+		stroke: var(--ig-vx);
+		stroke-width: 1.5;
+	}
+	.lf__ltext {
+		fill: var(--sl-color-white);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.lf__ruler rect {
+		fill: color-mix(in srgb, var(--ig-v) 25%, var(--ig-surface));
+		stroke: var(--sl-color-gray-4);
+	}
+	.lf__ruler line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.lf__ruler text {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.lf__hmark {
+		stroke: var(--sl-color-gray-4);
+		stroke-dasharray: 3 4;
+	}
+	.lf__readout rect {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-4);
+	}
+	.lf__rname {
+		fill: var(--sl-color-gray-3);
+		font-size: 11px;
+		font-family: var(--__sl-font);
+	}
+	.lf__rval {
+		fill: var(--sl-color-white);
+		font-size: 15px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.lf__ctitle {
+		margin: 0 0 0.3rem;
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.lf__f {
+		min-height: 2.6rem;
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.lf__f .katex {
+		font-size: 1.05em;
+	}
+	.lf__bar {
+		height: 0.7rem;
+		margin-top: 0.6rem;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--ig-vy) 45%, var(--ig-surface));
+		overflow: hidden;
+	}
+	.lf__bar-use {
+		display: block;
+		height: 100%;
+		width: 0;
+		background: var(--sl-color-green);
+		transition: width 0.5s ease-out;
+	}
+	.lf__barcap {
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.lf__sw {
+		display: inline-block;
+		width: 0.7rem;
+		height: 0.7rem;
+		margin: 0 0.25rem -0.1rem 0;
+		border-radius: 3px;
+	}
+	.lf__sw--use {
+		background: var(--sl-color-green);
+	}
+	.lf__sw--loss {
+		margin-left: 0.6rem;
+		background: color-mix(in srgb, var(--ig-vy) 45%, var(--ig-surface));
+	}
+	.lf__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.75rem;
+	}
+	.lf__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.lf__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.lf__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.lf__buttons {
+		grid-column: 1 / -1;
+	}
+	.lf__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.lf__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 50rem) {
+		.lf__grid {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (max-width: 40rem) {
+		.lf {
+			padding: 0.75rem;
+		}
+		.lf__controls {
+			grid-template-columns: 1fr;
+		}
+		.lf__ruler text,
+		.lf__ltext {
+			font-size: 17px;
+		}
+		.lf__rname {
+			font-size: 14px;
+		}
+		.lf__rval {
+			font-size: 18px;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	const S = 440;
+	const Y0 = 300;
+	const H = 0.5;
+	const G9 = 9.8;
+	const MOTOR = { R: 4, k: 0.005, I0: 0.1, G: 100, r: 0.02 };
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+	const ru = (v: number, d: number) => v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: false });
+	const tx = (v: number, d: number) => ru(v, d).replace(',', '{,}');
+	/** Exact value with at most d decimals and no trailing zeros, for TeX. */
+	const trim = (v: number, d: number) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('ru-RU', { maximumFractionDigits: d, useGrouping: false }).replace(',', '{,}');
+	/** Decimals for 3 significant digits. */
+	const d3 = (v: number) => Math.max(0, 2 - Math.floor(Math.log10(Math.abs(v))));
+	const render = (el: HTMLElement, src: string) => katex.render(src, el, { displayMode: true, throwOnError: false, strict: 'ignore' });
+
+	/** Steady lifting: current and speed of the load. */
+	const lift = (m: number, U: number) => {
+		const I = (m * G9 * MOTOR.r) / MOTOR.G / MOTOR.k + MOTOR.I0;
+		const w = (U - I * MOTOR.R) / MOTOR.k;
+		const v = (w * MOTOR.r) / MOTOR.G;
+		return { I, v, t: H / v };
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-lift]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const mIn = q<HTMLInputElement>('[data-m]');
+		const uIn = q<HTMLInputElement>('[data-u]');
+		const load = q<SVGGElement>('[data-load]');
+		const thread = q<SVGLineElement>('[data-thread]');
+		const drum = q<SVGGElement>('[data-drum]');
+		const rI = q<SVGTextElement>('[data-r-i]');
+		const rT = q<SVGTextElement>('[data-r-t]');
+		const bar = q<HTMLElement>('[data-bar]');
+		let raf = 0;
+
+		const place = (h: number, turn: number) => {
+			const dy = -h * S;
+			load.setAttribute('transform', `translate(0 ${dy.toFixed(1)})`);
+			thread.setAttribute('y2', String(Y0 - 40 + dy));
+			drum.setAttribute('transform', `rotate(${turn.toFixed(1)} 296 30)`);
+		};
+
+		const formulas = () => {
+			const m = Number(mIn.value) / 1000;
+			const U = Number(uIn.value);
+			const L = lift(m, U);
+			const I = Math.round(L.I * 100) / 100;
+			const t = Math.round(L.t * 10) / 10;
+			const Ap = m * G9 * H;
+			const Az = U * I * t;
+			const eta = (Ap / Az) * 100;
+			render(q('[data-f1]'), `A_\\text{п} = mgh = ${tx(m, 2)} \\cdot 9{,}8 \\cdot 0{,}5 = ${trim(Ap, 3)}~\\text{Дж}`);
+			render(q('[data-f2]'), `A_\\text{з} = UIt = ${tx(U, 1)} \\cdot ${tx(I, 2)} \\cdot ${tx(t, 1)} \\approx ${tx(Az, d3(Az))}~\\text{Дж}`);
+			render(q('[data-f3]'), `\\eta = \\frac{A_\\text{п}}{A_\\text{з}} \\cdot 100\\,\\% \\approx ${tx(eta, 0)}\\,\\%`);
+			bar.style.width = `${Math.min(eta, 100).toFixed(1)}%`;
+			q<SVGTextElement>('[data-mtext]').textContent = `${Number(mIn.value)} г`;
+			return { I, t, L };
+		};
+
+		const idle = () => {
+			cancelAnimationFrame(raf);
+			formulas();
+			place(0, 0);
+			rI.textContent = '0,00 А';
+			rT.textContent = '0,0 с';
+		};
+
+		q<HTMLButtonElement>('[data-go]').addEventListener('click', () => {
+			cancelAnimationFrame(raf);
+			const { I, t, L } = formulas();
+			rI.textContent = `${ru(I, 2)} А`;
+			if (reduceMotion.matches) {
+				place(H, 0);
+				rT.textContent = `${ru(t, 1)} с`;
+				return;
+			}
+			const t0 = performance.now();
+			const tick = (now: number) => {
+				const s = Math.min((now - t0) / 1000, L.t);
+				const h = L.v * s;
+				place(h, ((h / MOTOR.r) * 180) / Math.PI);
+				rT.textContent = `${ru(s, 1)} с`;
+				if (s < L.t) raf = requestAnimationFrame(tick);
+				else rT.textContent = `${ru(t, 1)} с`;
+			};
+			raf = requestAnimationFrame(tick);
+		});
+		const onInput = () => {
+			q<HTMLOutputElement>('[data-m-out]').value = `${mIn.value} г`;
+			q<HTMLOutputElement>('[data-u-out]').value = `${ru(Number(uIn.value), 1)} В`;
+			idle();
+		};
+		mIn.addEventListener('input', onInput);
+		uIn.addEventListener('input', onInput);
+		idle();
+	}
+</script>
