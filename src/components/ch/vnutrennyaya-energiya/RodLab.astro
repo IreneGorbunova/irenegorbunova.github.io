@@ -1,0 +1,762 @@
+---
+/**
+ * Main model: two rods heated at one end by spirit lamps; nails are stuck to the rods with wax.
+ * Temperature along each rod follows the heat equation with cooling by the air (see rod.ts);
+ * the colour is a thermal-camera scale, the magnifiers show the vibrating particles of the rod:
+ * the amplitude of the vibrations grows as the square root of the absolute temperature.
+ * Nails fall (real free fall and toppling, in real time) when the wax under them reaches 60 °C.
+ */
+import { MATS, MAT_KEYS, NAILS, L, T_HOT } from './rod';
+
+const uid = `rod-${Math.random().toString(36).slice(2, 8)}`;
+const X0 = 70;
+const X1 = 680;
+const S = (X1 - X0) / L; // px per metre
+const LANE = 190;
+const H = 2 * LANE + 6;
+const lanes = [0, 1].map((i) => ({ i, y0: 4 + i * LANE }));
+const defaults = ['cu', 'st'] as const;
+const stops = Array.from({ length: 41 }, (_, k) => k / 40);
+const atoms: { x: number; y: number }[] = [];
+for (let r = -2; r <= 2; r++) for (let c = -2; c <= 2; c++) atoms.push({ x: c * 15 + (r % 2 ? 7.5 : 0), y: r * 13 });
+// graph
+const GX0 = X0;
+const GW = X1 - X0;
+const GY0 = 214;
+const GPH = 180;
+const gy = (t: number) => GY0 - (t / T_HOT) * GPH;
+const gxTicks = [0, 5, 10, 15, 20, 25, 30];
+const gyTicks = [0, 50, 100, 150, 200];
+---
+
+<figure class="rod not-content" data-rod>
+	<div class="rod__pick">
+		{
+			lanes.map(({ i }) => (
+				<div class={`rod__row rod__row--${i}`} role="group" aria-label={`Материал стержня ${i + 1}`}>
+					<span class="rod__badge">{i + 1}</span>
+					{MAT_KEYS.map((k) => (
+						<button type="button" class="rod__chip" data-lane={i} data-mat={k} aria-pressed={k === defaults[i] ? 'true' : 'false'}>
+							{MATS[k].name}
+						</button>
+					))}
+				</div>
+			))
+		}
+	</div>
+
+	<svg class="rod__scene" viewBox={`0 0 720 ${H}`} role="img" aria-label="Два стержня нагревают с одного конца пламенем спиртовок; к стержням воском прикреплены гвоздики">
+		<defs>
+			{
+				lanes.map(({ i }) => (
+					<linearGradient id={`${uid}-g${i}`} gradientUnits="userSpaceOnUse" x1={X0} y1="0" x2={X1} y2="0">
+						{stops.map((s) => (
+							<stop offset={s} data-stop={i} />
+						))}
+					</linearGradient>
+				))
+			}
+			{
+				lanes.map(({ i, y0 }) => (
+					<clipPath id={`${uid}-c${i}`}>
+						<circle cx="0" cy={y0 + 50} r="37" data-clip={i} />
+					</clipPath>
+				))
+			}
+			<radialGradient id={`${uid}-fl`} cx="0.5" cy="0.8" r="0.7">
+				<stop offset="0" class="rod__fl-core"></stop>
+				<stop offset="0.55" class="rod__fl-mid"></stop>
+				<stop offset="1" class="rod__fl-edge"></stop>
+			</radialGradient>
+		</defs>
+
+		{
+			lanes.map(({ i, y0 }) => (
+				<g class="rod__lane" data-lane-g={i}>
+					<line class="rod__table" x1="0" y1={y0 + 180} x2="720" y2={y0 + 180} />
+					{/* spirit lamp */}
+					<path
+						class="rod__lamp"
+						d={`M 54 ${y0 + 180} L 58 ${y0 + 160} Q 60 ${y0 + 152} 70 ${y0 + 152} L 94 ${y0 + 152} Q 104 ${y0 + 152} 106 ${y0 + 160} L 110 ${y0 + 180} Z`}
+					/>
+					<rect class="rod__wick-cap" x="74" y={y0 + 144} width="16" height="9" rx="2" />
+					<line class="rod__wick" x1="82" y1={y0 + 144} x2="82" y2={y0 + 138} />
+					<g class="rod__flame" data-flame={i} style={`transform-origin: 82px ${y0 + 140}px`}>
+						<path
+							fill={`url(#${uid}-fl)`}
+							d={`M 82 ${y0 + 140} C 60 ${y0 + 138} 62 ${y0 + 112} 74 ${y0 + 98} C 78 ${y0 + 93} 80 ${y0 + 86} 81 ${y0 + 78} C 88 ${y0 + 92} 104 ${y0 + 110} 102 ${y0 + 126} C 101 ${y0 + 135} 92 ${y0 + 140} 82 ${y0 + 140} Z`}
+						/>
+					</g>
+					{/* rod */}
+					<rect class="rod__bar" x={X0} y={y0 + 104} width={X1 - X0} height="16" rx="4" fill={`url(#${uid}-g${i})`} />
+					<rect class="rod__shine" x={X0 + 2} y={y0 + 106} width={X1 - X0 - 4} height="4" rx="2" />
+					<circle class={`rod__badge-svg rod__badge-svg--${i}`} cx="702" cy={y0 + 112} r="13" />
+					<text class="rod__badge-num" x="702" y={y0 + 118} text-anchor="middle">{i + 1}</text>
+					{/* nails */}
+					{NAILS.map((x, n) => (
+						<g data-nail={`${i}-${n}`}>
+							<ellipse class="rod__wax" cx={X0 + x * S} cy={y0 + 123} rx="8" ry="5" data-wax />
+							<g class="rod__nail" data-body style={`transform: translate(${X0 + x * S}px, ${y0 + 120}px)`}>
+								<line x1="0" y1="2" x2="0" y2="30" />
+								<rect x="-5" y="0" width="10" height="3" rx="1" />
+							</g>
+							<text class="rod__ftime" x={X0 + x * S + 15} y={y0 + 168} text-anchor="middle" data-ftime />
+						</g>
+					))}
+					{/* magnifier */}
+					<g class="rod__lens" data-lens={i}>
+						<path class="rod__lens-tip" data-lens-tip />
+						<circle class="rod__lens-bg" cx="0" cy={y0 + 50} r="37" data-lens-bg />
+						<g clip-path={`url(#${uid}-c${i})`} data-atoms>
+							{atoms.map(() => (
+								<circle r="5" />
+							))}
+						</g>
+						<circle class="rod__lens-rim" cx="0" cy={y0 + 50} r="38" data-lens-rim />
+						<text class="rod__lens-t" y={y0 + 46} data-lens-t />
+						<text class="rod__lens-x" y={y0 + 68} data-lens-x />
+					</g>
+				</g>
+			))
+		}
+	</svg>
+
+	<div class="rod__bar-ctl">
+		<button type="button" class="rod__btn rod__btn--primary" data-fire>Зажечь спиртовки</button>
+		<button type="button" class="rod__btn" data-reset>Сначала</button>
+		<span class="rod__clock">Время опыта: <b data-clock>0 мин 00 с</b></span>
+	</div>
+	<p class="rod__live" aria-live="polite" data-live></p>
+
+	<svg class="rod__graph" viewBox="0 0 720 280" role="img" aria-label="График: температура вдоль стержней">
+		<defs>
+			<linearGradient id={`${uid}-scale`} x1="0" y1="1" x2="0" y2="0">
+				{stops.map((s) => (
+					<stop offset={s * 0.9} data-scale-stop={s} />
+				))}
+			</linearGradient>
+		</defs>
+		<g class="rod__grid">
+			{gyTicks.slice(1).map((t) => <line x1={GX0} y1={gy(t)} x2={GX0 + GW} y2={gy(t)} />)}
+			{gxTicks.slice(1).map((c) => <line x1={GX0 + (c / 30) * GW} y1={GY0} x2={GX0 + (c / 30) * GW} y2={GY0 - GPH} />)}
+		</g>
+		<rect x={GX0 - 16} y={gy(T_HOT)} width="7" height={GPH} rx="3" fill={`url(#${uid}-scale)`} />
+		<line class="rod__axis" x1={GX0} y1={GY0} x2={GX0 + GW + 6} y2={GY0} />
+		<line class="rod__axis" x1={GX0} y1={GY0} x2={GX0} y2={GY0 - GPH - 8} />
+		<line class="rod__wax-line" x1={GX0} y1={gy(60)} x2={GX0 + GW} y2={gy(60)} />
+		<text class="rod__wax-label" x={GX0 + GW - 4} y={gy(60) + 20} text-anchor="end">воск плавится, 60 °C</text>
+		{NAILS.map((x) => <path class="rod__nail-mark" d={`M ${GX0 + (x / L) * GW} ${GY0 + 1} l -5 9 h 10 z`} />)}
+		<g class="rod__ticks">
+			{gxTicks.map((c) => <text x={GX0 + (c / 30) * GW} y={GY0 + 30} text-anchor="middle">{c}</text>)}
+			{gyTicks.map((t) => <text x={GX0 - 22} y={gy(t) + 6} text-anchor="end">{t}</text>)}
+			<text x={GX0 + GW} y={GY0 + 56} text-anchor="end">расстояние от нагретого конца, см</text>
+			<text x={GX0 - 22} y={GY0 - GPH - 14} text-anchor="end"><tspan class="rod__math">t</tspan>, °C</text>
+		</g>
+		<polyline class="rod__curve rod__curve--0" data-curve="0" />
+		<polyline class="rod__curve rod__curve--1" data-curve="1" />
+	</svg>
+
+	<figcaption class="rod__cap">
+		Цвет показывает температуру, как на экране тепловизора: синий — 20 °C, красный — около 110 °C, жёлтый — 200 °C. Стержни длиной 30 см и толщиной 6 мм, конец в пламени модель держит при 200 °C,
+		воздух в комнате 20 °C. Стержни отдают тепло воздуху, поэтому дальний конец плохого проводника так и остаётся холодным. Время в модели ускорено в 30 раз, а падение гвоздиков показано
+		в настоящем времени. В лупах — частицы вещества (сильно увеличены): чем выше температура, тем сильнее они колеблются. Лупу можно тянуть вдоль стержня.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rod {
+		--rod-1: var(--sl-color-accent);
+		--rod-2: var(--ig-vx);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rod__pick {
+		display: grid;
+		gap: 0.5rem;
+	}
+	.rod__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.rod__badge {
+		display: inline-grid;
+		place-items: center;
+		width: 1.7rem;
+		height: 1.7rem;
+		border-radius: 50%;
+		font-weight: 700;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-black);
+		background: var(--rod-1);
+	}
+	.rod__row--1 .rod__badge {
+		background: var(--rod-2);
+	}
+	.rod__chip {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.8rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition: background-color 0.2s, border-color 0.2s;
+	}
+	.rod__chip:hover {
+		border-color: var(--rod-1);
+	}
+	.rod__chip[aria-pressed='true'] {
+		border-color: var(--rod-1);
+		background: color-mix(in srgb, var(--rod-1) 22%, transparent);
+		font-weight: 700;
+	}
+	.rod__row--1 .rod__chip:hover,
+	.rod__row--1 .rod__chip[aria-pressed='true'] {
+		border-color: var(--rod-2);
+	}
+	.rod__row--1 .rod__chip[aria-pressed='true'] {
+		background: color-mix(in srgb, var(--rod-2) 22%, transparent);
+	}
+	.rod__scene,
+	.rod__graph {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin-top: 0.5rem;
+		user-select: none;
+		-webkit-user-select: none;
+		touch-action: pan-y;
+	}
+	.rod__table {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.rod__lamp {
+		fill: color-mix(in srgb, var(--ig-vx) 18%, var(--ig-surface));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.rod__wick-cap {
+		fill: var(--sl-color-gray-4);
+	}
+	.rod__wick {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.rod__fl-core {
+		stop-color: color-mix(in srgb, var(--ig-v) 40%, white);
+	}
+	.rod__fl-mid {
+		stop-color: var(--ig-v);
+		stop-opacity: 0.85;
+	}
+	.rod__fl-edge {
+		stop-color: var(--ig-vy);
+		stop-opacity: 0.15;
+	}
+	.rod__flame {
+		opacity: 0;
+		transform: scale(0.2);
+		transition:
+			opacity 0.4s,
+			transform 0.5s cubic-bezier(0.3, 1.4, 0.5, 1);
+	}
+	.rod.is-lit .rod__flame {
+		opacity: 1;
+		transform: scale(1);
+	}
+	.rod.is-lit .rod__flame path {
+		transform-box: fill-box;
+		transform-origin: 50% 100%;
+		animation: rod-flicker 0.9s ease-in-out infinite alternate;
+	}
+	@keyframes rod-flicker {
+		0% {
+			transform: scale(1, 1) skewX(0deg);
+		}
+		40% {
+			transform: scale(0.96, 1.06) skewX(-3deg);
+		}
+		100% {
+			transform: scale(1.03, 0.95) skewX(2deg);
+		}
+	}
+	.rod__bar {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		cursor: grab;
+	}
+	.rod__shine {
+		fill: white;
+		opacity: 0.18;
+		pointer-events: none;
+	}
+	.rod__badge-svg--0 {
+		fill: var(--rod-1);
+	}
+	.rod__badge-svg--1 {
+		fill: var(--rod-2);
+	}
+	.rod__badge-num {
+		font-size: 16px;
+		font-weight: 700;
+		fill: var(--sl-color-black);
+	}
+	.rod__wax {
+		fill: color-mix(in srgb, var(--ig-v) 35%, var(--sl-color-gray-6));
+		stroke: color-mix(in srgb, var(--ig-v) 60%, var(--sl-color-gray-3));
+		stroke-width: 1;
+		transform-box: fill-box;
+		transform-origin: 50% 0;
+	}
+	.rod__nail line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.rod__nail rect {
+		fill: var(--sl-color-gray-2);
+	}
+	.rod__ftime {
+		font-size: 14px;
+		font-weight: 700;
+		fill: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.rod__lens {
+		cursor: grab;
+	}
+	.rod__lens-bg {
+		fill: var(--sl-color-bg);
+	}
+	.rod__lens-rim {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.rod__lens-tip {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 25%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.rod__lens-t {
+		font-size: 17px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rod__lens-x {
+		font-size: 14px;
+		fill: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.rod__bar-ctl {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin-top: 0.5rem;
+	}
+	.rod__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rod__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.rod__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.rod__clock {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rod__clock b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rod__live {
+		min-height: 1.5em;
+		margin: 0.4rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rod__grid line {
+		stroke: var(--sl-color-gray-6);
+		stroke-width: 1;
+	}
+	.rod__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.rod__wax-line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 5;
+	}
+	.rod__wax-label {
+		font-size: 15px;
+		fill: var(--sl-color-gray-2);
+	}
+	.rod__nail-mark {
+		fill: var(--sl-color-gray-3);
+	}
+	.rod__ticks text {
+		font-size: 15px;
+		fill: var(--sl-color-gray-2);
+	}
+	.rod__math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.rod__curve {
+		fill: none;
+		stroke-width: 3;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.rod__curve--0 {
+		stroke: var(--rod-1);
+	}
+	.rod__curve--1 {
+		stroke: var(--rod-2);
+		stroke-dasharray: 9 6;
+	}
+	.rod__cap {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.5;
+		color: var(--sl-color-gray-2);
+	}
+	@media (max-width: 40rem) {
+		.rod {
+			padding: 0.75rem;
+		}
+		.rod__badge-num {
+			font-size: 20px;
+		}
+		.rod__ftime {
+			font-size: 21px;
+		}
+		.rod__lens-t {
+			font-size: 24px;
+		}
+		.rod__lens-x {
+			font-size: 20px;
+		}
+		.rod__wax-label,
+		.rod__ticks text {
+			font-size: 23px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.rod__flame,
+		.rod__chip {
+			transition: none;
+		}
+		.rod.is-lit .rod__flame path {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { Rod, MATS, NAILS, L, T_AIR, T_HOT, T_WAX, type MatKey } from './rod';
+	import { heatScale, onTheme, loop, reduceMotion, rng, svgPoint, css } from './heat';
+
+	const X0 = 70;
+	const X1 = 680;
+	const S = (X1 - X0) / L;
+	const LANE = 190;
+	const SPEED = 30; // model seconds per real second
+	const T_END = 30 * 60; // the experiment stops after 30 min of model time
+	const G = 9.8 * S; // free fall in px/s² (real scale of the drawing)
+	const NAIL = 30; // nail length, px (1,5 cm)
+	const GX0 = 70;
+	const GW = 610;
+	const GY0 = 214;
+	const GPH = 180;
+
+	type Nail = { state: 'hang' | 'fall' | 'tip' | 'down'; y: number; v: number; th: number; w: number; time: number };
+
+	const clock = (s: number) => {
+		const m = Math.floor(s / 60);
+		const sec = Math.floor(s % 60);
+		return `${m} мин ${String(sec).padStart(2, '0')} с`;
+	};
+	const short = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rod]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const $$ = <T extends Element>(sel: string) => Array.from(root.querySelectorAll<T>(sel));
+		const svg = $<SVGSVGElement>('.rod__scene');
+		const fireBtn = $<HTMLButtonElement>('[data-fire]');
+		const clockEl = $<HTMLElement>('[data-clock]');
+		const live = $<HTMLElement>('[data-live]');
+		let heat = heatScale(root);
+		const color = (t: number) => heat((t - T_AIR) / (T_HOT - T_AIR));
+
+		const rods = [new Rod('cu'), new Rod('st')];
+		let lit = false;
+		let time = 0;
+		let running = false;
+		const lensX = [X0 + 0.04 * S, X0 + 0.04 * S];
+
+		const lanes = [0, 1].map((i) => {
+			const g = $<SVGGElement>(`[data-lane-g="${i}"]`);
+			const y0 = 4 + i * LANE;
+			const nails = NAILS.map((_, n) => {
+				const el = g.querySelector<SVGGElement>(`[data-nail="${i}-${n}"]`)!;
+				return {
+					wax: el.querySelector<SVGEllipseElement>('[data-wax]')!,
+					body: el.querySelector<SVGGElement>('[data-body]')!,
+					ftime: el.querySelector<SVGTextElement>('[data-ftime]')!,
+					s: { state: 'hang', y: 0, v: 0, th: 0, w: 0, time: 0 } as Nail,
+				};
+			});
+			const lens = g.querySelector<SVGGElement>('[data-lens]')!;
+			const r = rng(17 + i * 101);
+			const atoms = Array.from(lens.querySelectorAll<SVGCircleElement>('[data-atoms] circle')).map((el, k) => {
+				const c = k % 5;
+				const row = Math.floor(k / 5) - 2;
+				return {
+					el,
+					x: (c - 2) * 15 + (row % 2 ? 7.5 : 0),
+					y: row * 13,
+					f1: 2.2 + r() * 1.6,
+					f2: 2.7 + r() * 1.9,
+					p1: r() * 6.28,
+					p2: r() * 6.28,
+				};
+			});
+			return {
+				y0,
+				stops: $$<SVGStopElement>(`[data-stop="${i}"]`),
+				nails,
+				lens,
+				clip: g.parentElement!.querySelector<SVGCircleElement>(`[data-clip="${i}"]`)!,
+				bg: lens.querySelector<SVGCircleElement>('[data-lens-bg]')!,
+				rim: lens.querySelector<SVGCircleElement>('[data-lens-rim]')!,
+				tip: lens.querySelector<SVGPathElement>('[data-lens-tip]')!,
+				tText: lens.querySelector<SVGTextElement>('[data-lens-t]')!,
+				xText: lens.querySelector<SVGTextElement>('[data-lens-x]')!,
+				atoms,
+				curve: $<SVGPolylineElement>(`[data-curve="${i}"]`),
+			};
+		});
+
+		const paintScale = () => {
+			for (const st of $$<SVGStopElement>('[data-scale-stop]')) st.style.stopColor = css(heat(Number(st.dataset.scaleStop)));
+		};
+
+		const placeLens = (i: number, t: number) => {
+			const ln = lanes[i];
+			const x = lensX[i];
+			const cy = ln.y0 + 50;
+			ln.bg.setAttribute('cx', String(x));
+			ln.rim.setAttribute('cx', String(x));
+			ln.clip.setAttribute('cx', String(x));
+			ln.tip.setAttribute('d', `M ${x - 9} ${cy + 35} L ${x} ${ln.y0 + 103} L ${x + 9} ${cy + 35} Z`);
+			const right = x < X1 - 140;
+			for (const el of [ln.tText, ln.xText]) {
+				el.setAttribute('x', String(right ? x + 48 : x - 48));
+				el.setAttribute('text-anchor', right ? 'start' : 'end');
+			}
+			ln.tText.textContent = `${Math.round(t)} °C`;
+			ln.xText.textContent = `${Math.round(((x - X0) / S) * 100)} см от конца`;
+		};
+
+		const drawAtoms = (i: number, t: number, now: number) => {
+			const ln = lanes[i];
+			const amp = 2.6 * Math.sqrt((t + 273) / (T_AIR + 273));
+			const still = reduceMotion();
+			const fill = css(color(t));
+			for (const a of ln.atoms) {
+				const dx = still ? 0 : amp * Math.sin(a.f1 * 6.28 * now + a.p1);
+				const dy = still ? 0 : amp * Math.sin(a.f2 * 6.28 * now + a.p2);
+				a.el.setAttribute('cx', (lensX[i] + a.x + dx).toFixed(2));
+				a.el.setAttribute('cy', (ln.y0 + 50 + a.y + dy).toFixed(2));
+				a.el.style.fill = fill;
+			}
+		};
+
+		const drawRod = (i: number) => {
+			const ln = lanes[i];
+			const rod = rods[i];
+			ln.stops.forEach((st, k) => {
+				st.style.stopColor = css(color(rod.at((k / 40) * L, lit)));
+			});
+			const pts: string[] = [];
+			for (let k = 0; k <= 60; k++) {
+				const x = (k / 60) * L;
+				const t = rod.at(x, lit);
+				pts.push(`${(GX0 + (x / L) * GW).toFixed(1)},${(GY0 - (t / T_HOT) * GPH).toFixed(1)}`);
+			}
+			ln.curve.setAttribute('points', pts.join(' '));
+		};
+
+		const drawNail = (i: number, n: number) => {
+			const { body, wax, s } = lanes[i].nails[n];
+			const nx = X0 + NAILS[n] * S;
+			const y = lanes[i].y0 + 120 + s.y;
+			// the pivot is the bottom tip: rotate about (0, NAIL) in the nail's own frame
+			body.style.transform = `translate(${nx}px, ${y}px) translate(0px, ${NAIL}px) rotate(${s.th}rad) translate(0px, ${-NAIL}px)`;
+			body.style.transformOrigin = '0 0';
+			const t = rods[i].at(NAILS[n], lit);
+			const soft = Math.min(1, Math.max(0, (t - (T_WAX - 15)) / 15));
+			wax.style.transform = `scale(${1 - 0.35 * soft}, ${1 - 0.15 * soft + (s.state !== 'hang' ? 0.25 : 0)})`;
+			wax.style.opacity = s.state === 'hang' ? '1' : '0.55';
+		};
+
+		const resetNails = () => {
+			lanes.forEach((ln, i) =>
+				ln.nails.forEach((nl, n) => {
+					nl.s = { state: 'hang', y: 0, v: 0, th: 0, w: 0, time: 0 };
+					nl.ftime.textContent = '';
+					drawNail(i, n);
+				}),
+			);
+		};
+
+		const drawAll = (now: number) => {
+			for (const i of [0, 1]) {
+				drawRod(i);
+				const t = rods[i].at((lensX[i] - X0) / S, lit);
+				placeLens(i, t);
+				drawAtoms(i, t, now);
+				lanes[i].nails.forEach((_, n) => drawNail(i, n));
+			}
+			clockEl.textContent = clock(time);
+		};
+
+		const fallen = (i: number) => lanes[i].nails.filter((n) => n.s.state !== 'hang').length;
+
+		const step = (dt: number, now: number) => {
+			let moving = false;
+			if (running) {
+				const span = dt * SPEED;
+				rods.forEach((r) => r.step(span, lit));
+				time += span;
+				if (time >= T_END) {
+					running = false;
+					live.textContent = `Прошло 30 минут. Дальше температура вдоль стержней почти не меняется. Упало гвоздиков: на стержне 1 — ${fallen(0)}, на стержне 2 — ${fallen(1)}.`;
+				}
+				if (!lit && rods.every((r) => r.T.every((t) => t < T_AIR + 1))) running = false;
+			}
+			for (const i of [0, 1]) {
+				lanes[i].nails.forEach((nl, n) => {
+					const s = nl.s;
+					if (s.state === 'hang' && rods[i].at(NAILS[n], lit) >= T_WAX) {
+						s.state = 'fall';
+						s.time = time;
+						nl.ftime.textContent = short(time);
+						live.textContent = `Стержень ${i + 1} (${MATS[rods[i].mat].name.toLowerCase()}): отпал ${n + 1}-й гвоздик, время ${clock(time)}.`;
+					}
+					if (s.state === 'fall') {
+						s.v += G * dt;
+						s.y += s.v * dt;
+						if (s.y >= 30) {
+							s.y = 30;
+							s.state = 'tip';
+							s.w = 2.5; // the nail lands slightly tilted and topples like a thin stick
+						}
+						moving = true;
+					} else if (s.state === 'tip') {
+						s.w += ((3 * 9.8) / (2 * (NAIL / S))) * Math.sin(s.th) * dt;
+						s.th += s.w * dt;
+						if (s.th >= Math.PI / 2) {
+							s.th = Math.PI / 2;
+							s.state = 'down';
+						}
+						moving = true;
+					}
+				});
+			}
+			drawAll(now);
+			return running || moving || !reduceMotion();
+		};
+		const wake = loop(root, step);
+
+		const setLit = (on: boolean) => {
+			lit = on;
+			root.classList.toggle('is-lit', on);
+			fireBtn.textContent = on ? 'Погасить спиртовки' : 'Зажечь спиртовки';
+			if (on) {
+				running = time < T_END;
+				live.textContent = 'Спиртовки горят. Следите за гвоздиками и за графиком.';
+			} else if (time > 0) live.textContent = 'Спиртовки погашены: стержни остывают, отдавая тепло воздуху.';
+			wake();
+		};
+
+		const reset = () => {
+			rods.forEach((r) => r.reset());
+			time = 0;
+			running = false;
+			setLit(false);
+			resetNails();
+			live.textContent = 'Выберите материалы стержней и зажгите спиртовки.';
+			drawAll(performance.now() / 1000);
+			wake();
+		};
+
+		fireBtn.addEventListener('click', () => setLit(!lit));
+		$('[data-reset]').addEventListener('click', reset);
+
+		for (const chip of $$<HTMLButtonElement>('[data-mat]')) {
+			chip.addEventListener('click', () => {
+				const i = Number(chip.dataset.lane);
+				for (const c of $$<HTMLButtonElement>(`[data-lane="${i}"]`)) c.setAttribute('aria-pressed', String(c === chip));
+				rods[i].setMat(chip.dataset.mat as MatKey);
+				reset();
+			});
+		}
+
+		// drag a magnifier along its rod
+		let drag = -1;
+		const dragTo = (e: PointerEvent) => {
+			const p = svgPoint(svg, e);
+			lensX[drag] = Math.min(X1 - 12, Math.max(X0 + 30, p.x));
+			drawAll(performance.now() / 1000);
+		};
+		[0, 1].forEach((i) => {
+			const targets = [lanes[i].lens, svg.querySelector(`[data-lane-g="${i}"] .rod__bar`)!];
+			for (const el of targets)
+				el.addEventListener('pointerdown', (e) => {
+					const pe = e as PointerEvent;
+					pe.preventDefault();
+					drag = i;
+					svg.setPointerCapture(pe.pointerId);
+					dragTo(pe);
+				});
+		});
+		svg.addEventListener('pointermove', (e) => drag >= 0 && dragTo(e));
+		const end = () => (drag = -1);
+		svg.addEventListener('pointerup', end);
+		svg.addEventListener('pointercancel', end);
+
+		onTheme(() => {
+			heat = heatScale(root);
+			paintScale();
+			drawAll(performance.now() / 1000);
+		});
+		paintScale();
+		reset();
+	}
+</script>

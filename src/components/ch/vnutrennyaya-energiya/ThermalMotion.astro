@@ -1,0 +1,133 @@
+---
+/**
+ * Molecules of a gas in a box: elastic collisions with each other and with the walls.
+ * Heating multiplies all velocities by √(T₂/T₁) (T in kelvins), so the mean kinetic energy
+ * is proportional to the absolute temperature, as in a real gas. The shown number is the real mean speed
+ * of the molecules of air, √(8RT/(πM)); on the screen the motion is slowed down enormously.
+ */
+import VeStyles from './VeStyles.astro';
+---
+
+<VeStyles />
+<figure class="ve-box tm not-content" data-tm>
+	<canvas class="ve-canvas" width="720" height="300" aria-label="Молекулы газа в сосуде беспорядочно движутся и сталкиваются"></canvas>
+	<label class="ve-slider">
+		<span>Температура газа <i>t</i></span>
+		<output data-t-out>20 °C</output>
+		<input type="range" min="-100" max="500" step="10" value="20" data-t />
+	</label>
+	<p class="ve-live" aria-live="polite" data-out></p>
+	<figcaption class="ve-cap">
+		Цвет молекулы показывает её скорость: синие — медленные, красные — средние, жёлтые — самые быстрые. Скорости у молекул разные и всё время меняются при столкновениях, но в среднем они тем
+		больше, чем выше температура. Движение на экране замедлено в десятки тысяч раз, а молекулы сильно увеличены.
+	</figcaption>
+</figure>
+
+<script>
+	import { heatScale, onTheme, loop, reduceMotion, rng, css, ru } from './heat';
+
+	const W = 720;
+	const H = 300;
+	const N = 64;
+	const RAD = 6;
+	const K = 0.16; // px/s on the screen per m/s of the real speed
+	const meanSpeed = (tC: number) => Math.sqrt((8 * 8.314 * (tC + 273.15)) / (Math.PI * 0.029)); // air, m/s
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-tm]')) {
+		const canvas = root.querySelector('canvas')!;
+		const ctx = canvas.getContext('2d')!;
+		const input = root.querySelector<HTMLInputElement>('[data-t]')!;
+		const tOut = root.querySelector<HTMLOutputElement>('[data-t-out]')!;
+		const out = root.querySelector<HTMLElement>('[data-out]')!;
+		let heat = heatScale(root);
+		let bg = getComputedStyle(root).getPropertyValue('--sl-color-bg');
+		const dpr = Math.min(2, window.devicePixelRatio || 1);
+		canvas.width = W * dpr;
+		canvas.height = H * dpr;
+		ctx.scale(dpr, dpr);
+
+		const r = rng(7);
+		const gauss = () => Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(6.2832 * r());
+		let tC = 20;
+		const sigma = (t: number) => (K * meanSpeed(t)) / Math.sqrt(Math.PI / 2); // 2D: mean speed = σ√(π/2)
+		const ps = Array.from({ length: N }, (_, k) => ({
+			x: RAD + 4 + ((k % 11) + 0.5) * ((W - 2 * RAD - 8) / 11),
+			y: RAD + 4 + (Math.floor(k / 11) + 0.5) * ((H - 2 * RAD - 8) / 6),
+			vx: gauss() * sigma(tC),
+			vy: gauss() * sigma(tC),
+		}));
+
+		const show = () => {
+			tOut.textContent = `${tC.toLocaleString('ru-RU')} °C`;
+			out.innerHTML = `Средняя скорость молекул воздуха при ${tC.toLocaleString('ru-RU')} °C — около <b>${ru(Math.round(meanSpeed(tC) / 10) * 10, 0)} м/с</b>. Это быстрее пули из пневматической винтовки.`;
+		};
+
+		const draw = () => {
+			ctx.globalAlpha = reduceMotion() ? 1 : 0.4;
+			ctx.fillStyle = bg;
+			ctx.fillRect(0, 0, W, H);
+			ctx.globalAlpha = 1;
+			const vRef = 2.4 * sigma(20);
+			for (const p of ps) {
+				const s = Math.hypot(p.vx, p.vy);
+				ctx.fillStyle = css(heat(s / vRef));
+				ctx.beginPath();
+				ctx.arc(p.x, p.y, RAD, 0, 6.2832);
+				ctx.fill();
+			}
+		};
+
+		const move = (dt: number) => {
+			for (const p of ps) {
+				p.x += p.vx * dt;
+				p.y += p.vy * dt;
+				if (p.x < RAD) (p.x = 2 * RAD - p.x), (p.vx = Math.abs(p.vx));
+				if (p.x > W - RAD) (p.x = 2 * (W - RAD) - p.x), (p.vx = -Math.abs(p.vx));
+				if (p.y < RAD) (p.y = 2 * RAD - p.y), (p.vy = Math.abs(p.vy));
+				if (p.y > H - RAD) (p.y = 2 * (H - RAD) - p.y), (p.vy = -Math.abs(p.vy));
+			}
+			// elastic collisions of equal balls: exchange of the velocity components along the line of centres
+			for (let i = 0; i < N; i++)
+				for (let j = i + 1; j < N; j++) {
+					const a = ps[i];
+					const b = ps[j];
+					const dx = b.x - a.x;
+					const dy = b.y - a.y;
+					const d2 = dx * dx + dy * dy;
+					if (d2 >= 4 * RAD * RAD || d2 === 0) continue;
+					const d = Math.sqrt(d2);
+					const nx = dx / d;
+					const ny = dy / d;
+					const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+					if (rel <= 0) continue;
+					a.vx -= rel * nx;
+					a.vy -= rel * ny;
+					b.vx += rel * nx;
+					b.vy += rel * ny;
+				}
+		};
+
+		const wake = loop(root, (dt) => {
+			if (!reduceMotion()) move(dt);
+			draw();
+			return !reduceMotion();
+		});
+
+		input.addEventListener('input', () => {
+			const t = Number(input.value);
+			const f = Math.sqrt((t + 273.15) / (tC + 273.15));
+			for (const p of ps) (p.vx *= f), (p.vy *= f);
+			tC = t;
+			show();
+			draw();
+			wake();
+		});
+		onTheme(() => {
+			heat = heatScale(root);
+			bg = getComputedStyle(root).getPropertyValue('--sl-color-bg');
+			draw();
+		});
+		show();
+		draw();
+	}
+</script>
