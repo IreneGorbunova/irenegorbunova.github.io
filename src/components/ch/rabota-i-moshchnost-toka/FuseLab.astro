@@ -1,0 +1,659 @@
+---
+/**
+ * Home wiring with a protective device rated 16 А: appliances in parallel, a damaged cord that can short the line,
+ * and either a fuse (плавкая вставка) or a circuit breaker (thermal + electromagnetic release).
+ * Heating of the fuse element / bimetal strip: dθ/dt = (0,6·(I/Iн)² − θ)/τ, it melts / trips at θ = 1,
+ * so long currents below ≈ 1,3·Iн are safe; τ = 60 с, the model clock runs 10 times faster for overloads.
+ * Short circuit: only the wires are left, R ≈ 0,5 Ом, I = 220 В / 0,5 Ом = 440 А.
+ */
+import { DEVICES, ICONS, ICON_CSS, type DeviceKey } from './rm';
+
+const KEYS: DeviceKey[] = ['inc', 'tv', 'kettle', 'iron', 'heater'];
+const BX = [262, 312, 362, 412, 462]; // x of the branches in the drawing
+---
+
+<figure class="rmfl not-content" data-rmfl>
+	<div class="rmfl__seg" role="group" aria-label="Защита в щитке">
+		<button type="button" data-mode="fuse" aria-pressed="true">Плавкий предохранитель</button>
+		<button type="button" data-mode="auto" aria-pressed="false">Автоматический выключатель</button>
+	</div>
+
+	<svg class="rmfl__svg" viewBox="0 0 600 236" role="img" aria-label="Схема домашней проводки: щиток с защитой, приборы включены параллельно, повреждённый шнур">
+		<defs>
+			<filter id="rmfl-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" /></filter>
+		</defs>
+		<rect class="rmfl__panel" x="8" y="14" width="200" height="208" rx="10" />
+		<text class="rmfl__small" x="16" y="32">щиток</text>
+		<text class="rmfl__small" x="16" y="56">фаза</text>
+		<text class="rmfl__small" x="16" y="177">ноль</text>
+		<text class="rmfl__net" x="16" y="208">сеть 220 В</text>
+
+		<!-- wires -->
+		<path class="rmfl__wire" d="M8 64 H74 M156 64 H530 V96 M8 184 H530 V140" data-wires />
+		<path class="rmfl__flow" d="M8 64 H74 M156 64 H530" data-flow />
+		<path class="rmfl__flow rmfl__flow--back" d="M530 184 H8" data-flow />
+		{
+			KEYS.map((k, i) => (
+				<g class="rmfl__branch" data-branch={k} style={`--dc: ${DEVICES[k].colour}`}>
+					<path class="rmfl__wire" d={`M${BX[i]} 64 V86 M${BX[i]} 162 V184`} />
+					<circle class="rmfl__node" cx={BX[i]} cy="64" r="3" />
+					<circle class="rmfl__node" cx={BX[i]} cy="184" r="3" />
+					<path class="rmfl__switch" d={`M${BX[i]} 86 L${BX[i] + 12} 104`} data-sw />
+					<path class="rmfl__wire" d={`M${BX[i]} 106 V112`} />
+					<g transform={`translate(${BX[i] - 18} 112) scale(0.5625)`}>
+						<svg class="rmi" viewBox="0 0 64 64" width="64" height="64" set:html={ICONS[k]} />
+					</g>
+					<path class="rmfl__wire" d={`M${BX[i]} 150 V162`} />
+				</g>
+			))
+		}
+		<!-- damaged cord: two wires with bare spots -->
+		<g class="rmfl__cord" data-cord>
+			<path class="rmfl__wire" d="M530 96 V112 Q530 118 536 118" data-cordA />
+			<path class="rmfl__wire" d="M530 140 V128 Q530 122 536 122" data-cordB />
+			<circle class="rmfl__bare" cx="538" cy="118" r="3" />
+			<circle class="rmfl__bare" cx="538" cy="122" r="3" />
+			<g class="rmfl__spark" data-spark>
+				<circle cx="538" cy="120" r="16" filter="url(#rmfl-blur)" />
+				<path d="M538 120 l-14 -10 M538 120 l15 -9 M538 120 l-12 12 M538 120 l14 11 M538 120 l1 -18 M538 120 l-2 18" />
+			</g>
+			<text class="rmfl__small" x="596" y="202" text-anchor="end">повреждённый</text>
+			<text class="rmfl__small" x="596" y="216" text-anchor="end">шнур</text>
+		</g>
+
+		<!-- fuse -->
+		<g class="rmfl__fuse" data-fuse>
+			<rect class="rmfl__fbody" x="74" y="44" width="82" height="40" rx="8" />
+			<rect class="rmfl__fwin" x="84" y="52" width="62" height="24" rx="4" />
+			<path class="rmfl__elem" d="M86 64 H144" data-elem />
+			<path class="rmfl__elemglow" d="M86 64 H144" filter="url(#rmfl-blur)" data-elemglow />
+			<g class="rmfl__broken" data-broken>
+				<path d="M86 64 H106 q3 0 4 3 M144 64 H124 q-3 0 -4 -3" />
+				<circle cx="112" cy="71" r="1.8" /><circle cx="118" cy="73" r="1.4" /><circle cx="114" cy="74" r="1.1" />
+			</g>
+			<text class="rmfl__rate" x="115" y="100" text-anchor="middle">16 А</text>
+		</g>
+		<!-- circuit breaker -->
+		<g class="rmfl__auto" data-auto>
+			<rect class="rmfl__fbody" x="80" y="30" width="70" height="78" rx="6" />
+			<rect class="rmfl__slot" x="104" y="20" width="22" height="14" rx="3" />
+			<g data-lever><rect class="rmfl__lever" x="109" y="8" width="12" height="22" rx="3" /></g>
+			<path class="rmfl__bimetal" d="M94 46 V84" data-bimetal />
+			<path class="rmfl__coil" d="M128 46 q8 3 0 6 q8 3 0 6 q8 3 0 6 q8 3 0 6 q8 3 0 6 q8 3 0 6" data-coil />
+			<text class="rmfl__small" x="115" y="102" text-anchor="middle">B16</text>
+			<path class="rmfl__wire" d="M74 64 H80 M150 64 H156" />
+		</g>
+
+		<text class="rmfl__amp" x="112" y="136" text-anchor="middle" data-amp>I = 0 А</text>
+		<text class="rmfl__small" x="16" y="160">нагрев</text>
+		<rect class="rmfl__heatbg" x="60" y="151" width="128" height="10" rx="5" />
+		<rect class="rmfl__heat" x="60" y="151" width="0" height="10" rx="5" data-heat />
+		<line class="rmfl__heatmax" x1="188" x2="188" y1="147" y2="165" />
+	</svg>
+
+	<div class="rmfl__devs">
+		{
+			KEYS.map((k) => (
+				<button type="button" class="rmfl__dev" data-dev={k} aria-pressed="false" style={`--dc: ${DEVICES[k].colour}`}>
+					<span class="rmfl__icon">
+						<svg class="rmi" viewBox="0 0 64 64" aria-hidden="true" set:html={ICONS[k]} />
+					</span>
+					<span class="rmfl__dname">{DEVICES[k].name}</span>
+					<span class="rmfl__dpow">{DEVICES[k].P} Вт</span>
+				</button>
+			))
+		}
+	</div>
+
+	<div class="rmfl__actions">
+		<button type="button" class="rmfl__btn rmfl__btn--danger" data-short>Короткое замыкание</button>
+		<button type="button" class="rmfl__btn" data-restore disabled>Заменить предохранитель</button>
+	</div>
+
+	<div class="rmfl__math" data-math></div>
+	<p class="rmfl__status" data-status aria-live="polite"></p>
+
+	<figcaption class="rmfl__caption">
+		Нажимайте на приборы, чтобы включать и выключать их: все они подключены к сети параллельно, поэтому их токи складываются. Защита
+		рассчитана на 16 А: долго выдерживает ток примерно до 20 А, а при большем токе срабатывает тем быстрее, чем больше ток. При
+		перегрузке часы модели идут в 10 раз быстрее. Сопротивление проводов от щитка до места замыкания и обратно принято равным
+		0,5 Ом. Это модель: ни в коем случае не повторяйте такие опыты с настоящей сетью!
+	</figcaption>
+</figure>
+
+<style is:global set:html={ICON_CSS}></style>
+
+<style is:global>
+	.rmfl {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rmfl i {
+		font-family: var(--ig-font-math);
+	}
+	.rmfl__seg {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.rmfl__seg button,
+	.rmfl__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.4rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rmfl__seg button[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 22%, transparent);
+	}
+	.rmfl__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.rmfl__btn--danger {
+		border-color: var(--sl-color-red);
+		color: var(--sl-color-red);
+		font-weight: 600;
+	}
+	.rmfl__btn--danger:not(:disabled):hover {
+		background: color-mix(in srgb, var(--sl-color-red) 16%, transparent);
+	}
+	.rmfl__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin-top: 0.6rem;
+		overflow: visible;
+	}
+	.rmfl__panel {
+		fill: color-mix(in srgb, var(--sl-color-gray-6) 70%, transparent);
+		stroke: var(--sl-color-gray-5);
+		stroke-dasharray: 5 4;
+	}
+	.rmfl__small {
+		font-family: var(--sl-font);
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-3);
+	}
+	.rmfl__net {
+		font-family: var(--sl-font);
+		font-size: 13px;
+		fill: var(--sl-color-gray-2);
+	}
+	.rmfl__wire {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.rmfl__node {
+		fill: var(--sl-color-gray-3);
+	}
+	.rmfl__flow {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 2.4;
+		stroke-dasharray: 2 13;
+		stroke-linecap: round;
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+	.rmfl.is-flow .rmfl__flow {
+		opacity: 0.95;
+	}
+	.rmfl.is-sc .rmfl__flow {
+		stroke: var(--sl-color-red);
+	}
+	.rmfl__switch {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		transition: d 0.25s;
+	}
+	.rmfl__branch .rmi {
+		overflow: visible;
+	}
+	.rmfl__branch:not(.is-pressed) .rmi {
+		opacity: 0.45;
+	}
+	.rmfl__bare {
+		fill: hsl(25, 65%, 55%);
+	}
+	.rmfl__spark {
+		opacity: 0;
+		pointer-events: none;
+	}
+	.rmfl__spark circle {
+		fill: rgb(255, 230, 150);
+	}
+	.rmfl__spark path {
+		stroke: rgb(255, 220, 120);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.rmfl.is-sc .rmfl__spark {
+		animation: rmfl-spark 0.6s ease-out;
+	}
+	@keyframes rmfl-spark {
+		0% {
+			opacity: 1;
+			transform: scale(0.6);
+		}
+		100% {
+			opacity: 0;
+			transform: scale(1.4);
+		}
+	}
+	.rmfl__spark {
+		transform-box: fill-box;
+		transform-origin: center;
+	}
+	.rmfl__fbody {
+		fill: hsl(40, 25%, 88%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.rmfl__fwin {
+		fill: hsl(205, 30%, 20%);
+		stroke: var(--sl-color-gray-4);
+	}
+	:root[data-theme='light'] .rmfl__fwin {
+		fill: hsl(205, 30%, 30%);
+	}
+	.rmfl__elem {
+		stroke: hsl(30, 40%, 72%);
+		stroke-width: 1.6;
+	}
+	.rmfl__elemglow {
+		stroke-width: 8;
+		opacity: 0;
+	}
+	.rmfl__broken {
+		display: none;
+		stroke: hsl(30, 40%, 72%);
+		stroke-width: 1.6;
+		fill: hsl(30, 40%, 72%);
+	}
+	.rmfl__broken path {
+		fill: none;
+	}
+	.rmfl.is-melted .rmfl__elem,
+	.rmfl.is-melted .rmfl__elemglow {
+		display: none;
+	}
+	.rmfl.is-melted .rmfl__broken {
+		display: inline;
+	}
+	.rmfl.is-melted .rmfl__fwin {
+		fill: hsl(20, 20%, 14%);
+	}
+	.rmfl__rate {
+		font-family: var(--sl-font);
+		font-size: 12px;
+		font-weight: 600;
+		fill: var(--sl-color-gray-2);
+	}
+	.rmfl__auto {
+		display: none;
+	}
+	.rmfl.mode-auto .rmfl__auto {
+		display: inline;
+	}
+	.rmfl.mode-auto .rmfl__fuse {
+		display: none;
+	}
+	.rmfl__slot {
+		fill: hsl(220, 10%, 25%);
+	}
+	.rmfl__lever {
+		fill: var(--sl-color-gray-3);
+	}
+	[data-lever] {
+		transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1);
+	}
+	.rmfl.is-tripped [data-lever] {
+		transform: translateY(16px);
+	}
+	.rmfl__bimetal {
+		fill: none;
+		stroke: hsl(28, 60%, 50%);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.rmfl__coil {
+		fill: none;
+		stroke: hsl(22, 60%, 45%);
+		stroke-width: 1.8;
+	}
+	.rmfl.is-magnet .rmfl__coil {
+		stroke: var(--sl-color-red);
+		filter: drop-shadow(0 0 3px var(--sl-color-red));
+	}
+	.rmfl__amp {
+		font-family: var(--ig-font-math);
+		font-size: 24px;
+		fill: var(--sl-color-white);
+	}
+	.rmfl.is-sc .rmfl__amp {
+		fill: var(--sl-color-red);
+	}
+	.rmfl__heatbg {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-5);
+	}
+	.rmfl__heat {
+		fill: var(--ig-v);
+	}
+	.rmfl.is-hot .rmfl__heat {
+		fill: var(--sl-color-red);
+	}
+	.rmfl__heatmax {
+		stroke: var(--sl-color-red);
+		stroke-width: 2;
+	}
+	.rmfl__devs {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 0.4rem;
+		margin-top: 0.5rem;
+	}
+	@media (max-width: 560px) {
+		.rmfl__devs {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+	.rmfl__dev {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.1rem;
+		margin: 0;
+		padding: 0.45rem 0.3rem;
+		font: inherit;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.7rem;
+		cursor: pointer;
+		transition:
+			border-color 0.25s,
+			background 0.25s;
+	}
+	.rmfl__dev[aria-pressed='true'] {
+		border-color: var(--dc);
+		background: color-mix(in srgb, var(--dc) 14%, transparent);
+	}
+	.rmfl__icon {
+		width: 2.4rem;
+		height: 2.4rem;
+	}
+	.rmfl__dname {
+		font-size: var(--sl-text-xs);
+		line-height: 1.15;
+		text-align: center;
+	}
+	.rmfl__dpow {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.rmfl__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.7rem;
+	}
+	.rmfl__math {
+		margin-top: 0.5rem;
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.rmfl__status {
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		min-height: 2.6em;
+	}
+	.rmfl__status b {
+		color: var(--sl-color-white);
+	}
+	.rmfl__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.rmfl.is-sc .rmfl__spark {
+			animation: none;
+			opacity: 0.8;
+		}
+	}
+</style>
+
+<script>
+	import { DEVICES, U_NET, glow, ru, tex, renderTex, type DeviceKey } from './rm';
+
+	const KEYS: DeviceKey[] = ['inc', 'tv', 'kettle', 'iron', 'heater'];
+	const BX = [262, 312, 362, 412, 462];
+	const IN = 16; // А, номинальный ток защиты
+	const TAU = 60; // с, время нагрева вставки / биметалла
+	const SPEEDUP = 10;
+	const R_WIRES = 0.5; // Ом, провода до места замыкания и обратно
+	const I_SC = U_NET / R_WIRES; // 440 А
+	const HEAT_W = 128;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rmfl]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+		const shortBtn = $<HTMLButtonElement>('[data-short]');
+		const restoreBtn = $<HTMLButtonElement>('[data-restore]');
+		const amp = $<SVGTextElement>('[data-amp]');
+		const heat = $<SVGRectElement>('[data-heat]');
+		const flows = Array.from(root.querySelectorAll<SVGPathElement>('[data-flow]'));
+		const elemGlow = $<SVGPathElement>('[data-elemglow]');
+		const elem = $<SVGPathElement>('[data-elem]');
+		const bimetal = $<SVGPathElement>('[data-bimetal]');
+		const cordA = $<SVGPathElement>('[data-cordA]');
+		const cordB = $<SVGPathElement>('[data-cordB]');
+		const math = $<HTMLElement>('[data-math]');
+		const status = $<HTMLElement>('[data-status]');
+		const devBtn = Object.fromEntries(KEYS.map((k) => [k, $<HTMLButtonElement>(`[data-dev="${k}"]`)])) as Record<DeviceKey, HTMLButtonElement>;
+		const branch = Object.fromEntries(KEYS.map((k) => [k, $<SVGGElement>(`[data-branch="${k}"]`)])) as Record<DeviceKey, SVGGElement>;
+		const sw = Object.fromEntries(KEYS.map((k) => [k, branch[k].querySelector<SVGPathElement>('[data-sw]')!])) as Record<DeviceKey, SVGPathElement>;
+
+		const on: Record<string, boolean> = { inc: true, tv: true };
+		let mode: 'fuse' | 'auto' = 'fuse';
+		let sc = false; // короткое замыкание
+		let broken = false; // предохранитель расплавился / автомат отключился
+		let theta = 0; // нагрев вставки: 1 — плавится
+		let over = 0; // с, сколько длится перегрузка (время модели)
+		let raf = 0;
+		let lastNow = 0;
+		let dash = 0;
+
+		const power = () => KEYS.reduce((s, k) => s + (on[k] ? DEVICES[k].P : 0), 0);
+		const current = () => (broken ? 0 : sc ? I_SC : power() / U_NET);
+		const setStatus = (html: string) => (status.innerHTML = html);
+
+		const drawStatic = () => {
+			root.classList.toggle('mode-auto', mode === 'auto');
+			root.classList.toggle('is-melted', mode === 'fuse' && broken);
+			root.classList.toggle('is-tripped', mode === 'auto' && broken);
+			root.classList.toggle('is-sc', sc);
+			restoreBtn.textContent = mode === 'fuse' ? 'Заменить предохранитель' : 'Включить автомат';
+			restoreBtn.disabled = !broken;
+			shortBtn.disabled = sc;
+			KEYS.forEach((k, i) => {
+				const p = !!on[k];
+				devBtn[k].setAttribute('aria-pressed', String(p));
+				devBtn[k].classList.toggle('is-on', p && !broken && !sc);
+				branch[k].classList.toggle('is-pressed', p);
+				branch[k].classList.toggle('is-on', p && !broken && !sc);
+				sw[k].setAttribute('d', p ? `M${BX[i]} 86 L${BX[i]} 106` : `M${BX[i]} 86 L${BX[i] + 12} 104`);
+			});
+			cordA.setAttribute('d', sc ? 'M530 96 V112 Q530 120 538 120' : 'M530 96 V112 Q530 118 536 118');
+			cordB.setAttribute('d', sc ? 'M530 140 V128 Q530 120 538 120' : 'M530 140 V128 Q530 122 536 122');
+			const I = current();
+			const P = power();
+			const texI = (v: number) => tex(v, v < 1 ? 2 : 1);
+			const eqs = (v: number, d: number) => (Math.abs(Math.round(v * 10 ** d) / 10 ** d - v) > 1e-9 ? '\\approx' : '=');
+			if (broken) {
+				renderTex(math, `\\text{цепь разорвана:}~I = 0`);
+			} else if (sc) {
+				renderTex(math, `I = \\frac{U}{R_{\\text{проводов}}} = \\frac{220~\\text{В}}{0{,}5~\\text{Ом}} = 440~\\text{А}`);
+			} else {
+				const Iv = P / U_NET;
+				renderTex(math, `I = \\frac{P}{U} = \\frac{${tex(P, 0)}~\\text{Вт}}{220~\\text{В}} ${eqs(Iv, Iv < 1 ? 2 : 1)} ${texI(Iv)}~\\text{А}`);
+			}
+			amp.textContent = `I = ${I >= 100 ? Math.round(I) : ru(I, I < 1 ? 2 : 1)} А`;
+		};
+
+		const drawHeat = () => {
+			const th = Math.min(1, theta);
+			heat.setAttribute('width', String(HEAT_W * th));
+			root.classList.toggle('is-hot', th > 0.8);
+			const g = glow(th < 0.75 ? 0 : 500 + ((th - 0.75) / 0.25) * 600);
+			elemGlow.style.stroke = g.colour;
+			elemGlow.style.opacity = String(g.a);
+			elem.style.stroke = g.a > 0 ? g.colour : '';
+			// bimetal strip bends with heat (thermal release)
+			const bend = 14 * th;
+			bimetal.setAttribute('d', `M94 46 Q${94 + bend} 65 ${94 + bend * 0.2} 84`);
+		};
+
+		const melt = (why: 'over' | 'sc') => {
+			broken = true;
+			const I = why === 'sc' ? I_SC : power() / U_NET;
+			if (mode === 'fuse') {
+				setStatus(
+					why === 'sc'
+						? `<b>Короткое замыкание!</b> Ток подскочил до ${Math.round(I_SC)} А — в десятки раз больше обычного. Плавкая вставка за доли секунды раскалилась, расплавилась и разорвала цепь. Без неё так же быстро раскалились бы провода в стенах.`
+						: `<b>Предохранитель перегорел</b> через ${Math.round(over)} с: ток ${ru(I, 1)} А больше допустимого. Выключите часть приборов и замените предохранитель.`,
+				);
+			} else {
+				root.classList.toggle('is-magnet', why === 'sc');
+				setStatus(
+					why === 'sc'
+						? `<b>Короткое замыкание!</b> Ток ${Math.round(I_SC)} А сильно намагнитил катушку автомата: она мгновенно — за сотые доли секунды — разомкнула контакты.`
+						: `<b>Автомат отключился</b> через ${Math.round(over)} с: ток ${ru(I, 1)} А нагрел биметаллическую пластинку, она изогнулась и разомкнула контакты. Выключите часть приборов и снова включите автомат.`,
+				);
+			}
+			drawStatic();
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.max(0, Math.min(0.1, (now - lastNow) / 1000));
+			lastNow = now;
+			const I = current();
+			const target = 0.6 * (I / IN) ** 2;
+			const sdt = dt * SPEEDUP;
+			if (!broken) {
+				if (sc) {
+					if (mode === 'auto') {
+						theta = 0;
+						melt('sc');
+					} else {
+						// плавкая вставка: a few tenths of a second in reality — shown over ~0,4 с
+						theta += dt * 2.6;
+						if (theta >= 1) {
+							theta = 1;
+							melt('sc');
+						}
+					}
+				} else {
+					theta = target + (theta - target) * Math.exp(-sdt / TAU);
+					if (I > IN) over += sdt;
+					else over = 0;
+					if (theta >= 1) {
+						theta = 1;
+						melt('over');
+					}
+				}
+			} else {
+				theta *= Math.exp(-sdt / TAU) ** 3;
+			}
+			const Iflow = current();
+			root.classList.toggle('is-flow', Iflow > 0);
+			if (Iflow > 0 && !reduceMotion.matches) {
+				dash -= dt * (sc ? 400 : 8 + 2.4 * Math.min(Iflow, 30));
+				for (const f of flows) f.style.strokeDashoffset = String(dash);
+			}
+			drawHeat();
+			if (!broken && !sc && I > IN && theta < 1) {
+				setStatus(`<b>Перегрузка:</b> ток ${ru(I, 1)} А больше 16 А. Защита нагревается… Прошло ${Math.round(over)} с.`);
+			}
+			raf = requestAnimationFrame(frame);
+		};
+
+		const describe = () => {
+			if (broken || sc) return;
+			const I = current();
+			if (I === 0) setStatus('Все приборы выключены — тока нет.');
+			else if (I <= IN) setStatus(`Ток ${ru(I, I < 1 ? 2 : 1)} А не больше 16 А — защита его спокойно пропускает.`);
+			else if (I < 1.29 * IN) setStatus(`Ток ${ru(I, 1)} А чуть больше 16 А. Такую небольшую перегрузку защита выдерживает долго, но провода нагреваются сильнее обычного.`);
+		};
+
+		for (const k of KEYS) {
+			devBtn[k].addEventListener('click', () => {
+				on[k] = !on[k];
+				over = 0;
+				drawStatic();
+				describe();
+			});
+		}
+		shortBtn.addEventListener('click', () => {
+			sc = true;
+			if (!broken) setStatus('<b>Замыкание!</b> Оголённые провода соприкоснулись…');
+			drawStatic();
+		});
+		restoreBtn.addEventListener('click', () => {
+			broken = false;
+			sc = false;
+			theta = 0;
+			over = 0;
+			root.classList.remove('is-magnet');
+			drawStatic();
+			setStatus(mode === 'fuse' ? 'Поставили новый предохранитель и заменили повреждённый шнур.' : 'Автомат снова включён, повреждённый шнур заменили.');
+			describe();
+		});
+		modeBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				mode = b.dataset.mode as 'fuse' | 'auto';
+				modeBtns.forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+				broken = false;
+				sc = false;
+				theta = 0;
+				over = 0;
+				root.classList.remove('is-magnet');
+				drawStatic();
+				describe();
+			}),
+		);
+
+		drawStatic();
+		drawHeat();
+		describe();
+		// run the clock only while the model is on screen
+		new IntersectionObserver((entries) => {
+			for (const e of entries) {
+				if (e.isIntersecting && !raf) {
+					lastNow = performance.now();
+					raf = requestAnimationFrame(frame);
+				} else if (!e.isIntersecting && raf) {
+					cancelAnimationFrame(raf);
+					raf = 0;
+				}
+			}
+		}).observe(root);
+	}
+</script>

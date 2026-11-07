@@ -1,0 +1,853 @@
+---
+/**
+ * Main model: six household appliances with their (rounded, typical) powers. For each one the reader sets
+ * how many hours a day it works. The model draws the day's load curve P(t) — the area under it is the energy —
+ * runs the electricity meter through the day, and counts energy per day and per month (30 days) in кВт·ч and
+ * the payment at the chosen tariff. A click on an appliance shows the calculation A = Pt for it.
+ */
+import { DEVICES, ICONS, ICON_CSS, type DeviceKey } from './rm';
+
+const KEYS: DeviceKey[] = ['kettle', 'iron', 'inc', 'led', 'tv', 'charger'];
+const fmtH = (h: number) => String(h).replace('.', ',');
+---
+
+<figure class="rmhome not-content" data-rmhome>
+	<div class="rmhome__devs">
+		{
+			KEYS.map((k) => (
+				<div class="rmhome__dev" data-dev={k} style={`--dc: ${DEVICES[k].colour}`}>
+					<button type="button" class="rmhome__pick" data-pick aria-pressed={k === 'kettle' ? 'true' : 'false'}>
+						<span class="rmhome__icon">
+							<svg class="rmi" viewBox="0 0 64 64" aria-hidden="true" set:html={ICONS[k]} />
+						</span>
+						<span class="rmhome__name">{DEVICES[k].name}</span>
+						<span class="rmhome__power">
+							<span class="rmhome__dot" />
+							{DEVICES[k].P} Вт
+						</span>
+					</button>
+					<label class="rmhome__slider">
+						<span class="rmhome__hours">
+							<output data-hout>{fmtH(DEVICES[k].hours)}</output> ч в сутки
+						</span>
+						<input type="range" min="0" max={DEVICES[k].max} step={DEVICES[k].step} value={DEVICES[k].hours} data-h aria-label={`${DEVICES[k].name}: сколько часов в сутки работает`} />
+					</label>
+				</div>
+			))
+		}
+	</div>
+
+	<div class="rmhome__day">
+		<div class="rmhome__dayhead">
+			<p class="rmhome__daytitle">Мощность в течение суток</p>
+			<button type="button" class="rmhome__btn" data-zoom aria-pressed="false">Масштаб ×10</button>
+			<span class="rmhome__clock" data-clock>00:00</span>
+			<button type="button" class="rmhome__btn rmhome__btn--primary" data-play>Прожить сутки</button>
+		</div>
+		<div class="rmhome__graphbox" data-graphbox>
+			<svg class="rmhome__graph" data-graph role="img" aria-label="График мощности всех приборов в течение суток"></svg>
+		</div>
+		<p class="rmhome__hint" data-hint>Площадь под графиком — это энергия, которую приборы потребили за сутки.</p>
+	</div>
+
+	<div class="rmhome__row">
+		<div class="rmhome__meter" aria-label="Счётчик электроэнергии">
+			<svg viewBox="0 0 200 150" class="rmhome__meter-svg" aria-hidden="true">
+				<rect class="rmm-case" x="4" y="4" width="192" height="142" rx="10" />
+				<text class="rmm-brand" x="18" y="24">СЧЁТЧИК ЭЛЕКТРОЭНЕРГИИ</text>
+				<rect class="rmm-lcd" x="18" y="34" width="164" height="42" rx="4" />
+				<g data-digits></g>
+				<text class="rmm-unit" x="174" y="90" text-anchor="end">кВт·ч</text>
+				<circle class="rmm-led" cx="30" cy="112" r="5" data-led />
+				<text class="rmm-small" x="42" y="116">импульсы</text>
+				<text class="rmm-small" x="182" y="116" text-anchor="end">220 В, 50 Гц</text>
+				<rect class="rmm-term" x="40" y="128" width="120" height="12" rx="3" />
+			</svg>
+			<p class="rmhome__meter-cap">В начале суток счётчик показывал 1250,0 кВт·ч. Красная цифра — десятые доли киловатт-часа.</p>
+		</div>
+		<div class="rmhome__sum">
+			<dl>
+				<div><dt>Энергия за сутки</dt><dd data-day>—</dd></div>
+				<div><dt>За месяц (30 дней)</dt><dd data-month>—</dd></div>
+				<div>
+					<dt>Тариф, ₽ за 1 кВт·ч</dt>
+					<dd><input class="rmhome__tariff" type="number" min="1" max="30" step="0.1" value="7" data-tariff aria-label="Тариф: рублей за один киловатт-час" /></dd>
+				</div>
+				<div class="rmhome__pay"><dt>Плата за месяц</dt><dd data-pay>—</dd></div>
+			</dl>
+		</div>
+	</div>
+
+	<div class="rmhome__bars" data-bars>
+		<p class="rmhome__barstitle">Кто сколько «съедает» за месяц</p>
+		{
+			KEYS.map((k) => (
+				<div class="rmhome__bar" data-bar={k} style={`--dc: ${DEVICES[k].colour}`}>
+					<span class="rmhome__barname">{DEVICES[k].name}</span>
+					<span class="rmhome__bartrack"><span class="rmhome__barfill" data-fill /></span>
+					<span class="rmhome__barval" data-val />
+				</div>
+			))
+		}
+	</div>
+
+	<div class="rmhome__panel">
+		<p class="rmhome__ptitle" data-ptitle></p>
+		<div class="rmhome__math" data-math1></div>
+		<div class="rmhome__math" data-math2></div>
+	</div>
+	<p class="rmhome__live" data-live aria-live="polite"></p>
+
+	<figcaption class="rmhome__caption">
+		Мощности приборов — типичные округлённые значения; точное значение написано на самом приборе или в его паспорте. Месяц
+		считаем равным 30 дням. Тариф в вашем городе может быть другим — его пишут в квитанции за электроэнергию. В режиме
+		«Прожить сутки» часы идут медленнее, пока работает чайник или утюг, — иначе их короткую работу не было бы видно.
+	</figcaption>
+</figure>
+
+<style is:global set:html={ICON_CSS}></style>
+
+<style is:global>
+	.rmhome {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rmhome i {
+		font-family: var(--ig-font-math);
+	}
+	.rmhome__devs {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.6rem;
+	}
+	@media (max-width: 640px) {
+		.rmhome__devs {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.rmhome .rmhome__pick {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.15rem;
+			padding-inline: 0.6rem;
+		}
+		.rmhome .rmhome__icon {
+			width: 2.4rem;
+			height: 2.4rem;
+		}
+		.rmhome__daytitle {
+			flex-basis: 100%;
+		}
+	}
+	.rmhome__dev {
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.8rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 50%, transparent);
+		transition:
+			border-color 0.3s,
+			box-shadow 0.3s;
+	}
+	.rmhome__dev:has([aria-pressed='true']) {
+		border-color: var(--dc);
+		box-shadow: 0 0 0 1px var(--dc);
+	}
+	.rmhome__dev.is-off .rmhome__icon {
+		opacity: 0.4;
+	}
+	.rmhome__pick {
+		display: grid;
+		grid-template-columns: 3rem 1fr;
+		grid-template-rows: auto auto;
+		column-gap: 0.5rem;
+		align-items: center;
+		margin: 0;
+		padding: 0.55rem 0.6rem 0.2rem;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-white);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	.rmhome__icon {
+		grid-row: 1 / span 2;
+		width: 3rem;
+		height: 3rem;
+		transition: opacity 0.3s;
+	}
+	.rmhome__name {
+		font-size: var(--sl-text-sm);
+		line-height: 1.2;
+		font-weight: 600;
+	}
+	.rmhome__power {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.rmhome__dot {
+		display: inline-block;
+		width: 0.55rem;
+		height: 0.55rem;
+		margin-right: 0.3rem;
+		border-radius: 50%;
+		background: var(--dc);
+	}
+	.rmhome__slider {
+		display: block;
+		padding: 0 0.6rem 0.55rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.rmhome__hours output {
+		color: var(--sl-color-white);
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+	.rmhome__slider input {
+		width: 100%;
+		margin: 0.15rem 0 0;
+		accent-color: var(--dc);
+	}
+	.rmhome__day {
+		margin-top: 1rem;
+	}
+	.rmhome__dayhead {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.8rem;
+	}
+	.rmhome__daytitle {
+		margin: 0;
+		font-weight: 600;
+		color: var(--sl-color-white);
+		flex: 1 1 auto;
+	}
+	.rmhome__clock {
+		font-family: var(--ig-font-math);
+		font-size: var(--sl-text-lg);
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-white);
+		min-width: 3.4em;
+		text-align: right;
+	}
+	.rmhome__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.4rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rmhome__btn[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 22%, transparent);
+	}
+	.rmhome__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.rmhome__graphbox {
+		margin-top: 0.4rem;
+	}
+	.rmhome__graph {
+		display: block;
+		width: 100%;
+		height: auto;
+		overflow: visible;
+	}
+	.rmhome__graph .g-axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.rmhome__graph .g-grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+		stroke-dasharray: 2 4;
+	}
+	.rmhome__graph text {
+		fill: var(--sl-color-gray-2);
+		font-size: 11px;
+		font-family: var(--sl-font);
+	}
+	.rmhome__graph .g-now {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.2;
+	}
+	.rmhome__graph .g-ghost {
+		opacity: 0.22;
+	}
+	.rmhome__graph .g-area path {
+		stroke: none;
+	}
+	.rmhome__hint {
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rmhome__row {
+		display: grid;
+		grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: center;
+		margin-top: 1rem;
+	}
+	@media (max-width: 560px) {
+		.rmhome__row {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.rmhome__meter {
+			max-width: 16rem;
+			margin-inline: auto;
+		}
+	}
+	.rmhome__meter-svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.rmm-case {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.rmm-brand {
+		font-size: 8.5px;
+		letter-spacing: 0.06em;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--sl-font);
+	}
+	.rmm-lcd {
+		fill: hsl(95, 30%, 72%);
+		stroke: var(--sl-color-gray-4);
+	}
+	.rmm-digit {
+		font-family: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+		font-size: 30px;
+		fill: hsl(120, 20%, 12%);
+		font-weight: 600;
+	}
+	.rmm-digit--frac {
+		fill: hsl(0, 55%, 32%);
+	}
+	.rmm-unit,
+	.rmm-small {
+		font-size: 10px;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--sl-font);
+	}
+	.rmm-led {
+		fill: color-mix(in srgb, var(--sl-color-red) 25%, var(--sl-color-gray-6));
+		transition: fill 0.05s;
+	}
+	.rmm-led.is-lit {
+		fill: var(--sl-color-red);
+		filter: drop-shadow(0 0 4px var(--sl-color-red));
+	}
+	.rmm-term {
+		fill: var(--sl-color-gray-5);
+	}
+	.rmhome__meter-cap {
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+		text-align: center;
+	}
+	.rmhome__sum dl {
+		margin: 0;
+		display: grid;
+		gap: 0.35rem;
+	}
+	.rmhome__sum dl > div {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0.8rem;
+		padding-bottom: 0.3rem;
+		border-bottom: 1px dashed var(--sl-color-gray-5);
+	}
+	.rmhome__sum dt {
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-sm);
+	}
+	.rmhome__sum dd {
+		margin: 0;
+		font-weight: 600;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		text-align: right;
+	}
+	.rmhome__pay dd {
+		font-size: var(--sl-text-xl);
+		color: var(--sl-color-accent-high);
+	}
+	.rmhome__tariff {
+		width: 5rem;
+		font: inherit;
+		text-align: right;
+		padding: 0.15rem 0.4rem;
+		border-radius: 0.4rem;
+		border: 1px solid var(--sl-color-gray-4);
+		background: var(--sl-color-bg);
+		color: var(--sl-color-white);
+	}
+	.rmhome__bars {
+		margin-top: 1rem;
+		display: grid;
+		gap: 0.3rem;
+	}
+	.rmhome__barstitle {
+		margin: 0 0 0.2rem;
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.rmhome__bar {
+		display: grid;
+		grid-template-columns: 10.5rem minmax(0, 1fr) 8.5rem;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: var(--sl-text-sm);
+	}
+	@media (max-width: 560px) {
+		.rmhome__bar {
+			grid-template-columns: minmax(0, 1fr) auto;
+			gap: 0.1rem 0.5rem;
+		}
+		.rmhome__bartrack {
+			grid-column: 1 / -1;
+			grid-row: 2;
+		}
+	}
+	.rmhome__barname {
+		color: var(--sl-color-gray-2);
+	}
+	.rmhome__bartrack {
+		height: 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.rmhome__barfill {
+		display: block;
+		height: 100%;
+		width: 0;
+		border-radius: 999px;
+		background: var(--dc);
+		transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	.rmhome__barval {
+		text-align: right;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rmhome__panel {
+		margin-top: 1rem;
+		padding: 0.7rem 0.9rem;
+		border-radius: 0.8rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 70%, transparent);
+		border: 1px solid var(--sl-color-gray-5);
+	}
+	.rmhome__ptitle {
+		margin: 0;
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.rmhome__math {
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.rmhome__math .katex-display {
+		margin: 0.5rem 0;
+	}
+	@media (max-width: 480px) {
+		.rmhome__math .katex {
+			font-size: 1.02em;
+		}
+	}
+	.rm-p {
+		color: var(--ig-vy);
+	}
+	.rm-t {
+		color: var(--ig-vx);
+	}
+	.rm-a {
+		color: var(--ig-v);
+	}
+	.rmhome__live {
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rmhome__live:empty {
+		display: none;
+	}
+	.rmhome__caption {
+		margin-top: 0.8rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+</style>
+
+<script>
+	import { DEVICES, ru, ruG, tex, q, renderTex, type DeviceKey } from './rm';
+
+	const KEYS: DeviceKey[] = ['kettle', 'iron', 'inc', 'led', 'tv', 'charger'];
+	const NS = 'http://www.w3.org/2000/svg';
+	const R0 = 1250; // начальное показание счётчика, кВт·ч
+	const DAYS = 30;
+	const FAST = 0.4; // с реального времени на 1 ч суток
+	const SLOW = 4; // … пока работает прибор мощностью от 1000 Вт
+
+	type Seg = [number, number]; // часы от начала суток, [начало, конец)
+
+	/** When during the day each appliance works (h hours in total). Pieces that pass midnight wrap around. */
+	const schedule = (k: DeviceKey, h: number): Seg[] => {
+		if (h <= 0) return [];
+		const wrap = (a: number, b: number): Seg[] => {
+			const d = b - a;
+			a = ((a % 24) + 24) % 24;
+			return a + d <= 24 ? [[a, a + d]] : [[a, 24], [0, a + d - 24]];
+		};
+		const block = (start: number) => wrap(start, start + h);
+		switch (k) {
+			case 'kettle': // три раза в день: утром, днём и вечером
+				return [7.5, 14, 19.5].flatMap((s) => wrap(s, s + h / 3));
+			case 'iron':
+				return block(10);
+			case 'inc':
+			case 'led':
+				return block(23 - h); // свет вечером, гасим в 23:00
+			case 'tv':
+				return block(22 - h);
+			case 'charger':
+				return block(23.5);
+			default:
+				return [];
+		}
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rmhome]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+		const svg = $<SVGSVGElement>('[data-graph]');
+		const box = $<HTMLElement>('[data-graphbox]');
+		const play = $<HTMLButtonElement>('[data-play]');
+		const zoomBtn = $<HTMLButtonElement>('[data-zoom]');
+		let zoom = false;
+		const clock = $<HTMLElement>('[data-clock]');
+		const led = $<SVGCircleElement>('[data-led]');
+		const digitsG = $<SVGGElement>('[data-digits]');
+		const tariffIn = $<HTMLInputElement>('[data-tariff]');
+		const outDay = $<HTMLElement>('[data-day]');
+		const outMonth = $<HTMLElement>('[data-month]');
+		const outPay = $<HTMLElement>('[data-pay]');
+		const ptitle = $<HTMLElement>('[data-ptitle]');
+		const math1 = $<HTMLElement>('[data-math1]');
+		const math2 = $<HTMLElement>('[data-math2]');
+		const live = $<HTMLElement>('[data-live]');
+		const dev = Object.fromEntries(
+			KEYS.map((k) => {
+				const el = $<HTMLElement>(`[data-dev="${k}"]`);
+				const bar = $<HTMLElement>(`[data-bar="${k}"]`);
+				return [
+					k,
+					{
+						el,
+						pick: el.querySelector<HTMLButtonElement>('[data-pick]')!,
+						range: el.querySelector<HTMLInputElement>('[data-h]')!,
+						hout: el.querySelector<HTMLElement>('[data-hout]')!,
+						fill: bar.querySelector<HTMLElement>('[data-fill]')!,
+						val: bar.querySelector<HTMLElement>('[data-val]')!,
+					},
+				];
+			}),
+		) as Record<DeviceKey, { el: HTMLElement; pick: HTMLButtonElement; range: HTMLInputElement; hout: HTMLElement; fill: HTMLElement; val: HTMLElement }>;
+
+		const hours: Record<DeviceKey, number> = Object.fromEntries(KEYS.map((k) => [k, DEVICES[k].hours])) as any;
+		let sel: DeviceKey = 'kettle';
+		let segs: Record<DeviceKey, Seg[]> = {} as any;
+		let tau = 24; // hours of the day shown (24 = whole day, idle)
+		let running = false;
+		let raf = 0;
+		let lastNow = 0;
+		let ledPhase = 0;
+
+		const tariff = () => {
+			const v = Number(tariffIn.value.replace(',', '.'));
+			return Number.isFinite(v) && v > 0 ? v : 7;
+		};
+		const onAt = (k: DeviceKey, t: number) => segs[k].some(([a, b]) => t >= a && t < b);
+		const powerAt = (t: number) => KEYS.reduce((s, k) => s + (onAt(k, t) ? DEVICES[k].P : 0), 0);
+		/** Energy, кВт·ч, used from 0 to t hours. */
+		const energyTo = (t: number) =>
+			KEYS.reduce((s, k) => s + (DEVICES[k].P / 1000) * segs[k].reduce((e, [a, b]) => e + Math.max(0, Math.min(b, t) - a), 0), 0);
+		const dayEnergy = (k: DeviceKey) => (DEVICES[k].P / 1000) * hours[k];
+
+		// ---------- digits of the meter ----------
+		const digitEls: SVGTextElement[] = [];
+		for (let i = 0; i < 6; i++) {
+			const t = document.createElementNS(NS, 'text');
+			t.setAttribute('class', i === 5 ? 'rmm-digit rmm-digit--frac' : 'rmm-digit');
+			t.setAttribute('x', String(i < 5 ? 34 + i * 24 : 34 + i * 24 + 8));
+			t.setAttribute('y', '66');
+			t.setAttribute('text-anchor', 'middle');
+			digitsG.appendChild(t);
+			digitEls.push(t);
+		}
+		const comma = document.createElementNS(NS, 'text');
+		comma.setAttribute('class', 'rmm-digit');
+		comma.setAttribute('x', String(34 + 4 * 24 + 14));
+		comma.setAttribute('y', '66');
+		comma.textContent = ',';
+		digitsG.appendChild(comma);
+		const showReading = (r: number) => {
+			const tenths = Math.floor(r * 10 + 1e-6);
+			const s = String(tenths).padStart(6, '0');
+			for (let i = 0; i < 6; i++) digitEls[i].textContent = s[i];
+		};
+
+		// ---------- graph ----------
+		let G: { W: number; H: number; X: (h: number) => number; Y: (p: number) => number; clip: SVGRectElement; now: SVGLineElement; pmax: number } | null = null;
+		const uid = `rmh-${Math.random().toString(36).slice(2, 8)}`;
+
+		const el = (name: string, attrs: Record<string, string | number>, parent: Element) => {
+			const e = document.createElementNS(NS, name);
+			for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, String(v));
+			parent.appendChild(e);
+			return e;
+		};
+
+		const buildGraph = () => {
+			const W = Math.max(300, box.clientWidth);
+			const narrow = W < 480;
+			const H = narrow ? 190 : 220;
+			const L = 38;
+			const Rm = 8;
+			const T = 10;
+			const B = 26;
+			// breakpoints
+			const pts = new Set<number>([0, 24]);
+			for (const k of KEYS) for (const [a, b] of segs[k]) (pts.add(a), pts.add(b));
+			const xs = [...pts].sort((a, b) => a - b);
+			let peak = 0;
+			for (let i = 0; i < xs.length - 1; i++) peak = Math.max(peak, powerAt((xs[i] + xs[i + 1]) / 2));
+			const pmax = zoom ? 250 : Math.max(2500, Math.ceil((peak * 1.08) / 500) * 500);
+			const tick = zoom ? 50 : 500;
+			const X = (h: number) => L + ((W - L - Rm) * h) / 24;
+			const Y = (p: number) => H - B - ((H - B - T) * p) / pmax;
+			svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+			svg.replaceChildren();
+			const defs = el('defs', {}, svg);
+			const cp = el('clipPath', { id: `${uid}-clip` }, defs);
+			const clip = el('rect', { x: 0, y: 0, width: X(tau), height: H }, cp) as SVGRectElement;
+			// grid + axes
+			const pc = el('clipPath', { id: `${uid}-plot` }, defs);
+			el('rect', { x: L, y: T, width: W - L - Rm, height: H - B - T }, pc);
+			for (let p = 0; p <= pmax; p += tick) {
+				if (p > 0) el('line', { class: 'g-grid', x1: L, x2: W - Rm, y1: Y(p), y2: Y(p) }, svg);
+				if (zoom || p % 1000 === 0 || pmax <= 2500) {
+					const t = el('text', { x: L - 5, y: Y(p) + 4, 'text-anchor': 'end' }, svg);
+					t.textContent = p === 0 ? '0' : zoom ? String(p) : ru(p / 1000, 1);
+				}
+			}
+			const step = narrow ? 6 : 3;
+			for (let h = 0; h <= 24; h += step) {
+				el('line', { class: 'g-axis', x1: X(h), x2: X(h), y1: H - B, y2: H - B + 4 }, svg);
+				const t = el('text', { x: X(h), y: H - B + 16, 'text-anchor': h === 24 ? 'end' : h === 0 ? 'start' : 'middle' }, svg);
+				t.textContent = `${h}:00`;
+			}
+			const yl = el('text', { x: L + 6, y: T + 10 }, svg);
+			yl.textContent = zoom ? 'P, Вт' : 'P, кВт';
+			// stacked areas: whole day faint, the lived part bright
+			const order: DeviceKey[] = ['kettle', 'iron', 'tv', 'inc', 'led', 'charger'];
+			const draw = (cls: string, clipped: boolean) => {
+				const outer = el('g', { 'clip-path': `url(#${uid}-plot)` }, svg);
+				const g = el('g', { class: `g-area ${cls}` }, outer);
+				if (clipped) g.setAttribute('clip-path', `url(#${uid}-clip)`);
+				for (let i = 0; i < xs.length - 1; i++) {
+					const a = xs[i];
+					const b = xs[i + 1];
+					const mid = (a + b) / 2;
+					let base = 0;
+					for (const k of order) {
+						if (!onAt(k, mid)) continue;
+						const top = base + DEVICES[k].P;
+						el('path', { d: `M${X(a)} ${Y(base)} H${X(b)} V${Y(top)} H${X(a)} Z`, fill: DEVICES[k].colour }, g);
+						base = top;
+					}
+				}
+			};
+			draw('g-ghost', false);
+			draw('', true);
+			el('line', { class: 'g-axis', x1: L, x2: W - Rm, y1: H - B, y2: H - B }, svg);
+			el('line', { class: 'g-axis', x1: L, x2: L, y1: T, y2: H - B }, svg);
+			const now = el('line', { class: 'g-now', x1: X(tau), x2: X(tau), y1: T, y2: H - B }, svg) as SVGLineElement;
+			now.style.opacity = running ? '1' : '0';
+			G = { W, H, X, Y, clip, now, pmax };
+		};
+
+		const setTau = (t: number) => {
+			tau = t;
+			if (G) {
+				G.clip.setAttribute('width', String(G.X(tau)));
+				G.now.setAttribute('x1', String(G.X(tau)));
+				G.now.setAttribute('x2', String(G.X(tau)));
+			}
+			const hh = Math.floor(Math.min(tau, 23.999));
+			const mm = Math.floor((Math.min(tau, 23.999) - hh) * 60);
+			clock.textContent = tau >= 24 ? '24:00' : `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+			showReading(R0 + energyTo(tau));
+			for (const k of KEYS) dev[k].el.classList.toggle('is-on', running && onAt(k, tau));
+		};
+
+		// ---------- numbers ----------
+		const fmtKwh = (v: number) => (v < 0.1 ? ru(v, 3) : v < 10 ? ru(v, 2) : ru(v, 1));
+		const texKwh = (v: number) => (v < 0.1 ? tex(v, 3) : v < 10 ? tex(v, 2) : tex(v, 1));
+		const rub = (v: number) => (v < 10 ? ru(v, 2) : ruG(v, 0));
+		const texRub = (v: number) => (v < 10 ? tex(v, 2) : tex(v, 0));
+		const eq = (v: number, d: number) => (Math.abs(Math.round(v * 10 ** d) / 10 ** d - v) > 1e-9 ? '\\approx' : '=');
+
+		const update = () => {
+			const tf = tariff();
+			let day = 0;
+			let maxMonth = 0;
+			for (const k of KEYS) maxMonth = Math.max(maxMonth, dayEnergy(k) * DAYS);
+			for (const k of KEYS) {
+				const e = dayEnergy(k);
+				day += e;
+				const m = e * DAYS;
+				dev[k].hout.textContent = ru(hours[k], 1);
+				dev[k].el.classList.toggle('is-off', hours[k] === 0);
+				dev[k].fill.style.width = maxMonth > 0 ? `${(100 * m) / maxMonth}%` : '0';
+				dev[k].val.textContent = m > 0 ? `${fmtKwh(m)} кВт·ч · ${rub(m * tf)} ₽` : '—';
+			}
+			const month = day * DAYS;
+			outDay.textContent = `${fmtKwh(day)} кВт·ч`;
+			outMonth.textContent = `${fmtKwh(month)} кВт·ч`;
+			outPay.textContent = `${month * tf < 10 ? '' : '≈ '}${rub(month * tf)} ₽`;
+
+			// selected device
+			const D = DEVICES[sel];
+			const PkW = D.P / 1000;
+			const h = hours[sel];
+			const e = PkW * h;
+			const m = e * DAYS;
+			const I = D.P / 220;
+			const idg = I < 0.1 ? 3 : I < 1 ? 2 : 1;
+			ptitle.innerHTML = `${D.name}: <i>P</i> = ${ruG(D.P)} Вт = ${ru(PkW, 3)} кВт`;
+			const pd = PkW < 0.1 ? 3 : 1;
+			renderTex(
+				math1,
+				`\\begin{aligned}` +
+					`${q('a', 'A_{\\text{сут}}')} &= ${q('p', 'P')}\\,${q('t', 't')} = ${q('p', `${tex(PkW, pd)}~\\text{кВт}`)} \\cdot ${q('t', `${tex(h, 1)}~\\text{ч}`)} ${eq(e, e < 0.1 ? 3 : 2)} ${q('a', `${texKwh(e)}~\\text{кВт·ч}`)}, \\\\` +
+					`A_{\\text{мес}} &= ${DAYS} \\cdot ${texKwh(e)}~\\text{кВт·ч} ${eq(m, m < 0.1 ? 3 : m < 10 ? 2 : 1)} ${texKwh(m)}~\\text{кВт·ч}, \\\\` +
+					`\\text{плата} &= ${texKwh(m)}~\\text{кВт·ч} \\cdot ${tex(tf, 2)}~\\tfrac{\\text{₽}}{\\text{кВт·ч}} ${eq(m * tf, m * tf < 10 ? 2 : 0)} ${texRub(m * tf)}~\\text{₽}.` +
+					`\\end{aligned}`,
+			);
+			renderTex(math2, `I = \\frac{P}{U} = \\frac{${tex(D.P, 0)}~\\text{Вт}}{220~\\text{В}} ${eq(I, idg)} ${tex(I, idg)}~\\text{А}.`);
+			if (G) buildGraph();
+		};
+
+		const readSegs = () => {
+			for (const k of KEYS) segs[k] = schedule(k, hours[k]);
+		};
+
+		// ---------- the day animation ----------
+		const frame = (now: number) => {
+			if (!running) return;
+			const dt = Math.max(0, Math.min(0.1, (now - lastNow) / 1000));
+			lastNow = now;
+			const P = powerAt(tau);
+			const rate = 1 / (P >= 1000 ? SLOW : FAST); // hours of day per real second
+			const t = Math.min(24, tau + dt * rate);
+			// meter LED: flashes faster with more power (about 1 flash per second per 1 кВт, not faster than 8 per second)
+			ledPhase += dt * Math.min(8, P / 1000 + (P > 0 ? 0.6 : 0));
+			led.classList.toggle('is-lit', P > 0 && ledPhase % 1 < 0.35);
+			setTau(t);
+			if (t >= 24) {
+				stop(true);
+				return;
+			}
+			raf = requestAnimationFrame(frame);
+		};
+		const stop = (finished: boolean) => {
+			running = false;
+			cancelAnimationFrame(raf);
+			led.classList.remove('is-lit');
+			play.textContent = 'Прожить сутки';
+			if (G) G.now.style.opacity = '0';
+			for (const k of KEYS) dev[k].el.classList.remove('is-on');
+			if (finished) {
+				const d = energyTo(24);
+				live.textContent = `Сутки прошли. Счётчик насчитал ${fmtKwh(d)} кВт·ч — это площадь под графиком. Больше всего «съели» приборы с большой мощностью, даже если работали недолго.`;
+			}
+		};
+		play.addEventListener('click', () => {
+			if (running) {
+				stop(false);
+				setTau(24);
+				return;
+			}
+			if (reduceMotion.matches) {
+				setTau(24);
+				const d = energyTo(24);
+				live.textContent = `Сутки прошли. Счётчик насчитал ${fmtKwh(d)} кВт·ч — это площадь под графиком.`;
+				return;
+			}
+			running = true;
+			live.textContent = '';
+			play.textContent = 'Стоп';
+			if (G) G.now.style.opacity = '1';
+			setTau(0);
+			lastNow = performance.now();
+			raf = requestAnimationFrame(frame);
+		});
+
+		for (const k of KEYS) {
+			dev[k].range.addEventListener('input', () => {
+				hours[k] = Number(dev[k].range.value);
+				if (running) stop(false);
+				readSegs();
+				sel = k;
+				for (const o of KEYS) dev[o].pick.setAttribute('aria-pressed', String(o === k));
+				update();
+				setTau(24);
+			});
+			dev[k].pick.addEventListener('click', () => {
+				sel = k;
+				for (const o of KEYS) dev[o].pick.setAttribute('aria-pressed', String(o === k));
+				update();
+			});
+		}
+		tariffIn.addEventListener('input', update);
+		zoomBtn.addEventListener('click', () => {
+			zoom = !zoom;
+			zoomBtn.setAttribute('aria-pressed', String(zoom));
+			zoomBtn.textContent = zoom ? 'Масштаб ×1' : 'Масштаб ×10';
+			buildGraph();
+			setTau(tau);
+		});
+
+		let lastW = 0;
+		new ResizeObserver(() => {
+			if (Math.abs(box.clientWidth - lastW) < 2) return;
+			lastW = box.clientWidth;
+			buildGraph();
+		}).observe(box);
+		readSegs();
+		buildGraph();
+		update();
+		setTau(24);
+	}
+</script>

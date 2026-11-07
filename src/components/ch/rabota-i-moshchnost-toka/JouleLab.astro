@@ -1,0 +1,543 @@
+---
+/**
+ * The classic experiment for the Joule–Lenz law: three wires of equal length (1 м) and cross-section (0,2 мм²) —
+ * copper, steel and nichrome — are connected in series, so the current in them is the same. Each wire gets
+ * Q = I²Rt; its temperature follows C·dT/dt = I²R − (convection + radiation), a still-air estimate for a
+ * horizontal wire 0,5 мм thick. Resistances are taken constant (table values at 20 °C).
+ */
+const WIRES = [
+	{ k: 'cu', name: 'Медь', rho: '0,017' },
+	{ k: 'st', name: 'Сталь', rho: '0,10' },
+	{ k: 'ni', name: 'Нихром', rho: '1,1' },
+] as const;
+const ROWY = [56, 126, 196];
+// A wire drawn as a gentle spiral between two posts at x = 120 and x = 470.
+const coil = (y: number) => {
+	let d = `M120 ${y}`;
+	for (let x = 120; x < 470; x += 14) d += ` q3.5 -7 7 0 q3.5 7 7 0`;
+	return d;
+};
+---
+
+<figure class="rmjl not-content" data-rmjl>
+	<div class="rmjl__stage">
+		<svg class="rmjl__svg" viewBox="0 0 600 250" role="img" aria-label="Три проволоки — медная, стальная и нихромовая — соединены последовательно с источником тока и амперметром">
+			<defs>
+				<filter id="rmjl-blur" x="-5%" y="-200%" width="110%" height="500%"><feGaussianBlur stdDeviation="3.5" /></filter>
+			</defs>
+			<!-- connecting leads: serpentine series circuit -->
+			<path class="rmjl__lead" d="M60 220 V56 H120 M470 56 H520 V126 H470 M120 126 H80 V196 H120 M470 196 H540 V236 H60 V220" />
+			<path class="rmjl__flow" d="M60 220 V56 H120 M470 56 H520 V126 H470 M120 126 H80 V196 H120 M470 196 H540 V236 H60" data-flow />
+			<!-- source -->
+			<g class="rmjl__src">
+				<rect x="34" y="150" width="52" height="58" rx="6" />
+				<text x="60" y="172" text-anchor="middle">источник</text>
+				<text x="60" y="194" text-anchor="middle" class="rmjl__srcv" data-srcv>0 В</text>
+			</g>
+			<!-- ammeter -->
+			<g class="rmjl__amm">
+				<circle cx="300" cy="236" r="13" />
+				<text x="300" y="241" text-anchor="middle">A</text>
+			</g>
+			{
+				WIRES.map((w, i) => (
+					<g class={`rmjl__wire rmjl__wire--${w.k}`} data-wire={w.k}>
+						<path class="rmjl__shimmer" d={`M240 ${ROWY[i] - 12} q-4 -6 0 -12 q4 -6 0 -12 M300 ${ROWY[i] - 12} q-4 -6 0 -12 q4 -6 0 -12 M360 ${ROWY[i] - 12} q-4 -6 0 -12 q4 -6 0 -12`} data-shim />
+						<path class="rmjl__metal" d={coil(ROWY[i])} />
+						<path class="rmjl__halo" d={coil(ROWY[i])} filter="url(#rmjl-blur)" data-halo />
+						<path class="rmjl__hot" d={coil(ROWY[i])} data-hot />
+						<rect class="rmjl__post" x="112" y={ROWY[i] - 9} width="10" height="18" rx="2" />
+						<rect class="rmjl__post" x="468" y={ROWY[i] - 9} width="10" height="18" rx="2" />
+						<text class="rmjl__label" x="128" y={ROWY[i] - 16}>{w.name}</text>
+						<text class="rmjl__temp" x="462" y={ROWY[i] - 16} text-anchor="end" data-temp>20 °C</text>
+					</g>
+				))
+			}
+		</svg>
+	</div>
+
+	<div class="rmjl__controls">
+		<label class="rmjl__ctl">
+			<span>Сила тока <i>I</i> = <b data-iout>3</b> А</span>
+			<input type="range" min="0" max="5" step="0.1" value="3" data-i aria-label="Сила тока, ампер" />
+		</label>
+		<div class="rmjl__buttons">
+			<button type="button" class="rmjl__btn rmjl__btn--primary" data-go>Замкнуть цепь</button>
+			<button type="button" class="rmjl__btn" data-reset>Сначала</button>
+			<span class="rmjl__clock">Время <i>t</i> = <b data-tout>0</b> с</span>
+		</div>
+	</div>
+
+	<table class="rmjl__table">
+		<thead>
+			<tr><th>Проволока</th><th><i>ρ</i>, Ом·мм²/м</th><th><i>R</i>, Ом</th><th><i>Q</i>, Дж</th></tr>
+		</thead>
+		<tbody>
+			{
+				WIRES.map((w) => (
+					<tr class={`rmjl__row rmjl__row--${w.k}`} data-row={w.k} tabindex="0" aria-label={`${w.name}: показать расчёт`}>
+						<td>{w.name}</td>
+						<td>{w.rho}</td>
+						<td data-r />
+						<td>
+							<span class="rmjl__q">
+								<span class="rmjl__qbar"><span data-qbar /></span>
+								<span data-q>0</span>
+							</span>
+						</td>
+					</tr>
+				))
+			}
+		</tbody>
+	</table>
+
+	<div class="rmjl__math" data-math></div>
+	<p class="rmjl__live" data-live aria-live="polite"></p>
+
+	<figcaption class="rmjl__caption">
+		Проволоки одинаковой длины 1 м и одинакового сечения 0,2 мм² (толщина около 0,5 мм) натянуты на изоляторах в неподвижном
+		воздухе. Удельные сопротивления — округлённые табличные значения; сопротивление проволок считаем неизменным (на самом деле
+		при нагревании оно немного растёт). Температура — примерная оценка: проволока нагревается, пока теплота, которую она получает
+		от тока, больше теплоты, которую она отдаёт воздуху. Заметно светиться металл начинает примерно с 500–550 °C. Нажмите на
+		строку таблицы, чтобы увидеть расчёт для этой проволоки.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rmjl {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rmjl i {
+		font-family: var(--ig-font-math);
+	}
+	.rmjl__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		max-height: 22rem;
+		overflow: visible;
+	}
+	.rmjl__lead {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.2;
+		stroke-linejoin: round;
+	}
+	.rmjl__flow {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 2.2;
+		stroke-dasharray: 2 14;
+		stroke-linecap: round;
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+	.rmjl.is-on .rmjl__flow {
+		opacity: 0.9;
+	}
+	.rmjl__src rect {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.rmjl__src text,
+	.rmjl__amm text,
+	.rmjl__label,
+	.rmjl__temp {
+		font-family: var(--sl-font);
+		font-size: 13px;
+		fill: var(--sl-color-gray-2);
+	}
+	.rmjl__src text {
+		font-size: 10px;
+	}
+	.rmjl__src .rmjl__srcv {
+		font-size: 14px;
+		fill: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.rmjl__amm circle {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.rmjl__amm text {
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+	.rmjl__label {
+		font-weight: 600;
+		fill: var(--sl-color-white);
+		font-size: 14px;
+	}
+	.rmjl__temp {
+		font-variant-numeric: tabular-nums;
+		font-size: 14px;
+	}
+	.rmjl__metal {
+		fill: none;
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.rmjl__wire--cu .rmjl__metal {
+		stroke: hsl(22, 70%, 52%);
+	}
+	.rmjl__wire--st .rmjl__metal {
+		stroke: hsl(210, 8%, 62%);
+	}
+	.rmjl__wire--ni .rmjl__metal {
+		stroke: hsl(40, 6%, 48%);
+	}
+	.rmjl__hot,
+	.rmjl__halo {
+		fill: none;
+		stroke-linecap: round;
+		opacity: 0;
+	}
+	.rmjl__hot {
+		stroke-width: 3.2;
+	}
+	.rmjl__halo {
+		stroke-width: 12;
+	}
+	.rmjl__shimmer {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+		stroke-linecap: round;
+		opacity: 0;
+	}
+	.rmjl__controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem 1.2rem;
+		margin-top: 0.6rem;
+	}
+	.rmjl__ctl {
+		flex: 1 1 14rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rmjl__ctl b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rmjl__ctl input {
+		width: 100%;
+		accent-color: var(--ig-vx);
+	}
+	.rmjl__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.rmjl__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.4rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rmjl__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.rmjl__clock {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		min-width: 7.5rem;
+	}
+	.rmjl__clock b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.rmjl__table {
+		width: 100%;
+		margin-top: 0.8rem;
+		border-collapse: collapse;
+		font-size: var(--sl-text-sm);
+	}
+	.rmjl__table th,
+	.rmjl__table td {
+		padding: 0.35rem 0.4rem;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		text-align: left;
+		font-variant-numeric: tabular-nums;
+	}
+	.rmjl__table th {
+		color: var(--sl-color-gray-2);
+		font-weight: 500;
+	}
+	.rmjl__row {
+		cursor: pointer;
+		transition: background 0.25s;
+	}
+	.rmjl__row:hover,
+	.rmjl__row.is-sel {
+		background: color-mix(in srgb, var(--sl-color-accent) 14%, transparent);
+	}
+	.rmjl__q {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.rmjl__qbar {
+		flex: 1 1 auto;
+		min-width: 2rem;
+		height: 0.55rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.rmjl__qbar span {
+		display: block;
+		height: 100%;
+		width: 0;
+		border-radius: 999px;
+		background: var(--ig-vy);
+	}
+	.rmjl__q [data-q] {
+		min-width: 4.2em;
+		text-align: right;
+	}
+	.rmjl__math {
+		margin-top: 0.6rem;
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.rmjl__live {
+		margin: 0.4rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rmjl__live:empty {
+		display: none;
+	}
+	.rmjl__caption {
+		margin-top: 0.8rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.rm-i {
+		color: var(--ig-vx);
+	}
+	.rm-r {
+		color: var(--sl-color-green);
+	}
+	.rm-q {
+		color: var(--ig-vy);
+	}
+	@media (max-width: 480px) {
+		.rmjl__table th:nth-child(2),
+		.rmjl__table td:nth-child(2) {
+			display: none;
+		}
+	}
+</style>
+
+<script>
+	import { glow, ru, ruG, tex, q, renderTex } from './rm';
+
+	type W = 'cu' | 'st' | 'ni';
+	const KEYS: W[] = ['cu', 'st', 'ni'];
+	const L = 1; // м
+	const S = 0.2; // мм²
+	const D = 0.5e-3; // м, толщина проволоки
+	const RHO: Record<W, number> = { cu: 0.017, st: 0.1, ni: 1.1 }; // Ом·мм²/м
+	// heat capacity of 1 m of wire, Дж/°C: c·(плотность)·S·l
+	const CAP: Record<W, number> = { cu: 400 * 8900 * S * 1e-6, st: 460 * 7800 * S * 1e-6, ni: 450 * 8400 * S * 1e-6 };
+	const T0 = 20;
+	const AREA = Math.PI * D * L; // м², поверхность проволоки
+	const H_CONV = 50; // Вт/(м²·°C), конвекция у тонкой проволоки (оценка)
+	const EPS = 0.8;
+	const SIGMA = 5.67e-8;
+	const R = Object.fromEntries(KEYS.map((k) => [k, (RHO[k] * L) / S])) as Record<W, number>;
+	const RTOT = KEYS.reduce((s, k) => s + R[k], 0);
+	const loss = (t: number) => {
+		const T = t + 273.15;
+		const Ta = T0 + 273.15;
+		return H_CONV * AREA * (t - T0) + EPS * SIGMA * AREA * (T ** 4 - Ta ** 4);
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rmjl]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+		const iIn = $<HTMLInputElement>('[data-i]');
+		const iOut = $<HTMLElement>('[data-iout]');
+		const tOut = $<HTMLElement>('[data-tout]');
+		const go = $<HTMLButtonElement>('[data-go]');
+		const reset = $<HTMLButtonElement>('[data-reset]');
+		const srcV = $<SVGTextElement>('[data-srcv]');
+		const flow = $<SVGPathElement>('[data-flow]');
+		const math = $<HTMLElement>('[data-math]');
+		const live = $<HTMLElement>('[data-live]');
+		const w = Object.fromEntries(
+			KEYS.map((k) => {
+				const g = $<SVGGElement>(`[data-wire="${k}"]`);
+				const row = $<HTMLTableRowElement>(`[data-row="${k}"]`);
+				return [
+					k,
+					{
+						hot: g.querySelector<SVGPathElement>('[data-hot]')!,
+						halo: g.querySelector<SVGPathElement>('[data-halo]')!,
+						shim: g.querySelector<SVGPathElement>('[data-shim]')!,
+						temp: g.querySelector<SVGTextElement>('[data-temp]')!,
+						row,
+						r: row.querySelector<HTMLElement>('[data-r]')!,
+						q: row.querySelector<HTMLElement>('[data-q]')!,
+						qbar: row.querySelector<HTMLElement>('[data-qbar]')!,
+						T: T0,
+						Q: 0,
+					},
+				];
+			}),
+		) as Record<W, any>;
+
+		let I = Number(iIn.value);
+		let on = false;
+		let t = 0; // с, время с момента замыкания (или с последнего изменения тока)
+		let sel: W = 'ni';
+		let raf = 0;
+		let lastNow = 0;
+		let dash = 0;
+		let lastShown = -1;
+
+		for (const k of KEYS) w[k].r.textContent = ru(R[k], 3);
+
+		const draw = () => {
+			const tt = Math.floor(t);
+			for (const k of KEYS) w[k].Q = I * I * R[k] * tt;
+			const qmax = Math.max(1e-9, ...KEYS.map((k) => w[k].Q));
+			for (const k of KEYS) {
+				const s = w[k];
+				const g = glow(s.T);
+				s.hot.style.stroke = g.colour;
+				s.hot.style.opacity = String(g.a);
+				s.halo.style.stroke = g.colour;
+				s.halo.style.opacity = String(0.85 * g.a);
+				s.shim.style.opacity = String(Math.max(0, Math.min(0.7, (s.T - 45) / 150)));
+				s.temp.textContent = `≈ ${s.T < 100 ? Math.round(s.T) : Math.round(s.T / 10) * 10} °C`;
+				s.q.textContent = s.Q < 10 ? ru(s.Q, 1) : ruG(s.Q, 0);
+				s.qbar.style.width = `${(100 * s.Q) / qmax}%`;
+			}
+			tOut.textContent = ru(t, 0);
+			srcV.textContent = `${ru(on ? I * RTOT : 0, 1)} В`;
+			root.classList.toggle('is-on', on && I > 0);
+		};
+
+		const formula = () => {
+			const Rk = R[sel];
+			const tt = Math.floor(t);
+			const Qk = I * I * Rk * tt;
+			renderTex(
+				math,
+				`\\begin{aligned}` +
+					`${q('q', 'Q')} &= ${q('i', 'I')}^2 ${q('r', 'R')}\\,t = (${q('i', `${tex(I, 1)}~\\text{А}`)})^2 \\cdot ${q('r', `${tex(Rk, 3)}~\\text{Ом}`)} \\cdot ${tt}~\\text{с} \\\\` +
+					`&${Math.abs(Qk - Math.round(Qk * 10) / 10) > 1e-9 ? '\\approx' : '='} ${q('q', `${tex(Qk, Qk < 10 ? 1 : 0)}~\\text{Дж}`)}` +
+					`\\end{aligned}`,
+			);
+		};
+
+		const step = (dt: number) => {
+			const n = Math.ceil(dt / 0.02);
+			const h = dt / n;
+			for (let i = 0; i < n; i++) {
+				for (const k of KEYS) {
+					const s = w[k];
+					const p = on ? I * I * R[k] : 0;
+					s.T += ((p - loss(s.T)) / CAP[k]) * h;
+					if (s.T < T0) s.T = T0;
+				}
+				if (on) t += h;
+			}
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.max(0, Math.min(0.1, (now - lastNow) / 1000));
+			lastNow = now;
+			step(dt);
+			if (on && I > 0 && !reduceMotion.matches) {
+				dash -= dt * (6 + 8 * I);
+				flow.style.strokeDashoffset = String(dash);
+			}
+			draw();
+			if (Math.floor(t) !== lastShown) {
+				lastShown = Math.floor(t);
+				formula();
+			}
+			const cooling = !on && KEYS.some((k) => w[k].T > T0 + 0.5);
+			if (on || cooling) raf = requestAnimationFrame(frame);
+			else raf = 0;
+		};
+		const kick = () => {
+			if (raf) return;
+			lastNow = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+
+		const restartCount = () => {
+			t = 0;
+			lastShown = -1;
+		};
+
+		go.addEventListener('click', () => {
+			on = !on;
+			go.textContent = on ? 'Разомкнуть цепь' : 'Замкнуть цепь';
+			if (on) {
+				restartCount();
+				live.textContent = `Ток во всех трёх проволоках одинаковый: ${ru(I, 1)} А. Следите, какая нагревается сильнее.`;
+			} else {
+				live.textContent = 'Цепь разомкнута: тока нет, теплота больше не выделяется, и проволоки остывают.';
+			}
+			kick();
+		});
+		reset.addEventListener('click', () => {
+			on = false;
+			go.textContent = 'Замкнуть цепь';
+			for (const k of KEYS) w[k].T = T0;
+			restartCount();
+			live.textContent = '';
+			draw();
+			formula();
+		});
+		iIn.addEventListener('input', () => {
+			I = Number(iIn.value);
+			iOut.textContent = ru(I, 1);
+			if (on) {
+				restartCount();
+				live.textContent = 'Сила тока изменилась — отсчёт времени и теплоты начался заново.';
+			}
+			draw();
+			formula();
+			if (on) kick();
+		});
+		const pick = (k: W) => {
+			sel = k;
+			for (const o of KEYS) w[o].row.classList.toggle('is-sel', o === k);
+			formula();
+		};
+		for (const k of KEYS) {
+			w[k].row.addEventListener('click', () => pick(k));
+			w[k].row.addEventListener('keydown', (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					pick(k);
+				}
+			});
+		}
+		pick('ni');
+		draw();
+	}
+</script>
