@@ -1,0 +1,266 @@
+---
+/**
+ * A section's constellation (constellations.ts). Each chapter of the section owns a block of its stars and lights
+ * them as its rays light (rays.ts, localStorage). A line appears when both its stars are lit; when every star is lit,
+ * Hevelius' figure fades in. `size="mini"` sits under a chapter title (the chapter's own stars are ringed),
+ * `size="full"` on «Моё небо» with the name, progress and a fact.
+ */
+import { CONSTELLATIONS, project, blocks } from './constellations';
+import type { SkySection } from './sections';
+
+interface Props {
+	sec: SkySection;
+	size: 'mini' | 'full';
+	current?: string;
+}
+const { sec, size, current } = Astro.props;
+const c = CONSTELLATIONS[sec.key];
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const uid = `cs-${sec.key}-${size}`;
+
+const sky = c.stars.map((s) => project(c, s.ra, s.dec));
+const own = blocks(c.stars.length, Math.max(1, sec.chapters.length));
+const owner: number[] = [];
+own.forEach((b, i) => b.forEach((k) => (owner[k] = i)));
+
+const A = c.art;
+// the frame: the stars plus a margin; on the full view the margin leaves room for the figure around them
+const xs = sky.map((p) => p[0]);
+const ys = sky.map((p) => p[1]);
+const sx = Math.max(...xs) - Math.min(...xs);
+const sy = Math.max(...ys) - Math.min(...ys);
+const mx = size === 'full' && A ? 0.1 * sx : 0;
+const my = size === 'full' && A ? 0.12 * sy : 0;
+const W = size === 'full' ? 720 : 240;
+const pad = size === 'full' ? 18 : 14;
+const K = (W - 2 * pad) / Math.max(sx + 2 * mx, 1e-9);
+const H = Math.round((sy + 2 * my) * K + 2 * pad);
+const ox = pad + (mx - Math.min(...xs)) * K;
+const oy = pad + (my - Math.min(...ys)) * K;
+const P = sky.map(([x, y]) => [+(x * K + ox).toFixed(1), +(y * K + oy).toFixed(1)]);
+const idx = Object.fromEntries(c.stars.map((s, i) => [s.id, i]));
+const unit = W / (size === 'full' ? 260 : 120);
+const rOf = (mag: number) => +(unit * (0.9 + (3.9 - mag) * 0.45)).toFixed(2);
+const art =
+	A &&
+	`matrix(${[A.s * A.R[0][0] * K, A.s * A.R[1][0] * K, A.s * A.R[0][1] * K, A.s * A.R[1][1] * K, A.t[0] * K + ox, A.t[1] * K + oy]
+		.map((v) => v.toFixed(5))
+		.join(' ')})`;
+const data = sec.chapters.map((ch, i) => ({ id: ch.id, need: ch.need, stars: own[i] ?? [] }));
+const mine = sec.chapters.findIndex((ch) => ch.id === current);
+---
+
+<div class={`cs cs--${size}`} data-constellation={JSON.stringify(data)} data-n={c.stars.length}>
+	<svg class="cs__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Созвездие ${c.name}`}>
+		{
+			A && (
+				<>
+					<mask id={`${uid}-m`} style="mask-type: alpha" maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}>
+						<image data-href={`${base}${A.file}`} x={A.rect.x} y={A.rect.y} width={A.rect.w} height={A.rect.h} transform={art} preserveAspectRatio="none" />
+					</mask>
+					<rect class="cs__art" x="0" y="0" width={W} height={H} mask={`url(#${uid}-m)`} />
+				</>
+			)
+		}
+		<g class="cs__lines">
+			{c.lines.map(([a, b]) => (
+				<line data-a={idx[a]} data-b={idx[b]} x1={P[idx[a]][0]} y1={P[idx[a]][1]} x2={P[idx[b]][0]} y2={P[idx[b]][1]} />
+			))}
+		</g>
+		<g class="cs__stars">
+			{c.stars.map((s, i) => (
+				<g class={`cs__star${owner[i] === mine ? ' is-mine' : ''}`} data-i={i} transform={`translate(${P[i][0]} ${P[i][1]})`}>
+					<title>{`${s.name} — ${sec.chapters[owner[i]]?.label ?? ''}`}</title>
+					<circle class="cs__halo" r={rOf(s.mag) * 3.2} />
+					{owner[i] === mine && <circle class="cs__ring" r={rOf(s.mag) + unit * 1.3} />}
+					<circle class="cs__core" r={rOf(s.mag)} />
+				</g>
+			))}
+		</g>
+	</svg>
+	{
+		size === 'full' && (
+			<div class="cs__info">
+				<p class="cs__name">
+					{c.name}
+					<span class="cs__progress" data-progress />
+				</p>
+				<p class="cs__fact" data-fact hidden>
+					{c.fact}
+				</p>
+				{A && (
+					<p class="cs__credit" data-fact hidden>
+						{A.credit}
+					</p>
+				)}
+			</div>
+		)
+	}
+</div>
+
+<style is:global>
+	.cs {
+		--cs-star: var(--sl-color-accent-high);
+		--cs-dim: var(--sl-color-gray-4);
+	}
+	.cs__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		overflow: visible;
+	}
+	.cs--mini {
+		flex: none;
+		width: 11rem;
+	}
+	.cs--full {
+		max-width: 44rem;
+		overflow: hidden;
+		margin-block: 1rem 2rem;
+		padding: 0.75rem;
+		border-radius: 1rem;
+		background: radial-gradient(ellipse at 50% 40%, hsl(232 45% 16%), hsl(232 50% 7%));
+		color: hsl(40 30% 92%);
+		--cs-dim: hsl(230 15% 45%);
+		--cs-star: hsl(45 100% 85%);
+	}
+	.cs__art {
+		fill: var(--ig-v);
+		opacity: 0;
+		transition: opacity 2.5s ease;
+	}
+	.cs.is-complete .cs__art {
+		opacity: 0.32;
+	}
+	.cs--full.is-complete .cs__art {
+		opacity: 0.5;
+	}
+	.cs__lines line {
+		stroke: var(--ig-v);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+		opacity: 0;
+		transition: opacity 0.8s;
+	}
+	.cs--full .cs__lines line {
+		stroke-width: 1.6;
+	}
+	.cs__lines line.is-lit {
+		opacity: 0.55;
+	}
+	.cs__core {
+		fill: var(--cs-dim);
+		transition: fill 0.6s;
+	}
+	.cs__halo {
+		fill: var(--ig-v);
+		opacity: 0;
+		transition: opacity 0.6s;
+	}
+	.cs__ring {
+		fill: none;
+		stroke: var(--sl-color-text-accent);
+		stroke-width: 0.9;
+		stroke-dasharray: 2 2;
+		opacity: 0.8;
+	}
+	.cs__star.is-lit .cs__core {
+		fill: var(--cs-star);
+	}
+	.cs__star.is-lit .cs__halo {
+		opacity: 0.22;
+	}
+	.cs__star.is-lit .cs__ring {
+		stroke-dasharray: none;
+		opacity: 0.5;
+	}
+	.cs__star.is-new .cs__core {
+		animation: cs-flare 1.6s ease-out;
+	}
+	.cs__info {
+		padding: 0.25rem 0.5rem 0.25rem;
+	}
+	.cs__name {
+		margin: 0.25rem 0 0;
+		font-family: var(--ig-font-display);
+		font-size: var(--sl-text-3xl);
+		line-height: 1.2;
+	}
+	.cs__progress {
+		margin-left: 0.75rem;
+		font-family: var(--sl-font);
+		font-size: var(--sl-text-sm);
+		opacity: 0.75;
+	}
+	.cs__fact,
+	.cs__credit {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.55;
+	}
+	.cs__credit {
+		opacity: 0.7;
+		font-size: var(--sl-text-xs);
+	}
+	@media (max-width: 40rem) {
+		.cs__progress {
+			display: block;
+			margin-left: 0;
+		}
+	}
+	@keyframes cs-flare {
+		0% {
+			transform: scale(2.4);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.cs__star.is-new .cs__core {
+			animation: none;
+		}
+		.cs__art,
+		.cs__lines line {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { load } from './rays';
+	import { litCount } from './constellations';
+
+	type Ch = { id: string; need: string; stars: number[] };
+	for (const root of document.querySelectorAll<HTMLElement>('[data-constellation]')) {
+		const chapters = JSON.parse(root.dataset.constellation!) as Ch[];
+		const n = Number(root.dataset.n);
+		const stars = [...root.querySelectorAll<SVGGElement>('.cs__star')];
+		const lines = [...root.querySelectorAll<SVGLineElement>('.cs__lines line')];
+		const progress = root.querySelector<HTMLElement>('[data-progress]');
+		let first = true;
+		const paint = () => {
+			const all = load();
+			const lit = new Set<number>();
+			for (const ch of chapters) {
+				const done = (all[ch.id] ?? '').split('').filter((r) => ch.need.includes(r)).length;
+				ch.stars.slice(0, litCount(ch.stars.length, done, ch.need.length)).forEach((k) => lit.add(k));
+			}
+			stars.forEach((s, i) => {
+				const on = lit.has(i);
+				if (on && !s.classList.contains('is-lit') && !first) s.classList.add('is-new');
+				s.classList.toggle('is-lit', on);
+			});
+			for (const l of lines) l.classList.toggle('is-lit', lit.has(Number(l.dataset.a)) && lit.has(Number(l.dataset.b)));
+			const complete = lit.size === n;
+			root.classList.toggle('is-complete', complete);
+			if (complete) {
+				const img = root.querySelector<SVGImageElement>('image[data-href]');
+				if (img && !img.getAttribute('href')) img.setAttribute('href', img.dataset.href!);
+			}
+			for (const f of root.querySelectorAll<HTMLElement>('[data-fact]')) f.hidden = !complete;
+			if (progress) progress.textContent = complete ? 'созвездие собрано!' : `зажжено ${lit.size} из ${n} звёзд`;
+			first = false;
+		};
+		paint();
+		document.addEventListener('ig:sky', paint);
+		window.addEventListener('storage', (e) => e.key === 'ig:sky' && paint());
+	}
+</script>
