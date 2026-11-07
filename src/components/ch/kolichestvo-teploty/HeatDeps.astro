@@ -1,0 +1,515 @@
+---
+/**
+ * Q depends on the mass and on the temperature change. Three identical heaters (1000 J every second) heat water
+ * from 20 °C. Mode «Масса»: 1, 2, 3 kg by 10 °C. Mode «Изменение температуры»: 1 kg by 10, 20, 30 °C.
+ * Each heater switches off at its target temperature: 42, 84, 126 s, i.e. Q = 42, 84, 126 kJ (c = 4200).
+ * Water levels are drawn to one scale (40 px per kg in identical vessels).
+ * Ideal experiment: all the heat goes into the water, it is stirred, no losses.
+ */
+const IDS = [0, 1, 2];
+// Thermometer: 0 °C at y = 176, 60 °C at y = 26 (2,5 px per °C).
+const ticks = Array.from({ length: 7 }, (_, i) => i * 10);
+---
+
+<figure class="ktdeps not-content" data-ktdeps>
+	<div class="ktdeps__seg" role="group" aria-label="Что меняем в опыте">
+		<button type="button" data-mode="m" aria-pressed="true">Масса</button>
+		<button type="button" data-mode="dt" aria-pressed="false">Изменение температуры</button>
+	</div>
+
+	<div class="ktdeps__bench">
+		{
+			IDS.map((i) => (
+				<div class="ktdeps__st" data-st={i}>
+					<svg class="ktdeps__pic" viewBox="0 0 120 220" aria-hidden="true">
+						<rect class="ktdeps__water" x="30" y="157" width="60" height="40" data-water />
+						<path class="ktdeps__glass" d="M27 58 V197 Q27 200 30 200 H90 Q93 200 93 197 V58" />
+						<g>
+							<rect class="ktdeps__tube" x="57" y="12" width="6" height="172" rx="3" />
+							{ticks.map((t) => (
+								<line class="ktdeps__tick" x1={t % 50 === 0 ? 51 : 53} x2="57" y1={176 - 2.5 * t} y2={176 - 2.5 * t} />
+							))}
+							<path class="ktdeps__target" d="M64 0 l7 -4 v8 z" data-target />
+							<rect class="ktdeps__mercury" x="58.6" y="126" width="2.8" height="62" data-col />
+							<circle class="ktdeps__bulb" cx="60" cy="189" r="5.5" />
+						</g>
+						<rect class="ktdeps__plate" x="10" y="200" width="100" height="16" rx="4" />
+						<path
+							class="ktdeps__coil"
+							d="M18 205 h8 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 h8"
+						/>
+					</svg>
+					<span class="ktdeps__name"><span data-mlab>1 кг</span><span data-tlab>20 → 30 °C</span></span>
+					<span class="ktdeps__read" data-read>20 °C</span>
+					<span class="ktdeps__q" data-q><i>Q</i> = 0 кДж</span>
+					<span class="ktdeps__done" data-done></span>
+				</div>
+			))
+		}
+	</div>
+
+	<div class="ktdeps__buttons">
+		<button type="button" class="ktdeps__btn ktdeps__btn--primary" data-go>Включить нагреватели</button>
+		<button type="button" class="ktdeps__btn" data-reset>Сначала</button>
+		<span class="ktdeps__clock" data-clock></span>
+	</div>
+
+	<div class="ktdeps__chart" data-chartbox>
+		<svg class="ktdeps__svg" data-chart role="img" aria-label="Столбчатая диаграмма: сколько теплоты получила вода в каждом сосуде"></svg>
+	</div>
+	<p class="ktdeps__live" data-live aria-live="polite"></p>
+
+	<figcaption class="ktdeps__caption">
+		Нагреватели одинаковые: каждую секунду каждый передаёт воде 1000 Дж и выключается, когда вода нагреется до нужной температуры.
+		Вначале вода везде при 20 °C. Опыт идеальный: всё тепло достаётся воде, её перемешивают, потерь нет. Время в модели идёт примерно в
+		10 раз быстрее.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ktdeps {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ktdeps i {
+		font-family: var(--ig-font-math);
+	}
+	.ktdeps__seg {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.ktdeps__seg button,
+	.ktdeps__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ktdeps__seg button[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 20%, transparent);
+	}
+	.ktdeps__seg button:hover,
+	.ktdeps__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ktdeps__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ktdeps__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.ktdeps__bench {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.4rem;
+	}
+	.ktdeps__st {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.15rem;
+		line-height: 1.3;
+	}
+	.ktdeps__pic {
+		display: block;
+		width: 100%;
+		max-width: 8.5rem;
+		height: auto;
+	}
+	.ktdeps__name {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		font-size: var(--sl-text-xs);
+		line-height: 1.25;
+		color: var(--sl-color-gray-3);
+		white-space: nowrap;
+	}
+	.ktdeps__name .is-var {
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.ktdeps__read {
+		margin-top: 0.15rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		font-size: var(--sl-text-sm);
+		white-space: nowrap;
+	}
+	.ktdeps__q {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		font-size: var(--sl-text-sm);
+		color: var(--ig-v);
+		white-space: nowrap;
+	}
+	.ktdeps__done {
+		min-height: 1.2em;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+	}
+	.ktdeps__glass {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.ktdeps__tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-1) 20%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ktdeps__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.ktdeps__target {
+		fill: var(--sl-color-accent);
+	}
+	.ktdeps__mercury,
+	.ktdeps__bulb {
+		fill: var(--sl-color-red);
+	}
+	.ktdeps__plate {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ktdeps__coil {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+		transition: stroke 0.4s;
+	}
+	.ktdeps__st.is-on .ktdeps__coil {
+		stroke: var(--sl-color-orange);
+		filter: drop-shadow(0 0 2px var(--sl-color-orange));
+		animation: ktdeps-glow 1.2s ease-in-out infinite alternate;
+	}
+	@keyframes ktdeps-glow {
+		from { opacity: 0.7; }
+		to { opacity: 1; }
+	}
+	.ktdeps__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin-top: 0.75rem;
+	}
+	.ktdeps__clock {
+		flex-basis: 100%;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.ktdeps__chart {
+		width: 100%;
+		max-width: 30rem;
+		margin: 0.75rem auto 0;
+	}
+	.ktdeps__svg {
+		display: block;
+		width: 100%;
+	}
+	.ktdeps__svg text {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.ktdeps__svg .lab {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+	}
+	.ktdeps__svg .ax-name {
+		font-size: 14px;
+	}
+	.ktdeps__svg .ax-name tspan {
+		font-style: italic;
+		font-family: var(--ig-font-math);
+		font-size: 15px;
+	}
+	.ktdeps__svg .val {
+		fill: var(--ig-v);
+		font-weight: 700;
+		font-size: 14px;
+		opacity: 0;
+		transition: opacity 0.4s;
+	}
+	.ktdeps__svg .val.is-on {
+		opacity: 1;
+	}
+	.ktdeps__svg .grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.ktdeps__svg .axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ktdeps__svg .bar {
+		fill: color-mix(in srgb, var(--ig-v) 75%, transparent);
+	}
+	.ktdeps__svg .cut {
+		stroke: var(--ig-surface);
+		stroke-width: 2;
+	}
+	.ktdeps__live {
+		min-height: 1.5em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+		text-align: center;
+	}
+	.ktdeps__caption {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.ktdeps {
+			padding: 0.75rem 0.5rem;
+		}
+		.ktdeps__bench {
+			gap: 0.15rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ktdeps__st.is-on .ktdeps__coil {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { htmlInt, tempColor } from './kt';
+
+	const P = 1000; // Дж каждую секунду
+	const C = 4200; // Дж/(кг·°C), water
+	const T0 = 20;
+	const KG_PX = 40; // water level per kg
+	const BOTTOM = 197;
+	const RUN_SECONDS = 12; // real duration of the slowest run (126 s)
+	const QMAX = 140; // kJ, chart top
+	const MODES = {
+		m: [
+			{ m: 1, dt: 10 },
+			{ m: 2, dt: 10 },
+			{ m: 3, dt: 10 },
+		],
+		dt: [
+			{ m: 1, dt: 10 },
+			{ m: 1, dt: 20 },
+			{ m: 1, dt: 30 },
+		],
+	} as const;
+	type Mode = keyof typeof MODES;
+	const DONE: Record<Mode, string> = {
+		m: 'Масса больше в\u00a02 и\u00a03\u00a0раза — и теплоты нужно в\u00a02 и\u00a03\u00a0раза больше.',
+		dt: 'Изменение температуры больше в\u00a02 и\u00a03\u00a0раза — и теплоты нужно в\u00a02 и\u00a03\u00a0раза больше.',
+	};
+	const thermoY = (t: number) => 176 - 2.5 * t;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ktdeps]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const go = $<HTMLButtonElement>('[data-go]');
+		const reset = $<HTMLButtonElement>('[data-reset]');
+		const clock = $<HTMLElement>('[data-clock]');
+		const live = $<HTMLElement>('[data-live]');
+		const svg = $<SVGSVGElement>('[data-chart]');
+		const box = $<HTMLElement>('[data-chartbox]');
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+		const st = [0, 1, 2].map((i) => {
+			const el = $<HTMLElement>(`[data-st="${i}"]`);
+			const q = <T extends Element>(s: string) => el.querySelector<T>(s)!;
+			return {
+				el,
+				water: q<SVGRectElement>('[data-water]'),
+				col: q<SVGRectElement>('[data-col]'),
+				target: q<SVGPathElement>('[data-target]'),
+				mlab: q<HTMLElement>('[data-mlab]'),
+				tlab: q<HTMLElement>('[data-tlab]'),
+				read: q<HTMLElement>('[data-read]'),
+				qv: q<HTMLElement>('[data-q]'),
+				done: q<HTMLElement>('[data-done]'),
+				finished: false,
+			};
+		});
+
+		let mode: Mode = 'm';
+		let tau = 0; // simulated seconds
+		let running = false;
+		let raf = 0;
+		let lastNow = 0;
+		let ch: { bars: SVGRectElement[]; cuts: SVGLineElement[][]; vals: SVGTextElement[]; Y: (q: number) => number } | null = null;
+
+		const runs = () => MODES[mode];
+		const tFinish = (i: number) => (C * runs()[i].m * runs()[i].dt) / P;
+		const tMax = () => Math.max(...[0, 1, 2].map(tFinish));
+		const tempAt = (i: number, s: number) => T0 + (P * Math.min(s, tFinish(i))) / (C * runs()[i].m);
+
+		const setup = () => {
+			runs().forEach((r, i) => {
+				const s = st[i];
+				const h = r.m * KG_PX;
+				s.water.setAttribute('y', String(BOTTOM - h));
+				s.water.setAttribute('height', String(h));
+				s.target.setAttribute('transform', `translate(0 ${thermoY(T0 + r.dt)})`);
+				s.mlab.textContent = `${r.m} кг`;
+				s.tlab.textContent = `${T0} → ${T0 + r.dt} °C`;
+				s.mlab.classList.toggle('is-var', mode === 'm');
+				s.tlab.classList.toggle('is-var', mode === 'dt');
+			});
+		};
+
+		const buildChart = () => {
+			const W = Math.max(260, box.clientWidth);
+			const H = 215;
+			svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+			svg.setAttribute('height', String(H));
+			const L = 44, R = 10, T = 30, B = 52;
+			const Y = (q: number) => H - B - (q / QMAX) * (H - B - T);
+			const slot = (W - L - R) / 3;
+			const bw = Math.min(64, slot * 0.5);
+			const cx = (i: number) => L + slot * (i + 0.5);
+			const xs = runs().map((r) => (mode === 'm' ? `${r.m} кг` : `на ${r.dt} °C`));
+			let html = '';
+			for (const q of [42, 84, 126]) html += `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(q)}" y2="${Y(q)}"/><text x="${L - 6}" y="${Y(q) + 4}" text-anchor="end">${q}</text>`;
+			html += `<text x="${L - 6}" y="${Y(0) + 4}" text-anchor="end">0</text>`;
+			for (let i = 0; i < 3; i++) {
+				html += `<rect class="bar" data-bar x="${cx(i) - bw / 2}" width="${bw}" y="${Y(0)}" height="0"/>`;
+				for (const q of [42, 84]) html += `<line class="cut" data-cut="${i}" x1="${cx(i) - bw / 2}" x2="${cx(i) + bw / 2}" y1="${Y(q)}" y2="${Y(q)}" visibility="hidden"/>`;
+				html += `<text class="val" data-val x="${cx(i)}" y="${Y(tFinish(i)) - 7}" text-anchor="middle">${htmlInt(tFinish(i))} кДж</text>`;
+				html += `<text class="lab" x="${cx(i)}" y="${Y(0) + 19}" text-anchor="middle">${xs[i]}</text>`;
+			}
+			html += `<line class="axis" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/><line class="axis" x1="${L}" x2="${L}" y1="${Y(0)}" y2="${T - 12}"/>`;
+			html += `<text class="ax-name" x="${L + 6}" y="${T - 14}"><tspan>Q</tspan>, кДж</text>`;
+			html += `<text class="ax-name" x="${(L + W - R) / 2}" y="${H - 8}" text-anchor="middle">${mode === 'm' ? 'масса воды' : 'на сколько градусов нагрели воду'}</text>`;
+			svg.innerHTML = html;
+			ch = {
+				bars: Array.from(svg.querySelectorAll<SVGRectElement>('[data-bar]')),
+				cuts: [0, 1, 2].map((i) => Array.from(svg.querySelectorAll<SVGLineElement>(`[data-cut="${i}"]`))),
+				vals: Array.from(svg.querySelectorAll<SVGTextElement>('[data-val]')),
+				Y,
+			};
+			update();
+		};
+
+		const update = () => {
+			const sec = Math.floor(tau + 1e-9);
+			for (let i = 0; i < 3; i++) {
+				const s = st[i];
+				const tf = tFinish(i);
+				const fin = tau >= tf - 1e-9;
+				const t = tempAt(i, tau);
+				s.col.setAttribute('y', String(thermoY(t)));
+				s.col.setAttribute('height', String(2.5 * t + 12));
+				s.water.style.fill = `color-mix(in srgb, ${tempColor(t)} 45%, transparent)`;
+				const shown = fin ? T0 + runs()[i].dt : Math.floor(tempAt(i, sec));
+				s.read.textContent = `${shown} °C`;
+				const qk = fin ? tf : Math.min(sec, tf); // kJ: 1 kJ every second
+				s.qv.innerHTML = `<i>Q</i> = ${htmlInt(qk)} кДж`;
+				s.el.classList.toggle('is-on', running && !fin);
+				if (fin && !s.finished) {
+					s.finished = true;
+					s.done.textContent = `✓ за ${htmlInt(tf)} с`;
+				}
+				if (ch) {
+					const qb = Math.min(tau, tf);
+					ch.bars[i].setAttribute('y', String(ch.Y(qb)));
+					ch.bars[i].setAttribute('height', String(ch.Y(0) - ch.Y(qb)));
+					[42, 84].forEach((q, j) => ch!.cuts[i][j].setAttribute('visibility', qb > q + 0.5 ? 'visible' : 'hidden'));
+					ch.vals[i].classList.toggle('is-on', fin && tau > 0);
+				}
+			}
+			clock.textContent = `Время нагревания: ${sec} с`;
+		};
+
+		const finishAll = () => {
+			running = false;
+			go.textContent = 'Включить нагреватели';
+			go.disabled = true;
+			live.textContent = DONE[mode];
+		};
+
+		const frame = (now: number) => {
+			if (!running) return;
+			const dt = Math.max(0, Math.min(0.1, (now - lastNow) / 1000)); // rAF time can precede the click time
+			lastNow = now;
+			tau = Math.min(tMax(), tau + (dt * tMax()) / RUN_SECONDS);
+			if (tau >= tMax() - 1e-9) {
+				finishAll();
+				update();
+				return;
+			}
+			update();
+			raf = requestAnimationFrame(frame);
+		};
+
+		const start = () => {
+			if (running) {
+				running = false;
+				cancelAnimationFrame(raf);
+				go.textContent = 'Продолжить';
+				update();
+				return;
+			}
+			running = true;
+			go.textContent = 'Пауза';
+			if (tau === 0) live.textContent = 'Следите за термометрами: какой нагреватель выключится первым?';
+			lastNow = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+
+		const doReset = () => {
+			running = false;
+			cancelAnimationFrame(raf);
+			tau = 0;
+			go.disabled = false;
+			go.textContent = 'Включить нагреватели';
+			for (const s of st) {
+				s.finished = false;
+				s.done.textContent = '';
+			}
+			live.textContent = '';
+			setup();
+			buildChart();
+		};
+
+		go.addEventListener('click', start);
+		reset.addEventListener('click', doReset);
+		modeBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				mode = b.dataset.mode as Mode;
+				modeBtns.forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+				doReset();
+			}),
+		);
+		let lastW = 0;
+		new ResizeObserver(() => {
+			if (Math.abs(box.clientWidth - lastW) < 2) return;
+			lastW = box.clientWidth;
+			buildChart();
+		}).observe(box);
+		setup();
+		buildChart();
+	}
+</script>
