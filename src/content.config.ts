@@ -31,9 +31,15 @@ const formulas = z
 		message: 'card ids must be unique within a chapter',
 	});
 
+/**
+ * Quantities of a chapter that open a note when hovered or tapped in its formulas: `s` is the symbol as written in TeX
+ * (t_1, Q_{\text{в}}, \theta), `is` what it means, `unit` its unit. See src/plugins/annotate.mjs.
+ */
+const glossary = z.array(z.object({ s: z.string(), is: z.string(), unit: z.string().optional() }));
+
 export const collections = {
 	docs: defineCollection({
 		loader: docsLoader(),
-		schema: docsSchema({ extend: z.object({ formulas: formulas.optional() }) }),
+		schema: docsSchema({ extend: z.object({ formulas: formulas.optional(), glossary: glossary.optional() }) }),
 	}),
 };
