@@ -33,8 +33,6 @@ export default defineConfig({
 			],
 			sidebar: [
 				{ label: 'Об учебнике', slug: 'uchebnik' },
-				{ label: 'Формулы', slug: 'uchebnik/formuly' },
-				{ label: 'Моё небо', slug: 'uchebnik/nebo' },
 				grade(7, [
 					section('Давление твёрдых тел, жидкостей и газов', '7-klass/davlenie', ['atmosfernoe-davlenie', 'arhimedova-sila']),
 				]),
@@ -59,6 +57,8 @@ export default defineConfig({
 					section('Квантовая физика', '11-klass/kvantovaya-fizika', ['fotoeffekt']),
 					section('Строение Вселенной', '11-klass/stroenie-vselennoy', ['vselennaya']),
 				]),
+				{ label: 'Формулы', slug: 'uchebnik/formuly' },
+				{ label: 'Моё небо', slug: 'uchebnik/nebo' },
 				{ label: 'Источники иллюстраций', slug: 'uchebnik/istochniki' },
 			],
 		}),
