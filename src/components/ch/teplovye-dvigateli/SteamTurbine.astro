@@ -1,0 +1,311 @@
+---
+/**
+ * A one-stage steam turbine: a jet from the nozzle hits the blades and turns the wheel.
+ * Ideal impulse blade: the steam leaves with the speed 2u − v (u — blade speed, v — jet speed),
+ * so it leaves slow when the blades move at about half the jet speed. Wheel dynamics:
+ * du/dt = (a·f·(v − u) − u)/τ (steam torque minus generator load), f — steam supply.
+ */
+const uid = `stb-${Math.random().toString(36).slice(2, 8)}`;
+const CX = 196;
+const CY = 108;
+const RB = 74;
+const blades = Array.from({ length: 28 }, (_, i) => (i * 360) / 28);
+---
+
+<figure class="stb not-content" data-stb>
+	<svg class="stb__svg" viewBox="0 0 360 240" role="img" aria-label="Паровая турбина: струя пара вращает колесо с лопатками">
+		<defs>
+			<radialGradient id={`${uid}-glow`}>
+				<stop offset="0" class="stb__g0"></stop>
+				<stop offset="1" class="stb__g1"></stop>
+			</radialGradient>
+		</defs>
+		<!-- wheel -->
+		<g data-wheel>
+			<circle cx={CX} cy={CY} r={RB - 12} class="stb__disk"></circle>
+			<circle cx={CX} cy={CY} r={RB - 30} class="stb__hub"></circle>
+			{
+				blades.map((a) => (
+					<path
+						transform={`rotate(${a} ${CX} ${CY})`}
+						d={`M ${CX - 5} ${CY - RB + 12} Q ${CX - 9} ${CY - RB - 1} ${CX - 3} ${CY - RB - 12} L ${CX + 1} ${CY - RB - 12} Q ${CX - 4} ${CY - RB - 1} ${CX} ${CY - RB + 12} Z`}
+						class="stb__blade"
+					/>
+				))
+			}
+			<circle cx={CX} cy={CY - RB + 22} r="3" class="stb__mark"></circle>
+		</g>
+		<circle cx={CX} cy={CY} r="9" class="stb__shaft"></circle>
+		<!-- steam supply and nozzle -->
+		<path d={`M 0 ${CY + RB - 22} L 70 ${CY + RB - 22} L 128 ${CY + RB - 4} L 128 ${CY + RB + 4} L 70 ${CY + RB + 22} L 0 ${CY + RB + 22}`} class="stb__nozzle"></path>
+		<g data-steam></g>
+		<!-- lamp powered by the generator -->
+		<circle cx="322" cy="44" r="30" fill={`url(#${uid}-glow)`} data-glow></circle>
+		<path d="M 314 58 L 314 64 L 330 64 L 330 58 M 316 68 L 328 68" class="stb__lampbase"></path>
+		<path d="M 322 26 a 12 12 0 0 1 8 21 L 328 58 L 316 58 L 314 47 a 12 12 0 0 1 8 -21 Z" class="stb__bulb" data-bulb></path>
+		<path d="M 318 52 L 320 40 L 322 46 L 324 40 L 326 52" class="stb__fil"></path>
+		<g class="stb__labels">
+			<text x="4" y={CY + RB - 30}>пар из котла</text>
+			<text x="72" y={CY + RB + 40}>сопло</text>
+			<text x={CX + RB + 6} y={CY + 62}>лопатки</text>
+			<text x={CX + 12} y={CY + 24}>вал</text>
+			<text x="322" y="88" text-anchor="middle">лампа</text>
+		</g>
+	</svg>
+	<div class="stb__controls">
+		<label class="stb__slider">
+			<span>Подача пара</span>
+			<output data-f-out>70 %</output>
+			<input type="range" min="0" max="100" step="1" value="70" data-f />
+		</label>
+		<dl class="stb__stats">
+			<div><dt>Скорость лопаток по сравнению со скоростью струи пара</dt><dd data-u>—</dd></div>
+			<div><dt>Мощность генератора</dt><dd><span class="stb__pbar"><span data-pbar></span></span></dd></div>
+		</dl>
+	</div>
+	<figcaption class="stb__cap">
+		Лампа горит от генератора, который вращает вал турбины. Следите за паром: из сопла он вылетает быстрым, а от лопаток отходит медленным — свою энергию он отдал колесу. В настоящей турбине на одном валу сидят десятки таких колёс, а вал обычно делает 3000 оборотов в минуту.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.stb {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.stb__svg {
+		display: block;
+		width: 100%;
+		max-width: 34rem;
+		margin-inline: auto;
+		height: auto;
+	}
+	.stb__disk {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.stb__hub {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.stb__blade {
+		fill: var(--sl-color-gray-3);
+	}
+	.stb__mark {
+		fill: var(--sl-color-accent);
+	}
+	.stb__shaft {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.stb__nozzle {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.stb__puff {
+		fill: var(--sl-color-gray-3);
+	}
+	.stb__g0 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0.9;
+	}
+	.stb__g1 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0;
+	}
+	.stb__bulb {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.stb__fil {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.stb__lampbase {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.stb__labels text {
+		fill: var(--sl-color-gray-2);
+		font-size: 12.5px;
+		font-family: var(--__sl-font);
+	}
+	.stb__controls {
+		display: grid;
+		grid-template-columns: 1fr 1.4fr;
+		gap: 0.75rem 1.5rem;
+		align-items: center;
+		margin-top: 0.5rem;
+	}
+	.stb__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.stb__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.stb__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.stb__stats {
+		display: grid;
+		gap: 0.4rem;
+		margin: 0;
+	}
+	.stb__stats > div {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.4rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.stb__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.stb__stats dd {
+		margin: 0;
+		white-space: nowrap;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.stb__pbar {
+		display: block;
+		width: 6rem;
+		height: 0.55rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		overflow: hidden;
+	}
+	.stb__pbar span {
+		display: block;
+		height: 100%;
+		width: 0;
+		background: var(--ig-v);
+	}
+	.stb__cap {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.stb {
+			padding: 0.75rem;
+		}
+		.stb__controls {
+			grid-template-columns: 1fr;
+		}
+		.stb__labels text {
+			font-size: 15px;
+		}
+	}
+</style>
+
+<script>
+	const NS = 'http://www.w3.org/2000/svg';
+	const CX = 196;
+	const CY = 108;
+	const RB = 74;
+	const VJ = 230; // jet speed, px/s
+	const A = 1.2; // steam drive / load ratio at full supply
+	const TAU = 1.6; // s
+	const YJ = CY + RB; // the jet line
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-stb]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const wheel = q<SVGGElement>('[data-wheel]');
+		const steam = q<SVGGElement>('[data-steam]');
+		const glow = q<SVGCircleElement>('[data-glow]');
+		const fIn = q<HTMLInputElement>('[data-f]');
+		const fOut = q<HTMLOutputElement>('[data-f-out]');
+		const uOut = q<HTMLElement>('[data-u]');
+		const pBar = q<HTMLElement>('[data-pbar]');
+		const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		type Puff = { x: number; y: number; vx: number; vy: number; age: number; hit: boolean; e: SVGCircleElement };
+		const puffs: Puff[] = [];
+		let u = 0;
+		let ang = 0;
+		let acc = 0;
+		let last = 0;
+		let visible = true;
+		const uMax = (VJ * A) / (1 + A);
+
+		const frame = (now: number) => {
+			const dt = last ? Math.min((now - last) / 1000, 0.05) : 0;
+			last = now;
+			if (visible && dt > 0) {
+				const f = Number(fIn.value) / 100;
+				u += ((A * f * (VJ - u) - u) / TAU) * dt;
+				ang -= (u / RB) * dt * (180 / Math.PI); // the jet hits the bottom and pushes it to the right
+				wheel.setAttribute('transform', `rotate(${ang} ${CX} ${CY})`);
+				// new puffs from the nozzle
+				acc += f * 60 * dt;
+				while (acc >= 1) {
+					acc -= 1;
+					const e = document.createElementNS(NS, 'circle');
+					e.setAttribute('class', 'stb__puff');
+					steam.append(e);
+					puffs.push({ x: 128, y: YJ + (Math.random() - 0.5) * 6, vx: VJ * (0.95 + Math.random() * 0.1), vy: 0, age: 0, hit: false, e });
+				}
+				for (let i = puffs.length - 1; i >= 0; i--) {
+					const p = puffs[i];
+					p.age += dt;
+					if (!p.hit && p.x >= CX - 16) {
+						// the blade turns the jet back: in the ground frame it leaves with 2u − v
+						p.hit = true;
+						p.vx = 2 * u - p.vx + (Math.random() - 0.5) * 20;
+						p.vy = 25 + Math.random() * 30;
+						p.age = 0;
+					}
+					p.x += p.vx * dt;
+					p.y += p.vy * dt;
+					const r = p.hit ? 3 + p.age * 6 : 2.6;
+					const o = p.hit ? Math.max(0, 0.4 - p.age * 0.3) : 0.75;
+					p.e.setAttribute('cx', p.x.toFixed(1));
+					p.e.setAttribute('cy', p.y.toFixed(1));
+					p.e.setAttribute('r', r.toFixed(1));
+					p.e.style.opacity = o.toFixed(2);
+					if (o <= 0 || p.x < -20 || p.x > 380 || p.y > 260) {
+						p.e.remove();
+						puffs.splice(i, 1);
+					}
+				}
+				const share = u / VJ;
+				uOut.textContent = `${Math.round(share * 100)} %`;
+				const P = (u / uMax) ** 2;
+				pBar.style.width = `${Math.min(100, P * 100)}%`;
+				glow.style.opacity = String(Math.min(1, P));
+			}
+			requestAnimationFrame(frame);
+		};
+		fIn.addEventListener('input', () => (fOut.value = `${fIn.value} %`));
+		new IntersectionObserver((es) => (visible = es[0].isIntersecting)).observe(root);
+		if (reduce) {
+			// no animation: show the steady state
+			u = (A * 0.7 * VJ) / (1 + A * 0.7);
+			uOut.textContent = `${Math.round((u / VJ) * 100)} %`;
+			pBar.style.width = `${Math.min(100, (u / uMax) ** 2 * 100)}%`;
+			glow.style.opacity = String(Math.min(1, (u / uMax) ** 2));
+		} else requestAnimationFrame(frame);
+	}
+</script>

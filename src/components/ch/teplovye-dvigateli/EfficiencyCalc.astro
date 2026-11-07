@@ -1,0 +1,350 @@
+---
+/**
+ * Live efficiency: choose a fuel, its mass and the useful work; Q = qm and η = A/Q·100 %
+ * are recomputed as the sliders move, and η is compared with real engines.
+ * q — rounded table values (Дж/кг), as in Пёрышкин's table.
+ */
+const fuels = [
+	{ name: 'бензин', q: 4.6e7 },
+	{ name: 'дизельное топливо', q: 4.2e7 },
+	{ name: 'природный газ', q: 4.4e7 },
+	{ name: 'каменный уголь', q: 2.7e7 },
+	{ name: 'сухие дрова', q: 1.0e7 },
+];
+const engines = [
+	{ name: 'паровоз', lo: 5, hi: 10 },
+	{ name: 'бензиновый двигатель', lo: 20, hi: 40 },
+	{ name: 'дизельный двигатель', lo: 30, hi: 50 },
+	{ name: 'паровая турбина электростанции', lo: 35, hi: 45 },
+];
+---
+
+<div class="tdc not-content" data-tdc>
+	<div class="tdc__fuels" role="group" aria-label="Топливо">
+		{fuels.map((f, i) => <button type="button" class={`tdc__fuel${i === 0 ? ' is-on' : ''}`} data-q={f.q} data-name={f.name}>{f.name}</button>)}
+	</div>
+	<div class="tdc__sliders">
+		<label class="tdc__slider">
+			<span>Масса сгоревшего топлива <i>m</i></span>
+			<output data-m-out>2 кг</output>
+			<input type="range" min="0.1" max="10" step="0.1" value="2" data-m />
+		</label>
+		<label class="tdc__slider">
+			<span>Полезная работа двигателя <i>A</i><sub>п</sub></span>
+			<output data-a-out>23 МДж</output>
+			<input type="range" min="1" max="200" step="1" value="23" data-a />
+		</label>
+	</div>
+	<div class="tdc__math" data-math1></div>
+	<div class="tdc__math" data-math2></div>
+	<div class="tdc__bar" aria-hidden="true"><span class="tdc__use" data-use></span></div>
+	<p class="tdc__barlbl"><span><span class="tdc__key tdc__key--use"></span>полезная работа</span><span><span class="tdc__key"></span>потери: выхлоп, охлаждение, трение</span></p>
+	<p class="tdc__msg" data-msg aria-live="polite"></p>
+	<div class="tdc__cmp">
+		<p class="tdc__cmpt">КПД настоящих двигателей (примерно) и вашего — вертикальная линия:</p>
+		{
+			engines.map((e) => (
+				<div class="tdc__row">
+					<span class="tdc__ename">{e.name}</span>
+					<span class="tdc__track">
+						<span class="tdc__range" style={`left:${e.lo}%;width:${e.hi - e.lo}%`} />
+					</span>
+					<span class="tdc__eval">
+						{e.lo}–{e.hi} %
+					</span>
+				</div>
+			))
+		}
+		<div class="tdc__row tdc__row--axis">
+			<span class="tdc__ename"></span>
+			<span class="tdc__track tdc__track--axis">
+				<span style="left:0">0</span>
+				<span style="left:50%">50</span>
+				<span style="left:100%">100 %</span>
+				<span class="tdc__line" data-line></span>
+			</span>
+			<span class="tdc__eval"></span>
+		</div>
+	</div>
+</div>
+
+<style is:global>
+	.tdc {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.tdc i {
+		font-family: var(--ig-font-math);
+	}
+	.tdc__fuels {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.tdc__fuel {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.85rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.tdc__fuel:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.tdc__fuel.is-on {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.tdc__sliders {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.8rem;
+	}
+	.tdc__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tdc__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.tdc__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.tdc__math {
+		overflow-x: auto;
+		overflow-y: hidden;
+		color: var(--sl-color-white);
+	}
+	.tdc__math .katex-display {
+		margin: 0.5rem 0;
+	}
+	.tdc__bar {
+		position: relative;
+		height: 0.9rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		overflow: hidden;
+	}
+	.tdc__use {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 0;
+		background: var(--sl-color-accent);
+		transition: width 0.25s ease-out;
+	}
+	.tdc__bar.is-bad .tdc__use {
+		background: var(--ig-vy);
+	}
+	.tdc__barlbl {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: 0.2rem 1rem;
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.tdc__key {
+		display: inline-block;
+		width: 0.7rem;
+		height: 0.7rem;
+		margin-right: 0.3rem;
+		border-radius: 3px;
+		vertical-align: -0.05rem;
+		background: var(--sl-color-gray-5);
+		border: 1px solid var(--sl-color-gray-4);
+	}
+	.tdc__key--use {
+		background: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+	}
+	.tdc__msg {
+		min-height: 3em;
+		margin: 0.5rem 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tdc__msg.is-bad {
+		color: var(--ig-vy);
+		font-weight: 600;
+	}
+	.tdc__cmp {
+		padding-top: 0.6rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.tdc__cmpt {
+		margin: 0 0 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tdc__row {
+		display: grid;
+		grid-template-columns: 11rem minmax(0, 1fr) 4.2rem;
+		gap: 0.6rem;
+		align-items: center;
+		margin: 0.25rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.tdc__track {
+		position: relative;
+		height: 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.tdc__range {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		border-radius: 999px;
+		background: var(--ig-vx);
+		opacity: 0.8;
+	}
+	.tdc__eval {
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.tdc__row--axis {
+		margin-top: 0;
+	}
+	.tdc__track--axis {
+		height: 1.1rem;
+		background: none;
+	}
+	.tdc__track--axis > span:not(.tdc__line) {
+		position: absolute;
+		top: 0.15rem;
+		transform: translateX(-50%);
+		color: var(--sl-color-gray-3);
+		white-space: nowrap;
+	}
+	.tdc__track--axis > span:nth-child(3) {
+		transform: translateX(-100%);
+	}
+	.tdc__line {
+		position: absolute;
+		bottom: 100%;
+		width: 2px;
+		margin-left: -1px;
+		background: var(--sl-color-accent);
+		box-shadow: 0 0 6px var(--sl-color-accent);
+		transition: left 0.25s ease-out;
+	}
+	@media (max-width: 40rem) {
+		.tdc {
+			padding: 0.75rem;
+		}
+		.tdc__sliders {
+			grid-template-columns: 1fr;
+		}
+		.tdc__row {
+			grid-template-columns: 6.5rem minmax(0, 1fr) 3.6rem;
+			gap: 0.4rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tdc__use,
+		.tdc__line {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+
+	const comma = (s: string) => s.replace('.', '{,}');
+	/** 2,76·10^7 style, three significant digits at most. */
+	const sci = (v: number) => {
+		const k = Math.floor(Math.log10(v) + 1e-9);
+		const a = Number((v / 10 ** k).toPrecision(3));
+		return `${comma(String(a))}\\cdot 10^{${k}}`;
+	};
+	const num = (v: number, maxDec = 1) => {
+		const r = Number(v.toFixed(maxDec));
+		return comma(String(r));
+	};
+	const txt = (v: number, maxDec = 1) => String(Number(v.toFixed(maxDec))).replace('.', ',');
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-tdc]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const mIn = q<HTMLInputElement>('[data-m]');
+		const aIn = q<HTMLInputElement>('[data-a]');
+		const mOut = q<HTMLOutputElement>('[data-m-out]');
+		const aOut = q<HTMLOutputElement>('[data-a-out]');
+		const m1 = q<HTMLElement>('[data-math1]');
+		const m2 = q<HTMLElement>('[data-math2]');
+		const use = q<HTMLElement>('[data-use]');
+		const bar = q<HTMLElement>('.tdc__bar');
+		const msg = q<HTMLElement>('[data-msg]');
+		const line = q<HTMLElement>('[data-line]');
+		const fuelBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-q]'));
+		let fuel = fuelBtns[0];
+
+		const update = () => {
+			const qv = Number(fuel.dataset.q);
+			const m = Number(mIn.value);
+			const A = Number(aIn.value); // MJ
+			const Q = (qv * m) / 1e6; // MJ
+			const eta = (100 * A) / Q;
+			mOut.value = `${txt(m)} кг`;
+			aOut.value = `${A} МДж`;
+			const QJ = qv * m;
+			katex.render(
+				`\\begin{aligned}Q_\\text{з} &= qm = ${sci(qv)}~\\tfrac{\\text{Дж}}{\\text{кг}}\\cdot ${num(m)}~\\text{кг} \\\\ &= ${sci(QJ)}~\\text{Дж} = ${num(Q)}~\\text{МДж}\\end{aligned}`,
+				m1,
+				{ displayMode: true, throwOnError: false },
+			);
+			const etaTex = eta >= 10 ? num(eta, 0) : num(eta, 1);
+			katex.render(
+				`\\eta = \\frac{A_\\text{п}}{Q_\\text{з}}\\cdot 100\\,\\% = \\frac{${A}~\\text{МДж}}{${num(Q)}~\\text{МДж}}\\cdot 100\\,\\% ${Math.abs(eta - Number(etaTex.replace('{,}', '.'))) > 1e-9 ? '\\approx' : '='} ${etaTex}\\,\\%`,
+				m2,
+				{ displayMode: true, throwOnError: false },
+			);
+			use.style.width = `${Math.min(100, eta)}%`;
+			line.style.left = `${Math.min(100, eta)}%`;
+			const bad = eta >= 100;
+			bar.classList.toggle('is-bad', bad);
+			msg.classList.toggle('is-bad', bad);
+			if (bad)
+				msg.textContent =
+					'Так не бывает! Работа двигателя не может быть равна энергии сгоревшего топлива или больше неё: часть энергии обязательно уходит с выхлопом и на нагревание окружающих тел. КПД всегда меньше 100 %.';
+			else if (eta > 65)
+				msg.textContent = `Закон сохранения энергии такое позволяет, но таких тепловых двигателей пока нет: даже у лучших тепловых установок КПД около 60 %.`;
+			else msg.textContent = `Полезная работа — ${txt(A)} МДж, а ${txt(Q - A)} МДж (${txt(100 - eta, 0)} %) уходит в окружающую среду, в основном в виде тепла.`;
+		};
+		fuelBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				fuel = b;
+				fuelBtns.forEach((x) => x.classList.toggle('is-on', x === b));
+				update();
+			}),
+		);
+		const tracks = root.querySelectorAll<HTMLElement>('.tdc__track');
+		const fit = () => {
+			const top = tracks[0].getBoundingClientRect().top;
+			const axis = tracks[tracks.length - 1].getBoundingClientRect().top;
+			line.style.height = `${axis - top + 4}px`;
+		};
+		new ResizeObserver(fit).observe(root);
+		mIn.addEventListener('input', update);
+		aIn.addEventListener('input', update);
+		update();
+	}
+</script>

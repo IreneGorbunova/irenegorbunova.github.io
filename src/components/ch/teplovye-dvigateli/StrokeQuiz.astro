@@ -1,0 +1,181 @@
+---
+/**
+ * "Which stroke is it?": a still frame of the engine at a random moment; the reader picks the stroke.
+ * The arrow next to the cylinder shows where the piston is moving.
+ */
+import EngineStyles from './EngineStyles.astro';
+const uid = `tsq-${Math.random().toString(36).slice(2, 8)}`;
+const strokes = ['Впуск', 'Сжатие', 'Рабочий ход', 'Выпуск'];
+---
+
+<EngineStyles />
+<div class="tsq not-content" data-tsq data-uid={uid}>
+	<p class="tsq__q">Какой такт сейчас идёт? Стрелка справа от цилиндра показывает, куда движется поршень.</p>
+	<div class="tsq__body">
+		<div class="tsq__engine" data-host></div>
+		<div class="tsq__side">
+			<div class="tsq__opts" role="group" aria-label="Варианты ответа">
+				{strokes.map((s, i) => <button type="button" class="tsq__opt" data-i={i}>{s}</button>)}
+			</div>
+			<p class="tsq__fb" data-fb aria-live="polite"></p>
+			<button type="button" class="tsq__next" data-next>Новый снимок</button>
+			<p class="tsq__score">Верных ответов: <b data-score>0 из 0</b></p>
+		</div>
+	</div>
+</div>
+
+<style is:global>
+	.tsq {
+		margin-block: 1.5rem;
+		padding: 0.9rem 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.tsq__q {
+		margin: 0 0 0.5rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.tsq__body {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: center;
+	}
+	.tsq__engine {
+		max-width: 20rem;
+		width: 100%;
+		margin-inline: auto;
+	}
+	.tsq__opts {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+	}
+	.tsq__opt,
+	.tsq__next {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.5rem 0.8rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition: border-color 0.2s, background-color 0.2s;
+	}
+	.tsq__opt:hover:not(:disabled),
+	.tsq__next:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.tsq__opt:disabled {
+		cursor: default;
+	}
+	.tsq__opt.is-right {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		font-weight: 700;
+	}
+	.tsq__opt.is-wrong {
+		border-color: var(--ig-vy);
+		opacity: 0.7;
+		text-decoration: line-through;
+		text-decoration-color: var(--ig-vy);
+	}
+	.tsq__fb {
+		min-height: 4.5em;
+		margin: 0.7rem 0 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tsq__fb.is-right {
+		color: var(--sl-color-text-accent);
+	}
+	.tsq__next {
+		font-weight: 600;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.tsq__score {
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.tsq__score b {
+		color: var(--sl-color-white);
+	}
+	@media (max-width: 40rem) {
+		.tsq__body {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tsq__opt {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { buildEngine } from './engine';
+
+	const WHY = [
+		'Открыт впускной клапан, поршень идёт вниз и засасывает горючую смесь — это <b>впуск</b>.',
+		'Оба клапана закрыты, поршень идёт вверх и сжимает ещё не сгоревшую смесь — это <b>сжатие</b>.',
+		'Оба клапана закрыты, горячие газы давят на поршень и толкают его вниз — это <b>рабочий ход</b>.',
+		'Открыт выпускной клапан, поршень идёт вверх и выталкивает отработавшие газы — это <b>выпуск</b>.',
+	];
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-tsq]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const view = buildEngine(q('[data-host]'), root.dataset.uid!);
+		view.setLabels(false);
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('.tsq__opt'));
+		const fb = q<HTMLElement>('[data-fb]');
+		const scoreEl = q<HTMLElement>('[data-score]');
+		let answer = 0;
+		let prev = -1;
+		let right = 0;
+		let total = 0;
+		let firstTry = true;
+
+		const shot = () => {
+			do answer = Math.floor(Math.random() * 4);
+			while (answer === prev);
+			prev = answer;
+			const frac = 0.25 + Math.random() * 0.5;
+			view.render((answer + frac) * Math.PI, 'petrol', 0, 0);
+			view.scatter();
+			view.render((answer + frac) * Math.PI, 'petrol', 0, 0);
+			opts.forEach((b) => {
+				b.disabled = false;
+				b.classList.remove('is-right', 'is-wrong');
+			});
+			fb.textContent = '';
+			fb.classList.remove('is-right');
+			firstTry = true;
+		};
+		opts.forEach((b, i) =>
+			b.addEventListener('click', () => {
+				if (i === answer) {
+					b.classList.add('is-right');
+					opts.forEach((x) => (x.disabled = true));
+					fb.innerHTML = `${firstTry ? 'Верно!' : 'Теперь верно.'} ${WHY[answer]}`;
+					fb.classList.add('is-right');
+					total += 1;
+					if (firstTry) right += 1;
+					scoreEl.textContent = `${right} из ${total}`;
+				} else {
+					b.classList.add('is-wrong');
+					b.disabled = true;
+					firstTry = false;
+					fb.textContent = 'Не совсем. Посмотрите, какой клапан открыт, куда движется поршень и какой газ в цилиндре — холодная смесь или раскалённые газы.';
+				}
+			}),
+		);
+		q<HTMLButtonElement>('[data-next]').addEventListener('click', shot);
+		shot();
+	}
+</script>

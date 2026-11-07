@@ -1,0 +1,644 @@
+---
+/**
+ * Main model: a four-stroke engine (petrol or diesel) with the gas temperature and pressure,
+ * plus an energy-flow diagram for one cycle and a live efficiency count over the cycles run.
+ * Physics and drawing: engine.ts.
+ */
+import EngineStyles from './EngineStyles.astro';
+const uid = `tdl-${Math.random().toString(36).slice(2, 8)}`;
+const strokes = ['Впуск', 'Сжатие', 'Рабочий ход', 'Выпуск'];
+---
+
+<EngineStyles />
+<figure class="tdl not-content" data-tdl data-uid={uid}>
+	<div class="tdl__modes" role="group" aria-label="Тип двигателя">
+		<button type="button" class="tdl__mode is-on" data-mode="petrol" aria-pressed="true">Бензиновый</button>
+		<button type="button" class="tdl__mode" data-mode="diesel" aria-pressed="false">Дизельный</button>
+	</div>
+	<div class="tdl__top">
+		<div class="tdl__engine" data-host></div>
+		<div class="tdl__panel">
+			<ol class="tdl__strokes">
+				{
+					strokes.map((s, i) => (
+						<li class="tdl__stroke" data-stroke={i}>
+							<span class="tdl__num">{i + 1}</span>
+							<span class="tdl__sname">{s}</span>
+							<span class="tdl__prog" data-prog />
+						</li>
+					))
+				}
+			</ol>
+			<p class="tdl__now" data-now aria-live="polite"></p>
+			<div class="tdl__gauge">
+				<span>Температура газа <i>t</i></span><output data-t>—</output>
+				<div class="tdl__bar tdl__bar--t"><span data-tbar></span></div>
+			</div>
+			<div class="tdl__gauge">
+				<span>Давление газа <i>p</i></span><output data-p>—</output>
+				<div class="tdl__bar tdl__bar--p"><span data-pbar></span><em class="tdl__atm" title="атмосферное давление"></em></div>
+			</div>
+			<p class="tdl__who">Вал вращает: <b data-who>маховик</b><br />Оборот вала: <b data-rev>1-й</b> из двух за цикл</p>
+		</div>
+	</div>
+
+	<div class="tdl__controls">
+		<div class="tdl__buttons">
+			<button type="button" class="tdl__btn tdl__btn--primary" data-play>Пауза</button>
+			<button type="button" class="tdl__btn" data-step>Следующий такт</button>
+			<label class="tdl__check"><input type="checkbox" checked data-labels /> подписи</label>
+		</div>
+		<label class="tdl__slider">
+			<span>Частота вращения вала в модели</span>
+			<output data-f-out>20 об/мин</output>
+			<input type="range" min="4" max="60" step="1" value="20" data-f />
+		</label>
+	</div>
+
+	<div class="tdl__energy">
+		<p class="tdl__etitle">Куда уходит энергия топлива за один цикл</p>
+		<svg class="tdl__sankey" viewBox="0 0 360 214" role="img" aria-label="Диаграмма потоков энергии" data-sankey></svg>
+		<div class="tdl__calc">
+			<div class="tdl__math" data-qmath></div>
+			<p class="tdl__count">Модель отработала циклов: <b data-n>0</b>. Сожжено {' '}<span data-fuel>бензина</span>: <b data-mtot>0 г</b>.</p>
+			<div class="tdl__math" data-emath></div>
+		</div>
+	</div>
+	<figcaption class="tdl__legend">
+		<span class="tdl__key tdl__key--fresh"></span>горючая смесь (у дизеля — воздух)
+		<span class="tdl__key tdl__key--burnt"></span>продукты сгорания
+		<span class="tdl__key tdl__key--force"></span><i>F</i> — сила давления газа на поршень.
+		Модель замедлена: настоящий двигатель автомобиля делает примерно от 700 до 6000 оборотов в минуту. Клапаны открываются чуть раньше и закрываются чуть позже, чем в модели; температуры и давления — примерные.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.tdl {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.tdl i {
+		font-family: var(--ig-font-math);
+	}
+	.tdl__modes {
+		display: inline-flex;
+		padding: 3px;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-5);
+		margin-bottom: 0.5rem;
+	}
+	.tdl__mode {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.35rem 0.95rem;
+		border-radius: 999px;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		transition: background-color 0.25s, color 0.25s;
+	}
+	.tdl__mode.is-on {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.tdl__top {
+		display: grid;
+		grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+		gap: 1rem 1.25rem;
+		align-items: start;
+	}
+	.tdl__strokes {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.4rem;
+	}
+	.tdl__stroke {
+		position: relative;
+		overflow: hidden;
+		margin: 0 !important;
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.4rem 0.55rem;
+		border-radius: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+		transition: color 0.3s, border-color 0.3s;
+	}
+	.tdl__num {
+		display: grid;
+		place-items: center;
+		flex: none;
+		width: 1.4rem;
+		height: 1.4rem;
+		border-radius: 50%;
+		font-weight: 700;
+		font-size: var(--sl-text-xs);
+		border: 1.5px solid currentColor;
+	}
+	.tdl__sname {
+		position: relative;
+		z-index: 1;
+		white-space: nowrap;
+	}
+	.tdl__prog {
+		position: absolute;
+		left: 0;
+		bottom: 0;
+		height: 3px;
+		width: 0;
+		background: var(--sl-color-accent);
+	}
+	.tdl__stroke.is-on {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		font-weight: 600;
+	}
+	.tdl__stroke.is-on .tdl__num {
+		background: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.tdl__now {
+		min-height: 7.5em;
+		margin: 0.7rem 0 0.6rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.5;
+		color: var(--sl-color-gray-2);
+	}
+	.tdl__now b {
+		color: var(--sl-color-white);
+	}
+	.tdl__gauge {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem;
+		margin-bottom: 0.55rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tdl__gauge output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.tdl__bar {
+		position: relative;
+		grid-column: 1 / -1;
+		height: 0.55rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.tdl__bar span {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 0;
+		border-radius: 999px;
+	}
+	.tdl__bar--t span {
+		background: linear-gradient(90deg, var(--ig-vx), var(--ig-v), var(--ig-vy));
+		background-size: var(--full, 300px) 100%;
+	}
+	.tdl__bar--p span {
+		background: var(--ig-vy);
+	}
+	.tdl__atm {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 2px;
+		background: var(--sl-color-white);
+		opacity: 0.6;
+	}
+	.tdl__who {
+		margin: 0.2rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tdl__who b {
+		color: var(--sl-color-white);
+	}
+	.tdl__controls {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 0.75rem 1.5rem;
+		align-items: end;
+		margin-top: 0.75rem;
+	}
+	.tdl__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+	}
+	.tdl__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.tdl__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.tdl__btn--primary {
+		min-width: 7.5rem;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.tdl__check {
+		display: inline-flex;
+		gap: 0.3rem;
+		align-items: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.tdl__check input {
+		accent-color: var(--sl-color-accent);
+	}
+	.tdl__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tdl__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.tdl__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.tdl__energy {
+		margin-top: 1.1rem;
+		padding-top: 0.9rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.tdl__etitle {
+		grid-column: 1 / -1;
+		margin: 0;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.tdl__sankey {
+		display: block;
+		width: 100%;
+		max-width: 26rem;
+		margin: 0.4rem 0;
+		height: auto;
+	}
+	.tdl__sankey text {
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+	}
+	.tdl__sankey .sk-v {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.tdl__sankey .sk-base {
+		fill: none;
+		opacity: 0.18;
+	}
+	.tdl__sankey .sk-fill {
+		fill: none;
+		opacity: 0.85;
+	}
+	.tdl__sankey .sk-src {
+		fill: var(--ig-v);
+	}
+	.tdl__sankey .sk-srcbg {
+		fill: var(--ig-v);
+		opacity: 0.18;
+	}
+	.sk-c0 {
+		stroke: var(--sl-color-accent);
+	}
+	.sk-c1 {
+		stroke: var(--sl-color-gray-3);
+	}
+	.sk-c2 {
+		stroke: var(--ig-vx);
+	}
+	.sk-c3 {
+		stroke: var(--ig-vy);
+	}
+	.tdl__calc {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.tdl__math {
+		overflow-x: auto;
+		overflow-y: hidden;
+		color: var(--sl-color-white);
+	}
+	.tdl__math .katex-display {
+		margin: 0.4rem 0;
+	}
+	.tdl__count {
+		margin: 0.2rem 0;
+	}
+	.tdl__count b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.tdl__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.tdl__key {
+		display: inline-block;
+		width: 0.7rem;
+		height: 0.7rem;
+		margin: 0 0.3rem 0 0.6rem;
+		vertical-align: -0.05rem;
+		border-radius: 50%;
+	}
+	.tdl__key:first-child {
+		margin-left: 0;
+	}
+	.tdl__key--fresh {
+		background: var(--ig-vx);
+	}
+	.tdl__key--burnt {
+		background: var(--sl-color-gray-2);
+	}
+	.tdl__key--force {
+		background: var(--ig-vy);
+		border-radius: 2px;
+		width: 0.3rem;
+	}
+	@media (max-width: 50rem) {
+		.tdl__top,
+		.tdl__controls {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.tdl__engine {
+			max-width: 26rem;
+			margin-inline: auto;
+			width: 100%;
+		}
+		.tdl__now {
+			min-height: 7.5em;
+		}
+	}
+	@media (max-width: 40rem) {
+		.tdl {
+			padding: 0.75rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tdl__mode,
+		.tdl__stroke {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { buildEngine, SPECS, PATM, type Mode, type State } from './engine';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const fmt = (v: number, d = 0) =>
+		v
+			.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 })
+			.replace(/\s/g, '\u202f');
+	const tex = (v: number) => fmt(v).replace(',', '{,}').replace(/\u202f/g, '\\,');
+	const TEXTS: Record<Mode, string[]> = {
+		petrol: [
+			'<b>Впускной клапан открыт</b>, выпускной закрыт. Поршень идёт вниз, и в цилиндр засасывается <b>горючая смесь</b> — пары бензина, перемешанные с воздухом.',
+			'<b>Оба клапана закрыты.</b> Поршень идёт вверх и сжимает смесь. Над газом совершают работу, поэтому он нагревается. В конце такта между электродами свечи проскакивает <b>искра</b>.',
+			'Смесь вспыхивает. Горячие газы давят на поршень с огромной силой и толкают его вниз. <b>Газ расширяется и совершает работу</b> — и при этом остывает: следите за термометром.',
+			'<b>Выпускной клапан открыт.</b> Поршень идёт вверх и выталкивает отработавшие газы в выхлопную трубу. Они уносят с собой много тепла.',
+		],
+		diesel: [
+			'<b>Впускной клапан открыт</b>, выпускной закрыт. Поршень идёт вниз, и в цилиндр засасывается <b>чистый воздух</b> — без топлива.',
+			'<b>Оба клапана закрыты.</b> Поршень сжимает воздух гораздо сильнее, чем в бензиновом двигателе, и воздух нагревается примерно до 600 °C. В конце такта форсунка начинает <b>впрыскивать топливо</b>.',
+			'Капли топлива <b>загораются сами</b> — от горячего воздуха, свеча не нужна. Пока топливо горит, давление держится высоким; потом <b>газ расширяется, совершает работу</b> и остывает.',
+			'<b>Выпускной клапан открыт.</b> Поршень идёт вверх и выталкивает отработавшие газы в выхлопную трубу. Они уносят с собой много тепла.',
+		],
+	};
+	const NAMES = ['Полезная работа', 'С выхлопными газами', 'Охлаждение двигателя', 'Трение'];
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-tdl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const uid = root.dataset.uid!;
+		const view = buildEngine(q('[data-host]'), uid);
+		const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const strokesEl = Array.from(root.querySelectorAll<HTMLElement>('[data-stroke]'));
+		const progEl = strokesEl.map((s) => s.querySelector<HTMLElement>('[data-prog]')!);
+		const nowEl = q<HTMLElement>('[data-now]');
+		const tOut = q<HTMLOutputElement>('[data-t]');
+		const pOut = q<HTMLOutputElement>('[data-p]');
+		const tBar = q<HTMLElement>('[data-tbar]');
+		const pBar = q<HTMLElement>('[data-pbar]');
+		const atm = q<HTMLElement>('.tdl__atm');
+		const who = q<HTMLElement>('[data-who]');
+		const rev = q<HTMLElement>('[data-rev]');
+		const playBtn = q<HTMLButtonElement>('[data-play]');
+		const fIn = q<HTMLInputElement>('[data-f]');
+		const fOut = q<HTMLOutputElement>('[data-f-out]');
+		const sankey = q<SVGSVGElement>('[data-sankey]');
+		const qMath = q<HTMLElement>('[data-qmath]');
+		const eMath = q<HTMLElement>('[data-emath]');
+		const nOut = q<HTMLElement>('[data-n]');
+		const mOut = q<HTMLElement>('[data-mtot]');
+		const fuelOut = q<HTMLElement>('[data-fuel]');
+		const PMAX = 7000;
+		const TMAX = 2000;
+		atm.style.left = `${(100 * PATM) / PMAX}%`;
+
+		let mode: Mode = 'petrol';
+		let phi = 0;
+		let playing = !reduce;
+		let target: number | null = null;
+		let visible = true;
+		let n = 0;
+		let lastStroke = -1;
+		let lastT = 0;
+
+		// ---------- energy-flow diagram
+		const mk = <K extends keyof SVGElementTagNameMap>(tag: K, a: Record<string, string | number>, parent: Element = sankey) => {
+			const e = document.createElementNS(NS, tag);
+			for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+			parent.append(e);
+			return e;
+		};
+		let fills: { path: SVGPathElement; len: number }[] = [];
+		let srcFill: SVGRectElement;
+		const H = 150;
+		const Y0 = 34;
+		const drawSankey = () => {
+			sankey.replaceChildren();
+			fills = [];
+			const s = SPECS[mode];
+			const Q = s.q * s.m;
+			const head = mk('text', { x: 4, y: 16 });
+			head.innerHTML = `Энергия топлива <tspan font-style="italic" font-family="KaTeX_Math">Q</tspan><tspan font-size="9" dy="3">з</tspan><tspan dy="-3"> = </tspan><tspan class="sk-v">${fmt(Q)} Дж</tspan>`;
+			mk('rect', { x: 4, y: Y0, width: 14, height: H, rx: 3, class: 'sk-srcbg' });
+			srcFill = mk('rect', { x: 4, y: Y0 + H, width: 14, height: 0, rx: 3, class: 'sk-src' });
+			let ys = Y0;
+			let yl = Y0 - 4;
+			s.shares.forEach((share, i) => {
+				const w = H * share;
+				const y1 = ys + w / 2;
+				const ly = Math.max(yl + 4, Y0 + (i * (H + 30)) / 4 + 6);
+				const y2 = Math.max(ly + 10, y1);
+				const d = `M 18 ${y1} C 90 ${y1} 100 ${y2} 172 ${y2}`;
+				mk('path', { d, 'stroke-width': w, class: `sk-base sk-c${i}` });
+				const f = mk('path', { d, 'stroke-width': w, class: `sk-fill sk-c${i}` });
+				const len = f.getTotalLength();
+				f.style.strokeDasharray = `${len} ${len}`;
+				f.style.strokeDashoffset = String(len);
+				fills.push({ path: f, len });
+				const t1 = mk('text', { x: 178, y: y2 - 2 });
+				t1.textContent = NAMES[i];
+				const t2 = mk('text', { x: 178, y: y2 + 13, class: 'sk-v' });
+				t2.textContent = `${fmt(Q * share)} Дж · ${Math.round(share * 100)} %`;
+				ys += w;
+				yl = y2 + 22;
+			});
+			fuelOut.textContent = s.fuelGen;
+			katex.render(
+				`\\begin{aligned}Q_\\text{з} &= qm = ${s.qTex}~\\tfrac{\\text{Дж}}{\\text{кг}}\\cdot ${fmt(s.m, 5).replace(',', '{,}')}~\\text{кг} \\\\ &= ${tex(Q)}~\\text{Дж}\\end{aligned}`,
+				qMath,
+				{ displayMode: true, throwOnError: false },
+			);
+		};
+		const renderEta = () => {
+			const s = SPECS[mode];
+			const Q = s.q * s.m;
+			const k = Math.max(n, 1);
+			const A = Q * s.shares[0];
+			nOut.textContent = String(n);
+			mOut.textContent = `${fmt(n * s.m * 1000, 2)} г`;
+			katex.render(
+				`\\begin{aligned}\\eta &= \\frac{A_\\text{п}}{Q_\\text{з}}\\cdot 100\\,\\% \\\\ &= \\frac{${tex(k * A)}~\\text{Дж}}{${tex(k * Q)}~\\text{Дж}}\\cdot 100\\,\\% = ${Math.round(s.shares[0] * 100)}\\,\\%\\end{aligned}`,
+				eMath,
+				{ displayMode: true, throwOnError: false },
+			);
+		};
+		const setProgress = (st: State) => {
+			// energy appears when the fuel burns; work and cooling during the working stroke, exhaust in the last stroke
+			const burn = st.stroke >= 2 || st.burn > 0 ? st.burn : 0;
+			const work = st.stroke === 2 ? st.frac : st.stroke === 3 ? 1 : 0;
+			const exh = st.stroke === 3 ? st.frac : 0;
+			const cool = st.stroke === 2 ? st.frac / 2 : st.stroke === 3 ? 0.5 + st.frac / 2 : 0;
+			const prog = [work, exh, cool, cool];
+			srcFill.setAttribute('height', String(H * burn));
+			srcFill.setAttribute('y', String(Y0 + H * (1 - burn)));
+			fills.forEach((f, i) => (f.path.style.strokeDashoffset = String(f.len * (1 - prog[i]))));
+		};
+
+		// ---------- one frame
+		const show = (dt: number) => {
+			const omega = (Number(fIn.value) / 60) * 2 * Math.PI;
+			const st = view.render(phi, mode, dt, omega);
+			strokesEl.forEach((e, i) => e.classList.toggle('is-on', i === st.stroke));
+			progEl.forEach((e, i) => (e.style.width = i === st.stroke ? `${st.frac * 100}%` : '0'));
+			if (st.stroke !== lastStroke) {
+				nowEl.innerHTML = TEXTS[mode][st.stroke];
+				if (lastStroke === 3 && st.stroke === 0) {
+					n += 1;
+					renderEta();
+				}
+				lastStroke = st.stroke;
+			}
+			const tt = Math.round(st.t / 10) * 10;
+			const pp = st.p < 1000 ? Math.round(st.p / 10) * 10 : Math.round(st.p / 100) * 100;
+			tOut.textContent = `≈ ${fmt(tt)} °C`;
+			pOut.textContent = `≈ ${fmt(pp)} кПа`;
+			tBar.style.width = `${Math.min(100, (100 * st.t) / TMAX)}%`;
+			pBar.style.width = `${Math.min(100, (100 * st.p) / PMAX)}%`;
+			who.textContent = st.stroke === 2 ? 'газ — через поршень и шатун' : 'маховик (по инерции)';
+			rev.textContent = st.phi < 2 * Math.PI ? '1-й' : '2-й';
+			setProgress(st);
+		};
+
+		const frame = (now: number) => {
+			const dt = lastT ? Math.min((now - lastT) / 1000, 0.1) : 0;
+			lastT = now;
+			if (visible && (playing || target !== null)) {
+				const omega = (Number(fIn.value) / 60) * 2 * Math.PI;
+				let next = phi + omega * dt;
+				if (target !== null && next >= target) {
+					next = target - 1e-6;
+					target = null;
+				}
+				if (next >= 4 * Math.PI) {
+					next -= 4 * Math.PI;
+					if (target !== null) target -= 4 * Math.PI;
+				}
+				phi = next;
+				show(dt);
+			}
+			requestAnimationFrame(frame);
+		};
+
+		const setPlaying = (on: boolean) => {
+			playing = on;
+			playBtn.textContent = on ? 'Пауза' : 'Запустить';
+		};
+		playBtn.addEventListener('click', () => {
+			target = null;
+			setPlaying(!playing);
+		});
+		q<HTMLButtonElement>('[data-step]').addEventListener('click', () => {
+			setPlaying(false);
+			target = (Math.floor(phi / Math.PI + 1e-4) + 1) * Math.PI;
+		});
+		fIn.addEventListener('input', () => (fOut.value = `${fIn.value} об/мин`));
+		q<HTMLInputElement>('[data-labels]').addEventListener('change', (e) => {
+			view.setLabels((e.target as HTMLInputElement).checked);
+		});
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-mode]')) {
+			b.addEventListener('click', () => {
+				mode = b.dataset.mode as Mode;
+				root.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((x) => {
+					x.classList.toggle('is-on', x === b);
+					x.setAttribute('aria-pressed', String(x === b));
+				});
+				phi = 0;
+				n = 0;
+				lastStroke = -1;
+				target = null;
+				drawSankey();
+				renderEta();
+				show(0);
+			});
+		}
+		new ResizeObserver(() => tBar.parentElement!.style.setProperty('--full', `${tBar.parentElement!.clientWidth}px`)).observe(tBar.parentElement!);
+		new IntersectionObserver((es) => (visible = es[0].isIntersecting)).observe(root);
+		setPlaying(playing);
+		drawSankey();
+		renderEta();
+		view.scatter();
+		view.setMotionArrow(false);
+		show(0);
+		requestAnimationFrame(frame);
+	}
+</script>
