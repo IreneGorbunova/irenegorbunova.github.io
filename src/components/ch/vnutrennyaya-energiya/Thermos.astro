@@ -1,0 +1,526 @@
+---
+/**
+ * A thermos in section: a double-walled glass flask in a case, a stopper, hot tea. Three switches —
+ * vacuum between the walls, silvered walls, stopper — and the tea cools over a day (24 h in 12 s).
+ * Newton cooling dT/dt = −k·(T − 20 °C), k is the sum of the open channels, per hour (estimates for a
+ * 0.5 l flask, chosen so that a good thermos keeps tea at about 60 °C after a day):
+ *   glass neck and stopper (conduction) 0.012; air between the walls: conduction 0.10 + convection 0.25;
+ *   radiation: silvered 0.012, plain glass 0.12; no stopper: convection and steam through the neck 1.0.
+ */
+import VeStyles from './VeStyles.astro';
+
+const CX = 170;
+const U = (x0: number, x1: number, yt: number, yb: number, r: number) =>
+	`M ${x0} ${yt} V ${yb - r} Q ${x0} ${yb} ${x0 + r} ${yb} H ${x1 - r} Q ${x1} ${yb} ${x1} ${yb - r} V ${yt}`;
+const OUT = { x0: 88, x1: 252, yt: 112, yb: 372, r: 42 };
+const IN = { x0: 106, x1: 234, yt: 112, yb: 354, r: 34 };
+const outer = U(OUT.x0, OUT.x1, OUT.yt, OUT.yb, OUT.r);
+const inner = U(IN.x0, IN.x1, IN.yt, IN.yb, IN.r);
+const gap = `${outer} Z ${inner} Z`;
+const TEA_TOP = 150;
+
+/** A wavy line from x0 to x1 at height y (an infrared «ray»). */
+const wave = (x0: number, x1: number, y: number) => {
+	const n = Math.max(8, Math.round(Math.abs(x1 - x0) / 3));
+	const pts = Array.from({ length: n + 1 }, (_, i) => {
+		const x = x0 + ((x1 - x0) * i) / n;
+		return `${x.toFixed(1)} ${(y + 5 * Math.sin((i / n) * Math.abs(x1 - x0) * 0.32)).toFixed(1)}`;
+	});
+	return `M ${pts.join(' L ')}`;
+};
+const RAY_Y = [186, 296];
+
+const GX0 = 490;
+const GX1 = 705;
+const GY0 = 330;
+const GY1 = 60;
+const gx = (h: number) => GX0 + (h / 24) * (GX1 - GX0);
+const gy = (t: number) => GY0 - ((t - 20) / 80) * (GY0 - GY1);
+---
+
+<VeStyles />
+<figure class="ve-box th not-content is-vac is-silver is-plug" data-thermos>
+	<svg class="ve-svg" viewBox="0 0 720 400" role="img" aria-label="Термос в разрезе: стеклянная колба с двойными стенками в корпусе, между стенками откачан воздух, стенки посеребрены, сверху пробка; справа график температуры чая">
+		<defs>
+			<linearGradient id="th-silver" x1="0" x2="1">
+				<stop offset="0" class="th__s1"></stop>
+				<stop offset="0.5" class="th__s2"></stop>
+				<stop offset="1" class="th__s1"></stop>
+			</linearGradient>
+			<marker id="th-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+				<path class="th__arrowhead" d="M 0 0 L 10 5 L 0 10 z"></path>
+			</marker>
+			<clipPath id="th-in"><path d={`${inner} Z`}></path></clipPath>
+		</defs>
+
+		<!-- case -->
+		<rect class="th__case" x="62" y="96" width="216" height="296" rx="24"></rect>
+		<!-- the space between the walls -->
+		<path class="th__gap" d={gap} fill-rule="evenodd"></path>
+		<g class="th__air" data-air></g>
+		<g class="th__cond">
+			{[160, 240, 320].map((y) => (
+				<g>
+					<path d={`M ${IN.x0 - 2} ${y} H ${OUT.x0 + 3} l 5 -5 m -5 5 l 5 5`} />
+					<path d={`M ${IN.x1 + 2} ${y} H ${OUT.x1 - 3} l -5 -5 m 5 5 l -5 5`} />
+				</g>
+			))}
+		</g>
+		<!-- tea -->
+		<g clip-path="url(#th-in)">
+			<rect class="th__tea" x={IN.x0} y={TEA_TOP} width={IN.x1 - IN.x0} height={IN.yb - TEA_TOP} data-tea></rect>
+			<path class="th__surf" d={`M ${IN.x0} ${TEA_TOP} H ${IN.x1}`}></path>
+		</g>
+		<!-- radiation -->
+		{RAY_Y.map((y) => (
+			<g>
+				<path class="th__ray th__ray--out" d={wave(CX - 14, 40, y)} />
+				<path class="th__ray th__ray--out" d={wave(CX + 14, 292, y)} />
+				<path class="th__ray th__ray--go" d={wave(CX - 14, IN.x0 + 6, y)} />
+				<path class="th__ray th__ray--go" d={wave(CX + 14, IN.x1 - 6, y)} />
+				<path class="th__ray th__ray--back" d={wave(IN.x0 + 6, CX - 14, y + 20)} />
+				<path class="th__ray th__ray--back" d={wave(IN.x1 - 6, CX + 14, y + 20)} />
+			</g>
+		))}
+		<!-- glass walls -->
+		<path class="th__wall" d={outer}></path>
+		<path class="th__wall" d={inner}></path>
+		<path class="th__rim" d={`M ${OUT.x0} ${OUT.yt} H ${IN.x0} M ${IN.x1} ${IN.yt} H ${OUT.x1}`}></path>
+		<!-- steam through the open neck -->
+		<g class="th__steam">
+			{[-30, 0, 30].map((dx, i) => (
+				<path style={`--d:${i * 0.6}s`} d={`M ${CX + dx} ${TEA_TOP - 8} q -10 -18 0 -36 q 10 -18 0 -36 q -10 -18 0 -36`} />
+			))}
+		</g>
+		<!-- stopper -->
+		<g class="th__plug">
+			<rect x={IN.x0 + 6} y="92" width={IN.x1 - IN.x0 - 12} height="40" rx="6"></rect>
+			<rect x={IN.x0 - 8} y="74" width={IN.x1 - IN.x0 + 16} height="24" rx="8"></rect>
+		</g>
+		<text class="th__temp" x={CX} y="262" text-anchor="middle" data-temp>95 °C</text>
+
+		<!-- labels -->
+		<g class="th__labels">
+			<line x1={IN.x1 + 16} y1="86" x2="300" y2="86"></line>
+			<text x="306" y="91">пробка</text>
+			<line x1={OUT.x1 - 9} y1="200" x2="300" y2="200"></line>
+			<text x="306" y="205" data-gap-label>вакуум</text>
+			<line x1={OUT.x1} y1="330" x2="300" y2="330"></line>
+			<text x="306" y="335" data-wall-label>серебрение</text>
+		</g>
+
+		<!-- graph -->
+		<g class="th__grid">
+			{[40, 60, 80, 100].map((t) => <line x1={GX0} y1={gy(t)} x2={GX1} y2={gy(t)} />)}
+			{[6, 12, 18, 24].map((h) => <line x1={gx(h)} y1={GY0} x2={gx(h)} y2={GY1} />)}
+		</g>
+		<line class="th__axis" x1={GX0} y1={GY0} x2={GX1 + 6} y2={GY0}></line>
+		<line class="th__axis" x1={GX0} y1={GY0} x2={GX0} y2={GY1 - 8}></line>
+		<g class="th__ticks">
+			{[20, 40, 60, 80, 100].map((t) => <text x={GX0 - 8} y={gy(t) + 5} text-anchor="end">{t}</text>)}
+			{[0, 6, 12, 18, 24].map((h) => <text x={gx(h)} y={GY0 + 22} text-anchor="middle">{h}</text>)}
+			<text x={GX0 - 8} y={GY1 - 18} text-anchor="end"><tspan class="ve-math">t</tspan>, °C</text>
+			<text x={GX1} y={GY0 + 46} text-anchor="end">время, ч</text>
+		</g>
+		<polyline class="th__trace th__trace--old" data-trace-old></polyline>
+		<polyline class="th__trace" data-trace></polyline>
+		<circle class="th__dot" r="5" cx={gx(0)} cy={gy(95)} data-dot></circle>
+	</svg>
+	<div class="ve-row" role="group" aria-label="Что есть у термоса">
+		<button type="button" class="ve-chip" aria-pressed="true" data-opt="vac">Вакуум между стенками</button>
+		<button type="button" class="ve-chip" aria-pressed="true" data-opt="silver">Посеребрённые стенки</button>
+		<button type="button" class="ve-chip" aria-pressed="true" data-opt="plug">Пробка</button>
+	</div>
+	<div class="th__leaks" aria-hidden="true">
+		<span class="th__leaks-title">Как быстро уходит энергия</span>
+		<span>теплопроводность</span><span class="th__bar"><i data-bar="cond"></i></span>
+		<span>конвекция</span><span class="th__bar"><i data-bar="conv"></i></span>
+		<span>излучение</span><span class="th__bar"><i data-bar="rad"></i></span>
+	</div>
+	<div class="ve-row">
+		<button type="button" class="ve-btn ve-btn--primary" data-run>Налить чай и ждать сутки</button>
+	</div>
+	<p class="ve-live" aria-live="polite" data-live></p>
+	<figcaption class="ve-cap">
+		Выключайте части термоса и смотрите, как быстро остывает чай. Полоски показывают, как быстро энергия уходит каждым видом теплопередачи. Чай наливают при 95 °C, в комнате 20 °C; сутки проходят за 12 секунд. Числа примерные — для
+		термоса на 0,5 л. Пунктиром на графике остаётся предыдущий опыт.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.th__case {
+		fill: color-mix(in srgb, var(--sl-color-gray-6) 70%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.th__gap {
+		fill: transparent;
+		transition: fill 0.4s;
+	}
+	.th:not(.is-vac) .th__gap {
+		fill: color-mix(in srgb, var(--ig-vx) 14%, transparent);
+	}
+	.th__air circle {
+		fill: var(--ig-vx);
+		opacity: 0;
+		transition: opacity 0.4s;
+	}
+	.th:not(.is-vac) .th__air circle {
+		opacity: 0.85;
+	}
+	.th__cond path {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		opacity: 0;
+		transition: opacity 0.4s;
+	}
+	.th:not(.is-vac) .th__cond path {
+		opacity: calc(0.25 + 0.75 * var(--heat, 1));
+	}
+	.th__tea {
+		fill: var(--ig-v);
+	}
+	.th__surf {
+		stroke: white;
+		stroke-opacity: 0.35;
+		stroke-width: 2;
+	}
+	.th__wall {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vx) 50%, var(--sl-color-gray-3));
+		stroke-width: 3;
+		transition: stroke 0.4s;
+	}
+	.th.is-silver .th__wall {
+		stroke: url(#th-silver);
+		stroke-width: 5;
+	}
+	.th__s1 {
+		stop-color: var(--sl-color-gray-3);
+	}
+	.th__s2 {
+		stop-color: var(--sl-color-white);
+	}
+	.th__rim {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.th__arrowhead {
+		fill: var(--ig-vy);
+	}
+	.th__ray {
+		marker-end: url(#th-arrow);
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		stroke-dasharray: 9 7;
+		opacity: 0;
+		transition: opacity 0.4s;
+		animation: th-flow 0.9s linear infinite;
+	}
+	.th:not(.is-silver) .th__ray--out,
+	.th.is-silver .th__ray--go,
+	.th.is-silver .th__ray--back {
+		opacity: calc(0.2 + 0.8 * var(--heat, 1));
+	}
+	.th__steam path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+		opacity: 0;
+	}
+	.th:not(.is-plug) .th__steam path {
+		animation: th-steam 1.8s ease-in infinite;
+		animation-delay: var(--d);
+	}
+	.th__plug rect {
+		fill: color-mix(in srgb, var(--ig-v) 30%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.th__plug {
+		transition:
+			transform 0.5s,
+			opacity 0.5s;
+	}
+	.th:not(.is-plug) .th__plug {
+		transform: translate(0, -40px);
+		opacity: 0;
+	}
+	.th__temp {
+		font-size: 30px;
+		font-weight: 700;
+		fill: var(--sl-color-black);
+		font-variant-numeric: tabular-nums;
+	}
+	.th__labels line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.th__labels text {
+		font-size: 15px;
+		fill: var(--sl-color-white);
+	}
+	.th__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.th__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.th__ticks text {
+		font-size: 15px;
+		fill: var(--sl-color-gray-2);
+	}
+	.th__trace {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.th__trace--old {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-dasharray: 6 5;
+	}
+	.th__dot {
+		fill: var(--sl-color-accent);
+	}
+	.th__leaks {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 0.3rem 0.75rem;
+		align-items: center;
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.th__leaks-title {
+		grid-column: 1 / -1;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.th__bar {
+		height: 0.55rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.th__bar i {
+		display: block;
+		height: 100%;
+		width: 0;
+		min-width: 3px;
+		border-radius: inherit;
+		background: var(--ig-vy);
+		transition: width 0.4s;
+	}
+	@keyframes th-flow {
+		to {
+			stroke-dashoffset: -16;
+		}
+	}
+	@keyframes th-steam {
+		0% {
+			opacity: 0;
+			transform: translateY(0);
+		}
+		30% {
+			opacity: calc(0.7 * var(--heat, 1));
+		}
+		100% {
+			opacity: 0;
+			transform: translateY(-30px);
+		}
+	}
+	@media (max-width: 40rem) {
+		.th__labels text,
+		.th__ticks text {
+			font-size: 21px;
+		}
+		.th__temp {
+			font-size: 36px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.th__ray,
+		.th:not(.is-plug) .th__steam path {
+			animation: none;
+		}
+		.th:not(.is-plug) .th__steam path {
+			opacity: 0.5;
+		}
+	}
+</style>
+
+<script>
+	import { heatScale, css, loop, rng, ru, onTheme, reduceMotion } from './heat';
+
+	const T_ROOM = 20;
+	const T0 = 95;
+	const DAY = 24; // h
+	const RUN_S = 12; // s for a day
+	const K = {
+		neck: 0.012,
+		airCond: 0.1,
+		airConv: 0.25,
+		radSilver: 0.012,
+		radPlain: 0.12,
+		open: 1.0,
+	};
+	const K_MAX = 1.0; // a bar at full width
+	const GX0 = 490;
+	const GX1 = 705;
+	const GY0 = 330;
+	const GY1 = 60;
+	const gx = (h: number) => GX0 + (h / DAY) * (GX1 - GX0);
+	const gy = (t: number) => GY0 - ((t - 20) / 80) * (GY0 - GY1);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-thermos]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = $<SVGSVGElement>('svg');
+		const tea = $<SVGRectElement>('[data-tea]');
+		const tempEl = $<SVGTextElement>('[data-temp]');
+		const trace = $<SVGPolylineElement>('[data-trace]');
+		const traceOld = $<SVGPolylineElement>('[data-trace-old]');
+		const dot = $<SVGCircleElement>('[data-dot]');
+		const live = $<HTMLElement>('[data-live]');
+		const runBtn = $<HTMLButtonElement>('[data-run]');
+		const gapLabel = $<SVGTextElement>('[data-gap-label]');
+		const wallLabel = $<SVGTextElement>('[data-wall-label]');
+		const bars = {
+			cond: $<HTMLElement>('[data-bar="cond"]'),
+			conv: $<HTMLElement>('[data-bar="conv"]'),
+			rad: $<HTMLElement>('[data-bar="rad"]'),
+		};
+		const opt = { vac: true, silver: true, plug: true };
+
+		// air molecules between the walls (shown when there is no vacuum)
+		const airG = $<SVGGElement>('[data-air]');
+		const rand = rng(7);
+		const NS = 'http://www.w3.org/2000/svg';
+		const mols = Array.from({ length: 34 }, (_, i) => {
+			const side = i % 2 ? 1 : -1;
+			const x = side < 0 ? 89 + rand() * 16 : 235 + rand() * 16;
+			const y = 118 + rand() * 210;
+			const c = document.createElementNS(NS, 'circle');
+			c.setAttribute('r', '2.6');
+			c.setAttribute('cx', x.toFixed(1));
+			c.setAttribute('cy', y.toFixed(1));
+			airG.append(c);
+			return { c, x0: x, y0: y, ph: rand() * 6.3, f: 6 + rand() * 6 };
+		});
+
+		const channels = () => ({
+			cond: K.neck + (opt.vac ? 0 : K.airCond),
+			conv: (opt.vac ? 0 : K.airConv) + (opt.plug ? 0 : K.open),
+			rad: opt.silver ? K.radSilver : K.radPlain,
+		});
+		const kTotal = () => {
+			const c = channels();
+			return c.cond + c.conv + c.rad;
+		};
+
+		let heat = heatScale(root);
+		onTheme(() => {
+			heat = heatScale(root);
+			paint();
+		});
+
+		let T = T0;
+		let h = 0; // hours since the tea was poured
+		let running = false;
+		let pts: string[] = [];
+
+		const paint = () => {
+			const f = (T - T_ROOM) / (T0 - T_ROOM);
+			tea.style.fill = css(heat(0.15 + 0.85 * f));
+			root.style.setProperty('--heat', f.toFixed(3));
+			tempEl.textContent = `${Math.round(T)} °C`;
+			dot.setAttribute('cx', gx(h).toFixed(1));
+			dot.setAttribute('cy', gy(T).toFixed(1));
+			trace.setAttribute('points', pts.join(' '));
+		};
+
+		const describe = () => {
+			const k = kTotal();
+			const half = Math.LN2 / k;
+			const halfText = half >= 1 ? `${ru(half, half < 10 ? 1 : 0)} ч` : `${Math.round(half * 60)} мин`;
+			return `Разница температур чая и комнаты уменьшается вдвое примерно за <b>${halfText}</b>.`;
+		};
+
+		const sync = () => {
+			root.classList.toggle('is-vac', opt.vac);
+			root.classList.toggle('is-silver', opt.silver);
+			root.classList.toggle('is-plug', opt.plug);
+			gapLabel.textContent = opt.vac ? 'вакуум' : 'воздух';
+			wallLabel.textContent = opt.silver ? 'серебрение' : 'без серебра';
+			const c = channels();
+			for (const key of ['cond', 'conv', 'rad'] as const) {
+				bars[key].style.width = `${Math.min(100, (c[key] / K_MAX) * 100).toFixed(1)}%`;
+			}
+			if (!running) live.innerHTML = describe();
+		};
+
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-opt]')) {
+			b.addEventListener('click', () => {
+				const key = b.dataset.opt as keyof typeof opt;
+				opt[key] = !opt[key];
+				b.setAttribute('aria-pressed', String(opt[key]));
+				sync();
+				wake();
+			});
+		}
+
+		const finish = () => {
+			running = false;
+			runBtn.disabled = false;
+			runBtn.textContent = 'Налить чай ещё раз';
+			live.innerHTML = `Через сутки чай остыл до <b>${Math.round(T)} °C</b>. ${describe()}`;
+		};
+
+		let wiggle = 0;
+		const step = (dt: number) => {
+			if (running) {
+				const dh = (dt / RUN_S) * DAY;
+				const sub = 10;
+				for (let i = 0; i < sub; i++) T -= kTotal() * (T - T_ROOM) * (dh / sub);
+				h = Math.min(DAY, h + dh);
+				pts.push(`${gx(h).toFixed(1)},${gy(T).toFixed(1)}`);
+				live.innerHTML = `Прошло <b>${Math.floor(h)} ч</b>, чай — <b>${Math.round(T)} °C</b>.`;
+				if (h >= DAY) finish();
+				paint();
+			}
+			if (!opt.vac && !reduceMotion()) {
+				wiggle += dt;
+				const amp = 1.5 + 2.5 * ((T - T_ROOM) / (T0 - T_ROOM));
+				for (const m of mols) {
+					m.c.setAttribute('cx', (m.x0 + amp * Math.sin(m.f * wiggle + m.ph)).toFixed(1));
+					m.c.setAttribute('cy', (m.y0 + amp * Math.cos(m.f * 0.8 * wiggle + m.ph * 1.7)).toFixed(1));
+				}
+			}
+			return running || !opt.vac;
+		};
+		const wake = loop(svg, step);
+
+		runBtn.addEventListener('click', () => {
+			if (pts.length > 1) traceOld.setAttribute('points', pts.join(' '));
+			T = T0;
+			h = 0;
+			pts = [`${gx(0).toFixed(1)},${gy(T0).toFixed(1)}`];
+			running = true;
+			runBtn.disabled = true;
+			paint();
+			wake();
+		});
+
+		paint();
+		sync();
+	}
+</script>
