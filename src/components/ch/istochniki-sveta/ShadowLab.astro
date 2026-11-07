@@ -1,0 +1,609 @@
+---
+/**
+ * Main model: a round light source, an opaque round card and a screen (side view, 6 px per cm,
+ * equal scales on both axes). The source is a glowing disc facing the screen; its diameter goes
+ * from 0 (a point source) to 24 cm. Light goes in straight lines, so the edges of the shadow and
+ * of the penumbra are straight lines through the edges of the source and of the card.
+ * The front view of the screen is computed point by point: the brightness is the part of the
+ * source seen from that point of the screen (circle overlap), times the fall-off with distance.
+ */
+import SvStyles from './SvStyles.astro';
+
+const S = 6; // px per cm
+const X0 = 46; // svg x of the source plane
+const Y0 = 200; // svg y of the axis
+const HALF = 30; // half height of the screen, cm
+---
+
+<SvStyles />
+<figure class="sv sv-shadow not-content" data-shadow-lab data-s={S} data-x0={X0} data-y0={Y0} data-half={HALF}>
+			<svg class="sv__svg" viewBox="0 0 720 420" role="group" aria-label="Источник света, непрозрачный кружок и экран: вид сбоку">
+			<defs>
+				<radialGradient data-glow-grad cx="0.5" cy="0.5" r="0.5">
+					<stop offset="0" stop-color="var(--sv-light)" stop-opacity="0.55"></stop>
+					<stop offset="0.35" stop-color="var(--sv-light)" stop-opacity="0.16"></stop>
+					<stop offset="1" stop-color="var(--sv-light)" stop-opacity="0"></stop>
+				</radialGradient>
+				<linearGradient data-beam-grad x1="0" y1="0" x2="1" y2="0">
+					<stop offset="0" stop-color="var(--sv-light)" stop-opacity="0.32"></stop>
+					<stop offset="1" stop-color="var(--sv-light)" stop-opacity="0.12"></stop>
+				</linearGradient>
+				<linearGradient data-screen-grad x1="0" y1="0" x2="0" y2="1"></linearGradient>
+			</defs>
+			<polygon class="sv-shadow__beam" data-beam></polygon>
+			<circle class="sv-shadow__halo" data-halo r="120"></circle>
+			<polygon class="sv-shadow__pen" data-pen></polygon>
+			<polygon class="sv-shadow__umb" data-umb></polygon>
+			<g data-edge-shadows></g>
+			<g data-fan></g>
+			<g class="sv-shadow__lines" data-lines></g>
+
+			<g class="sv-shadow__source" data-source>
+				<rect data-src-bar x="-4" width="8" rx="4"></rect>
+				<circle data-src-dot r="5"></circle>
+			</g>
+			<text class="sv-t sv-t--small" data-src-label text-anchor="start">источник</text>
+
+			<g class="sv-shadow__card" data-card tabindex="0" role="slider" aria-label="Непрозрачный кружок. Стрелки — двигать">
+				<rect class="sv-shadow__hit" data-card-hit></rect>
+				<rect class="sv-shadow__disc sv-focus" data-card-disc width="6" x="-3" rx="2"></rect>
+				<text class="sv-t sv-t--small" data-card-label text-anchor="middle">кружок ⟷</text>
+			</g>
+
+			<g class="sv-shadow__screen" data-screen tabindex="0" role="slider" aria-label="Экран. Стрелки влево и вправо — двигать">
+				<rect class="sv-shadow__hit" data-screen-hit></rect>
+				<rect class="sv-shadow__paper sv-focus" data-screen-paper width="9" x="0"></rect>
+				<text class="sv-t sv-t--small" data-screen-label text-anchor="middle">экран ⟷</text>
+			</g>
+
+			<g class="sv-shadow__dims" data-dims>
+				<path data-dim-a></path>
+				<path data-dim-b></path>
+				<text class="sv-t" data-dim-a-t text-anchor="middle"></text>
+				<text class="sv-t" data-dim-b-t text-anchor="middle"></text>
+			</g>
+		</svg>
+
+	<div class="sv-controls">
+		<label class="sv-slider">
+			<span>Диаметр источника</span>
+			<output data-src-out>0 см — точка</output>
+			<input type="range" min="0" max="24" step="1" value="0" data-src />
+		</label>
+		<label class="sv-slider">
+			<span>Диаметр кружка <i>d</i></span>
+			<output data-d-out>8 см</output>
+			<input type="range" min="4" max="16" step="1" value="8" data-d />
+		</label>
+		<div class="sv-row">
+			<button type="button" class="sv-btn sv-btn--primary" data-grow>▶ Источник растёт</button>
+			<button type="button" class="sv-btn" aria-pressed="false" data-edges>Тени от двух краёв источника</button>
+		</div>
+	</div>
+
+	<div class="sv-shadow__below">
+		<div class="sv-shadow__front">
+			<canvas data-front aria-label="Экран, вид спереди: тень и полутень" role="img"></canvas>
+			<p class="sv-cap">Экран спереди</p>
+		</div>
+		<div>
+		<dl class="sv-stats">
+			<div><dt>Диаметр тени</dt><dd data-st-umb>—</dd></div>
+			<div><dt>Диаметр полутени</dt><dd data-st-pen>—</dd></div>
+			<div><dt>Ширина полутени</dt><dd data-st-w>—</dd></div>
+		</dl>
+		<div class="sv-formula" data-formula aria-live="polite"></div>
+		<p class="sv-live" data-live aria-live="polite"></p>
+		</div>
+	</div>
+	<p class="sv-legend">
+		<span class="sv-key" style="--c: var(--sv-dark)"></span>тень
+		<span class="sv-key" style="--c: color-mix(in srgb, var(--sv-dark) 45%, transparent)"></span>полутень
+		<span class="sv-key sv-key--line" style="--c: var(--ig-vy)"></span>границы тени
+		<span class="sv-key sv-key--dash" style="--c: var(--ig-vx)"></span>границы полутени
+	</p>
+</figure>
+
+<style is:global>
+	.sv-shadow__below {
+		display: grid;
+		grid-template-columns: 10.5rem minmax(0, 1fr);
+		gap: 1rem;
+		align-items: start;
+		margin-top: 0.9rem;
+	}
+	.sv-shadow__below .sv-stats {
+		margin-top: 0;
+	}
+	.sv-shadow .sv-t {
+		font-size: 17px;
+	}
+	.sv-shadow .sv-t--small {
+		font-size: 15px;
+	}
+	.sv-shadow__front canvas {
+		display: block;
+		width: 100%;
+		aspect-ratio: 1;
+		border-radius: 0.5rem;
+		border: 1px solid var(--sl-color-gray-5);
+	}
+	.sv-shadow__beam {
+		opacity: 0.8;
+	}
+	.sv-shadow__halo {
+		fill: var(--sv-light);
+		opacity: 0.12;
+		filter: blur(18px);
+	}
+	.sv-shadow__pen {
+		fill: var(--sv-dark);
+		opacity: 0.38;
+	}
+	.sv-shadow__umb {
+		fill: var(--sv-dark);
+		opacity: 0.82;
+	}
+	:root[data-theme='light'] .sv-shadow__pen {
+		opacity: 0.22;
+	}
+	:root[data-theme='light'] .sv-shadow__umb {
+		opacity: 0.55;
+	}
+	.sv-shadow__lines line {
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+	.sv-shadow__lines .is-umb {
+		stroke: var(--ig-vy);
+	}
+	.sv-shadow__lines .is-pen {
+		stroke: var(--ig-vx);
+		stroke-dasharray: 7 5;
+	}
+	.sv-shadow__edge polygon {
+		fill: var(--c);
+		opacity: 0.2;
+	}
+	.sv-shadow__edge line {
+		stroke: var(--c);
+		stroke-width: 1.4;
+	}
+	.sv-shadow__source rect,
+	.sv-shadow__source circle {
+		fill: color-mix(in srgb, var(--sv-light) 45%, white);
+		stroke: var(--sv-light);
+		stroke-width: 1.5;
+	}
+	:root:not([data-theme='light']) .sv-shadow__source {
+		filter: drop-shadow(0 0 6px var(--sv-light)) drop-shadow(0 0 14px var(--sv-light));
+	}
+	.sv-shadow__disc {
+		fill: var(--sl-color-gray-1);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+	.sv-shadow__paper {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.sv-shadow__hit {
+		fill: transparent;
+		cursor: grab;
+		touch-action: none;
+	}
+	.sv-shadow [data-card],
+	.sv-shadow [data-screen] {
+		cursor: grab;
+		touch-action: none;
+	}
+	.sv-shadow .is-dragging {
+		cursor: grabbing;
+	}
+	.sv-shadow__dims path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	@media (max-width: 40rem) {
+		.sv-shadow__below {
+			grid-template-columns: 1fr;
+		}
+		.sv-shadow__front {
+			width: min(12rem, 60%);
+			margin-inline: auto;
+		}
+		.sv-shadow .sv-t {
+			font-size: 25px;
+		}
+		.sv-shadow .sv-t--small {
+			font-size: 22px;
+		}
+		.sv-shadow .sv__svg .sv-t {
+			stroke-width: 6px;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { visibleFraction, fmt, tfmt, resolveColor, onTheme, reducedMotion, svgPoint, clamp, type RGB } from './sv';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-shadow-lab]')) {
+		const S = Number(root.dataset.s);
+		const X0 = Number(root.dataset.x0);
+		const Y0 = Number(root.dataset.y0);
+		const HALF = Number(root.dataset.half);
+		const svg = root.querySelector<SVGSVGElement>('svg')!;
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const NS = 'http://www.w3.org/2000/svg';
+		const uid = Math.random().toString(36).slice(2, 8);
+
+		// unique gradient ids (several models on one page must not clash)
+		const glowGrad = q<SVGRadialGradientElement>('[data-glow-grad]');
+		const beamGrad = q<SVGLinearGradientElement>('[data-beam-grad]');
+		const scrGrad = q<SVGLinearGradientElement>('[data-screen-grad]');
+		glowGrad.id = `sv-glow-${uid}`;
+		beamGrad.id = `sv-beam-${uid}`;
+		scrGrad.id = `sv-scr-${uid}`;
+		q<SVGCircleElement>('[data-halo]').setAttribute('fill', `url(#${glowGrad.id})`);
+		q<SVGRectElement>('[data-screen-paper]').setAttribute('fill', `url(#${scrGrad.id})`);
+
+		const st = { Rs: 0, r: 4, xb: 40, yb: 0, xw: 100, edges: false };
+		const X = (x: number) => X0 + x * S;
+		const Y = (y: number) => Y0 - y * S;
+
+		let lit: RGB = [255, 240, 200];
+		let dark: RGB = [10, 12, 20];
+
+		/** Brightness of the screen point (y, z) relative to the screen centre without the card. */
+		function bright(y: number, z: number): number {
+			const Lx = st.xw;
+			const k = Lx / (st.xw - st.xb); // projection of the card from the screen point onto the source plane
+			const cy = y + (st.yb - y) * k;
+			const cz = z + (0 - z) * k;
+			const f = visibleFraction(st.Rs, st.r * k, Math.hypot(cy, cz));
+			const u2 = Lx * Lx + y * y + z * z;
+			return f * (Lx * Lx / u2) ** 2;
+		}
+		const mix = (v: number) => {
+			const t = Math.pow(clamp(v, 0, 1), 0.65);
+			return [0, 1, 2].map((i) => Math.round(dark[i] + (lit[i] - dark[i]) * t));
+		};
+
+		// front view: 210 × 210 points over 60 × 60 cm, drawn smoothly onto the visible canvas
+		const N = 210;
+		const off = document.createElement('canvas');
+		off.width = off.height = N;
+		const octx = off.getContext('2d')!;
+		const img = octx.createImageData(N, N);
+		const front = q<HTMLCanvasElement>('[data-front]');
+		const fctx = front.getContext('2d')!;
+		function drawFront() {
+			const span = 2 * HALF;
+			for (let j = 0; j < N; j++) {
+				const y = HALF - ((j + 0.5) / N) * span;
+				for (let i = 0; i < N; i++) {
+					const z = ((i + 0.5) / N) * span - HALF;
+					const c = mix(bright(y, z));
+					const p = (j * N + i) * 4;
+					img.data[p] = c[0];
+					img.data[p + 1] = c[1];
+					img.data[p + 2] = c[2];
+					img.data[p + 3] = 255;
+				}
+			}
+			octx.putImageData(img, 0, 0);
+			const w = Math.max(1, Math.round(front.clientWidth * devicePixelRatio));
+			if (front.width !== w) front.width = front.height = w;
+			fctx.imageSmoothingEnabled = true;
+			fctx.imageSmoothingQuality = 'high';
+			fctx.drawImage(off, 0, 0, w, w);
+		}
+
+		function lineAtX(p: [number, number], q2: [number, number], x: number): number {
+			return p[1] + ((q2[1] - p[1]) * (x - p[0])) / (q2[0] - p[0]);
+		}
+		const el = (tag: string, attrs: Record<string, string | number>) => {
+			const e = document.createElementNS(NS, tag);
+			for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+			return e;
+		};
+		const pts = (list: [number, number][]) => list.map(([x, y]) => `${X(x).toFixed(1)},${Y(y).toFixed(1)}`).join(' ');
+
+		const fan = q<SVGGElement>('[data-fan]');
+		const lines = q<SVGGElement>('[data-lines]');
+		const edgeG = q<SVGGElement>('[data-edge-shadows]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const live = q<HTMLElement>('[data-live]');
+		let lastTex = '';
+
+		function rayPath(from: [number, number], toY: number): string {
+			// a ray from a point of the source to the screen; stops on the card if it hits it
+			const yAtCard = lineAtX(from, [st.xw, toY], st.xb);
+			const hits = yAtCard >= st.yb - st.r && yAtCard <= st.yb + st.r;
+			const end: [number, number] = hits ? [st.xb, yAtCard] : [st.xw, toY];
+			return `M${X(from[0]).toFixed(1)},${Y(from[1]).toFixed(1)} L${X(end[0]).toFixed(1)},${Y(end[1]).toFixed(1)}`;
+		}
+		function addFan(from: [number, number], color: string, n: number) {
+			for (let i = 0; i < n; i++) {
+				const y = -HALF + (2 * HALF * (i + 0.5)) / n;
+				const d = rayPath(from, y);
+				const g = el('g', { class: 'sv-ray', style: `--c: ${color}` });
+				g.append(el('path', { class: 'sv-base', d }), el('path', { class: 'sv-flow', d }));
+				fan.append(g);
+			}
+		}
+
+		function draw() {
+			const { Rs, r, xb, yb, xw } = st;
+			const top: [number, number] = [0, Rs];
+			const bot: [number, number] = [0, -Rs];
+			const ct: [number, number] = [xb, yb + r];
+			const cb: [number, number] = [xb, yb - r];
+			// shadow: lines top→top and bottom→bottom; penumbra: crossed lines
+			const uTop = lineAtX(top, ct, xw);
+			const uBot = lineAtX(bot, cb, xw);
+			const pTop = lineAtX(bot, ct, xw);
+			const pBot = lineAtX(top, cb, xw);
+
+			// light beam and halo
+			q('[data-beam]').setAttribute('points', pts([[0, Rs + 0.5], [xw, HALF], [xw, -HALF], [0, -Rs - 0.5]]));
+			q('[data-beam]').setAttribute('fill', `url(#${beamGrad.id})`);
+			const halo = q<SVGCircleElement>('[data-halo]');
+			halo.setAttribute('cx', String(X(0)));
+			halo.setAttribute('cy', String(Y(0)));
+			halo.setAttribute('r', String(60 + Rs * S * 2.2));
+
+			q('[data-pen]').setAttribute('points', pts([ct, [xw, pTop], [xw, pBot], cb]));
+			if (uTop > uBot) {
+				q('[data-umb]').setAttribute('points', pts([ct, [xw, uTop], [xw, uBot], cb]));
+			} else {
+				// the two shadow lines cross before the screen: the shadow is a cone that ends there
+				const xc = clamp((Rs * xb) / (Rs - r), xb, xw); // the two lines meet here (Rs > r)
+				q('[data-umb]').setAttribute('points', pts([ct, [xc, lineAtX(top, ct, xc)], cb]));
+			}
+
+			lines.replaceChildren();
+			const ln = (a: [number, number], b: [number, number], cls: string) =>
+				lines.append(el('line', { x1: X(a[0]), y1: Y(a[1]), x2: X(b[0]), y2: Y(b[1]), class: cls }));
+			if (Rs > 0) {
+				ln(top, [xw, uTop], 'is-umb');
+				ln(bot, [xw, uBot], 'is-umb');
+				ln(bot, [xw, pTop], 'is-pen');
+				ln(top, [xw, pBot], 'is-pen');
+			} else {
+				ln([0, 0], [xw, uTop], 'is-umb');
+				ln([0, 0], [xw, uBot], 'is-umb');
+			}
+
+			// rays and the shadows from the two edges of the source
+			fan.replaceChildren();
+			edgeG.replaceChildren();
+			if (Rs === 0) {
+				addFan([0, 0], 'var(--sv-light)', 15);
+			} else if (st.edges) {
+				for (const [p, color] of [
+					[top, 'var(--ig-vx)'],
+					[bot, 'var(--ig-vy)'],
+				] as [[number, number], string][]) {
+					const a = lineAtX(p, ct, xw);
+					const b = lineAtX(p, cb, xw);
+					const g = el('g', { class: 'sv-shadow__edge', style: `--c: ${color}` });
+					g.append(
+						el('polygon', { points: pts([ct, [xw, a], [xw, b], cb]) }),
+						el('line', { x1: X(p[0]), y1: Y(p[1]), x2: X(xw), y2: Y(a) }),
+						el('line', { x1: X(p[0]), y1: Y(p[1]), x2: X(xw), y2: Y(b) }),
+					);
+					edgeG.append(g);
+					addFan(p, color, 5);
+				}
+			}
+
+			// source
+			const bar = q<SVGRectElement>('[data-src-bar]');
+			const dot = q<SVGCircleElement>('[data-src-dot]');
+			q('[data-source]').setAttribute('transform', `translate(${X(0)},${Y(0)})`);
+			bar.style.display = Rs > 0 ? '' : 'none';
+			dot.style.display = Rs > 0 ? 'none' : '';
+			bar.setAttribute('y', String(-Rs * S));
+			bar.setAttribute('height', String(2 * Rs * S));
+			const sl = q<SVGTextElement>('[data-src-label]');
+			sl.setAttribute('x', String(X(0) - 30));
+			sl.setAttribute('y', String(Y(0) + Rs * S + 28));
+
+			// card
+			const card = q<SVGGElement>('[data-card]');
+			card.setAttribute('transform', `translate(${X(xb)},${Y(yb)})`);
+			const disc = q<SVGRectElement>('[data-card-disc]');
+			disc.setAttribute('y', String(-r * S));
+			disc.setAttribute('height', String(2 * r * S));
+			const hit = q<SVGRectElement>('[data-card-hit]');
+			hit.setAttribute('x', '-22');
+			hit.setAttribute('width', '44');
+			hit.setAttribute('y', String(-r * S - 16));
+			hit.setAttribute('height', String(2 * r * S + 32));
+			const cl = q<SVGTextElement>('[data-card-label]');
+			cl.setAttribute('y', String(-r * S - 10));
+
+			// screen with the brightness profile along its height
+			const scr = q<SVGGElement>('[data-screen]');
+			scr.setAttribute('transform', `translate(${X(xw)},0)`);
+			const paper = q<SVGRectElement>('[data-screen-paper]');
+			paper.setAttribute('y', String(Y(HALF)));
+			paper.setAttribute('height', String(2 * HALF * S));
+			const sh = q<SVGRectElement>('[data-screen-hit]');
+			sh.setAttribute('x', '-16');
+			sh.setAttribute('width', '42');
+			sh.setAttribute('y', String(Y(HALF)));
+			sh.setAttribute('height', String(2 * HALF * S));
+			const slab = q<SVGTextElement>('[data-screen-label]');
+			slab.setAttribute('x', '0');
+			slab.setAttribute('y', String(Y(HALF) - 6));
+			const stops: string[] = [];
+			for (let i = 0; i <= 80; i++) {
+				const y = HALF - (2 * HALF * i) / 80;
+				const c = mix(bright(y, 0));
+				stops.push(`<stop offset="${(i / 80).toFixed(4)}" stop-color="rgb(${c.join(',')})"></stop>`);
+			}
+			scrGrad.innerHTML = stops.join('');
+
+			// distances a and b
+			const yd = Y(-HALF) + 22;
+			q('[data-dim-a]').setAttribute('d', `M${X(0)},${yd - 18} V${yd} H${X(xb)} V${yd - 18}`);
+			q('[data-dim-b]').setAttribute('d', `M${X(0)},${yd} V${yd + 12} H${X(xw)} V${yd - 18}`);
+			const at = q<SVGTextElement>('[data-dim-a-t]');
+			at.setAttribute('x', String((X(0) + X(xb)) / 2));
+			at.setAttribute('y', String(yd - 5));
+			at.innerHTML = `<tspan class="sv-t--math">a</tspan> = ${fmt(xb)} см`;
+			const bt = q<SVGTextElement>('[data-dim-b-t]');
+			bt.setAttribute('x', String((X(xb) + X(xw)) / 2 + 20));
+			bt.setAttribute('y', String(yd + 6));
+			bt.innerHTML = `<tspan class="sv-t--math">b</tspan> = ${fmt(xw)} см`;
+
+			drawFront();
+
+			// numbers
+			const umb = uTop - uBot;
+			const pen = pTop - pBot;
+			q('[data-st-umb]').textContent = umb > 0.05 ? `${fmt(umb, 1)} см` : 'нет';
+			q('[data-st-pen]').textContent = Rs > 0 ? `${fmt(pen, 1)} см` : 'нет';
+			q('[data-st-w]').textContent = Rs > 0 ? `${fmt((pen - Math.max(0, umb)) / 2, 1)} см` : '0 см';
+			q('[data-src-out]').textContent = Rs === 0 ? '0 см — точка' : `${fmt(2 * Rs)} см`;
+			q('[data-d-out]').textContent = `${fmt(2 * r)} см`;
+			const sb = q<HTMLElement>('[data-screen]');
+			sb.setAttribute('aria-valuenow', String(xw));
+			sb.setAttribute('aria-valuetext', `экран в ${fmt(xw)} см от источника`);
+			card.setAttribute('aria-valuenow', String(xb));
+			card.setAttribute('aria-valuetext', `кружок в ${fmt(xb)} см от источника`);
+
+			const D = (2 * r * xw) / xb;
+			const tex = `D = d\\,\\frac{b}{a} = ${tfmt(2 * r)}~\\text{см}\\cdot\\frac{${tfmt(xw)}~\\text{см}}{${tfmt(xb)}~\\text{см}} = ${tfmt(D, 1)}~\\text{см}`;
+			if (tex !== lastTex) {
+				katex.render(tex, formula, { displayMode: true, throwOnError: false });
+				lastTex = tex;
+			}
+			if (Rs === 0) {
+				live.innerHTML =
+					'Источник — <b>точка</b>. Каждый луч либо упирается в кружок, либо доходит до экрана. Граница тени резкая, полутени нет, и диаметр тени точно равен <i>d</i>·<i>b</i>/<i>a</i>.';
+			} else if (umb <= 0.05) {
+				live.innerHTML =
+					'Тени <b>нет</b>, осталась одна полутень: из любой точки экрана виден хотя бы краешек источника — кружок кажется меньше источника. Так бывает при кольцеобразном затмении Солнца.';
+			} else {
+				live.innerHTML = `Источник <b>протяжённый</b>: в тени он не виден целиком, в полутени виден частично. Формула для точечного источника даёт теперь середину полутени: тень меньше ${fmt(D, 1)} см, а полутень больше.`;
+			}
+		}
+
+		// controls
+		const src = q<HTMLInputElement>('[data-src]');
+		const dIn = q<HTMLInputElement>('[data-d]');
+		src.addEventListener('input', () => {
+			stopGrow();
+			st.Rs = Number(src.value) / 2;
+			draw();
+		});
+		dIn.addEventListener('input', () => {
+			st.r = Number(dIn.value) / 2;
+			st.yb = clamp(st.yb, -14 + st.r, 14 - st.r);
+			draw();
+		});
+		const edgesBtn = q<HTMLButtonElement>('[data-edges]');
+		edgesBtn.addEventListener('click', () => {
+			st.edges = !st.edges;
+			edgesBtn.setAttribute('aria-pressed', String(st.edges));
+			if (st.edges && st.Rs === 0) {
+				st.Rs = 6;
+				src.value = '12';
+			}
+			draw();
+		});
+
+		// «the source grows»: 0 → 24 cm → 0 in 7 s
+		let raf = 0;
+		const growBtn = q<HTMLButtonElement>('[data-grow]');
+		function stopGrow() {
+			cancelAnimationFrame(raf);
+			raf = 0;
+			growBtn.textContent = '▶ Источник растёт';
+		}
+		growBtn.addEventListener('click', () => {
+			if (raf) return stopGrow();
+			if (reducedMotion()) {
+				st.Rs = st.Rs > 0 ? 0 : 8;
+				src.value = String(2 * st.Rs);
+				return draw();
+			}
+			growBtn.textContent = '■ Стоп';
+			const t0 = performance.now();
+			const T = 7000;
+			const step = (t: number) => {
+				const p = Math.min(1, (t - t0) / T);
+				const s = 0.5 - 0.5 * Math.cos(2 * Math.PI * p); // 0 → 1 → 0, smooth
+				const D = Math.round(24 * s * 2) / 2;
+				st.Rs = D / 2;
+				src.value = String(Math.round(D));
+				draw();
+				if (p < 1) raf = requestAnimationFrame(step);
+				else stopGrow();
+			};
+			raf = requestAnimationFrame(step);
+		});
+
+		// dragging the card and the screen
+		function drag(target: SVGGElement, move: (x: number, y: number) => void) {
+			target.addEventListener('pointerdown', (e) => {
+				e.preventDefault();
+				target.setPointerCapture(e.pointerId);
+				target.classList.add('is-dragging');
+				const p0 = svgPoint(svg, e);
+				const s0 = { xb: st.xb, yb: st.yb, xw: st.xw };
+				const onMove = (ev: PointerEvent) => {
+					const p = svgPoint(svg, ev);
+					Object.assign(st, s0);
+					move((p.x - p0.x) / S, -(p.y - p0.y) / S);
+					draw();
+				};
+				const onUp = () => {
+					target.classList.remove('is-dragging');
+					target.removeEventListener('pointermove', onMove);
+					target.removeEventListener('pointerup', onUp);
+					target.removeEventListener('pointercancel', onUp);
+				};
+				target.addEventListener('pointermove', onMove);
+				target.addEventListener('pointerup', onUp);
+				target.addEventListener('pointercancel', onUp);
+			});
+		}
+		const card = q<SVGGElement>('[data-card]');
+		const screen = q<SVGGElement>('[data-screen]');
+		const moveCard = (dx: number, dy: number) => {
+			st.xb = Math.round(clamp(st.xb + dx, 12, st.xw - 12));
+			st.yb = Math.round(clamp(st.yb + dy, -14 + st.r, 14 - st.r));
+		};
+		const moveScreen = (dx: number) => {
+			st.xw = Math.round(clamp(st.xw + dx, st.xb + 12, 108));
+		};
+		drag(card, moveCard);
+		drag(screen, (dx) => moveScreen(dx));
+		card.addEventListener('keydown', (e) => {
+			const k: Record<string, [number, number]> = { ArrowLeft: [-2, 0], ArrowRight: [2, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+			if (!k[e.key]) return;
+			e.preventDefault();
+			moveCard(...k[e.key]);
+			draw();
+		});
+		screen.addEventListener('keydown', (e) => {
+			const k: Record<string, number> = { ArrowLeft: -2, ArrowRight: 2 };
+			if (!k[e.key]) return;
+			e.preventDefault();
+			moveScreen(k[e.key]);
+			draw();
+		});
+		onTheme(() => {
+			lit = resolveColor(root, 'var(--sv-lit)');
+			dark = resolveColor(root, 'var(--sv-dark)');
+			draw();
+		});
+		new ResizeObserver(() => drawFront()).observe(front);
+	}
+</script>

@@ -1,0 +1,741 @@
+---
+/**
+ * Solar and lunar eclipses with true sizes.
+ * Sky view: the Sun, the Moon and the Earth's shadow are drawn with their true angular sizes
+ * (one scale for all of them). Sizes come from the real radii and the chosen distances:
+ * Sun 696 340 km, Moon 1737,4 km, Earth 6371 km; Earth–Moon 356 500…406 700 km,
+ * Earth–Sun 147,1…152,1 million km. For a solar eclipse the observer stands on the Earth's
+ * surface with the Moon overhead (6371 km closer than the Earth's centre).
+ * Side view: the Moon, the Earth and their shadows at one true scale (650 km per px), the Sun far
+ * to the left; a zoom (50 km per px, equal scales) shows where the tip of the Moon's shadow ends.
+ * Brightness of the Moon in a lunar eclipse is computed point by point: the part of the Sun's disc
+ * that the Earth does not cover, seen from that point of the Moon. The red glow in the shadow
+ * (sunlight bent by the Earth's atmosphere) is added as a dim copper light.
+ */
+import SvStyles from './SvStyles.astro';
+---
+
+<SvStyles />
+<figure class="sv sv-ecl not-content" data-eclipse>
+	<div class="sv-row sv-ecl__top">
+		<div class="sv-seg" role="group" aria-label="Вид затмения">
+			<button type="button" aria-pressed="true" data-mode="sun">Солнечное затмение</button>
+			<button type="button" aria-pressed="false" data-mode="moon">Лунное затмение</button>
+		</div>
+	</div>
+
+	<div class="sv-ecl__skywrap">
+		<canvas class="sv-ecl__sky" data-sky role="img" aria-label="Небо во время затмения"></canvas>
+		<span class="sv-ecl__chip" data-chip aria-live="polite"></span>
+		<span class="sv-ecl__hint" data-hint>⟷ тяните Луну</span>
+	</div>
+
+	<div class="sv-controls">
+		<div class="sv-row">
+			<button type="button" class="sv-btn sv-btn--primary" data-play>▶ Пуск</button>
+			<label class="sv-slider sv-ecl__time">
+				<span data-t-name>Луна движется по небу</span>
+				<output data-t-out></output>
+				<input type="range" min="-1" max="1" step="0.001" value="-0.86" data-t />
+			</label>
+		</div>
+		<label class="sv-slider">
+			<span>Расстояние Земля — Луна</span>
+			<output data-dm-out></output>
+			<input type="range" min="356500" max="406700" step="100" value="384400" data-dm />
+		</label>
+		<label class="sv-slider">
+			<span>Расстояние Земля — Солнце</span>
+			<output data-ds-out></output>
+			<input type="range" min="147.1" max="152.1" step="0.1" value="149.6" data-ds />
+		</label>
+		<label class="sv-slider">
+			<span data-b-name>Вы в стороне от центра тени</span>
+			<output data-b-out></output>
+			<input type="range" min="0" max="4000" step="50" value="0" data-b />
+		</label>
+		<div class="sv-row sv-ecl__presets" data-presets></div>
+	</div>
+
+	<dl class="sv-stats sv-ecl__stats">
+		<div><dt data-s1-name></dt><dd data-s1></dd></div>
+		<div><dt data-s2-name></dt><dd data-s2></dd></div>
+		<div><dt data-s3-name></dt><dd data-s3></dd></div>
+	</dl>
+	<p class="sv-live" data-live aria-live="polite"></p>
+
+	<svg class="sv__svg sv-ecl__side" viewBox="0 0 720 290" data-side role="img" aria-label="Солнце, Луна и Земля сбоку, в одном масштабе"></svg>
+	<p class="sv-cap" data-side-cap></p>
+</figure>
+
+<style is:global>
+	.sv-ecl__top {
+		margin-bottom: 0.75rem;
+	}
+	.sv-ecl__skywrap {
+		position: relative;
+		border-radius: 0.6rem;
+		overflow: hidden;
+		border: 1px solid var(--sl-color-gray-5);
+		touch-action: pan-y;
+		cursor: grab;
+	}
+	.sv-ecl__sky {
+		display: block;
+		width: 100%;
+		aspect-ratio: 2 / 1;
+	}
+	.sv-ecl__chip {
+		position: absolute;
+		left: 0.6rem;
+		bottom: 0.6rem;
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: hsl(230, 40%, 12%);
+		background: hsla(45, 100%, 92%, 0.88);
+		pointer-events: none;
+	}
+	.sv-ecl__hint {
+		position: absolute;
+		right: 0.6rem;
+		top: 0.45rem;
+		font-size: var(--sl-text-xs);
+		color: hsla(0, 0%, 100%, 0.75);
+		pointer-events: none;
+		transition: opacity 0.6s;
+	}
+	.sv-ecl__time {
+		flex: 1 1 14rem;
+	}
+	.sv-ecl__presets .sv-btn {
+		padding: 0.3rem 0.8rem;
+	}
+	.sv-ecl__side {
+		margin-top: 0.6rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.sv-ecl__side .e-moon {
+		fill: var(--sl-color-gray-2);
+	}
+	.sv-ecl__side .e-earth {
+		fill: var(--ig-vx);
+	}
+	.sv-ecl__side .e-umb {
+		fill: var(--sl-color-black);
+		stroke: var(--ig-vy);
+		stroke-width: 1;
+	}
+	.sv-ecl__side .e-pen {
+		fill: color-mix(in srgb, var(--sl-color-black) 55%, transparent);
+		stroke: var(--ig-vx);
+		stroke-width: 1;
+		stroke-dasharray: 5 4;
+	}
+	.sv-ecl__side .e-sunlight {
+		fill: var(--ig-v);
+		opacity: 0.1;
+	}
+	.sv-ecl__side .e-frame {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.sv-ecl__side .e-zoom {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.sv-ecl__side .e-obs {
+		fill: var(--sl-color-accent);
+		stroke: var(--sl-color-black);
+		stroke-width: 1.5;
+	}
+	.sv-ecl__side .e-inset-bg {
+		fill: var(--ig-surface);
+	}
+	@media (max-width: 40rem) {
+		.sv-ecl .sv-t {
+			font-size: 22px;
+		}
+		.sv-ecl .sv-t--small {
+			font-size: 19px;
+		}
+		.sv-ecl__stats {
+			grid-template-columns: 1fr 1fr 1fr;
+		}
+		.sv-ecl__stats dd {
+			font-size: var(--sl-text-sm);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.sv-ecl__hint {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { visibleFraction, overlap, fmt, clamp, onTheme, reducedMotion } from './sv';
+
+	const RS = 696340; // km
+	const RM = 1737.4;
+	const RE = 6371;
+	const DEG = Math.PI / 180;
+	const OMEGA = 0.508 * DEG; // the Moon relative to the Earth's shadow, rad per hour
+	const NS = 'http://www.w3.org/2000/svg';
+
+	// a few stars, fixed (positions in units of the view: x 0…1, y 0…1)
+	const STARS = Array.from({ length: 70 }, (_, i) => {
+		const a = Math.sin(i * 12.9898) * 43758.5453;
+		const b = Math.sin(i * 78.233) * 12345.678;
+		const c = Math.sin(i * 39.425) * 9876.54;
+		return { x: a - Math.floor(a), y: b - Math.floor(b), m: 0.25 + 0.75 * (c - Math.floor(c)) ** 3 };
+	});
+	// dark «seas» of the Moon: centre (u, v in units of the Moon radius), radii, darkness
+	const MARIA: [number, number, number, number, number][] = [
+		[-0.35, -0.38, 0.32, 0.26, 0.28], // Sea of Rains
+		[0.12, -0.42, 0.2, 0.17, 0.25], // Sea of Serenity
+		[0.3, -0.05, 0.25, 0.2, 0.25], // Sea of Tranquillity
+		[0.68, -0.28, 0.12, 0.1, 0.3], // Sea of Crises
+		[-0.62, 0.05, 0.3, 0.45, 0.22], // Ocean of Storms
+		[0.42, 0.32, 0.16, 0.14, 0.2], // Sea of Fertility
+		[-0.18, 0.38, 0.2, 0.16, 0.18], // Sea of Clouds
+	];
+	function albedo(u: number, v: number): number {
+		let a = 0.86;
+		for (const [cu, cv, ru, rv, d] of MARIA) {
+			const q = ((u - cu) / ru) ** 2 + ((v - cv) / rv) ** 2;
+			if (q < 1) a -= d * (1 - q) ** 0.6;
+		}
+		return a;
+	}
+	// corona streamers, fixed
+	const STREAMERS = Array.from({ length: 7 }, (_, i) => ({
+		a: i * 0.9 + Math.sin(i * 3.1) * 0.35,
+		l: 1.1 + ((i * 37) % 10) / 9,
+		w: 0.3 + ((i * 13) % 7) / 30,
+	}));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-eclipse]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const sky = q<HTMLCanvasElement>('[data-sky]');
+		const ctx = sky.getContext('2d')!;
+		const side = q<SVGSVGElement>('[data-side]');
+		const uid = Math.random().toString(36).slice(2, 8);
+		const st = { mode: 'sun' as 'sun' | 'moon', t: -0.75, D: 384400, DS: 149.6e6, b: 0 };
+		const inputs = {
+			t: q<HTMLInputElement>('[data-t]'),
+			dm: q<HTMLInputElement>('[data-dm]'),
+			ds: q<HTMLInputElement>('[data-ds]'),
+			b: q<HTMLInputElement>('[data-b]'),
+		};
+
+		/** All the angles for the current state (radians). */
+		function geo() {
+			if (st.mode === 'sun') {
+				const dM = st.D - RE; // observer on the surface, the Moon overhead
+				const ts = Math.asin(RS / st.DS);
+				const tm = Math.asin(RM / dM);
+				const bAng = st.b / dM; // the observer's offset shifts the Moon on the sky
+				const xMax = (ts + tm) * 1.25;
+				return { ts, tm, dM, bAng, x: st.t * xMax, xMax };
+			}
+			const D = st.D;
+			const aE = RE / D;
+			const aS = RS / (st.DS + D);
+			const k = 1 / D + 1 / (st.DS + D);
+			const yu = (aE - aS) / k; // radius of the Earth's shadow at the Moon, km
+			const yp = (aE + aS) / k; // radius of the penumbra, km
+			const tm = Math.asin(RM / D);
+			const hours = st.t * 3.6;
+			return { aE, aS, k, yu, yp, tm, phiU: yu / D, phiP: yp / D, bAng: st.b / D, x: OMEGA * hours, hours };
+		}
+
+		function size() {
+			const w = Math.max(2, Math.round(sky.clientWidth * devicePixelRatio));
+			const h = Math.round(w / 2);
+			if (sky.width !== w || sky.height !== h) {
+				sky.width = w;
+				sky.height = h;
+			}
+			return { w, h };
+		}
+
+		function drawSun() {
+			const { w, h } = size();
+			const g = geo() as ReturnType<typeof geo> & { ts: number; dM: number; xMax: number };
+			const ts = g.ts;
+			const scale = w / (8.6 * 0.004654); // px per radian; the same for the Sun and the Moon
+			const cx = w / 2;
+			const cy = h / 2;
+			const mx = cx + g.x * scale;
+			const my = cy + g.bAng * scale;
+			const sep = Math.hypot(g.x, g.bAng);
+			const f = visibleFraction(ts, g.tm, sep);
+			// sky: daylight fades with the visible part of the Sun (drawn with a perceptual curve)
+			const L = Math.pow(f, 0.33);
+			const day = [72, 132, 206];
+			const day2 = [150, 196, 236];
+			const night = [6, 9, 24];
+			const night2 = [24, 30, 58];
+			const lerp = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(b[i] + (v - b[i]) * t));
+			const grad = ctx.createLinearGradient(0, 0, 0, h);
+			grad.addColorStop(0, `rgb(${lerp(day, night, L).join(',')})`);
+			grad.addColorStop(1, `rgb(${lerp(day2, night2, L).join(',')})`);
+			ctx.fillStyle = grad;
+			ctx.fillRect(0, 0, w, h);
+			// stars appear in the dark
+			const starA = clamp((0.35 - L) / 0.3, 0, 1);
+			if (starA > 0) {
+				for (const s of STARS) {
+					ctx.fillStyle = `rgba(255,255,255,${(starA * s.m).toFixed(3)})`;
+					ctx.beginPath();
+					ctx.arc(s.x * w, s.y * h, (0.6 + s.m) * devicePixelRatio, 0, 7);
+					ctx.fill();
+				}
+			}
+			const rs = ts * scale;
+			const rm = g.tm * scale;
+			// corona: only when the Sun is covered completely
+			const cor = clamp(1 - f / 0.004, 0, 1);
+			if (cor > 0) {
+				ctx.save();
+				ctx.globalAlpha = cor;
+				const cg = ctx.createRadialGradient(cx, cy, rs * 0.95, cx, cy, rs * 3.2);
+				cg.addColorStop(0, 'rgba(255,255,250,0.95)');
+				cg.addColorStop(0.08, 'rgba(235,240,255,0.55)');
+				cg.addColorStop(0.35, 'rgba(200,215,255,0.16)');
+				cg.addColorStop(1, 'rgba(200,215,255,0)');
+				ctx.fillStyle = cg;
+				ctx.beginPath();
+				ctx.arc(cx, cy, rs * 3.2, 0, 7);
+				ctx.fill();
+				for (const s of STREAMERS) {
+					const sg = ctx.createRadialGradient(cx, cy, rs, cx, cy, rs * (1 + s.l));
+					sg.addColorStop(0, 'rgba(240,244,255,0.2)');
+					sg.addColorStop(1, 'rgba(240,244,255,0)');
+					ctx.fillStyle = sg;
+					ctx.beginPath();
+					ctx.moveTo(cx + rs * Math.cos(s.a - s.w), cy + rs * Math.sin(s.a - s.w));
+					ctx.quadraticCurveTo(
+						cx + rs * (1 + s.l * 0.6) * Math.cos(s.a),
+						cy + rs * (1 + s.l * 0.6) * Math.sin(s.a),
+						cx + rs * (1 + s.l) * Math.cos(s.a),
+						cy + rs * (1 + s.l) * Math.sin(s.a),
+					);
+					ctx.quadraticCurveTo(
+						cx + rs * (1 + s.l * 0.6) * Math.cos(s.a),
+						cy + rs * (1 + s.l * 0.6) * Math.sin(s.a),
+						cx + rs * Math.cos(s.a + s.w),
+						cy + rs * Math.sin(s.a + s.w),
+					);
+					ctx.fill();
+				}
+				ctx.restore();
+			}
+			// glare of the sky around the Sun while much of it is visible
+			const glare = ctx.createRadialGradient(cx, cy, rs, cx, cy, rs * 2.6);
+			glare.addColorStop(0, `rgba(255,250,225,${(0.5 * f).toFixed(3)})`);
+			glare.addColorStop(1, 'rgba(255,250,225,0)');
+			ctx.fillStyle = glare;
+			ctx.beginPath();
+			ctx.arc(cx, cy, rs * 2.6, 0, 7);
+			ctx.fill();
+			// the Sun, slightly darker at the edge (as it is)
+			const sg = ctx.createRadialGradient(cx, cy, 0, cx, cy, rs);
+			sg.addColorStop(0, '#fffdf3');
+			sg.addColorStop(0.7, '#fff3c8');
+			sg.addColorStop(1, '#ffc46b');
+			ctx.fillStyle = sg;
+			ctx.beginPath();
+			ctx.arc(cx, cy, rs, 0, 7);
+			ctx.fill();
+			// the Moon: its dark side faces us; it is seen only against the Sun
+			ctx.save();
+			ctx.beginPath();
+			ctx.arc(cx, cy, rs + 0.5, 0, 7);
+			ctx.clip();
+			ctx.fillStyle = `rgb(${lerp([38, 48, 72], [4, 6, 14], L).join(',')})`;
+			ctx.beginPath();
+			ctx.arc(mx, my, rm, 0, 7);
+			ctx.fill();
+			ctx.restore();
+			ctx.beginPath();
+			ctx.arc(mx, my, rm, 0, 7);
+			ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+			ctx.setLineDash([4 * devicePixelRatio, 5 * devicePixelRatio]);
+			ctx.lineWidth = devicePixelRatio;
+			ctx.stroke();
+			ctx.setLineDash([]);
+			return { f, sep };
+		}
+
+		const moonCanvas = document.createElement('canvas');
+		const mctx = moonCanvas.getContext('2d')!;
+		function drawMoon() {
+			const { w, h } = size();
+			const g = geo() as ReturnType<typeof geo> & { aE: number; aS: number; k: number; yu: number; yp: number; phiU: number; phiP: number };
+			const scale = w / (3.6 * DEG);
+			const cx = w / 2;
+			const cy = h / 2;
+			// how much of the Moon's disc is in the full shadow
+			const sep = Math.hypot(g.x, g.bAng);
+			const inUmbra = overlap(g.tm, g.phiU, sep) / (Math.PI * g.tm * g.tm);
+			// night sky; the bright full Moon hides the faint stars
+			ctx.fillStyle = '#05081a';
+			ctx.fillRect(0, 0, w, h);
+			const starA = 0.25 + 0.75 * clamp(inUmbra, 0, 1);
+			for (const s of STARS) {
+				ctx.fillStyle = `rgba(255,255,255,${(starA * s.m).toFixed(3)})`;
+				ctx.beginPath();
+				ctx.arc(s.x * w, s.y * h, (0.6 + s.m) * devicePixelRatio, 0, 7);
+				ctx.fill();
+			}
+			// the Earth's shadow (invisible in the real sky — drawn as outlines)
+			ctx.lineWidth = 1.5 * devicePixelRatio;
+			ctx.setLineDash([6 * devicePixelRatio, 5 * devicePixelRatio]);
+			ctx.strokeStyle = 'rgba(140,190,255,0.55)';
+			ctx.beginPath();
+			ctx.arc(cx, cy, g.phiP * scale, 0, 7);
+			ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.strokeStyle = 'rgba(255,120,140,0.6)';
+			ctx.beginPath();
+			ctx.arc(cx, cy, g.phiU * scale, 0, 7);
+			ctx.stroke();
+			ctx.font = `${13 * devicePixelRatio}px sans-serif`;
+			ctx.fillStyle = 'rgba(255,150,165,0.9)';
+			ctx.textAlign = 'center';
+			ctx.fillText('тень Земли', cx, cy - g.phiU * scale + 18 * devicePixelRatio);
+			ctx.fillStyle = 'rgba(150,195,255,0.85)';
+			ctx.textAlign = 'left';
+			ctx.fillText('полутень', cx - g.phiP * scale + 8 * devicePixelRatio, cy + 4 * devicePixelRatio);
+
+			// the Moon, point by point
+			const rm = g.tm * scale;
+			const n = Math.ceil(2 * rm) + 2;
+			if (moonCanvas.width !== n) moonCanvas.width = moonCanvas.height = n;
+			const img = mctx.createImageData(n, n);
+			const mx = cx + g.x * scale;
+			const my = cy + g.bAng * scale;
+			const x0 = Math.floor(mx - n / 2);
+			const y0 = Math.floor(my - n / 2);
+			for (let j = 0; j < n; j++) {
+				for (let i = 0; i < n; i++) {
+					const px = x0 + i + 0.5;
+					const py2 = y0 + j + 0.5;
+					const u = (px - mx) / rm;
+					const v = (py2 - my) / rm;
+					const rr = u * u + v * v;
+					if (rr > 1.02) continue;
+					const edge = clamp((1 - Math.sqrt(rr)) * rm + 0.5, 0, 1); // smooth edge
+					const yKm = (Math.hypot(px - cx, py2 - cy) / scale) * st.D; // distance from the shadow axis
+					const f = visibleFraction(g.aS, g.aE, yKm * g.k);
+					const a = albedo(u, v);
+					const lit = Math.pow(f, 0.45);
+					const red = f < 1 ? 0.32 * (1 - f) * (0.45 + 0.55 * clamp(yKm / g.yu, 0, 1)) : 0;
+					const p = (j * n + i) * 4;
+					img.data[p] = Math.min(255, 255 * a * (0.97 * lit + 1.0 * red));
+					img.data[p + 1] = Math.min(255, 255 * a * (0.95 * lit + 0.4 * red));
+					img.data[p + 2] = Math.min(255, 255 * a * (0.9 * lit + 0.22 * red));
+					img.data[p + 3] = 255 * edge;
+				}
+			}
+			mctx.putImageData(img, 0, 0);
+			ctx.drawImage(moonCanvas, x0, y0);
+			return { inUmbra, sep };
+		}
+
+		// side view
+		const el = (tag: string, attrs: Record<string, string | number>, text?: string) => {
+			const e = document.createElementNS(NS, tag);
+			for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+			if (text) e.textContent = text;
+			return e;
+		};
+		function drawSide() {
+			side.replaceChildren();
+			const K = 650; // km per px
+			const ay = 52;
+			const W = 720;
+			side.setAttribute('viewBox', `0 0 ${W} ${st.mode === 'sun' ? 292 : 112}`);
+			side.append(el('rect', { class: 'e-sunlight', x: 0, y: 0, width: W, height: 104 }));
+			if (st.mode === 'sun') {
+				const DSM = st.DS - st.D;
+				const xm = 46;
+				const xe = xm + st.D / K;
+				const L = (RM * DSM) / (RS - RM); // length of the Moon's full shadow
+				const sp = (RS + RM) / DSM;
+				const pen = (s: number) => RM + s * sp;
+				const pts = (a: [number, number][]) => a.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+				side.append(
+					el('polygon', { class: 'e-pen', points: pts([[xm, ay - RM / K], [xe, ay - pen(st.D) / K], [xe, ay + pen(st.D) / K], [xm, ay + RM / K]]) }),
+					el('polygon', { class: 'e-umb', points: pts([[xm, ay - RM / K], [xm + Math.min(L, st.D) / K, ay - (RM * Math.max(0, 1 - st.D / L)) / K], [xm + Math.min(L, st.D) / K, ay + (RM * Math.max(0, 1 - st.D / L)) / K], [xm, ay + RM / K]]) }),
+					el('circle', { class: 'e-earth', cx: xe, cy: ay, r: RE / K }),
+					el('circle', { class: 'e-moon', cx: xm, cy: ay, r: Math.max(2.2, RM / K) }),
+					el('text', { class: 'sv-t sv-t--small', x: 8, y: 20 }, `← к Солнцу: в ${fmt(st.DS / st.D)} раз дальше Луны`),
+					el('text', { class: 'sv-t', x: xm, y: ay + 34, 'text-anchor': 'middle' }, 'Луна'),
+					el('text', { class: 'sv-t', x: xe - 6, y: ay + 34, 'text-anchor': 'middle' }, 'Земля'),
+				);
+				// zoom: the near side of the Earth, 50 km per px
+				const k2 = 50;
+				const top = 116;
+				const hh = 172;
+				const midY = top + hh / 2;
+				const sx = 560; // the Earth's surface point under the Moon
+				const s0 = st.D - RE; // its distance from the Moon
+				const X = (s: number) => sx + (s - s0) / k2;
+				const clip = `e-clip-${uid}`;
+				const defs = el('defs', {});
+				const cp = el('clipPath', { id: clip });
+				cp.append(el('rect', { x: 8, y: top, width: W - 16, height: hh, rx: 8 }));
+				defs.append(cp);
+				side.append(defs);
+				const zx = xe - RE / K - 18;
+				side.append(
+					el('rect', { class: 'e-zoom', x: zx, y: ay - 8, width: 22, height: 16 }),
+					el('line', { class: 'e-zoom', x1: zx, y1: ay + 8, x2: 8, y2: top }),
+					el('line', { class: 'e-zoom', x1: zx + 22, y1: ay + 8, x2: W - 8, y2: top }),
+				);
+				const g = el('g', { 'clip-path': `url(#${clip})` });
+				g.append(el('rect', { class: 'e-inset-bg', x: 8, y: top, width: W - 16, height: hh }));
+				const sA = s0 - (sx - 8) * k2;
+				const sB = s0 + (W - 8 - sx) * k2;
+				g.append(el('polygon', { class: 'e-pen', points: pts([[X(sA), midY - pen(sA) / k2], [X(sB), midY - pen(sB) / k2], [X(sB), midY + pen(sB) / k2], [X(sA), midY + pen(sA) / k2]]) }));
+				const um = (s: number) => RM * (1 - s / L);
+				if (L > sA) {
+					const sEnd = Math.min(L, sB);
+					g.append(el('polygon', { class: 'e-umb', points: pts([[X(sA), midY - um(sA) / k2], [X(sEnd), midY - um(sEnd) / k2], [X(sEnd), midY + um(sEnd) / k2], [X(sA), midY + um(sA) / k2]]) }));
+				}
+				const rE = RE / k2;
+				g.append(el('circle', { class: 'e-earth', cx: sx + rE, cy: midY, r: rE }));
+				// the observer on the surface, above the axis
+				const yo = -st.b / k2;
+				const xo = sx + rE - Math.sqrt(Math.max(0, rE * rE - yo * yo));
+				g.append(el('circle', { class: 'e-obs', cx: xo, cy: midY + yo, r: 5 }));
+				g.append(el('text', { class: 'sv-t sv-t--small', x: xo - 10, y: midY + yo - 8, 'text-anchor': 'end' }, 'вы'));
+				const tipX = X(L);
+				const tipText = L < s0 ? `тень Луны кончается за ${fmt(Math.round((s0 - L) / 100) * 100)} км до Земли` : `тень Луны на Земле: пятно ${fmt(Math.round((2 * um(s0)) / 5) * 5)} км`;
+				g.append(el('text', { class: 'sv-t sv-t--small', x: Math.max(Math.min(tipX, sx), 360) - 12, y: midY - 16, 'text-anchor': 'end' }, tipText));
+				g.append(el('text', { class: 'sv-t sv-t--small', x: 20, y: midY + 44 }, 'полутень Луны'));
+				side.append(g, el('rect', { class: 'e-frame', x: 8, y: top, width: W - 16, height: hh, rx: 8 }));
+				q('[data-side-cap]').textContent = 'Сбоку, в одном масштабе. Внизу — участок у поверхности Земли, увеличенный в 13 раз.';
+			} else {
+				const g = geo() as ReturnType<typeof geo> & { yu: number; yp: number };
+				const xe = 40;
+				const xm = xe + st.D / K;
+				const pts = (a: [number, number][]) => a.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+				const xEnd = xm + 14;
+				const sEnd = (xEnd - xe) * K;
+				const kU = (RE - g.yu) / st.D;
+				const kP = (g.yp - RE) / st.D;
+				side.append(
+					el('polygon', { class: 'e-pen', points: pts([[xe, ay - RE / K], [xEnd, ay - (RE + kP * sEnd) / K], [xEnd, ay + (RE + kP * sEnd) / K], [xe, ay + RE / K]]) }),
+					el('polygon', { class: 'e-umb', points: pts([[xe, ay - RE / K], [xEnd, ay - (RE - kU * sEnd) / K], [xEnd, ay + (RE - kU * sEnd) / K], [xe, ay + RE / K]]) }),
+					el('circle', { class: 'e-earth', cx: xe, cy: ay, r: RE / K }),
+					el('circle', { class: 'e-moon', cx: xm, cy: ay + st.b / K, r: Math.max(2.2, RM / K) }),
+					el('text', { class: 'sv-t sv-t--small', x: 8, y: 20 }, '← к Солнцу'),
+					el('text', { class: 'sv-t', x: xe + 4, y: ay + 34, 'text-anchor': 'middle' }, 'Земля'),
+					el('text', { class: 'sv-t', x: xm - 4, y: ay + 34, 'text-anchor': 'middle' }, 'Луна'),
+				);
+				q('[data-side-cap]').textContent = `Сбоку, в одном масштабе. Тень Земли тянется на ${fmt(Math.round((RE * st.DS) / (RS - RE) / 10000) / 100, 2)} млн км — в ${fmt((RE * st.DS) / (RS - RE) / st.D, 1)} раза дальше Луны.`;
+			}
+		}
+
+		const hm = (h: number) => {
+			const m = Math.round(Math.abs(h) * 60);
+			const s = h < 0 && m > 0 ? '−' : '';
+			return Math.floor(m / 60) > 0 ? `${s}${Math.floor(m / 60)} ч ${m % 60} мин` : `${s}${m} мин`;
+		};
+
+		function draw() {
+			const live = q<HTMLElement>('[data-live]');
+			const chip = q<HTMLElement>('[data-chip]');
+			if (st.mode === 'sun') {
+				const g = geo() as ReturnType<typeof geo> & { ts: number };
+				const { f, sep } = drawSun();
+				const total = g.tm >= g.ts;
+				let now = 'Затмения сейчас нет';
+				if (sep < g.ts + g.tm) {
+					if (sep <= Math.abs(g.tm - g.ts)) now = total ? 'Полное затмение' : 'Кольцеобразное затмение';
+					else now = 'Частное затмение';
+				}
+				chip.textContent = now;
+				// the type at the middle of the eclipse for this observer
+				let kind = 'частное';
+				if (g.bAng >= g.ts + g.tm) kind = 'нет';
+				else if (g.bAng <= Math.abs(g.tm - g.ts)) kind = total ? 'полное' : 'кольцеобразное';
+				q('[data-s1-name]').textContent = 'Солнце на небе';
+				q('[data-s1]').textContent = `${fmt((2 * g.ts) / DEG, 3)}°`;
+				q('[data-s2-name]').textContent = 'Луна на небе';
+				q('[data-s2]').textContent = `${fmt((2 * g.tm) / DEG, 3)}°`;
+				q('[data-s3-name]').textContent = 'Закрыто Солнца';
+				q('[data-s3]').textContent = `${fmt(Math.round(100 * (1 - f)))} %`;
+				const big = total ? `Луна кажется <b>больше</b> Солнца (на ${fmt(100 * (g.tm / g.ts - 1), 1)} %) — она может закрыть его целиком.` : `Луна кажется <b>меньше</b> Солнца (на ${fmt(100 * (1 - g.tm / g.ts), 1)} %) — даже в середине затмения вокруг неё останется огненное кольцо.`;
+				live.innerHTML = `${big} В середине затмения здесь будет: <b>${kind === 'нет' ? 'затмения не будет — вы вне полутени' : kind}</b>.`;
+				q('[data-t-out]').textContent = '';
+			} else {
+				const g = geo() as ReturnType<typeof geo> & { phiU: number; phiP: number; yu: number; hours: number };
+				const { inUmbra, sep } = drawMoon();
+				let now = 'Затмения сейчас нет';
+				if (sep <= g.phiU - g.tm) now = 'Полное лунное затмение';
+				else if (sep < g.phiU + g.tm) now = 'Частное лунное затмение';
+				else if (sep < g.phiP + g.tm) now = 'Луна в полутени';
+				chip.textContent = now;
+				const dur = (R: number) => (R > g.bAng ? (2 * Math.sqrt(R * R - g.bAng * g.bAng)) / OMEGA : 0);
+				const dTot = dur(g.phiU - g.tm);
+				const dPart = dur(g.phiU + g.tm);
+				q('[data-s1-name]').textContent = 'Луна в тени на';
+				q('[data-s1]').textContent = `${fmt(Math.round(100 * clamp(inUmbra, 0, 1)))} %`;
+				q('[data-s2-name]').textContent = 'Полная фаза';
+				q('[data-s2]').textContent = dTot > 0 ? hm(dTot) : 'нет';
+				q('[data-s3-name]').textContent = 'Всего Луна в тени';
+				q('[data-s3]').textContent = dPart > 0 ? hm(dPart) : 'нет';
+				q('[data-t-out]').textContent = `${hm(g.hours)} от середины`;
+				live.innerHTML = `Тень Земли там, где проходит Луна, имеет диаметр около <b>${fmt(Math.round((2 * g.yu) / 100) * 100)} км</b> — в ${fmt(g.yu / RM, 1)} раза больше диаметра Луны. Поэтому полное лунное затмение длится долго и его видно со всей ночной стороны Земли.`;
+			}
+			q('[data-dm-out]').textContent = `${fmt(st.D)} км`;
+			q('[data-ds-out]').textContent = `${fmt(st.DS / 1e6, 1)} млн км`;
+			q('[data-b-out]').textContent = `${fmt(st.b)} км`;
+			drawSide();
+		}
+
+		// presets
+		const PRESETS = {
+			sun: [
+				['Полное', { D: 363300, DS: 152.1e6, b: 0 }],
+				['Кольцеобразное', { D: 405500, DS: 147.1e6, b: 0 }],
+				['Частное', { D: 384400, DS: 149.6e6, b: 2600 }],
+			],
+			moon: [
+				['Полное', { D: 384400, DS: 149.6e6, b: 0 }],
+				['Частное', { D: 384400, DS: 149.6e6, b: 5000 }],
+				['Полутеневое', { D: 384400, DS: 149.6e6, b: 8000 }],
+			],
+		} as const;
+		function setMode(m: 'sun' | 'moon') {
+			st.mode = m;
+			stop();
+			for (const b of root.querySelectorAll<HTMLButtonElement>('[data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === m));
+			inputs.b.max = m === 'sun' ? '4000' : '13000';
+			inputs.b.step = m === 'sun' ? '50' : '100';
+			q('[data-b-name]').textContent = m === 'sun' ? 'Вы в стороне от центра тени' : 'Луна проходит в стороне от центра тени';
+			q('[data-t-name]').textContent = m === 'sun' ? 'Луна движется по небу' : 'Время';
+			const box = q<HTMLElement>('[data-presets]');
+			box.replaceChildren();
+			const lab = document.createElement('span');
+			lab.className = 'sv-legend';
+			lab.textContent = 'Показать:';
+			box.append(lab);
+			for (const [name, p] of PRESETS[m]) {
+				const b = document.createElement('button');
+				b.type = 'button';
+				b.className = 'sv-btn';
+				b.textContent = name;
+				b.addEventListener('click', () => {
+					Object.assign(st, p);
+					inputs.dm.value = String(st.D);
+					inputs.ds.value = String(st.DS / 1e6);
+					inputs.b.value = String(st.b);
+					st.t = -1;
+					inputs.t.value = '-1';
+					play();
+				});
+				box.append(b);
+			}
+			Object.assign(st, PRESETS[m][0][1]);
+			inputs.dm.value = String(st.D);
+			inputs.ds.value = String(st.DS / 1e6);
+			inputs.b.value = String(st.b);
+			st.t = m === 'sun' ? -0.86 : -0.62;
+			inputs.t.value = String(st.t);
+			draw();
+		}
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-mode]')) b.addEventListener('click', () => setMode(b.dataset.mode as 'sun' | 'moon'));
+
+		inputs.t.addEventListener('input', () => {
+			stop();
+			st.t = Number(inputs.t.value);
+			draw();
+		});
+		inputs.dm.addEventListener('input', () => {
+			st.D = Number(inputs.dm.value);
+			draw();
+		});
+		inputs.ds.addEventListener('input', () => {
+			st.DS = Number(inputs.ds.value) * 1e6;
+			draw();
+		});
+		inputs.b.addEventListener('input', () => {
+			st.b = Number(inputs.b.value);
+			draw();
+		});
+
+		// play: the Moon crosses in 9 s; it slows down near the middle so the main phase can be seen
+		let raf = 0;
+		const playBtn = q<HTMLButtonElement>('[data-play]');
+		function stop() {
+			cancelAnimationFrame(raf);
+			raf = 0;
+			playBtn.textContent = '▶ Пуск';
+		}
+		function play() {
+			stop();
+			if (reducedMotion()) {
+				st.t = 0;
+				inputs.t.value = '0';
+				return draw();
+			}
+			if (st.t >= 0.999) st.t = -1;
+			playBtn.textContent = '■ Стоп';
+			let last = performance.now();
+			const step = (now: number) => {
+				const dt = Math.min(0.05, (now - last) / 1000);
+				last = now;
+				const slow = 0.45 + 0.55 * Math.min(1, Math.abs(st.t) / 0.25);
+				st.t = Math.min(1, st.t + (dt * slow * 2) / 8);
+				inputs.t.value = String(st.t);
+				draw();
+				if (st.t < 1) raf = requestAnimationFrame(step);
+				else stop();
+			};
+			raf = requestAnimationFrame(step);
+		}
+		playBtn.addEventListener('click', () => (raf ? stop() : play()));
+
+		// dragging the Moon on the sky
+		const wrap = q<HTMLElement>('.sv-ecl__skywrap');
+		wrap.addEventListener('pointerdown', (e) => {
+			stop();
+			wrap.setPointerCapture(e.pointerId);
+			q<HTMLElement>('[data-hint]').style.opacity = '0';
+			const x0 = e.clientX;
+			const t0 = st.t;
+			const move = (ev: PointerEvent) => {
+				const w = wrap.clientWidth;
+				// one sky width corresponds to Δt of 8.6·θs / xMax (sun) or 3.6° / (3.6 h · ω) (moon)
+				const g = geo() as ReturnType<typeof geo> & { xMax?: number };
+				const perWidth = st.mode === 'sun' ? (8.6 * 0.004654) / (g.xMax as number) : (3.6 * DEG) / (3.6 * OMEGA);
+				st.t = clamp(t0 + ((ev.clientX - x0) / w) * perWidth, -1, 1);
+				inputs.t.value = String(st.t);
+				draw();
+			};
+			const up = () => {
+				wrap.removeEventListener('pointermove', move);
+				wrap.removeEventListener('pointerup', up);
+				wrap.removeEventListener('pointercancel', up);
+			};
+			wrap.addEventListener('pointermove', move);
+			wrap.addEventListener('pointerup', up);
+			wrap.addEventListener('pointercancel', up);
+		});
+
+		new ResizeObserver(() => draw()).observe(sky);
+		setMode('sun');
+		onTheme(() => draw());
+	}
+</script>
