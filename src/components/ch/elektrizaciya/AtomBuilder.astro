@@ -1,0 +1,388 @@
+---
+/**
+ * «Соберите атом»: protons, neutrons and electrons are added with buttons. The picture is the
+ * planetary model of the school textbook (not to scale; electrons on rings 2, 8, … as in the
+ * shell picture). The read-out names the element (Z = 1…10), tells whether the nucleus is stable,
+ * and computes the charge of the atom or ion q = (Np − Ne)·e live.
+ */
+const W = 360;
+const H = 320;
+const rows = [
+	{ key: 'p', name: 'Протоны', cls: 'is-p' },
+	{ key: 'n', name: 'Нейтроны', cls: 'is-0' },
+	{ key: 'e', name: 'Электроны', cls: 'is-n' },
+];
+---
+
+<figure class="atb not-content" data-atb>
+	<div class="atb__grid">
+		<svg class="atb__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Модель атома: ядро и электроны" data-svg>
+			<g data-orbits></g>
+			<g data-nucleus></g>
+			<g data-electrons></g>
+			<text class="atb__elname" x={W / 2} y={H - 8} text-anchor="middle" data-elname></text>
+		</svg>
+		<div class="atb__panel">
+			{
+				rows.map((r) => (
+					<div class={`atb__row ${r.cls}`}>
+						<span class="atb__rname">
+							<span class="atb__dot" />
+							{r.name}
+						</span>
+						<button type="button" class="atb__pm" data-dec={r.key} aria-label={`${r.name}: убрать один`}>
+							−
+						</button>
+						<output class="atb__num" data-num={r.key}>
+							0
+						</output>
+						<button type="button" class="atb__pm" data-inc={r.key} aria-label={`${r.name}: добавить один`}>
+							+
+						</button>
+					</div>
+				))
+			}
+			<p class="atb__kind" data-kind aria-live="polite"></p>
+			<p class="atb__note" data-note></p>
+			<button type="button" class="atb__btn" data-neutral>Сделать атом нейтральным</button>
+		</div>
+	</div>
+	<div class="atb__formula" data-formula></div>
+	<figcaption class="atb__legend">
+		Рисунок не в масштабе: на самом деле ядро в десятки тысяч раз меньше атома, а электроны не ходят по нарисованным
+		кругам. Но главное эта модель показывает верно: заряд атома равен заряду ядра плюс заряд всех электронов.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.atb {
+		--atb-p: var(--ig-vy);
+		--atb-n: var(--ig-vx);
+		--atb-0: var(--sl-color-gray-3);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.atb__grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: center;
+	}
+	.atb__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.atb__orbit {
+		fill: none;
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 5;
+	}
+	.atb__nuc.is-p {
+		fill: var(--atb-p);
+	}
+	.atb__nuc.is-0 {
+		fill: var(--atb-0);
+	}
+	.atb__nuc {
+		stroke: var(--ig-surface);
+		stroke-width: 1.2;
+	}
+	.atb__el {
+		fill: var(--atb-n);
+		filter: drop-shadow(0 0 4px color-mix(in srgb, var(--atb-n) 70%, transparent));
+	}
+	.atb__elmark {
+		stroke: var(--sl-color-black);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.atb__elname {
+		fill: var(--sl-color-white);
+		font-family: var(--__sl-font);
+		font-size: 17px;
+		font-weight: 600;
+	}
+	.atb__panel {
+		display: grid;
+		gap: 0.45rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.atb__row {
+		display: grid;
+		grid-template-columns: 1fr auto 2.2rem auto;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.atb__rname {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.atb__dot {
+		width: 0.75rem;
+		height: 0.75rem;
+		border-radius: 50%;
+	}
+	.atb__row.is-p .atb__dot {
+		background: var(--atb-p);
+	}
+	.atb__row.is-0 .atb__dot {
+		background: var(--atb-0);
+	}
+	.atb__row.is-n .atb__dot {
+		background: var(--atb-n);
+	}
+	.atb__pm {
+		width: 2.1rem;
+		height: 2.1rem;
+		font: inherit;
+		font-size: 1.15rem;
+		font-weight: 700;
+		line-height: 1;
+		border-radius: 50%;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.atb__pm:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+	}
+	.atb__pm:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+	.atb__num {
+		text-align: center;
+		font-weight: 700;
+		font-size: var(--sl-text-lg);
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.atb__kind {
+		margin: 0.3rem 0 0;
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.atb__kind .is-p {
+		color: var(--atb-p);
+	}
+	.atb__kind .is-n {
+		color: var(--atb-n);
+	}
+	.atb__note {
+		margin: 0;
+		min-height: 2.6em;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.atb__btn {
+		justify-self: start;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.atb__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.atb__formula {
+		min-height: 3.2rem;
+		margin-top: 0.75rem;
+		padding: 0.3rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		display: grid;
+		place-items: center;
+		overflow-x: auto;
+	}
+	.atb__formula .katex {
+		font-size: 1.12em;
+	}
+	.atb__formula .el-p {
+		color: var(--atb-p);
+	}
+	.atb__formula .el-n {
+		color: var(--atb-n);
+	}
+	.atb__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.atb {
+			padding: 0.75rem;
+		}
+		.atb__grid {
+			grid-template-columns: 1fr;
+		}
+		.atb__svg {
+			max-width: 22rem;
+			margin-inline: auto;
+		}
+		.atb__formula .katex {
+			font-size: 0.95em;
+		}
+	}
+</style>
+
+<script>
+	import { animator, el, reduceMotion, tex } from './util';
+
+	const W = 360;
+	const H = 320;
+	const CX = W / 2;
+	const CY = 148;
+	const SHELLS = [
+		{ r: 62, cap: 2, w: 0.9 },
+		{ r: 100, cap: 8, w: 0.55 },
+		{ r: 132, cap: 8, w: 0.38 },
+	];
+	const NAMES = ['', 'Водород', 'Гелий', 'Литий', 'Бериллий', 'Бор', 'Углерод', 'Азот', 'Кислород', 'Фтор', 'Неон'];
+	const GEN = ['', 'водорода', 'гелия', 'лития', 'бериллия', 'бора', 'углерода', 'азота', 'кислорода', 'фтора', 'неона'];
+	const SYM = ['', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne'];
+	const STABLE: number[][] = [[], [0, 1], [1, 2], [3, 4], [5], [5, 6], [6, 7], [7, 8], [8, 9, 10], [10], [10, 11, 12]];
+	const COMMON = [0, 0, 2, 4, 5, 6, 6, 7, 8, 10, 10];
+	const LIM = { p: [1, 10], n: [0, 12], e: [0, 12] } as Record<string, [number, number]>;
+
+	const plural = (n: number, one: string, few: string, many: string) => {
+		const a = n % 10;
+		const b = n % 100;
+		if (a === 1 && b !== 11) return one;
+		if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return few;
+		return many;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-atb]')) {
+		const gOrb = root.querySelector<SVGGElement>('[data-orbits]')!;
+		const gNuc = root.querySelector<SVGGElement>('[data-nucleus]')!;
+		const gEl = root.querySelector<SVGGElement>('[data-electrons]')!;
+		const elName = root.querySelector<SVGTextElement>('[data-elname]')!;
+		const kind = root.querySelector<HTMLElement>('[data-kind]')!;
+		const note = root.querySelector<HTMLElement>('[data-note]')!;
+		const formula = root.querySelector<HTMLElement>('[data-formula]')!;
+		const st = { p: 3, n: 4, e: 3 } as Record<string, number>;
+		let electrons: { shell: number; k: number; n: number; g: SVGGElement }[] = [];
+		let phase = 0;
+
+		const build = () => {
+			// nucleus: a sunflower packing, protons and neutrons mixed evenly
+			gNuc.replaceChildren();
+			const total = st.p + st.n;
+			const types: boolean[] = [];
+			let pp = 0;
+			for (let k = 0; k < total; k++) {
+				const wantP = Math.round(((k + 1) * st.p) / total);
+				types.push(wantP > pp);
+				if (wantP > pp) pp += 1;
+			}
+			const rr = 7.5;
+			const order = types.map((t, k) => ({ t, k })).reverse();
+			for (const { t, k } of order) {
+				const r = k === 0 ? 0 : rr * 1.05 * Math.sqrt(k + 0.4);
+				const a = k * 2.39996;
+				el('circle', { class: `atb__nuc ${t ? 'is-p' : 'is-0'}`, cx: CX + r * Math.cos(a), cy: CY + r * Math.sin(a), r: rr }, gNuc);
+			}
+			// shells and electrons
+			gOrb.replaceChildren();
+			gEl.replaceChildren();
+			electrons = [];
+			let left = st.e;
+			SHELLS.forEach((s, i) => {
+				const n = Math.min(left, s.cap);
+				left -= n;
+				if (n > 0 || i === 0) el('circle', { class: 'atb__orbit', cx: CX, cy: CY, r: s.r }, gOrb);
+				for (let k = 0; k < n; k++) {
+					const g = el('g', {}, gEl);
+					el('circle', { class: 'atb__el', r: 6.5 }, g);
+					el('line', { class: 'atb__elmark', x1: -3.2, y1: 0, x2: 3.2, y2: 0 }, g);
+					electrons.push({ shell: i, k, n, g });
+				}
+			});
+			place();
+			info();
+		};
+		const place = () => {
+			for (const e of electrons) {
+				const s = SHELLS[e.shell];
+				const a = (2 * Math.PI * e.k) / e.n + phase * s.w + e.shell * 0.6;
+				e.g.setAttribute('transform', `translate(${(CX + s.r * Math.cos(a)).toFixed(1)} ${(CY + s.r * Math.sin(a)).toFixed(1)})`);
+			}
+		};
+		const info = () => {
+			for (const k of ['p', 'n', 'e']) {
+				root.querySelector<HTMLOutputElement>(`[data-num="${k}"]`)!.textContent = String(st[k]);
+				root.querySelector<HTMLButtonElement>(`[data-dec="${k}"]`)!.disabled = st[k] <= LIM[k][0];
+				root.querySelector<HTMLButtonElement>(`[data-inc="${k}"]`)!.disabled =
+					st[k] >= (k === 'e' ? Math.min(LIM.e[1], st.p + 2) : LIM[k][1]);
+			}
+			const Z = st.p;
+			const diff = Z - st.e;
+			elName.textContent = `${NAMES[Z]} (${SYM[Z]})`;
+			if (diff === 0) kind.innerHTML = `Нейтральный атом ${GEN[Z]}`;
+			else if (st.e === 0) kind.innerHTML = `<span class="is-p">Ядро атома ${GEN[Z]} без электронов</span>`;
+			else if (diff > 0)
+				kind.innerHTML = `<span class="is-p">Положительный ион</span>: не хватает ${diff} ${plural(diff, 'электрона', 'электронов', 'электронов')}`;
+			else kind.innerHTML = `<span class="is-n">Отрицательный ион</span>: ${-diff} ${plural(-diff, 'лишний электрон', 'лишних электрона', 'лишних электронов')}`;
+			const stable = STABLE[Z].includes(st.n);
+			const A = Z + st.n;
+			note.textContent = stable
+				? `Ядро: ${Z} ${plural(Z, 'протон', 'протона', 'протонов')} и ${st.n} ${plural(st.n, 'нейтрон', 'нейтрона', 'нейтронов')} — такое ядро устойчиво и встречается в природе.`
+				: `Ядро из ${A} частиц с ${st.n} ${plural(st.n, 'нейтроном', 'нейтронами', 'нейтронами')} неустойчиво. У обычного атома ${GEN[Z]} в ядре ${COMMON[Z]} ${plural(COMMON[Z], 'нейтрон', 'нейтрона', 'нейтронов')}.`;
+			// q = (Np − Ne)·e
+			const cls = diff > 0 ? 'el-p' : 'el-n';
+			let rhs: string;
+			if (diff === 0) rhs = '0';
+			else {
+				const m = 1.6 * Math.abs(diff);
+				const mant = m >= 10 ? (m / 10).toFixed(2).replace(/0$/, '') : m.toFixed(1);
+				const exp = m >= 10 ? -18 : -19;
+				rhs = `\\htmlClass{${cls}}{${diff > 0 ? '+' : '-'}${mant.replace('.', '{,}')} \\cdot 10^{${exp}}~\\text{Кл}}`;
+			}
+			tex(
+				formula,
+				`\\begin{aligned} q &= (N_p - N_e)\\,e = (${st.p} - ${st.e}) \\cdot 1{,}6 \\cdot 10^{-19}~\\text{Кл} \\\\ &= ${rhs} \\end{aligned}`,
+			);
+		};
+
+		root.querySelectorAll<HTMLButtonElement>('[data-inc],[data-dec]').forEach((b) =>
+			b.addEventListener('click', () => {
+				const k = (b.dataset.inc ?? b.dataset.dec)!;
+				st[k] = Math.max(LIM[k][0], Math.min(LIM[k][1], st[k] + (b.dataset.inc ? 1 : -1)));
+				st.e = Math.min(st.e, st.p + 2); // an atom holds at most a couple of extra electrons
+				build();
+				wake();
+			}),
+		);
+		root.querySelector<HTMLButtonElement>('[data-neutral]')!.addEventListener('click', () => {
+			st.e = st.p;
+			build();
+			wake();
+		});
+
+		const wake = animator(
+			root,
+			() => !reduceMotion(),
+			(dt) => {
+				phase += dt;
+				place();
+			},
+		);
+		build();
+		wake();
+	}
+</script>

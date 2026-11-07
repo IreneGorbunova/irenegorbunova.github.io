@@ -1,0 +1,1288 @@
+---
+/**
+ * Main model of the chapter: a rod and a cloth, an electroscope and pieces of paper.
+ * Rubbing moves electrons from one body to the other (wool → ebonite, glass → silk); the rod is a
+ * dielectric, so its extra charges stay where they were rubbed on and only those that touch the ball
+ * pass to the electroscope. The electroscope is a conductor: a charged rod nearby pushes or pulls its
+ * free electrons (electrification by influence), so the leaves diverge even without contact; a finger
+ * connects the electroscope with the Earth. Neutral pieces of paper are attracted by a strong enough
+ * field of either sign. One drawn charge stands for 10^9 electrons (a real rod: ~10^10).
+ */
+const W = 700;
+const H = 450;
+const TABLE = 420;
+const B = { x: 580, y: 150, r: 22 }; // ball of the electroscope
+const CASE = { x: 508, y: 238, w: 144, h: 174 };
+const PIVOT = { x: 580, y: 292 };
+const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="ell not-content" data-ell>
+	<div class="ell__pairs" role="radiogroup" aria-label="Какие тела трём друг о друга">
+		<button type="button" class="ell__pair is-on" role="radio" aria-checked="true" data-pair="ebonite"
+			>Эбонит и шерсть</button
+		>
+		<button type="button" class="ell__pair" role="radio" aria-checked="false" data-pair="glass">Стекло и шёлк</button>
+	</div>
+
+	<svg
+		class="ell__svg"
+		viewBox={`0 0 ${W} ${H}`}
+		role="img"
+		aria-label="Палочка и кусок ткани, электроскоп и кусочки бумаги на столе. Ткань и палочку можно перетаскивать."
+		data-svg
+	>
+		<defs>
+			<radialGradient id={`${uid}-ball`} cx="0.35" cy="0.32" r="0.75">
+				<stop offset="0" class="ell__metal-hi"></stop>
+				<stop offset="1" class="ell__metal-lo"></stop>
+			</radialGradient>
+			<linearGradient id={`${uid}-glass`} x1="0" y1="0" x2="0" y2="1">
+				<stop offset="0" class="ell__glass-hi"></stop>
+				<stop offset="0.5" class="ell__glass-mid"></stop>
+				<stop offset="1" class="ell__glass-lo"></stop>
+			</linearGradient>
+		</defs>
+
+		<line class="ell__table" x1="0" y1={TABLE} x2={W} y2={TABLE}></line>
+		<text class="ell__cap" x="370" y={TABLE + 24} text-anchor="middle">кусочки бумаги</text>
+		<text class="ell__cap" x={B.x} y={TABLE + 24} text-anchor="middle">электроскоп</text>
+
+		<!-- electroscope: case (back), stem, leaves, ball -->
+		<rect class="ell__case" x={CASE.x} y={CASE.y} width={CASE.w} height={CASE.h} rx="14"></rect>
+		<rect class="ell__foot" x={CASE.x + 10} y={CASE.y + CASE.h} width="20" height={TABLE - CASE.y - CASE.h}></rect>
+		<rect class="ell__foot" x={CASE.x + CASE.w - 30} y={CASE.y + CASE.h} width="20" height={TABLE - CASE.y - CASE.h}
+		></rect>
+		<rect class="ell__stem" x={B.x - 3} y={B.y + B.r - 2} width="6" height={PIVOT.y - B.y - B.r + 4} rx="2"></rect>
+		<g data-leaves></g>
+		<rect class="ell__plug" x={B.x - 14} y={CASE.y - 8} width="28" height="18" rx="4"></rect>
+		<circle class="ell__ball" cx={B.x} cy={B.y} r={B.r} fill={`url(#${uid}-ball)`}></circle>
+		<g data-scope-q></g>
+		<path
+			class="ell__shine"
+			d={`M ${CASE.x + 16} ${CASE.y + 22} q -4 50 0 110`}
+			fill="none"></path>
+
+		<!-- rod (drawn by the script), cloth, flying electrons, finger -->
+		<g class="ell__rod" data-rod tabindex="0" role="button" aria-label="Палочка: перетаскивайте её"></g>
+		<g data-bits></g>
+		<g class="ell__cloth" data-cloth tabindex="0" role="button" aria-label="Ткань: потрите ею палочку"></g>
+		<g data-fly></g>
+		<g class="ell__finger" data-finger>
+			<path
+				d="M 0 -11 H 120 V 11 H 0 a 11 11 0 0 1 0 -22 z"
+				class="ell__finger-skin"></path>
+			<path d="M 2 -7 h 14 a 7 7 0 0 1 0 14 h -14 a 7 7 0 0 1 0 -14 z" class="ell__nail"></path>
+		</g>
+		<g data-flow></g>
+	</svg>
+
+	<div class="ell__buttons">
+		<button type="button" class="ell__btn ell__btn--primary" data-rub>Потереть</button>
+		<button type="button" class="ell__btn" data-ground aria-pressed="false">Коснуться шара пальцем</button>
+		<button type="button" class="ell__btn ell__btn--quiet" data-reset>Начать заново</button>
+	</div>
+
+	<div class="ell__read">
+		<div class="ell__chips" aria-live="off">
+			<span class="ell__chip"><span data-name-rod>палочка</span>: <b data-q-rod>0</b></span>
+			<span class="ell__chip"><span data-name-cloth>шерсть</span>: <b data-q-cloth>0</b></span>
+			<span class="ell__chip">электроскоп: <b data-q-scope>0</b></span>
+		</div>
+		<div class="ell__formula" data-formula></div>
+	</div>
+	<p class="ell__live" data-live aria-live="polite"></p>
+
+	<figcaption class="ell__legend">
+		<span class="ell__sym ell__sym--n">−</span> лишний электрон, <span class="ell__sym ell__sym--p">+</span> место, где
+		электрона не хватает. Бледные пары «+&nbsp;−» показывают, что в незаряженном теле положительных и отрицательных
+		зарядов поровну. Каждый значок — это примерно миллиард (10<sup>9</sup>) электронов: на настоящей натёртой палочке
+		лишних электронов десятки миллиардов. Тяните ткань по палочке, чтобы потереть, и подносите палочку к шару
+		электроскопа и к бумажкам.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ell {
+		--el-p: var(--ig-vy);
+		--el-n: var(--ig-vx);
+		--el-ebonite: var(--sl-color-gray-5);
+		--el-paper: var(--sl-color-gray-1);
+		--el-skin: color-mix(in srgb, var(--ig-v) 45%, var(--sl-color-gray-2));
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .ell {
+		--el-ebonite: var(--sl-color-gray-2);
+		--el-paper: var(--sl-color-black);
+		--el-skin: color-mix(in srgb, var(--ig-v) 40%, var(--sl-color-gray-5));
+	}
+	.ell__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin-top: 0.6rem;
+		user-select: none;
+		-webkit-user-select: none;
+		touch-action: pan-y;
+	}
+	.ell__pairs {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.ell__pair {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.95rem;
+		border-radius: 999px;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.ell__pair.is-on {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.ell__lbl {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+		pointer-events: none;
+	}
+	.ell__table {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.ell__cap {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.ell__case {
+		fill: color-mix(in srgb, var(--ig-vx) 6%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.ell__foot {
+		fill: var(--sl-color-gray-4);
+	}
+	.ell__shine {
+		stroke: color-mix(in srgb, var(--sl-color-white) 25%, transparent);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.ell__stem {
+		fill: var(--sl-color-gray-3);
+	}
+	.ell__plug {
+		fill: var(--el-ebonite);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ell__metal-hi {
+		stop-color: var(--sl-color-gray-1);
+	}
+	.ell__metal-lo {
+		stop-color: var(--sl-color-gray-4);
+	}
+	:root[data-theme='light'] .ell__metal-hi {
+		stop-color: var(--sl-color-gray-6);
+	}
+	:root[data-theme='light'] .ell__metal-lo {
+		stop-color: var(--sl-color-gray-3);
+	}
+	.ell__ball {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ell__leaf {
+		fill: color-mix(in srgb, var(--ig-v) 75%, transparent);
+		stroke: var(--ig-v);
+		stroke-width: 1;
+	}
+	.ell__glass-hi {
+		stop-color: color-mix(in srgb, var(--ig-vx) 35%, transparent);
+	}
+	.ell__glass-mid {
+		stop-color: color-mix(in srgb, var(--ig-vx) 8%, transparent);
+	}
+	.ell__glass-lo {
+		stop-color: color-mix(in srgb, var(--ig-vx) 22%, transparent);
+	}
+	.ell__rod,
+	.ell__cloth {
+		cursor: grab;
+		outline: none;
+		touch-action: none;
+	}
+	.ell__rod.is-dragging,
+	.ell__cloth.is-dragging {
+		cursor: grabbing;
+	}
+	.ell__rod:focus-visible .ell__rod-body,
+	.ell__cloth:focus-visible .ell__cloth-body {
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+	}
+	.ell__rod-body--ebonite {
+		fill: var(--el-ebonite);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ell__rod-body--glass {
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, var(--sl-color-gray-3));
+		stroke-width: 1.5;
+	}
+	.ell__grip {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 55%, transparent);
+	}
+	.ell__cloth-body--wool {
+		fill: color-mix(in srgb, var(--ig-v) 38%, var(--ig-surface));
+		stroke: color-mix(in srgb, var(--ig-v) 80%, var(--sl-color-gray-3));
+		stroke-width: 1.5;
+	}
+	.ell__cloth-body--silk {
+		fill: color-mix(in srgb, var(--sl-color-purple) 30%, var(--ig-surface));
+		stroke: var(--sl-color-purple);
+		stroke-width: 1.5;
+	}
+	.ell__fiber {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-white) 22%, transparent);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+	}
+	.ell__bit {
+		fill: var(--el-paper);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ell__finger-skin {
+		fill: var(--el-skin);
+		stroke: color-mix(in srgb, var(--el-skin) 70%, var(--sl-color-gray-3));
+		stroke-width: 1.5;
+	}
+	.ell__nail {
+		fill: color-mix(in srgb, var(--sl-color-white) 30%, var(--el-skin));
+	}
+	.ell__flowdot {
+		fill: var(--el-n);
+	}
+	.ell .chg circle {
+		stroke-width: 1;
+	}
+	.ell .chg line {
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+	.ell .chg--p circle {
+		fill: var(--el-p);
+		stroke: color-mix(in srgb, var(--el-p) 60%, var(--sl-color-white));
+	}
+	.ell .chg--n circle {
+		fill: var(--el-n);
+		stroke: color-mix(in srgb, var(--el-n) 60%, var(--sl-color-white));
+	}
+	.ell .chg line {
+		stroke: var(--sl-color-black);
+	}
+	:root[data-theme='light'] .ell .chg line {
+		stroke: var(--sl-color-black);
+	}
+	.ell .chg.is-new {
+		animation: ell-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+	}
+	.ell__pairq line {
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.ell__pairq .p {
+		stroke: var(--el-p);
+	}
+	.ell__pairq .n {
+		stroke: var(--el-n);
+	}
+	.ell__pairq {
+		opacity: 0.45;
+	}
+	@keyframes ell-pop {
+		from {
+			transform: scale(0);
+		}
+	}
+
+	.ell__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.6rem;
+	}
+	.ell__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ell__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ell__btn:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.ell__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ell__btn--quiet {
+		color: var(--sl-color-gray-2);
+		border-color: var(--sl-color-gray-5);
+	}
+	.ell__btn[aria-pressed='true'] {
+		border-color: var(--el-skin);
+		background: color-mix(in srgb, var(--el-skin) 25%, transparent);
+	}
+	.ell__read {
+		display: grid;
+		gap: 0.5rem;
+		margin-top: 0.7rem;
+	}
+	.ell__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ell__chip {
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		font-variant-numeric: tabular-nums;
+	}
+	.ell__chip b.is-p {
+		color: var(--el-p);
+	}
+	.ell__chip b.is-n {
+		color: var(--el-n);
+	}
+	.ell__formula {
+		min-height: 3.6rem;
+		padding: 0.3rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		display: grid;
+		place-items: center;
+		overflow-x: auto;
+		text-align: center;
+	}
+	.ell__formula .katex {
+		font-size: 1.15em;
+	}
+	.ell__formula .el-p {
+		color: var(--el-p);
+	}
+	.ell__formula .el-n {
+		color: var(--el-n);
+	}
+	.ell__live {
+		min-height: 3em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ell__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+	.ell__sym {
+		display: inline-grid;
+		place-items: center;
+		width: 1.05rem;
+		height: 1.05rem;
+		border-radius: 50%;
+		color: var(--sl-color-black);
+		font-weight: 700;
+		line-height: 1;
+	}
+	.ell__sym--n {
+		background: var(--el-n);
+	}
+	.ell__sym--p {
+		background: var(--el-p);
+	}
+	@media (max-width: 40rem) {
+		.ell {
+			padding: 0.75rem;
+		}
+		.ell__cap,
+		.ell__lbl {
+			font-size: 22px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ell .chg.is-new {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import {
+		E_CHARGE,
+		animator,
+		chargeSymbol,
+		el,
+		narrow,
+		reduceMotion,
+		svgPoint,
+		tex,
+		tnum,
+	} from './util';
+
+	const W = 700;
+	const TABLE = 420;
+	const B = { x: 580, y: 150, r: 22 };
+	const CASE = { x: 508, y: 230, w: 144, h: 182 }; // with the plug: the rod cannot enter it
+	const STEM = { x: B.x - 3, y: B.y, w: 6, h: 90 };
+	const PIVOT = { x: 580, y: 292 };
+	const RL = 220; // rod length, px
+	const RT = 26; // rod thickness, px
+	const GRIP = 52; // handle at the left end
+	const CW = 92; // cloth
+	const CH = 62;
+	const ROD_HOME = { x: 34, y: 96 };
+	const CLOTH_HOME = { x: 112, y: 232 };
+	const MAX_RUB = 16; // in the model the pair saturates after 16 transfers
+	const RUB_STEP = 38; // px of rubbing per transferred electron
+	const KAPPA = 0.5; // share of the rod's influence that reaches the leaves
+	const A_INF = 75; // px: closer than that a charge acts in full
+	const LEAF_L = 70;
+	const LEAF_MAX = 46; // degrees
+	const BIT_LIFT = 2.4; // field strength that lifts a piece of paper
+	const BIT_DROP = 1.1;
+	const BITS_X = [300, 328, 356, 386, 414, 444];
+
+	type Pair = 'ebonite' | 'glass';
+	const PAIRS = {
+		ebonite: {
+			rod: 'палочка',
+			rodLong: 'эбонитовая палочка',
+			cloth: 'шерсть',
+			rodSign: -1 as const,
+		},
+		glass: {
+			rod: 'палочка',
+			rodLong: 'стеклянная палочка',
+			cloth: 'шёлк',
+			rodSign: 1 as const,
+		},
+	};
+
+	type RodQ = { u: number; v: number; s: 1 | -1; g: SVGGElement; leaving?: boolean };
+	type ClothQ = { x: number; y: number; s: 1 | -1; g: SVGGElement };
+	type Pt = { x: number; y: number };
+	type Fly = { from: () => Pt; to: () => Pt; t: number; dur: number; g: SVGGElement; arrive: () => void; lift: number };
+	type Bit = {
+		x: number;
+		y: number;
+		vx: number;
+		vy: number;
+		rot: number;
+		wob: number;
+		state: 'table' | 'fly' | 'stuck' | 'fall';
+		dx: number;
+		dy: number;
+		g: SVGRectElement;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ell]')) {
+		const svg = root.querySelector<SVGSVGElement>('[data-svg]')!;
+		const gRod = root.querySelector<SVGGElement>('[data-rod]')!;
+		const gCloth = root.querySelector<SVGGElement>('[data-cloth]')!;
+		const gFly = root.querySelector<SVGGElement>('[data-fly]')!;
+		const gLeaves = root.querySelector<SVGGElement>('[data-leaves]')!;
+		const gScopeQ = root.querySelector<SVGGElement>('[data-scope-q]')!;
+		const gBits = root.querySelector<SVGGElement>('[data-bits]')!;
+		const gFinger = root.querySelector<SVGGElement>('[data-finger]')!;
+		const gFlow = root.querySelector<SVGGElement>('[data-flow]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const formula = root.querySelector<HTMLElement>('[data-formula]')!;
+		const qRodEl = root.querySelector<HTMLElement>('[data-q-rod]')!;
+		const qClothEl = root.querySelector<HTMLElement>('[data-q-cloth]')!;
+		const qScopeEl = root.querySelector<HTMLElement>('[data-q-scope]')!;
+		const nameCloth = root.querySelector<HTMLElement>('[data-name-cloth]')!;
+		const rubBtn = root.querySelector<HTMLButtonElement>('[data-rub]')!;
+		const groundBtn = root.querySelector<HTMLButtonElement>('[data-ground]')!;
+		const resetBtn = root.querySelector<HTMLButtonElement>('[data-reset]')!;
+		const pairBtns = root.querySelectorAll<HTMLButtonElement>('[data-pair]');
+
+		let pair: Pair = 'ebonite';
+		let symR = 6;
+		const rod = { x: ROD_HOME.x, y: ROD_HOME.y };
+		const cloth = { x: CLOTH_HOME.x, y: CLOTH_HOME.y };
+		let rodQ: RodQ[] = [];
+		let clothQ: ClothQ[] = [];
+		let flies: Fly[] = [];
+		let transferred = 0;
+		let rubAcc = 0;
+		let Qe = 0; // net charge of the electroscope, in drawn units (+ = lack of electrons)
+		let grounded = false;
+		let fingerX = W + 20;
+		let theta = 0;
+		let omega = 0;
+		let lastQL = 0;
+		let lastQB = 0;
+		let scopeKey = '';
+		let flowT = 0;
+		let touching = false;
+		const flowDots: { t: number; dir: number; g: SVGCircleElement }[] = [];
+		let anim: null | { t: number; base: number; done: number; phase: 'in' | 'rub' | 'out'; from: Pt } = null;
+		const said = new Set<string>();
+		const bits: Bit[] = [];
+
+		const say = (key: string, text: string, once = true) => {
+			if (once && said.has(key)) return;
+			said.add(key);
+			live.textContent = text;
+		};
+
+		// ---------- drawing of the rod and the cloth ----------
+		let rodBody: SVGRectElement;
+		let rodQLayer: SVGGElement;
+		let clothQLayer: SVGGElement;
+		const buildRod = () => {
+			gRod.replaceChildren();
+			const glass = pair === 'glass';
+			rodBody = el(
+				'rect',
+				{
+					class: `ell__rod-body ell__rod-body--${pair}`,
+					x: 0,
+					y: -RT / 2,
+					width: RL,
+					height: RT,
+					rx: RT / 2,
+					...(glass ? { fill: `url(#${svg.querySelector('linearGradient')!.id})` } : {}),
+				},
+				gRod,
+			);
+			el('rect', { class: 'ell__grip', x: 0, y: -RT / 2, width: GRIP, height: RT, rx: RT / 2 }, gRod);
+			const pairs = el('g', { class: 'ell__pairq' }, gRod);
+			for (let k = 0; k < 8; k++) {
+				const x = GRIP + 16 + k * ((RL - GRIP - 30) / 7);
+				const y = k % 2 ? 3 : -3;
+				el('line', { class: 'p', x1: x - 7, y1: y, x2: x - 1, y2: y }, pairs);
+				el('line', { class: 'p', x1: x - 4, y1: y - 3, x2: x - 4, y2: y + 3 }, pairs);
+				el('line', { class: 'n', x1: x + 2, y1: y, x2: x + 8, y2: y }, pairs);
+			}
+			const lbl = el('text', { class: 'ell__lbl', x: RL / 2, y: -RT / 2 - 9, 'text-anchor': 'middle' }, gRod);
+			lbl.textContent = pair === 'glass' ? 'стекло' : 'эбонит';
+			rodQLayer = el('g', {}, gRod);
+		};
+		const clothPath = () => {
+			// a soft piece of cloth with a wavy (wool) or smooth (silk) edge
+			const w = CW / 2;
+			const h = CH / 2;
+			if (pair === 'glass')
+				return `M ${-w} ${-h + 6} Q ${-w / 2} ${-h - 4} 0 ${-h + 3} T ${w} ${-h + 4} Q ${w + 5} 0 ${w - 2} ${h - 4} Q ${w / 2} ${h + 5} 0 ${h - 2} T ${-w} ${h - 3} Q ${-w - 5} 0 ${-w} ${-h + 6} z`;
+			let d = `M ${-w} ${-h}`;
+			const n = 9;
+			for (let k = 1; k <= n; k++) d += ` q ${CW / n / 2} -5 ${CW / n} 0`;
+			for (let k = 1; k <= 6; k++) d += ` q 5 ${CH / 6 / 2} 0 ${CH / 6}`;
+			for (let k = 1; k <= n; k++) d += ` q ${-CW / n / 2} 5 ${-CW / n} 0`;
+			for (let k = 1; k <= 6; k++) d += ` q -5 ${-CH / 6 / 2} 0 ${-CH / 6}`;
+			return d + ' z';
+		};
+		const buildCloth = () => {
+			gCloth.replaceChildren();
+			el('path', { class: `ell__cloth-body ell__cloth-body--${pair === 'glass' ? 'silk' : 'wool'}`, d: clothPath() }, gCloth);
+			for (let k = 0; k < 4; k++) {
+				const y = -CH / 2 + 12 + k * 13;
+				el(
+					'path',
+					{
+						class: 'ell__fiber',
+						d:
+							pair === 'glass'
+								? `M ${-CW / 2 + 8} ${y} Q 0 ${y + 5} ${CW / 2 - 8} ${y - 2}`
+								: `M ${-CW / 2 + 8} ${y} q 8 -5 16 0 t 16 0 t 16 0 t 16 0 t 16 0`,
+					},
+					gCloth,
+				);
+			}
+			const pairs = el('g', { class: 'ell__pairq' }, gCloth);
+			for (const [x, y] of [
+				[-28, -14],
+				[2, -16],
+				[30, -12],
+				[-22, 12],
+				[8, 14],
+				[32, 10],
+			]) {
+				el('line', { class: 'p', x1: x - 7, y1: y, x2: x - 1, y2: y }, pairs);
+				el('line', { class: 'p', x1: x - 4, y1: y - 3, x2: x - 4, y2: y + 3 }, pairs);
+				el('line', { class: 'n', x1: x + 2, y1: y, x2: x + 8, y2: y }, pairs);
+			}
+			const lbl = el('text', { class: 'ell__lbl', x: 0, y: CH / 2 + 22, 'text-anchor': 'middle' }, gCloth);
+			lbl.textContent = pair === 'glass' ? 'шёлк' : 'шерсть';
+			clothQLayer = el('g', {}, gCloth);
+		};
+		const placeRod = () => gRod.setAttribute('transform', `translate(${rod.x} ${rod.y})`);
+		const placeCloth = () => gCloth.setAttribute('transform', `translate(${cloth.x} ${cloth.y})`);
+		const rodPt = (u: number, v: number): Pt => ({ x: rod.x + u * RL, y: rod.y + v * (RT / 2 - 6.5) });
+
+		const addRodQ = (u: number, v: number, s: 1 | -1) => {
+			const g = chargeSymbol(s, symR, rodQLayer, 'is-new');
+			g.setAttribute('transform', `translate(${u * RL} ${v * (RT / 2 - 6.5)})`);
+			const q = { u, v, s, g };
+			rodQ.push(q);
+			return q;
+		};
+		const addClothQ = (x: number, y: number, s: 1 | -1) => {
+			const g = chargeSymbol(s, symR, clothQLayer, 'is-new');
+			g.setAttribute('transform', `translate(${x} ${y})`);
+			clothQ.push({ x, y, s, g });
+		};
+		const flyElectron = (from: () => Pt, to: () => Pt, arrive: () => void, dur = 0.45) => {
+			const g = chargeSymbol(-1, symR, gFly);
+			const p = from();
+			g.setAttribute('transform', `translate(${p.x} ${p.y})`);
+			flies.push({ from, to, t: 0, dur: reduceMotion() ? 0.01 : dur, g, arrive, lift: 18 + Math.random() * 14 });
+			wake();
+		};
+
+		// ---------- rubbing: one electron passes from one body to the other ----------
+		const clothSpot = () => {
+			// a free spot on the cloth, away from the charges already there
+			for (let k = 0; k < 30; k++) {
+				const x = (Math.random() - 0.5) * (CW - 24);
+				const y = (Math.random() - 0.5) * (CH - 22);
+				if (clothQ.every((q) => Math.hypot(q.x - x, q.y - y) > symR * 2.1)) return { x, y };
+			}
+			return { x: (Math.random() - 0.5) * (CW - 24), y: (Math.random() - 0.5) * (CH - 22) };
+		};
+		const rodSpot = (uc: number) => {
+			for (let k = 0; k < 30; k++) {
+				const u = Math.min(0.97, Math.max(GRIP / RL + 0.04, uc + (Math.random() - 0.5) * 0.4));
+				const v = Math.random() < 0.5 ? -1 : 1;
+				if (rodQ.every((q) => Math.abs(q.u - u) * RL > symR * 2.1 || q.v !== v)) return { u, v };
+			}
+			return { u: Math.min(0.97, Math.max(0.3, uc + (Math.random() - 0.5) * 0.5)), v: Math.random() < 0.5 ? -1 : 1 };
+		};
+		const transfer = (uc: number) => {
+			if (transferred >= MAX_RUB) {
+				say('max', 'Сильнее палочка уже не заряжается: при трении заряд растёт только до какого-то предела.');
+				return;
+			}
+			transferred += 1;
+			const c = clothSpot();
+			const r = rodSpot(uc);
+			const P = PAIRS[pair];
+			const clothAt = () => ({ x: cloth.x + c.x, y: cloth.y + c.y });
+			const rodAt = () => rodPt(r.u, r.v);
+			if (P.rodSign < 0) {
+				// wool gives an electron to ebonite: a «+» is left on the wool
+				addClothQ(c.x, c.y, 1);
+				flyElectron(clothAt, rodAt, () => {
+					addRodQ(r.u, r.v, -1);
+					updateReadouts();
+				});
+			} else {
+				// glass gives an electron to silk
+				addRodQ(r.u, r.v, 1);
+				flyElectron(rodAt, clothAt, () => {
+					addClothQ(c.x, c.y, -1);
+					updateReadouts();
+				});
+			}
+			updateReadouts();
+			if (P.rodSign < 0)
+				say(
+					'rub',
+					'При трении электроны переходят с шерсти на эбонит. Палочка получила лишние электроны и зарядилась отрицательно, а шерсть, потеряв их, — положительно.',
+				);
+			else
+				say(
+					'rub',
+					'При трении электроны переходят со стекла на шёлк. Стеклу теперь не хватает электронов — оно заряжено положительно, а шёлк с лишними электронами — отрицательно.',
+				);
+		};
+		const overlap = () =>
+			Math.abs(cloth.x - (rod.x + RL / 2)) < RL / 2 + CW / 2 - 14 && Math.abs(cloth.y - rod.y) < CH / 2 + RT / 2 - 6;
+		const rubbing = (dx: number, dy: number) => {
+			if (!overlap()) return;
+			rubAcc += Math.hypot(dx, dy);
+			while (rubAcc >= RUB_STEP) {
+				rubAcc -= RUB_STEP;
+				transfer((cloth.x - rod.x) / RL);
+			}
+		};
+
+		// ---------- collisions of the rod with the electroscope and the table ----------
+		const clampRod = () => {
+			rod.x = Math.min(W - RL - 6, Math.max(6, rod.x));
+			rod.y = Math.min(TABLE - RT / 2 - 16, Math.max(RT / 2 + 24, rod.y)); // the rod never lies on the paper
+			for (let it = 0; it < 3; it++) {
+				// the ball
+				const cx = Math.min(rod.x + RL - RT / 2, Math.max(rod.x + RT / 2, B.x));
+				const dx = B.x - cx;
+				const dy = B.y - rod.y;
+				const d = Math.hypot(dx, dy) || 1;
+				const need = B.r + RT / 2;
+				if (d < need) {
+					rod.x -= (dx / d) * (need - d);
+					rod.y -= (dy / d) * (need - d);
+				}
+				// the stem, the plug and the case: push out the shortest way
+				for (const r of [CASE, STEM]) {
+					const left = rod.x;
+					const right = rod.x + RL;
+					const top = rod.y - RT / 2;
+					const bottom = rod.y + RT / 2;
+					if (right > r.x && left < r.x + r.w && bottom > r.y && top < r.y + r.h) {
+						const pushL = right - r.x;
+						const pushR = r.x + r.w - left;
+						const pushU = bottom - r.y;
+						const m = Math.min(pushL, pushR, pushU);
+						if (m === pushU) rod.y -= pushU;
+						else if (m === pushL) rod.x -= pushL;
+						else rod.x += pushR;
+					}
+				}
+			}
+		};
+		const contactU = () => {
+			const cx = Math.min(rod.x + RL - RT / 2, Math.max(rod.x + RT / 2, B.x));
+			const d = Math.hypot(B.x - cx, B.y - rod.y);
+			return d <= B.r + RT / 2 + 3 ? (cx - rod.x) / RL : -1;
+		};
+
+		// ---------- electroscope ----------
+		const influence = () => {
+			let s = 0;
+			for (const q of rodQ) {
+				if (q.leaving) continue;
+				const p = rodPt(q.u, q.v);
+				const r = Math.hypot(p.x - B.x, p.y - B.y);
+				s += q.s * Math.min(1, (A_INF / r) ** 2);
+			}
+			return s;
+		};
+		const touchTransfer = () => {
+			const uc = contactU();
+			if (uc < 0) {
+				touching = false;
+				return;
+			}
+			let moved = 0;
+			for (const q of rodQ) {
+				if (q.leaving) continue;
+				if (Math.abs(q.u - uc) * RL > RT * 0.9) continue;
+				q.leaving = true;
+				moved += 1;
+				const at = () => rodPt(q.u, q.v);
+				const ball = () => ({ x: B.x + (rod.x + q.u * RL - B.x) * 0.3, y: B.y + (rod.y - B.y) * 0.3 });
+				const remove = () => {
+					q.g.remove();
+					rodQ = rodQ.filter((x) => x !== q);
+					updateReadouts();
+				};
+				if (q.s < 0) {
+					flyElectron(at, ball, () => {
+						remove();
+						Qe -= 1;
+						updateReadouts();
+					}, 0.3);
+				} else {
+					Qe += 1;
+					flyElectron(ball, at, remove, 0.3);
+				}
+			}
+			if (moved === 0 && !touching && rodQ.length > 0)
+				say(
+					'dry-touch',
+					'Палочка коснулась шара, но в этом месте на ней нет лишних зарядов, и ничего не перешло. Палочка — диэлектрик: заряды остаются там, где её натирали. Коснитесь шара натёртой частью палочки.',
+				);
+			touching = true;
+			if (moved > 0) {
+				updateReadouts();
+				say(
+					'touch',
+					pair === 'ebonite'
+						? 'Палочка коснулась шара, и лишние электроны с этого места перешли на электроскоп. Уберите палочку: листочки останутся разведёнными — электроскоп заряжен. Эбонит — диэлектрик, поэтому отдают заряд только те места, которые коснулись шара.'
+						: 'Палочка коснулась шара, и электроны с электроскопа перешли на стекло. Теперь электроскопу не хватает электронов — он заряжен положительно. Стекло — диэлектрик, поэтому заряд «забирают» только те места, которые коснулись шара.',
+				);
+			}
+		};
+
+		const leafG: SVGGElement[] = [];
+		const leafQ: SVGGElement[] = [];
+		let leafKey = '';
+		for (const side of [-1, 1]) {
+			const g = el('g', {}, gLeaves);
+			el('path', { class: 'ell__leaf', d: `M -2 0 L 2 0 L 7 ${LEAF_L} Q 0 ${LEAF_L + 6} -7 ${LEAF_L} Z` }, g);
+			leafG.push(g);
+			leafQ.push(el('g', {}, g));
+			void side;
+		}
+		const drawScope = (qL: number, qB: number, dirAngle: number) => {
+			// leaves
+			leafG[0].setAttribute('transform', `translate(${PIVOT.x} ${PIVOT.y}) rotate(${theta.toFixed(2)})`);
+			leafG[1].setAttribute('transform', `translate(${PIVOT.x} ${PIVOT.y}) rotate(${(-theta).toFixed(2)})`);
+			const nL = Math.min(8, Math.round(Math.abs(qL)));
+			const lk = `${nL}|${Math.sign(qL)}|${symR}`;
+			if (lk !== leafKey) {
+				leafKey = lk;
+				leafQ.forEach((g, i) => {
+					g.replaceChildren();
+					const mine = i === 0 ? Math.ceil(nL / 2) : Math.floor(nL / 2);
+					for (let k = 0; k < mine; k++) {
+						const c = chargeSymbol(qL > 0 ? 1 : -1, symR * 0.85, g);
+						c.setAttribute('transform', `translate(0 ${LEAF_L - 10 - k * (symR * 1.9)})`);
+					}
+				});
+			}
+			// ball and stem
+			const nB = Math.min(12, Math.round(Math.abs(qB)));
+			const key = `${nB}|${Math.sign(qB)}|${Math.round(dirAngle * 8)}|${symR}`;
+			if (key !== scopeKey) {
+				scopeKey = key;
+				gScopeQ.replaceChildren();
+				const step = (symR * 2.1) / (B.r + 1);
+				for (let k = 0; k < nB; k++) {
+					const off = (k - (nB - 1) / 2) * step;
+					const a = dirAngle + off;
+					const c = chargeSymbol(qB > 0 ? 1 : -1, symR * 0.85, gScopeQ);
+					c.setAttribute('transform', `translate(${(B.x + Math.cos(a) * (B.r - 1)).toFixed(1)} ${(B.y + Math.sin(a) * (B.r - 1)).toFixed(1)})`);
+				}
+			}
+		};
+
+		// ---------- pieces of paper ----------
+		const field = (x: number, y: number) => {
+			let ex = 0;
+			let ey = 0;
+			for (const q of rodQ) {
+				if (q.leaving) continue;
+				const p = rodPt(q.u, q.v);
+				const dx = x - p.x;
+				const dy = y - p.y;
+				const r2 = Math.max(dx * dx + dy * dy, 100);
+				const r = Math.sqrt(r2);
+				ex += (q.s * dx) / (r2 * r);
+				ey += (q.s * dy) / (r2 * r);
+			}
+			return Math.hypot(ex, ey) * 1000;
+		};
+		const nearestOnRod = (x: number, y: number) => {
+			const cx = Math.min(rod.x + RL - 2, Math.max(rod.x + GRIP, x));
+			const sy = y > rod.y ? 1 : -1;
+			const onEnd = x > rod.x + RL - 2;
+			return onEnd ? { x: rod.x + RL + 4, y: rod.y + Math.max(-6, Math.min(6, y - rod.y)) } : { x: cx, y: rod.y + sy * (RT / 2 + 4) };
+		};
+		const buildBits = () => {
+			gBits.replaceChildren();
+			bits.length = 0;
+			BITS_X.forEach((x, k) => {
+				const g = el('rect', { class: 'ell__bit', x: -8, y: -5, width: 16, height: 10, rx: 1.5 }, gBits);
+				bits.push({ x, y: TABLE - 5, vx: 0, vy: 0, rot: (k * 37) % 50 - 25, wob: 0, state: 'table', dx: 0, dy: 0, g });
+			});
+		};
+		const stepBits = (dt: number, t: number) => {
+			let lifted = false;
+			for (const b of bits) {
+				if (b.state === 'table') {
+					const S = field(b.x, b.y);
+					b.wob = S > 0.8 ? Math.min(1, (S - 0.8) / (BIT_LIFT - 0.8)) : 0;
+					if (S > BIT_LIFT) {
+						b.state = 'fly';
+						b.vx = 0;
+						b.vy = 0;
+						lifted = true;
+					}
+				} else if (b.state === 'fly') {
+					const tgt = nearestOnRod(b.x, b.y);
+					const dx = tgt.x - b.x;
+					const dy = tgt.y - b.y;
+					const d = Math.hypot(dx, dy);
+					if (d < 3 || reduceMotion()) {
+						b.state = 'stuck';
+						b.dx = tgt.x - rod.x;
+						b.dy = tgt.y - rod.y;
+					} else {
+						const a = 3200;
+						b.vx += (dx / d) * a * dt;
+						b.vy += (dy / d) * a * dt;
+						const sp = Math.hypot(b.vx, b.vy);
+						const step = Math.min(sp * dt, d);
+						b.x += (b.vx / sp) * step;
+						b.y += (b.vy / sp) * step;
+						b.rot += 400 * dt;
+					}
+				} else if (b.state === 'stuck') {
+					b.x = rod.x + b.dx;
+					b.y = rod.y + b.dy;
+					if (field(b.x, b.y) < BIT_DROP) {
+						b.state = 'fall';
+						b.vx = 0;
+						b.vy = 0;
+					}
+				} else if (b.state === 'fall') {
+					b.vy += 1500 * dt;
+					b.y += b.vy * dt;
+					b.rot += 120 * dt;
+					if (b.y >= TABLE - 5) {
+						b.y = TABLE - 5;
+						if (b.vy > 160) b.vy = -0.25 * b.vy;
+						else {
+							b.state = 'table';
+							b.rot = ((b.rot % 180) + 180) % 180 > 90 ? 180 : 0;
+							b.x = Math.min(CASE.x - 14, Math.max(14, b.x));
+						}
+					}
+				}
+				const wob = b.state === 'table' && !reduceMotion() ? b.wob * 14 * Math.sin(t * 20 + b.x) : 0;
+				const lift = b.state === 'table' ? -b.wob * 3 : 0;
+				b.g.setAttribute('transform', `translate(${b.x.toFixed(1)} ${(b.y + lift).toFixed(1)}) rotate(${(b.rot + wob).toFixed(1)})`);
+			}
+			if (lifted)
+				say(
+					'bits',
+					'Бумажки не были заряжены, но всё равно подскочили к палочке. Заряженное тело притягивает и незаряженные лёгкие тела — с любым знаком заряда.',
+				);
+		};
+
+		// ---------- read-outs ----------
+		const sumRod = () => rodQ.reduce((s, q) => s + q.s, 0);
+		const sumCloth = () => clothQ.reduce((s, q) => s + q.s, 0);
+		const chip = (b: HTMLElement, v: number) => {
+			const r = Math.round(v);
+			b.textContent = r === 0 ? '0' : `${r > 0 ? '+' : '−'}${Math.abs(r)}`;
+			b.classList.toggle('is-p', r > 0);
+			b.classList.toggle('is-n', r < 0);
+		};
+		const updateReadouts = () => {
+			const n = sumRod();
+			chip(qRodEl, n);
+			chip(qClothEl, sumCloth());
+			chip(qScopeEl, Qe);
+			const name = pair === 'ebonite' ? 'эбонита' : 'стекла';
+			if (n === 0) {
+				tex(formula, `q_{\\text{${name}}} = 0 \\quad \\text{— палочка не заряжена}`);
+				return;
+			}
+			const N = Math.abs(n);
+			const q = N * 1e9 * E_CHARGE;
+			const exp = Math.floor(Math.log10(q) + 1e-9);
+			const mant = q / 10 ** exp;
+			const exact = Math.abs(Math.round(mant * 10) / 10 - mant) < 1e-9;
+			const sign = n < 0 ? '-' : '+';
+			const cls = n < 0 ? 'el-n' : 'el-p';
+			const what = n < 0 ? 'лишних электронов' : 'электронов не хватает';
+			tex(
+				formula,
+				`\\begin{aligned} N &= ${N} \\cdot 10^{9}\\ \\text{(${what})},\\\\ q_{\\text{${name}}} &= ${sign}Ne ${exact ? '=' : '\\approx'} \\htmlClass{${cls}}{${sign}${tnum(mant, 1)} \\cdot 10^{${exp}}~\\text{Кл}} \\end{aligned}`,
+			);
+		};
+
+		// ---------- main loop ----------
+		let idleT = 0;
+		const active = () => idleT < 0.5;
+		const frame = (dt: number) => {
+			const t = performance.now() / 1000;
+			// button rubbing
+			if (anim) {
+				anim.t += dt;
+				if (anim.phase === 'in') {
+					const k = Math.min(1, anim.t / 0.45);
+					const e = k * k * (3 - 2 * k);
+					const tx = rod.x + RL * 0.7;
+					cloth.x = anim.from.x + (tx - anim.from.x) * e;
+					cloth.y = anim.from.y + (rod.y - anim.from.y) * e;
+					if (k >= 1) {
+						anim.phase = 'rub';
+						anim.t = 0;
+						anim.base = cloth.x;
+					}
+				} else if (anim.phase === 'rub') {
+					const T = 1.6;
+					const k = Math.min(1, anim.t / T);
+					cloth.x = anim.base + 46 * Math.sin(k * Math.PI * 6);
+					cloth.y = rod.y + 2 * Math.sin(k * Math.PI * 12);
+					const due = Math.floor(k * 5.999);
+					while (anim.done < due) {
+						anim.done += 1;
+						transfer((cloth.x - rod.x) / RL);
+					}
+					if (k >= 1) {
+						anim.phase = 'out';
+						anim.t = 0;
+						anim.from = { ...cloth };
+					}
+				} else {
+					const k = Math.min(1, anim.t / 0.5);
+					const e = k * k * (3 - 2 * k);
+					cloth.x = anim.from.x + (CLOTH_HOME.x - anim.from.x) * e;
+					cloth.y = anim.from.y + (CLOTH_HOME.y + (rod.y > 170 ? 0 : 0) - anim.from.y) * e;
+					if (k >= 1) {
+						anim = null;
+						rubBtn.disabled = false;
+					}
+				}
+				placeCloth();
+			}
+
+			// flying electrons
+			for (const f of flies) {
+				f.t += dt;
+				const k = Math.min(1, f.t / f.dur);
+				const e = k * k * (3 - 2 * k);
+				const a = f.from();
+				const b = f.to();
+				const x = a.x + (b.x - a.x) * e;
+				const y = a.y + (b.y - a.y) * e - Math.sin(Math.PI * e) * f.lift;
+				f.g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+				if (k >= 1) {
+					f.g.remove();
+					f.arrive();
+				}
+			}
+			flies = flies.filter((f) => f.t < f.dur);
+
+			// electroscope
+			touchTransfer();
+			const I = influence();
+			if (grounded) {
+				const target = -2 * KAPPA * I;
+				const before = Qe;
+				Qe += (target - Qe) * Math.min(1, reduceMotion() ? 1 : dt / 0.25);
+				const rate = (Qe - before) / Math.max(dt, 1e-3);
+				flowT += dt * Math.min(12, Math.abs(rate) * 0.9);
+				while (flowT > 1 && !reduceMotion()) {
+					flowT -= 1;
+					// electrons leave the ball when its charge grows, come in when it falls
+					const g = el('circle', { class: 'ell__flowdot', r: symR * 0.55 }, gFlow);
+					flowDots.push({ t: 0, dir: rate > 0 ? 1 : -1, g });
+				}
+				chip(qScopeEl, Qe);
+			}
+			const fingerGoal = grounded ? B.x + B.r - 1 : W + 20;
+			fingerX += (fingerGoal - fingerX) * Math.min(1, reduceMotion() ? 1 : dt / 0.12);
+			gFinger.setAttribute('transform', `translate(${fingerX.toFixed(1)} ${B.y})`);
+			for (const d of flowDots) {
+				d.t += dt / 0.6;
+				const k = d.dir > 0 ? d.t : 1 - d.t;
+				d.g.setAttribute('cx', String(fingerX + 4 + k * (W - fingerX)));
+				d.g.setAttribute('cy', String(B.y + Math.sin(d.t * 9) * 3));
+			}
+			for (const d of flowDots.filter((d) => d.t >= 1)) d.g.remove();
+			flowDots.splice(0, flowDots.length, ...flowDots.filter((d) => d.t < 1));
+
+			const qL = 0.5 * Qe + KAPPA * I;
+			const qB = Qe - qL;
+			const goal = (LEAF_MAX * Math.abs(qL)) / (Math.abs(qL) + 3);
+			if (reduceMotion()) {
+				theta = goal;
+				omega = 0;
+			} else {
+				omega += (60 * (goal - theta) - 9 * omega) * dt;
+				theta = Math.max(0, theta + omega * dt);
+			}
+			// direction from the ball to the rod: induced charges gather on the near side
+			let dir = -Math.PI / 2;
+			if (Math.abs(KAPPA * I) > 0.4) {
+				const cx = Math.min(rod.x + RL, Math.max(rod.x, B.x));
+				dir = Math.atan2(rod.y - B.y, cx - B.x);
+			}
+			drawScope(qL, qB, dir);
+			if (Math.abs(qL) > 0.8 && contactU() < 0 && Math.abs(Qe) < 0.5 && Math.abs(I) > 1)
+				say(
+					'influence',
+					sumRod() < 0
+						? 'Палочка ещё не коснулась шара, а листочки уже разошлись! Лишние электроны палочки отталкивают свободные электроны металла: они уходят вниз, на листочки. Оба листочка заряжаются отрицательно и отталкиваются. Это электризация через влияние. Уберите палочку — листочки сойдутся.'
+						: 'Палочка ещё не коснулась шара, а листочки уже разошлись! Положительный заряд стекла притягивает свободные электроны металла наверх, к шару. Внизу электронов не хватает, оба листочка заряжаются положительно и отталкиваются. Это электризация через влияние.',
+				);
+			if (Math.abs(qL - lastQL) > 0.01 || Math.abs(qB - lastQB) > 0.01) {
+				lastQL = qL;
+				lastQB = qB;
+			}
+
+			stepBits(dt, t);
+			const busy =
+				anim !== null ||
+				flies.length > 0 ||
+				flowDots.length > 0 ||
+				Math.abs(omega) > 0.01 ||
+				Math.abs(goal - theta) > 0.05 ||
+				Math.abs(fingerGoal - fingerX) > 0.5 ||
+				(grounded && Math.abs(-2 * KAPPA * I - Qe) > 0.01) ||
+				bits.some((b) => b.state === 'fly' || b.state === 'fall' || b.wob > 0);
+			idleT = busy ? 0 : idleT + dt;
+		};
+		const wakeLoop = animator(root, active, frame);
+		const wake = () => {
+			idleT = 0;
+			wakeLoop();
+		};
+
+		// ---------- dragging ----------
+		const drag = (target: 'rod' | 'cloth', g: SVGGElement) => {
+			let grab: Pt | null = null;
+			let last: Pt = { x: 0, y: 0 };
+			g.addEventListener('pointerdown', (e) => {
+				if (anim) return;
+				e.preventDefault();
+				const p = svgPoint(svg, e);
+				const o = target === 'rod' ? rod : cloth;
+				grab = { x: p.x - o.x, y: p.y - o.y };
+				last = { ...o };
+				g.classList.add('is-dragging');
+				g.setPointerCapture(e.pointerId);
+			});
+			g.addEventListener('pointermove', (e) => {
+				if (!grab) return;
+				const p = svgPoint(svg, e);
+				if (target === 'rod') {
+					rod.x = p.x - grab.x;
+					rod.y = p.y - grab.y;
+					clampRod();
+					placeRod();
+					rubbing(rod.x - last.x, rod.y - last.y);
+					last = { ...rod };
+				} else {
+					cloth.x = Math.min(W - CW / 2, Math.max(CW / 2, p.x - grab.x));
+					cloth.y = Math.min(TABLE - CH / 2, Math.max(CH / 2, p.y - grab.y));
+					placeCloth();
+					rubbing(cloth.x - last.x, cloth.y - last.y);
+					last = { ...cloth };
+				}
+				wake();
+			});
+			const end = () => {
+				grab = null;
+				g.classList.remove('is-dragging');
+			};
+			g.addEventListener('pointerup', end);
+			g.addEventListener('pointercancel', end);
+			g.addEventListener('keydown', (e) => {
+				const step = e.shiftKey ? 30 : 10;
+				const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+				if (!d) return;
+				e.preventDefault();
+				const o = target === 'rod' ? rod : cloth;
+				const before = { ...o };
+				o.x += d[0];
+				o.y += d[1];
+				if (target === 'rod') {
+					clampRod();
+					placeRod();
+				} else placeCloth();
+				rubbing(o.x - before.x, o.y - before.y);
+				wake();
+			});
+		};
+		drag('rod', gRod);
+		drag('cloth', gCloth);
+
+		// ---------- buttons ----------
+		rubBtn.addEventListener('click', () => {
+			if (anim) return;
+			// bring the rod back into the open if it is near the electroscope
+			if (rod.x + RL > CASE.x - 20 || rod.y > 300) {
+				rod.x = ROD_HOME.x;
+				rod.y = ROD_HOME.y;
+				placeRod();
+			}
+			anim = { t: 0, base: 0, done: 0, phase: 'in', from: { ...cloth } };
+			rubBtn.disabled = true;
+			wake();
+		});
+		const setGround = (on: boolean) => {
+			grounded = on;
+			groundBtn.setAttribute('aria-pressed', String(on));
+			groundBtn.textContent = on ? 'Убрать палец' : 'Коснуться шара пальцем';
+			if (on) {
+				const I = influence();
+				if (Math.abs(I) > 1)
+					say(
+						'ground-near',
+						'Палец соединил электроскоп с Землёй через тело человека. Пока палочка рядом, листочки сходятся, а на шаре остаётся заряд противоположного знака. Уберите палец, а потом палочку — электроскоп останется заряженным, хотя палочка его так и не коснулась!',
+						false,
+					);
+				else if (Math.abs(Qe) > 0.5)
+					say(
+						'ground',
+						'Тело человека — проводник. Заряд ушёл через руку в Землю, и электроскоп разрядился: листочки опали.',
+						false,
+					);
+			}
+			wake();
+		};
+		groundBtn.addEventListener('click', () => setGround(!grounded));
+
+		const reset = () => {
+			anim = null;
+			rubBtn.disabled = false;
+			for (const f of flies) f.g.remove();
+			flies = [];
+			rodQ = [];
+			clothQ = [];
+			transferred = 0;
+			rubAcc = 0;
+			Qe = 0;
+			theta = 0;
+			omega = 0;
+			scopeKey = '';
+			said.clear();
+			setGround(false);
+			rod.x = ROD_HOME.x;
+			rod.y = ROD_HOME.y;
+			cloth.x = CLOTH_HOME.x;
+			cloth.y = CLOTH_HOME.y;
+			symR = narrow() ? 9 : 6;
+			buildRod();
+			buildCloth();
+			buildBits();
+			placeRod();
+			placeCloth();
+			nameCloth.textContent = PAIRS[pair].cloth;
+			updateReadouts();
+			live.textContent =
+				pair === 'ebonite'
+					? 'Потрите эбонитовую палочку шерстью: перетащите шерсть на палочку и поводите ею туда-сюда или нажмите «Потереть».'
+					: 'Потрите стеклянную палочку шёлком: перетащите шёлк на палочку и поводите им туда-сюда или нажмите «Потереть».';
+			wake();
+		};
+		resetBtn.addEventListener('click', reset);
+		pairBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				pair = b.dataset.pair as Pair;
+				pairBtns.forEach((o) => {
+					o.classList.toggle('is-on', o === b);
+					o.setAttribute('aria-checked', String(o === b));
+				});
+				reset();
+			}),
+		);
+		reset();
+	}
+</script>

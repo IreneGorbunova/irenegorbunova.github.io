@@ -1,0 +1,381 @@
+---
+/**
+ * «Проводник или диэлектрик?»: two electrometers, the left one charged. A rod of the chosen material
+ * is laid across their balls; through a conductor the charge spreads until both meters show the same,
+ * through a dielectric nothing passes. A wet thread conducts, but slowly. The needle deflection is
+ * proportional to the charge of the electrometer (one division — one unit of charge).
+ */
+const W = 560;
+const H = 270;
+const MATS = [
+	{ id: 'cu', name: 'медная проволока' },
+	{ id: 'steel', name: 'стальная спица' },
+	{ id: 'graphite', name: 'грифель карандаша' },
+	{ id: 'wet', name: 'мокрая нитка' },
+	{ id: 'glass', name: 'стеклянная палочка' },
+	{ id: 'plastic', name: 'пластмассовая линейка' },
+	{ id: 'silk', name: 'шёлковая нить' },
+];
+---
+
+<figure class="brt not-content" data-brt>
+	<p class="brt__ask">Чем соединить шары электрометров? Сначала предскажите, перейдёт ли заряд, — потом проверьте.</p>
+	<div class="brt__mats" role="radiogroup" aria-label="Материал перемычки">
+		{
+			MATS.map((m) => (
+				<button type="button" role="radio" aria-checked="false" data-mat={m.id}>
+					{m.name}
+				</button>
+			))
+		}
+	</div>
+	<svg class="brt__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Два электрометра; шары можно соединить перемычкой" data-svg>
+		<g data-meters></g>
+		<g data-bridge></g>
+		<g data-flow></g>
+	</svg>
+	<div class="brt__row">
+		<p class="brt__live" data-live aria-live="polite"></p>
+		<button type="button" class="brt__btn" data-again>Убрать перемычку</button>
+	</div>
+	<figcaption class="brt__legend">
+		Перед каждым опытом левый электрометр заряжен отрицательно, а правый не заряжен. Стрелка отклоняется тем сильнее, чем больше заряд
+		электрометра. Точки на перемычке — электроны, которые переходят с одного шара на другой.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.brt {
+		--brt-n: var(--ig-vx);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.brt__ask {
+		margin: 0 0 0.5rem;
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.brt__mats {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.brt__mats button {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.brt__mats button:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.brt__mats button[aria-checked='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 22%, transparent);
+	}
+	.brt__mats button.is-cond::after {
+		content: ' · проводник';
+		color: var(--sl-color-green-high);
+		font-size: var(--sl-text-xs);
+	}
+	.brt__mats button.is-poor::after {
+		content: ' · проводит плохо';
+		color: var(--ig-v);
+		font-size: var(--sl-text-xs);
+	}
+	.brt__mats button.is-diel::after {
+		content: ' · диэлектрик';
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-xs);
+	}
+	.brt__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin-top: 0.6rem;
+	}
+	.brt__case {
+		fill: color-mix(in srgb, var(--sl-color-gray-6) 70%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+	}
+	.brt__scale {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.brt__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.brt__metal {
+		fill: var(--sl-color-gray-3);
+	}
+	.brt__ball {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.brt__plug {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+	}
+	.brt__needle {
+		stroke: var(--brt-n);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.brt__pivot {
+		fill: var(--sl-color-gray-2);
+	}
+	.brt__stand {
+		fill: var(--sl-color-gray-4);
+	}
+	.brt__val {
+		fill: var(--brt-n);
+		font-size: 16px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.brt__bar {
+		stroke-width: 9;
+		stroke-linecap: round;
+	}
+	.brt__bar--cu {
+		stroke: hsl(22, 65%, 50%);
+	}
+	.brt__bar--steel {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 5;
+	}
+	.brt__bar--graphite {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 7;
+	}
+	.brt__bar--wet {
+		stroke: color-mix(in srgb, var(--brt-n) 45%, var(--sl-color-gray-3));
+		stroke-width: 4;
+	}
+	.brt__bar--glass {
+		stroke: color-mix(in srgb, var(--brt-n) 30%, transparent);
+		stroke-width: 11;
+	}
+	.brt__bar--plastic {
+		stroke: color-mix(in srgb, var(--sl-color-green) 55%, transparent);
+		stroke-width: 10;
+		stroke-linecap: butt;
+	}
+	.brt__bar--silk {
+		stroke: var(--sl-color-purple);
+		stroke-width: 3;
+	}
+	.brt__flowdot {
+		fill: var(--brt-n);
+	}
+	.brt__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem 1rem;
+		margin-top: 0.4rem;
+	}
+	.brt__live {
+		flex: 1 1 18rem;
+		min-height: 3em;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.brt__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.brt__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.brt__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.brt {
+			padding: 0.75rem;
+		}
+		.brt__val {
+			font-size: 24px;
+		}
+	}
+</style>
+
+<script>
+	import { animator, el, reduceMotion } from './util';
+
+	const W = 560;
+	const XS = [140, 420];
+	const BALL_Y = 52;
+	const CY = 170; // centre of the dial
+	const RC = 72;
+	const Q0 = 8;
+	const SPAN = 70; // degrees for the full scale of 8 units
+	const MAT: Record<string, { tau: number; kind: 'cond' | 'poor' | 'diel'; text: string }> = {
+		cu: { tau: 0.3, kind: 'cond', text: 'Медь — металл, проводник. Электроны сразу перешли на правый шар, пока заряд не разделился поровну.' },
+		steel: { tau: 0.35, kind: 'cond', text: 'Сталь — металл, проводник. Заряд разделился между электрометрами поровну.' },
+		graphite: { tau: 0.6, kind: 'cond', text: 'Графит — не металл, но хороший проводник. Поэтому из графита делают контакты электродвигателей и электроды.' },
+		wet: { tau: 5, kind: 'poor', text: 'Мокрая нитка проводит, но плохо: заряд перетекает медленно. Сухая нитка почти не проводит — проводником её делает вода с растворёнными в ней веществами.' },
+		glass: { tau: Infinity, kind: 'diel', text: 'Стекло — диэлектрик: свободных зарядов в нём почти нет, и заряд не переходит.' },
+		plastic: { tau: Infinity, kind: 'diel', text: 'Пластмасса — диэлектрик. Поэтому провода покрывают пластмассовой изоляцией.' },
+		silk: { tau: Infinity, kind: 'diel', text: 'Сухой шёлк — диэлектрик. На шёлковых нитях подвешивают заряженные шарики, чтобы заряд с них не уходил.' },
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-brt]')) {
+		const gM = root.querySelector<SVGGElement>('[data-meters]')!;
+		const gB = root.querySelector<SVGGElement>('[data-bridge]')!;
+		const gF = root.querySelector<SVGGElement>('[data-flow]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const btns = root.querySelectorAll<HTMLButtonElement>('[data-mat]');
+		const again = root.querySelector<HTMLButtonElement>('[data-again]')!;
+
+		const Q = [Q0, 0];
+		const ang = [0, 0];
+		const vel = [0, 0];
+		let mat = '';
+		let lay = 0; // 0…1: the bridge is being laid
+		let dropT = 0;
+		let reported = true;
+		const dots: { t: number; g: SVGCircleElement }[] = [];
+
+		const needles: SVGLineElement[] = [];
+		const vals: SVGTextElement[] = [];
+		XS.forEach((x) => {
+			el('rect', { class: 'brt__stand', x: x - 40, y: CY + RC + 4, width: 80, height: 8, rx: 3 }, gM);
+			el('rect', { class: 'brt__stand', x: x - 6, y: CY + RC - 4, width: 12, height: 10 }, gM);
+			el('circle', { class: 'brt__case', cx: x, cy: CY, r: RC }, gM);
+			const a0 = (-SPAN * Math.PI) / 180;
+			const rr = RC - 12;
+			// scale from the vertical to the right: 0…8 units
+			el('path', { class: 'brt__scale', d: `M ${x} ${CY - rr} A ${rr} ${rr} 0 0 1 ${x + rr * Math.sin(-a0)} ${CY - rr * Math.cos(a0)}` }, gM);
+			for (let k = 0; k <= 8; k++) {
+				const a = ((k / 8) * SPAN * Math.PI) / 180;
+				const r1 = rr;
+				const r2 = rr - (k % 4 === 0 ? 10 : 6);
+				el('line', { class: 'brt__tick', x1: x + r1 * Math.sin(a), y1: CY - r1 * Math.cos(a), x2: x + r2 * Math.sin(a), y2: CY - r2 * Math.cos(a) }, gM);
+			}
+			el('rect', { class: 'brt__metal', x: x - 3, y: BALL_Y, width: 6, height: CY - BALL_Y }, gM);
+			el('rect', { class: 'brt__plug', x: x - 11, y: CY - RC - 8, width: 22, height: 16, rx: 3 }, gM);
+			el('circle', { class: 'brt__ball', cx: x, cy: BALL_Y, r: 15 }, gM);
+			needles.push(el('line', { class: 'brt__needle', x1: x, y1: CY + 26, x2: x, y2: CY - 40 }, gM));
+			el('circle', { class: 'brt__pivot', cx: x, cy: CY, r: 4 }, gM);
+			vals.push(el('text', { class: 'brt__val', x, y: CY + 52, 'text-anchor': 'middle' }, gM));
+		});
+		const bar = el('line', { class: 'brt__bar' }, gB);
+
+		const drawNeedles = () => {
+			needles.forEach((n, i) => {
+				n.setAttribute('transform', `rotate(${ang[i].toFixed(2)} ${XS[i]} ${CY})`);
+				const v = Math.round(Q[i] * 10) / 10;
+				vals[i].textContent = v === 0 ? '0' : `−${v.toLocaleString('ru-RU')}`;
+			});
+		};
+		const drawBar = () => {
+			const y = BALL_Y - 13 - (1 - lay) * 50;
+			bar.setAttribute('x1', String(XS[0] + 4));
+			bar.setAttribute('x2', String(XS[1] - 4));
+			bar.setAttribute('y1', y.toFixed(1));
+			bar.setAttribute('y2', y.toFixed(1));
+			bar.setAttribute('opacity', mat ? String(Math.min(1, lay * 1.5)) : '0');
+		};
+
+		const frame = (dt: number) => {
+			const m = MAT[mat];
+			if (mat && lay < 1) lay = Math.min(1, lay + dt / (reduceMotion() ? 0.01 : 0.45));
+			if (m && lay >= 1 && Number.isFinite(m.tau)) {
+				const flow = ((Q[0] - Q[1]) / (2 * m.tau)) * dt;
+				Q[0] -= flow;
+				Q[1] += flow;
+				dropT += Math.abs(flow) * (m.kind === 'poor' ? 8 : 3);
+				while (dropT > 1 && !reduceMotion()) {
+					dropT -= 1;
+					dots.push({ t: 0, g: el('circle', { class: 'brt__flowdot', r: 4, cy: BALL_Y - 13 }, gF) });
+				}
+			}
+			if (mat && lay >= 1 && !reported) {
+				reported = true;
+				live.textContent = m.text;
+				root.querySelector(`[data-mat="${mat}"]`)!.classList.add(`is-${m.kind}`);
+			}
+			for (const d of dots) {
+				d.t += dt / 0.7;
+				d.g.setAttribute('cx', (XS[0] + 15 + d.t * (XS[1] - XS[0] - 30)).toFixed(1));
+			}
+			for (const d of dots.filter((d) => d.t >= 1)) d.g.remove();
+			dots.splice(0, dots.length, ...dots.filter((d) => d.t < 1));
+			for (const i of [0, 1]) {
+				const goal = (Q[i] / Q0) * SPAN;
+				if (reduceMotion()) {
+					ang[i] = goal;
+					vel[i] = 0;
+				} else {
+					vel[i] += (40 * (goal - ang[i]) - 7 * vel[i]) * dt;
+					ang[i] += vel[i] * dt;
+				}
+			}
+			drawNeedles();
+			drawBar();
+		};
+		const busy = () =>
+			dots.length > 0 ||
+			lay < 1 && mat !== '' ||
+			Math.abs(vel[0]) + Math.abs(vel[1]) > 0.01 ||
+			Math.abs(ang[0] - (Q[0] / Q0) * SPAN) + Math.abs(ang[1] - (Q[1] / Q0) * SPAN) > 0.01 ||
+			(!!MAT[mat] && Number.isFinite(MAT[mat].tau) && Math.abs(Q[0] - Q[1]) > 0.01) ||
+			!reported;
+		const wake = animator(root, busy, frame);
+
+		btns.forEach((b) =>
+			b.addEventListener('click', () => {
+				btns.forEach((o) => o.setAttribute('aria-checked', String(o === b)));
+				bar.setAttribute('class', `brt__bar brt__bar--${b.dataset.mat}`);
+				mat = b.dataset.mat!;
+				Q[0] = Q0;
+				Q[1] = 0;
+				lay = 0;
+				reported = false;
+				live.textContent = 'Кладём перемычку на шары…';
+				wake();
+			}),
+		);
+		again.addEventListener('click', () => {
+			Q[0] = Q0;
+			Q[1] = 0;
+			mat = '';
+			lay = 0;
+			btns.forEach((o) => o.setAttribute('aria-checked', 'false'));
+			live.textContent = 'Перемычку убрали, левый электрометр снова заряжен. Выберите другую перемычку.';
+			reported = true;
+			wake();
+		});
+
+		ang[0] = SPAN;
+		drawNeedles();
+		drawBar();
+		live.textContent = 'Выберите, чем соединить шары электрометров.';
+	}
+</script>

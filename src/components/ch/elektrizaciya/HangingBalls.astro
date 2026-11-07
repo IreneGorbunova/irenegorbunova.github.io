@@ -1,0 +1,647 @@
+---
+/**
+ * Two light conducting balls on silk threads. The charges are chosen with buttons, the suspension
+ * points are dragged along the bar, a ball can be pulled by hand. Real units: threads 22 cm,
+ * balls of radius 1 cm and mass 0,15 g, charges up to 30 nC. The motion is integrated from the forces
+ * (gravity, tension, the electric force, a little air damping); the electric force between the balls is
+ * Coulomb's force plus the attraction of the charges induced in a conductor (the leading term
+ * 2kQ²a³/r⁵), so a neutral ball is attracted by a charged one. Touching balls share the charge equally.
+ * Scale 1250 px per metre, the same on both axes.
+ */
+const W = 560;
+const H = 360;
+const BAR_Y = 40;
+const CH = [-30, -15, 0, 15, 30];
+const fmtQ = (q: number) => (q > 0 ? `+${q}` : q < 0 ? `−${-q}` : '0');
+---
+
+<figure class="hb not-content" data-hb>
+	<svg class="hb__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Два заряженных шарика на нитях" data-svg>
+		<defs>
+			<pattern id="hb-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+				<line x1="0" y1="0" x2="0" y2="8" class="hb__hatch"></line>
+			</pattern>
+		</defs>
+		<rect class="hb__bar" x="20" y={BAR_Y - 14} width={W - 40} height="14" rx="3"></rect>
+		<rect x="20" y={BAR_Y - 14} width={W - 40} height="14" rx="3" fill="url(#hb-hatch)"></rect>
+		<g data-ruler class="hb__ruler"></g>
+		<g data-threads></g>
+		<g data-arrows></g>
+		<g data-balls></g>
+		<g data-hooks></g>
+		<g data-flash></g>
+	</svg>
+
+	<div class="hb__controls">
+		{
+			[0, 1].map((i) => (
+				<div class="hb__ctl">
+					<span class="hb__ctl-name">
+						Заряд {i === 0 ? 'левого' : 'правого'} шарика, нКл
+					</span>
+					<div class="hb__seg" role="radiogroup" aria-label={`Заряд ${i === 0 ? 'левого' : 'правого'} шарика`}>
+						{CH.map((q) => (
+							<button type="button" role="radio" aria-checked="false" data-ball={i} data-q={q} class={q > 0 ? 'is-p' : q < 0 ? 'is-n' : ''}>
+								{fmtQ(q)}
+							</button>
+						))}
+					</div>
+				</div>
+			))
+		}
+		<label class="hb__slider">
+			<span>Расстояние между точками подвеса</span>
+			<output data-d-out>12 см</output>
+			<input type="range" min="3" max="30" step="0.5" value="12" data-d />
+		</label>
+	</div>
+
+	<div class="hb__read" aria-live="off">
+		<span class="hb__chip">расстояние между шариками <b data-r>—</b></span>
+		<span class="hb__chip">сила взаимодействия <b data-f>—</b></span>
+		<span class="hb__chip">сила тяжести шарика <b>1,5 мН</b></span>
+	</div>
+	<p class="hb__live" data-live aria-live="polite"></p>
+
+	<figcaption class="hb__legend">
+		Лёгкие шарики покрыты металлической фольгой и висят на шёлковых нитях длиной 22 см; масса шарика 0,15 г. Стрелки <i>F</i> —
+		силы, с которыми шарики действуют друг на друга. Перетаскивайте точки подвеса вдоль перекладины, а шарики
+		можно отвести рукой и отпустить. Масштаб одинаковый по обеим осям; деления на перекладине — через 1 см.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.hb {
+		--hb-p: var(--ig-vy);
+		--hb-n: var(--ig-vx);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.hb i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.hb__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+		touch-action: pan-y;
+	}
+	.hb__bar {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.hb__hatch {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.hb__ruler line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.hb__ruler line.is-major {
+		stroke-width: 1.6;
+	}
+	.hb__thread {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+	}
+	.hb__hook {
+		cursor: ew-resize;
+		touch-action: none;
+		outline: none;
+	}
+	.hb__hook circle.hb__knob {
+		fill: var(--sl-color-accent);
+		stroke: var(--ig-surface);
+		stroke-width: 2;
+	}
+	.hb__hook:focus-visible circle.hb__knob {
+		stroke: var(--sl-color-white);
+	}
+	.hb__hit {
+		fill: transparent;
+	}
+	.hb__ball {
+		cursor: grab;
+		touch-action: none;
+	}
+	.hb__ball.is-dragging {
+		cursor: grabbing;
+	}
+	.hb__ball .hb__body {
+		stroke-width: 1.5;
+		transition:
+			fill 0.4s,
+			stroke 0.4s;
+	}
+	.hb__ball[data-sign='0'] .hb__body {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-2);
+	}
+	.hb__ball[data-sign='1'] .hb__body {
+		fill: color-mix(in srgb, var(--hb-p) 70%, var(--ig-surface));
+		stroke: var(--hb-p);
+	}
+	.hb__ball[data-sign='-1'] .hb__body {
+		fill: color-mix(in srgb, var(--hb-n) 70%, var(--ig-surface));
+		stroke: var(--hb-n);
+	}
+	.hb__ball line {
+		stroke: var(--sl-color-black);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	.hb__shine {
+		fill: color-mix(in srgb, var(--sl-color-white) 40%, transparent);
+	}
+	.hb__arrow {
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.hb__arrowhead {
+		fill: var(--ig-v);
+	}
+	.hb__flabel {
+		fill: var(--ig-v);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 18px;
+	}
+	.hb__flash {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2;
+	}
+	.hb__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.6rem 1.25rem;
+		margin-top: 0.6rem;
+	}
+	.hb__ctl {
+		display: grid;
+		gap: 0.3rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.hb__seg {
+		display: flex;
+		gap: 0.25rem;
+		padding: 0.2rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.hb__seg button {
+		flex: 1;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+		padding: 0.3rem 0;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.hb__seg button.is-p {
+		color: var(--hb-p);
+	}
+	.hb__seg button.is-n {
+		color: var(--hb-n);
+	}
+	.hb__seg button[aria-checked='true'] {
+		background: var(--sl-color-gray-4);
+		color: var(--sl-color-white);
+		font-weight: 700;
+	}
+	.hb__seg button[aria-checked='true'].is-p {
+		background: var(--hb-p);
+		color: var(--sl-color-black);
+	}
+	.hb__seg button[aria-checked='true'].is-n {
+		background: var(--hb-n);
+		color: var(--sl-color-black);
+	}
+	.hb__slider {
+		grid-column: 1 / -1;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.hb__slider output {
+		font-weight: 700;
+		color: var(--sl-color-accent-high);
+		font-variant-numeric: tabular-nums;
+	}
+	.hb__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.hb__read {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.hb__chip {
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		font-variant-numeric: tabular-nums;
+	}
+	.hb__chip b {
+		color: var(--sl-color-white);
+	}
+	.hb__live {
+		min-height: 3em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.hb__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.hb {
+			padding: 0.75rem;
+		}
+		.hb__controls {
+			grid-template-columns: 1fr;
+		}
+		.hb__flabel {
+			font-size: 26px;
+		}
+	}
+</style>
+
+<script>
+	import { animator, el, fmt, reduceMotion, svgPoint } from './util';
+
+	const W = 560;
+	const BAR_Y = 40;
+	const S = 1250; // px per metre
+	const L = 0.22; // m
+	const A = 0.01; // ball radius, m
+	const M = 1.5e-4; // kg
+	const G = 9.8;
+	const K = 9e9;
+	const TAU = 0.8; // s, damping time of the swing
+	const X_MIN = 0.03; // m from the bar ends
+	const D_MIN = 0.03;
+	const D_MAX = 0.3;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-hb]')) {
+		const svg = root.querySelector<SVGSVGElement>('[data-svg]')!;
+		const gThreads = root.querySelector<SVGGElement>('[data-threads]')!;
+		const gArrows = root.querySelector<SVGGElement>('[data-arrows]')!;
+		const gBalls = root.querySelector<SVGGElement>('[data-balls]')!;
+		const gHooks = root.querySelector<SVGGElement>('[data-hooks]')!;
+		const gFlash = root.querySelector<SVGGElement>('[data-flash]')!;
+		const gRuler = root.querySelector<SVGGElement>('[data-ruler]')!;
+		const dIn = root.querySelector<HTMLInputElement>('[data-d]')!;
+		const dOut = root.querySelector<HTMLOutputElement>('[data-d-out]')!;
+		const rOut = root.querySelector<HTMLElement>('[data-r]')!;
+		const fOut = root.querySelector<HTMLElement>('[data-f]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const segBtns = root.querySelectorAll<HTMLButtonElement>('[data-ball]');
+
+		// ruler: ticks every centimetre on the bar
+		const x0 = 20;
+		for (let c = 0; (c / 100) * S <= W - 40; c++) {
+			const x = x0 + (c / 100) * S;
+			const major = c % 5 === 0;
+			el('line', { x1: x, y1: BAR_Y - 14, x2: x, y2: BAR_Y - 14 + (major ? 8 : 4), class: major ? 'is-major' : '' }, gRuler);
+		}
+
+		// state: suspension points (m from the centre of the bar), angles, angular speeds, charges (C)
+		const cxm = W / 2 / S;
+		const sx = [cxm - 0.06, cxm + 0.06];
+		const th = [0, 0];
+		const om = [0, 0];
+		const q = [15e-9, 15e-9];
+		let dragBall = -1;
+		let dragHook = -1;
+		let lastDrag = { t: 0, th: 0 };
+		let flashT = 0;
+		let flashAt = { x: 0, y: 0 };
+		let shownKey = '';
+
+		const pos = (i: number) => ({ x: sx[i] + L * Math.sin(th[i]), y: L * Math.cos(th[i]) }); // m, from the bar
+		const px = (p: { x: number; y: number }) => ({ x: p.x * S, y: BAR_Y + p.y * S });
+
+		/** Radial force between the balls, N: > 0 repulsion, < 0 attraction. */
+		const force = (r: number) => (K * q[0] * q[1]) / (r * r) - (2 * K * A ** 3 * (q[0] ** 2 + q[1] ** 2)) / r ** 5;
+
+		// build the drawing
+		const threads = [0, 1].map(() => el('line', { class: 'hb__thread' }, gThreads));
+		const arrows = [0, 1].map(() => {
+			const g = el('g', {}, gArrows);
+			el('line', { class: 'hb__arrow' }, g);
+			el('path', { class: 'hb__arrowhead' }, g);
+			const t = el('text', { class: 'hb__flabel', 'text-anchor': 'middle' }, g);
+			t.textContent = 'F';
+			return g;
+		});
+		const balls = [0, 1].map((i) => {
+			const g = el('g', { class: 'hb__ball', 'data-sign': '1' }, gBalls);
+			el('circle', { class: 'hb__body', r: A * S }, g);
+			el('circle', { class: 'hb__shine', r: A * S * 0.3, cx: -A * S * 0.35, cy: -A * S * 0.35 }, g);
+			el('line', { x1: -A * S * 0.45, y1: 0, x2: A * S * 0.45, y2: 0, 'data-h': '' }, g);
+			el('line', { x1: 0, y1: -A * S * 0.45, x2: 0, y2: A * S * 0.45, 'data-v': '' }, g);
+			g.dataset.i = String(i);
+			return g;
+		});
+		const hooks = [0, 1].map((i) => {
+			const g = el('g', { class: 'hb__hook', tabindex: 0, role: 'slider', 'aria-label': `Точка подвеса ${i === 0 ? 'левого' : 'правого'} шарика` }, gHooks);
+			el('circle', { class: 'hb__hit', r: 22 }, g);
+			el('circle', { class: 'hb__knob', r: 7 }, g);
+			return g;
+		});
+		const flash = el('circle', { class: 'hb__flash', r: 0, opacity: 0 }, gFlash);
+
+		const setSign = (i: number) => {
+			const s = Math.abs(q[i]) < 1e-12 ? 0 : Math.sign(q[i]);
+			balls[i].dataset.sign = String(s);
+			(balls[i].querySelector('[data-h]') as SVGElement).style.display = s === 0 ? 'none' : '';
+			(balls[i].querySelector('[data-v]') as SVGElement).style.display = s > 0 ? '' : 'none';
+			segBtns.forEach((b) => {
+				if (Number(b.dataset.ball) !== i) return;
+				b.setAttribute('aria-checked', String(Math.abs(Number(b.dataset.q) * 1e-9 - q[i]) < 1e-12));
+			});
+		};
+		const syncD = () => {
+			const d = (sx[1] - sx[0]) * 100;
+			dIn.value = String(d);
+			dOut.textContent = `${fmt(d, 1)} см`;
+		};
+
+		const explain = () => {
+			const s0 = Math.sign(Math.round(q[0] * 1e10));
+			const s1 = Math.sign(Math.round(q[1] * 1e10));
+			const key = `${s0}${s1}`;
+			if (key === shownKey) return;
+			shownKey = key;
+			if (s0 === 0 && s1 === 0) live.textContent = 'Оба шарика не заряжены — они не действуют друг на друга и висят отвесно.';
+			else if (s0 === 0 || s1 === 0)
+				live.textContent =
+					'Заряженный шарик притягивает незаряженный: в незаряженном шарике свободные электроны смещаются, и ближняя сторона заряжается противоположно. Сдвиньте шарики, пока они не коснутся, — заряд разделится поровну, и шарики оттолкнутся.';
+			else if (s0 === s1) live.textContent = 'Одноимённые заряды отталкиваются. Сближайте точки подвеса — нити отклоняются сильнее: сила растёт при сближении.';
+			else live.textContent = 'Разноимённые заряды притягиваются. Если шарики коснутся, их заряды сложатся и поделятся поровну.';
+		};
+
+		const step = (dt: number) => {
+			const n = 24;
+			const h = dt / n;
+			for (let k = 0; k < n; k++) {
+				const p0 = pos(0);
+				const p1 = pos(1);
+				const dx = p0.x - p1.x;
+				const dy = p0.y - p1.y;
+				const r = Math.max(Math.hypot(dx, dy), 1e-4);
+				const F = force(r);
+				for (const i of [0, 1]) {
+					if (i === dragBall) continue;
+					const sgn = i === 0 ? 1 : -1;
+					const fx = (sgn * F * dx) / r;
+					const fy = (sgn * F * dy) / r;
+					const ft = fx * Math.cos(th[i]) - fy * Math.sin(th[i]); // along the swing
+					const acc = (ft - M * G * Math.sin(th[i])) / (M * L) - om[i] / TAU;
+					om[i] += acc * h;
+					th[i] += om[i] * h;
+					th[i] = Math.max(-1.45, Math.min(1.45, th[i]));
+				}
+				// contact: the balls touch and share the charge equally
+				const a = pos(0);
+				const b = pos(1);
+				const rr = Math.hypot(a.x - b.x, a.y - b.y);
+				if (rr < 2 * A) {
+					const share = (q[0] + q[1]) / 2;
+					const changed = Math.abs(q[0] - share) > 1e-12;
+					q[0] = share;
+					q[1] = share;
+					if (changed) {
+						setSign(0);
+						setSign(1);
+						flashT = 1;
+						flashAt = px({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+						shownKey = '';
+						live.textContent =
+							Math.abs(share) < 1e-12
+								? 'Шарики коснулись: равные разноимённые заряды нейтрализовали друг друга. Теперь оба шарика не заряжены.'
+								: 'Шарики коснулись — и заряд разделился между ними поровну. Теперь у них заряды одного знака, и шарики отталкиваются!';
+					}
+					// separate the balls along the line of centres
+					const push = (2 * A - rr) / 2 + 1e-5;
+					for (const i of [0, 1]) {
+						if (i === dragBall) continue;
+						const sgn = i === 0 ? 1 : -1;
+						const ux = (sgn * (a.x - b.x)) / (rr || 1);
+						const pnow = pos(i);
+						const nx = pnow.x + ux * push - sx[i];
+						th[i] = Math.asin(Math.max(-1, Math.min(1, nx / L)));
+						if (om[i] * sgn < 0) om[i] *= -0.2;
+					}
+				}
+			}
+		};
+
+		const draw = () => {
+			const P = [0, 1].map((i) => px(pos(i)));
+			const Hk = [0, 1].map((i) => ({ x: sx[i] * S, y: BAR_Y }));
+			for (const i of [0, 1]) {
+				threads[i].setAttribute('x1', Hk[i].x.toFixed(1));
+				threads[i].setAttribute('y1', String(BAR_Y));
+				threads[i].setAttribute('x2', P[i].x.toFixed(1));
+				threads[i].setAttribute('y2', P[i].y.toFixed(1));
+				balls[i].setAttribute('transform', `translate(${P[i].x.toFixed(1)} ${P[i].y.toFixed(1)})`);
+				hooks[i].setAttribute('transform', `translate(${Hk[i].x.toFixed(1)} ${BAR_Y})`);
+			}
+			const p0 = pos(0);
+			const p1 = pos(1);
+			const r = Math.hypot(p0.x - p1.x, p0.y - p1.y);
+			const F = force(r);
+			const len = Math.min(110, (Math.abs(F) / (M * G)) * 500);
+			for (const i of [0, 1]) {
+				const g = arrows[i];
+				const show = len > 4;
+				g.style.display = show ? '' : 'none';
+				if (!show) continue;
+				const o = i === 0 ? 1 : -1;
+				const ux = (o * (P[0].x - P[1].x)) / (r * S);
+				const uy = (o * (P[0].y - P[1].y)) / (r * S);
+				const dir = F > 0 ? 1 : -1; // repulsion: away from the other ball
+				const sx0 = P[i].x + dir * ux * (A * S + 2);
+				const sy0 = P[i].y + dir * uy * (A * S + 2);
+				const ex = sx0 + dir * ux * len;
+				const ey = sy0 + dir * uy * len;
+				const line = g.children[0] as SVGLineElement;
+				line.setAttribute('x1', sx0.toFixed(1));
+				line.setAttribute('y1', sy0.toFixed(1));
+				const hx = dir * ux;
+				const hy = dir * uy;
+				line.setAttribute('x2', (ex - hx * 8).toFixed(1));
+				line.setAttribute('y2', (ey - hy * 8).toFixed(1));
+				(g.children[1] as SVGPathElement).setAttribute(
+					'd',
+					`M ${ex.toFixed(1)} ${ey.toFixed(1)} L ${(ex - hx * 12 - hy * 6).toFixed(1)} ${(ey - hy * 12 + hx * 6).toFixed(1)} L ${(ex - hx * 12 + hy * 6).toFixed(1)} ${(ey - hy * 12 - hx * 6).toFixed(1)} Z`,
+				);
+				const t = g.children[2] as SVGTextElement;
+				t.setAttribute('x', ((sx0 + ex) / 2).toFixed(1));
+				t.setAttribute('y', ((sy0 + ey) / 2 + (dir > 0 ? 24 : 24)).toFixed(1));
+			}
+			rOut.textContent = `${fmt(r * 100, 1)} см`;
+			const fmN = Math.abs(F) * 1000;
+			fOut.textContent = fmN < 0.00005 ? '0' : `${fmt(fmN, fmN >= 0.1 ? 2 : fmN >= 0.01 ? 3 : 4)} мН`;
+			if (flashT > 0) {
+				flash.setAttribute('cx', flashAt.x.toFixed(1));
+				flash.setAttribute('cy', flashAt.y.toFixed(1));
+				flash.setAttribute('r', String(8 + (1 - flashT) * 30));
+				flash.setAttribute('opacity', String(flashT));
+			} else flash.setAttribute('opacity', '0');
+		};
+
+		const settled = () =>
+			dragBall < 0 && dragHook < 0 && flashT <= 0 && Math.abs(om[0]) < 1e-4 && Math.abs(om[1]) < 1e-4 && quiet > 30;
+		let quiet = 0;
+		const frame = (dt: number) => {
+			if (reduceMotion()) {
+				// jump to equilibrium: integrate fast with strong damping
+				for (let k = 0; k < 40; k++) step(0.02);
+				om[0] = om[1] = 0;
+			} else step(dt);
+			flashT = Math.max(0, flashT - dt / 0.6);
+			const moving = Math.abs(om[0]) + Math.abs(om[1]) > 1e-3;
+			quiet = moving ? 0 : quiet + 1;
+			draw();
+		};
+		const wake = animator(root, () => !settled(), frame);
+		const kick = () => {
+			quiet = 0;
+			wake();
+		};
+
+		// charge buttons
+		segBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				const i = Number(b.dataset.ball);
+				q[i] = Number(b.dataset.q) * 1e-9;
+				setSign(i);
+				explain();
+				kick();
+			}),
+		);
+		// separation slider: symmetric about the centre
+		dIn.addEventListener('input', () => {
+			const d = Number(dIn.value) / 100;
+			const c = (sx[0] + sx[1]) / 2;
+			sx[0] = c - d / 2;
+			sx[1] = c + d / 2;
+			const lo = X_MIN + 20 / S;
+			const hi = (W - 20) / S - X_MIN;
+			if (sx[0] < lo) {
+				sx[1] += lo - sx[0];
+				sx[0] = lo;
+			}
+			if (sx[1] > hi) {
+				sx[0] -= sx[1] - hi;
+				sx[1] = hi;
+			}
+			dOut.textContent = `${fmt(d * 100, 1)} см`;
+			kick();
+		});
+		// dragging the hooks and the balls
+		const moveHook = (i: number, xm: number) => {
+			const lo = X_MIN + 20 / S;
+			const hi = (W - 20) / S - X_MIN;
+			if (i === 0) sx[0] = Math.max(lo, Math.min(sx[1] - D_MIN, xm));
+			else sx[1] = Math.min(hi, Math.max(sx[0] + D_MIN, xm));
+			if (sx[1] - sx[0] > D_MAX) {
+				if (i === 0) sx[0] = sx[1] - D_MAX;
+				else sx[1] = sx[0] + D_MAX;
+			}
+			syncD();
+		};
+		hooks.forEach((g, i) => {
+			g.addEventListener('pointerdown', (e) => {
+				e.preventDefault();
+				dragHook = i;
+				g.setPointerCapture(e.pointerId);
+				kick();
+			});
+			g.addEventListener('pointermove', (e) => {
+				if (dragHook !== i) return;
+				moveHook(i, svgPoint(svg, e).x / S);
+				kick();
+			});
+			const end = () => {
+				dragHook = -1;
+				kick();
+			};
+			g.addEventListener('pointerup', end);
+			g.addEventListener('pointercancel', end);
+			g.addEventListener('keydown', (e) => {
+				const d = e.key === 'ArrowLeft' ? -0.005 : e.key === 'ArrowRight' ? 0.005 : 0;
+				if (!d) return;
+				e.preventDefault();
+				moveHook(i, sx[i] + d);
+				kick();
+			});
+		});
+		balls.forEach((g, i) => {
+			g.addEventListener('pointerdown', (e) => {
+				e.preventDefault();
+				dragBall = i;
+				g.classList.add('is-dragging');
+				g.setPointerCapture(e.pointerId);
+				lastDrag = { t: performance.now(), th: th[i] };
+				om[i] = 0;
+				kick();
+			});
+			g.addEventListener('pointermove', (e) => {
+				if (dragBall !== i) return;
+				const p = svgPoint(svg, e);
+				const dx = p.x / S - sx[i];
+				const dy = Math.max(0.02, (p.y - BAR_Y) / S);
+				const nt = Math.max(-1.3, Math.min(1.3, Math.atan2(dx, dy)));
+				const now = performance.now();
+				const dtm = Math.max(1, now - lastDrag.t) / 1000;
+				om[i] = (nt - lastDrag.th) / dtm;
+				lastDrag = { t: now, th: nt };
+				th[i] = nt;
+				kick();
+			});
+			const end = () => {
+				if (dragBall !== i) return;
+				dragBall = -1;
+				g.classList.remove('is-dragging');
+				om[i] = Math.max(-6, Math.min(6, om[i]));
+				kick();
+			};
+			g.addEventListener('pointerup', end);
+			g.addEventListener('pointercancel', end);
+		});
+
+		setSign(0);
+		setSign(1);
+		syncD();
+		explain();
+		draw();
+		kick();
+	}
+</script>

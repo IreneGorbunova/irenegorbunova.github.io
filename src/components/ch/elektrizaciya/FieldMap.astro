@@ -1,0 +1,432 @@
+---
+/**
+ * The picture of the electric field around one or two charged balls. Field lines are traced
+ * numerically along the field of point charges (field ∝ q/r², summed); they leave «+» and end on «−».
+ * The balls and a small positive test charge can be dragged; the arrow on the test charge shows
+ * the force from the field — its length is proportional to the force (capped near the balls).
+ */
+const W = 560;
+const H = 340;
+---
+
+<figure class="fm not-content" data-fm>
+	<div class="fm__presets" role="radiogroup" aria-label="Какие заряды">
+		<button type="button" role="radio" aria-checked="true" data-preset="p">Один «+»</button>
+		<button type="button" role="radio" aria-checked="false" data-preset="n">Один «−»</button>
+		<button type="button" role="radio" aria-checked="false" data-preset="pn">«+» и «−»</button>
+		<button type="button" role="radio" aria-checked="false" data-preset="pp">«+» и «+»</button>
+	</div>
+	<svg class="fm__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Линии электрического поля вокруг заряженных шариков" data-svg>
+		<defs>
+			<marker id="fm-tip" class="fm__tip" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+				<path d="M1,1 L9,5 L1,9 z"></path>
+			</marker>
+		</defs>
+		<rect class="fm__bg" x="0" y="0" width={W} height={H} rx="12"></rect>
+		<g data-lines></g>
+		<g data-arrows></g>
+		<g data-charges></g>
+		<g class="fm__probe" data-probe tabindex="0" role="button" aria-label="Пробный заряд: перетаскивайте его">
+			<line class="fm__force" data-force x1="0" y1="0" x2="0" y2="0"></line>
+			<path class="fm__forcehead" data-forcehead></path>
+			<circle class="fm__hit" r="24"></circle>
+			<circle class="fm__pbody" r="7"></circle>
+			<line class="fm__plus" x1="-3.5" y1="0" x2="3.5" y2="0"></line>
+			<line class="fm__plus" x1="0" y1="-3.5" x2="0" y2="3.5"></line>
+		</g>
+	</svg>
+	<div class="fm__meter">
+		<span>Сила, с которой поле действует на пробный заряд:</span>
+		<span class="fm__bar"><span data-bar></span></span>
+	</div>
+	<figcaption class="fm__legend">
+		Линии показывают, куда поле толкает маленький положительный заряд: они выходят из «+» и входят в «−». Где линии
+		гуще, там поле сильнее. Перетаскивайте заряженные шарики и пробный заряд <span class="fm__dot"></span> — стрелка
+		показывает силу, с которой на него действует поле.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.fm {
+		--fm-p: var(--ig-vy);
+		--fm-n: var(--ig-vx);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.fm__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin-top: 0.6rem;
+		user-select: none;
+		-webkit-user-select: none;
+		touch-action: pan-y;
+	}
+	.fm__presets {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		padding: 0.25rem;
+		border-radius: 1rem;
+		background: var(--sl-color-gray-6);
+	}
+	.fm__presets button {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.85rem;
+		border-radius: 999px;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.fm__presets button[aria-checked='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.fm__bg {
+		fill: var(--sl-color-gray-6);
+	}
+	.fm__line {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-gray-2) 70%, transparent);
+		stroke-width: 1.4;
+	}
+	.fm__flow {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-dasharray: 2 26;
+		animation: fm-flow 1.6s linear infinite;
+		opacity: 0.85;
+	}
+	@keyframes fm-flow {
+		to {
+			stroke-dashoffset: -28;
+		}
+	}
+	.fm__tip path {
+		fill: var(--sl-color-gray-2);
+	}
+	.fm__charge {
+		cursor: grab;
+		touch-action: none;
+		outline: none;
+	}
+	.fm__charge.is-dragging {
+		cursor: grabbing;
+	}
+	.fm__charge .b {
+		stroke-width: 2;
+	}
+	.fm__charge.is-p .b {
+		fill: var(--fm-p);
+		stroke: color-mix(in srgb, var(--fm-p) 60%, var(--sl-color-white));
+	}
+	.fm__charge.is-n .b {
+		fill: var(--fm-n);
+		stroke: color-mix(in srgb, var(--fm-n) 60%, var(--sl-color-white));
+	}
+	.fm__charge:focus-visible .b {
+		stroke: var(--sl-color-white);
+		stroke-width: 3;
+	}
+	.fm__charge line,
+	.fm__plus {
+		stroke: var(--sl-color-black);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.fm__plus {
+		stroke-width: 1.6;
+	}
+	.fm__hit {
+		fill: transparent;
+	}
+	.fm__probe {
+		cursor: grab;
+		touch-action: none;
+		outline: none;
+	}
+	.fm__pbody {
+		fill: var(--fm-p);
+		stroke: var(--sl-color-white);
+		stroke-width: 1.5;
+	}
+	.fm__probe:focus-visible .fm__pbody {
+		stroke-width: 3;
+	}
+	.fm__force {
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.fm__forcehead {
+		fill: var(--ig-v);
+	}
+	.fm__meter {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem 0.6rem;
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fm__bar {
+		flex: 1 1 8rem;
+		height: 0.6rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.fm__bar span {
+		display: block;
+		height: 100%;
+		width: 0;
+		border-radius: 999px;
+		background: var(--ig-v);
+	}
+	.fm__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+	.fm__dot {
+		display: inline-block;
+		width: 0.65rem;
+		height: 0.65rem;
+		border-radius: 50%;
+		background: var(--fm-p);
+		vertical-align: middle;
+	}
+	@media (max-width: 40rem) {
+		.fm {
+			padding: 0.75rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.fm__flow {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { el, svgPoint } from './util';
+
+	const W = 560;
+	const H = 340;
+	const R = 16; // ball radius, px
+	const N_LINES = 16;
+	const ARROW_K = 260000; // px of arrow per unit of field (1/px²)
+
+	type Q = { x: number; y: number; s: 1 | -1; g?: SVGGElement };
+	const PRESETS: Record<string, Q[]> = {
+		p: [{ x: 280, y: 170, s: 1 }],
+		n: [{ x: 280, y: 170, s: -1 }],
+		pn: [
+			{ x: 190, y: 170, s: 1 },
+			{ x: 370, y: 170, s: -1 },
+		],
+		pp: [
+			{ x: 190, y: 170, s: 1 },
+			{ x: 370, y: 170, s: 1 },
+		],
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fm]')) {
+		const svg = root.querySelector<SVGSVGElement>('[data-svg]')!;
+		const gLines = root.querySelector<SVGGElement>('[data-lines]')!;
+		const gArrows = root.querySelector<SVGGElement>('[data-arrows]')!;
+		const gCharges = root.querySelector<SVGGElement>('[data-charges]')!;
+		const probe = root.querySelector<SVGGElement>('[data-probe]')!;
+		const force = root.querySelector<SVGLineElement>('[data-force]')!;
+		const head = root.querySelector<SVGPathElement>('[data-forcehead]')!;
+		const bar = root.querySelector<HTMLElement>('[data-bar]')!;
+		const presetBtns = root.querySelectorAll<HTMLButtonElement>('[data-preset]');
+
+		let qs: Q[] = [];
+		const pr = { x: 430, y: 90 };
+
+		const E = (x: number, y: number) => {
+			let ex = 0;
+			let ey = 0;
+			for (const q of qs) {
+				const dx = x - q.x;
+				const dy = y - q.y;
+				const r2 = Math.max(dx * dx + dy * dy, R * R);
+				const r = Math.sqrt(r2);
+				ex += (q.s * dx) / (r2 * r);
+				ey += (q.s * dy) / (r2 * r);
+			}
+			return { ex, ey };
+		};
+		const trace = (x0: number, y0: number, dir: 1 | -1) => {
+			// follows the field (dir = 1) or against it (dir = -1) in steps of 3 px (midpoint method)
+			const pts: [number, number][] = [[x0, y0]];
+			let x = x0;
+			let y = y0;
+			const h = 3;
+			for (let k = 0; k < 700; k++) {
+				const a = E(x, y);
+				const na = Math.hypot(a.ex, a.ey) || 1;
+				const mx = x + (dir * h * a.ex) / na / 2;
+				const my = y + (dir * h * a.ey) / na / 2;
+				const b = E(mx, my);
+				const nb = Math.hypot(b.ex, b.ey) || 1;
+				x += (dir * h * b.ex) / nb;
+				y += (dir * h * b.ey) / nb;
+				pts.push([x, y]);
+				if (x < -40 || x > W + 40 || y < -40 || y > H + 40) break;
+				if (qs.some((q) => Math.hypot(x - q.x, y - q.y) < R - 2)) break;
+			}
+			return pts;
+		};
+		const pathOf = (pts: [number, number][]) => 'M ' + pts.map((p) => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' L ');
+
+		const draw = () => {
+			gLines.replaceChildren();
+			gArrows.replaceChildren();
+			const pos = qs.filter((q) => q.s > 0);
+			const sources = pos.length ? pos : qs;
+			const dir: 1 | -1 = pos.length ? 1 : -1;
+			for (const q of sources) {
+				for (let k = 0; k < N_LINES; k++) {
+					const a = (2 * Math.PI * (k + 0.5)) / N_LINES;
+					let pts = trace(q.x + Math.cos(a) * (R + 1), q.y + Math.sin(a) * (R + 1), dir);
+					if (dir < 0) pts = pts.reverse(); // always drawn in the direction of the field
+					const d = pathOf(pts);
+					el('path', { class: 'fm__line', d }, gLines);
+					el('path', { class: 'fm__flow', d }, gLines);
+					// an arrow in the middle of the visible part
+					const vis = pts.filter((p) => p[0] > 8 && p[0] < W - 8 && p[1] > 8 && p[1] < H - 8);
+					if (vis.length > 12) {
+						const m = Math.floor(vis.length * 0.5);
+						const [x1, y1] = vis[m - 1];
+						const [x2, y2] = vis[m + 1];
+						el('line', { x1, y1, x2, y2, 'marker-end': 'url(#fm-tip)', class: 'fm__line' }, gArrows);
+					}
+				}
+			}
+			for (const q of qs) q.g!.setAttribute('transform', `translate(${q.x} ${q.y})`);
+			drawProbe();
+		};
+		const drawProbe = () => {
+			probe.setAttribute('transform', `translate(${pr.x.toFixed(1)} ${pr.y.toFixed(1)})`);
+			const { ex, ey } = E(pr.x, pr.y);
+			const e = Math.hypot(ex, ey);
+			const len = Math.min(110, e * ARROW_K);
+			const inside = qs.some((q) => Math.hypot(pr.x - q.x, pr.y - q.y) < R + 8);
+			const ux = ex / (e || 1);
+			const uy = ey / (e || 1);
+			const show = len > 3 && !inside;
+			force.style.display = head.style.display = show ? '' : 'none';
+			if (show) {
+				const sx = ux * 9;
+				const sy = uy * 9;
+				const exx = ux * (9 + len);
+				const eyy = uy * (9 + len);
+				force.setAttribute('x1', sx.toFixed(1));
+				force.setAttribute('y1', sy.toFixed(1));
+				force.setAttribute('x2', (exx - ux * 8).toFixed(1));
+				force.setAttribute('y2', (eyy - uy * 8).toFixed(1));
+				head.setAttribute(
+					'd',
+					`M ${exx.toFixed(1)} ${eyy.toFixed(1)} L ${(exx - ux * 12 - uy * 6).toFixed(1)} ${(eyy - uy * 12 + ux * 6).toFixed(1)} L ${(exx - ux * 12 + uy * 6).toFixed(1)} ${(eyy - uy * 12 - ux * 6).toFixed(1)} Z`,
+				);
+			}
+			bar.style.width = `${Math.min(100, (e * ARROW_K * 100) / 110).toFixed(1)}%`;
+		};
+
+		const build = (key: string) => {
+			gCharges.replaceChildren();
+			qs = PRESETS[key].map((q) => ({ ...q }));
+			for (const q of qs) {
+				const g = el('g', { class: `fm__charge ${q.s > 0 ? 'is-p' : 'is-n'}`, tabindex: 0, role: 'button', 'aria-label': q.s > 0 ? 'Положительный заряд' : 'Отрицательный заряд' }, gCharges);
+				el('circle', { class: 'fm__hit', r: 28 }, g);
+				el('circle', { class: 'b', r: R }, g);
+				el('line', { x1: -7, y1: 0, x2: 7, y2: 0 }, g);
+				if (q.s > 0) el('line', { x1: 0, y1: -7, x2: 0, y2: 7 }, g);
+				q.g = g;
+				dragger(g, q, true);
+			}
+			pr.x = key === 'pn' || key === 'pp' ? 280 : 400;
+			pr.y = key === 'pn' || key === 'pp' ? 95 : 110;
+			draw();
+		};
+
+		let pending = false;
+		const schedule = (full: boolean) => {
+			if (!full) {
+				drawProbe();
+				return;
+			}
+			if (pending) return;
+			pending = true;
+			requestAnimationFrame(() => {
+				pending = false;
+				draw();
+			});
+		};
+		function dragger(g: SVGGElement, o: { x: number; y: number }, full: boolean) {
+			let grab: { x: number; y: number } | null = null;
+			g.addEventListener('pointerdown', (e) => {
+				e.preventDefault();
+				const p = svgPoint(svg, e);
+				grab = { x: p.x - o.x, y: p.y - o.y };
+				g.classList.add('is-dragging');
+				g.setPointerCapture(e.pointerId);
+			});
+			g.addEventListener('pointermove', (e) => {
+				if (!grab) return;
+				const p = svgPoint(svg, e);
+				o.x = Math.min(W - R, Math.max(R, p.x - grab.x));
+				o.y = Math.min(H - R, Math.max(R, p.y - grab.y));
+				if (full) {
+					// keep the two balls apart
+					for (const q of qs) {
+						if (q === o) continue;
+						const d = Math.hypot(o.x - q.x, o.y - q.y);
+						if (d < 2 * R + 6) {
+							const k = (2 * R + 6) / (d || 1);
+							o.x = q.x + (o.x - q.x) * k;
+							o.y = q.y + (o.y - q.y) * k;
+						}
+					}
+				}
+				schedule(full);
+			});
+			const end = () => {
+				grab = null;
+				g.classList.remove('is-dragging');
+			};
+			g.addEventListener('pointerup', end);
+			g.addEventListener('pointercancel', end);
+			g.addEventListener('keydown', (e) => {
+				const s = 10;
+				const d = { ArrowLeft: [-s, 0], ArrowRight: [s, 0], ArrowUp: [0, -s], ArrowDown: [0, s] }[e.key];
+				if (!d) return;
+				e.preventDefault();
+				o.x = Math.min(W - R, Math.max(R, o.x + d[0]));
+				o.y = Math.min(H - R, Math.max(R, o.y + d[1]));
+				schedule(full);
+			});
+		}
+		dragger(probe, pr, false);
+
+		presetBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				presetBtns.forEach((o) => o.setAttribute('aria-checked', String(o === b)));
+				build(b.dataset.preset!);
+			}),
+		);
+		build('p');
+	}
+</script>
