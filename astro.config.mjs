@@ -43,6 +43,7 @@ export default defineConfig({
 						'teplovye-yavleniya/vnutrennyaya-energiya',
 						'teplovye-yavleniya/kolichestvo-teploty',
 						'teplovye-yavleniya/energiya-topliva',
+						'teplovye-yavleniya/zakon-sohraneniya-energii',
 						'agregatnye-sostoyaniya/plavlenie',
 						'agregatnye-sostoyaniya/isparenie-i-kipenie',
 						'agregatnye-sostoyaniya/vlazhnost',
