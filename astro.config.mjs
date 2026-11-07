@@ -43,7 +43,7 @@ export default defineConfig({
 					section('Изменение агрегатных состояний вещества', '8-klass/agregatnye-sostoyaniya', ['plavlenie', 'isparenie-i-kipenie', 'vlazhnost', 'teplovye-dvigateli']),
 					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['elektrizaciya', 'elektricheskiy-tok', 'zakon-oma', 'soedinenie-provodnikov', 'rabota-i-moshchnost-toka']),
 					section('Электромагнитные явления', '8-klass/elektromagnitnye-yavleniya', ['magnitnoe-pole-toka', 'postoyannye-magnity', 'elektrodvigatel']),
-					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'linzy']),
+					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'otrazhenie-i-prelomlenie', 'linzy']),
 				]),
 				grade(9, [
 					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['zakony-nyutona']),

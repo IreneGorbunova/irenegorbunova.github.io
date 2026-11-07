@@ -1,0 +1,227 @@
+---
+/**
+ * Specular and diffuse reflection. A parallel beam falls on a surface whose roughness is set by a
+ * slider (the surface is shown greatly magnified). Every ray obeys the law of reflection on its own
+ * little facet (with repeated reflections between facets); two eyes count the rays they receive.
+ */
+import OrpStyles from './OrpStyles.astro';
+---
+
+<OrpStyles />
+<figure class="orp orp-surf not-content" data-orp-surface>
+	<svg class="orp__svg" role="img" aria-label="Параллельный пучок отражается от гладкой или шероховатой поверхности">
+		<g data-rays></g>
+		<path class="orp-surf__body" data-body></path>
+		<path class="orp-surf__line" data-line></path>
+		<g data-eyes></g>
+	</svg>
+	<div class="orp-controls">
+		<div class="orp-seg" role="group" aria-label="Поверхность">
+			<button type="button" aria-pressed="true" data-preset="0">Зеркало</button>
+			<button type="button" aria-pressed="false" data-preset="1">Бумага</button>
+		</div>
+		<label class="orp-slider">
+			<span>Шероховатость поверхности</span>
+			<output data-r-out></output>
+			<input type="range" min="0" max="100" step="1" value="0" data-r />
+		</label>
+	</div>
+	<p class="orp-live" data-live></p>
+	<figcaption class="orp-legend">
+		Слева сверху на поверхность падает параллельный пучок света. Неровности поверхности показаны сильно увеличенными. Каждый луч отражается от своего маленького участка поверхности строго по закону отражения.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.orp-surf {
+		--orp-beam: var(--ig-v);
+	}
+	.orp-surf__ray {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+		opacity: 0.85;
+	}
+	.orp-surf__ray.is-hit {
+		stroke-width: 2.4;
+		opacity: 1;
+		filter: drop-shadow(0 0 3px var(--ig-v));
+	}
+	.orp-surf__body {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, transparent);
+	}
+	.orp-surf__line {
+		fill: none;
+		stroke: var(--orp-silver);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.orp-surf__eye circle.orp-surf__halo {
+		fill: color-mix(in srgb, var(--sl-color-accent) 10%, transparent);
+		stroke: color-mix(in srgb, var(--sl-color-accent) 55%, transparent);
+		stroke-dasharray: 3 4;
+	}
+	.orp-surf__eye.is-lit circle.orp-surf__halo {
+		fill: color-mix(in srgb, var(--ig-v) 30%, transparent);
+		stroke: var(--ig-v);
+	}
+</style>
+
+<script>
+	import { clamp, pt, add, sub, mul, dot, norm, segHit, lineD, svgEl, setA, type P } from './orp';
+
+	// a fixed pseudo-random relief, the same at every visit
+	const rng = (seed: number) => () => {
+		seed = (seed * 1664525 + 1013904223) % 4294967296;
+		return seed / 4294967296;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-orp-surface]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('svg');
+		const raysG = q<SVGGElement>('[data-rays]');
+		const body = q<SVGPathElement>('[data-body]');
+		const line = q<SVGPathElement>('[data-line]');
+		const eyesG = q<SVGGElement>('[data-eyes]');
+				const slider = q<HTMLInputElement>('[data-r]');
+		const rOut = q<HTMLOutputElement>('[data-r-out]');
+		const presets = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-preset]'));
+		const live = q<HTMLElement>('[data-live]');
+
+		let narrow = false;
+		let W = 760;
+		let H = 330;
+		let yBase = 280;
+		let relief: number[] = [];
+		const STEP = 12;
+		const AMP = 13;
+		const N = 23;
+		const D = norm(pt(1, 1.05)); // beam direction: down and to the right
+		let eyes: { c: P; r: number; name: string }[] = [];
+		let raysEls: SVGPathElement[] = [];
+
+		const build = () => {
+			W = narrow ? 480 : 760;
+			H = narrow ? 360 : 330;
+			yBase = H - 46;
+			svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+			const r = rng(7);
+			relief = Array.from({ length: Math.ceil(W / STEP) + 2 }, () => r() * 2 - 1);
+			eyes = narrow
+				? [
+						{ c: pt(W - 70, 70), r: 34, name: 'глаз 1' },
+						{ c: pt(235, 64), r: 34, name: 'глаз 2' },
+					]
+				: [
+						{ c: pt(W - 110, 70), r: 34, name: 'глаз 1' },
+						{ c: pt(W * 0.42, 50), r: 34, name: 'глаз 2' },
+					];
+			eyesG.replaceChildren();
+			for (const e of eyes) {
+				const g = svgEl('g', { class: 'orp-surf__eye', transform: `translate(${e.c.x} ${e.c.y})` }, eyesG);
+				svgEl('circle', { class: 'orp-surf__halo', r: e.r }, g);
+				const rot = svgEl('g', { transform: 'rotate(90)' }, g);
+				svgEl('path', { class: 'orp-mirror__eyeball', d: 'M-15 0 Q0 -13 15 0 Q0 13 -15 0Z' }, rot);
+				svgEl('circle', { class: 'orp-mirror__iris', cx: 5, r: 5.5 }, rot);
+				svgEl('circle', { class: 'orp-mirror__pupil', cx: 6, r: 2.4 }, rot);
+				svgEl('text', { class: 'orp-t orp-t--small', x: 0, y: -e.r - 8, 'text-anchor': 'middle' }, g).textContent = e.name;
+			}
+			raysG.replaceChildren();
+			raysEls = Array.from({ length: N }, () => svgEl('path', { class: 'orp-surf__ray' }, raysG));
+			render();
+		};
+
+		const surface = (k: number): P[] =>
+			relief.map((h, i) => pt(i * STEP - STEP / 2, yBase + h * AMP * k));
+
+		const exitBox = (p: P, d: P) => {
+			let t = Infinity;
+			if (d.x > 1e-9) t = Math.min(t, (W + 20 - p.x) / d.x);
+			if (d.x < -1e-9) t = Math.min(t, (-20 - p.x) / d.x);
+			if (d.y < -1e-9) t = Math.min(t, (-20 - p.y) / d.y);
+			if (d.y > 1e-9) t = Math.min(t, (H + 20 - p.y) / d.y);
+			return add(p, mul(d, t));
+		};
+
+		const render = () => {
+			const k = Number(slider.value) / 100;
+			const surf = surface(k);
+			line.setAttribute('d', lineD(surf));
+			body.setAttribute('d', `${lineD(surf)} L${W + STEP} ${H} L${-STEP} ${H} Z`);
+			rOut.value = k === 0 ? 'гладкая' : `${Math.round(k * 100)} %`;
+			presets.forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.preset === '0' && k === 0) || (b.dataset.preset === '1' && k === 1))));
+
+			const counts = eyes.map(() => 0);
+			const x0 = W * (narrow ? 0.3 : 0.32);
+			const x1 = W * (narrow ? 0.62 : 0.58);
+			for (let i = 0; i < N; i++) {
+				// the ray aims at the point xi of the flat baseline; it enters at the top edge
+				const xi = x0 + ((x1 - x0) * i) / (N - 1);
+				const t0 = (yBase - 4) / D.y;
+				let p = pt(xi - D.x * t0, yBase - D.y * t0);
+				let d = D;
+				const pts: P[] = [p];
+				for (let bounce = 0; bounce < 6; bounce++) {
+					const far = add(p, mul(d, 3000));
+					let best: { t: number; n: P } | null = null;
+					for (let j = 0; j < surf.length - 1; j++) {
+						const h = segHit(p, far, surf[j], surf[j + 1]);
+						if (h && h.t * 3000 > 1e-6 && (!best || h.t < best.t)) {
+							const s = sub(surf[j + 1], surf[j]);
+							best = { t: h.t, n: norm(pt(s.y, -s.x)) };
+						}
+					}
+					if (!best) break;
+					p = add(p, mul(sub(far, p), best.t));
+					pts.push(p);
+					d = sub(d, mul(best.n, 2 * dot(d, best.n)));
+					p = add(p, mul(d, 1e-3));
+				}
+				const end = exitBox(p, d);
+				pts.push(end);
+				const el = raysEls[i];
+				el.setAttribute('d', lineD(pts));
+				// does the last straight piece pass through an eye?
+				let hit = false;
+				eyes.forEach((e, j) => {
+					const a = pts[pts.length - 2];
+					const ab = sub(end, a);
+					const t = clamp(dot(sub(e.c, a), ab) / dot(ab, ab), 0, 1);
+					const c = add(a, mul(ab, t));
+					if (Math.hypot(c.x - e.c.x, c.y - e.c.y) < e.r && d.y < 0) {
+						counts[j]++;
+						hit = true;
+					}
+				});
+				el.classList.toggle('is-hit', hit);
+			}
+			eyesG.querySelectorAll('.orp-surf__eye').forEach((g, j) => g.classList.toggle('is-lit', counts[j] > 0));
+			const word = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'луч' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'луча' : 'лучей');
+			const cnt = counts.map((c, j) => `в ${eyes[j].name} — ${c} ${word(c)}`).join(', ');
+			live.innerHTML =
+				k === 0
+					? `<b>Зеркальное отражение.</b> Параллельный пучок и после отражения остаётся параллельным и уходит в одну сторону (${cnt}). Глаз 2 ничего не получает: саму гладкую поверхность не видно, видно только отражение источника — для глаза 1.`
+					: k < 0.25
+						? `Неровности маленькие — лучи отражаются почти параллельно (${cnt}).`
+						: `<b>Рассеянное отражение.</b> Каждый луч отражается по закону отражения, но маленькие участки поверхности наклонены по-разному, и лучи разлетаются во все стороны (${cnt}). Поэтому лист бумаги виден откуда угодно.`;
+		};
+
+		slider.addEventListener('input', render);
+		presets.forEach((b) =>
+			b.addEventListener('click', () => {
+				slider.value = b.dataset.preset === '0' ? '0' : '100';
+				render();
+			}),
+		);
+		let built = false;
+		new ResizeObserver(() => {
+			const n = root.clientWidth < 560;
+			if (built && n === narrow) return;
+			built = true;
+			narrow = n;
+			root.classList.toggle('is-narrow', narrow);
+			build();
+		}).observe(root);
+	}
+</script>

@@ -1,0 +1,176 @@
+---
+/**
+ * A question with several answers and instant feedback. The explanation (children) sits in a
+ * <details> block: it opens by itself once the right answer is chosen and works without JavaScript.
+ * `hints` gives a short note (HTML, symbols in <i>) for each wrong option, in the order of `options`.
+ */
+interface Props {
+	question: string;
+	options: string[];
+	answer: number;
+	hints?: string[];
+}
+const { question, options, answer, hints = [] } = Astro.props;
+---
+
+<div class="orq" data-orq data-answer={answer}>
+	<p class="orq__q not-content" set:html={question} />
+	<div class="orq__opts not-content" role="group" aria-label="Варианты ответа">
+		{
+			options.map((o, i) => (
+				<button type="button" class="orq__opt" data-i={i} data-hint={hints[i] ?? ''}>
+					<span class="orq__mark" aria-hidden="true" />
+					<span set:html={o} />
+				</button>
+			))
+		}
+	</div>
+	<p class="orq__fb not-content" aria-live="polite" data-fb></p>
+	<details class="orq__expl" data-expl>
+		<summary>Объяснение</summary>
+		<slot />
+	</details>
+</div>
+
+<style is:global>
+	.orq {
+		margin-block: 1.25rem;
+		padding: 0.9rem 1rem 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.orq i {
+		font-family: var(--ig-font-math);
+	}
+	.orq__q {
+		margin: 0 0 0.6rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.orq__opts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.orq__opt {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 0;
+		padding: 0.45rem 1rem 0.45rem 0.6rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background-color 0.2s,
+			transform 0.2s;
+	}
+	.orq__opt:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+		transform: translateY(-1px);
+	}
+	.orq__opt:disabled {
+		cursor: default;
+	}
+	.orq__mark {
+		display: grid;
+		place-items: center;
+		width: 1.3rem;
+		height: 1.3rem;
+		border-radius: 50%;
+		border: 1.5px solid var(--sl-color-gray-3);
+		font-size: 0.8rem;
+		font-weight: 700;
+		line-height: 1;
+	}
+	.orq__opt.is-right {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.orq__opt.is-right .orq__mark {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.orq__opt.is-right .orq__mark::after {
+		content: '✓';
+	}
+	.orq__opt.is-wrong {
+		border-color: var(--ig-vy);
+		opacity: 0.75;
+		text-decoration: line-through;
+		text-decoration-color: var(--ig-vy);
+	}
+	.orq__opt.is-wrong .orq__mark {
+		border-color: var(--ig-vy);
+		color: var(--ig-vy);
+	}
+	.orq__opt.is-wrong .orq__mark::after {
+		content: '✗';
+	}
+	.orq__fb {
+		min-height: 1.4em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.orq__fb.is-right {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+	.orq__expl {
+		margin-top: 0.3rem;
+	}
+	.orq__expl summary {
+		cursor: pointer;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.orq__expl[open] summary {
+		margin-bottom: 0.3rem;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.orq__opt {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-orq]')) {
+		const answer = Number(root.dataset.answer);
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('.orq__opt'));
+		const fb = root.querySelector<HTMLElement>('[data-fb]')!;
+		const expl = root.querySelector<HTMLDetailsElement>('[data-expl]')!;
+		let wrong = 0;
+		const finish = () => {
+			opts.forEach((b) => (b.disabled = true));
+			opts[answer].classList.add('is-right');
+			expl.open = true;
+		};
+		opts.forEach((btn, i) =>
+			btn.addEventListener('click', () => {
+				if (i === answer) {
+					fb.textContent = wrong === 0 ? 'Верно!' : 'Верно, теперь получилось!';
+					fb.classList.add('is-right');
+					finish();
+				} else {
+					wrong += 1;
+					btn.classList.add('is-wrong');
+					btn.disabled = true;
+					const hint = btn.dataset.hint ? `${btn.dataset.hint} ` : 'Не совсем. ';
+					if (wrong >= opts.length - 1) {
+						fb.innerHTML = `${hint}Правильный ответ отмечен — прочитайте объяснение.`;
+						finish();
+					} else fb.innerHTML = `${hint}Подумайте ещё раз.`;
+				}
+			}),
+		);
+	}
+</script>

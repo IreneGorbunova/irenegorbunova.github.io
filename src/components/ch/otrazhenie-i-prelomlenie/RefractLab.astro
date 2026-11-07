@@ -1,0 +1,471 @@
+---
+/**
+ * Refraction at a flat boundary air — water / glass / diamond. A laser pointer is dragged around
+ * the point of incidence, from air into the substance or from the substance into air. The refracted
+ * and reflected rays are drawn with the brightness the Fresnel formulas give (unpolarised light);
+ * beyond the critical angle the refracted ray vanishes: total internal reflection. Pulses of light
+ * run along the rays with the speed c/n, so in the denser medium they run slower and closer together.
+ * Optional: the sines drawn as segments in a circle of radius 1. Live formula sin α / sin γ = n.
+ */
+import OrpStyles from './OrpStyles.astro';
+---
+
+<OrpStyles />
+<figure class="orp orp-refr not-content" data-orp-refract>
+	<div class="orp-tabs">
+		<div class="orp-seg" role="group" aria-label="Вещество">
+			<button type="button" aria-pressed="true" data-med="0">Вода</button>
+			<button type="button" aria-pressed="false" data-med="1">Стекло</button>
+			<button type="button" aria-pressed="false" data-med="2">Алмаз</button>
+		</div>
+		<div class="orp-seg" role="group" aria-label="Откуда идёт свет">
+			<button type="button" aria-pressed="true" data-dir="in">Из воздуха</button>
+			<button type="button" aria-pressed="false" data-dir="out" data-out-label>Из воды в воздух</button>
+		</div>
+	</div>
+	<svg class="orp__svg" role="group" aria-label="Луч на границе воздуха и прозрачного вещества">
+		<rect class="orp-refr__med" data-med-rect></rect>
+		<line class="orp-refr__edge" data-edge></line>
+		<circle class="orp-refr__circle" data-circle></circle>
+		<g class="orp-refr__ticks" data-ticks></g>
+		<line class="orp-normal" data-normal></line>
+		<text class="orp-t orp-t--small" data-name-top>воздух</text>
+		<text class="orp-t orp-t--small" data-name-bot>вода</text>
+		<g data-crit></g>
+		<g data-sines></g>
+		<path class="orp-sector orp-sector--a" data-sec-a></path>
+		<path class="orp-sector orp-sector--b" data-sec-b></path>
+		<path class="orp-sector orp-sector--g" data-sec-g></path>
+		<path class="orp-arc orp-arc--a" data-arc-a></path>
+		<path class="orp-arc orp-arc--b" data-arc-b></path>
+		<path class="orp-arc orp-arc--g" data-arc-g></path>
+		<g class="orp-beam" data-b-in>
+			<path class="orp-beam__glow"></path><path class="orp-beam__core"></path>
+		</g>
+		<g class="orp-beam" data-b-refl>
+			<path class="orp-beam__glow"></path><path class="orp-beam__core"></path>
+		</g>
+		<g class="orp-beam" data-b-refr>
+			<path class="orp-beam__glow"></path><path class="orp-beam__core"></path>
+		</g>
+		<g class="orp-refr__pulses" data-pulses></g>
+		<text class="orp-t orp-t--a" text-anchor="middle" dominant-baseline="central" data-lab-a></text>
+		<text class="orp-t orp-t--b" text-anchor="middle" dominant-baseline="central" data-lab-b></text>
+		<text class="orp-t orp-t--g" text-anchor="middle" dominant-baseline="central" data-lab-g></text>
+		<g class="orp-laser orp-grab" data-laser tabindex="0" role="slider" aria-label="Лазерная указка. Тяните её или нажимайте стрелки" aria-valuemin="0" aria-valuemax="89">
+			<circle class="orp-grab__hit" cx="34" r="38"></circle>
+			<circle class="orp-grab__ring orp-hint" cx="34" r="30" data-hint></circle>
+			<rect x="6" y="-8" width="62" height="16" rx="5"></rect>
+			<rect class="orp-laser__btn" x="38" y="-11" width="10" height="4" rx="1.5"></rect>
+			<circle class="orp-laser__tip" cx="5" r="3.5"></circle>
+		</g>
+	</svg>
+	<div class="orp-controls">
+		<label class="orp-check"><input type="checkbox" data-sin-on /> Показать синусы углов</label>
+	</div>
+	<dl class="orp-stats">
+		<div class="is-a"><dt>Угол падения <i>α</i></dt><dd data-o-a></dd></div>
+		<div class="is-g"><dt>Угол преломления <i>γ</i></dt><dd data-o-g></dd></div>
+		<div class="is-b"><dt>Отражается света</dt><dd data-o-r></dd></div>
+	</dl>
+	<div class="orp-formula" data-formula aria-live="polite"></div>
+	<p class="orp-live" data-live></p>
+	<figcaption class="orp-legend">
+		Тяните указку. Яркость лучей показывает, какая доля света отражается, а какая проходит во вторую среду. Огоньки бегут по лучам со скоростью света в каждой среде (конечно, сильно замедленной): в веществе они идут медленнее и теснее. Показатели преломления — округлённые табличные значения.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.orp-refr__med {
+		fill: var(--orp-water);
+		transition: fill 0.5s;
+	}
+	.orp-refr[data-m='1'] .orp-refr__med {
+		fill: var(--orp-glass);
+	}
+	.orp-refr[data-m='2'] .orp-refr__med {
+		fill: var(--orp-diamond);
+	}
+	.orp-refr__edge {
+		stroke: var(--orp-water-edge);
+		stroke-width: 2;
+	}
+	.orp-refr[data-m='1'] .orp-refr__edge,
+	.orp-refr[data-m='2'] .orp-refr__edge {
+		stroke: var(--sl-color-gray-2);
+	}
+	.orp-refr__circle {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.orp-refr__ticks line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.orp-refr__ticks line.is-major {
+		stroke: var(--sl-color-gray-3);
+	}
+	.orp-refr__crit line {
+		stroke: var(--sl-color-accent);
+		stroke-width: 2.5;
+	}
+	.orp-refr__crit path {
+		fill: color-mix(in srgb, var(--sl-color-accent) 9%, transparent);
+		stroke: none;
+	}
+	.orp-refr__crit text {
+		fill: var(--sl-color-text-accent);
+	}
+	.orp-refr__sin {
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.orp-refr__sin--a {
+		stroke: var(--orp-a);
+	}
+	.orp-refr__sin--g {
+		stroke: var(--orp-g);
+	}
+	.orp-refr__sin-guide {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+		fill: none;
+	}
+	.orp-refr__pulses circle {
+		fill: color-mix(in srgb, var(--orp-beam) 25%, white);
+		filter: drop-shadow(0 0 3px var(--orp-beam));
+	}
+	.orp-refr .orp-beam {
+		transition: opacity 0.15s;
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import {
+		RAD,
+		clamp,
+		pt,
+		add,
+		sub,
+		mul,
+		dot,
+		dir,
+		ang,
+		arcD,
+		arcMid,
+		lineD,
+		svgEl,
+		setA,
+		draggable,
+		fresnelR,
+		fmt,
+		tex,
+		whileVisible,
+		type P,
+	} from './orp';
+
+	const MEDIA = [
+		{ n: 1.33, name: 'вода', from: 'Из воды в воздух', v: '225 000' },
+		{ n: 1.5, name: 'стекло', from: 'Из стекла в воздух', v: '200 000' },
+		{ n: 2.42, name: 'алмаз', from: 'Из алмаза в воздух', v: '124 000' },
+	];
+	const wrap = (a: number) => {
+		while (a > 180) a -= 360;
+		while (a < -180) a += 360;
+		return a;
+	};
+	const exitBox = (p: P, d: P, w: number, h: number, m = 2) => {
+		let t = Infinity;
+		if (d.x > 1e-9) t = Math.min(t, (w - m - p.x) / d.x);
+		if (d.x < -1e-9) t = Math.min(t, (m - p.x) / d.x);
+		if (d.y > 1e-9) t = Math.min(t, (h - m - p.y) / d.y);
+		if (d.y < -1e-9) t = Math.min(t, (m - p.y) / d.y);
+		return add(p, mul(d, Math.max(0, t)));
+	};
+	const op = (f: number) => 0.15 + 0.85 * Math.sqrt(clamp(f, 0, 1));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-orp-refract]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('svg');
+		const medRect = q<SVGRectElement>('[data-med-rect]');
+		const edge = q<SVGLineElement>('[data-edge]');
+		const circle = q<SVGCircleElement>('[data-circle]');
+		const ticks = q<SVGGElement>('[data-ticks]');
+		const normal = q<SVGLineElement>('[data-normal]');
+		const nameTop = q<SVGTextElement>('[data-name-top]');
+		const nameBot = q<SVGTextElement>('[data-name-bot]');
+		const crit = q<SVGGElement>('[data-crit]');
+		const sines = q<SVGGElement>('[data-sines]');
+		const sec = { a: q<SVGPathElement>('[data-sec-a]'), b: q<SVGPathElement>('[data-sec-b]'), g: q<SVGPathElement>('[data-sec-g]') };
+		const arc = { a: q<SVGPathElement>('[data-arc-a]'), b: q<SVGPathElement>('[data-arc-b]'), g: q<SVGPathElement>('[data-arc-g]') };
+		const lab = { a: q<SVGTextElement>('[data-lab-a]'), b: q<SVGTextElement>('[data-lab-b]'), g: q<SVGTextElement>('[data-lab-g]') };
+		const bIn = q<SVGGElement>('[data-b-in]');
+		const bRefl = q<SVGGElement>('[data-b-refl]');
+		const bRefr = q<SVGGElement>('[data-b-refr]');
+		const pulsesG = q<SVGGElement>('[data-pulses]');
+		const laser = q<SVGGElement>('[data-laser]');
+		const hint = q<SVGCircleElement>('[data-hint]');
+		const medBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-med]'));
+		const dirBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-dir]'));
+		const outLabel = q<HTMLButtonElement>('[data-out-label]');
+		const sinOn = q<HTMLInputElement>('[data-sin-on]');
+		const oA = q<HTMLElement>('[data-o-a]');
+		const oG = q<HTMLElement>('[data-o-g]');
+		const oR = q<HTMLElement>('[data-o-r]');
+		const formula = q<HTMLElement>('[data-formula]');
+		const live = q<HTMLElement>('[data-live]');
+
+		let narrow = false;
+		let W = 760;
+		let H = 440;
+		let R = 180;
+		let O = pt(380, 220);
+		let m = 0;
+		let into = true; // light goes from air into the substance
+		let rel = -45;
+		let lastTex = '';
+		// geometry of the current rays, for the running pulses
+		let geo = { L: O, Lin: 0, refl: pt(0, -1), Lrefl: 0, refr: pt(0, 1) as P | null, Lrefr: 0, n1: 1, n2: 1.33, R: 0 };
+		const pulses = Array.from({ length: 70 }, () => svgEl('circle', { r: 3.2 }, pulsesG));
+
+		const build = () => {
+			W = narrow ? 480 : 760;
+			H = narrow ? 480 : 490;
+			R = narrow ? 150 : 165;
+			O = pt(W / 2, H / 2);
+			svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+			setA(medRect, { x: 0, y: O.y, width: W, height: H - O.y });
+			setA(edge, { x1: 0, y1: O.y, x2: W, y2: O.y });
+			setA(circle, { cx: O.x, cy: O.y, r: R });
+			setA(normal, { x1: O.x, y1: O.y - R - 26, x2: O.x, y2: O.y + R + 26 });
+			setA(nameTop, { x: 12, y: O.y - 12 });
+			setA(nameBot, { x: 12, y: O.y + 24 });
+			ticks.replaceChildren();
+			for (let a = 0; a < 360; a += 5) {
+				const major = a % 10 === 0;
+				const u = dir(a);
+				const p0 = add(O, mul(u, R - (major ? 9 : 5)));
+				const p1 = add(O, mul(u, R));
+				svgEl('line', { x1: p0.x, y1: p0.y, x2: p1.x, y2: p1.y, class: major ? 'is-major' : '' }, ticks);
+			}
+			render();
+		};
+
+		const render = () => {
+			const n = MEDIA[m].n;
+			const n1 = into ? 1 : n;
+			const n2 = into ? n : 1;
+			const nS = into ? -90 : 90; // normal pointing into the source half
+			const a = Math.abs(rel);
+			const sg = Math.sign(rel) || 1;
+			const sinG = (n1 / n2) * Math.sin(a * RAD);
+			const tir = sinG >= 1;
+			const g = tir ? NaN : Math.asin(sinG) / RAD;
+			const Rf = fresnelR(n1, n2, a);
+			const thL = nS + rel;
+			const thRefl = nS - rel;
+			const thRefr = -nS + sg * (tir ? 0 : g);
+
+			root.dataset.m = String(m);
+			nameBot.textContent = MEDIA[m].name;
+			outLabel.textContent = MEDIA[m].from;
+
+			const L = add(O, mul(dir(thL), R + 6));
+			const Erefl = exitBox(O, dir(thRefl), W, H);
+			const Erefr = tir ? null : exitBox(O, dir(thRefr), W, H);
+			const setBeam = (gEl: SVGGElement, pts: P[] | null, o: number) => {
+				gEl.querySelectorAll('path').forEach((p) => p.setAttribute('d', pts ? lineD(pts) : ''));
+				gEl.style.opacity = String(o);
+			};
+			setBeam(bIn, [L, O], 1);
+			setBeam(bRefl, [O, Erefl], op(Rf));
+			setBeam(bRefr, Erefr ? [O, Erefr] : null, tir ? 0 : op(1 - Rf));
+			laser.setAttribute('transform', `translate(${L.x.toFixed(1)} ${L.y.toFixed(1)}) rotate(${thL})`);
+			geo = { L, Lin: R + 6, refl: dir(thRefl), Lrefl: Math.hypot(Erefl.x - O.x, Erefl.y - O.y), refr: Erefr ? dir(thRefr) : null, Lrefr: Erefr ? Math.hypot(Erefr.x - O.x, Erefr.y - O.y) : 0, n1, n2, R: Rf };
+
+			// arcs
+			const ra = narrow ? 52 : 60;
+			const showA = a >= 0.5;
+			const showG = showA && !tir;
+			const arcs: [keyof typeof arc, number, number, boolean, number][] = [
+				['a', nS, thL, showA, ra],
+				['b', nS, thRefl, showA, ra + 12],
+				['g', -nS, thRefr, showG, ra],
+			];
+			for (const [k, a0, a1, on, r] of arcs) {
+				arc[k].style.display = sec[k].style.display = lab[k].style.display = on ? '' : 'none';
+				if (!on) continue;
+				arc[k].setAttribute('d', arcD(O, r, a0, a1));
+				sec[k].setAttribute('d', `M${O.x} ${O.y} ${arcD(O, r, a0, a1).replace('M', 'L')} Z`);
+				const span = Math.abs(wrap(a1 - a0));
+				const rl = r + (narrow ? 42 : 36);
+				const p = span >= 28 ? arcMid(O, rl, a0, a1) : add(O, mul(dir(a1 + Math.sign(wrap(a1 - a0)) * 14), rl));
+				setA(lab[k], { x: p.x, y: p.y });
+			}
+			lab.a.textContent = `α = ${fmt(a, 0)}°`;
+			lab.b.textContent = `β = ${fmt(a, 0)}°`;
+			lab.g.textContent = `γ = ${fmt(g, 1)}°`;
+
+			// critical angle marks when light leaves the substance
+			crit.replaceChildren();
+			crit.setAttribute('class', 'orp-refr__crit');
+			if (!into) {
+				const a0 = Math.asin(1 / n) / RAD;
+				for (const s of [-1, 1]) {
+					const u = dir(nS + s * a0);
+					const p0 = add(O, mul(u, R - 14));
+					const p1 = add(O, mul(u, R + 10));
+					svgEl('line', { x1: p0.x, y1: p0.y, x2: p1.x, y2: p1.y }, crit);
+					// the shaded zone beyond the critical angle: total reflection there
+					svgEl('path', { d: `M${O.x} ${O.y} ${arcD(O, R, nS + s * a0, nS + s * 90).replace('M', 'L')} Z` }, crit);
+				}
+				const pl = add(O, mul(dir(nS + a0), R + 26));
+				svgEl('text', { class: 'orp-t orp-t--small', x: pl.x, y: pl.y, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, crit).textContent = 'α₀';
+			}
+
+			// sines as segments in a circle of radius 1
+			sines.replaceChildren();
+			if (sinOn.checked && showA) {
+				const seg = (th: number, axis: number, cls: string, val: number) => {
+					const A = add(O, mul(dir(th), R));
+					const nu = dir(axis);
+					const F = add(O, mul(nu, dot(sub(A, O), nu)));
+					svgEl('path', { class: 'orp-refr__sin-guide', d: lineD([O, F]) }, sines);
+					svgEl('line', { class: `orp-refr__sin ${cls}`, x1: A.x, y1: A.y, x2: F.x, y2: F.y }, sines);
+					const mid = add(mul(add(A, F), 0.5), mul(nu, narrow ? 16 : 13));
+					svgEl('text', { class: `orp-t ${cls === 'orp-refr__sin--a' ? 'orp-t--a' : 'orp-t--g'}`, x: mid.x, y: mid.y, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, sines).textContent = fmt(val, 2);
+				};
+				seg(thL, nS, 'orp-refr__sin--a', Math.sin(a * RAD));
+				if (!tir) seg(thRefr, -nS, 'orp-refr__sin--g', sinG);
+			}
+
+			// numbers
+			laser.setAttribute('aria-valuenow', String(a));
+			laser.setAttribute('aria-valuetext', `угол падения ${a} градусов`);
+			oA.textContent = `${a}°`;
+			oG.textContent = tir ? 'нет луча' : `${fmt(g, 1)}°`;
+			oR.textContent = Rf >= 1 ? 'весь, 100 %' : Rf < 0.095 ? `≈ ${fmt(Rf * 100, 1)} %` : `≈ ${Math.round(Rf * 100)} %`;
+			renderFormula(a, g, n, tir);
+			renderLive(a, g, n, tir, Rf);
+		};
+
+		const renderFormula = (a: number, g: number, n: number, tir: boolean) => {
+			let t: string;
+			const nTex = tex(n, 2, true);
+			if (a < 0.5) t = '\\alpha = 0 \\quad\\Rightarrow\\quad \\gamma = 0';
+			else if (tir) {
+				const a0 = Math.asin(1 / n) / RAD;
+				t = `\\alpha = ${a}^\\circ > \\alpha_0 \\approx ${tex(a0, 1)}^\\circ`;
+			} else {
+				const sa = Math.sin(a * RAD);
+				const sgm = Math.sin(g * RAD);
+				const ratio = sa / sgm;
+				const rhs = into ? `${tex(ratio, 2)} = n` : `${tex(ratio, 2)} = \\dfrac{1}{${nTex}}`;
+				const p1 = `\\dfrac{\\sin\\alpha}{\\sin\\gamma} = \\dfrac{\\sin ${a}^\\circ}{\\sin ${tex(g, 1)}^\\circ}`;
+				const p2 = `\\dfrac{${tex(sa, 3)}}{${tex(sgm, 3)}} = ${rhs}`;
+				t = narrow ? `\\begin{aligned} &${p1} \\\\ &= ${p2} \\end{aligned}` : `${p1} = ${p2}`;
+			}
+			if (t === lastTex) return;
+			lastTex = t;
+			katex.render(t, formula, { displayMode: true, throwOnError: false });
+		};
+
+		const renderLive = (a: number, g: number, n: number, tir: boolean, Rf: number) => {
+			const med = MEDIA[m];
+			const v = `Скорость света в воздухе почти 300 000 км/с, а здесь — около ${med.v} км/с: в ${fmt(n, 2, true)} раза меньше.`;
+			if (a < 0.5) {
+				live.innerHTML = `<b>Луч падает перпендикулярно границе и не преломляется</b> — идёт дальше прямо. Небольшая часть света (около ${fmt(Rf * 100, 0)} %) всё же отражается назад.`;
+			} else if (into) {
+				live.innerHTML = `<b>Свет переходит в оптически более плотную среду: угол преломления меньше угла падения</b> (${fmt(g, 1)}° < ${a}°) — луч прижимается к перпендикуляру. ${v}`;
+			} else if (!tir) {
+				const a0 = Math.asin(1 / n) / RAD;
+				live.innerHTML = `<b>Свет выходит в воздух — среду оптически менее плотную: угол преломления больше угла падения</b> (${fmt(g, 1)}° > ${a}°). Увеличивайте угол падения: когда он дойдёт до ${fmt(a0, 1)}°, преломлённый луч ляжет вдоль границы.`;
+			} else {
+				live.innerHTML = `<b>Полное отражение!</b> Угол падения больше предельного (${fmt(Math.asin(1 / n) / RAD, 1)}° для границы ${med.name === 'вода' ? 'воды' : med.name === 'стекло' ? 'стекла' : 'алмаза'} с воздухом), и в воздух свет не выходит совсем: весь он отражается обратно.`;
+			}
+		};
+
+		// running pulses: optical path p = n·s is the same for all rays at a moment, as with a wave
+		const LAMBDA = 44; // spacing of the pulses in air, px
+		const C = 80; // their speed in air, px/s
+		whileVisible(root, (now) => {
+			const t = now / 1000;
+			const { L, Lin, refl, Lrefl, refr, Lrefr, n1, n2, R: Rf } = geo;
+			const din = mul(sub(O, L), 1 / Lin);
+			const pin = n1 * Lin;
+			let i = 0;
+			const put = (p: P, o: number) => {
+				if (i >= pulses.length) return;
+				const c = pulses[i++];
+				c.setAttribute('cx', p.x.toFixed(1));
+				c.setAttribute('cy', p.y.toFixed(1));
+				c.style.opacity = String(o);
+				c.style.display = '';
+			};
+			const phase = (C * t) % LAMBDA;
+			for (let p = phase; p < pin + Math.max(n1 * Lrefl, n2 * Lrefr); p += LAMBDA) {
+				if (p < pin) put(add(L, mul(din, p / n1)), 1);
+				else {
+					const sR = (p - pin) / n1;
+					if (sR <= Lrefl) put(add(O, mul(refl, sR)), op(Rf));
+					if (refr) {
+						const sT = (p - pin) / n2;
+						if (sT <= Lrefr) put(add(O, mul(refr, sT)), op(1 - Rf));
+					}
+				}
+			}
+			for (; i < pulses.length; i++) pulses[i].style.display = 'none';
+		});
+		pulses.forEach((c) => (c.style.display = 'none'));
+
+		const setRel = (r: number) => {
+			rel = clamp(Math.round(r), -89, 89);
+			hint.classList.remove('orp-hint');
+			render();
+		};
+		draggable(svg, laser, {
+			onMove: (p) => {
+				const th = ang(sub(p, O));
+				let r = wrap(th - (into ? -90 : 90));
+				if (Math.abs(r) > 90) r = Math.sign(r) * 89;
+				setRel(r);
+			},
+		});
+		laser.addEventListener('keydown', (e) => {
+			const step = e.shiftKey ? 5 : 1;
+			if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') setRel(rel - step);
+			else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') setRel(rel + step);
+			else return;
+			e.preventDefault();
+		});
+		medBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				m = Number(b.dataset.med);
+				medBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				render();
+			}),
+		);
+		dirBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				into = b.dataset.dir === 'in';
+				dirBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				render();
+			}),
+		);
+		sinOn.addEventListener('change', render);
+
+		let built = false;
+		new ResizeObserver(() => {
+			const nw = root.clientWidth < 560;
+			if (built && nw === narrow) return;
+			built = true;
+			narrow = nw;
+			root.classList.toggle('is-narrow', narrow);
+			lastTex = '';
+			build();
+		}).observe(root);
+	}
+</script>
