@@ -1,0 +1,459 @@
+---
+/**
+ * A psychrometer and its table. «Новая погода» picks a dry-bulb temperature and a wet-bulb depression from the
+ * table; the wet thermometer cools down by evaporation and settles. The pupil reads both thermometers and clicks
+ * the cell of the psychrometric table with the relative humidity.
+ */
+import { PSY, PSY_ROWS } from './data';
+
+const y = (t: number) => 290 - t * 6; // scale 0…40 °C
+const ticks = Array.from({ length: 41 }, (_, t) => t);
+---
+
+<figure class="vpsy not-content" data-vpsy>
+	<div class="vpsy__top">
+		<svg class="vpsy__svg" viewBox="0 0 300 350" aria-hidden="true">
+			<rect class="vpsy__board" x="40" y="8" width="220" height="336" rx="10"></rect>
+			<text class="vpsy__name" x="95" y="30" text-anchor="middle">сухой</text>
+			<text class="vpsy__name" x="205" y="30" text-anchor="middle">влажный</text>
+			{
+				[95, 205].map((cx) => (
+					<g>
+						{ticks.map((t) => (
+							<line
+								class="vpsy__tick"
+								x1={cx + 9}
+								x2={cx + 9 + (t % 10 === 0 ? 12 : t % 5 === 0 ? 9 : 5)}
+								y1={y(t)}
+								y2={y(t)}
+							/>
+						))}
+						{[0, 10, 20, 30, 40].map((t) => (
+							<text class="vpsy__num" x={cx + 25} y={y(t) + 4}>
+								{t}
+							</text>
+						))}
+						<rect class="vpsy__tube" x={cx - 6} y="40" width="12" height="262" rx="6" />
+					</g>
+				))
+			}
+			<rect class="vpsy__liq" x="92" width="6" rx="3" data-liq-dry></rect>
+			<circle class="vpsy__bulb" cx="95" cy="306" r="11"></circle>
+			<rect class="vpsy__liq" x="202" width="6" rx="3" data-liq-wet></rect>
+			<circle class="vpsy__bulb" cx="205" cy="306" r="11"></circle>
+			<path class="vpsy__wick" d="M192,296 Q205,290 218,296 L219,318 Q205,324 191,318 Z"></path>
+			<path class="vpsy__wick vpsy__wick--tail" d="M199,320 L199,334 L211,334 L211,320 Z"></path>
+			<path class="vpsy__cup" d="M180,322 L230,322 L227,342 L183,342 Z"></path>
+			<path class="vpsy__cupwater" d="M181.5,328 L228.5,328 L227,342 L183,342 Z"></path>
+			<g data-steam></g>
+			<text class="vpsy__unit" x="150" y="30" text-anchor="middle">°C</text>
+		</svg>
+
+		<div class="vpsy__side">
+			<p class="vpsy__task" data-task></p>
+			<dl class="vpsy__read">
+				<div><dt>Сухой термометр</dt><dd data-r-dry>—</dd></div>
+				<div><dt>Влажный термометр</dt><dd data-r-wet>—</dd></div>
+				<div><dt>Разность показаний</dt><dd data-r-diff>—</dd></div>
+			</dl>
+			<button type="button" class="vpsy__btn" data-new>Новая погода</button>
+		</div>
+	</div>
+
+	<div class="vpsy__tablewrap">
+		<table class="vpsy__table" data-table>
+			<caption>Психрометрическая таблица: относительная влажность, %</caption>
+			<thead>
+				<tr>
+					<th rowspan="2" class="vpsy__corner">Сухой, °C</th>
+					<th colspan="11" class="vpsy__colhead">Разность показаний сухого и влажного термометров, °C</th>
+				</tr>
+				<tr>
+					{PSY[0].map((_, d) => <th data-col={d}>{d}</th>)}
+				</tr>
+			</thead>
+			<tbody>
+				{
+					PSY.map((row, i) => (
+						<tr>
+							<th data-row={PSY_ROWS[i]}>{PSY_ROWS[i]}</th>
+							{row.map((v, d) => (
+								<td data-t={PSY_ROWS[i]} data-d={d} tabindex={v === null ? undefined : '-1'}>
+									{v === null ? '–' : v}
+								</td>
+							))}
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+	</div>
+	<p class="vpsy__fb" data-fb aria-live="polite"></p>
+</figure>
+
+<style is:global>
+	.vpsy {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.vpsy i {
+		font-family: var(--ig-font-math);
+	}
+	.vpsy__top {
+		display: grid;
+		grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+		gap: 1.25rem;
+		align-items: center;
+	}
+	.vpsy__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.vpsy__svg text {
+		font-family: var(--__sl-font);
+	}
+	.vpsy__board {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-5);
+	}
+	.vpsy__name {
+		fill: var(--sl-color-gray-2);
+		font-size: 15px;
+	}
+	.vpsy__unit,
+	.vpsy__num {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+	}
+	.vpsy__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.vpsy__tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-2) 8%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+	}
+	.vpsy__liq,
+	.vpsy__bulb {
+		fill: var(--ig-vy);
+	}
+	.vpsy__wick {
+		fill: color-mix(in srgb, var(--ig-vx) 35%, var(--sl-color-gray-2));
+		opacity: 0.85;
+		stroke: var(--ig-vx);
+		stroke-width: 1;
+	}
+	.vpsy__cup {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.vpsy__cupwater {
+		fill: color-mix(in srgb, var(--ig-vx) 40%, transparent);
+	}
+	.vpsy__steam {
+		fill: var(--ig-vx);
+	}
+	.vpsy__task {
+		margin: 0 0 0.75rem;
+		color: var(--sl-color-gray-1);
+	}
+	.vpsy__read {
+		display: grid;
+		gap: 0.4rem;
+		margin: 0 0 0.75rem;
+	}
+	.vpsy__read div {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.35rem 0.7rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.vpsy__read dt {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vpsy__read dd {
+		margin: 0;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vpsy__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.vpsy__tablewrap {
+		margin-top: 1rem;
+		overflow-x: auto;
+	}
+	.vpsy__table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+		text-align: center;
+		display: table;
+	}
+	.vpsy__table caption {
+		margin-bottom: 0.4rem;
+		font-weight: 600;
+		color: var(--sl-color-white);
+		text-align: left;
+	}
+	.vpsy__table th,
+	.vpsy__table td {
+		padding: 0.22rem 0.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		color: var(--sl-color-gray-2);
+		background: transparent;
+	}
+	.vpsy__table thead th,
+	.vpsy__table tbody th {
+		color: var(--sl-color-white);
+		background: var(--sl-color-gray-6);
+		font-weight: 600;
+	}
+	.vpsy__colhead,
+	.vpsy__corner {
+		font-size: var(--sl-text-xs);
+		font-weight: 400 !important;
+		line-height: 1.25;
+	}
+	.vpsy__table td[tabindex] {
+		cursor: pointer;
+	}
+	.vpsy__table .is-row,
+	.vpsy__table .is-col {
+		background: color-mix(in srgb, var(--sl-color-accent) 14%, transparent);
+	}
+	.vpsy__table td.is-cross {
+		background: color-mix(in srgb, var(--sl-color-accent) 35%, transparent);
+		color: var(--sl-color-white);
+	}
+	.vpsy__table td.is-right {
+		background: color-mix(in srgb, var(--sl-color-green) 45%, transparent);
+		color: var(--sl-color-white);
+		font-weight: 700;
+	}
+	.vpsy__table td.is-wrong {
+		background: color-mix(in srgb, var(--sl-color-red) 30%, transparent);
+		animation: vpsy-shake 0.4s;
+	}
+	@keyframes vpsy-shake {
+		25% {
+			transform: translateX(-3px);
+		}
+		75% {
+			transform: translateX(3px);
+		}
+	}
+	.vpsy__fb {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	@media (max-width: 40rem) {
+		.vpsy {
+			padding: 0.75rem;
+		}
+		.vpsy__top {
+			grid-template-columns: 1fr;
+			gap: 0.75rem;
+		}
+		.vpsy__svg {
+			max-width: 13rem;
+			margin-inline: auto;
+		}
+		.vpsy__read {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+		.vpsy__read div {
+			flex-direction: column;
+			justify-content: flex-start;
+			gap: 0.1rem;
+			padding: 0.3rem 0.5rem;
+		}
+		.vpsy__read dt {
+			font-size: var(--sl-text-xs);
+		}
+		.vpsy__task {
+			font-size: var(--sl-text-sm);
+		}
+		.vpsy__table {
+			font-size: 0.78rem;
+		}
+		.vpsy__table th,
+		.vpsy__table td {
+			padding: 0.2rem 0;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.vpsy__table td.is-wrong {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { PSY, PSY_ROWS } from './data';
+	import { rho0, fixed } from './vl';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const yOf = (t: number) => 290 - t * 6;
+
+	// Tasks: every table cell with a value of at least 20 % and a difference from 1 to 8 °C.
+	const tasks: { t: number; d: number; phi: number }[] = [];
+	PSY.forEach((row, i) =>
+		row.forEach((v, d) => {
+			if (v !== null && v >= 20 && d >= 1 && d <= 8 && PSY_ROWS[i] >= 10) tasks.push({ t: PSY_ROWS[i], d, phi: v });
+		}),
+	);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vpsy]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const liqDry = $<SVGRectElement>('[data-liq-dry]');
+		const liqWet = $<SVGRectElement>('[data-liq-wet]');
+		const steamG = $<SVGGElement>('[data-steam]');
+		const fb = $<HTMLElement>('[data-fb]');
+		const cells = Array.from(root.querySelectorAll<HTMLTableCellElement>('td[tabindex]'));
+
+		// Start: 22 °C, wet 17 °C (a pleasant room, 59 %).
+		let task = tasks.find((k) => k.t === 22 && k.d === 5)!;
+		let dry = task.t;
+		let wet = task.t - task.d;
+		let fromDry = dry;
+		let fromWet = wet;
+		let t0 = -1e9;
+
+		const steam = Array.from({ length: 14 }, (_, i) => {
+			const c = document.createElementNS(NS, 'circle');
+			c.setAttribute('class', 'vpsy__steam');
+			c.setAttribute('r', '1.8');
+			steamG.append(c);
+			return { c, ph: i / 14 };
+		});
+
+		const setLiquid = (el: SVGRectElement, t: number) => {
+			const top = yOf(t);
+			el.setAttribute('y', top.toFixed(1));
+			el.setAttribute('height', (306 - top).toFixed(1));
+		};
+		const fmt = (t: number) => `${t.toLocaleString('ru-RU')} °C`;
+
+		const showReadings = (settled: boolean) => {
+			$('[data-r-dry]').textContent = fmt(Math.round(dry));
+			$('[data-r-wet]').textContent = settled ? fmt(Math.round(wet)) : 'устанавливается…';
+			$('[data-r-diff]').textContent = settled ? `${task.d} °C` : '—';
+		};
+
+		let raf = 0;
+		const frame = (now: number) => {
+			const s = (now - t0) / 1000;
+			// The dry thermometer follows the air quickly; the wet one cools slowly (time constant 0.9 s).
+			const kd = reduce.matches ? 1 : 1 - Math.exp(-s / 0.35);
+			const kw = reduce.matches ? 1 : 1 - Math.exp(-s / 0.9);
+			dry = fromDry + (task.t - fromDry) * kd;
+			const wetGoal = task.t - task.d;
+			wet = fromWet + (wetGoal - fromWet) * kw;
+			setLiquid(liqDry, dry);
+			setLiquid(liqWet, wet);
+			const settled = kw > 0.985;
+			showReadings(settled);
+			// Evaporation from the wick: the drier the air, the more vapour leaves it.
+			const n = Math.round(1 + task.d * 1.6);
+			steam.forEach((p, i) => {
+				const on = i < n && !reduce.matches;
+				p.ph = (p.ph + 0.006 + 0.0012 * task.d) % 1;
+				const yy = 300 - p.ph * 70;
+				p.c.setAttribute('cx', (205 + 13 * Math.sin(i * 2.1 + p.ph * 7)).toFixed(1));
+				p.c.setAttribute('cy', yy.toFixed(1));
+				p.c.setAttribute('opacity', on ? (0.7 * (1 - p.ph)).toFixed(2) : '0');
+			});
+			raf = requestAnimationFrame(frame);
+		};
+		new IntersectionObserver((e) => {
+			if (e[0].isIntersecting && !raf) raf = requestAnimationFrame(frame);
+			if (!e[0].isIntersecting && raf) {
+				cancelAnimationFrame(raf);
+				raf = 0;
+			}
+		}).observe(root);
+
+		const clearMarks = () => cells.forEach((c) => c.classList.remove('is-right', 'is-wrong'));
+		const newTask = (first = false) => {
+			if (!first) {
+				let k = task;
+				while (k === task) k = tasks[Math.floor(Math.random() * tasks.length)];
+				fromDry = dry;
+				fromWet = wet;
+				task = k;
+				t0 = performance.now();
+			} else {
+				t0 = -1e9;
+			}
+			clearMarks();
+			fb.innerHTML = '';
+			$('[data-task]').innerHTML =
+				'Дождитесь, пока показания влажного термометра перестанут меняться, найдите относительную влажность в таблице и нажмите на эту клетку.';
+			setLiquid(liqDry, dry);
+			setLiquid(liqWet, wet);
+			showReadings(first);
+		};
+
+		// Hovering a cell lights up its row and column, as a finger following the table.
+		const cross = (cell: HTMLTableCellElement | null) => {
+			root.querySelectorAll('.is-row, .is-col, .is-cross').forEach((e) => e.classList.remove('is-row', 'is-col', 'is-cross'));
+			if (!cell) return;
+			const t = cell.dataset.t;
+			const d = cell.dataset.d;
+			root.querySelectorAll(`[data-t="${t}"], th[data-row="${t}"]`).forEach((e) => e.classList.add('is-row'));
+			root.querySelectorAll(`[data-d="${d}"], th[data-col="${d}"]`).forEach((e) => e.classList.add('is-col'));
+			cell.classList.add('is-cross');
+		};
+
+		cells.forEach((cell) => {
+			cell.addEventListener('pointerenter', () => cross(cell));
+			cell.addEventListener('click', () => {
+				const t = Number(cell.dataset.t);
+				const d = Number(cell.dataset.d);
+				clearMarks();
+				void cell.offsetWidth;
+				if (t === task.t && d === task.d) {
+					cell.classList.add('is-right');
+					const r0 = rho0(task.t);
+					const rho = (task.phi / 100) * r0;
+					fb.innerHTML = `<b>Верно!</b> Относительная влажность <i>φ</i> = ${task.phi} %. По таблице плотности насыщенного пара при ${task.t} °C <i>ρ</i><sub>0</sub> = ${fixed(r0)} г/м³, значит, в каждом кубическом метре воздуха <i>ρ</i> = ${fixed(task.phi / 100, 2)} · ${fixed(r0)} г/м³ ≈ ${fixed(rho)} г водяного пара.`;
+					return;
+				}
+				cell.classList.add('is-wrong');
+				if (t !== task.t && d !== task.d)
+					fb.innerHTML = `Пока нет. Строку выбирают по показанию сухого термометра (${task.t} °C), а столбец — по разности показаний.`;
+				else if (t !== task.t)
+					fb.innerHTML = `Столбец верный, а строка — нет. Строка — это показание <b>сухого</b> термометра: ${task.t} °C.`;
+				else
+					fb.innerHTML = `Строка верная, а столбец — нет. Столбец — это <b>разность</b> показаний: ${task.t} °C − ${task.t - task.d} °C = ${task.d} °C.`;
+			});
+		});
+		$('[data-table]').addEventListener('pointerleave', () => cross(null));
+		$('[data-new]').addEventListener('click', () => newTask());
+		newTask(true);
+	}
+</script>
