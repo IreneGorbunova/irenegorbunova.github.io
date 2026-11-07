@@ -1,0 +1,337 @@
+---
+/**
+ * «Моё небо»: every chapter is a star, each grade a constellation, chapters of one section joined by lines.
+ * A star shines as brightly as many rays it has lit (rays.ts). The first tap on a star shows what is done
+ * and what is left, the second opens the chapter. Positions are fixed at build time, so a new chapter just
+ * adds a star; the state comes from localStorage in the browser.
+ */
+import { PROBLEMS } from '../../data/problems/index.mjs';
+import { LABEL, needOf, starSvg } from './rays';
+
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const idOf = (href: string) => href.slice(base.length).replace(/\/$/, '');
+const isChapter = (id: string) => /^uchebnik\/\d+-klass\/[^/]+\/[^/]+$/.test(id);
+
+type Item = (typeof Astro.locals.starlightRoute.sidebar)[number];
+type Link = Extract<Item, { type: 'link' }>;
+const linksOf = (items: Item[]): Link[] => items.flatMap((x) => (x.type === 'link' ? [x] : linksOf(x.entries)));
+
+/** A small stable hash of a string → [0, 1). */
+const hash = (s: string, salt = 0) => {
+	let h = 2166136261 ^ salt;
+	for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+	return ((h >>> 0) % 10007) / 10007;
+};
+
+const W = 340;
+const PER = 5;
+const STEP = 66;
+const ROW = 84;
+const PAD = 44;
+
+const grades = Astro.locals.starlightRoute.sidebar
+	.filter((g) => g.type === 'group')
+	.map((g) => {
+		const chapters = g.entries
+			.filter((s) => s.type === 'group')
+			.flatMap((s) =>
+				linksOf(s.entries)
+					.filter((l) => isChapter(idOf(l.href)))
+					.map((l) => {
+						const id = idOf(l.href);
+						return { id, href: l.href, label: l.label, section: s.label, need: needOf(id.split('/').pop()! in PROBLEMS) };
+					}),
+			);
+		const rows = Math.ceil(chapters.length / PER);
+		const stars = chapters.map((c, i) => {
+			const row = Math.floor(i / PER);
+			const inRow = Math.min(PER, chapters.length - row * PER);
+			let col = i % PER;
+			if (row % 2) col = inRow - 1 - col;
+			const x = W / 2 + (col - (inRow - 1) / 2) * STEP + (hash(c.id, 1) - 0.5) * 26;
+			const y = PAD + row * ROW + (hash(c.id, 2) - 0.5) * 34;
+			return { ...c, x: Math.round(x), y: Math.round(y) };
+		});
+		const lines = stars.slice(1).flatMap((s, i) => (s.section === stars[i].section ? [[stars[i], s]] : []));
+		const H = PAD * 2 + (rows - 1) * ROW;
+		const n = g.label.match(/\d+/)?.[0] ?? '0';
+		const dust = Array.from({ length: 46 }, (_, k) => ({
+			x: (hash(n, 10 + k) * W).toFixed(1),
+			y: (hash(n, 100 + k) * H).toFixed(1),
+			r: (0.35 + hash(n, 200 + k) * 0.75).toFixed(2),
+			o: (0.15 + hash(n, 300 + k) * 0.5).toFixed(2),
+		}));
+		return { label: g.label, n, stars, lines, H, dust };
+	})
+	.filter((g) => g.stars.length > 0);
+const total = grades.reduce((a, g) => a + g.stars.length, 0);
+---
+
+<div class="sm" data-sm>
+	<p class="sm__total" data-sm-total>Глав в учебнике: {total}.</p>
+	{
+		grades.map((g) => (
+			<section class="sm__grade" data-sm-grade>
+				<h2 class="sm__title">
+					{g.label}
+					<span class="sm__count" data-sm-count />
+				</h2>
+				<div class="sm__sky">
+					<svg class="sm__svg" viewBox={`0 0 ${W} ${g.H}`} role="group" aria-label={`Созвездие: ${g.label}`}>
+						<defs>
+							<radialGradient id={`sm-halo-${g.n}`}>
+								<stop offset="0" stop-color="hsl(42 95% 75%)" stop-opacity="0.9" />
+								<stop offset="0.35" stop-color="hsl(42 90% 62%)" stop-opacity="0.35" />
+								<stop offset="1" stop-color="hsl(42 90% 62%)" stop-opacity="0" />
+							</radialGradient>
+						</defs>
+						{g.dust.map((d) => (
+							<circle class="sm__dust" cx={d.x} cy={d.y} r={d.r} opacity={d.o} />
+						))}
+						{g.lines.map(([a, b]) => (
+							<line class="sm__line" data-a={a.id} data-b={b.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+						))}
+						{g.stars.map((s) => (
+							<a class="sm__star" href={s.href} data-id={s.id} data-need={s.need.join('')} data-label={s.label} data-section={s.section}>
+								<g transform={`translate(${s.x} ${s.y})`}>
+									<circle class="sm__hit" r="22" />
+									<circle class="sm__halo" r="26" fill={`url(#sm-halo-${g.n})`} />
+									<circle class="sm__ring" r="17" />
+									<g class="sm__rays" set:html={starSvg(s.need, 13)} />
+								</g>
+							</a>
+						))}
+					</svg>
+				</div>
+				<div class="sm__info" data-sm-info hidden>
+					<p class="sm__name" data-sm-name />
+					<p class="sm__section" data-sm-section />
+					<p class="sm__rays-list" data-sm-rays />
+					<a class="sm__go" data-sm-go href="#">
+						Открыть главу →
+					</a>
+				</div>
+			</section>
+		))
+	}
+</div>
+
+<script type="application/json" id="sm-labels" set:html={JSON.stringify(LABEL)} />
+
+<style is:global>
+	.sm__total {
+		color: var(--sl-color-gray-2);
+	}
+	.sm__title {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+	}
+	.sm__count {
+		font-family: var(--sl-font);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.sm__sky {
+		margin-top: 0.75rem;
+		border-radius: 1.1rem;
+		overflow: hidden;
+		border: 1px solid hsl(228 24% 24%);
+		background:
+			radial-gradient(ellipse 70% 60% at 15% 10%, rgb(92 72 190 / 0.3), transparent 70%),
+			radial-gradient(ellipse 60% 50% at 90% 85%, rgb(28 96 170 / 0.26), transparent 70%),
+			linear-gradient(180deg, #03050f 0%, #080c25 55%, #11163b 100%);
+	}
+	.sm__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		max-height: none;
+	}
+	.sm__dust {
+		fill: #dfe6ff;
+	}
+	.sm__line {
+		stroke: hsl(228 40% 70%);
+		stroke-width: 1;
+		stroke-opacity: 0.22;
+		stroke-dasharray: 3 4;
+		transition: stroke-opacity 0.6s;
+	}
+	.sm__line.is-lit {
+		stroke: hsl(42 90% 70%);
+		stroke-opacity: 0.55;
+		stroke-dasharray: none;
+	}
+	.sm__star {
+		cursor: pointer;
+		outline: none;
+	}
+	.sm__hit {
+		fill: transparent;
+	}
+	.sm__halo {
+		opacity: 0;
+		transition: opacity 0.6s;
+	}
+	.sm__star.is-some .sm__halo {
+		opacity: 0.3;
+	}
+	.sm__star.is-full .sm__halo {
+		opacity: 1;
+		animation: sm-twinkle 4s ease-in-out infinite;
+	}
+	.sm__ring {
+		fill: none;
+		stroke: hsl(42 85% 62%);
+		stroke-width: 1.2;
+		opacity: 0;
+	}
+	.sm__star.is-sel .sm__ring,
+	.sm__star:focus-visible .sm__ring {
+		opacity: 0.9;
+	}
+	/* unlit rays stay faint, so a chapter's star is told apart from the background stars */
+	.sm__star .ray {
+		stroke: hsl(228 30% 70%);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		opacity: 0.28;
+		transition:
+			opacity 0.6s,
+			stroke 0.6s;
+	}
+	.sm__star .ray.is-lit {
+		stroke: hsl(42 90% 72%);
+		stroke-width: 1.8;
+		opacity: 1;
+	}
+	.sm__star.is-full .ray {
+		stroke: #fff8e6;
+	}
+	.sm__star .core {
+		fill: hsl(228 20% 62%);
+		opacity: 0.7;
+		transition: fill 0.6s;
+	}
+	.sm__star.is-some .core {
+		fill: hsl(42 90% 80%);
+		opacity: 1;
+	}
+	.sm__star.is-full .core {
+		fill: #fff;
+	}
+	.sm__info {
+		margin-top: 0.75rem;
+		padding: 0.9rem 1.1rem 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.sm__info[hidden] {
+		display: none;
+	}
+	.sm__info p {
+		margin: 0;
+	}
+	.sm__name {
+		font-family: var(--ig-font-display);
+		font-size: 1.9rem;
+		line-height: 1.2;
+		color: var(--sl-color-white);
+	}
+	.sm__section {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.sm__rays-list {
+		margin-top: 0.5rem !important;
+	}
+	.sm__rays-list .is-lit {
+		color: var(--sl-color-text-accent);
+	}
+	.sm__rays-list .is-off {
+		color: var(--sl-color-gray-3);
+	}
+	.sm__go {
+		display: inline-block;
+		margin-top: 0.5rem;
+		font-weight: 600;
+		color: var(--sl-color-text-accent);
+	}
+	@keyframes sm-twinkle {
+		50% {
+			opacity: 0.65;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.sm__star.is-full .sm__halo {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { load, type Ray } from './rays';
+
+	const LABEL = JSON.parse(document.getElementById('sm-labels')!.textContent!) as Record<Ray, string>;
+	const lit = load();
+	const state = new Map<string, { done: Set<Ray>; need: Ray[] }>();
+	let full = 0;
+	let started = 0;
+
+	for (const star of document.querySelectorAll<SVGAElement>('.sm__star')) {
+		const id = star.dataset.id!;
+		const need = star.dataset.need!.split('') as Ray[];
+		const done = new Set((lit[id] ?? '').split('').filter((r) => need.includes(r as Ray)) as Ray[]);
+		state.set(id, { done, need });
+		for (const line of star.querySelectorAll<SVGElement>('.ray')) line.classList.toggle('is-lit', done.has(line.dataset.ray as Ray));
+		star.classList.toggle('is-some', done.size > 0);
+		star.classList.toggle('is-full', done.size === need.length);
+		if (done.size === need.length) full += 1;
+		else if (done.size) started += 1;
+		const left = need.filter((r) => !done.has(r)).map((r) => LABEL[r]);
+		star.setAttribute(
+			'aria-label',
+			`${star.dataset.label}: ${done.size === need.length ? 'звезда горит' : done.size ? `осталось — ${left.join(', ')}` : 'ещё не начата'}`,
+		);
+	}
+	for (const line of document.querySelectorAll<SVGElement>('.sm__line')) {
+		const a = state.get(line.dataset.a!);
+		const b = state.get(line.dataset.b!);
+		line.classList.toggle('is-lit', Boolean(a && b && a.done.size === a.need.length && b.done.size === b.need.length));
+	}
+
+	const total = state.size;
+	document.querySelector('[data-sm-total]')!.textContent =
+		full || started
+			? `Звёзд зажжено: ${full} из ${total}${started ? `, начато ещё ${started}` : ''}.`
+			: `Глав в учебнике: ${total}. Пока ни одна звезда не зажглась — откройте любую главу.`;
+
+	for (const grade of document.querySelectorAll<HTMLElement>('[data-sm-grade]')) {
+		const stars = Array.from(grade.querySelectorAll<SVGAElement>('.sm__star'));
+		const n = stars.filter((s) => s.classList.contains('is-full')).length;
+		grade.querySelector('[data-sm-count]')!.textContent = `${n} из ${stars.length}`;
+		const info = grade.querySelector<HTMLElement>('[data-sm-info]')!;
+		const select = (star: SVGAElement) => {
+			for (const s of document.querySelectorAll('.sm__star.is-sel')) s.classList.remove('is-sel');
+			for (const other of document.querySelectorAll<HTMLElement>('[data-sm-info]')) if (other !== info) other.hidden = true;
+			star.classList.add('is-sel');
+			const { done, need } = state.get(star.dataset.id!)!;
+			info.querySelector('[data-sm-name]')!.textContent = star.dataset.label!;
+			info.querySelector('[data-sm-section]')!.textContent = star.dataset.section!;
+			info.querySelector('[data-sm-rays]')!.innerHTML =
+				need.map((r) => (done.has(r) ? `<span class="is-lit">✦ ${LABEL[r]}</span>` : `<span class="is-off">○ ${LABEL[r]}</span>`)).join(' · ') +
+				(done.size === need.length ? ' — звезда горит!' : '');
+			info.querySelector<HTMLAnchorElement>('[data-sm-go]')!.href = star.getAttribute('href')!;
+			info.hidden = false;
+		};
+		for (const star of stars) {
+			star.addEventListener('click', (e) => {
+				if (star.classList.contains('is-sel')) return; // second tap: follow the link
+				e.preventDefault();
+				select(star);
+			});
+		}
+	}
+</script>
