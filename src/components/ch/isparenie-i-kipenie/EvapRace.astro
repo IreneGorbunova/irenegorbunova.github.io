@@ -1,0 +1,305 @@
+---
+/**
+ * «Predict, then check»: two vessels with the same amount of liquid differ in one thing only
+ * (kind of liquid, temperature, surface area or wind). The reader guesses which one dries first,
+ * then watches. The level falls at a constant rate J/A (evaporation per unit area); the ratios of
+ * the rates are qualitative except for the area case (exact: same rate per unit area, surface 4 times larger).
+ */
+const cases = [
+	{ id: 'kind', label: 'Род жидкости', left: 'вода', right: 'спирт', note: 'Одинаковые блюдца, одинаковый объём, 20 °C.' },
+	{ id: 'temp', label: 'Температура', left: 'вода 40 °C', right: 'вода 20 °C', note: 'Левое блюдце стоит на тёплой батарее.' },
+	{ id: 'area', label: 'Площадь поверхности', left: 'стакан', right: 'блюдце', note: 'Одинаковый объём воды, одна температура.' },
+	{ id: 'wind', label: 'Ветер', left: 'без ветра', right: 'на ветру', note: 'Одинаковые блюдца с водой.' },
+];
+---
+
+<figure class="erace not-content" data-erace>
+	<div class="erace__tabs" role="group" aria-label="Что сравниваем">
+		{cases.map((c, i) => (
+			<button type="button" class="erace__tab" data-case={c.id} data-left={c.left} data-right={c.right} data-note={c.note} aria-pressed={i === 0 ? 'true' : 'false'}>{c.label}</button>
+		))}
+	</div>
+	<p class="erace__note" data-notep></p>
+	<svg class="erace__svg" viewBox="0 0 440 210" data-svg role="img" aria-label="Два сосуда с жидкостью">
+		<g data-fan class="erace__fan"></g>
+		<g data-dots></g>
+		<g data-vessels></g>
+		<text class="erace__name" x="110" y="200" text-anchor="middle" data-lname></text>
+		<text class="erace__name" x="330" y="200" text-anchor="middle" data-rname></text>
+	</svg>
+	<p class="erace__q">Где жидкость испарится раньше?</p>
+	<div class="erace__opts" role="group" aria-label="Ваш прогноз">
+		<button type="button" class="erace__opt" data-guess="left">слева</button>
+		<button type="button" class="erace__opt" data-guess="right">справа</button>
+		<button type="button" class="erace__opt" data-guess="same">одновременно</button>
+	</div>
+	<p class="erace__fb" data-fb aria-live="polite"></p>
+	<figcaption class="erace__caption">Время в опыте сильно ускорено: на самом деле лужица на блюдце сохнет часы.</figcaption>
+</figure>
+
+<style is:global>
+	.erace {
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.erace__tabs,
+	.erace__opts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.erace__tab,
+	.erace__opt {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.35rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.erace__tab[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.erace__opt:hover:not(:disabled),
+	.erace__tab:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.erace__opt:disabled {
+		cursor: default;
+		opacity: 0.6;
+	}
+	.erace__opt.is-chosen {
+		opacity: 1;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.erace__note {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.erace__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin-top: 0.4rem;
+	}
+	.erace__vessel {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.erace__liq {
+		fill: var(--ig-vx);
+		opacity: 0.45;
+	}
+	.erace__liq--spirit {
+		fill: var(--ig-v);
+	}
+	.erace__heat {
+		fill: var(--ig-vy);
+		opacity: 0.75;
+	}
+	.erace__dot {
+		fill: var(--ig-vy);
+	}
+	.erace__fan line,
+	.erace__fan circle {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		fill: none;
+	}
+	.erace__name {
+		fill: var(--sl-color-gray-2);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.erace__q {
+		margin: 0.4rem 0 0.4rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.erace__fb {
+		min-height: 1.5em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.erace__fb b {
+		color: var(--sl-color-text-accent);
+	}
+	.erace__caption {
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+</style>
+
+<script>
+	import { reduceMotion } from './physics';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	type Vessel = { cx: number; w: number; depth: number; rate: number; spirit?: boolean; heat?: boolean; wind?: boolean };
+	type Case = { L: Vessel; R: Vessel; why: string };
+	// rate: relative evaporation per unit area (level fall speed); same volume => depth ~ 1/width².
+	const CASES: Record<string, Case> = {
+		kind: {
+			L: { cx: 110, w: 150, depth: 14, rate: 1 },
+			R: { cx: 330, w: 150, depth: 14, rate: 4, spirit: true },
+			why: 'Спирт испаряется быстрее воды: его молекулы слабее притягиваются друг к другу, и вылететь из жидкости им легче.',
+		},
+		temp: {
+			L: { cx: 110, w: 150, depth: 14, rate: 4, heat: true },
+			R: { cx: 330, w: 150, depth: 14, rate: 1 },
+			why: 'В тёплой воде больше быстрых молекул, способных вылететь: поэтому тёплая вода испаряется в несколько раз быстрее холодной.',
+		},
+		area: {
+			L: { cx: 110, w: 64, depth: 56, rate: 1 },
+			R: { cx: 330, w: 128, depth: 14, rate: 1 },
+			why: 'С каждого квадратного сантиметра поверхности вода испаряется одинаково, поэтому уровень в обоих сосудах опускается с одной скоростью. Но у блюдца поверхность в 4 раза больше, слой воды в 4 раза тоньше — и оно высыхает в 4 раза раньше.',
+		},
+		wind: {
+			L: { cx: 110, w: 150, depth: 14, rate: 1 },
+			R: { cx: 330, w: 150, depth: 14, rate: 3, wind: true },
+			why: 'Ветер уносит вылетевшие молекулы, и они не возвращаются обратно в воду. Поэтому на ветру вода испаряется быстрее.',
+		},
+	};
+	const BASE = 150; // vessel bottom y
+	const SLOW_TIME = 12; // seconds for the slowest vessel to dry
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-erace]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-case]'));
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-guess]'));
+		const vessels = $<SVGGElement>('[data-vessels]');
+		const dotsG = $<SVGGElement>('[data-dots]');
+		const fanG = $<SVGGElement>('[data-fan]');
+		const fb = $<HTMLElement>('[data-fb]');
+		let id = 'kind';
+		let raf = 0;
+		let level: [number, number] = [1, 1];
+		let liqEls: SVGRectElement[] = [];
+		let dots: { x: number; y: number; vx: number; vy: number; a: number; el: SVGCircleElement }[] = [];
+
+		const el = (tag: string, a: Record<string, string | number>, parent: SVGGElement) => {
+			const e = document.createElementNS(NS, tag);
+			for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+			parent.appendChild(e);
+			return e as SVGElement;
+		};
+
+		const build = () => {
+			cancelAnimationFrame(raf);
+			const c = CASES[id];
+			const tab = tabs.find((t) => t.dataset.case === id)!;
+			$<HTMLElement>('[data-notep]').textContent = tab.dataset.note!;
+			$<SVGTextElement>('[data-lname]').textContent = tab.dataset.left!;
+			$<SVGTextElement>('[data-rname]').textContent = tab.dataset.right!;
+			vessels.replaceChildren();
+			dotsG.replaceChildren();
+			fanG.replaceChildren();
+			dots = [];
+			level = [1, 1];
+			liqEls = [];
+			for (const v of [c.L, c.R]) {
+				const x0 = v.cx - v.w / 2;
+				const wallH = Math.max(28, v.depth + 18);
+				liqEls.push(el('rect', { x: x0 + 2, width: v.w - 4, y: BASE - v.depth, height: v.depth, class: `erace__liq${v.spirit ? ' erace__liq--spirit' : ''}` }, vessels) as SVGRectElement);
+				el('path', { d: `M${x0 - 4} ${BASE - wallH} L${x0} ${BASE} H${x0 + v.w} L${x0 + v.w + 4} ${BASE - wallH}`, class: 'erace__vessel' }, vessels);
+				if (v.heat) el('rect', { x: v.cx - 85, y: BASE + 8, width: 170, height: 12, rx: 3, class: 'erace__heat' }, vessels);
+				if (v.wind) {
+					el('circle', { cx: 425, cy: 60, r: 13 }, fanG);
+					for (const dy of [-10, 0, 10]) el('line', { x1: 405, x2: 250, y1: 60 + dy, y2: 70 + dy, 'stroke-dasharray': '10 9' }, fanG);
+				}
+			}
+			for (const o of opts) {
+				o.disabled = false;
+				o.classList.remove('is-chosen');
+			}
+			fb.textContent = 'Сделайте прогноз — и опыт начнётся.';
+		};
+
+		const run = (guess: string) => {
+			const c = CASES[id];
+			const vs = [c.L, c.R];
+			// time to dry = depth / rate; scale so the slower one takes SLOW_TIME seconds
+			const times = vs.map((v) => v.depth / v.rate);
+			const k = SLOW_TIME / Math.max(...times);
+			const winner = Math.abs(times[0] - times[1]) < 1e-9 ? 'same' : times[0] < times[1] ? 'left' : 'right';
+			const fast = reduceMotion() ? 6 : 1;
+			let prev = performance.now();
+			let elapsed = 0;
+			const acc = [0, 0];
+			fb.textContent = 'Смотрим…';
+			const frame = (now: number) => {
+				const dt = Math.min(0.05, (now - prev) / 1000) * fast;
+				prev = now;
+				elapsed += dt;
+				vs.forEach((v, i) => {
+					const T = times[i] * k;
+					level[i] = Math.max(0, 1 - elapsed / T);
+					const h = v.depth * level[i];
+					liqEls[i].setAttribute('y', String(BASE - h));
+					liqEls[i].setAttribute('height', String(h));
+					if (level[i] > 0 && !reduceMotion()) {
+						// molecules leaving: their number per second ~ evaporation rate × surface width
+						acc[i] += dt * v.rate * (v.w / 150) * 7;
+						while (acc[i] >= 1) {
+							acc[i] -= 1;
+							const e = el('circle', { r: 2.6, class: 'erace__dot' }, dotsG) as SVGCircleElement;
+							dots.push({ x: v.cx + (Math.random() - 0.5) * (v.w - 10), y: BASE - h - 3, vx: (v.wind ? -70 : 0) + (Math.random() - 0.5) * 30, vy: -35 - Math.random() * 30, a: 1, el: e });
+						}
+					}
+				});
+				dots = dots.filter((d) => {
+					d.x += d.vx * dt;
+					d.y += d.vy * dt;
+					d.a -= dt * 0.9;
+					if (d.a <= 0 || d.y < 0) {
+						d.el.remove();
+						return false;
+					}
+					d.el.setAttribute('cx', d.x.toFixed(1));
+					d.el.setAttribute('cy', d.y.toFixed(1));
+					d.el.setAttribute('opacity', d.a.toFixed(2));
+					return true;
+				});
+				if (level[0] > 0 || level[1] > 0 || dots.length) raf = requestAnimationFrame(frame);
+				if (level[0] === 0 || level[1] === 0) {
+					if (!fb.dataset.done) {
+						fb.dataset.done = '1';
+						const right = guess === winner;
+						const where = winner === 'left' ? 'слева' : winner === 'right' ? 'справа' : 'одновременно';
+						fb.innerHTML = `${right ? '<b>Верно!</b> ' : `Не совсем: жидкость раньше испарилась ${where}. `}${c.why} Выберите другой опыт вверху или нажмите на этот же ещё раз.`;
+					}
+				}
+			};
+			delete fb.dataset.done;
+			raf = requestAnimationFrame(frame);
+		};
+
+		for (const t of tabs)
+			t.addEventListener('click', () => {
+				id = t.dataset.case!;
+				for (const o of tabs) o.setAttribute('aria-pressed', String(o === t));
+				build();
+			});
+		for (const o of opts)
+			o.addEventListener('click', () => {
+				for (const b of opts) b.disabled = true;
+				o.classList.add('is-chosen');
+				run(o.dataset.guess!);
+			});
+		build();
+	}
+</script>

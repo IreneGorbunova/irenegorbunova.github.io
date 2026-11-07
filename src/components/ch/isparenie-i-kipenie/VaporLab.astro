@@ -1,0 +1,1177 @@
+---
+/**
+ * Main model: water in a beaker on a hot plate. Two layers:
+ * 1) a "magnified" picture of molecules (canvas): the fastest molecules near the surface fly out,
+ *    vapour molecules that hit the surface come back; under a lid the two flows become equal
+ *    (saturated vapour); bubbles appear before and during boiling;
+ * 2) a real-units heat balance of 0,5 kg of water in a beaker 10 cm wide (true proportions):
+ *    P − k(t − 20 °C) − L·J = c·m·Δt/Δτ, evaporation J = h·A·(ρ₀(t) − ρ), boiling at t_кип(p).
+ *    h grows with the water temperature (convection over hot water): at 80 °C an open beaker loses
+ *    about 14 W by evaporation in still air, the order of measured values (~2–3 kg/(м²·ч)).
+ * The t(τ) graph and the live formula Q = L·Δm follow the second layer.
+ */
+const presets = [
+	{ id: 'home', label: 'Дома', p: 101.325 },
+	{ id: 'elbrus', label: 'Эльбрус', p: 50 },
+	{ id: 'everest', label: 'Эверест', p: 33 },
+	{ id: 'cooker', label: 'Скороварка', p: 200 },
+];
+---
+
+<figure class="vlab not-content" data-vlab>
+	<div class="vlab__top">
+		<div class="vlab__scene">
+			<canvas class="vlab__canvas" data-canvas role="img" aria-label="Стакан с водой на электроплитке: молекулы, пар и пузырьки"></canvas>
+			<div class="vlab__badge" data-badge></div>
+		</div>
+		<div class="vlab__side">
+			<svg class="vlab__chart" viewBox="0 0 300 230" role="img" aria-label="График температуры воды от времени" data-chart>
+				<g class="vlab__grid" data-grid></g>
+				<line class="vlab__boil" data-boil-line x1="40" x2="290"></line>
+				<text class="vlab__boil-label" data-boil-label x="288" text-anchor="end"></text>
+				<polyline class="vlab__curve" data-curve points=""></polyline>
+				<circle class="vlab__dot" r="4.5" data-now></circle>
+				<text class="vlab__axis-name" x="44" y="14"><tspan font-style="italic">t</tspan>, °C</text>
+				<text class="vlab__axis-name" x="288" y="194" text-anchor="end">время, мин</text>
+			</svg>
+			<dl class="vlab__stats">
+				<div><dt>Температура воды <i>t</i></dt><dd data-t>—</dd></div>
+				<div><dt>Кипит при <i>t</i><sub>кип</sub></dt><dd data-tb>—</dd></div>
+				<div><dt>Масса воды <i>m</i></dt><dd data-m>—</dd></div>
+				<div><dt>Время опыта</dt><dd data-time>—</dd></div>
+			</dl>
+		</div>
+	</div>
+
+	<div class="vlab__vapour">
+		<div class="vlab__flows" aria-hidden="true">
+			<span class="vlab__flow vlab__flow--out">↑ вылетают <b data-out>0</b></span>
+			<span class="vlab__flow vlab__flow--in">↓ возвращаются <b data-in>0</b></span>
+			<span class="vlab__flow-note">молекул в модели за 1 с</span>
+		</div>
+		<div class="vlab__meter">
+			<div class="vlab__meter-head">
+				<span>Пар над водой: <i>ρ</i> = <b data-rho>—</b></span>
+				<span class="vlab__state" data-state>—</span>
+			</div>
+			<div class="vlab__bar"><span class="vlab__bar-fill" data-rho-bar></span><span class="vlab__bar-max" data-rho0-bar></span></div>
+			<div class="vlab__meter-foot">насыщенный пар при этой температуре: <i>ρ</i><sub>0</sub> = <span data-rho0>—</span></div>
+		</div>
+	</div>
+
+	<div class="vlab__controls">
+		<label class="vlab__slider">
+			<span>Мощность плитки <i>P</i></span>
+			<output data-p-out>0 Вт</output>
+			<input type="range" min="0" max="1000" step="50" value="0" data-power />
+		</label>
+		<div class="vlab__group" role="group" aria-label="Давление над водой">
+			<span class="vlab__group-name">Где кипятим</span>
+			<div class="vlab__seg">
+				{presets.map((s, i) => (
+					<button type="button" class="vlab__segbtn" data-place={s.id} data-p={s.p} aria-pressed={i === 0 ? 'true' : 'false'}>{s.label}</button>
+				))}
+			</div>
+		</div>
+		<div class="vlab__buttons">
+			<button type="button" class="vlab__btn" data-lid aria-pressed="false">Закрыть крышкой</button>
+			<button type="button" class="vlab__btn" data-fan aria-pressed="false">Включить вентилятор</button>
+			<button type="button" class="vlab__btn" data-fast aria-pressed="false">Ускорить время</button>
+		</div>
+		<div class="vlab__buttons">
+			<button type="button" class="vlab__btn vlab__btn--primary" data-reset="20">Налить воду 20 °C</button>
+			<button type="button" class="vlab__btn vlab__btn--primary" data-reset="80">Налить горячую 80 °C</button>
+		</div>
+	</div>
+
+	<div class="vlab__q" data-q aria-live="off"></div>
+	<p class="vlab__live" data-live aria-live="polite"></p>
+
+	<figcaption class="vlab__caption">
+		<span class="vlab__key vlab__key--slow"></span>медленные молекулы
+		<span class="vlab__key vlab__key--fast"></span>быстрые. Кружки лишь показывают, как ведут себя молекулы: на самом деле
+		они в миллиарды раз меньше и их несравнимо больше. Числа — для 0,5 кг воды в стакане шириной 10 см; в комнате 20 °C.
+		Время в опыте идёт в <span data-k>20</span> раз быстрее, чем на самом деле.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.vlab {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-text);
+	}
+	.vlab i {
+		font-family: var(--ig-font-math);
+	}
+	.vlab__top {
+		display: grid;
+		grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: start;
+	}
+	.vlab__scene {
+		position: relative;
+	}
+	.vlab__canvas {
+		display: block;
+		width: 100%;
+		aspect-ratio: 560 / 470;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+	.vlab__badge {
+		position: absolute;
+		left: 0.6rem;
+		top: 0.5rem;
+		padding: 0.15rem 0.6rem;
+		border-radius: 999px;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		color: var(--sl-color-gray-2);
+		background: color-mix(in srgb, var(--sl-color-black) 55%, transparent);
+	}
+	.vlab__badge:empty {
+		display: none;
+	}
+	.vlab__chart {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.vlab__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.vlab__grid line.is-axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.vlab__grid text,
+	.vlab__axis-name,
+	.vlab__boil-label {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+		font-family: var(--__sl-font);
+	}
+	.vlab__boil {
+		stroke: var(--ig-vy);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 5;
+	}
+	.vlab__boil-label {
+		fill: var(--ig-vy);
+	}
+	.vlab__curve {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.vlab__dot {
+		fill: var(--ig-v);
+		stroke: var(--ig-surface);
+		stroke-width: 2;
+	}
+	.vlab__stats {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.4rem 0.8rem;
+		margin: 0.6rem 0 0;
+	}
+	.vlab__stats div {
+		padding: 0.35rem 0.6rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.vlab__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vlab__stats dd {
+		margin: 0;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-white);
+	}
+	.vlab__vapour {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.75rem 1.25rem;
+		align-items: center;
+		margin-top: 0.9rem;
+		padding: 0.6rem 0.8rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+	}
+	.vlab__flows {
+		display: grid;
+		gap: 0.1rem;
+	}
+	.vlab__flow b {
+		font-variant-numeric: tabular-nums;
+		display: inline-block;
+		min-width: 2.2em;
+	}
+	.vlab__flow--out {
+		color: var(--ig-vy);
+	}
+	.vlab__flow--in {
+		color: var(--ig-vx);
+	}
+	.vlab__flow-note {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vlab__meter-head {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: 0.2rem 0.8rem;
+	}
+	.vlab__meter-head b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vlab__state {
+		font-weight: 700;
+		color: var(--sl-color-gray-2);
+	}
+	.vlab__state.is-sat {
+		color: var(--sl-color-text-accent);
+	}
+	.vlab__state.is-boil {
+		color: var(--ig-vy);
+	}
+	.vlab__bar {
+		position: relative;
+		height: 0.7rem;
+		margin: 0.35rem 0 0.25rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		overflow: hidden;
+	}
+	.vlab__bar-fill {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 0;
+		border-radius: 999px;
+		background: var(--ig-vx);
+	}
+	.vlab__bar-max {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 3px;
+		left: 0;
+		background: var(--sl-color-white);
+	}
+	.vlab__meter-foot {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vlab__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.9rem;
+	}
+	.vlab__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vlab__slider output {
+		font-weight: 700;
+		color: var(--ig-vy);
+		font-variant-numeric: tabular-nums;
+	}
+	.vlab__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--ig-vy);
+	}
+	.vlab__group-name {
+		display: block;
+		margin-bottom: 0.3rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vlab__seg {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.vlab__segbtn,
+	.vlab__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.85rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background-color 0.2s;
+	}
+	.vlab__segbtn:hover,
+	.vlab__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.vlab__segbtn[aria-pressed='true'],
+	.vlab__btn[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.vlab__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.vlab__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.vlab__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		align-items: center;
+	}
+	.vlab__q {
+		margin-top: 0.9rem;
+		min-height: 3.2rem;
+		padding: 0.2rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+	}
+	.vlab .ik-m {
+		color: var(--ig-vx);
+	}
+	.vlab .ik-q {
+		color: var(--ig-vy);
+	}
+	.vlab .ik-l {
+		color: var(--ig-v);
+	}
+	.vlab__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.vlab__caption {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vlab__key {
+		display: inline-block;
+		width: 0.65rem;
+		height: 0.65rem;
+		margin: 0 0.3rem 0 0.2rem;
+		border-radius: 50%;
+		vertical-align: -0.05rem;
+	}
+	.vlab__key--slow {
+		background: var(--ig-vx);
+	}
+	.vlab__key--fast {
+		background: var(--ig-vy);
+		margin-left: 0.5rem;
+	}
+	@media (max-width: 50rem) {
+		.vlab {
+			padding: 0.75rem;
+		}
+		.vlab__top,
+		.vlab__controls {
+			grid-template-columns: 1fr;
+		}
+		.vlab__vapour {
+			grid-template-columns: 1fr;
+		}
+		.vlab__flows {
+			grid-template-columns: auto auto;
+			justify-content: start;
+			gap: 0.1rem 1rem;
+		}
+		.vlab__flow-note {
+			grid-column: 1 / -1;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.vlab__segbtn,
+		.vlab__btn {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import {
+		rhoSatWater,
+		tBoilWater,
+		ru,
+		texNum,
+		renderTex,
+		hc,
+		cssVar,
+		onThemeChange,
+		reduceMotion,
+	} from './physics';
+
+	// ---------- real-units model (SI) ----------
+	const C = 4200; // Дж/(кг·°C)
+	const L = 2.3e6; // Дж/кг (table value)
+	const T_ROOM = 20;
+	const RHO_ROOM = 0.5 * rhoSatWater(T_ROOM); // room air: half of saturation
+	const AREA = Math.PI * 0.05 ** 2; // 10 cm wide beaker
+	const H_VESSEL = 0.12; // m
+	const K_LOSS = 0.5; // W/°C, heat exchange with the room
+	const H_EVAP = 0.00093; // m/s, mass-transfer coefficient (still air)
+	const M0 = 0.5;
+	const M_MIN = 0.03;
+
+	// ---------- picture (logical px, 2.6 px per mm: true proportions) ----------
+	const W = 560;
+	const H = 470;
+	const PX = 2600; // px per metre
+	const XL = 150;
+	const XR = 410;
+	const YB = 400; // inner bottom
+	const YRIM = YB - H_VESSEL * PX; // 88
+	const SIG_L = 26; // liquid speed scale at 20 °C, px/s
+	const SIG_V = 70; // vapour speed scale at 20 °C, px/s
+	const FAST = 2 * SIG_L; // "fast" colour threshold
+	const RHO_DOT = rhoSatWater(20) / 6; // one vapour dot per this density
+	const NV_MAX = 520;
+	const SITES = [0.08, 0.17, 0.27, 0.36, 0.45, 0.55, 0.63, 0.72, 0.81, 0.9].map((f) => XL + 8 + f * (XR - XL - 16));
+
+	type Dot = { x: number; y: number; vx: number; vy: number; s: number; a: number; blown?: boolean; out?: boolean };
+	type Bubble = { x: number; y: number; r: number; vy: number; grow: number; life: number };
+	type Splash = { x: number; y: number; t: number };
+
+	const gauss = () => {
+		let u = 0;
+		while (u === 0) u = Math.random();
+		return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random());
+	};
+	const fmtTime = (s: number) => {
+		const m = Math.floor(s / 60);
+		const r = Math.floor(s % 60);
+		return `${m} мин ${String(r).padStart(2, '0')} с`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vlab]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const canvas = $<HTMLCanvasElement>('[data-canvas]');
+		const ctx = canvas.getContext('2d')!;
+		const power = $<HTMLInputElement>('[data-power]');
+		const pOut = $<HTMLOutputElement>('[data-p-out]');
+		const lidBtn = $<HTMLButtonElement>('[data-lid]');
+		const fanBtn = $<HTMLButtonElement>('[data-fan]');
+		const fastBtn = $<HTMLButtonElement>('[data-fast]');
+		const placeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-place]'));
+		const live = $<HTMLElement>('[data-live]');
+		const qBox = $<HTMLElement>('[data-q]');
+		const curve = $<SVGPolylineElement>('[data-curve]');
+		const nowDot = $<SVGCircleElement>('[data-now]');
+		const grid = $<SVGGElement>('[data-grid]');
+		const boilLine = $<SVGLineElement>('[data-boil-line]');
+		const boilLabel = $<SVGTextElement>('[data-boil-label]');
+
+		// colours from the theme
+		let col: Record<string, string> = {};
+		const readColours = () => {
+			col = {
+				slow: cssVar(root, '--ig-vx'),
+				fast: cssVar(root, '--ig-vy'),
+				gold: cssVar(root, '--ig-v'),
+				glass: cssVar(root, '--sl-color-gray-2'),
+				dim: cssVar(root, '--sl-color-gray-4'),
+				faint: cssVar(root, '--sl-color-gray-5'),
+				bg: cssVar(root, '--sl-color-gray-6'),
+				white: cssVar(root, '--sl-color-white'),
+			};
+		};
+		readColours();
+		onThemeChange(() => requestAnimationFrame(() => (readColours(), draw())));
+
+		// ---------- state ----------
+		const s = {
+			t: T_ROOM,
+			m: M0,
+			rho: RHO_ROOM, // vapour density in the head space, kg/m³
+			time: 0,
+			evap: 0, // net evaporated mass since the start, kg
+			p: 101.325,
+			place: 'home',
+			lid: false,
+			lidPos: 0, // 0 open … 1 closed (animated)
+			fan: false,
+			K: 20,
+			P: 0,
+			boilRate: 0, // kg/s
+			boiling: false,
+			flash: 0, // seconds of extra bubbles after a pressure drop
+		};
+		let liquid: Dot[] = [];
+		let vapour: Dot[] = [];
+		let bubbles: Bubble[] = [];
+		let splashes: Splash[] = [];
+		let outEma = 0;
+		let inEma = 0;
+		let emitAcc = 0;
+		let roomAcc = 0;
+		let preAcc = 0;
+		let boilAcc = 0;
+		let points: [number, number][] = [];
+		let span = 600; // chart time span, s
+		let lastRec = -1;
+		let msg = '';
+
+		const surfaceY = () => YB - (s.m / (1000 * AREA)) * PX;
+		const tb = () => tBoilWater(s.p);
+		const sigma = (base: number) => base * Math.sqrt((s.t + 273.15) / 293.15);
+		const rayleigh = (sg: number) => sg * Math.sqrt(-2 * Math.log(1 - Math.random() * 0.999));
+
+		const newLiquid = (y0?: number): Dot => {
+			const sp = rayleigh(sigma(SIG_L));
+			const ang = Math.random() * 2 * Math.PI;
+			const ys = surfaceY();
+			return {
+				x: XL + 5 + Math.random() * (XR - XL - 10),
+				y: y0 ?? ys + 5 + Math.random() * (YB - ys - 10),
+				vx: Math.cos(ang),
+				vy: Math.sin(ang),
+				s: sp,
+				a: 0,
+			};
+		};
+		const targetLiquid = () => Math.max(6, Math.round((YB - surfaceY()) * 0.8));
+
+		const reset = (t0: number) => {
+			s.t = t0;
+			s.m = M0;
+			s.time = 0;
+			s.evap = 0;
+			s.flash = 0;
+			s.rho = s.lid ? rhoSatWater(Math.min(t0, tb())) : RHO_ROOM + 0.5 * (rhoSatWater(t0) - RHO_ROOM);
+			liquid = Array.from({ length: targetLiquid() }, () => ({ ...newLiquid(), a: 1 }));
+			vapour = [];
+			const nv = Math.min(NV_MAX, Math.round(s.rho / RHO_DOT));
+			const ys = surfaceY();
+			const top = s.lid ? YRIM + 8 : YRIM;
+			for (let i = 0; i < nv; i++) vapour.push(newVapour(XL + 5 + Math.random() * (XR - XL - 10), top + Math.random() * (ys - top - 4), false));
+			bubbles = [];
+			splashes = [];
+			points = [];
+			span = 600;
+			lastRec = -1;
+			outEma = 0;
+			inEma = 0;
+			msg = '';
+			if (Number(power.value) === 0 && s.P === 0) msg = '';
+			buildGrid();
+			record();
+		};
+
+		const newVapour = (x: number, y: number, up: boolean): Dot => {
+			const sg = sigma(SIG_V);
+			let vx = gauss() * sg;
+			let vy = gauss() * sg;
+			if (up) vy = -Math.abs(vy) - 0.3 * sg;
+			const sp = Math.hypot(vx, vy);
+			return { x, y, vx, vy, s: sp, a: 1 };
+		};
+
+		// ---------- real-units step ----------
+		const physics = (dt: number) => {
+			const tBoil = tb();
+			const V = Math.max(AREA * 0.005, AREA * (H_VESSEL - s.m / (1000 * AREA)));
+			// hot water stirs the air above it (convection), so evaporation grows faster than ρ₀ alone
+			const hT = H_EVAP * (1 + 0.08 * Math.max(0, s.t - T_ROOM));
+			const hs = hT * (s.fan && !s.lid ? 3 : 1);
+			const htop = hT * (s.fan ? 10 : 1);
+			const closed = s.lid || s.place === 'cooker';
+			// flash boiling if the water is hotter than its new boiling point (pressure dropped)
+			if (s.t > tBoil + 1e-6) {
+				const dm = (C * s.m * (s.t - tBoil)) / L;
+				s.m -= dm;
+				s.evap += dm;
+				s.t = tBoil;
+				s.flash = 2.5;
+			}
+			const rho0 = rhoSatWater(s.t);
+			const J = hs * AREA * (rho0 - s.rho); // net evaporation, kg/s (<0: condensation)
+			const Jtop = closed ? 0 : htop * AREA * (s.rho - RHO_ROOM);
+			const P = s.m > M_MIN ? s.P : 0;
+			const Qnet = P - K_LOSS * (s.t - T_ROOM) - L * J;
+			s.boiling = false;
+			s.boilRate = 0;
+			if (s.t >= tBoil - 1e-6 && Qnet > 0) {
+				s.boiling = true;
+				s.boilRate = Qnet / L;
+				s.t = tBoil;
+			} else {
+				s.t += (Qnet * dt) / (C * s.m);
+				if (s.t > tBoil) s.t = tBoil;
+			}
+			const dm = (J + s.boilRate) * dt;
+			s.m = Math.max(0.005, s.m - dm);
+			s.evap += dm;
+			s.rho += ((J - Jtop) * dt) / V;
+			if (s.boiling) s.rho = rhoSatWater(tBoil);
+			s.rho = Math.max(0, Math.min(s.rho, rhoSatWater(tBoil)));
+			s.time += dt;
+			if (s.P > 0 && s.m <= M_MIN) {
+				s.P = 0;
+				power.value = '0';
+				pOut.value = '0 Вт';
+				msg = 'Вода почти выкипела — плитка выключилась. Налейте воду заново.';
+			}
+		};
+
+		// ---------- molecules ----------
+		const molecules = (dt: number) => {
+			const ys = surfaceY();
+			const top = YRIM + (s.lidPos > 0.5 ? 8 : -400);
+			const head = Math.max(12, ys - (YRIM + 8));
+			const sgL = sigma(SIG_L);
+			const sgV = sigma(SIG_V);
+			const rho0 = rhoSatWater(s.t);
+			const closed = s.lid || s.place === 'cooker';
+			const drift = s.boiling ? 15 + Math.min(45, (s.boilRate / 4e-4) * 40) : 0;
+			const meanVy = sgV * Math.sqrt(2 / Math.PI);
+			// emission: gross flow from the surface, chosen so that under a lid the dots settle at ρ₀/ρ_dot
+			const nSat = rho0 / RHO_DOT;
+			let rate = nSat * (meanVy / (2 * head) + drift / head);
+			emitAcc += rate * dt;
+			let emitted = 0;
+			while (emitAcc >= 1) {
+				emitAcc -= 1;
+				if (vapour.length >= NV_MAX) continue;
+				// the fastest molecule near the surface flies out
+				let best = -1;
+				let bestS = 0;
+				for (let i = 0; i < liquid.length; i++) {
+					const d = liquid[i];
+					if (d.y - ys < 16 && d.s > bestS) {
+						bestS = d.s;
+						best = i;
+					}
+				}
+				const x = best >= 0 ? liquid[best].x : XL + 6 + Math.random() * (XR - XL - 12);
+				if (best >= 0) liquid.splice(best, 1);
+				vapour.push(newVapour(x, ys - 2, true));
+				emitted++;
+			}
+			// room vapour drifting in through the open top
+			if (!closed && s.lidPos < 0.5) {
+				roomAcc += (RHO_ROOM / RHO_DOT) * (meanVy / (2 * head)) * dt;
+				while (roomAcc >= 1) {
+					roomAcc -= 1;
+					const d = newVapour(XL + 6 + Math.random() * (XR - XL - 12), YRIM - 4, false);
+					d.vy = Math.abs(d.vy) + 0.2 * sgV;
+					vapour.push(d);
+				}
+			}
+			// liquid jiggle
+			for (const d of liquid) {
+				d.a = Math.min(1, d.a + dt * 3);
+				if (Math.random() < dt * 3) {
+					d.s = rayleigh(sgL);
+					const ang = Math.random() * 2 * Math.PI;
+					d.vx = Math.cos(ang);
+					d.vy = Math.sin(ang);
+				}
+				d.x += d.vx * d.s * dt;
+				d.y += d.vy * d.s * dt;
+				if (d.x < XL + 4) (d.x = XL + 4), (d.vx = Math.abs(d.vx));
+				if (d.x > XR - 4) (d.x = XR - 4), (d.vx = -Math.abs(d.vx));
+				if (d.y > YB - 4) (d.y = YB - 4), (d.vy = -Math.abs(d.vy));
+				if (d.y < ys + 4) (d.y = ys + 4), (d.vy = Math.abs(d.vy));
+			}
+			// vapour flight
+			let returned = 0;
+			const keep: Dot[] = [];
+			const fanOn = s.fan && s.lidPos < 0.5;
+			for (const d of vapour) {
+				if (d.blown) {
+					d.x += d.vx * dt;
+					d.y += d.vy * dt;
+					d.a -= dt * 0.8;
+					if (d.a > 0 && d.x < W + 10 && d.y > -10) keep.push(d);
+					continue;
+				}
+				if (d.out) {
+					d.x += d.vx * dt;
+					d.y += (d.vy - drift - 20) * dt;
+					d.a -= dt * 0.7;
+					if (d.a > 0 && d.y > -10) keep.push(d);
+					continue;
+				}
+				d.x += d.vx * dt;
+				d.y += (d.vy - drift) * dt;
+				if (d.x < XL + 3) (d.x = XL + 3), (d.vx = Math.abs(d.vx));
+				if (d.x > XR - 3) (d.x = XR - 3), (d.vx = -Math.abs(d.vx));
+				if (d.y >= ys - 2) {
+					// back into the liquid: condensation
+					returned++;
+					if (liquid.length < targetLiquid() + 12) {
+						const n = newLiquid(ys + 5);
+						n.x = d.x;
+						n.s = Math.min(d.s * 0.5, 2.5 * sgL);
+						n.a = 1;
+						liquid.push(n);
+					}
+					continue;
+				}
+				if (s.lidPos > 0.5 && d.y < top) {
+					if (s.boiling && closed) {
+						// steam leaves: under the edges of a loose lid or through the valve of the cooker
+						const valve = s.place === 'cooker';
+						if ((valve && Math.abs(d.x - 280) < 30) || (!valve && (d.x < XL + 40 || d.x > XR - 40)) || Math.random() < 0.15) {
+							d.out = true;
+							if (valve) (d.x = 280 + (Math.random() - 0.5) * 6), (d.y = YRIM - 30), (d.vx = (Math.random() - 0.5) * 40), (d.vy = -120);
+							else (d.y = YRIM + 2), (d.vx = d.x < 280 ? -60 - Math.random() * 40 : 60 + Math.random() * 40), (d.x = d.x < 280 ? XL - 14 : XR + 14), (d.vy = -30);
+							keep.push(d);
+							continue;
+						}
+					}
+					d.y = top;
+					d.vy = Math.abs(d.vy);
+				}
+				if (d.y < YRIM && s.lidPos <= 0.5) {
+					d.out = true;
+					keep.push(d);
+					continue;
+				}
+				if (fanOn && d.y < YRIM + 60 && Math.random() < dt * 1.6) {
+					d.blown = true;
+					d.vx = 160 + Math.random() * 80;
+					d.vy = -20 - Math.random() * 30;
+				}
+				keep.push(d);
+			}
+			vapour = keep;
+			// keep the liquid population matched to the water volume
+			const target = targetLiquid();
+			while (liquid.length < target - 6) liquid.push(newLiquid());
+			while (liquid.length > target + 14) liquid.splice(Math.floor(Math.random() * liquid.length), 1);
+			for (const d of liquid) if (d.y < ys + 4) d.y = ys + 4;
+			// flows (exponential average over ~2 s)
+			const a = Math.min(1, dt / 2);
+			outEma += a * (emitted / Math.max(dt, 1e-6) - outEma);
+			inEma += a * (returned / Math.max(dt, 1e-6) - inEma);
+
+			// bubbles
+			const tBoil = tb();
+			const pre = s.P > 0 && !s.boiling && s.t > tBoil - 15 ? (s.t - (tBoil - 15)) / 15 : 0;
+			preAcc += pre * 7 * dt;
+			while (preAcc >= 1) {
+				preAcc -= 1;
+				bubbles.push({ x: SITES[Math.floor(Math.random() * SITES.length)] + gauss() * 2, y: YB - 3, r: 1.5 + Math.random() * 1.5, vy: -40 - Math.random() * 30, grow: -1, life: 0 });
+			}
+			const boilB = s.boiling ? Math.min(40, 6 + (s.boilRate / 4e-4) * 26) : 0;
+			boilAcc += (boilB + (s.flash > 0 ? 45 : 0)) * dt;
+			s.flash = Math.max(0, s.flash - dt);
+			while (boilAcc >= 1) {
+				boilAcc -= 1;
+				bubbles.push({ x: SITES[Math.floor(Math.random() * SITES.length)] + gauss() * 3, y: YB - 3, r: 2, vy: -60 - Math.random() * 50, grow: 1, life: 0 });
+			}
+			const bk: Bubble[] = [];
+			for (const b of bubbles) {
+				b.life += dt;
+				b.vy -= 60 * dt * (b.grow > 0 ? 1 : 0.3);
+				b.y += b.vy * dt;
+				b.x += Math.sin(b.life * 9 + b.x) * 6 * dt;
+				if (b.grow > 0) b.r = Math.min(11, b.r + 9 * dt);
+				else b.r -= 1.3 * dt * (1 + b.life);
+				if (b.r <= 0.4) continue;
+				if (b.y - b.r <= ys) {
+					if (b.grow > 0) splashes.push({ x: b.x, y: ys, t: 0 });
+					continue;
+				}
+				bk.push(b);
+			}
+			bubbles = bk;
+			splashes = splashes.filter((sp) => (sp.t += dt) < 0.35);
+		};
+
+		// ---------- drawing ----------
+		const dpr = () => Math.min(2, window.devicePixelRatio || 1);
+		const resize = () => {
+			const w = canvas.clientWidth;
+			if (!w) return;
+			const k = dpr();
+			canvas.width = Math.round(w * k);
+			canvas.height = Math.round((w * H) / W * k);
+			ctx.setTransform((w * k) / W, 0, 0, (w * k) / W, 0, 0);
+			draw();
+		};
+		new ResizeObserver(resize).observe(canvas);
+
+		const mountain = () => {
+			if (s.place !== 'elbrus' && s.place !== 'everest') return;
+			ctx.save();
+			ctx.globalAlpha = 0.55;
+			ctx.fillStyle = col.faint;
+			ctx.beginPath();
+			if (s.place === 'elbrus') {
+				ctx.moveTo(0, 300);
+				ctx.lineTo(70, 160);
+				ctx.lineTo(110, 120);
+				ctx.lineTo(150, 150);
+				ctx.lineTo(185, 115);
+				ctx.lineTo(240, 170);
+				ctx.lineTo(330, 260);
+				ctx.lineTo(560, 300);
+			} else {
+				ctx.moveTo(0, 300);
+				ctx.lineTo(90, 200);
+				ctx.lineTo(160, 70);
+				ctx.lineTo(200, 120);
+				ctx.lineTo(260, 95);
+				ctx.lineTo(380, 230);
+				ctx.lineTo(560, 280);
+			}
+			ctx.lineTo(560, 470);
+			ctx.lineTo(0, 470);
+			ctx.closePath();
+			ctx.fill();
+			ctx.restore();
+		};
+
+		const draw = () => {
+			ctx.clearRect(0, 0, W, H);
+			mountain();
+			const ys = surfaceY();
+			// hot plate
+			const glow = s.m > M_MIN ? s.P / 1000 : 0;
+			ctx.fillStyle = col.dim;
+			ctx.fillRect(XL - 40, YB + 14, XR - XL + 80, 22);
+			ctx.fillStyle = col.faint;
+			ctx.fillRect(XL - 30, YB + 36, 14, 18);
+			ctx.fillRect(XR + 16, YB + 36, 14, 18);
+			if (glow > 0) {
+				ctx.save();
+				ctx.globalAlpha = 0.25 + 0.75 * glow;
+				ctx.fillStyle = glow > 0.55 ? col.fast : col.gold;
+				ctx.fillRect(XL - 20, YB + 10, XR - XL + 40, 6);
+				ctx.restore();
+			}
+			// water
+			ctx.save();
+			ctx.globalAlpha = 0.22;
+			ctx.fillStyle = col.slow;
+			ctx.fillRect(XL, ys, XR - XL, YB - ys);
+			ctx.restore();
+			ctx.strokeStyle = col.slow;
+			ctx.globalAlpha = 0.8;
+			ctx.lineWidth = 2;
+			ctx.beginPath();
+			ctx.moveTo(XL, ys);
+			ctx.lineTo(XR, ys);
+			ctx.stroke();
+			ctx.globalAlpha = 1;
+			// bubbles
+			ctx.lineWidth = 1.6;
+			for (const b of bubbles) {
+				ctx.strokeStyle = col.white;
+				ctx.globalAlpha = 0.75;
+				ctx.beginPath();
+				ctx.arc(b.x, b.y, b.r, 0, 2 * Math.PI);
+				ctx.stroke();
+				ctx.globalAlpha = 0.18;
+				ctx.fillStyle = col.white;
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+			for (const sp of splashes) {
+				ctx.strokeStyle = col.white;
+				ctx.globalAlpha = 1 - sp.t / 0.35;
+				ctx.beginPath();
+				ctx.arc(sp.x, sp.y, 3 + sp.t * 30, Math.PI * 1.1, Math.PI * 1.9);
+				ctx.stroke();
+			}
+			ctx.globalAlpha = 1;
+			// molecules
+			const dot = (d: Dot, r: number) => {
+				ctx.fillStyle = d.s > FAST ? col.fast : col.slow;
+				ctx.globalAlpha = Math.max(0, Math.min(1, d.a));
+				ctx.beginPath();
+				ctx.arc(d.x, d.y, r, 0, 2 * Math.PI);
+				ctx.fill();
+			};
+			for (const d of liquid) dot(d, 3.2);
+			for (const d of vapour) {
+				ctx.fillStyle = col.fast;
+				ctx.globalAlpha = Math.max(0, Math.min(1, d.a));
+				ctx.beginPath();
+				ctx.arc(d.x, d.y, 3.2, 0, 2 * Math.PI);
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+			// beaker walls
+			ctx.strokeStyle = col.glass;
+			ctx.lineWidth = 4;
+			ctx.lineJoin = 'round';
+			ctx.beginPath();
+			ctx.moveTo(XL - 2, YRIM - 6);
+			ctx.lineTo(XL - 2, YB + 2);
+			ctx.lineTo(XR + 2, YB + 2);
+			ctx.lineTo(XR + 2, YRIM - 6);
+			ctx.stroke();
+			// lid
+			if (s.lidPos > 0.01) {
+				const lift = (1 - s.lidPos) * 70;
+				const wob = s.boiling && s.lid && s.place !== 'cooker' && !reduceMotion() ? Math.sin(performance.now() / 45) * 1.5 : 0;
+				ctx.save();
+				ctx.globalAlpha = s.lidPos;
+				ctx.fillStyle = col.dim;
+				const y = YRIM - 8 - lift + wob;
+				ctx.fillRect(XL - 16, y, XR - XL + 32, s.place === 'cooker' ? 14 : 9);
+				if (s.place === 'cooker') {
+					ctx.fillRect(XL - 22, y, 8, 30);
+					ctx.fillRect(XR + 14, y, 8, 30);
+					ctx.fillRect(272, y - 22, 16, 22);
+					ctx.fillStyle = col.fast;
+					ctx.fillRect(268, y - 28, 24, 7);
+				} else {
+					ctx.fillRect(266, y - 12, 28, 12);
+				}
+				ctx.restore();
+			}
+			// fan
+			if (s.fan) {
+				ctx.save();
+				ctx.strokeStyle = col.glass;
+				ctx.globalAlpha = 0.85;
+				ctx.lineWidth = 3;
+				const cx = 60;
+				const cy = YRIM - 30;
+				const ang = reduceMotion() ? 0 : performance.now() / 60;
+				ctx.beginPath();
+				ctx.arc(cx, cy, 22, 0, 2 * Math.PI);
+				ctx.stroke();
+				for (let i = 0; i < 3; i++) {
+					const a = ang + (i * 2 * Math.PI) / 3;
+					ctx.beginPath();
+					ctx.moveTo(cx, cy);
+					ctx.lineTo(cx + 18 * Math.cos(a), cy + 18 * Math.sin(a));
+					ctx.stroke();
+				}
+				ctx.fillStyle = col.dim;
+				ctx.fillRect(cx - 3, cy + 22, 6, 60);
+				ctx.fillRect(cx - 18, cy + 80, 36, 6);
+				// air streaks
+				ctx.lineWidth = 2;
+				ctx.setLineDash([14, 12]);
+				ctx.lineDashOffset = reduceMotion() ? 0 : -performance.now() / 8;
+				for (const dy of [-14, 0, 14]) {
+					ctx.beginPath();
+					ctx.moveTo(95, cy + dy);
+					ctx.lineTo(520, cy + dy + 6);
+					ctx.stroke();
+				}
+				ctx.restore();
+			}
+		};
+
+		// ---------- chart ----------
+		const CX0 = 40;
+		const CX1 = 290;
+		const CY0 = 200;
+		const CY1 = 24;
+		const TMAX = 130;
+		const cx = (time: number) => CX0 + (time / span) * (CX1 - CX0);
+		const cy = (t: number) => CY0 - (t / TMAX) * (CY0 - CY1);
+		const NS = 'http://www.w3.org/2000/svg';
+		const buildGrid = () => {
+			grid.replaceChildren();
+			const add = (tag: string, attrs: Record<string, string | number>, text?: string) => {
+				const el = document.createElementNS(NS, tag);
+				for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+				if (text) el.textContent = text;
+				grid.appendChild(el);
+			};
+			for (const t of [0, 20, 40, 60, 80, 100, 120]) {
+				add('line', { x1: CX0, x2: CX1, y1: cy(t), y2: cy(t), class: t === 0 ? 'is-axis' : '' });
+				add('text', { x: CX0 - 6, y: cy(t) + 4, 'text-anchor': 'end' }, String(t));
+			}
+			const mins = span / 60;
+			const step = mins <= 10 ? 2 : mins <= 20 ? 5 : mins <= 40 ? 10 : 20;
+			for (let m = 0; m <= mins + 1e-9; m += step) {
+				add('line', { x1: cx(m * 60), x2: cx(m * 60), y1: CY0, y2: CY1, class: m === 0 ? 'is-axis' : '' });
+				add('text', { x: cx(m * 60), y: CY0 + 16, 'text-anchor': 'middle' }, String(m));
+			}
+		};
+		const record = () => {
+			if (s.time - lastRec < span / 400 && points.length) return;
+			lastRec = s.time;
+			points.push([s.time, s.t]);
+			if (s.time > span) {
+				span *= 2;
+				buildGrid();
+			}
+		};
+		const drawChart = () => {
+			curve.setAttribute('points', points.map(([x, y]) => `${cx(x).toFixed(1)},${cy(y).toFixed(1)}`).join(' '));
+			nowDot.setAttribute('cx', cx(s.time).toFixed(1));
+			nowDot.setAttribute('cy', cy(s.t).toFixed(1));
+			const yb = cy(tb());
+			boilLine.setAttribute('y1', yb.toFixed(1));
+			boilLine.setAttribute('y2', yb.toFixed(1));
+			boilLabel.setAttribute('y', (yb - 5).toFixed(1));
+			boilLabel.textContent = `t кип = ${ru(tb(), 1)} °C`;
+		};
+
+		// ---------- readouts ----------
+		let lastText = 0;
+		const texts = () => {
+			$<HTMLElement>('[data-t]').textContent = `${ru(s.t, 1)} °C`;
+			$<HTMLElement>('[data-tb]').textContent = `${ru(tb(), 1)} °C (${ru(s.p, 0)} кПа)`;
+			$<HTMLElement>('[data-m]').textContent = `${ru(s.m * 1000, 1)} г`;
+			$<HTMLElement>('[data-time]').textContent = fmtTime(s.time);
+			$<HTMLElement>('[data-out]').textContent = ru(outEma, 0);
+			$<HTMLElement>('[data-in]').textContent = ru(inEma, 0);
+			const rho0 = rhoSatWater(s.t);
+			const g = (v: number) => (v < 0.1 ? `${ru(v * 1000, 1)} г/м³` : `${ru(v * 1000, 0)} г/м³`);
+			$<HTMLElement>('[data-rho]').textContent = g(s.rho);
+			$<HTMLElement>('[data-rho0]').textContent = g(rho0);
+			const fill = Math.min(1, s.rho / rho0);
+			$<HTMLElement>('[data-rho-bar]').style.width = `${(fill * 100).toFixed(1)}%`;
+			$<HTMLElement>('[data-rho0-bar]').style.left = 'calc(100% - 3px)';
+			const st = $<HTMLElement>('[data-state]');
+			const sat = s.rho >= 0.97 * rho0;
+			st.textContent = s.boiling ? 'кипение: пар насыщенный' : sat ? 'пар насыщенный' : 'пар ненасыщенный';
+			st.className = `vlab__state${s.boiling ? ' is-boil' : sat ? ' is-sat' : ''}`;
+			// live Q = L·Δm
+			const dmG = s.evap * 1000;
+			const dmKg = Math.round(dmG * 10) / 10 / 1000;
+			const Q = L * dmKg;
+			const qTex = Math.abs(Q) < 1000 ? `${texNum(Q, 0)}~\\text{Дж}` : `${texNum(Q / 1000, Math.abs(Q) < 1e5 ? 1 : 0)}~\\text{кДж}`;
+			const cond = dmKg < 0;
+			const narrow = qBox.clientWidth < 600;
+			const head = cond
+				? `\\text{сконденсировалось } ${hc('m', 'm')} = ${hc('m', `${texNum(-dmKg * 1000, 1)}~\\text{г}`)}`
+				: `\\text{испарилось } ${hc('m', 'm')} = ${hc('m', `${texNum(dmKg * 1000, 1)}~\\text{г}`)}`;
+			const body = `${hc('q', 'Q')} = ${hc('l', 'L')}${hc('m', 'm')} = ${hc('l', '2{,}3 \\cdot 10^6~\\tfrac{\\text{Дж}}{\\text{кг}}')} \\cdot ${hc('m', `${texNum(Math.abs(dmKg), 4)}~\\text{кг}`)} = ${hc('q', qTex.replace('-', ''))}${cond ? '~\\text{выделилось}' : ''}`;
+			const bodyA = `${hc('q', 'Q')} = ${hc('l', 'L')}${hc('m', 'm')} = ${hc('l', '2{,}3 \\cdot 10^6~\\tfrac{\\text{Дж}}{\\text{кг}}')} \\cdot ${hc('m', `${texNum(Math.abs(dmKg), 4)}~\\text{кг}`)}`;
+			const bodyB = `${hc('q', qTex.replace('-', ''))}${cond ? '~\\text{выделилось}' : ''}`;
+			renderTex(qBox, narrow ? `\\begin{gathered} ${head} \\\\ ${bodyA} = \\\\ = ${bodyB} \\end{gathered}` : `${head}: \\quad ${body}`);
+			let line = msg;
+			if (!line) {
+				if (s.boiling) line = `Вода кипит: вся энергия от плитки уходит на парообразование, и температура держится на ${ru(tb(), 1)} °C.`;
+				else if (s.P > 0 && s.t > tb() - 15) line = 'Перед кипением со дна поднимаются пузырьки и схлопываются в верхних, более холодных слоях — чайник «шумит».';
+				else if (s.lid && sat) line = 'Под крышкой молекул вылетает столько же, сколько возвращается: пар насыщенный, вода больше не убывает.';
+				else if (!s.lid && s.place !== 'cooker' && s.P === 0 && s.t > T_ROOM + 5) line = 'Вода остывает: часть энергии уносят вылетающие быстрые молекулы.';
+				else line = 'Самые быстрые молекулы у поверхности вылетают из воды — идёт испарение.';
+			}
+			live.textContent = line;
+		};
+
+		// ---------- loop ----------
+		let raf = 0;
+		let prev = 0;
+		let visible = true;
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, (now - prev) / 1000 || 0.016);
+			prev = now;
+			const lidTarget = s.lid || s.place === 'cooker' ? 1 : 0;
+			s.lidPos += Math.sign(lidTarget - s.lidPos) * Math.min(Math.abs(lidTarget - s.lidPos), dt * 3);
+			const dtm = dt * s.K;
+			const n = Math.max(1, Math.ceil(dtm / 0.5));
+			for (let i = 0; i < n; i++) physics(dtm / n);
+			record();
+			molecules(dt);
+			draw();
+			drawChart();
+			if (now - lastText > 120) {
+				texts();
+				lastText = now;
+			}
+			if (visible) raf = requestAnimationFrame(frame);
+		};
+		const start = () => {
+			cancelAnimationFrame(raf);
+			prev = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+		new IntersectionObserver((es) => {
+			visible = es[0].isIntersecting;
+			if (visible) start();
+			else cancelAnimationFrame(raf);
+		}).observe(root);
+
+		// ---------- controls ----------
+		const setLid = (on: boolean) => {
+			s.lid = on;
+			lidBtn.setAttribute('aria-pressed', String(on));
+			lidBtn.textContent = on ? 'Снять крышку' : 'Закрыть крышкой';
+		};
+		power.addEventListener('input', () => {
+			s.P = Number(power.value);
+			pOut.value = `${s.P} Вт`;
+			if (s.P > 0 && s.m <= M_MIN) msg = 'Вода почти выкипела — налейте воду заново.';
+			else msg = '';
+		});
+		lidBtn.addEventListener('click', () => setLid(!s.lid));
+		fanBtn.addEventListener('click', () => {
+			s.fan = !s.fan;
+			fanBtn.setAttribute('aria-pressed', String(s.fan));
+			fanBtn.textContent = s.fan ? 'Выключить вентилятор' : 'Включить вентилятор';
+		});
+		fastBtn.addEventListener('click', () => {
+			s.K = s.K === 20 ? 200 : 20;
+			fastBtn.setAttribute('aria-pressed', String(s.K === 200));
+			fastBtn.textContent = s.K === 200 ? 'Замедлить время' : 'Ускорить время';
+			$<HTMLElement>('[data-k]').textContent = String(s.K);
+		});
+		const badge = $<HTMLElement>('[data-badge]');
+		const badges: Record<string, string> = {
+			home: '',
+			elbrus: 'Эльбрус, 5642 м',
+			everest: 'Эверест, 8849 м',
+			cooker: 'Скороварка',
+		};
+		for (const b of placeBtns) {
+			b.addEventListener('click', () => {
+				for (const o of placeBtns) o.setAttribute('aria-pressed', String(o === b));
+				const was = s.place;
+				s.place = b.dataset.place!;
+				s.p = Number(b.dataset.p);
+				badge.textContent = badges[s.place];
+				lidBtn.disabled = s.place === 'cooker';
+				if (s.place === 'cooker') setLid(true);
+				else if (was === 'cooker') setLid(false);
+				msg = '';
+				if (was === 'cooker' && s.t > tb() + 0.5) msg = 'Крышку скороварки открыли: давление упало, и перегретая вода бурно вскипела.';
+			});
+		}
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-reset]')) {
+			b.addEventListener('click', () => {
+				reset(Math.min(Number(b.dataset.reset), tb()));
+			});
+		}
+
+		reset(T_ROOM);
+		resize();
+		texts();
+		start();
+	}
+</script>

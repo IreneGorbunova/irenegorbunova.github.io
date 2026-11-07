@@ -38,7 +38,7 @@ export default defineConfig({
 				]),
 				grade(8, [
 					section('Тепловые явления', '8-klass/teplovye-yavleniya', ['vnutrennyaya-energiya', 'kolichestvo-teploty', 'energiya-topliva']),
-					section('Изменение агрегатных состояний вещества', '8-klass/agregatnye-sostoyaniya', ['plavlenie']),
+					section('Изменение агрегатных состояний вещества', '8-klass/agregatnye-sostoyaniya', ['plavlenie', 'isparenie-i-kipenie']),
 					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['zakon-oma']),
 					section('Световые явления', '8-klass/svetovye-yavleniya', ['linzy']),
 				]),

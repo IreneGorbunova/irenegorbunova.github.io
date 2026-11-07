@@ -1,0 +1,223 @@
+---
+/**
+ * Boiling temperature of water versus the pressure above it (steam-table curve, Antoine fit).
+ * Drag the point (or the slider): the readout gives t_кип and, below 1 atm, the altitude in the
+ * standard atmosphere where such a pressure is usual. Marked: Everest, Elbrus, sea level, pressure cooker.
+ */
+import { tBoilWater } from './physics';
+
+const X0 = 52;
+const X1 = 424;
+const Y0 = 236;
+const Y1 = 20;
+const PMIN = 20;
+const PMAX = 220;
+const TMIN = 60;
+const TMAX = 130;
+const px = (p: number) => X0 + ((p - PMIN) / (PMAX - PMIN)) * (X1 - X0);
+const py = (t: number) => Y0 - ((t - TMIN) / (TMAX - TMIN)) * (Y0 - Y1);
+const path = Array.from({ length: 101 }, (_, i) => {
+	const p = PMIN + ((PMAX - PMIN) * i) / 100;
+	return `${i ? 'L' : 'M'}${px(p).toFixed(1)},${py(tBoilWater(p)).toFixed(1)}`;
+}).join(' ');
+const marks = [
+	{ p: 33, name: 'Эверест', dy: -10 },
+	{ p: 50, name: 'Эльбрус', dy: -10 },
+	{ p: 101.325, name: 'уровень моря', dy: -10 },
+	{ p: 200, name: 'скороварка', dy: 22 },
+];
+const pTicks = [20, 60, 100, 140, 180, 220];
+const tTicks = [60, 70, 80, 90, 100, 110, 120, 130];
+---
+
+<figure class="bpr not-content" data-bpr>
+	<svg class="bpr__svg" viewBox="0 0 440 272" data-svg role="img" aria-label="Зависимость температуры кипения воды от давления">
+		<g class="bpr__grid">
+			{tTicks.map((t) => <line x1={X0} x2={X1} y1={py(t)} y2={py(t)} class={t === TMIN ? 'is-axis' : ''} />)}
+			{pTicks.map((p) => <line x1={px(p)} x2={px(p)} y1={Y0} y2={Y1} class={p === PMIN ? 'is-axis' : ''} />)}
+			{tTicks.map((t) => <text x={X0 - 6} y={py(t) + 4} text-anchor="end">{t}</text>)}
+			{pTicks.map((p) => <text x={px(p)} y={Y0 + 17} text-anchor="middle">{p}</text>)}
+			<text x={X0 + 4} y="14"><tspan font-style="italic">t</tspan><tspan dy="3" font-size="10">кип</tspan><tspan dy="-3">, °C</tspan></text>
+			<text x={X1} y="268" text-anchor="end"><tspan font-style="italic">p</tspan>, кПа</text>
+		</g>
+		<path class="bpr__curve" d={path}></path>
+		{marks.map((m) => (
+			<g class="bpr__mark">
+				<circle cx={px(m.p)} cy={py(tBoilWater(m.p))} r="4" />
+				<text x={px(m.p) + (m.dy > 0 ? -4 : 6)} y={py(tBoilWater(m.p)) + m.dy} text-anchor={m.dy > 0 ? 'end' : 'start'}>{m.name}</text>
+			</g>
+		))}
+		<line class="bpr__guide" data-gx></line>
+		<line class="bpr__guide" data-gy></line>
+		<circle class="bpr__knob" r="9" data-knob tabindex="0" role="slider" aria-label="Давление над водой"></circle>
+	</svg>
+	<label class="bpr__slider">
+		<span>Давление над водой <i>p</i></span>
+		<output data-out></output>
+		<input type="range" min="20" max="220" step="1" value="101" data-p />
+	</label>
+	<p class="bpr__read" data-read aria-live="polite"></p>
+</figure>
+
+<style is:global>
+	.bpr {
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.bpr i {
+		font-family: var(--ig-font-math);
+	}
+	.bpr__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: pan-y;
+	}
+	.bpr__grid line {
+		stroke: var(--sl-color-gray-5);
+	}
+	.bpr__grid line.is-axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.bpr__grid text,
+	.bpr__mark text {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.bpr__mark circle {
+		fill: var(--sl-color-gray-2);
+	}
+	.bpr__mark text {
+		fill: var(--sl-color-gray-2);
+	}
+	.bpr__curve {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 3;
+	}
+	.bpr__guide {
+		stroke: var(--ig-v);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 4;
+	}
+	.bpr__knob {
+		fill: var(--ig-v);
+		stroke: var(--ig-surface);
+		stroke-width: 3;
+		cursor: grab;
+	}
+	.bpr__knob:focus-visible {
+		outline: none;
+		stroke: var(--sl-color-white);
+	}
+	.bpr__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.bpr__slider output {
+		font-weight: 700;
+		color: var(--ig-v);
+		font-variant-numeric: tabular-nums;
+	}
+	.bpr__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--ig-v);
+	}
+	.bpr__read {
+		min-height: 3em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.bpr__read b {
+		color: var(--sl-color-white);
+	}
+</style>
+
+<script>
+	import { tBoilWater, altitudeAtP, ru, txtNum } from './physics';
+
+	const X0 = 52;
+	const X1 = 424;
+	const Y0 = 236;
+	const Y1 = 20;
+	const PMIN = 20;
+	const PMAX = 220;
+	const TMIN = 60;
+	const TMAX = 130;
+	const px = (p: number) => X0 + ((p - PMIN) / (PMAX - PMIN)) * (X1 - X0);
+	const py = (t: number) => Y0 - ((t - TMIN) / (TMAX - TMIN)) * (Y0 - Y1);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bpr]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const svg = $<SVGSVGElement>('[data-svg]');
+		const input = $<HTMLInputElement>('[data-p]');
+		const knob = $<SVGCircleElement>('[data-knob]');
+		const gx = $<SVGLineElement>('[data-gx]');
+		const gy = $<SVGLineElement>('[data-gy]');
+		const read = $<HTMLElement>('[data-read]');
+
+		const draw = () => {
+			const p = Number(input.value);
+			const t = tBoilWater(p);
+			const x = px(p);
+			const y = py(t);
+			knob.setAttribute('cx', x.toFixed(1));
+			knob.setAttribute('cy', y.toFixed(1));
+			knob.setAttribute('aria-valuenow', String(p));
+			knob.setAttribute('aria-valuetext', `${p} кПа`);
+			gx.setAttribute('x1', String(X0));
+			gx.setAttribute('x2', x.toFixed(1));
+			gx.setAttribute('y1', y.toFixed(1));
+			gx.setAttribute('y2', y.toFixed(1));
+			gy.setAttribute('x1', x.toFixed(1));
+			gy.setAttribute('x2', x.toFixed(1));
+			gy.setAttribute('y1', y.toFixed(1));
+			gy.setAttribute('y2', String(Y0));
+			$<HTMLOutputElement>('[data-out]').value = `${p} кПа`;
+			let where: string;
+			if (p >= 100 && p <= 102) where = 'Обычное атмосферное давление у уровня моря.';
+			else if (p < 100) {
+				const h = Math.round(altitudeAtP(p) / 100) * 100;
+				where = `Такое давление бывает в горах на высоте примерно ${txtNum(h, 0)} м.`;
+			} else where = `Это больше атмосферного давления в ${ru(p / 101.325, 1)} раза — так бывает в скороварке или в паровом котле.`;
+			read.innerHTML = `Вода закипает при <b>${ru(t, 0)} °C</b>. ${where}`;
+		};
+
+		const fromPointer = (clientX: number) => {
+			const r = svg.getBoundingClientRect();
+			const x = ((clientX - r.left) / r.width) * 440;
+			const p = PMIN + ((x - X0) / (X1 - X0)) * (PMAX - PMIN);
+			input.value = String(Math.round(Math.max(PMIN, Math.min(PMAX, p))));
+			draw();
+		};
+		let drag = false;
+		svg.addEventListener('pointerdown', (e) => {
+			drag = true;
+			svg.setPointerCapture(e.pointerId);
+			fromPointer(e.clientX);
+		});
+		svg.addEventListener('pointermove', (e) => drag && fromPointer(e.clientX));
+		svg.addEventListener('pointerup', () => (drag = false));
+		svg.addEventListener('pointercancel', () => (drag = false));
+		knob.addEventListener('keydown', (e) => {
+			const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+			if (!d) return;
+			e.preventDefault();
+			input.value = String(Number(input.value) + d);
+			draw();
+		});
+		input.addEventListener('input', draw);
+		draw();
+	}
+</script>

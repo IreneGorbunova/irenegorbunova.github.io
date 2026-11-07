@@ -1,0 +1,448 @@
+---
+/**
+ * Heating-and-boiling graph t(Q). The reader drags the point (or the slider) along the heat axis:
+ * first the liquid warms up, Q₁ = c·m·(t_кип − t₁), then it boils at constant temperature and
+ * the evaporated mass grows, m_п = (Q − Q₁)/L, until all of it has turned into vapour at Q₁ + L·m.
+ * Formulas update live; table values for water, spirit and ether.
+ */
+const subs = [
+	{ id: 'water', label: 'вода', c: 4200, L: 2.3e6, tb: 100 },
+	{ id: 'spirit', label: 'спирт', c: 2500, L: 0.9e6, tb: 78 },
+	{ id: 'ether', label: 'эфир', c: 2350, L: 0.4e6, tb: 35 },
+];
+---
+
+<figure class="hcur not-content" data-hcur>
+	<div class="hcur__seg" role="group" aria-label="Вещество">
+		{subs.map((x, i) => (
+			<button type="button" class="hcur__segbtn" data-sub={x.id} data-c={x.c} data-l={x.L} data-tb={x.tb} aria-pressed={i === 0 ? 'true' : 'false'}>{x.label}</button>
+		))}
+	</div>
+	<div class="hcur__main">
+		<svg class="hcur__plot" viewBox="0 0 440 280" data-plot role="img" aria-label="График зависимости температуры от полученного количества теплоты">
+			<g class="hcur__grid" data-grid></g>
+			<polygon class="hcur__area1" data-area1 points=""></polygon>
+			<polygon class="hcur__area2" data-area2 points=""></polygon>
+			<polyline class="hcur__line" data-line points=""></polyline>
+			<line class="hcur__cursor" data-cursor y1="20" y2="240"></line>
+			<circle class="hcur__knob" r="9" data-knob tabindex="0" role="slider" aria-label="Полученное количество теплоты"></circle>
+			<text class="hcur__lbl" x="48" y="16"><tspan font-style="italic">t</tspan>, °C</text>
+			<text class="hcur__lbl" x="432" y="272" text-anchor="end"><tspan font-style="italic">Q</tspan>, кДж</text>
+		</svg>
+		<svg class="hcur__pic" viewBox="0 0 120 200" aria-hidden="true">
+			<g class="hcur__steam" data-steam></g>
+			<rect class="hcur__liq" data-liq x="22" width="76" y="100" height="80"></rect>
+			<path class="hcur__glass" d="M18 40 V184 H102 V40"></path>
+			<rect class="hcur__plate" x="10" y="188" width="100" height="8" rx="2"></rect>
+			<text class="hcur__thermo" data-thermo x="60" y="28" text-anchor="middle"></text>
+		</svg>
+	</div>
+	<label class="hcur__slider">
+		<span>Количество теплоты <i>Q</i></span>
+		<output data-q-out></output>
+		<input type="range" min="0" max="1000" step="1" value="0" data-q />
+	</label>
+	<div class="hcur__row">
+		<label class="hcur__slider hcur__slider--m">
+			<span>Масса <i>m</i></span>
+			<output data-m-out></output>
+			<input type="range" min="0.1" max="2" step="0.1" value="0.5" data-m />
+		</label>
+		<label class="hcur__slider hcur__slider--t">
+			<span>Начальная температура <i>t</i><sub>1</sub></span>
+			<output data-t-out></output>
+			<input type="range" min="0" max="30" step="1" value="20" data-t />
+		</label>
+	</div>
+	<div class="hcur__math" data-math1></div>
+	<div class="hcur__math" data-math2></div>
+	<p class="hcur__live" data-live aria-live="polite"></p>
+	<figcaption class="hcur__caption">
+		Теплоёмкость <i>c</i>, температура кипения и удельная теплота парообразования <i>L</i> — округлённые табличные значения. Потерями тепла пренебрегаем.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.hcur {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.hcur i {
+		font-family: var(--ig-font-math);
+	}
+	.hcur__seg {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.hcur__segbtn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.35rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.hcur__segbtn[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.hcur__main {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 7.5rem;
+		gap: 0.5rem;
+		align-items: center;
+	}
+	.hcur__plot,
+	.hcur__pic {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.hcur__plot {
+		touch-action: pan-y;
+	}
+	.hcur__grid line {
+		stroke: var(--sl-color-gray-5);
+	}
+	.hcur__grid line.is-axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.hcur__grid text,
+	.hcur__lbl {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.hcur__line {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-dasharray: 6 5;
+	}
+	.hcur__area1 {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 3.5;
+		stroke-linejoin: round;
+	}
+	.hcur__area2 {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 3.5;
+		stroke-linejoin: round;
+	}
+	.hcur__cursor {
+		stroke: var(--sl-color-gray-3);
+		stroke-dasharray: 3 4;
+	}
+	.hcur__knob {
+		fill: var(--ig-v);
+		stroke: var(--ig-surface);
+		stroke-width: 3;
+		cursor: grab;
+	}
+	.hcur__knob:focus-visible {
+		outline: none;
+		stroke: var(--sl-color-white);
+	}
+	.hcur__glass {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.hcur__liq {
+		fill: var(--ig-vx);
+		opacity: 0.35;
+	}
+	.hcur__plate {
+		fill: var(--ig-vy);
+		opacity: 0.8;
+	}
+	.hcur__steam circle {
+		fill: var(--ig-vy);
+	}
+	.hcur__thermo {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+		font-size: 17px;
+		font-family: var(--__sl-font);
+	}
+	.hcur__row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem 1.5rem;
+		margin-top: 0.6rem;
+	}
+	.hcur__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.hcur__slider output {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--ig-v);
+	}
+	.hcur__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--ig-v);
+	}
+	.hcur__slider--m output {
+		color: var(--sl-color-white);
+	}
+	.hcur__slider--m input,
+	.hcur__slider--t input {
+		accent-color: var(--sl-color-gray-2);
+	}
+	.hcur__slider--t output {
+		color: var(--sl-color-white);
+	}
+	.hcur__math {
+		margin-top: 0.6rem;
+		padding: 0 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		transition: opacity 0.3s;
+	}
+	.hcur__math.is-dim {
+		opacity: 0.45;
+	}
+	.hcur .ik-1 {
+		color: var(--ig-vx);
+	}
+	.hcur .ik-2 {
+		color: var(--ig-vy);
+	}
+	.hcur .ik-q {
+		color: var(--ig-v);
+	}
+	.hcur__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.hcur__caption {
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.hcur {
+			padding: 0.75rem;
+		}
+		.hcur__main {
+			grid-template-columns: minmax(0, 1fr) 4.5rem;
+		}
+		.hcur__row {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.hcur__math {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { ru, texNum, renderTex, txtNum } from './physics';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const X0 = 48;
+	const X1 = 425;
+	const Y0 = 240;
+	const Y1 = 24;
+	const TMAX = 110;
+
+	const niceStep = (max: number) => {
+		const raw = max / 5;
+		const p = 10 ** Math.floor(Math.log10(raw));
+		const f = raw / p;
+		return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+	};
+	// the Q value as a number in TeX with units: below 1 МДж in кДж, otherwise in Дж ×10^n
+	const qTex = (q: number) => `${texNum(q / 1000, q < 1e4 ? 1 : 0)}~\\text{кДж}`;
+	const Lpow = (L: number) => `${texNum(L / 1e6, 1)} \\cdot 10^6~\\tfrac{\\text{Дж}}{\\text{кг}}`;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-hcur]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const svg = $<SVGSVGElement>('[data-plot]');
+		const grid = $<SVGGElement>('[data-grid]');
+		const qIn = $<HTMLInputElement>('[data-q]');
+		const mIn = $<HTMLInputElement>('[data-m]');
+		const tIn = $<HTMLInputElement>('[data-t]');
+		const knob = $<SVGCircleElement>('[data-knob]');
+		const cursor = $<SVGLineElement>('[data-cursor]');
+		const liq = $<SVGRectElement>('[data-liq]');
+		const steam = $<SVGGElement>('[data-steam]');
+		const thermo = $<SVGTextElement>('[data-thermo]');
+		const math1 = $<HTMLElement>('[data-math1]');
+		const math2 = $<HTMLElement>('[data-math2]');
+		const live = $<HTMLElement>('[data-live]');
+		const subBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-sub]'));
+		let sub = subBtns[0];
+		let qMax = 1;
+
+		const params = () => {
+			const c = Number(sub.dataset.c);
+			const L = Number(sub.dataset.l);
+			const tb = Number(sub.dataset.tb);
+			const m = Number(mIn.value);
+			const t1 = Math.min(Number(tIn.value), tb);
+			const Q1 = c * m * (tb - t1);
+			const Q2 = L * m;
+			return { c, L, tb, m, t1, Q1, Q2, name: sub.textContent!.trim() };
+		};
+		const px = (q: number) => X0 + (q / qMax) * (X1 - X0);
+		const py = (t: number) => Y0 - (t / TMAX) * (Y0 - Y1);
+
+		const buildGrid = () => {
+			const p = params();
+			const total = p.Q1 + p.Q2;
+			const st = niceStep(total * 1.12 / 1000) * 1000;
+			qMax = Math.ceil((total * 1.08) / st) * st;
+			grid.replaceChildren();
+			const add = (tag: string, a: Record<string, string | number>, text?: string) => {
+				const el = document.createElementNS(NS, tag);
+				for (const [k, v] of Object.entries(a)) el.setAttribute(k, String(v));
+				if (text !== undefined) el.textContent = text;
+				grid.appendChild(el);
+			};
+			for (const t of [0, 20, 40, 60, 80, 100]) {
+				add('line', { x1: X0, x2: X1, y1: py(t), y2: py(t), class: t === 0 ? 'is-axis' : '' });
+				add('text', { x: X0 - 6, y: py(t) + 4, 'text-anchor': 'end' }, String(t));
+			}
+			for (let q = 0; q <= qMax + 1e-6; q += st) {
+				add('line', { x1: px(q), x2: px(q), y1: Y0, y2: Y1, class: q === 0 ? 'is-axis' : '' });
+				add('text', { x: px(q), y: Y0 + 17, 'text-anchor': 'middle' }, txtNum(q / 1000, 0));
+			}
+			$<SVGPolylineElement>('[data-line]').setAttribute(
+				'points',
+				`${px(0)},${py(p.t1)} ${px(p.Q1)},${py(p.tb)} ${px(total)},${py(p.tb)}`,
+			);
+		};
+
+		const draw = () => {
+			const p = params();
+			const total = p.Q1 + p.Q2;
+			const Q = (Number(qIn.value) / 1000) * total;
+			const heating = Q < p.Q1;
+			const t = heating ? p.t1 + Q / (p.c * p.m) : p.tb;
+			const mv = heating ? 0 : Math.min(p.m, (Q - p.Q1) / p.L);
+			const x = px(Q);
+			knob.setAttribute('cx', x.toFixed(1));
+			knob.setAttribute('cy', py(t).toFixed(1));
+			knob.setAttribute('aria-valuenow', String(Math.round(Q / 1000)));
+			knob.setAttribute('aria-valuetext', `${txtNum(Q / 1000, 1)} кДж`);
+			cursor.setAttribute('x1', x.toFixed(1));
+			cursor.setAttribute('x2', x.toFixed(1));
+			const q1 = Math.min(Q, p.Q1);
+			$<SVGPolygonElement>('[data-area1]').setAttribute('points', `${px(0)},${py(p.t1)} ${px(q1)},${py(p.t1 + q1 / (p.c * p.m))}`);
+			$<SVGPolygonElement>('[data-area2]').setAttribute('points', heating ? '' : `${px(p.Q1)},${py(p.tb)} ${x},${py(p.tb)}`);
+			$<HTMLOutputElement>('[data-q-out]').value = `${txtNum(Q / 1000, Q < 1e4 ? 1 : 0)} кДж`;
+			$<HTMLOutputElement>('[data-m-out]').value = `${ru(p.m, 1)} кг`;
+			$<HTMLOutputElement>('[data-t-out]').value = `${p.t1} °C`;
+			// picture
+			const frac = 1 - mv / p.m;
+			const h = 80 * frac;
+			liq.setAttribute('y', String(184 - h));
+			liq.setAttribute('height', String(h));
+			thermo.textContent = `${ru(t, 1)} °C`;
+			steam.replaceChildren();
+			if (!heating && frac > 0) {
+				for (let i = 0; i < 9; i++) {
+					const c = document.createElementNS(NS, 'circle');
+					c.setAttribute('cx', String(30 + ((i * 37) % 60)));
+					c.setAttribute('cy', String(184 - h - 8 - ((i * 23) % 50)));
+					c.setAttribute('r', '2.6');
+					c.setAttribute('opacity', String(0.4 + 0.06 * i));
+					steam.appendChild(c);
+				}
+			}
+			// formulas
+			const dT = p.tb - p.t1;
+			const narrow = root.clientWidth < 560;
+			const q1a = `\\htmlClass{ik-1}{Q_1} = cm(t_{\\text{кип}} - t_1)`;
+			const q1b = `${p.c}~\\tfrac{\\text{Дж}}{\\text{кг} \\cdot {}^\\circ\\text{C}} \\cdot ${texNum(p.m, 1)}~\\text{кг} \\cdot ${dT}~{}^\\circ\\text{C}`;
+			const q1c = `\\htmlClass{ik-1}{${qTex(p.Q1)}}`;
+			renderTex(math1, narrow ? `\\begin{aligned} \\htmlClass{ik-1}{Q_1} &= cm(t_{\\text{кип}} - t_1) = \\\\ &= ${q1b} = \\\\ &= ${q1c} \\end{aligned}` : `${q1a} = ${q1b} = ${q1c}`);
+			if (heating) {
+				const q2a = `\\htmlClass{ik-2}{Q_2} = Lm = ${Lpow(p.L)} \\cdot ${texNum(p.m, 1)}~\\text{кг}`;
+				const q2c = `\\htmlClass{ik-2}{${qTex(p.Q2)}}`;
+				renderTex(math2, narrow ? `\\begin{aligned} \\htmlClass{ik-2}{Q_2} &= Lm = ${Lpow(p.L)} \\cdot ${texNum(p.m, 1)}~\\text{кг} = \\\\ &= ${q2c} \\end{aligned}` : `${q2a} = ${q2c}`);
+				math2.classList.add('is-dim');
+				math1.classList.remove('is-dim');
+				live.innerHTML = `Идёт нагревание: <i>t</i> = <i>t</i><sub>1</sub> + <i>Q</i>/(<i>cm</i>) = ${ru(t, 1)} °C. До кипения не хватает ${txtNum((p.Q1 - Q) / 1000, 1)} кДж.`;
+			} else {
+				const mvR = Math.round(mv * 1000) / 1000;
+				renderTex(
+					math2,
+					`m_{\\text{пара}} = \\frac{Q - \\htmlClass{ik-1}{Q_1}}{L} = \\frac{${texNum((Q - p.Q1) / 1000, 0)}~\\text{кДж}}{${Lpow(p.L)}} \\approx ${texNum(mvR * 1000, 0)}~\\text{г}`,
+				);
+				math1.classList.add('is-dim');
+				math2.classList.remove('is-dim');
+				live.innerHTML =
+					mv >= p.m - 1e-9
+						? `Вся жидкость (${ru(p.m, 1)} кг) превратилась в пар. На нагревание ушло ${txtNum(p.Q1 / 1000, 0)} кДж, на парообразование — ${txtNum(p.Q2 / 1000, 0)} кДж, в ${ru(p.Q2 / p.Q1, 1)} раза больше.`
+						: `${p.name[0].toUpperCase() + p.name.slice(1)} кипит при ${p.tb} °C: энергия идёт на парообразование, температура не меняется.`;
+			}
+		};
+
+		const setQfromX = (clientX: number) => {
+			const r = svg.getBoundingClientRect();
+			const x = ((clientX - r.left) / r.width) * 440;
+			const total = params().Q1 + params().Q2;
+			const q = Math.max(0, Math.min(total, ((x - X0) / (X1 - X0)) * qMax));
+			qIn.value = String(Math.round((q / total) * 1000));
+			draw();
+		};
+		let drag = false;
+		svg.addEventListener('pointerdown', (e) => {
+			drag = true;
+			svg.setPointerCapture(e.pointerId);
+			setQfromX(e.clientX);
+		});
+		svg.addEventListener('pointermove', (e) => drag && setQfromX(e.clientX));
+		svg.addEventListener('pointerup', () => (drag = false));
+		svg.addEventListener('pointercancel', () => (drag = false));
+		knob.addEventListener('keydown', (e) => {
+			const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 10 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -10 : 0;
+			if (!d) return;
+			e.preventDefault();
+			qIn.value = String(Math.max(0, Math.min(1000, Number(qIn.value) + d)));
+			draw();
+		});
+		qIn.addEventListener('input', draw);
+		const rebuild = () => {
+			buildGrid();
+			draw();
+		};
+		mIn.addEventListener('input', rebuild);
+		tIn.addEventListener('input', rebuild);
+		for (const b of subBtns)
+			b.addEventListener('click', () => {
+				sub = b;
+				for (const o of subBtns) o.setAttribute('aria-pressed', String(o === b));
+				rebuild();
+			});
+		qIn.value = '120';
+		rebuild();
+	}
+</script>
