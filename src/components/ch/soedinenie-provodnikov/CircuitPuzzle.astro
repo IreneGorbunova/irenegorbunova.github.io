@@ -1,0 +1,415 @@
+---
+/**
+ * «Соберите цепь»: three identical lamps of 6 Ом and four ways to connect them.
+ * For every task the pupil picks the circuit; a right choice lights the lamps of that circuit
+ * with honest relative brightness (power at the same source voltage 6 В).
+ */
+type Pt = [number, number];
+interface Scheme {
+	label: string;
+	name: string;
+	lamps: Pt[];
+	wires: string[];
+	nodes: Pt[];
+	/** power of each lamp at U = 6 В, R = 6 Ом each, Вт */
+	P: number[];
+}
+const schemes: Scheme[] = [
+	{
+		label: 'А',
+		name: 'все три последовательно',
+		lamps: [
+			[70, 60],
+			[120, 60],
+			[170, 60],
+		],
+		wires: ['M14 60 H226'],
+		nodes: [],
+		P: [2 / 3, 2 / 3, 2 / 3],
+	},
+	{
+		label: 'Б',
+		name: 'все три параллельно',
+		lamps: [
+			[120, 20],
+			[120, 60],
+			[120, 100],
+		],
+		wires: ['M14 60 H50', 'M50 20 V100', 'M50 20 H190', 'M50 60 H190', 'M50 100 H190', 'M190 20 V100', 'M190 60 H226'],
+		nodes: [
+			[50, 60],
+			[190, 60],
+		],
+		P: [6, 6, 6],
+	},
+	{
+		label: 'В',
+		name: 'лампа 1, за ней лампы 2 и 3 параллельно',
+		lamps: [
+			[62, 60],
+			[155, 30],
+			[155, 90],
+		],
+		wires: ['M14 60 H110', 'M110 30 V90', 'M110 30 H200', 'M110 90 H200', 'M200 30 V90', 'M200 60 H226'],
+		nodes: [
+			[110, 60],
+			[200, 60],
+		],
+		P: [8 / 3, 2 / 3, 2 / 3],
+	},
+	{
+		label: 'Г',
+		name: 'лампы 1 и 2 последовательно, лампа 3 параллельно им',
+		lamps: [
+			[95, 30],
+			[145, 30],
+			[120, 90],
+		],
+		wires: ['M14 60 H40', 'M40 30 V90', 'M40 30 H200', 'M40 90 H200', 'M200 30 V90', 'M200 60 H226'],
+		nodes: [
+			[40, 60],
+			[200, 60],
+		],
+		P: [1.5, 1.5, 6],
+	},
+];
+const tasks = [
+	{
+		q: 'Соберите цепь, общее сопротивление которой 9 Ом.',
+		answer: 2,
+		hints: [
+			'Здесь R = 6 + 6 + 6 = 18 Ом — слишком много.',
+			'Здесь R = 6 Ом : 3 = 2 Ом — слишком мало.',
+			'',
+			'Здесь ветвь из ламп 1 и 2 имеет 12 Ом, а вместе с лампой 3: R = 12 · 6 / (12 + 6) = 4 Ом.',
+		],
+		why: 'Лампы 2 и 3 вместе: 6 Ом : 2 = 3 Ом. Лампа 1 стоит с ними последовательно: R = 6 Ом + 3 Ом = 9 Ом. Через лампу 1 идёт весь ток, а через лампы 2 и 3 — по половине, поэтому лампа 1 светит ярче.',
+	},
+	{
+		q: 'Соберите цепь, общее сопротивление которой 4 Ом.',
+		answer: 3,
+		hints: [
+			'Здесь R = 6 + 6 + 6 = 18 Ом.',
+			'Здесь R = 6 Ом : 3 = 2 Ом — меньше, чем нужно.',
+			'Здесь R = 6 + 6 · 6 / (6 + 6) = 9 Ом.',
+			'',
+		],
+		why: 'Ветвь из ламп 1 и 2: 6 Ом + 6 Ом = 12 Ом. Лампа 3 подключена параллельно этой ветви: R = 12 · 6 / (12 + 6) = 72 / 18 = 4 Ом. Лампа 3 получает всё напряжение источника, а лампы 1 и 2 — по половине, поэтому лампа 3 светит ярче всех.',
+	},
+	{
+		q: 'Соберите цепь, в которой при любой выкрученной лампе две другие продолжают гореть.',
+		answer: 1,
+		hints: [
+			'При последовательном соединении у тока один путь: выкрутите любую лампу — погаснут все.',
+			'',
+			'Выкрутите лампу 1 — погаснут все: через неё идёт весь ток.',
+			'Выкрутите лампу 1 — погаснет и лампа 2: они стоят в одной ветви.',
+		],
+		why: 'При параллельном соединении у каждой лампы своя ветвь. Выкрутили одну — разорвана только её ветвь, а на двух других остаётся то же напряжение источника, и они светят как прежде. Так включают приборы в квартире.',
+	},
+	{
+		q: 'Соберите цепь, в которой все три лампы светят одинаково, но тусклее, чем светила бы одна лампа, подключённая к тому же источнику.',
+		answer: 0,
+		hints: [
+			'',
+			'Одинаково — да, но на каждой лампе всё напряжение источника: каждая светит так же ярко, как одна.',
+			'Лампа 1 светит ярче: через неё идёт весь ток, а через лампы 2 и 3 — по половине.',
+			'Лампа 3 светит ярче: на ней всё напряжение источника, а на лампах 1 и 2 — по половине.',
+		],
+		why: 'При последовательном соединении ток через все лампы один и тот же, а напряжение источника делится поровну — на каждой лампе только треть. И ток, и напряжение меньше, чем у одной лампы, поэтому все три светят одинаково и тусклее.',
+	},
+];
+const cross = (x: number, y: number, r: number) => {
+	const c = r * Math.SQRT1_2;
+	return `M ${x - c} ${y - c} L ${x + c} ${y + c} M ${x + c} ${y - c} L ${x - c} ${y + c}`;
+};
+const uid = `spz-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="spz not-content" data-spz data-tasks={JSON.stringify(tasks)}>
+	<p class="spz__count" data-count>Задача 1 из {tasks.length}</p>
+	<p class="spz__q" data-q>{tasks[0].q}</p>
+	<p class="spz__given">В каждой схеме три одинаковые лампы по 6 Ом, схема подключается к источнику 6 В.</p>
+	<div class="spz__opts" role="group" aria-label="Схемы">
+		{
+			schemes.map((s, i) => (
+				<button type="button" class="spz__opt" data-i={i} aria-label={`Схема ${s.label}: ${s.name}`}>
+					<svg viewBox="0 0 240 120" aria-hidden="true">
+						<g class="spz__wires">
+							{s.wires.map((d) => (
+								<path d={d} />
+							))}
+						</g>
+						<circle class="spz__term" cx="14" cy="60" r="4" />
+						<circle class="spz__term" cx="226" cy="60" r="4" />
+						{s.nodes.map(([x, y]) => (
+							<circle class="spz__node" cx={x} cy={y} r="3.5" />
+						))}
+						{s.lamps.map(([x, y], k) => (
+							<g class="spz__lamp" data-g={Math.sqrt(s.P[k] / 6).toFixed(3)}>
+								<circle class="spz__halo" cx={x} cy={y} r="34" fill={`url(#${uid}-glow)`} />
+								<circle class="spz__glass" cx={x} cy={y} r="12" />
+								<circle class="spz__heat" cx={x} cy={y} r="12" />
+								<path class="spz__cross" d={cross(x, y, 12)} />
+								<text class="spz__num" x={x + 15} y={y - 9}>
+									{k + 1}
+								</text>
+							</g>
+						))}
+					</svg>
+					<span class="spz__label">{s.label}</span>
+				</button>
+			))
+		}
+	</div>
+	<svg width="0" height="0" class="spz__defs" aria-hidden="true">
+		<defs>
+			<radialGradient id={`${uid}-glow`}>
+				<stop offset="0" class="spz__g0"></stop>
+				<stop offset="0.4" class="spz__g1"></stop>
+				<stop offset="1" class="spz__g2"></stop>
+			</radialGradient>
+		</defs>
+	</svg>
+	<p class="spz__fb" data-fb aria-live="polite"></p>
+	<div class="spz__buttons">
+		<button type="button" class="spz__next" data-next hidden>Следующая задача</button>
+	</div>
+</figure>
+
+<style is:global>
+	.spz {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.spz__count {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--sl-color-gray-3);
+	}
+	.spz__q {
+		margin: 0.2rem 0 0.2rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.spz__given {
+		margin: 0 0 0.7rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.spz__defs {
+		position: absolute;
+	}
+	.spz__opts {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 0.6rem;
+	}
+	.spz__opt {
+		position: relative;
+		margin: 0;
+		padding: 0.5rem 0.4rem 0.35rem;
+		font: inherit;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.8rem;
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition:
+			border-color 0.25s,
+			background 0.25s;
+	}
+	.spz__opt:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.spz__opt svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		overflow: visible;
+	}
+	.spz__label {
+		display: block;
+		margin-top: 0.15rem;
+		font-weight: 700;
+	}
+	.spz__opt.is-right {
+		border-color: var(--sl-color-green);
+		background: color-mix(in srgb, var(--sl-color-green) 14%, transparent);
+	}
+	.spz__opt.is-wrong {
+		border-color: var(--sl-color-red);
+		background: color-mix(in srgb, var(--sl-color-red) 12%, transparent);
+		animation: spz-shake 0.4s;
+	}
+	@keyframes spz-shake {
+		25% {
+			transform: translateX(-4px);
+		}
+		75% {
+			transform: translateX(4px);
+		}
+	}
+	.spz__wires path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.spz__term {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.spz__node {
+		fill: var(--sl-color-gray-2);
+	}
+	.spz__glass {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.spz__cross {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.6;
+	}
+	.spz__halo,
+	.spz__heat {
+		opacity: 0;
+		transition: opacity 0.9s ease-out;
+	}
+	.spz__heat {
+		fill: var(--ig-v);
+	}
+	.spz__lamp.is-lit .spz__halo {
+		opacity: var(--g);
+	}
+	.spz__lamp.is-lit .spz__heat {
+		opacity: min(1, calc(var(--g) * 1.6));
+	}
+	.spz__lamp.is-lit .spz__cross {
+		stroke: var(--sl-color-black);
+	}
+	.spz__g0 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0.85;
+	}
+	.spz__g1 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0.3;
+	}
+	.spz__g2 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0;
+	}
+	.spz__num {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.spz__fb {
+		min-height: 1.5em;
+		margin: 0.7rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.spz__buttons {
+		margin-top: 0.5rem;
+	}
+	.spz__next {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.spz__next[hidden] {
+		display: none;
+	}
+	@media (max-width: 40rem) {
+		.spz {
+			padding: 0.75rem;
+		}
+		.spz__opts {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.spz__num {
+			font-size: 17px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.spz__opt.is-wrong {
+			animation: none;
+		}
+		.spz__halo,
+		.spz__heat {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	interface Task {
+		q: string;
+		answer: number;
+		hints: string[];
+		why: string;
+	}
+	for (const root of document.querySelectorAll<HTMLElement>('[data-spz]')) {
+		const tasks: Task[] = JSON.parse(root.dataset.tasks || '[]');
+		const opts = [...root.querySelectorAll<HTMLButtonElement>('.spz__opt')];
+		const qEl = root.querySelector<HTMLElement>('[data-q]')!;
+		const count = root.querySelector<HTMLElement>('[data-count]')!;
+		const fb = root.querySelector<HTMLElement>('[data-fb]')!;
+		const next = root.querySelector<HTMLButtonElement>('[data-next]')!;
+		root.querySelectorAll<SVGGElement>('.spz__lamp').forEach((g) => g.style.setProperty('--g', g.dataset.g || '0'));
+		let t = 0;
+		let solved = false;
+		const show = () => {
+			const task = tasks[t];
+			solved = false;
+			count.textContent = `Задача ${t + 1} из ${tasks.length}`;
+			qEl.textContent = task.q;
+			fb.textContent = '';
+			next.hidden = true;
+			opts.forEach((o) => {
+				o.classList.remove('is-right', 'is-wrong');
+				o.querySelectorAll('.spz__lamp').forEach((g) => g.classList.remove('is-lit'));
+			});
+		};
+		opts.forEach((b) =>
+			b.addEventListener('click', () => {
+				if (solved) return;
+				const i = Number(b.dataset.i);
+				const task = tasks[t];
+				opts.forEach((o) => o.classList.remove('is-wrong'));
+				void b.offsetWidth;
+				if (i === task.answer) {
+					solved = true;
+					b.classList.add('is-right');
+					b.querySelectorAll('.spz__lamp').forEach((g) => g.classList.add('is-lit'));
+					fb.innerHTML = `<b>Верно!</b> ${task.why}`;
+					next.hidden = false;
+					next.textContent = t + 1 < tasks.length ? 'Следующая задача' : 'Начать сначала';
+				} else {
+					b.classList.add('is-wrong');
+					fb.textContent = `Пока нет. ${task.hints[i]}`;
+				}
+			}),
+		);
+		next.addEventListener('click', () => {
+			t = (t + 1) % tasks.length;
+			show();
+		});
+	}
+</script>

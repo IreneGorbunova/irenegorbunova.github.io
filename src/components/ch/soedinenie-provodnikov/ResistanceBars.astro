@@ -1,0 +1,327 @@
+---
+/**
+ * Live calculator of the total resistance of two conductors: bars on one ohm scale for R1, R2,
+ * the series connection (R1 + R2, the two bars end to end) and the parallel one (R1R2/(R1 + R2)),
+ * which is always shorter than the shorter of R1 and R2.
+ */
+const SCALE = 60; // Ом on the full width
+---
+
+<figure class="rbar not-content" data-rbar data-scale={SCALE}>
+	<div class="rbar__sliders">
+		<label class="rbar__slider rbar__slider--a">
+			<span><i>R</i><sub>1</sub></span>
+			<input type="range" min="1" max="30" step="1" value="10" data-r1 />
+			<output data-r1-out>10 Ом</output>
+		</label>
+		<label class="rbar__slider rbar__slider--b">
+			<span><i>R</i><sub>2</sub></span>
+			<input type="range" min="1" max="30" step="1" value="15" data-r2 />
+			<output data-r2-out>15 Ом</output>
+		</label>
+	</div>
+
+	<div class="rbar__rows">
+		<div class="rbar__row">
+			<span class="rbar__name">Первый проводник</span>
+			<div class="rbar__track"><span class="rbar__b rbar__b--a" data-a1></span></div>
+			<span class="rbar__val" data-v1>10 Ом</span>
+		</div>
+		<div class="rbar__row">
+			<span class="rbar__name">Второй проводник</span>
+			<div class="rbar__track"><span class="rbar__b rbar__b--b" data-b1></span></div>
+			<span class="rbar__val" data-v2>15 Ом</span>
+		</div>
+		<div class="rbar__row rbar__row--sum">
+			<span class="rbar__name">Последовательно</span>
+			<div class="rbar__track">
+				<span class="rbar__b rbar__b--a" data-a2></span><span class="rbar__b rbar__b--b" data-b2></span>
+			</div>
+			<span class="rbar__val" data-vs>25 Ом</span>
+		</div>
+		<div class="rbar__row rbar__row--sum">
+			<span class="rbar__name">Параллельно</span>
+			<div class="rbar__track">
+				<span class="rbar__b rbar__b--p" data-p></span>
+				<span class="rbar__min" data-min title="меньшее из двух сопротивлений"></span>
+			</div>
+			<span class="rbar__val" data-vp>6 Ом</span>
+		</div>
+		<div class="rbar__axis" aria-hidden="true">
+			<span></span>
+			<div class="rbar__ticks">
+				{[0, 10, 20, 30, 40, 50, 60].map((v) => <span style={`left:${(100 * v) / SCALE}%`}>{v}</span>)}
+			</div>
+			<span class="rbar__unit">Ом</span>
+		</div>
+	</div>
+
+	<div class="rbar__formula" data-formula></div>
+	<div class="rbar__buttons">
+		<button type="button" class="rbar__btn" data-same>Сделать одинаковыми</button>
+	</div>
+	<figcaption class="rbar__legend">
+		Пунктир на нижней полоске отмечает меньшее из двух сопротивлений. Как ни двигайте ползунки, параллельная полоска до него не
+		дотягивается.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rbar {
+		--rb-a: var(--ig-v);
+		--rb-b: var(--sl-color-purple);
+		--rb-p: var(--sl-color-green);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rbar i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.rbar__sliders {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem 1.5rem;
+	}
+	.rbar__slider {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		align-items: center;
+		gap: 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rbar__slider input {
+		width: 100%;
+		min-width: 0;
+	}
+	.rbar__slider output {
+		font-weight: 700;
+		min-width: 3.6em;
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+	.rbar__slider--a input {
+		accent-color: var(--rb-a);
+	}
+	.rbar__slider--a output {
+		color: var(--rb-a);
+	}
+	.rbar__slider--b input {
+		accent-color: var(--rb-b);
+	}
+	.rbar__slider--b output {
+		color: var(--sl-color-purple-high);
+	}
+	.rbar__rows {
+		margin-top: 0.9rem;
+		display: grid;
+		gap: 0.45rem;
+	}
+	.rbar__row,
+	.rbar__axis {
+		display: grid;
+		grid-template-columns: 9.5rem 1fr 4.2rem;
+		align-items: center;
+		gap: 0.6rem;
+	}
+	.rbar__row--sum {
+		margin-top: 0.25rem;
+	}
+	.rbar__name {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rbar__row--sum .rbar__name {
+		color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.rbar__track {
+		position: relative;
+		display: flex;
+		height: 1.1rem;
+		border-radius: 0.3rem;
+		background: var(--sl-color-gray-6);
+	}
+	.rbar__b {
+		display: block;
+		height: 100%;
+		width: 0;
+		transition: width 0.35s cubic-bezier(0.3, 0.7, 0.4, 1);
+	}
+	.rbar__b:first-child {
+		border-radius: 0.3rem 0 0 0.3rem;
+	}
+	.rbar__b:last-of-type {
+		border-radius: 0 0.3rem 0.3rem 0;
+	}
+	.rbar__b:only-of-type {
+		border-radius: 0.3rem;
+	}
+	.rbar__b--a {
+		background: var(--rb-a);
+	}
+	.rbar__b--b {
+		background: var(--rb-b);
+	}
+	.rbar__b--p {
+		background: var(--rb-p);
+		border-radius: 0.3rem !important;
+	}
+	.rbar__min {
+		position: absolute;
+		top: -0.25rem;
+		bottom: -0.25rem;
+		width: 0;
+		border-left: 2px dashed var(--sl-color-white);
+		transition: left 0.35s cubic-bezier(0.3, 0.7, 0.4, 1);
+	}
+	.rbar__val {
+		font-weight: 700;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-white);
+		white-space: nowrap;
+	}
+	.rbar__ticks {
+		position: relative;
+		height: 1.2rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.rbar__ticks span {
+		position: absolute;
+		transform: translateX(-50%);
+	}
+	.rbar__ticks span:last-child {
+		transform: translateX(-100%);
+	}
+	.rbar__unit {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.rbar__formula {
+		margin-top: 0.6rem;
+		padding: 0.3rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		text-align: center;
+	}
+	.rbar__formula .katex-display {
+		margin: 0.4rem 0;
+	}
+	.rbar__formula .katex {
+		font-size: 1.1em;
+	}
+	.rb-a {
+		color: var(--ig-v);
+	}
+	.rb-b {
+		color: var(--sl-color-purple-high);
+	}
+	.rb-p {
+		color: var(--sl-color-green-high);
+	}
+	.rbar__buttons {
+		margin-top: 0.6rem;
+	}
+	.rbar__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rbar__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.rbar__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.rbar {
+			padding: 0.75rem;
+		}
+		.rbar__sliders {
+			grid-template-columns: 1fr;
+		}
+		.rbar__row,
+		.rbar__axis {
+			grid-template-columns: 1fr 3.8rem;
+			gap: 0.15rem 0.5rem;
+		}
+		.rbar__name {
+			grid-column: 1 / -1;
+		}
+		.rbar__axis > span:first-child {
+			display: none;
+		}
+		.rbar__formula .katex {
+			font-size: 1em;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.rbar__b,
+		.rbar__min {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { num, tnum, isRounded, renderTex } from './sp';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rbar]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const scale = Number(root.dataset.scale);
+		const r1 = $<HTMLInputElement>('[data-r1]');
+		const r2 = $<HTMLInputElement>('[data-r2]');
+		const pct = (v: number) => `${(100 * v) / scale}%`;
+		const eq = (v: number) => (isRounded(v) ? '\\approx' : '=');
+		const update = () => {
+			const a = Number(r1.value);
+			const b = Number(r2.value);
+			const s = a + b;
+			const p = (a * b) / (a + b);
+			$<HTMLOutputElement>('[data-r1-out]').value = `${a} Ом`;
+			$<HTMLOutputElement>('[data-r2-out]').value = `${b} Ом`;
+			$<HTMLElement>('[data-a1]').style.width = pct(a);
+			$<HTMLElement>('[data-b1]').style.width = pct(b);
+			$<HTMLElement>('[data-a2]').style.width = pct(a);
+			$<HTMLElement>('[data-b2]').style.width = pct(b);
+			$<HTMLElement>('[data-p]').style.width = pct(p);
+			$<HTMLElement>('[data-min]').style.left = pct(Math.min(a, b));
+			$<HTMLElement>('[data-v1]').textContent = `${a} Ом`;
+			$<HTMLElement>('[data-v2]').textContent = `${b} Ом`;
+			$<HTMLElement>('[data-vs]').textContent = `${s} Ом`;
+			$<HTMLElement>('[data-vp]').textContent = `${isRounded(p) ? '≈ ' : ''}${num(p)} Ом`;
+			const A = `\\htmlClass{rb-a}{${a}}`;
+			const B = `\\htmlClass{rb-b}{${b}}`;
+			renderTex(
+				$<HTMLElement>('[data-formula]'),
+				`\\begin{aligned}` +
+					`R_{\\text{посл}} &= R_1 + R_2 = ${A} + ${B} = ${s}~\\text{Ом},\\\\[0.4em]` +
+					`R_{\\text{пар}} &= \\dfrac{R_1 R_2}{R_1 + R_2} = \\dfrac{${A} \\cdot ${B}}{${A} + ${B}} ${eq(p)} \\htmlClass{rb-p}{${tnum(p)}~\\text{Ом}}.` +
+					`\\end{aligned}`,
+			);
+		};
+		r1.addEventListener('input', update);
+		r2.addEventListener('input', update);
+		$<HTMLButtonElement>('[data-same]').addEventListener('click', () => {
+			r2.value = r1.value;
+			update();
+		});
+		update();
+	}
+</script>
