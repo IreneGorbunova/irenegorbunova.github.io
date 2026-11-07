@@ -1,29 +1,51 @@
 ---
-/** Client code of <More>: one shared popover for all «more» words of the page. Rendered once per chapter page. */
+/**
+ * Client code of the popover notes, rendered once per chapter page (from PageTitle.astro):
+ * - <More>: a dotted word; its note is the <template> right after it; opens on a tap or click;
+ * - <Formula>: letters and units marked [data-part]; their notes are <template data-part-body> inside the
+ *   same [data-formula]; they open on a tap, and on a computer also on hover.
+ * One shared popover for the whole page. Without popover support a note opens inline under the word.
+ */
 ---
 
 <script>
-	const triggers = [...document.querySelectorAll<HTMLElement>('[data-more]')];
+	const words = [...document.querySelectorAll<HTMLElement>('[data-more]')];
+	const parts = [...document.querySelectorAll<HTMLElement>('[data-part]')];
+	const triggers = [...words, ...parts];
 	const supported = typeof HTMLElement.prototype.showPopover === 'function';
 
+	const bodyOf = (el: HTMLElement) =>
+		el.dataset.part !== undefined
+			? el.closest('[data-formula]')?.querySelector<HTMLTemplateElement>(`template[data-part-body="${el.dataset.part}"]`)
+			: (el.nextElementSibling as HTMLTemplateElement | null);
+
+	for (const el of parts) {
+		el.setAttribute('role', 'button');
+		el.tabIndex = 0;
+		el.setAttribute('aria-haspopup', 'dialog');
+		el.setAttribute('aria-expanded', 'false');
+	}
+	const onKey = (el: HTMLElement) =>
+		el.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				el.click();
+			}
+		});
+
 	if (triggers.length && !supported) {
-		// Old browser: the button opens the text right under the paragraph line.
-		for (const btn of triggers) {
-			const tpl = btn.nextElementSibling as HTMLTemplateElement;
-			const box = document.createElement('span');
+		for (const el of triggers) {
+			const tpl = bodyOf(el);
+			if (!tpl) continue;
+			const box = document.createElement(el.dataset.part !== undefined ? 'div' : 'span');
 			box.className = 'ig-more-inline';
 			box.hidden = true;
 			box.append(tpl.content.cloneNode(true));
-			tpl.after(box);
-			btn.addEventListener('keydown', (e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					btn.click();
-				}
-			});
-			btn.addEventListener('click', () => {
+			(el.dataset.part !== undefined ? el.closest('[data-formula]')! : tpl).after(box);
+			onKey(el);
+			el.addEventListener('click', () => {
 				box.hidden = !box.hidden;
-				btn.setAttribute('aria-expanded', String(!box.hidden));
+				el.setAttribute('aria-expanded', String(!box.hidden));
 			});
 		}
 	} else if (triggers.length) {
@@ -39,17 +61,20 @@
 		close.setAttribute('aria-label', 'Закрыть');
 		close.textContent = '×';
 		close.addEventListener('click', () => {
-			const btn = current;
+			const el = current;
 			pop.hidePopover();
-			btn?.focus({ preventScroll: true });
+			el?.focus({ preventScroll: true });
 		});
 		pop.append(close, body);
 		document.body.append(pop);
 
 		let current: HTMLElement | null = null;
-		// A tap on the open term first light-dismisses the popover; remember it so that the click closes, not reopens.
+		let byHover = false;
+		// A tap on the open word first light-dismisses the popover; remember it so that the click closes, not reopens.
 		let lastClosed: HTMLElement | null = null;
+		let lastByHover = false;
 		let closedAt = 0;
+		let hideTimer = 0;
 
 		const place = () => {
 			if (!current || window.matchMedia('(max-width: 40rem)').matches) return;
@@ -57,19 +82,22 @@
 			const w = pop.offsetWidth;
 			const h = pop.offsetHeight;
 			const gap = 8;
-			let left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), window.innerWidth - w - 12);
-			let top = r.bottom + gap;
-			if (top + h > window.innerHeight - 12 && r.top - gap - h > 12) top = r.top - gap - h;
+			const left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), window.innerWidth - w - 12);
+			// a formula letter: above it, so that the units line under the formula stays free for the mouse
+			const above = current.dataset.part !== undefined && r.top - gap - h > 12;
+			let top = above ? r.top - gap - h : r.bottom + gap;
+			if (!above && top + h > window.innerHeight - 12 && r.top - gap - h > 12) top = r.top - gap - h;
 			pop.style.left = `${left}px`;
 			pop.style.top = `${top}px`;
 		};
 
-		// beforetoggle fires at once (toggle is queued), so a click on the open term sees that it just closed
+		// beforetoggle fires at once (toggle is queued), so a click on the open word sees that it just closed
 		pop.addEventListener('beforetoggle', (e) => {
 			const open = (e as ToggleEvent).newState === 'open';
 			current?.setAttribute('aria-expanded', String(open));
 			if (!open) {
 				lastClosed = current;
+				lastByHover = byHover;
 				closedAt = performance.now();
 				current = null;
 			}
@@ -77,32 +105,55 @@
 		window.addEventListener('scroll', place, { passive: true });
 		window.addEventListener('resize', place);
 
-		for (const btn of triggers) {
-			btn.setAttribute('aria-controls', pop.id);
-			btn.addEventListener('keydown', (e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					btn.click();
-				}
-			});
-			btn.addEventListener('click', () => {
+		const show = (el: HTMLElement, hover: boolean) => {
+			const tpl = bodyOf(el);
+			if (!tpl) return;
+			if (pop.matches(':popover-open')) pop.hidePopover();
+			body.replaceChildren(tpl.content.cloneNode(true));
+			pop.setAttribute('aria-label', el.textContent?.trim() ?? '');
+			current = el;
+			byHover = hover;
+			pop.showPopover();
+			el.setAttribute('aria-expanded', 'true');
+			place();
+			if (!hover) close.focus({ preventScroll: true });
+		};
+
+		for (const el of triggers) {
+			el.setAttribute('aria-controls', pop.id);
+			onKey(el);
+			el.addEventListener('click', () => {
 				const again =
-					(current === btn && pop.matches(':popover-open')) ||
-					(lastClosed === btn && performance.now() - closedAt < 400);
-				if (pop.matches(':popover-open')) pop.hidePopover();
+					(current === el && pop.matches(':popover-open') && !byHover) ||
+					(lastClosed === el && !lastByHover && performance.now() - closedAt < 400);
 				if (again) {
+					if (pop.matches(':popover-open')) pop.hidePopover();
 					lastClosed = null;
 					return;
 				}
-				const tpl = btn.nextElementSibling as HTMLTemplateElement;
-				body.replaceChildren(tpl.content.cloneNode(true));
-				pop.setAttribute('aria-label', btn.textContent ?? '');
-				current = btn;
-				pop.showPopover();
-				btn.setAttribute('aria-expanded', 'true');
-				place();
-				close.focus({ preventScroll: true });
+				show(el, false);
 			});
 		}
+
+		// Letters and units of a formula also open on hover where there is a mouse.
+		const canHover = window.matchMedia('(hover: hover) and (pointer: fine)');
+		const leave = () => {
+			clearTimeout(hideTimer);
+			hideTimer = window.setTimeout(() => {
+				if (byHover && pop.matches(':popover-open')) pop.hidePopover();
+			}, 250);
+		};
+		for (const el of parts) {
+			el.addEventListener('mouseenter', () => {
+				if (!canHover.matches) return;
+				clearTimeout(hideTimer);
+				if (current === el && pop.matches(':popover-open')) return;
+				if (current && pop.matches(':popover-open') && !byHover) return; // a clicked note stays
+				show(el, true);
+			});
+			el.addEventListener('mouseleave', () => canHover.matches && leave());
+		}
+		pop.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+		pop.addEventListener('mouseleave', () => byHover && leave());
 	}
 </script>

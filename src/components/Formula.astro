@@ -1,0 +1,133 @@
+---
+/**
+ * A display formula whose letters explain themselves: hover (on a computer) or tap a letter to see what it means.
+ * Mark each letter in `tex` with \p{key}{…}; `parts` gives the note for every key (HTML allowed: <b>, <i>).
+ * `units` adds a line «Q — в Дж, …» under the formula; each unit opens its own note (how it is read, a fact).
+ *   <Formula
+ *     tex="\p{Q}{Q} = \p{c}{c}\,\p{m}{m}\,(\p{t2}{t_2} - \p{t1}{t_1})"
+ *     parts={{ Q: 'Количество теплоты', c: 'Удельная теплоёмкость вещества', … }}
+ *     units={[{ of: 'Q', unit: 'Дж', note: '<b>Дж</b> — джоуль. …' }]}
+ *   />
+ * The popover code is in MoreSetup.astro.
+ */
+import katex from 'katex';
+
+interface Unit {
+	/** TeX of the quantity, e.g. 'Q' or 't'. */
+	of: string;
+	/** The unit as text, e.g. 'Дж/(кг·°C)'. */
+	unit: string;
+	/** Note shown for the unit (HTML). */
+	note: string;
+}
+interface Props {
+	tex: string;
+	parts: Record<string, string>;
+	units?: Unit[];
+}
+const { tex, parts, units = [] } = Astro.props;
+
+const opts = {
+	throwOnError: true,
+	strict: 'ignore' as const,
+	trust: (ctx: { command: string }) => ctx.command === '\\htmlData',
+	macros: { '\\p': '\\htmlData{part=#1}{#2}' },
+};
+const html = katex.renderToString(tex, { ...opts, displayMode: true });
+const keys = [...tex.matchAll(/\\p\{([^}]+)\}/g)].map((m) => m[1]);
+for (const k of keys) if (!(k in parts)) throw new Error(`Formula: no note for part «${k}» in ${tex}`);
+const inline = (s: string) => katex.renderToString(s, opts);
+---
+
+<div class="ig-formula not-content" data-formula>
+	<div class="ig-formula__math"><Fragment set:html={html} /></div>
+	{
+		units.length > 0 && (
+			<p class="ig-formula__units">
+				{units.map((u, i) => (
+					<span class="ig-formula__unit">
+						<Fragment set:html={inline(u.of)} /> — в{' '}
+						<span class="ig-formula__u" data-part={`unit${i}`}>
+							{u.unit}
+						</span>
+					</span>
+				))}
+			</p>
+		)
+	}
+	<p class="ig-formula__hint">
+		<span class="ig-formula__hint--hover">Наведите на букву{units.length > 0 && ' или единицу'}, чтобы узнать, что она значит</span>
+		<span class="ig-formula__hint--tap">Нажмите на букву{units.length > 0 && ' или единицу'}, чтобы узнать, что она значит</span>
+	</p>
+	{Object.entries(parts).map(([k, v]) => <template data-part-body={k}><Fragment set:html={v} /></template>)}
+	{units.map((u, i) => <template data-part-body={`unit${i}`}><Fragment set:html={u.note} /></template>)}
+</div>
+
+<style is:global>
+	.ig-formula {
+		margin-block: 1.5rem;
+		padding: 0.75rem 1rem 0.6rem;
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		border: 1px solid var(--sl-color-gray-5);
+		text-align: center;
+	}
+	.ig-formula__math {
+		overflow-x: auto;
+	}
+	.ig-formula__math .katex-display {
+		margin: 0.4rem 0;
+	}
+	.ig-formula__math .katex {
+		font-size: 1.6em;
+	}
+	.ig-formula [data-part] {
+		cursor: pointer;
+		border-radius: 0.3em;
+		color: var(--sl-color-text-accent);
+		transition: background-color 0.15s;
+	}
+	.ig-formula [data-part]:hover,
+	.ig-formula [data-part][aria-expanded='true'],
+	.ig-formula [data-part]:focus-visible {
+		background: var(--sl-color-accent-low);
+		outline: none;
+	}
+	.ig-formula__units {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.25rem 1.25rem;
+		margin: 0.25rem 0 0;
+		font-size: var(--sl-text-sm);
+	}
+	.ig-formula__unit {
+		white-space: nowrap;
+	}
+	.ig-formula__u {
+		padding: 0 0.15em;
+		text-decoration: underline dotted;
+		text-underline-offset: 0.22em;
+	}
+	.ig-formula__hint {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.ig-formula__hint--tap {
+		display: none;
+	}
+	@media (hover: none), (pointer: coarse) {
+		.ig-formula__hint--hover {
+			display: none;
+		}
+		.ig-formula__hint--tap {
+			display: inline;
+		}
+	}
+	@media (max-width: 40rem) {
+		.ig-formula__math .katex {
+			font-size: 1.35em;
+		}
+	}
+</style>
