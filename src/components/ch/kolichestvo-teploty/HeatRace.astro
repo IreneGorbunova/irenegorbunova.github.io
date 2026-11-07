@@ -80,11 +80,6 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 		))}
 	</div>
 
-	<div class="ktrace__panel">
-		<p class="ktrace__panel-title" data-ptitle></p>
-		<div class="ktrace__math" data-math1></div>
-		<div class="ktrace__math" data-math2></div>
-	</div>
 
 	<table class="ktrace__table">
 		<thead>
@@ -106,8 +101,8 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 	<figcaption class="ktrace__caption">
 		Каждый нагреватель каждую секунду передаёт веществу 1000 Дж и выключается, когда вещество нагреется до 100 °C. Начальная температура
 		всех веществ 20 °C. Сосуды и бруски нарисованы в одном масштабе: массы одинаковые, а объёмы разные. Опыт идеальный: всё тепло
-		нагревателя достаётся веществу, оно прогревается равномерно (жидкости и песок перемешиваем), потерь нет. Нажмите на вещество, чтобы
-		увидеть расчёт для него.
+		нагревателя достаётся веществу, оно прогревается равномерно (жидкости и песок перемешиваем), потерь нет. Наведите на число в столбце
+		<i>Q</i> (или нажмите на него), чтобы увидеть расчёт.
 	</figcaption>
 </figure>
 
@@ -118,6 +113,10 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 		border: 1px solid var(--sl-color-gray-5);
 		border-radius: 1rem;
 		background: var(--ig-surface);
+	}
+	.ktrace__qv {
+		text-decoration: underline dotted;
+		text-underline-offset: 0.22em;
 	}
 	.ktrace i {
 		font-family: var(--ig-font-math);
@@ -341,27 +340,6 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 		font-size: var(--sl-text-xs);
 		color: var(--sl-color-gray-2);
 	}
-	.ktrace__panel {
-		margin-top: 0.75rem;
-		padding: 0.6rem 0.8rem;
-		border-radius: 0.75rem;
-		background: var(--sl-color-gray-6);
-	}
-	.ktrace__panel-title {
-		margin: 0;
-		font-size: var(--sl-text-sm);
-		color: var(--sl-color-gray-2);
-	}
-	.ktrace__math {
-		min-height: 2.6rem;
-		overflow-x: auto;
-		overflow-y: hidden;
-		color: var(--sl-color-white);
-	}
-	.ktrace__math .katex-display {
-		margin: 0.45rem 0;
-	}
-	.ktrace .kt-q { color: var(--ig-v); }
 	.ktrace .kt-c { color: var(--kcsel, var(--ig-vx)); }
 	.ktrace__table {
 		width: 100%;
@@ -449,9 +427,6 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 		const reset = $<HTMLButtonElement>('[data-reset]');
 		const clock = $<HTMLElement>('[data-clock]');
 		const live = $<HTMLElement>('[data-live]');
-		const ptitle = $<HTMLElement>('[data-ptitle]');
-		const math1 = $<HTMLElement>('[data-math1]');
-		const math2 = $<HTMLElement>('[data-math2]');
 		const svg = $<SVGSVGElement>('[data-graph]');
 		const box = $<HTMLElement>('[data-graphbox]');
 		const massBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-m]'));
@@ -548,41 +523,29 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 			update();
 		};
 
-		const formula = () => {
-			const k = sel;
+		// The calculation for a finished substance opens from its Q in the table (MoreSetup.astro, [data-note]).
+		const noteFor = (k: Key) => () => {
 			const sub = SUBSTANCES[k];
-			root.style.setProperty('--kcsel', `var(--${k === 'water' ? 'ig-vx' : k === 'oil' ? 'ig-v' : k === 'sand' ? 'sl-color-green' : k === 'al' ? 'sl-color-purple' : 'ig-vy'})`);
-			const sec = Math.floor(tau + 1e-9);
 			const tf = tFinish(k);
-			const narrow = root.clientWidth < 520;
-			const mT = tex(m, 1);
-			if (sec >= tf - 1e-9 && tau > 0) {
-				ptitle.innerHTML = `${sub.name}: нагревание закончено за ${ru(tf, 1)} с.`;
-				const Qs = texInt(P * tf);
-				renderTex(math1, `${q('q', 'Q')} = 1000~\\tfrac{\\text{Дж}}{\\text{с}} \\cdot ${tex(tf, 1)}~\\text{с} = ${q('q', `${Qs}~\\text{Дж}`)}`);
-				const rhs = `${q('c', String(sub.c))} \\cdot ${mT} \\cdot (${q('t', '100')} - 20) = ${q('q', `${Qs}~\\text{Дж}`)}`;
-				renderTex(
-					math2,
-					narrow
-						? `\\begin{aligned} ${q('q', 'Q')} &= ${q('c', 'c')}\\,m\\,(${q('t', 't_2')} - t_1) = \\\\ &= ${rhs} \\end{aligned}`
-						: `${q('q', 'Q')} = ${q('c', 'c')}\\,m\\,(${q('t', 't_2')} - t_1) = ${rhs}`,
-				);
-			} else {
-				const Q = P * sec;
-				const t2 = T0 + Q / (sub.c * m);
-				ptitle.innerHTML = `${sub.name}: сколько теплоты получено и до какой температуры нагрелось вещество.`;
-				renderTex(math1, `${q('q', 'Q')} = 1000~\\tfrac{\\text{Дж}}{\\text{с}} \\cdot ${sec}~\\text{с} = ${q('q', `${texInt(Q)}~\\text{Дж}`)}`);
-				const approx = Math.abs(Math.round(t2 * 10) / 10 - t2) > 1e-9 ? '\\approx' : '=';
-				const rhs = `20 + \\dfrac{${q('q', texInt(Q))}}{${q('c', String(sub.c))} \\cdot ${mT}} ${approx} ${q('t', `${tex(t2, 1)}${DEG}`)}`;
-				renderTex(
-					math2,
-					narrow
-						? `\\begin{aligned} ${q('t', 't_2')} &= t_1 + \\dfrac{${q('q', 'Q')}}{${q('c', 'c')}\\,m} = \\\\ &= ${rhs} \\end{aligned}`
-						: `${q('t', 't_2')} = t_1 + \\dfrac{${q('q', 'Q')}}{${q('c', 'c')}\\,m} = ${rhs}`,
-				);
-			}
+			const Qs = texInt(P * tf);
+			const box = document.createElement('div');
+			const head = document.createElement('p');
+			const verb = k === 'water' ? 'нагревалась' : k === 'oil' ? 'нагревалось' : 'нагревался';
+			head.innerHTML = `<b>${sub.name}</b> ${verb} до 100 °C за ${ru(tf, 1)} с.`;
+			head.style.margin = '0';
+			const f1 = document.createElement('div');
+			const f2 = document.createElement('div');
+			renderTex(f1, `Q = 1000~\\tfrac{\\text{Дж}}{\\text{с}} \\cdot ${tex(tf, 1)}~\\text{с} = ${Qs}~\\text{Дж}`);
+			renderTex(
+				f2,
+				`\\begin{aligned} Q &= c\\,m\\,(t_2 - t_1) = \\\\ &= ${sub.c} \\cdot ${tex(m, 1)} \\cdot (100 - 20) = ${Qs}~\\text{Дж} \\end{aligned}`,
+			);
+			const tail = document.createElement('p');
+			tail.style.margin = '0';
+			tail.textContent = 'То же значение даёт формула количества теплоты:';
+			box.append(head, f1, tail, f2);
+			return box;
 		};
-
 		let lastSec = -1;
 		const update = () => {
 			const sec = Math.floor(tau + 1e-9);
@@ -600,7 +563,13 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 					s.finished = true;
 					s.done.textContent = `✓ за ${ru(tf, 1)} с`;
 					s.row.querySelector('[data-time]')!.textContent = ru(tf, 1);
-					s.row.querySelector('[data-q]')!.textContent = htmlInt(P * tf);
+					const cell = s.row.querySelector<HTMLElement>('[data-q]')!;
+					const v = document.createElement('span') as HTMLSpanElement & { igNote?: () => Node };
+					v.className = 'ktrace__qv';
+					v.dataset.note = '';
+					v.textContent = htmlInt(P * tf);
+					v.igNote = noteFor(k);
+					cell.replaceChildren(v);
 					s.row.classList.remove('is-new');
 					void s.row.offsetWidth;
 					s.row.classList.add('is-new');
@@ -621,7 +590,6 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 			clock.innerHTML = `Время нагревания <i>τ</i> = ${sec} с. Масса каждого вещества <i>m</i> = ${ru(m, 1)} кг.`;
 			if (sec !== lastSec) {
 				lastSec = sec;
-				formula();
 			}
 		};
 
@@ -631,12 +599,11 @@ const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
 			go.disabled = true;
 			const r = SUBSTANCES.water.c / SUBSTANCES.fe.c;
 			live.innerHTML = `Вода нагревалась в ${ru(tFinish('water') / tFinish('fe'), 1)} раза дольше железа и получила во столько же раз больше теплоты. Во столько же раз её удельная теплоёмкость больше: 4200 : 460 ≈ ${ru(r, 1)}.`;
-			formula();
 		};
 
 		const frame = (now: number) => {
 			if (!running) return;
-			const dt = Math.min(0.1, (now - lastNow) / 1000);
+			const dt = Math.max(0, Math.min(0.1, (now - lastNow) / 1000)); // the first frame can predate the click
 			lastNow = now;
 			tau = Math.min(tMax(), tau + (dt * tMax()) / RUN_SECONDS);
 			update();
