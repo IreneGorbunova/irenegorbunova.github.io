@@ -1,0 +1,1285 @@
+---
+/**
+ * Main model of the chapter: a heater (or a cooler) passes the same amount of heat to the
+ * substance every minute; the graph t(time) is drawn in real time. While the body melts or
+ * solidifies, the temperature stays at the melting point and the energy goes into breaking
+ * (or rebuilding) the crystal lattice, shown «under a microscope» on the right.
+ * Heat losses are neglected; the cooler takes away heat at the same rate as the heater gives it.
+ * The live calculation uses Q = c·m·(t₂ − t₁) and Q = λ·m with rounded table values.
+ */
+import { SUBSTANCES } from './melt';
+
+const subs = Object.values(SUBSTANCES);
+// Scene geometry (viewBox units).
+const B = { L: 58, R: 222, T: 54, BOT: 222 }; // beaker inner walls and bottom
+const MAG = { X: 452, Y: 132, R: 112 };
+---
+
+<figure class="melt not-content" data-melt>
+	<svg class="melt__scene" viewBox="0 0 600 284" role="img" aria-label="Сосуд с веществом на нагревателе и увеличенная схема расположения его частиц" data-scene>
+		<defs>
+			<clipPath data-clip-mag>
+				<circle cx={MAG.X} cy={MAG.Y} r={MAG.R - 3}></circle>
+			</clipPath>
+			<clipPath data-clip-beaker>
+				<rect x={B.L} y={B.T - 20} width={B.R - B.L} height={B.BOT - B.T + 20}></rect>
+			</clipPath>
+		</defs>
+
+		<!-- the lens: a spot in the substance and lines to the big circle -->
+		<g class="melt__lens">
+			<line data-lens1></line>
+			<line data-lens2></line>
+			<circle class="melt__spot" r="13" data-spot></circle>
+		</g>
+
+		<!-- heater / cooler plate -->
+		<g class="melt__plate" data-plate>
+			<rect class="melt__plate-body" x="34" y="230" width="212" height="18" rx="6"></rect>
+			<rect class="melt__plate-top" x="40" y="227" width="200" height="5" rx="2.5"></rect>
+			<g class="melt__waves melt__waves--up">
+				<path d="M 52 223 q 4 -7 0 -14 q -4 -7 0 -14"></path>
+				<path d="M 236 223 q 4 -7 0 -14 q -4 -7 0 -14"></path>
+				<path d="M 44 214 q 4 -7 0 -14 q -4 -7 0 -14"></path>
+				<path d="M 244 214 q 4 -7 0 -14 q -4 -7 0 -14"></path>
+			</g>
+			<text class="melt__plate-label" x="140" y="274" text-anchor="middle" data-plate-label>нагреватель выключен</text>
+		</g>
+
+		<!-- beaker -->
+		<g clip-path="" data-beaker-clip>
+			<rect class="melt__liquid" data-liquid></rect>
+			<line class="melt__surface" data-surface></line>
+			<g data-solid>
+				<rect class="melt__solid" rx="5" data-solid-rect></rect>
+				<path class="melt__facets" data-facets></path>
+			</g>
+		</g>
+		<path class="melt__glass" d={`M ${B.L - 8} ${B.T - 14} q 6 2 6 10 V ${B.BOT + 2} q 0 4 4 4 H ${B.R - 2} q 4 0 4 -4 V ${B.T - 4} q 0 -8 6 -10`}></path>
+		<g class="melt__glass-ticks">
+			{[0, 1, 2, 3].map((i) => <line x1={B.L - 2} x2={B.L + 8} y1={B.BOT - 40 - i * 36} y2={B.BOT - 40 - i * 36} />)}
+		</g>
+
+		<!-- thermometer -->
+		<g class="melt__thermo">
+			<rect class="melt__thermo-glass" x="196" y="14" width="12" height="196" rx="6"></rect>
+			<circle class="melt__thermo-glass" cx="202" cy="208" r="9"></circle>
+			<rect class="melt__thermo-col" x="199" width="6" rx="3" data-col></rect>
+			<circle class="melt__thermo-bulb" cx="202" cy="208" r="6.5"></circle>
+			<g data-readout>
+				<rect class="melt__readout-bg" x="230" y="6" width="96" height="30" rx="15"></rect>
+				<text class="melt__readout" x="278" y="27" text-anchor="middle" data-readout-text>20 °C</text>
+			</g>
+		</g>
+
+		<!-- magnifier -->
+		<circle class="melt__mag-bg" cx={MAG.X} cy={MAG.Y} r={MAG.R}></circle>
+		<g clip-path="" data-mag-clip>
+			<g class="melt__bonds" data-bonds></g>
+			<g class="melt__parts" data-parts></g>
+		</g>
+		<circle class="melt__mag-rim" cx={MAG.X} cy={MAG.Y} r={MAG.R}></circle>
+		<text class="melt__mag-label" x={MAG.X} y={MAG.Y + MAG.R + 26} text-anchor="middle" data-mag-label>кристалл: строгий порядок</text>
+	</svg>
+
+	<div class="melt__controls">
+		<div class="melt__subs" role="radiogroup" aria-label="Вещество">
+			{
+				subs.map((s, i) => (
+					<button type="button" class="melt__chip" role="radio" aria-checked={i === 0 ? 'true' : 'false'} data-sub={s.id}>
+						{s.label}
+					</button>
+				))
+			}
+		</div>
+		<label class="melt__slider">
+			<span>Масса <i>m</i> = <b data-m-out>0,2 кг</b></span>
+			<input type="range" min="0.1" max="1" step="0.1" value="0.2" data-m />
+		</label>
+		<label class="melt__slider">
+			<span>Нагреватель даёт <b data-p-out>10 кДж</b> за минуту</span>
+			<input type="range" min="2" max="20" step="1" value="10" data-p />
+		</label>
+	</div>
+
+	<div class="melt__buttons">
+		<button type="button" class="melt__btn melt__btn--heat" data-act="heat">Нагревать</button>
+		<button type="button" class="melt__btn melt__btn--cool" data-act="cool">Охлаждать</button>
+		<button type="button" class="melt__btn" data-act="pause">Пауза</button>
+		<button type="button" class="melt__btn" data-act="reset">Заново</button>
+	</div>
+	<p class="melt__status" aria-live="polite" data-status></p>
+
+	<svg class="melt__graph" viewBox="0 0 600 320" role="img" aria-label="График зависимости температуры вещества от времени" data-graph>
+		<g class="melt__grid" data-grid></g>
+		<line class="melt__axis" x1="62" y1="268" x2="588" y2="268"></line>
+		<line class="melt__axis" x1="62" y1="268" x2="62" y2="14"></line>
+		<g class="melt__ticks" data-ticks></g>
+		<text class="melt__axname" x="70" y="22"><tspan class="melt__math">t</tspan>, °C</text>
+		<text class="melt__axname" x="325" y="314" text-anchor="middle">время, мин</text>
+		<line class="melt__tm" data-tm-line></line>
+		<text class="melt__tm-label" text-anchor="end" data-tm-label></text>
+		<path class="melt__ghost" data-ghost></path>
+		<g data-paths></g>
+		<g data-marks></g>
+		<circle class="melt__head" r="6" data-head></circle>
+	</svg>
+	<p class="melt__legend" data-legend></p>
+
+	<div class="melt__calc">
+		<p class="melt__calc-title" data-calc-title>Сколько теплоты получило вещество</p>
+		<div class="melt__rows">
+			<div class="melt__row" data-row="s">
+				<span class="melt__row-name" data-row-name></span>
+				<div class="melt__row-f" data-row-f></div>
+			</div>
+			<div class="melt__row melt__row--m" data-row="m">
+				<span class="melt__row-name" data-row-name></span>
+				<div class="melt__row-f" data-row-f></div>
+			</div>
+			<div class="melt__row" data-row="l">
+				<span class="melt__row-name" data-row-name></span>
+				<div class="melt__row-f" data-row-f></div>
+			</div>
+		</div>
+		<div class="melt__sum" data-sum></div>
+		<p class="melt__check" data-check></p>
+	</div>
+</figure>
+
+<style is:global>
+	.melt {
+		--heat: var(--ig-vy);
+		--cool: var(--ig-vx);
+		--sub: var(--sl-color-blue);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.melt[data-sub='naph'] {
+		--sub: var(--sl-color-purple);
+	}
+	.melt[data-sub='tin'] {
+		--sub: var(--sl-color-gray-2);
+	}
+	.melt[data-sub='lead'] {
+		--sub: var(--sl-color-gray-3);
+	}
+	.melt i,
+	.melt .melt__math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.melt svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.melt text {
+		font-family: var(--__sl-font);
+	}
+
+	/* scene */
+	.melt__glass {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linejoin: round;
+		opacity: 0.85;
+	}
+	.melt__glass-ticks line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.melt__liquid {
+		fill: color-mix(in srgb, var(--sub) 34%, transparent);
+	}
+	.melt__surface {
+		stroke: color-mix(in srgb, var(--sub) 80%, var(--sl-color-white));
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.melt__solid {
+		fill: color-mix(in srgb, var(--sub) 62%, var(--ig-surface));
+		stroke: color-mix(in srgb, var(--sub) 70%, var(--sl-color-white));
+		stroke-width: 1.5;
+	}
+	.melt__facets {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-white) 55%, transparent);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+	}
+	.melt__plate-body {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.melt__plate-top {
+		fill: var(--sl-color-gray-4);
+		transition: fill 0.4s;
+	}
+	.melt__plate.is-heat .melt__plate-top {
+		fill: var(--heat);
+		filter: drop-shadow(0 0 6px var(--heat));
+	}
+	.melt__plate.is-cool .melt__plate-top {
+		fill: var(--cool);
+		filter: drop-shadow(0 0 6px var(--cool));
+	}
+	.melt__waves path {
+		fill: none;
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-dasharray: 6 6;
+		opacity: 0;
+		transition: opacity 0.4s;
+	}
+	.melt__plate.is-heat .melt__waves path {
+		stroke: var(--heat);
+		opacity: 0.9;
+		animation: melt-up 0.8s linear infinite;
+	}
+	.melt__plate.is-cool .melt__waves path {
+		stroke: var(--cool);
+		opacity: 0.9;
+		animation: melt-down 0.8s linear infinite;
+	}
+	@keyframes melt-up {
+		to {
+			stroke-dashoffset: 12;
+		}
+	}
+	@keyframes melt-down {
+		to {
+			stroke-dashoffset: -12;
+		}
+	}
+	.melt__plate-label {
+		fill: var(--sl-color-gray-3);
+		font-size: 15px;
+	}
+	.melt__plate.is-heat .melt__plate-label {
+		fill: var(--heat);
+	}
+	.melt__plate.is-cool .melt__plate-label {
+		fill: var(--cool);
+	}
+	.melt__thermo-glass {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.melt__thermo-col,
+	.melt__thermo-bulb {
+		fill: var(--heat);
+	}
+	.melt__readout-bg {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--heat);
+		stroke-width: 1.5;
+	}
+	.melt__readout {
+		fill: var(--sl-color-white);
+		font-size: 17px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.melt__lens line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 4;
+	}
+	.melt__spot {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 2;
+	}
+	.melt__mag-bg {
+		fill: var(--sl-color-gray-6);
+	}
+	.melt__mag-rim {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+	}
+	.melt__mag-label {
+		fill: var(--sl-color-gray-3);
+		font-size: 15px;
+	}
+	.melt__parts circle {
+		fill: color-mix(in srgb, var(--sub) 78%, var(--sl-color-white));
+		stroke: color-mix(in srgb, var(--sub) 55%, var(--sl-color-black));
+		stroke-width: 1;
+	}
+	.melt__bonds line {
+		stroke: color-mix(in srgb, var(--sub) 75%, var(--sl-color-white));
+		stroke-width: 3;
+	}
+
+	/* controls */
+	.melt__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.6rem 1.25rem;
+		margin-top: 0.75rem;
+	}
+	.melt__subs {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.melt__chip,
+	.melt__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.95rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition:
+			background-color 0.2s,
+			border-color 0.2s;
+	}
+	.melt__chip:hover,
+	.melt__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.melt__chip[aria-checked='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.melt__slider {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.melt__slider b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.melt__slider input {
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.melt__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.melt__btn--heat {
+		border-color: var(--heat);
+	}
+	.melt__btn--cool {
+		border-color: var(--cool);
+	}
+	.melt__btn--heat[aria-pressed='true'] {
+		background: var(--heat);
+		color: var(--sl-color-black);
+	}
+	.melt__btn--cool[aria-pressed='true'] {
+		background: var(--cool);
+		color: var(--sl-color-black);
+	}
+	.melt__btn[data-act='pause'][aria-pressed='true'] {
+		background: var(--sl-color-gray-5);
+	}
+	.melt__btn:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	.melt__status {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-base);
+		color: var(--sl-color-gray-1);
+	}
+	.melt__status b {
+		color: var(--sl-color-white);
+	}
+	.melt__status .is-melt {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+
+	/* graph */
+	.melt__graph {
+		margin-top: 0.4rem;
+	}
+	.melt__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.melt__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.melt__ticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+		font-variant-numeric: tabular-nums;
+	}
+	.melt__axname {
+		fill: var(--sl-color-gray-2);
+		font-size: 16px;
+	}
+	.melt__tm {
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 5;
+		opacity: 0.8;
+	}
+	.melt__tm-label {
+		fill: var(--sl-color-text-accent);
+		font-size: 15px;
+		font-weight: 700;
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 5px;
+		stroke-linejoin: round;
+	}
+	.melt__ghost {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-dasharray: 5 6;
+		opacity: 0.7;
+	}
+	.melt__line {
+		fill: none;
+		stroke-width: 3.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.melt__line--heat {
+		stroke: var(--heat);
+	}
+	.melt__line--cool {
+		stroke: var(--cool);
+	}
+	.melt__mark {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-accent);
+		stroke-width: 2.5;
+	}
+	.melt__head {
+		fill: var(--sl-color-white);
+		stroke: var(--heat);
+		stroke-width: 3;
+	}
+	.melt__legend {
+		margin: 0.2rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.melt__legend .k {
+		display: inline-block;
+		width: 1.6em;
+		height: 0;
+		margin-right: 0.3em;
+		vertical-align: middle;
+		border-top: 3px solid;
+	}
+	.melt__legend .k--heat {
+		border-color: var(--heat);
+	}
+	.melt__legend .k--cool {
+		border-color: var(--cool);
+	}
+	.melt__legend .k--ghost {
+		border-top: 2px dashed var(--sl-color-gray-3);
+	}
+
+	/* live calculation */
+	.melt__calc {
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.melt__calc-title {
+		margin: 0 0 0.4rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.melt__rows {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+	.melt__row {
+		padding: 0.3rem 0.7rem;
+		border-left: 4px solid var(--sl-color-gray-5);
+		border-radius: 0.4rem;
+		opacity: 0.45;
+		transition:
+			opacity 0.3s,
+			border-color 0.3s,
+			background-color 0.3s;
+	}
+	.melt__row.is-done {
+		opacity: 1;
+		border-left-color: var(--sl-color-gray-3);
+	}
+	.melt__row.is-now {
+		opacity: 1;
+		border-left-color: var(--heat);
+		background: color-mix(in srgb, var(--heat) 10%, transparent);
+	}
+	.melt.is-cooling .melt__row.is-now {
+		border-left-color: var(--cool);
+		background: color-mix(in srgb, var(--cool) 10%, transparent);
+	}
+	.melt__row--m.is-now {
+		border-left-color: var(--sl-color-accent) !important;
+		background: color-mix(in srgb, var(--sl-color-accent) 12%, transparent) !important;
+	}
+	.melt__row-name {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.melt__row-f,
+	.melt__sum {
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.melt__row-f .katex-display,
+	.melt__sum .katex-display {
+		margin: 0.15rem 0;
+		text-align: left;
+	}
+	.melt__row-f .katex-display > .katex,
+	.melt__sum .katex-display > .katex {
+		text-align: left;
+	}
+	.melt__sum {
+		margin-top: 0.4rem;
+	}
+	.melt__check {
+		margin: 0.2rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	@media (max-width: 40rem) {
+		.melt {
+			padding: 0.75rem;
+		}
+		.melt__controls {
+			grid-template-columns: 1fr;
+		}
+		.melt__readout {
+			font-size: 22px;
+		}
+		.melt__plate-label,
+		.melt__mag-label {
+			font-size: 22px;
+		}
+		.melt__ticks text {
+			font-size: 21px;
+		}
+		.melt__axname {
+			font-size: 22px;
+		}
+		.melt__tm-label {
+			font-size: 21px;
+		}
+		.melt__row-f .katex {
+			font-size: 0.95em;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.melt__waves path {
+			animation: none !important;
+		}
+		.melt__row {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { SUBSTANCES, stages, stateOf, ru, fixed, tex, renderTex, niceCeil, tickStep, type Substance, type SubstanceId } from './melt';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const B = { L: 58, R: 222, T: 54, BOT: 222 };
+	const MAG = { X: 452, Y: 132, R: 112 };
+	const GX = { X0: 62, X1: 580, Y0: 268, Y1: 30 };
+	const REAL_SECONDS = 15; // the whole heating lasts about this long on screen
+	let uidCounter = 0;
+
+	const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number> = {}) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		return e;
+	};
+	const set = (e: Element, attrs: Record<string, string | number>) => {
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+	};
+	const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+
+	interface Pt {
+		tau: number;
+		t: number;
+		dir: 1 | -1;
+	}
+	interface Particle {
+		sx: number;
+		sy: number;
+		x: number;
+		y: number;
+		vx: number;
+		vy: number;
+		ph1: number;
+		ph2: number;
+		w1: number;
+		w2: number;
+		rank: number;
+		solid: boolean;
+		node: SVGCircleElement;
+	}
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-melt]')) {
+		const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const uid = `melt${uidCounter++}-${Math.random().toString(36).slice(2, 7)}`;
+
+		// clip paths need ids: make them unique for this instance
+		const clipMag = $<SVGClipPathElement>('[data-clip-mag]');
+		const clipBk = $<SVGClipPathElement>('[data-clip-beaker]');
+		clipMag.id = `${uid}-mag`;
+		clipBk.id = `${uid}-bk`;
+		$('[data-mag-clip]').setAttribute('clip-path', `url(#${clipMag.id})`);
+		$('[data-beaker-clip]').setAttribute('clip-path', `url(#${clipBk.id})`);
+
+		const liquid = $<SVGRectElement>('[data-liquid]');
+		const surface = $<SVGLineElement>('[data-surface]');
+		const solidG = $<SVGGElement>('[data-solid]');
+		const solidRect = $<SVGRectElement>('[data-solid-rect]');
+		const facets = $<SVGPathElement>('[data-facets]');
+		const col = $<SVGRectElement>('[data-col]');
+		const readout = $<SVGTextElement>('[data-readout-text]');
+		const plate = $<SVGGElement>('[data-plate]');
+		const plateLabel = $<SVGTextElement>('[data-plate-label]');
+		const spot = $<SVGCircleElement>('[data-spot]');
+		const lens1 = $<SVGLineElement>('[data-lens1]');
+		const lens2 = $<SVGLineElement>('[data-lens2]');
+		const partsG = $<SVGGElement>('[data-parts]');
+		const bondsG = $<SVGGElement>('[data-bonds]');
+		const magLabel = $<SVGTextElement>('[data-mag-label]');
+		const gridG = $<SVGGElement>('[data-grid]');
+		const ticksG = $<SVGGElement>('[data-ticks]');
+		const tmLine = $<SVGLineElement>('[data-tm-line]');
+		const tmLabel = $<SVGTextElement>('[data-tm-label]');
+		const ghostPath = $<SVGPathElement>('[data-ghost]');
+		const pathsG = $<SVGGElement>('[data-paths]');
+		const marksG = $<SVGGElement>('[data-marks]');
+		const head = $<SVGCircleElement>('[data-head]');
+		const legend = $<HTMLElement>('[data-legend]');
+		const status = $<HTMLElement>('[data-status]');
+		const mIn = $<HTMLInputElement>('[data-m]');
+		const pIn = $<HTMLInputElement>('[data-p]');
+		const mOut = $<HTMLElement>('[data-m-out]');
+		const pOut = $<HTMLElement>('[data-p-out]');
+		const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-sub]'));
+		const btn = (a: string) => $<HTMLButtonElement>(`[data-act="${a}"]`);
+		const bHeat = btn('heat');
+		const bCool = btn('cool');
+		const bPause = btn('pause');
+		const bReset = btn('reset');
+		const calcTitle = $<HTMLElement>('[data-calc-title]');
+		const rows = {
+			s: $<HTMLElement>('[data-row="s"]'),
+			m: $<HTMLElement>('[data-row="m"]'),
+			l: $<HTMLElement>('[data-row="l"]'),
+		};
+		const sumEl = $<HTMLElement>('[data-sum]');
+		const checkEl = $<HTMLElement>('[data-check]');
+
+		// ---------- state ----------
+		let sub: Substance = SUBSTANCES.ice;
+		let m = 0.2; // kg
+		let P = 10000; // J per minute
+		let E = 0; // J received since the start state
+		let tau = 0; // min
+		let mode: 'heat' | 'cool' | 'pause' = 'pause';
+		let dir: 1 | -1 = 1; // last direction
+		let Eref = 0; // where the current heating / cooling started
+		let speed = 1; // model minutes per real second
+		let pts: Pt[] = [];
+		let ghost: { sub: SubstanceId; m: number; P: number; pts: Pt[] } | null = null;
+		let xMax = 10;
+		let xShown = 10;
+		let ended: '' | 'top' | 'bottom' = '';
+		let calcDirty = true;
+		let calcTimer = 0;
+
+		// Quanta that keep every number in the calculation exact: 0,1 °C (1 °C for metals) and 1 g.
+		const dT = () => (sub.id === 'tin' || sub.id === 'lead' ? 1 : 0.1);
+		const quant = (e: number) => {
+			const { e1, e2, e3 } = stages(sub, m);
+			const step = (lo: number, q: number) => lo + Math.round((e - lo) / q) * q;
+			if (e <= e1) return Math.min(e1, Math.max(0, step(0, sub.cs * m * dT())));
+			if (e <= e2) return Math.min(e2, step(e1, sub.lambda * 0.001));
+			return Math.min(e3, step(e2, sub.cl * m * dT()));
+		};
+
+		// ---------- graph scales ----------
+		let yMin = 0;
+		let yMax = 1;
+		const gx = (v: number) => GX.X0 + (v / xShown) * (GX.X1 - GX.X0);
+		const gy = (t: number) => GX.Y0 - ((t - yMin) / (yMax - yMin)) * (GX.Y0 - GX.Y1);
+
+		const drawAxes = () => {
+			gridG.replaceChildren();
+			ticksG.replaceChildren();
+			const ys = tickStep(yMax - yMin, 6);
+			for (let v = Math.ceil(yMin / ys) * ys; v <= yMax + 1e-9; v += ys) {
+				const y = gy(v);
+				gridG.append(el('line', { x1: GX.X0, x2: GX.X1, y1: y, y2: y }));
+				const tx = el('text', { x: GX.X0 - 8, y: y + 5, 'text-anchor': 'end' });
+				tx.textContent = ru(v, 1).replace('-', '−');
+				ticksG.append(tx);
+			}
+			const xs = tickStep(xShown, 6);
+			for (let v = xs; v <= xShown + 1e-9; v += xs) {
+				const x = gx(v);
+				gridG.append(el('line', { x1: x, x2: x, y1: GX.Y0, y2: GX.Y1 }));
+				const tx = el('text', { x, y: GX.Y0 + 21, 'text-anchor': 'middle' });
+				tx.textContent = ru(v, 2);
+				ticksG.append(tx);
+			}
+			const zero = el('text', { x: GX.X0, y: GX.Y0 + 21, 'text-anchor': 'middle' });
+			zero.textContent = '0';
+			ticksG.append(zero);
+			const ytm = gy(sub.tm);
+			set(tmLine, { x1: GX.X0, x2: GX.X1, y1: ytm, y2: ytm });
+			set(tmLabel, { x: GX.X1 - 4, y: ytm + 21 });
+			tmLabel.textContent = `температура плавления ${ru(sub.tm, 0).replace('-', '−')}\u00a0°C`;
+		};
+
+		const pathD = (list: Pt[]) => list.map((p, i) => `${i ? 'L' : 'M'}${gx(p.tau).toFixed(1)} ${gy(p.t).toFixed(1)}`).join('');
+
+		const drawGraph = () => {
+			pathsG.replaceChildren();
+			marksG.replaceChildren();
+			let start = 0;
+			for (let i = 1; i <= pts.length; i++) {
+				if (i === pts.length || pts[i].dir !== pts[start].dir) {
+					const seg = pts.slice(start, Math.min(i + 1, pts.length));
+					if (seg.length > 1) {
+						const p = el('path', { class: `melt__line melt__line--${seg[1].dir > 0 ? 'heat' : 'cool'}`, d: pathD(seg) });
+						pathsG.append(p);
+					}
+					start = i;
+				}
+			}
+			// corners of the plateau: one neighbouring piece is flat, the other is not
+			const flat = (a: Pt, b: Pt) => Math.abs(a.t - sub.tm) < 1e-9 && Math.abs(b.t - sub.tm) < 1e-9;
+			for (let i = 1; i + 1 < pts.length; i++) {
+				if (flat(pts[i - 1], pts[i]) !== flat(pts[i], pts[i + 1]))
+					marksG.append(el('circle', { class: 'melt__mark', r: 4.5, cx: gx(pts[i].tau), cy: gy(pts[i].t) }));
+			}
+			const last = pts[pts.length - 1];
+			if (last) set(head, { cx: gx(last.tau), cy: gy(last.t) });
+			head.style.stroke = `var(${dir > 0 ? '--heat' : '--cool'})`;
+			ghostPath.setAttribute('d', ghost && ghost.sub === sub.id ? pathD(ghost.pts) : '');
+		};
+
+		const targetX = () => {
+			const th = stages(sub, m).e3 / P;
+			let need = Math.max(th * 1.04, tau * 1.06);
+			if (ghost && ghost.sub === sub.id) need = Math.max(need, ghost.pts[ghost.pts.length - 1].tau * 1.02);
+			return niceCeil(need);
+		};
+
+		// ---------- particles ----------
+		const SP = 22; // lattice spacing
+		const PR = 9.6; // particle radius
+		const parts: Particle[] = [];
+		const bonds: [number, number, SVGLineElement][] = [];
+		{
+			const nRows = Math.ceil(MAG.R / (SP * 0.866)) + 1;
+			for (let r = -nRows; r <= nRows; r++) {
+				for (let c = -8; c <= 8; c++) {
+					const sx = MAG.X + c * SP + (Math.abs(r) % 2 ? SP / 2 : 0);
+					const sy = MAG.Y + r * SP * 0.866;
+					if (Math.hypot(sx - MAG.X, sy - MAG.Y) > MAG.R - PR - 3) continue;
+					const node = el('circle', { r: PR, cx: sx, cy: sy }) as SVGCircleElement;
+					partsG.append(node);
+					parts.push({
+						sx,
+						sy,
+						x: sx,
+						y: sy,
+						vx: 0,
+						vy: 0,
+						ph1: Math.random() * 6.28,
+						ph2: Math.random() * 6.28,
+						w1: 9 + Math.random() * 6,
+						w2: 9 + Math.random() * 6,
+						rank: 0,
+						solid: true,
+						node,
+					});
+				}
+			}
+			// rank: melting goes from the top of the field down, with a slightly ragged front
+			const order = parts.map((p, i) => ({ i, key: p.sy + (Math.random() - 0.5) * SP * 1.3 })).sort((a, b) => a.key - b.key);
+			order.forEach((o, k) => (parts[o.i].rank = k));
+			for (let i = 0; i < parts.length; i++)
+				for (let j = i + 1; j < parts.length; j++) {
+					const d = Math.hypot(parts[i].sx - parts[j].sx, parts[i].sy - parts[j].sy);
+					if (d < SP * 1.05) {
+						const ln = el('line') as SVGLineElement;
+						bondsG.append(ln);
+						bonds.push([i, j, ln]);
+					}
+				}
+		}
+		const N = parts.length;
+		const RIN = MAG.R - PR - 2;
+
+		const stepParticles = (dt: number, tC: number, f: number, time: number) => {
+			const TK = tC + 273;
+			const TmK = sub.tm + 273;
+			const calm = reduceMotion.matches ? 0.25 : 1;
+			const amp = 2.2 * Math.sqrt(TK / TmK) * calm; // vibration at the melting point ≈ 10 % of the spacing
+			const nMelt = Math.round(f * N);
+			const sigma = 130 * Math.sqrt(TK / TmK) * calm;
+			const gamma = 5;
+			for (const p of parts) {
+				const wantSolid = p.rank >= nMelt;
+				if (!wantSolid && p.solid) {
+					p.solid = false;
+					p.vx = (Math.random() - 0.5) * 40;
+					p.vy = (Math.random() - 0.5) * 40;
+				} else if (wantSolid && !p.solid) p.solid = true;
+			}
+			if (nMelt === 0 || dt === 0) {
+				for (const p of parts) {
+					// return home smoothly (after solidification) and vibrate
+					const k = Math.min(1, dt * 6);
+					p.x += (p.sx - p.x) * k;
+					p.y += (p.sy - p.y) * k;
+				}
+			} else {
+				const D0 = 2 * PR + 0.6; // liquid particles touch, the crystal keeps small gaps
+				const n = Math.max(1, Math.ceil(dt / 0.004));
+				const h = dt / n;
+				const sq = Math.sqrt(h);
+				const fx = new Float64Array(N);
+				const fy = new Float64Array(N);
+				for (let it = 0; it < n; it++) {
+					fx.fill(0);
+					fy.fill(0);
+					for (let i = 0; i < N; i++) {
+						const a = parts[i];
+						for (let j = i + 1; j < N; j++) {
+							const b = parts[j];
+							if (a.solid && b.solid) continue;
+							const dx = a.x - b.x;
+							const dy = a.y - b.y;
+							if (Math.abs(dx) > D0 || Math.abs(dy) > D0) continue;
+							const d = Math.hypot(dx, dy) || 0.01;
+							if (d < D0) {
+								const F = Math.min(9000, 2600 * (D0 - d)) / d;
+								fx[i] += F * dx;
+								fy[i] += F * dy;
+								fx[j] -= F * dx;
+								fy[j] -= F * dy;
+							}
+						}
+					}
+					for (let i = 0; i < N; i++) {
+						const p = parts[i];
+						if (p.solid) {
+							const k = Math.min(1, h * 6);
+							p.x += (p.sx - p.x) * k;
+							p.y += (p.sy - p.y) * k;
+							continue;
+						}
+						p.vx += (fx[i] - gamma * p.vx) * h + sigma * sq * (Math.random() * 2 - 1) * 1.7;
+						p.vy += (fy[i] - gamma * p.vy) * h + sigma * sq * (Math.random() * 2 - 1) * 1.7;
+						const v = Math.hypot(p.vx, p.vy);
+						if (v > 200) {
+							p.vx *= 200 / v;
+							p.vy *= 200 / v;
+						}
+						p.x += p.vx * h;
+						p.y += p.vy * h;
+						const rx = p.x - MAG.X;
+						const ry = p.y - MAG.Y;
+						const r = Math.hypot(rx, ry);
+						if (r > RIN) {
+							p.x = MAG.X + (rx / r) * RIN;
+							p.y = MAG.Y + (ry / r) * RIN;
+							const vn = (p.vx * rx + p.vy * ry) / r;
+							if (vn > 0) {
+								p.vx -= (2 * vn * rx) / r;
+								p.vy -= (2 * vn * ry) / r;
+							}
+						}
+					}
+				}
+			}
+			for (const p of parts) {
+				let x = p.x;
+				let y = p.y;
+				if (p.solid && Math.hypot(p.x - p.sx, p.y - p.sy) < 2) {
+					x += amp * Math.sin(p.w1 * time + p.ph1);
+					y += amp * Math.sin(p.w2 * time + p.ph2);
+				}
+				p.node.setAttribute('cx', x.toFixed(1));
+				p.node.setAttribute('cy', y.toFixed(1));
+			}
+			for (const [i, j, ln] of bonds) {
+				const a = parts[i];
+				const b = parts[j];
+				const on = a.solid && b.solid && Math.hypot(a.x - a.sx, a.y - a.sy) < 3 && Math.hypot(b.x - b.sx, b.y - b.sy) < 3;
+				if (on) set(ln, { x1: a.node.getAttribute('cx')!, y1: a.node.getAttribute('cy')!, x2: b.node.getAttribute('cx')!, y2: b.node.getAttribute('cy')!, opacity: 1 });
+				else ln.setAttribute('opacity', '0');
+			}
+		};
+
+		// ---------- beaker ----------
+		const W_IN = B.R - B.L - 36; // the right part holds the thermometer
+		const W0 = W_IN * 0.86;
+		const H0 = 112;
+		const XC = B.L + W_IN / 2 + 4;
+		const drawBeaker = (tC: number, f: number) => {
+			const k = Math.sqrt(Math.max(0, 1 - f));
+			const ws = W0 * k;
+			const hs = H0 * k;
+			const As0 = W0 * H0;
+			const Al = f * As0 * sub.expand; // area of the liquid
+			const Wb = B.R - B.L; // liquid fills the whole width
+			let level = 0; // height of the liquid surface above the bottom
+			let bottom = 0; // bottom of the solid above the bottom of the beaker
+			if (f > 0) {
+				if (sub.floats && ws > 0) {
+					const d = 0.9 * hs; // ice floats with 9/10 under water
+					const L = (Al + ws * d) / Wb;
+					if (L - d >= 0) {
+						level = L;
+						bottom = L - d;
+					} else {
+						level = Al / (Wb - ws);
+					}
+				} else {
+					level = Al / (Wb - ws);
+					if (level > hs) level = (Al + ws * hs) / Wb;
+				}
+			}
+			set(liquid, { x: B.L, width: Wb, y: B.BOT - level, height: level });
+			set(surface, { x1: B.L + 1, x2: B.R - 1, y1: B.BOT - level, y2: B.BOT - level, opacity: level > 0.5 ? 1 : 0 });
+			solidG.setAttribute('opacity', ws > 0.6 ? '1' : '0');
+			const sx = XC - ws / 2;
+			const sy = B.BOT - bottom - hs;
+			set(solidRect, { x: sx, y: sy, width: Math.max(0, ws), height: Math.max(0, hs) });
+			facets.setAttribute(
+				'd',
+				ws > 6
+					? `M${sx + ws * 0.18} ${sy + hs * 0.2} l${ws * 0.22} ${hs * 0.25} M${sx + ws * 0.6} ${sy + hs * 0.15} l${ws * 0.18} ${hs * 0.3} l${-ws * 0.12} ${hs * 0.32} M${sx + ws * 0.3} ${sy + hs * 0.7} l${ws * 0.15} ${-hs * 0.12}`
+					: '',
+			);
+			// the lens looks at the middle of the substance
+			const spotY = f < 1 ? sy + hs / 2 : B.BOT - level / 2;
+			set(spot, { cx: XC, cy: spotY });
+			const dx = MAG.X - XC;
+			const dy = MAG.Y - spotY;
+			const dist = Math.hypot(dx, dy);
+			const nx = -dy / dist;
+			const ny = dx / dist;
+			set(lens1, { x1: XC + nx * 13, y1: spotY + ny * 13, x2: MAG.X + nx * MAG.R, y2: MAG.Y + ny * MAG.R });
+			set(lens2, { x1: XC - nx * 13, y1: spotY - ny * 13, x2: MAG.X - nx * MAG.R, y2: MAG.Y - ny * MAG.R });
+			// thermometer: column over the graph's range
+			const frac = Math.min(1, Math.max(0, (tC - yMin) / (yMax - yMin)));
+			const top = 202 - frac * 176;
+			set(col, { y: top, height: 208 - top });
+			magLabel.textContent = f <= 0 ? 'кристалл: строгий порядок' : f >= 1 ? 'жидкость: порядка нет' : dir > 0 ? 'решётка разрушается' : 'решётка восстанавливается';
+		};
+
+		// ---------- text ----------
+		const fmtT = (t: number) => (t < 0 ? `(${tex(t, 1)})` : tex(t, 1));
+		const jl = (q: number) => `${tex(q, 0)}~\\text{Дж}`;
+		const rowsFor = (from: number, to: number) => {
+			const a = stateOf(sub, m, from);
+			const b = stateOf(sub, m, to);
+			const d = dT();
+			const r = (t: number) => Math.round(t / d) * d;
+			const clamp = (t: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, t));
+			const s1 = r(clamp(a.t, sub.t0, sub.tm));
+			const s2 = r(clamp(b.t, sub.t0, sub.tm));
+			const l1 = r(clamp(a.t, sub.tm, sub.tEnd));
+			const l2 = r(clamp(b.t, sub.tm, sub.tEnd));
+			const dm = Math.round(Math.abs(b.f - a.f) * m * 1000) / 1000;
+			return {
+				s: { hi: Math.max(s1, s2), lo: Math.min(s1, s2), q: Math.round(sub.cs * m * Math.abs(s2 - s1) * 1000) / 1000 },
+				m: { dm, q: Math.round(sub.lambda * dm * 1000) / 1000 },
+				l: { hi: Math.max(l1, l2), lo: Math.min(l1, l2), q: Math.round(sub.cl * m * Math.abs(l2 - l1) * 1000) / 1000 },
+			};
+		};
+
+		const updateCalc = () => {
+			calcDirty = false;
+			const eq = quant(E);
+			const er = quant(Eref);
+			const R = rowsFor(er, eq);
+			const heat = dir > 0;
+			const cS = `c_{\\text{тв}}`;
+			const cL = `c_{\\text{ж}}`;
+			const mm = tex(m, 1);
+			const verb = heat ? 'получено' : 'выделилось';
+			const names = heat
+				? { s: `Нагревание: ${sub.solid}`, m: 'Плавление', l: `Нагревание: ${sub.liquid}` }
+				: { s: `Охлаждение: ${sub.solid}`, m: 'Отвердевание (кристаллизация)', l: `Охлаждение: ${sub.liquid}` };
+			const narrow = root.clientWidth < 560;
+			const br = (a: string, b: string) => (narrow ? `\\begin{aligned}${a.replace('=', '&=')} \\\\ &= ${b}\\end{aligned}` : `${a} = ${b}`);
+			const formula = {
+				s: br(`Q_{\\text{тв}} = ${cS}\\, m\\,(t_2 - t_1)`, `${tex(sub.cs, 0)}\\cdot ${mm}\\cdot(${fmtT(R.s.hi)} - ${fmtT(R.s.lo)}) ${R.s.q % 1 ? '\\approx' : '='} ${jl(R.s.q)}`),
+				m: br(`Q_{\\lambda} = \\lambda\\, m_{\\text{${heat ? 'распл' : 'отв'}}}`, `${sub.lambdaTex}\\cdot ${tex(R.m.dm, 3)} = ${jl(R.m.q)}`),
+				l: br(`Q_{\\text{ж}} = ${cL}\\, m\\,(t_2 - t_1)`, `${tex(sub.cl, 0)}\\cdot ${mm}\\cdot(${fmtT(R.l.hi)} - ${fmtT(R.l.lo)}) ${R.l.q % 1 ? '\\approx' : '='} ${jl(R.l.q)}`),
+			};
+			const now = stateOf(sub, m, eq);
+			let ph: 's' | 'm' | 'l';
+			if (now.f > 0 && now.f < 1) ph = 'm';
+			else if (now.f >= 1) ph = now.t > sub.tm + 1e-9 || heat ? 'l' : 'm';
+			else ph = now.t < sub.tm - 1e-9 || !heat ? 's' : 'm';
+			const order = heat ? ['s', 'm', 'l'] : ['l', 'm', 's'];
+			(['s', 'm', 'l'] as const).forEach((k) => {
+				const row = rows[k];
+				row.style.order = String(order.indexOf(k));
+				row.querySelector<HTMLElement>('[data-row-name]')!.textContent = `${names[k]} — ${verb}`;
+				renderTex(row.querySelector<HTMLElement>('[data-row-f]')!, formula[k]);
+				const q = R[k].q;
+				row.classList.toggle('is-now', mode !== 'pause' && ph === k);
+				row.classList.toggle('is-done', q > 0 || ph === k);
+			});
+			const total = Math.round((R.s.q + R.m.q + R.l.q) * 1000) / 1000;
+			const kj = total / 1000;
+			renderTex(
+				sumEl,
+				br(`Q = Q_{\\text{тв}} + Q_{\\lambda} + Q_{\\text{ж}}`, `${jl(total)} ${total >= 1000 ? `${Math.abs(kj * 10 - Math.round(kj * 10)) > 1e-9 ? '\\approx' : '='} ${tex(kj, 1)}~\\text{кДж}` : ''}`),
+			);
+			calcTitle.textContent = heat ? `Сколько теплоты получило вещество с начала нагревания` : `Сколько теплоты выделило вещество с начала охлаждения`;
+			const minutes = Math.abs(eq - er) / P;
+			checkEl.innerHTML =
+				Math.abs(eq - er) < 1e-6
+					? `Нажмите «${heat ? 'Нагревать' : 'Охлаждать'}» — и строки начнут заполняться.`
+					: `Проверка: ${heat ? 'нагреватель' : 'охладитель'} за ${ru(minutes, 2)} мин ${heat ? 'передал' : 'забрал'} ${ru(P / 1000, 0)} кДж/мин · ${ru(minutes, 2)} мин ≈ <b>${ru(Math.abs(eq - er) / 1000, 1)} кДж</b> — столько же.`;
+		};
+
+		const updateStatus = () => {
+			const s = stateOf(sub, m, quant(E));
+			const tt = `${fixed(s.t, sub.id === 'tin' || sub.id === 'lead' ? 0 : 1).replace('-', '−')}\u00a0°C`;
+			readout.textContent = tt;
+			const pct = Math.round(s.f * 100);
+			const melted = `${ru(s.f * m * 1000, 0)} г из ${ru(m * 1000, 0)} г`;
+			let txt = '';
+			const meltingNow = s.f > 0 && s.f < 1;
+			if (ended === 'top') txt = `Температура дошла до ${tt} — нагреватель выключен. Нажмите «Охлаждать», чтобы увидеть отвердевание.`;
+			else if (ended === 'bottom') txt = `Вещество остыло до ${tt} — охлаждение выключено. Можно снова нагревать.`;
+			else if (mode === 'pause' && E === 0 && pts.length < 2) txt = `${cap(sub.solid)} при температуре ${tt}. Нажмите «Нагревать».`;
+			else if (meltingNow) {
+				const what = dir > 0 ? `<span class="is-melt">${cap(sub.solid)} плавится</span>: расплавилось ${melted} (${pct} %).` : `<span class="is-melt">${cap(sub.liquid)} отвердевает</span>: отвердело ${ru((1 - s.f) * m * 1000, 0)} г из ${ru(m * 1000, 0)} г (${100 - pct} %).`;
+				txt = mode === 'pause' ? `Пауза. ${cap(sub.solid)} и ${sub.liquid} вместе при ${tt}: расплавилось ${melted}.` : `${what} Температура не меняется: <b>${tt}</b>.`;
+			} else {
+				const name = s.f >= 1 ? sub.liquid : sub.solid;
+				txt = mode === 'pause' ? `Пауза. ${cap(name)}, ${tt}.` : `${cap(name)} ${mode === 'heat' ? 'нагревается' : 'остывает'}: <b>${tt}</b>.`;
+			}
+			status.innerHTML = txt;
+		};
+
+		const updateLegend = () => {
+			const g = ghost && ghost.sub === sub.id ? ` <span class="k k--ghost"></span>прошлый опыт: <i>m</i> = ${ru(ghost.m, 1)} кг, ${ru(ghost.P / 1000, 0)} кДж/мин` : '';
+			legend.innerHTML = `<span class="k k--heat"></span>нагревание <span class="k k--cool"></span>охлаждение${g}`;
+		};
+
+		const updateButtons = () => {
+			bHeat.setAttribute('aria-pressed', String(mode === 'heat'));
+			bCool.setAttribute('aria-pressed', String(mode === 'cool'));
+			bPause.setAttribute('aria-pressed', String(mode === 'pause' && pts.length > 1));
+			const { e3 } = stages(sub, m);
+			bHeat.disabled = E >= e3 - 1e-6;
+			bCool.disabled = E <= 1e-6;
+			plate.classList.toggle('is-heat', mode === 'heat');
+			plate.classList.toggle('is-cool', mode === 'cool');
+			plateLabel.textContent = mode === 'heat' ? 'нагреватель включён' : mode === 'cool' ? 'охладитель включён' : 'нагреватель выключен';
+			root.classList.toggle('is-cooling', dir < 0);
+		};
+
+		const saveGhost = () => {
+			if (pts.length > 2) ghost = { sub: sub.id, m, P, pts };
+		};
+		const reset = () => {
+			E = 0;
+			tau = 0;
+			Eref = 0;
+			dir = 1;
+			mode = 'pause';
+			ended = '';
+			pts = [{ tau: 0, t: sub.t0, dir: 1 }];
+			const { e3 } = stages(sub, m);
+			speed = e3 / P / REAL_SECONDS;
+			const pad = (sub.tEnd - sub.t0) * 0.08;
+			yMin = sub.t0 - pad;
+			yMax = sub.tEnd + pad;
+			xMax = targetX();
+			xShown = xMax;
+			root.dataset.sub = sub.id;
+			for (const p of parts) {
+				p.solid = true;
+				p.x = p.sx;
+				p.y = p.sy;
+			}
+			drawAxes();
+			drawGraph();
+			updateLegend();
+			updateButtons();
+			updateStatus();
+			calcDirty = true;
+			updateCalc();
+			drawBeaker(sub.t0, 0);
+			stepParticles(0, sub.t0, 0, 0);
+		};
+
+		const setMode = (next: 'heat' | 'cool' | 'pause') => {
+			if (next !== 'pause') {
+				const d: 1 | -1 = next === 'heat' ? 1 : -1;
+				if (d !== dir) {
+					E = quant(E);
+					Eref = E;
+					dir = d;
+				}
+				ended = '';
+			}
+			mode = next;
+			if (mode !== 'pause') {
+				const last = pts[pts.length - 1];
+				if (last.dir !== dir) pts.push({ tau: last.tau, t: last.t, dir });
+			}
+			updateButtons();
+			updateStatus();
+			calcDirty = true;
+		};
+
+		bHeat.addEventListener('click', () => setMode('heat'));
+		bCool.addEventListener('click', () => setMode('cool'));
+		bPause.addEventListener('click', () => setMode('pause'));
+		bReset.addEventListener('click', () => {
+			saveGhost();
+			reset();
+		});
+		chips.forEach((c) =>
+			c.addEventListener('click', () => {
+				chips.forEach((o) => o.setAttribute('aria-checked', String(o === c)));
+				sub = SUBSTANCES[c.dataset.sub as SubstanceId];
+				reset();
+			}),
+		);
+		mIn.addEventListener('input', () => {
+			saveGhost();
+			m = Number(mIn.value);
+			mOut.textContent = `${ru(m, 1)} кг`;
+			reset();
+		});
+		pIn.addEventListener('input', () => {
+			saveGhost();
+			P = Number(pIn.value) * 1000;
+			pOut.textContent = `${ru(P / 1000, 0)} кДж`;
+			reset();
+		});
+
+		// ---------- main loop ----------
+		let last = 0;
+		let clock = 0;
+		let visible = false;
+		let raf = 0;
+		const frame = (now: number) => {
+			raf = 0;
+			const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+			last = now;
+			clock += dt;
+			if (mode !== 'pause' && dt > 0) {
+				const { e1, e2, e3 } = stages(sub, m);
+				const e0 = E;
+				let eNew = E + dir * P * speed * dt;
+				eNew = Math.min(e3, Math.max(0, eNew));
+				// keep the corners of the graph exact
+				for (const b of dir > 0 ? [e1, e2] : [e2, e1]) {
+					if ((dir > 0 && e0 < b && eNew >= b) || (dir < 0 && e0 > b && eNew <= b)) {
+						pts.push({ tau: tau + Math.abs(b - e0) / P, t: stateOf(sub, m, b).t, dir });
+					}
+				}
+				tau += Math.abs(eNew - e0) / P;
+				E = eNew;
+				pts.push({ tau, t: stateOf(sub, m, E).t, dir });
+				if (pts.length > 3) {
+					const a = pts[pts.length - 3];
+					const b = pts[pts.length - 2];
+					const c = pts[pts.length - 1];
+					// merge straight runs
+					const same = a.dir === b.dir && b.dir === c.dir && Math.abs((b.t - a.t) * (c.tau - b.tau) - (c.t - b.t) * (b.tau - a.tau)) < 1e-9;
+					if (same) pts.splice(pts.length - 2, 1);
+				}
+				if ((dir > 0 && E >= e3) || (dir < 0 && E <= 0)) {
+					ended = dir > 0 ? 'top' : 'bottom';
+					mode = 'pause';
+					updateButtons();
+					calcDirty = true;
+				}
+				calcTimer += dt;
+				if (calcTimer > 0.12) {
+					calcTimer = 0;
+					calcDirty = true;
+				}
+			}
+			const tx = targetX();
+			if (tx > xMax) xMax = tx;
+			if (Math.abs(xShown - xMax) > 1e-6) {
+				xShown += (xMax - xShown) * (reduceMotion.matches ? 1 : Math.min(1, dt * 5));
+				if (Math.abs(xShown - xMax) < xMax * 0.002) xShown = xMax;
+				drawAxes();
+			}
+			const s = stateOf(sub, m, E);
+			if (mode !== 'pause' || calcDirty) {
+				drawGraph();
+				drawBeaker(s.t, s.f);
+			}
+			if (calcDirty) {
+				updateStatus();
+				updateCalc();
+			}
+			stepParticles(dt, s.t, s.f, clock);
+			if (visible) raf = requestAnimationFrame(frame);
+		};
+		let lastW = root.clientWidth;
+		new ResizeObserver(() => {
+			if (Math.abs(root.clientWidth - lastW) > 4) {
+				lastW = root.clientWidth;
+				updateCalc();
+			}
+		}).observe(root);
+		new IntersectionObserver((entries) => {
+			visible = entries.some((e) => e.isIntersecting);
+			if (visible && !raf) {
+				last = 0;
+				raf = requestAnimationFrame(frame);
+			}
+		}).observe(root);
+
+		reset();
+	}
+</script>
