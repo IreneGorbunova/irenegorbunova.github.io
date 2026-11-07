@@ -1,0 +1,712 @@
+---
+/**
+ * Main model: five identical heaters (1000 J every second) heat equal masses of water, sunflower oil,
+ * dry sand, aluminium and iron from 20 °C. Each heater switches off at 100 °C.
+ * The vessels and blocks are drawn to one scale (6 px per cm): equal masses, different volumes.
+ * Ideal experiment: all the heat goes into the substance, it warms evenly, no losses.
+ */
+import { SUBSTANCES } from './kt';
+
+const KEYS = ['water', 'oil', 'sand', 'al', 'fe'] as const;
+const uid = `kt-${Math.random().toString(36).slice(2, 8)}`;
+// Thermometer: 0 °C at y = 176, 100 °C at y = 26 (1,5 px per °C).
+const ticks = Array.from({ length: 11 }, (_, i) => i * 10);
+---
+
+<figure class="ktrace not-content" data-ktrace>
+	<div class="ktrace__bench">
+		{
+			KEYS.map((k) => (
+				<button type="button" class={`ktrace__st kt-k-${k}`} data-st={k} aria-pressed={k === 'water' ? 'true' : 'false'}>
+					<svg class="ktrace__pic" viewBox="0 0 120 220" aria-hidden="true">
+						<defs>
+							<pattern id={`${uid}-${k}-grain`} width="5" height="5" patternUnits="userSpaceOnUse">
+								<circle cx="1.3" cy="1.3" r="0.9" class="ktrace__grain" />
+								<circle cx="3.8" cy="3.6" r="0.7" class="ktrace__grain" />
+							</pattern>
+						</defs>
+						{k === 'water' || k === 'oil' || k === 'sand' ? (
+							<g>
+								<rect class={`ktrace__fill ktrace__fill--${k}`} x="30" y="197" width="60" height="0" data-fill />
+								{k === 'sand' && <rect x="30" y="197" width="60" height="0" fill={`url(#${uid}-${k}-grain)`} data-fill2 />}
+								<path class="ktrace__glass" d="M27 64 V197 Q27 200 30 200 H90 Q93 200 93 197 V64" />
+							</g>
+						) : (
+							<g>
+								<path class={`ktrace__top ktrace__top--${k}`} d="" data-top />
+								<rect class={`ktrace__cube ktrace__cube--${k}`} x="0" y="0" width="0" height="0" data-cube />
+							</g>
+						)}
+						<g class="ktrace__thermo">
+							<rect class="ktrace__tube" x="57" y="12" width="6" height="172" rx="3" />
+							{ticks.map((t) => (
+								<line class="ktrace__tick" x1={t % 50 === 0 ? 52 : 54} x2="57" y1={176 - 1.5 * t} y2={176 - 1.5 * t} />
+							))}
+							<rect class="ktrace__mercury" x="58.6" y="146" width="2.8" height="40" data-col />
+							<circle class="ktrace__bulb" cx="60" cy="189" r="5.5" />
+						</g>
+						<rect class="ktrace__plate" x="10" y="200" width="100" height="16" rx="4" />
+						<path class="ktrace__coil" d="M18 205 h8 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6 h8" />
+					</svg>
+					<span class="ktrace__name"><span class="ktrace__dot" />{'short' in SUBSTANCES[k] ? SUBSTANCES[k].short : SUBSTANCES[k].name}</span>
+					<span class="ktrace__read" data-read>20 °C</span>
+					<span class="ktrace__done" data-done></span>
+				</button>
+			))
+		}
+	</div>
+
+	<div class="ktrace__controls">
+		<div class="ktrace__seg" role="group" aria-label="Масса каждого вещества">
+			<span class="ktrace__seg-label">Масса <i>m</i> каждого вещества:</span>
+			<button type="button" data-m="0.5">0,5 кг</button>
+			<button type="button" data-m="1" aria-pressed="true">1 кг</button>
+			<button type="button" data-m="2">2 кг</button>
+		</div>
+		<div class="ktrace__buttons">
+			<button type="button" class="ktrace__btn ktrace__btn--primary" data-go>Включить нагреватели</button>
+			<button type="button" class="ktrace__btn" data-reset>Сначала</button>
+		</div>
+	</div>
+
+	<p class="ktrace__clock" data-clock></p>
+
+	<div class="ktrace__graph" data-graphbox>
+		<svg class="ktrace__svg" data-graph role="img" aria-label="Графики зависимости температуры от времени нагревания"></svg>
+	</div>
+	<div class="ktrace__legend" aria-hidden="true">
+		{KEYS.map((k) => (
+			<span class={`kt-k-${k}`}><span class="ktrace__dot" />{'short' in SUBSTANCES[k] ? SUBSTANCES[k].short : SUBSTANCES[k].name}</span>
+		))}
+	</div>
+
+	<div class="ktrace__panel">
+		<p class="ktrace__panel-title" data-ptitle></p>
+		<div class="ktrace__math" data-math1></div>
+		<div class="ktrace__math" data-math2></div>
+	</div>
+
+	<table class="ktrace__table">
+		<thead>
+			<tr><th>Вещество</th><th><i>c</i>, Дж/(кг·°C)</th><th>Время, с</th><th><i>Q</i>, Дж</th></tr>
+		</thead>
+		<tbody>
+			{KEYS.map((k) => (
+				<tr class={`kt-k-${k}`} data-row={k}>
+					<td><span class="ktrace__dot" />{'short' in SUBSTANCES[k] ? SUBSTANCES[k].short : SUBSTANCES[k].name}</td>
+					<td>{SUBSTANCES[k].c}</td>
+					<td data-time>—</td>
+					<td data-q>—</td>
+				</tr>
+			))}
+		</tbody>
+	</table>
+	<p class="ktrace__live" data-live aria-live="polite"></p>
+
+	<figcaption class="ktrace__caption">
+		Каждый нагреватель каждую секунду передаёт веществу 1000 Дж и выключается, когда вещество нагреется до 100 °C. Начальная температура
+		всех веществ 20 °C. Сосуды и бруски нарисованы в одном масштабе: массы одинаковые, а объёмы разные. Опыт идеальный: всё тепло
+		нагревателя достаётся веществу, оно прогревается равномерно (жидкости и песок перемешиваем), потерь нет. Нажмите на вещество, чтобы
+		увидеть расчёт для него.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ktrace {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ktrace i {
+		font-family: var(--ig-font-math);
+	}
+	.kt-k-water { --kc: var(--ig-vx); }
+	.kt-k-oil { --kc: var(--ig-v); }
+	.kt-k-sand { --kc: var(--sl-color-green); }
+	.kt-k-al { --kc: var(--sl-color-purple); }
+	.kt-k-fe { --kc: var(--ig-vy); }
+	.ktrace__dot {
+		display: inline-block;
+		width: 0.6rem;
+		height: 0.6rem;
+		margin-right: 0.3rem;
+		border-radius: 50%;
+		background: var(--kc);
+		vertical-align: 0.05em;
+		flex: none;
+	}
+	.ktrace__bench {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 0.4rem;
+	}
+	.ktrace__st {
+		margin: 0;
+		padding: 0.3rem 0.15rem 0.45rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.1rem;
+		font: inherit;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid transparent;
+		border-radius: 0.75rem;
+		cursor: pointer;
+		transition: border-color 0.25s, background 0.25s;
+	}
+	.ktrace__st:hover {
+		border-color: var(--sl-color-gray-4);
+	}
+	.ktrace__st[aria-pressed='true'] {
+		border-color: var(--kc);
+		background: color-mix(in srgb, var(--kc) 10%, transparent);
+	}
+	.ktrace__pic {
+		display: block;
+		width: 100%;
+		max-width: 8.5rem;
+		height: auto;
+	}
+	.ktrace__name {
+		font-size: var(--sl-text-xs);
+		line-height: 1.2;
+		text-align: center;
+		color: var(--sl-color-gray-2);
+	}
+	.ktrace__read {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		font-size: var(--sl-text-sm);
+		white-space: nowrap;
+	}
+	.ktrace__done {
+		min-height: 1.2em;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+	}
+	.ktrace__glass {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.ktrace__fill--water { fill: color-mix(in srgb, var(--ig-vx) 40%, transparent); }
+	.ktrace__fill--oil { fill: color-mix(in srgb, var(--ig-v) 55%, transparent); }
+	.ktrace__fill--sand { fill: color-mix(in srgb, var(--ig-v) 40%, var(--sl-color-gray-5)); }
+	.ktrace__grain { fill: color-mix(in srgb, var(--ig-v) 45%, var(--sl-color-gray-3)); }
+	.ktrace__cube--al { fill: color-mix(in srgb, var(--sl-color-purple) 18%, var(--sl-color-gray-4)); stroke: var(--sl-color-gray-3); }
+	.ktrace__top--al { fill: color-mix(in srgb, var(--sl-color-purple) 12%, var(--sl-color-gray-3)); stroke: var(--sl-color-gray-3); }
+	.ktrace__cube--fe { fill: color-mix(in srgb, var(--ig-vy) 18%, var(--sl-color-gray-5)); stroke: var(--sl-color-gray-3); }
+	.ktrace__top--fe { fill: color-mix(in srgb, var(--ig-vy) 14%, var(--sl-color-gray-4)); stroke: var(--sl-color-gray-3); }
+	.ktrace__tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-1) 20%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ktrace__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.ktrace__mercury,
+	.ktrace__bulb {
+		fill: var(--sl-color-red);
+	}
+	.ktrace__plate {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ktrace__coil {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+		transition: stroke 0.4s;
+	}
+	.ktrace__st.is-on .ktrace__coil {
+		stroke: var(--sl-color-orange);
+		filter: drop-shadow(0 0 2px var(--sl-color-orange));
+		animation: ktrace-glow 1.2s ease-in-out infinite alternate;
+	}
+	@keyframes ktrace-glow {
+		from { opacity: 0.7; }
+		to { opacity: 1; }
+	}
+	.ktrace__controls {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		align-items: center;
+		gap: 0.6rem 1rem;
+		margin-top: 0.75rem;
+	}
+	.ktrace__seg {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ktrace__seg button,
+	.ktrace__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ktrace__seg button[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 20%, transparent);
+	}
+	.ktrace__btn:hover,
+	.ktrace__seg button:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ktrace__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ktrace__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.ktrace__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.ktrace__clock {
+		margin: 0.75rem 0 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.ktrace__graph {
+		width: 100%;
+	}
+	.ktrace__svg {
+		display: block;
+		width: 100%;
+	}
+	.ktrace__svg text {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.ktrace__svg .ax-name {
+		font-style: italic;
+		font-family: var(--ig-font-math);
+		font-size: 15px;
+	}
+	.ktrace__svg .grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.ktrace__svg .axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ktrace__svg .now {
+		stroke: var(--sl-color-gray-4);
+		stroke-dasharray: 4 4;
+	}
+	.ktrace__svg .ln {
+		stroke: var(--kc);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		transition: stroke-width 0.2s;
+	}
+	.ktrace__svg .ln.is-sel {
+		stroke-width: 4.5;
+	}
+	.ktrace__svg .pt {
+		fill: var(--kc);
+	}
+	.ktrace__legend {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.2rem 0.9rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.ktrace__panel {
+		margin-top: 0.75rem;
+		padding: 0.6rem 0.8rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+	.ktrace__panel-title {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ktrace__math {
+		min-height: 2.6rem;
+		overflow-x: auto;
+		overflow-y: hidden;
+		color: var(--sl-color-white);
+	}
+	.ktrace__math .katex-display {
+		margin: 0.45rem 0;
+	}
+	.ktrace .kt-q { color: var(--ig-v); }
+	.ktrace .kt-c { color: var(--kcsel, var(--ig-vx)); }
+	.ktrace__table {
+		width: 100%;
+		margin-top: 0.75rem;
+		border-collapse: collapse;
+		font-size: var(--sl-text-xs);
+		font-variant-numeric: tabular-nums;
+	}
+	.ktrace__table th,
+	.ktrace__table td {
+		padding: 0.3rem 0.4rem;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		text-align: right;
+		color: var(--sl-color-gray-2);
+	}
+	.ktrace__table th:first-child,
+	.ktrace__table td:first-child {
+		text-align: left;
+		white-space: nowrap;
+	}
+	.ktrace__table th {
+		font-weight: 600;
+		color: var(--sl-color-gray-3);
+	}
+	.ktrace__table tr.is-new td {
+		animation: ktrace-row 0.9s ease-out;
+	}
+	@keyframes ktrace-row {
+		from { background: color-mix(in srgb, var(--kc) 30%, transparent); }
+	}
+	.ktrace__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.ktrace__caption {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.ktrace {
+			padding: 0.75rem 0.5rem;
+		}
+		.ktrace__bench {
+			gap: 0.15rem;
+		}
+		.ktrace__name {
+			font-size: 0.7rem;
+		}
+		.ktrace__name .ktrace__dot {
+			display: none;
+		}
+		.ktrace__read {
+			font-size: var(--sl-text-xs);
+		}
+		.ktrace__done {
+			font-size: 0.65rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ktrace__st.is-on .ktrace__coil,
+		.ktrace__table tr.is-new td {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { SUBSTANCES, ru, tex, texInt, htmlInt, q, renderTex, DEG, type Key } from './kt';
+
+	const KEYS: Key[] = ['water', 'oil', 'sand', 'al', 'fe'];
+	const P = 1000; // Дж каждую секунду
+	const T0 = 20;
+	const T1 = 100;
+	const PX = 6; // px per cm in the station pictures
+	const BOTTOM = 197;
+	const NS = 'http://www.w3.org/2000/svg';
+	const RUN_SECONDS = 15; // real duration of the slowest (water) run
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ktrace]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const go = $<HTMLButtonElement>('[data-go]');
+		const reset = $<HTMLButtonElement>('[data-reset]');
+		const clock = $<HTMLElement>('[data-clock]');
+		const live = $<HTMLElement>('[data-live]');
+		const ptitle = $<HTMLElement>('[data-ptitle]');
+		const math1 = $<HTMLElement>('[data-math1]');
+		const math2 = $<HTMLElement>('[data-math2]');
+		const svg = $<SVGSVGElement>('[data-graph]');
+		const box = $<HTMLElement>('[data-graphbox]');
+		const massBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-m]'));
+		const st = Object.fromEntries(
+			KEYS.map((k) => {
+				const el = $<HTMLButtonElement>(`[data-st="${k}"]`);
+				return [
+					k,
+					{
+						el,
+						col: el.querySelector<SVGRectElement>('[data-col]')!,
+						fill: el.querySelector<SVGRectElement>('[data-fill]'),
+						fill2: el.querySelector<SVGRectElement>('[data-fill2]'),
+						cube: el.querySelector<SVGRectElement>('[data-cube]'),
+						top: el.querySelector<SVGPathElement>('[data-top]'),
+						read: el.querySelector<HTMLElement>('[data-read]')!,
+						done: el.querySelector<HTMLElement>('[data-done]')!,
+						row: $<HTMLTableRowElement>(`[data-row="${k}"]`),
+						finished: false,
+					},
+				];
+			}),
+		) as Record<Key, any>;
+
+		let m = 1;
+		let tau = 0; // simulated seconds
+		let running = false;
+		let raf = 0;
+		let lastNow = 0;
+		let sel: Key = 'water';
+		let g: { lines: Record<string, SVGLineElement>; pts: Record<string, SVGCircleElement>; now: SVGLineElement; X: (s: number) => number; Y: (t: number) => number } | null = null;
+
+		const tFinish = (k: Key) => (SUBSTANCES[k].c * m * (T1 - T0)) / P;
+		const tempAt = (k: Key, s: number) => Math.min(T1, T0 + (P * s) / (SUBSTANCES[k].c * m));
+		const tMax = () => tFinish('water');
+		const axisMax = () => {
+			const w = tMax();
+			return w <= 180 ? 180 : w <= 360 ? 360 : 720;
+		};
+
+		const drawPictures = () => {
+			for (const k of KEYS) {
+				const s = st[k];
+				const V = (m / SUBSTANCES[k].rho) * 1e6; // cm³
+				if (s.fill) {
+					const h = (V / 100) * PX; // beaker 10 cm × 10 cm
+					for (const r of [s.fill, s.fill2]) {
+						if (!r) continue;
+						r.setAttribute('y', String(BOTTOM - h));
+						r.setAttribute('height', String(h));
+					}
+				} else {
+					const a = Math.cbrt(V) * PX;
+					const d = Math.min(8, a * 0.25);
+					const x = 60 - a / 2;
+					s.cube.setAttribute('x', String(x));
+					s.cube.setAttribute('y', String(BOTTOM + 3 - a));
+					s.cube.setAttribute('width', String(a));
+					s.cube.setAttribute('height', String(a));
+					const y = BOTTOM + 3 - a;
+					s.top.setAttribute('d', `M${x} ${y} L${x + d} ${y - d} H${x + a + d} L${x + a} ${y} Z`);
+				}
+			}
+		};
+
+		const buildGraph = () => {
+			const W = Math.max(280, box.clientWidth);
+			const H = Math.round(Math.min(320, Math.max(220, W * 0.45)));
+			svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+			svg.setAttribute('height', String(H));
+			const L = 46, R = 14, T = 14, B = 40;
+			const xm = axisMax();
+			const X = (s: number) => L + (s / xm) * (W - L - R);
+			const Y = (t: number) => H - B - (t / 110) * (H - B - T);
+			const step = xm / 6;
+			let html = '';
+			for (let t = 0; t <= 100; t += 20) html += `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${L - 7}" y="${Y(t) + 4}" text-anchor="end">${t}</text>`;
+			for (let s = step; s <= xm + 1e-9; s += step) html += `<line class="grid" x1="${X(s)}" x2="${X(s)}" y1="${Y(0)}" y2="${Y(110)}"/>`;
+			for (let s = 0; s <= xm + 1e-9; s += step) html += `<text x="${X(s)}" y="${Y(0) + 18}" text-anchor="middle">${s}</text>`;
+			html += `<line class="axis" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/><line class="axis" x1="${L}" x2="${L}" y1="${Y(0)}" y2="${Y(110)}"/>`;
+			html += `<text class="ax-name" x="${W - R}" y="${Y(0) - 8}" text-anchor="end">τ, с</text>`;
+			html += `<text class="ax-name" x="${L + 8}" y="${Y(110) + 12}">t, °C</text>`;
+			html += `<line class="now" data-now x1="${L}" x2="${L}" y1="${Y(0)}" y2="${Y(110)}"/>`;
+			for (const k of KEYS) html += `<line class="ln kt-k-${k}" data-ln="${k}" x1="${X(0)}" y1="${Y(T0)}" x2="${X(0)}" y2="${Y(T0)}"/>`;
+			for (const k of KEYS) html += `<circle class="pt kt-k-${k}" data-pt="${k}" r="4.5" cx="${X(0)}" cy="${Y(T0)}"/>`;
+			svg.innerHTML = html;
+			const lines: Record<string, SVGLineElement> = {};
+			const pts: Record<string, SVGCircleElement> = {};
+			for (const k of KEYS) {
+				lines[k] = svg.querySelector(`[data-ln="${k}"]`)!;
+				pts[k] = svg.querySelector(`[data-pt="${k}"]`)!;
+			}
+			g = { lines, pts, now: svg.querySelector('[data-now]')!, X, Y };
+			update();
+		};
+
+		const formula = () => {
+			const k = sel;
+			const sub = SUBSTANCES[k];
+			root.style.setProperty('--kcsel', `var(--${k === 'water' ? 'ig-vx' : k === 'oil' ? 'ig-v' : k === 'sand' ? 'sl-color-green' : k === 'al' ? 'sl-color-purple' : 'ig-vy'})`);
+			const sec = Math.floor(tau + 1e-9);
+			const tf = tFinish(k);
+			const narrow = root.clientWidth < 520;
+			const mT = tex(m, 1);
+			if (sec >= tf - 1e-9 && tau > 0) {
+				ptitle.innerHTML = `${sub.name}: нагревание закончено за ${ru(tf, 1)} с.`;
+				const Qs = texInt(P * tf);
+				renderTex(math1, `${q('q', 'Q')} = 1000~\\tfrac{\\text{Дж}}{\\text{с}} \\cdot ${tex(tf, 1)}~\\text{с} = ${q('q', `${Qs}~\\text{Дж}`)}`);
+				const rhs = `${q('c', String(sub.c))} \\cdot ${mT} \\cdot (${q('t', '100')} - 20) = ${q('q', `${Qs}~\\text{Дж}`)}`;
+				renderTex(
+					math2,
+					narrow
+						? `\\begin{aligned} ${q('q', 'Q')} &= ${q('c', 'c')}\\,m\\,(${q('t', 't_2')} - t_1) = \\\\ &= ${rhs} \\end{aligned}`
+						: `${q('q', 'Q')} = ${q('c', 'c')}\\,m\\,(${q('t', 't_2')} - t_1) = ${rhs}`,
+				);
+			} else {
+				const Q = P * sec;
+				const t2 = T0 + Q / (sub.c * m);
+				ptitle.innerHTML = `${sub.name}: сколько теплоты получено и до какой температуры нагрелось вещество.`;
+				renderTex(math1, `${q('q', 'Q')} = 1000~\\tfrac{\\text{Дж}}{\\text{с}} \\cdot ${sec}~\\text{с} = ${q('q', `${texInt(Q)}~\\text{Дж}`)}`);
+				const approx = Math.abs(Math.round(t2 * 10) / 10 - t2) > 1e-9 ? '\\approx' : '=';
+				const rhs = `20 + \\dfrac{${q('q', texInt(Q))}}{${q('c', String(sub.c))} \\cdot ${mT}} ${approx} ${q('t', `${tex(t2, 1)}${DEG}`)}`;
+				renderTex(
+					math2,
+					narrow
+						? `\\begin{aligned} ${q('t', 't_2')} &= t_1 + \\dfrac{${q('q', 'Q')}}{${q('c', 'c')}\\,m} = \\\\ &= ${rhs} \\end{aligned}`
+						: `${q('t', 't_2')} = t_1 + \\dfrac{${q('q', 'Q')}}{${q('c', 'c')}\\,m} = ${rhs}`,
+				);
+			}
+		};
+
+		let lastSec = -1;
+		const update = () => {
+			const sec = Math.floor(tau + 1e-9);
+			for (const k of KEYS) {
+				const s = st[k];
+				const t = tempAt(k, tau);
+				s.col.setAttribute('y', String(176 - 1.5 * t));
+				s.col.setAttribute('height', String(1.5 * t + 12));
+				const tf = tFinish(k);
+				const fin = tau >= tf - 1e-9;
+				const shown = fin ? T1 : tempAt(k, sec);
+				s.read.textContent = `${Math.round(shown)} °C`;
+				s.el.classList.toggle('is-on', running && !fin);
+				if (fin && !s.finished) {
+					s.finished = true;
+					s.done.textContent = `✓ за ${ru(tf, 1)} с`;
+					s.row.querySelector('[data-time]')!.textContent = ru(tf, 1);
+					s.row.querySelector('[data-q]')!.textContent = htmlInt(P * tf);
+					s.row.classList.remove('is-new');
+					void s.row.offsetWidth;
+					s.row.classList.add('is-new');
+				}
+				if (g) {
+					const ts = Math.min(tau, tf);
+					g.lines[k].setAttribute('x2', String(g.X(ts)));
+					g.lines[k].setAttribute('y2', String(g.Y(tempAt(k, ts))));
+					g.pts[k].setAttribute('cx', String(g.X(ts)));
+					g.pts[k].setAttribute('cy', String(g.Y(tempAt(k, ts))));
+					g.lines[k].classList.toggle('is-sel', k === sel);
+				}
+			}
+			if (g) {
+				g.now.setAttribute('x1', String(g.X(Math.min(tau, axisMax()))));
+				g.now.setAttribute('x2', String(g.X(Math.min(tau, axisMax()))));
+			}
+			clock.innerHTML = `Время нагревания <i>τ</i> = ${sec} с. Масса каждого вещества <i>m</i> = ${ru(m, 1)} кг.`;
+			if (sec !== lastSec) {
+				lastSec = sec;
+				formula();
+			}
+		};
+
+		const finishAll = () => {
+			running = false;
+			go.textContent = 'Включить нагреватели';
+			go.disabled = true;
+			const r = SUBSTANCES.water.c / SUBSTANCES.fe.c;
+			live.innerHTML = `Вода нагревалась в ${ru(tFinish('water') / tFinish('fe'), 1)} раза дольше железа и получила во столько же раз больше теплоты. Во столько же раз её удельная теплоёмкость больше: 4200 : 460 ≈ ${ru(r, 1)}.`;
+			formula();
+		};
+
+		const frame = (now: number) => {
+			if (!running) return;
+			const dt = Math.min(0.1, (now - lastNow) / 1000);
+			lastNow = now;
+			tau = Math.min(tMax(), tau + (dt * tMax()) / RUN_SECONDS);
+			update();
+			if (tau >= tMax() - 1e-9) {
+				finishAll();
+				update();
+				return;
+			}
+			raf = requestAnimationFrame(frame);
+		};
+
+		const start = () => {
+			if (running) {
+				running = false;
+				cancelAnimationFrame(raf);
+				go.textContent = 'Продолжить';
+				update();
+				return;
+			}
+			running = true;
+			go.textContent = 'Пауза';
+			live.textContent = 'Следите за термометрами и графиками: какое вещество нагреется до 100 °C первым?';
+			lastNow = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+
+		const doReset = () => {
+			running = false;
+			cancelAnimationFrame(raf);
+			tau = 0;
+			lastSec = -1;
+			go.disabled = false;
+			go.textContent = 'Включить нагреватели';
+			for (const k of KEYS) {
+				st[k].finished = false;
+				st[k].done.textContent = '';
+				st[k].row.querySelector('[data-time]')!.textContent = '—';
+				st[k].row.querySelector('[data-q]')!.textContent = '—';
+				st[k].row.classList.remove('is-new');
+			}
+			live.textContent = '';
+			drawPictures();
+			buildGraph();
+		};
+
+		go.addEventListener('click', start);
+		reset.addEventListener('click', doReset);
+		massBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				m = Number(b.dataset.m);
+				massBtns.forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+				doReset();
+			}),
+		);
+		for (const k of KEYS) {
+			st[k].el.addEventListener('click', () => {
+				sel = k;
+				for (const o of KEYS) st[o].el.setAttribute('aria-pressed', String(o === k));
+				lastSec = -1;
+				update();
+			});
+		}
+		let lastW = 0;
+		new ResizeObserver(() => {
+			if (Math.abs(box.clientWidth - lastW) < 2) return;
+			lastW = box.clientWidth;
+			lastSec = -1;
+			buildGraph();
+		}).observe(box);
+		drawPictures();
+		buildGraph();
+	}
+</script>

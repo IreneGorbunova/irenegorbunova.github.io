@@ -1,0 +1,722 @@
+---
+/**
+ * Calorimeter: predict the final temperature, then mix and check.
+ * Mode «вода + вода»: hot water is poured into cold water; while it pours, the mixture temperature is
+ * the heat-balance value for the part already poured. Mode «тело + вода»: a heated metal body is lowered
+ * into cold water; body and water approach the common temperature together, so at every moment
+ * the heat given by the body equals the heat taken by the water.
+ * Drawn to scale: 9 px per cm, the calorimeter's inner vessel is 10 cm wide.
+ * Ideal calorimeter: no losses, the vessel itself takes no heat.
+ */
+---
+
+<figure class="ktmix not-content" data-ktmix>
+	<div class="ktmix__modes" role="group" aria-label="Что смешиваем">
+		<button type="button" data-mode="water" aria-pressed="true">Горячая вода + холодная вода</button>
+		<button type="button" data-mode="metal" aria-pressed="false">Нагретое тело + холодная вода</button>
+	</div>
+
+	<div class="ktmix__stage">
+		<svg class="ktmix__svg" viewBox="0 -70 360 320" role="img" aria-label="Калориметр с водой и термометром">
+			<!-- table -->
+			<line class="ktmix__table" x1="0" y1="236" x2="360" y2="236" />
+			<!-- hot beaker (water mode), pivot at its lip; the liquid is drawn in page coordinates -->
+			<path class="ktmix__hot" data-hotfill d="" />
+			<g data-beaker>
+				<g data-beaker-rot>
+					<path class="ktmix__glass" d="M32 140 V229 Q32 233 36 233 H104 Q108 233 108 229 V140 l5 -4" />
+				</g>
+			</g>
+			<path class="ktmix__stream" data-stream d="" />
+			<!-- metal body on a thread (metal mode) -->
+			<g data-body style="display: none">
+				<line class="ktmix__thread" data-thread x1="230" y1="-70" x2="230" y2="40" />
+				<rect class="ktmix__metal" data-metal x="210" y="40" width="40" height="40" rx="3" />
+			</g>
+			<!-- calorimeter: outer vessel, stand, inner vessel -->
+			<path class="ktmix__outer" d="M168 62 V230 Q168 234 172 234 H288 Q292 234 292 230 V62" />
+			<rect class="ktmix__stand" x="186" y="222" width="88" height="6" rx="2" />
+			<rect class="ktmix__cold" data-coldfill x="185" y="220" width="90" height="0" />
+			<path class="ktmix__glass" d="M183 70 V218 Q183 222 187 222 H273 Q277 222 277 218 V70" />
+			<!-- thermometer -->
+			<rect class="ktmix__tube" x="259" y="18" width="7" height="190" rx="3.5" />
+			<rect class="ktmix__merc" data-merc x="261.2" y="150" width="2.6" height="60" />
+			<circle class="ktmix__bulb" cx="262.5" cy="211" r="5.5" />
+			<g class="ktmix__ticks" data-ticks></g>
+		</svg>
+		<div class="ktmix__readouts">
+			<p><span class="ktmix__lbl">Термометр:</span> <b data-read>20 °C</b></p>
+			<p class="ktmix__hotread" data-hotread></p>
+		</div>
+	</div>
+
+	<div class="ktmix__controls">
+		<label class="ktmix__slider ktmix__slider--metal" data-metalpick hidden>
+			<span>Вещество тела</span>
+			<select data-metal-sel>
+				<option value="al">алюминий</option>
+				<option value="fe">железо</option>
+				<option value="cu" selected>медь</option>
+				<option value="pb">свинец</option>
+			</select>
+		</label>
+		<label class="ktmix__slider ktmix__slider--hot">
+			<span data-m1name>Горячая вода, <i>m</i><sub>1</sub></span>
+			<output data-out="m1"></output>
+			<input type="range" min="0.1" max="0.6" step="0.05" value="0.2" data-in="m1" />
+		</label>
+		<label class="ktmix__slider ktmix__slider--hot">
+			<span data-t1name>её температура <i>t</i><sub>1</sub></span>
+			<output data-out="t1"></output>
+			<input type="range" min="40" max="90" step="5" value="80" data-in="t1" />
+		</label>
+		<label class="ktmix__slider ktmix__slider--cold">
+			<span>Холодная вода, <i>m</i><sub>2</sub></span>
+			<output data-out="m2"></output>
+			<input type="range" min="0.1" max="0.6" step="0.05" value="0.3" data-in="m2" />
+		</label>
+		<label class="ktmix__slider ktmix__slider--cold">
+			<span>её температура <i>t</i><sub>2</sub></span>
+			<output data-out="t2"></output>
+			<input type="range" min="5" max="30" step="1" value="20" data-in="t2" />
+		</label>
+		<label class="ktmix__slider ktmix__slider--guess">
+			<span>Ваш прогноз: температура смеси <i>θ</i></span>
+			<output data-out="g"></output>
+			<input type="range" min="0" max="100" step="1" value="50" data-in="g" />
+		</label>
+	</div>
+	<div class="ktmix__buttons">
+		<button type="button" class="ktmix__btn ktmix__btn--primary" data-mix>Смешать</button>
+		<button type="button" class="ktmix__btn" data-again>Заново</button>
+	</div>
+
+	<p class="ktmix__verdict" data-verdict aria-live="polite"></p>
+
+	<div class="ktmix__result" data-result hidden>
+		<div class="ktmix__bars" aria-hidden="true">
+			<div class="ktmix__bar ktmix__bar--hot"><span data-bar1></span><em>отдано</em></div>
+			<div class="ktmix__bar ktmix__bar--cold"><span data-bar2></span><em>получено</em></div>
+		</div>
+		<div class="ktmix__math">
+			<div data-f1></div>
+			<div data-f2></div>
+			<div data-f3></div>
+		</div>
+	</div>
+
+	<figcaption class="ktmix__caption">
+		Калориметр — сосуд в сосуде: воздух между стенками плохо проводит тепло, поэтому теплообмен с комнатой мал. В модели калориметр
+		идеальный: тепло не теряется, сам сосуд не нагревается. Удельные теплоёмкости — округлённые табличные значения.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ktmix {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ktmix i {
+		font-family: var(--ig-font-math);
+	}
+	.ktmix__modes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 0.5rem;
+	}
+	.ktmix__modes button,
+	.ktmix__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ktmix__modes button[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 20%, transparent);
+	}
+	.ktmix__btn:hover,
+	.ktmix__modes button:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ktmix__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ktmix__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.ktmix__stage {
+		display: grid;
+		grid-template-columns: minmax(0, 3fr) minmax(8rem, 1fr);
+		align-items: center;
+		gap: 0.75rem;
+	}
+	.ktmix__svg {
+		display: block;
+		width: 100%;
+		max-width: 30rem;
+		height: auto;
+		justify-self: center;
+	}
+	.ktmix__table {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.ktmix__glass {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.ktmix__outer {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 45%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.ktmix__hot,
+	.ktmix__cold {
+		opacity: 0.8;
+	}
+	.ktmix__stand {
+		fill: var(--sl-color-gray-4);
+	}
+	.ktmix__thread {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.ktmix__metal {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.ktmix__stream {
+		fill: none;
+		stroke-width: 6;
+		stroke-linecap: round;
+		opacity: 0.8;
+	}
+	.ktmix__tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-1) 18%, transparent);
+		stroke: var(--sl-color-gray-3);
+	}
+	.ktmix__merc,
+	.ktmix__bulb {
+		fill: var(--sl-color-red);
+	}
+	.ktmix__ticks line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ktmix__ticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 10px;
+		font-family: var(--__sl-font);
+	}
+	.ktmix__readouts p {
+		margin: 0.2rem 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ktmix__readouts b {
+		display: block;
+		font-size: var(--sl-text-2xl);
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ktmix__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.6rem 1.5rem;
+		margin-top: 0.75rem;
+	}
+	.ktmix__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ktmix__slider[hidden] {
+		display: none;
+	}
+	.ktmix__slider output {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-white);
+	}
+	.ktmix__slider input,
+	.ktmix__slider select {
+		grid-column: 1 / -1;
+		width: 100%;
+	}
+	.ktmix__slider select {
+		font: inherit;
+		padding: 0.3rem;
+		border-radius: 0.5rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		border: 1px solid var(--sl-color-gray-4);
+	}
+	.ktmix__slider--hot input { accent-color: var(--ig-vy); }
+	.ktmix__slider--cold input { accent-color: var(--ig-vx); }
+	.ktmix__slider--guess,
+	.ktmix__slider--metal {
+		grid-column: 1 / -1;
+	}
+	.ktmix__slider--guess input { accent-color: var(--sl-color-accent); }
+	.ktmix__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.ktmix__small {
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-xs);
+	}
+	.ktmix__verdict {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.ktmix__result {
+		margin-top: 0.6rem;
+		padding: 0.6rem 0.8rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		animation: ktmix-in 0.5s ease-out;
+	}
+	.ktmix__result[hidden] {
+		display: none;
+	}
+	@keyframes ktmix-in {
+		from { opacity: 0; transform: translateY(0.4rem); }
+	}
+	.ktmix__bars {
+		display: grid;
+		gap: 0.35rem;
+		margin-bottom: 0.3rem;
+	}
+	.ktmix__bar {
+		display: grid;
+		grid-template-columns: 1fr 5.5rem;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.ktmix__bar span {
+		height: 0.9rem;
+		width: 0;
+		border-radius: 0.45rem;
+		transition: width 1.2s cubic-bezier(0.3, 0.7, 0.3, 1);
+	}
+	.ktmix__bar em {
+		font-style: normal;
+	}
+	.ktmix__bar--hot span { background: var(--ig-vy); }
+	.ktmix__bar--cold span { background: var(--ig-vx); }
+	.ktmix__math {
+		overflow-x: auto;
+		overflow-y: hidden;
+		color: var(--sl-color-white);
+	}
+	.ktmix__math .katex-display {
+		margin: 0.4rem 0;
+	}
+	.ktmix .kt-hot { color: var(--ig-vy); }
+	.ktmix .kt-cold { color: var(--ig-vx); }
+	.ktmix .kt-th { color: var(--sl-color-accent); }
+	.ktmix__caption {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.ktmix {
+			padding: 0.75rem;
+		}
+		.ktmix__stage {
+			grid-template-columns: 1fr;
+		}
+		.ktmix__readouts {
+			display: flex;
+			gap: 1rem;
+			align-items: baseline;
+		}
+		.ktmix__controls {
+			grid-template-columns: 1fr;
+		}
+		.ktmix__math .katex {
+			font-size: 1.02em;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ktmix__result,
+		.ktmix__bar span {
+			animation: none;
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { SUBSTANCES, ru, tex, texInt, q, renderTex, DEG, tempColor, type Key } from './kt';
+
+	const PX = 9; // px per cm
+	const AREA = 78.5; // cm², inner vessel 10 cm wide
+	const BOTTOM = 220; // inside bottom of the calorimeter
+		const BEAKER_AREA = 64; // cm², beaker 8 cm wide
+	const TY = (t: number) => 196 - 1.7 * t; // thermometer: 0 °C at y = 196, 100 °C at y = 26
+	const CW = SUBSTANCES.water.c;
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const ease = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
+	const LIP = [113, 136];
+	const BEAKER_W = 72; // px, inner width (8 cm)
+	const BEAKER_IN: [number, number][] = [[34, 140], [106, 140], [106, 229], [34, 229]];
+	type Pt = [number, number];
+	const world = (x: number, y: number, deg: number, dx: number, dy: number): Pt => {
+		const a = (deg * Math.PI) / 180;
+		const rx = x - LIP[0];
+		const ry = y - LIP[1];
+		return [LIP[0] + rx * Math.cos(a) - ry * Math.sin(a) + dx, LIP[1] + rx * Math.sin(a) + ry * Math.cos(a) + dy];
+	};
+	/** Part of a convex polygon below the horizontal line y = s (SVG y grows downwards). */
+	const clip = (poly: Pt[], s: number): Pt[] => {
+		const res: Pt[] = [];
+		for (let i = 0; i < poly.length; i++) {
+			const a = poly[i];
+			const b = poly[(i + 1) % poly.length];
+			const ina = a[1] >= s;
+			const inb = b[1] >= s;
+			if (ina) res.push(a);
+			if (ina !== inb) {
+				const k = (s - a[1]) / (b[1] - a[1]);
+				res.push([a[0] + k * (b[0] - a[0]), s]);
+			}
+		}
+		return res;
+	};
+	const area = (poly: Pt[]) => {
+		let A = 0;
+		for (let i = 0; i < poly.length; i++) {
+			const a = poly[i];
+			const b = poly[(i + 1) % poly.length];
+			A += a[0] * b[1] - b[0] * a[1];
+		}
+		return Math.abs(A) / 2;
+	};
+	const areaBelow = (poly: Pt[], s: number) => area(clip(poly, s));
+	/** Level of the surface for a given amount of liquid (bisection). */
+	const surfaceFor = (poly: Pt[], A: number) => {
+		let lo = Math.min(...poly.map((p) => p[1]));
+		let hi = Math.max(...poly.map((p) => p[1]));
+		for (let i = 0; i < 40; i++) {
+			const mid = (lo + hi) / 2;
+			if (areaBelow(poly, mid) > A) lo = mid;
+			else hi = mid;
+		}
+		return (lo + hi) / 2;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ktmix]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const inp = (k: string) => $<HTMLInputElement>(`[data-in="${k}"]`);
+		const out = (k: string) => $<HTMLOutputElement>(`[data-out="${k}"]`);
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+		const metalSel = $<HTMLSelectElement>('[data-metal-sel]');
+		const metalPick = $<HTMLElement>('[data-metalpick]');
+		const beaker = $<SVGGElement>('[data-beaker]');
+		const beakerRot = $<SVGGElement>('[data-beaker-rot]');
+		const hotFill = $<SVGRectElement>('[data-hotfill]');
+		const coldFill = $<SVGRectElement>('[data-coldfill]');
+		const stream = $<SVGPathElement>('[data-stream]');
+		const body = $<SVGGElement>('[data-body]');
+		const thread = $<SVGLineElement>('[data-thread]');
+		const metal = $<SVGRectElement>('[data-metal]');
+		const merc = $<SVGRectElement>('[data-merc]');
+		const read = $<HTMLElement>('[data-read]');
+		const hotread = $<HTMLElement>('[data-hotread]');
+		const verdict = $<HTMLElement>('[data-verdict]');
+		const result = $<HTMLElement>('[data-result]');
+		const mixBtn = $<HTMLButtonElement>('[data-mix]');
+		const againBtn = $<HTMLButtonElement>('[data-again]');
+
+		// Thermometer scale
+		let ticks = '';
+		for (let t = 0; t <= 100; t += 10) {
+			const y = TY(t);
+			ticks += `<line x1="${t % 50 ? 266 : 266}" x2="${t % 50 ? 270 : 274}" y1="${y}" y2="${y}"/>`;
+			if (t % 50 === 0) ticks += `<text x="277" y="${y + 3.5}">${t}</text>`;
+		}
+		$<SVGGElement>('[data-ticks]').innerHTML = ticks;
+
+		let mode: 'water' | 'metal' = 'water';
+		let busy = false;
+		let mixed = false;
+		let raf = 0;
+		let left = 0; // liquid left in the hot beaker, px²
+
+		const vals = () => {
+			const m1 = Number(inp('m1').value);
+			const t1 = Number(inp('t1').value);
+			const m2 = Number(inp('m2').value);
+			const t2 = Number(inp('t2').value);
+			const k = (mode === 'water' ? 'water' : metalSel.value) as Key;
+			const c1 = SUBSTANCES[k].c;
+			const th = (c1 * m1 * t1 + CW * m2 * t2) / (c1 * m1 + CW * m2);
+			return { m1, t1, m2, t2, k, c1, th };
+		};
+
+		const setMerc = (t: number) => {
+			merc.setAttribute('y', String(TY(t)));
+			merc.setAttribute('height', String(211 - TY(t)));
+			read.textContent = `${ru(t, 1)} °C`;
+		};
+
+		/** Draw the scene. p: 0 = before mixing, 1 = mixed. */
+		const scene = (p: number) => {
+			const v = vals();
+			if (mode === 'water') {
+				const lift = p < 0.2 ? ease(p / 0.2) : p < 0.85 ? 1 : 1 - ease((p - 0.85) / 0.15);
+				const ang = p < 0.2 ? 0 : p < 0.85 ? 95 * ease((p - 0.2) / 0.65) : 95 * (1 - ease((p - 0.85) / 0.15));
+				const dx = 73 * lift;
+				const dy = -96 * lift;
+				beaker.setAttribute('transform', `translate(${dx} ${dy})`);
+				beakerRot.setAttribute('transform', `rotate(${ang} ${LIP[0]} ${LIP[1]})`);
+				// liquid stays level: it is the part of the tilted beaker below its surface; whatever
+				// cannot stay below the lip has poured out
+				const A0 = ((v.m1 * 1000) / BEAKER_AREA) * PX * BEAKER_W;
+				const quad = BEAKER_IN.map(([x, y]) => world(x, y, ang, dx, dy));
+				if (p <= 0) left = A0;
+				else if (p >= 1) left = 0;
+				else left = Math.min(left, areaBelow(quad, LIP[1] + dy));
+				const s = surfaceFor(quad, left);
+				const poly = clip(quad, s);
+				hotFill.setAttribute('d', left > 0.5 ? 'M' + poly.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(' L') + ' Z' : '');
+				hotFill.style.fill = tempColor(v.t1);
+				const pour = A0 > 0 ? 1 - left / A0 : 1;
+				const mp = v.m1 * pour;
+				const t = (mp * v.t1 + v.m2 * v.t2) / (mp + v.m2);
+				const h = (((v.m2 + mp) * 1000) / AREA) * PX;
+				coldFill.setAttribute('y', String(BOTTOM - h));
+				coldFill.setAttribute('height', String(h));
+				coldFill.style.fill = tempColor(t);
+				const flowing = left > 0.5 && left < A0 - 0.5 && p > 0.2 && p < 0.85;
+				if (flowing) {
+					const lx = LIP[0] + dx;
+					const ly = LIP[1] + dy;
+					stream.setAttribute('d', `M${lx} ${ly} Q${lx + 5} ${ly + 14} ${lx + 5} ${BOTTOM - h}`);
+					stream.style.stroke = tempColor(v.t1);
+				} else stream.setAttribute('d', '');
+				setMerc(t);
+				hotread.innerHTML = pour < 1 ? `Горячая вода в стакане: <b>${v.t1} °C</b>` : '';
+			} else {
+				// lower the body (p 0..0.3), then heat exchange (p 0.3..1)
+				const low = ease(Math.min(1, p / 0.3));
+				const sub = SUBSTANCES[v.k];
+				const Vb = (v.m1 / sub.rho) * 1e6;
+				const d = Math.cbrt((4 * Vb) / Math.PI) * PX; // cylinder with height = diameter
+				const Vw = v.m2 * 1000;
+				const hw = (Vw / AREA) * PX;
+				const startY = 46 - d / 2;
+				const endY = BOTTOM - d - 2;
+				const y = startY + (endY - startY) * low;
+				metal.setAttribute('x', String(230 - d / 2));
+				metal.setAttribute('width', String(d));
+				metal.setAttribute('y', String(y));
+				metal.setAttribute('height', String(d));
+				thread.setAttribute('y2', String(y));
+				// submerged part raises the level
+				let h = hw;
+				if (y + d > BOTTOM - hw) {
+					// part of the body below the water surface: iterate for the new level
+					for (let i = 0; i < 6; i++) {
+						const under = Math.max(0, Math.min(d, y + d - (BOTTOM - h)));
+						const Vunder = (under / PX) * Math.PI * (d / PX / 2) ** 2;
+						h = ((Vw + Vunder) / AREA) * PX;
+					}
+				}
+				coldFill.setAttribute('y', String(BOTTOM - h));
+				coldFill.setAttribute('height', String(h));
+				const x = p <= 0.3 ? 0 : 1 - Math.exp(-6 * ((p - 0.3) / 0.7));
+				const f = p >= 1 ? 1 : x / (1 - Math.exp(-6));
+				const tw = v.t2 + (v.th - v.t2) * f;
+				const tb = v.t1 - (v.t1 - v.th) * f;
+				coldFill.style.fill = tempColor(tw);
+				metal.style.fill = `color-mix(in oklab, ${tempColor(tb)} 45%, var(--sl-color-gray-4))`;
+				setMerc(tw);
+				hotread.innerHTML = `Тело (${SUBSTANCES[v.k].name.toLowerCase()}): <b>${ru(tb, 1)} °C</b>`;
+			}
+		};
+
+		const formulas = () => {
+			const v = vals();
+			const thR = Math.round(v.th * 10) / 10;
+			const rounded = Math.abs(thR - v.th) > 1e-9;
+			const approx = rounded ? '\\approx' : '=';
+			// computed from the shown (rounded) θ, so a pupil gets the same numbers on a calculator
+			const Q1 = Math.round(v.c1 * v.m1 * (v.t1 - thR));
+			const Q2 = Math.round(CW * v.m2 * (thR - v.t2));
+			const Qa = rounded ? '\\approx' : '=';
+			const m1 = tex(v.m1, 2);
+			const m2 = tex(v.m2, 2);
+			const cl = v.k === 'water' ? '4200' : String(v.c1);
+			const hot = (s: string) => q('hot', s);
+			const cold = (s: string) => q('cold', s);
+			const th = (s: string) => q('th', s);
+			const F = root.querySelectorAll<HTMLElement>('[data-f1],[data-f2],[data-f3]');
+			renderTex(
+				F[0],
+				`\\begin{aligned} ${hot('Q_1')} &= ${hot('c_1')}\\,${hot('m_1')}\\,(${hot('t_1')} - ${th('\\theta')}) = \\\\ &= ${cl} \\cdot ${m1} \\cdot (${v.t1} - ${tex(thR)}) ${Qa} ${hot(`${texInt(Q1)}~\\text{Дж}`)} \\end{aligned}`,
+			);
+			renderTex(
+				F[1],
+				`\\begin{aligned} ${cold('Q_2')} &= ${cold('c_2')}\\,${cold('m_2')}\\,(${th('\\theta')} - ${cold('t_2')}) = \\\\ &= 4200 \\cdot ${m2} \\cdot (${tex(thR)} - ${v.t2}) ${Qa} ${cold(`${texInt(Q2)}~\\text{Дж}`)} \\end{aligned}`,
+			);
+			if (v.k === 'water') {
+				renderTex(
+					F[2],
+					`\\begin{aligned} ${th('\\theta')} &= \\dfrac{${hot('m_1')}${hot('t_1')} + ${cold('m_2')}${cold('t_2')}}{${hot('m_1')} + ${cold('m_2')}} = \\\\ &= \\dfrac{${m1} \\cdot ${v.t1} + ${m2} \\cdot ${v.t2}}{${m1} + ${m2}} ${approx} ${th(`${tex(thR)}${DEG}`)} \\end{aligned}`,
+				);
+			} else {
+				renderTex(
+					F[2],
+					`\\begin{aligned} &${hot('Q_1')} = ${cold('Q_2')}: \\\\ &${hot('c_1')}\\,${hot('m_1')}\\,(${hot('t_1')} - ${th('\\theta')}) = ${cold('c_2')}\\,${cold('m_2')}\\,(${th('\\theta')} - ${cold('t_2')}) \\end{aligned}`,
+				);
+			}
+		};
+
+		const sync = () => {
+			const v = vals();
+			out('m1').value = `${ru(v.m1, 2)} кг`;
+			out('t1').value = `${v.t1} °C`;
+			out('m2').value = `${ru(v.m2, 2)} кг`;
+			out('t2').value = `${v.t2} °C`;
+			out('g').value = `${inp('g').value} °C`;
+		};
+
+		const resetScene = () => {
+			cancelAnimationFrame(raf);
+			busy = false;
+			mixed = false;
+			result.hidden = true;
+			verdict.textContent = 'Передвиньте ползунок прогноза и нажмите «Смешать».';
+			mixBtn.disabled = false;
+			root.querySelectorAll<HTMLInputElement>('input, select').forEach((i) => (i.disabled = false));
+			scene(0);
+			beaker.style.display = mode === 'water' ? '' : 'none';
+			body.style.display = mode === 'metal' ? '' : 'none';
+			(root.querySelector('[data-bar1]') as HTMLElement).style.width = '0';
+			(root.querySelector('[data-bar2]') as HTMLElement).style.width = '0';
+		};
+
+		const finish = () => {
+			busy = false;
+			mixed = true;
+			const v = vals();
+			const g = Number(inp('g').value);
+			const err = Math.abs(g - v.th);
+			const thTxt = `${ru(v.th, 1)} °C`;
+			verdict.innerHTML =
+				err <= 1
+					? `<b>Отлично!</b> Температура смеси ${thTxt}, ваш прогноз ${g} °C.`
+					: err <= 5
+						? `<b>Близко.</b> Температура смеси ${thTxt}, ваш прогноз ${g} °C — ошибка ${ru(err, 1)} °C.`
+						: `Температура смеси ${thTxt}, а ваш прогноз ${g} °C. ${g > v.th ? 'Смесь получилась холоднее' : 'Смесь получилась теплее'}, чем вы ждали. Посмотрите на расчёт ниже.`;
+			formulas();
+			const v2 = vals();
+			const d = Math.abs(Math.round(v2.c1 * v2.m1 * (v2.t1 - Math.round(v2.th * 10) / 10)) - Math.round(CW * v2.m2 * (Math.round(v2.th * 10) / 10 - v2.t2)));
+			if (d > 0) verdict.innerHTML += ` <span class="ktmix__small">Числа <i>Q</i><sub>1</sub> и <i>Q</i><sub>2</sub> ниже немного различаются только потому, что <i>θ</i> округлена до десятых.</span>`;
+			result.hidden = false;
+			mixBtn.disabled = false;
+			root.querySelectorAll<HTMLInputElement>('input, select').forEach((i) => (i.disabled = false));
+			const Q = v.c1 * v.m1 * (v.t1 - v.th);
+			const QMAX = mode === 'water' ? 110000 : 40000; // about the largest possible in each mode
+			const w = `${Math.max(2, (100 * Q) / QMAX)}%`;
+			requestAnimationFrame(() => {
+				(root.querySelector('[data-bar1]') as HTMLElement).style.width = w;
+				(root.querySelector('[data-bar2]') as HTMLElement).style.width = w;
+			});
+		};
+
+		const mix = () => {
+			if (busy) return;
+			if (mixed) resetScene();
+			busy = true;
+			mixBtn.disabled = true;
+			root.querySelectorAll<HTMLInputElement>('input, select').forEach((i) => (i.disabled = true));
+			verdict.textContent = mode === 'water' ? 'Вливаем горячую воду…' : 'Опускаем тело в воду…';
+			if (reduce.matches) {
+				scene(1);
+				finish();
+				return;
+			}
+			const dur = mode === 'water' ? 3200 : 4200;
+			const t0 = performance.now();
+			const step = (now: number) => {
+				const p = Math.min(1, (now - t0) / dur);
+				scene(p);
+				if (p < 1) raf = requestAnimationFrame(step);
+				else finish();
+			};
+			raf = requestAnimationFrame(step);
+		};
+
+		const setMode = (m: 'water' | 'metal') => {
+			mode = m;
+			modeBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+			metalPick.hidden = m !== 'metal';
+			const m1 = inp('m1');
+			const t1 = inp('t1');
+			const m2 = inp('m2');
+			if (m === 'water') {
+				$<HTMLElement>('[data-m1name]').innerHTML = 'Горячая вода, <i>m</i><sub>1</sub>';
+				$<HTMLElement>('[data-t1name]').innerHTML = 'её температура <i>t</i><sub>1</sub>';
+				Object.assign(m1, { min: '0.1', max: '0.6', step: '0.05' });
+				Object.assign(t1, { min: '40', max: '90', step: '5' });
+				Object.assign(m2, { min: '0.1', max: '0.6', step: '0.05' });
+				m1.value = '0.2';
+				t1.value = '80';
+				m2.value = '0.3';
+			} else {
+				$<HTMLElement>('[data-m1name]').innerHTML = 'Масса тела <i>m</i><sub>1</sub>';
+				$<HTMLElement>('[data-t1name]').innerHTML = 'его температура <i>t</i><sub>1</sub>';
+				Object.assign(m1, { min: '0.1', max: '0.5', step: '0.05' });
+				Object.assign(t1, { min: '40', max: '100', step: '5' });
+				Object.assign(m2, { min: '0.4', max: '1', step: '0.05' });
+				m1.value = '0.2';
+				t1.value = '100';
+				m2.value = '0.4';
+			}
+			sync();
+			resetScene();
+		};
+
+		modeBtns.forEach((b) => b.addEventListener('click', () => !busy && setMode(b.dataset.mode as 'water' | 'metal')));
+		root.querySelectorAll<HTMLInputElement>('input').forEach((i) =>
+			i.addEventListener('input', () => {
+				sync();
+				if (i.dataset.in !== 'g' && !busy) resetScene();
+				if (i.dataset.in === 'g' && mixed) resetScene();
+			}),
+		);
+		metalSel.addEventListener('change', () => !busy && resetScene());
+		mixBtn.addEventListener('click', mix);
+		againBtn.addEventListener('click', () => !busy && resetScene());
+		setMode('water');
+	}
+</script>
