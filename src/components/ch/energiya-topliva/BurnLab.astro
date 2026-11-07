@@ -1,0 +1,631 @@
+---
+/**
+ * Burning coal at the level of molecules (Пёрышкин, 8 класс): a carbon atom of the coal joins a molecule
+ * of oxygen, and the new molecule of carbon dioxide flies off fast. In collisions it speeds up the other
+ * molecules, so the gas gets hotter. 2D gas of hard discs with elastic collisions (masses 32 and 44);
+ * the top is open: a molecule that leaves is replaced by a fresh cold O₂ from above. Temperature of the
+ * gas ∝ mean kinetic energy of its molecules (20 °C at the start), smoothed over a few seconds.
+ */
+const W = 720;
+const FY = 338; // floor line
+const RC = 12; // carbon atom radius
+const rowsN = [19, 16, 13, 10]; // a lump: every row 3 atoms shorter, hexagonal packing
+const atoms = rowsN.flatMap((n, k) =>
+	Array.from({ length: n }, (_, j) => ({ x: W / 2 - (n - 1) * 13 + 26 * j, y: FY - RC - 1 - k * 22.5, k })),
+);
+---
+
+<figure class="burn not-content" data-burnlab>
+	<p class="burn__eq">
+		<span class="burn__sp">
+			<svg viewBox="-13 -13 26 26" aria-hidden="true"><circle class="burn__c" r="11" /></svg><span>C</span>
+		</span>
+		<span class="burn__op">+</span>
+		<span class="burn__sp">
+			<svg viewBox="-20 -11 40 22" aria-hidden="true"><circle class="burn__o" cx="-6.5" r="9" /><circle class="burn__o" cx="6.5" r="9" /></svg><span>O<sub>2</sub></span>
+		</span>
+		<span class="burn__op">→</span>
+		<span class="burn__sp">
+			<svg viewBox="-27 -11 54 22" aria-hidden="true"
+				><circle class="burn__o" cx="-15" r="9" /><circle class="burn__o" cx="15" r="9" /><circle class="burn__c" r="10" /></svg
+			><span>CO<sub>2</sub></span>
+		</span>
+		<span class="burn__op">+</span>
+		<b class="burn__en">энергия</b>
+	</p>
+
+	<div class="burn__stage">
+		<svg viewBox={`0 0 ${W} 350`} class="burn__scene" role="img" aria-label="Модель: кусок угля из атомов углерода, над ним летают молекулы кислорода">
+			<defs>
+				<radialGradient id="burn-glow">
+					<stop offset="0" stop-color="hsl(28, 100%, 55%)" stop-opacity="0.75" />
+					<stop offset="0.55" stop-color="hsl(18, 100%, 50%)" stop-opacity="0.3" />
+					<stop offset="1" stop-color="hsl(10, 100%, 45%)" stop-opacity="0" />
+				</radialGradient>
+				<radialGradient id="burn-flash">
+					<stop offset="0" stop-color="hsl(50, 100%, 85%)" stop-opacity="1" />
+					<stop offset="0.45" stop-color="hsl(35, 100%, 60%)" stop-opacity="0.75" />
+					<stop offset="1" stop-color="hsl(20, 100%, 50%)" stop-opacity="0" />
+				</radialGradient>
+			</defs>
+			<rect class="burn__heat" x="0" y="0" width={W} height={FY} data-heat />
+			<ellipse class="burn__glow" cx={W / 2} cy={FY - 30} rx="310" ry="95" fill="url(#burn-glow)" data-glow />
+			<g data-trails></g>
+			<g data-coal>
+				{
+					atoms.map((a, i) => (
+						<g class="burn__atom" data-i={i} data-x={a.x} data-y={a.y} data-k={a.k}>
+							<circle class="burn__c" cx={a.x} cy={a.y} r={RC} />
+							<text class="burn__letter" x={a.x} y={a.y + 4.5} text-anchor="middle">
+								C
+							</text>
+						</g>
+					))
+				}
+			</g>
+			<line class="burn__floor" x1="0" y1={FY + 0.5} x2={W} y2={FY + 0.5} />
+			<g class="burn__hatch">
+				{Array.from({ length: 37 }, (_, i) => <line x1={i * 20 + 10} y1={FY + 2} x2={i * 20} y2={FY + 12} />)}
+			</g>
+			<g data-mols></g>
+			<g data-flashes></g>
+		</svg>
+	</div>
+
+	<div class="burn__bottom">
+		<div class="burn__buttons">
+			<button type="button" class="burn__btn" data-go>Поджечь</button>
+			<button type="button" class="burn__btn burn__btn--ghost" data-reset>Сначала</button>
+		</div>
+		<div class="burn__read">
+			<div class="burn__therm">
+				<span>Температура газа</span>
+				<span class="burn__bar" aria-hidden="true"><span data-bar></span></span>
+				<output data-t hidden>20 °C</output>
+			</div>
+			<p class="burn__count">Образовалось молекул CO<sub>2</sub>: <output data-n>0</output></p>
+		</div>
+	</div>
+	<p class="burn__live" aria-live="polite" data-live></p>
+	<figcaption class="burn__cap">
+		Это модель: атомы увеличены в миллионы раз, а их движение сильно замедлено. В настоящем угле есть ещё и водород, поэтому при горении образуется и вода.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.burn {
+		--burn-c: hsl(225, 9%, 50%);
+		--burn-c-edge: hsl(225, 10%, 68%);
+		--burn-ember: hsl(24, 95%, 56%);
+		--burn-hot: hsl(22, 90%, 42%);
+		margin-block: 1.5rem 2rem;
+		padding: 1rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .burn {
+		--burn-c: hsl(225, 10%, 27%);
+		--burn-c-edge: hsl(225, 10%, 12%);
+		--burn-ember: hsl(22, 95%, 50%);
+		--burn-hot: hsl(16, 75%, 36%);
+	}
+	.burn__eq {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: center;
+		gap: 0.2rem 0.6rem;
+		margin: 0 0 0.6rem;
+		font-size: var(--sl-text-lg);
+		color: var(--sl-color-white);
+	}
+	.burn__sp {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		white-space: nowrap;
+	}
+	.burn__sp svg {
+		height: 1.15em;
+		width: auto;
+		overflow: visible;
+	}
+	.burn__op {
+		color: var(--sl-color-gray-3);
+	}
+	.burn__en {
+		color: var(--ig-v);
+	}
+	.burn__stage {
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.burn__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.burn__c {
+		fill: var(--burn-c);
+		stroke: var(--burn-c-edge);
+		stroke-width: 1.5;
+	}
+	.burn__o {
+		fill: var(--ig-vy);
+		stroke: color-mix(in srgb, var(--ig-vy) 60%, black);
+		stroke-width: 1.5;
+	}
+	.burn__letter {
+		font-size: 13px;
+		font-weight: 700;
+		fill: hsl(0, 0%, 100%);
+		pointer-events: none;
+	}
+	.burn__atom {
+		transition: opacity 0.35s;
+	}
+	.burn__atom.is-gone {
+		opacity: 0;
+	}
+	.burn[data-lit] .burn__atom .burn__c {
+		fill: color-mix(in srgb, var(--burn-c) 75%, var(--burn-hot));
+	}
+	.burn[data-lit] .burn__atom.is-hot .burn__c {
+		fill: color-mix(in srgb, var(--burn-c) 35%, var(--burn-ember));
+		stroke: var(--burn-ember);
+	}
+	.burn__glow {
+		opacity: 0;
+		transition: opacity 0.8s;
+	}
+	.burn__heat {
+		fill: hsl(20, 95%, 55%);
+		opacity: 0;
+	}
+	.burn__floor {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.burn__hatch line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+	}
+	.burn__trail {
+		stroke: var(--ig-v);
+		stroke-linecap: round;
+		fill: none;
+	}
+	.burn__bottom {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem 1.25rem;
+		margin-top: 0.75rem;
+	}
+	.burn__buttons {
+		display: flex;
+		gap: 0.6rem;
+	}
+	.burn__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		padding: 0.5rem 1.2rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.burn__btn:hover {
+		filter: brightness(1.08);
+	}
+	.burn__btn--ghost {
+		background: transparent;
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-4);
+	}
+	.burn__read {
+		display: grid;
+		gap: 0.3rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.burn__therm {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.burn__bar {
+		position: relative;
+		width: 8rem;
+		height: 0.55rem;
+		border-radius: 999px;
+		background: linear-gradient(to right, var(--ig-vx), var(--ig-vy) 55%, var(--ig-v));
+		overflow: hidden;
+	}
+	/* the grey cover over the part of the scale not reached yet */
+	.burn__bar span {
+		position: absolute;
+		inset: 0 0 0 auto;
+		width: 98%;
+		background: var(--sl-color-gray-5);
+	}
+	.burn output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.burn__therm output {
+		min-width: 4.2em;
+	}
+	.burn__count {
+		margin: 0;
+	}
+	.burn__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.burn__cap {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.burn__letter {
+			display: none;
+		}
+		.burn__eq {
+			font-size: var(--sl-text-base);
+		}
+	}
+	@media (max-width: 30rem) {
+		.burn {
+			padding: 0.75rem 0.6rem;
+		}
+		.burn__bar {
+			flex: 1;
+			min-width: 5rem;
+		}
+		.burn__read,
+		.burn__therm {
+			width: 100%;
+		}
+	}
+</style>
+
+<script>
+	import { ru, reduceMotion, loop } from './et';
+
+	const W = 720;
+	const FY = 338;
+	const RC = 12;
+	const N = 36; // molecules in the gas
+	const V0 = 60; // mean speed of O₂ at 20 °C, px/s on the screen
+	const SIG = V0 / Math.sqrt(Math.PI / 2); // 2D Maxwell: mean speed = σ√(π/2) for O₂
+	const KT0 = 32 * SIG * SIG; // kT at 20 °C, in px²/s² × mass units
+	const ER = 18; // energy given to a new CO₂, in units of kT at 20 °C
+	const T0 = 293.15;
+	const TAU = 3; // smoothing of the thermometer, s
+	const TMAX = 1000; // full scale of the bar, °C
+	const STEP = 1 / 120;
+	const NS = 'http://www.w3.org/2000/svg';
+	const KINDS = {
+		O2: { m: 32, R: 12, html: '<circle class="burn__o" cx="-6.5" r="9"/><circle class="burn__o" cx="6.5" r="9"/>' },
+		CO2: {
+			m: 44,
+			R: 16,
+			html: '<circle class="burn__o" cx="-15.5" r="9"/><circle class="burn__o" cx="15.5" r="9"/><circle class="burn__c" r="10.5"/>',
+		},
+	} as const;
+	type Kind = keyof typeof KINDS;
+	type Mol = { kind: Kind; m: number; R: number; x: number; y: number; vx: number; vy: number; a: number; w: number; age: number; g: SVGGElement; trail: SVGLineElement };
+	type Atom = { x: number; y: number; k: number; alive: boolean; el: SVGGElement };
+	type Flash = { x: number; y: number; age: number; el: SVGCircleElement };
+
+	const mulberry = (seed: number) => () => {
+		seed = (seed + 0x6d2b79f5) >>> 0;
+		let t = seed;
+		t = Math.imul(t ^ (t >>> 15), t | 1);
+		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-burnlab]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const go = $<HTMLButtonElement>('[data-go]');
+		const reset = $<HTMLButtonElement>('[data-reset]');
+		const molsG = $<SVGGElement>('[data-mols]');
+		const trailsG = $<SVGGElement>('[data-trails]');
+		const flashG = $<SVGGElement>('[data-flashes]');
+		const heat = $<SVGRectElement>('[data-heat]');
+		const glow = $<SVGEllipseElement>('[data-glow]');
+		const tOut = $<HTMLOutputElement>('[data-t]');
+		const nOut = $<HTMLOutputElement>('[data-n]');
+		const bar = $<HTMLElement>('[data-bar]');
+		const live = $<HTMLElement>('[data-live]');
+		const atoms: Atom[] = Array.from(root.querySelectorAll<SVGGElement>('.burn__atom')).map((el) => ({
+			x: Number(el.dataset.x),
+			y: Number(el.dataset.y),
+			k: Number(el.dataset.k),
+			alive: true,
+			el,
+		}));
+		const coalTop = Math.min(...atoms.map((a) => a.y)) - RC;
+
+		let r = mulberry(11);
+		const gauss = () => Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * Math.PI * r());
+		let mols: Mol[] = [];
+		let flashes: Flash[] = [];
+		let lit = false;
+		let paused = false;
+		let made = 0;
+		let tK = T0; // smoothed temperature of the gas
+		let state = '';
+
+		const setKind = (m: Mol, kind: Kind) => {
+			m.kind = kind;
+			m.m = KINDS[kind].m;
+			m.R = KINDS[kind].R;
+			m.g.innerHTML = KINDS[kind].html;
+		};
+
+		// a cold O₂ with a velocity from the Maxwell distribution at 20 °C; entering from above: flux-weighted vy
+		const fresh = (m: Mol, x: number, y: number, entering: boolean) => {
+			const s = Math.sqrt(KT0 / 32);
+			setKind(m, 'O2');
+			Object.assign(m, {
+				x,
+				y,
+				vx: gauss() * s,
+				vy: entering ? s * Math.sqrt(-2 * Math.log(r() + 1e-12)) : gauss() * s,
+				a: r() * Math.PI,
+				w: (r() - 0.5) * 3,
+				age: 99,
+			});
+		};
+
+		const build = () => {
+			r = mulberry(11);
+			molsG.innerHTML = '';
+			trailsG.innerHTML = '';
+			flashG.innerHTML = '';
+			flashes = [];
+			mols = [];
+			for (let i = 0; i < N; i++) {
+				const g = document.createElementNS(NS, 'g');
+				const trail = document.createElementNS(NS, 'line');
+				trail.setAttribute('class', 'burn__trail');
+				molsG.append(g);
+				trailsG.append(trail);
+				const m = { g, trail } as Mol;
+				// random places in the air, not overlapping
+				let x = 0;
+				let y = 0;
+				for (let tries = 0; tries < 50; tries++) {
+					x = 25 + r() * (W - 50);
+					y = 22 + r() * (coalTop - 60);
+					if (mols.every((o) => (o.x - x) ** 2 + (o.y - y) ** 2 > 30 * 30)) break;
+				}
+				fresh(m, x, y, false);
+				mols.push(m);
+			}
+			for (const a of atoms) {
+				a.alive = true;
+				a.el.classList.remove('is-gone', 'is-hot');
+			}
+			markSurface();
+			lit = false;
+			paused = false;
+			made = 0;
+			tK = T0;
+			delete root.dataset.lit;
+		};
+
+		// atoms with a free neighbour place are on the surface: they glow when the coal burns
+		const markSurface = () => {
+			for (const a of atoms) {
+				if (!a.alive) continue;
+				let n = a.k === 0 ? 2 : 0; // the floor covers the bottom row from below
+				for (const b of atoms) if (b !== a && b.alive && (b.x - a.x) ** 2 + (b.y - a.y) ** 2 < 28 * 28) n++;
+				a.el.classList.toggle('is-hot', n < 6);
+			}
+		};
+
+		const react = (m: Mol, a: Atom, nx: number, ny: number) => {
+			a.alive = false;
+			a.el.classList.add('is-gone');
+			a.el.classList.remove('is-hot');
+			made++;
+			// the new molecule gets the energy released in the reaction: it flies off fast
+			const ke = 0.5 * m.m * (m.vx * m.vx + m.vy * m.vy) + ER * KT0;
+			const sp = Math.sqrt((2 * ke) / KINDS.CO2.m);
+			const ang = Math.atan2(ny, nx) + (r() - 0.5) * 0.8;
+			m.x = (m.x + a.x) / 2;
+			m.y = (m.y + a.y) / 2;
+			setKind(m, 'CO2');
+			m.vx = sp * Math.cos(ang);
+			m.vy = sp * Math.sin(ang);
+			m.w = (r() - 0.5) * 6;
+			m.age = 0;
+			const el = document.createElementNS(NS, 'circle');
+			el.setAttribute('fill', 'url(#burn-flash)');
+			flashG.append(el);
+			flashes.push({ x: a.x, y: a.y - 4, age: 0, el });
+			markSurface();
+		};
+
+		const step = (h: number) => {
+			for (const m of mols) {
+				m.x += m.vx * h;
+				m.y += m.vy * h;
+				m.a += m.w * h;
+				m.age += h;
+				if (m.x < m.R && m.vx < 0) m.vx = -m.vx;
+				if (m.x > W - m.R && m.vx > 0) m.vx = -m.vx;
+				if (m.y > FY - m.R && m.vy > 0) m.vy = -m.vy;
+				// the top is open: a molecule flies away, a fresh cold O₂ comes in from above
+				if (m.y < -m.R - 6) fresh(m, 25 + r() * (W - 50), -m.R - 4, true);
+				if (m.y + m.R < coalTop) continue;
+				for (const a of atoms) {
+					if (!a.alive) continue;
+					const dx = m.x - a.x;
+					const dy = m.y - a.y;
+					const d2 = dx * dx + dy * dy;
+					const rr = m.R + RC;
+					if (d2 >= rr * rr) continue;
+					const d = Math.sqrt(d2);
+					const nx = dx / d;
+					const ny = dy / d;
+					const vn = m.vx * nx + m.vy * ny;
+					if (vn >= 0) continue;
+					if (lit && m.kind === 'O2') {
+						react(m, a, nx, ny);
+						break;
+					}
+					// the coal does not move: an elastic bounce
+					m.vx -= 2 * vn * nx;
+					m.vy -= 2 * vn * ny;
+				}
+			}
+			// elastic collisions of the molecules (discs with masses 32 and 44)
+			for (let i = 0; i < mols.length; i++)
+				for (let j = i + 1; j < mols.length; j++) {
+					const a = mols[i];
+					const b = mols[j];
+					const dx = b.x - a.x;
+					const dy = b.y - a.y;
+					const d2 = dx * dx + dy * dy;
+					const rr = a.R + b.R;
+					if (d2 >= rr * rr || d2 === 0) continue;
+					const d = Math.sqrt(d2);
+					const nx = dx / d;
+					const ny = dy / d;
+					const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+					if (rel <= 0) continue;
+					const J = (2 * rel) / (1 / a.m + 1 / b.m);
+					a.vx -= (J / a.m) * nx;
+					a.vy -= (J / a.m) * ny;
+					b.vx += (J / b.m) * nx;
+					b.vy += (J / b.m) * ny;
+				}
+			for (const f of flashes) f.age += h;
+			// temperature ∝ mean kinetic energy of the molecules
+			let ke = 0;
+			for (const m of mols) ke += 0.5 * m.m * (m.vx * m.vx + m.vy * m.vy);
+			const tNow = (T0 * ke) / mols.length / KT0;
+			tK += (tNow - tK) * (1 - Math.exp(-h / TAU));
+		};
+
+		const run = (dt: number) => {
+			for (let left = dt; left > 1e-9; left -= STEP) step(Math.min(STEP, left));
+		};
+
+		const alive = () => atoms.reduce((s, a) => s + (a.alive ? 1 : 0), 0);
+
+		const say = (s: string, text: string) => {
+			if (s === state) return;
+			state = s;
+			live.textContent = text;
+		};
+
+		const draw = () => {
+			for (const m of mols) {
+				m.g.setAttribute('transform', `translate(${m.x.toFixed(1)} ${m.y.toFixed(1)}) rotate(${((m.a * 180) / Math.PI).toFixed(1)})`);
+				// a fading trail behind a just-formed molecule
+				const fade = 1 - m.age / 1.2;
+				if (fade > 0) {
+					const len = 0.3; // s of flight behind the molecule
+					m.trail.setAttribute('x1', m.x.toFixed(1));
+					m.trail.setAttribute('y1', m.y.toFixed(1));
+					m.trail.setAttribute('x2', (m.x - m.vx * len).toFixed(1));
+					m.trail.setAttribute('y2', (m.y - m.vy * len).toFixed(1));
+					m.trail.setAttribute('stroke-width', String(10 * fade + 3));
+					m.trail.setAttribute('opacity', (0.85 * fade).toFixed(2));
+					m.trail.style.display = '';
+				} else m.trail.style.display = 'none';
+			}
+			flashes = flashes.filter((f) => {
+				if (f.age > 0.55) {
+					f.el.remove();
+					return false;
+				}
+				const k = f.age / 0.55;
+				f.el.setAttribute('cx', String(f.x));
+				f.el.setAttribute('cy', String(f.y));
+				f.el.setAttribute('r', (14 + 30 * k).toFixed(1));
+				f.el.setAttribute('opacity', (1 - k).toFixed(2));
+				return true;
+			});
+			const left = alive();
+			const tC = tK - 273.15;
+			const hot = Math.max(0, Math.min(1, tC / TMAX));
+			heat.style.opacity = (0.16 * hot).toFixed(3);
+			glow.style.opacity = lit && left > 0 ? (0.35 + 0.65 * Math.sqrt(left / atoms.length)).toFixed(2) : '0';
+			tOut.textContent = `${ru(Math.round(tC / 10) * 10, 0)} °C`;
+			bar.style.width = `${(100 - Math.max(2, 100 * hot)).toFixed(1)}%`;
+			nOut.textContent = String(made);
+
+			if (paused) say('paused', 'Пауза.');
+			else if (!lit)
+				say('idle', 'Холодный уголь не горит: молекулы кислорода ударяются о него и отскакивают. Нажмите «Поджечь».');
+			else if (left > 0)
+				say(
+					'lit',
+					'Уголь горит. Атом углерода соединяется с молекулой кислорода — получается молекула углекислого газа, и она улетает очень быстро. Сталкиваясь с другими молекулами, она разгоняет их: газ нагревается.',
+				);
+			else
+				say(
+					'done',
+					'Уголь сгорел: весь его углерод ушёл в углекислый газ. Горячий газ уходит вверх, на его место приходит холодный воздух, и температура падает.',
+				);
+		};
+
+		const rm = reduceMotion();
+		const wake = loop(
+			root,
+			(dt) => {
+				if (!paused) run(dt);
+				draw();
+			},
+			() => !paused && !reduceMotion(),
+		);
+
+		const label = () => {
+			go.textContent = !lit ? 'Поджечь' : reduceMotion() ? 'Дальше' : paused ? 'Продолжить' : 'Пауза';
+		};
+
+		go.addEventListener('click', () => {
+			if (reduceMotion()) {
+				// no animation: every press shows the state a few seconds later
+				if (!lit) root.dataset.lit = '';
+				lit = true;
+				run(4);
+			} else if (!lit) {
+				lit = true;
+				root.dataset.lit = '';
+			} else paused = !paused;
+			label();
+			draw();
+			wake();
+		});
+		reset.addEventListener('click', () => {
+			build();
+			label();
+			draw();
+			wake();
+		});
+
+		build();
+		if (rm) run(1.5); // a static picture of the cold gas
+		label();
+		draw();
+	}
+</script>
