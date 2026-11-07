@@ -1,0 +1,108 @@
+---
+/** Client code of <More>: one shared popover for all «more» words of the page. Rendered once per chapter page. */
+---
+
+<script>
+	const triggers = [...document.querySelectorAll<HTMLElement>('[data-more]')];
+	const supported = typeof HTMLElement.prototype.showPopover === 'function';
+
+	if (triggers.length && !supported) {
+		// Old browser: the button opens the text right under the paragraph line.
+		for (const btn of triggers) {
+			const tpl = btn.nextElementSibling as HTMLTemplateElement;
+			const box = document.createElement('span');
+			box.className = 'ig-more-inline';
+			box.hidden = true;
+			box.append(tpl.content.cloneNode(true));
+			tpl.after(box);
+			btn.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					btn.click();
+				}
+			});
+			btn.addEventListener('click', () => {
+				box.hidden = !box.hidden;
+				btn.setAttribute('aria-expanded', String(!box.hidden));
+			});
+		}
+	} else if (triggers.length) {
+		const pop = document.createElement('div');
+		pop.className = 'ig-pop';
+		pop.popover = 'auto';
+		pop.id = 'ig-pop';
+		pop.setAttribute('role', 'dialog');
+		const body = document.createElement('div');
+		const close = document.createElement('button');
+		close.type = 'button';
+		close.className = 'ig-pop__close';
+		close.setAttribute('aria-label', 'Закрыть');
+		close.textContent = '×';
+		close.addEventListener('click', () => {
+			const btn = current;
+			pop.hidePopover();
+			btn?.focus({ preventScroll: true });
+		});
+		pop.append(close, body);
+		document.body.append(pop);
+
+		let current: HTMLElement | null = null;
+		// A tap on the open term first light-dismisses the popover; remember it so that the click closes, not reopens.
+		let lastClosed: HTMLElement | null = null;
+		let closedAt = 0;
+
+		const place = () => {
+			if (!current || window.matchMedia('(max-width: 40rem)').matches) return;
+			const r = current.getBoundingClientRect();
+			const w = pop.offsetWidth;
+			const h = pop.offsetHeight;
+			const gap = 8;
+			let left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), window.innerWidth - w - 12);
+			let top = r.bottom + gap;
+			if (top + h > window.innerHeight - 12 && r.top - gap - h > 12) top = r.top - gap - h;
+			pop.style.left = `${left}px`;
+			pop.style.top = `${top}px`;
+		};
+
+		// beforetoggle fires at once (toggle is queued), so a click on the open term sees that it just closed
+		pop.addEventListener('beforetoggle', (e) => {
+			const open = (e as ToggleEvent).newState === 'open';
+			current?.setAttribute('aria-expanded', String(open));
+			if (!open) {
+				lastClosed = current;
+				closedAt = performance.now();
+				current = null;
+			}
+		});
+		window.addEventListener('scroll', place, { passive: true });
+		window.addEventListener('resize', place);
+
+		for (const btn of triggers) {
+			btn.setAttribute('aria-controls', pop.id);
+			btn.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					btn.click();
+				}
+			});
+			btn.addEventListener('click', () => {
+				const again =
+					(current === btn && pop.matches(':popover-open')) ||
+					(lastClosed === btn && performance.now() - closedAt < 400);
+				if (pop.matches(':popover-open')) pop.hidePopover();
+				if (again) {
+					lastClosed = null;
+					return;
+				}
+				const tpl = btn.nextElementSibling as HTMLTemplateElement;
+				body.replaceChildren(tpl.content.cloneNode(true));
+				pop.setAttribute('aria-label', btn.textContent ?? '');
+				current = btn;
+				pop.showPopover();
+				btn.setAttribute('aria-expanded', 'true');
+				place();
+				close.focus({ preventScroll: true });
+			});
+		}
+	}
+</script>
