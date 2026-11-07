@@ -87,7 +87,15 @@ export const annotate = (tex, gloss) => {
 				continue;
 			}
 			if (GREEK.has(name)) {
-				sym(i, i + 1 + name.length);
+				let end = i + 1 + name.length;
+				// \Delta t, \Delta E_{…}: the change of a quantity is one symbol
+				if (name === 'Delta') {
+					let k = end;
+					while (tex[k] === ' ') k++;
+					const next = /^(\\[A-Za-z]+|[A-Za-z])/.exec(tex.slice(k));
+					if (next && (next[1].length === 1 || GREEK.has(next[1].slice(1)))) end = k + next[1].length;
+				}
+				sym(i, end);
 				continue;
 			}
 			out += m ? m[0] : c;
