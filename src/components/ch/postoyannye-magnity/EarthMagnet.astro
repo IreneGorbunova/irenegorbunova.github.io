@@ -1,0 +1,710 @@
+---
+/**
+ * The Earth as a magnet, two views.
+ * 1) Cross-section through the geographic and the magnetic axis (tilt 9,2° in 2025, IGRF-14): field lines of the
+ *    dipole, the liquid core, an imaginary bar magnet; a dip needle that can be moved along the surface turns along
+ *    the dipole field (tan I = 2 tan φ, φ — magnetic latitude).
+ * 2) A map of the Northern hemisphere around the North Pole: real declination at the chosen city from IGRF-14,
+ *    the magnetic meridian (the path one walks following the needle) up to the north dip pole, the track of the pole
+ *    since 1590, and a year slider (1900–2025).
+ */
+import PmStyles from './PmStyles.astro';
+import data from './earth-data.json';
+
+// ---------- view 1: cross-section ----------
+const CX = 320;
+const CY = 238;
+const R = 104;
+const TILT = 9.2; // degrees, angle between the dipole axis and the rotation axis (IGRF-14, 2025)
+const tr = (TILT * Math.PI) / 180;
+const up = { x: -Math.sin(tr), y: -Math.cos(tr) }; // magnetic axis, towards the pole near the geographic North
+const side = { x: Math.cos(tr), y: -Math.sin(tr) };
+const fieldLines: { d: string; arrow: string }[] = [];
+for (const L of [1.45, 2.1, 3.1, 4.6, 7.2])
+	for (const s of [-1, 1]) {
+		const psi0 = Math.asin(Math.sqrt(1 / L));
+		const pts: string[] = [];
+		const n = 90;
+		for (let i = 0; i <= n; i++) {
+			const psi = psi0 + ((Math.PI - 2 * psi0) * i) / n;
+			const r = L * R * Math.sin(psi) ** 2;
+			const x = CX + r * (Math.cos(psi) * up.x + s * Math.sin(psi) * side.x);
+			const y = CY + r * (Math.cos(psi) * up.y + s * Math.sin(psi) * side.y);
+			pts.push(`${x.toFixed(1)} ${y.toFixed(1)}`);
+		}
+		// arrow at the magnetic equator, pointing along +up (the field goes from the southern to the northern hemisphere)
+		const ex = CX + L * R * s * side.x;
+		const ey = CY + L * R * s * side.y;
+		const a = `M${(ex + up.x * 9).toFixed(1)} ${(ey + up.y * 9).toFixed(1)} L${(ex - up.x * 5 + side.x * 6).toFixed(1)} ${(ey - up.y * 5 + side.y * 6).toFixed(1)} L${(ex - up.x * 5 - side.x * 6).toFixed(1)} ${(ey - up.y * 5 - side.y * 6).toFixed(1)} Z`;
+		fieldLines.push({ d: 'M' + pts.join(' L'), arrow: a });
+	}
+const axisEnd = (k: number) => ({ x: CX + up.x * k, y: CY + up.y * k });
+
+// ---------- view 2: polar map ----------
+const MC = 320; // centre of the map
+const MR = 300; // radius of the map = 55° from the pole
+const LAT_MIN = 35;
+const LON0 = 60; // this meridian points down
+const proj = (lat: number, lon: number) => {
+	const r = ((90 - lat) / (90 - LAT_MIN)) * MR;
+	const a = ((lon - LON0) * Math.PI) / 180;
+	return [MC + r * Math.sin(a), MC + r * Math.cos(a)];
+};
+const f1 = (v: number) => Math.round(v * 10) / 10;
+const pathOf = (pts: number[][]) =>
+	pts
+		.map(([la, lo], i) => {
+			const [x, y] = proj(la, lo);
+			return `${i ? 'L' : 'M'}${f1(x)} ${f1(y)}`;
+		})
+		.join('');
+const land = data.land.map((r) => pathOf(r) + 'Z').join('');
+const graticule: string[] = [];
+for (const lat of [40, 50, 60, 70, 80]) graticule.push(`<circle cx="${MC}" cy="${MC}" r="${f1(((90 - lat) / (90 - LAT_MIN)) * MR)}" />`);
+for (let lon = 0; lon < 360; lon += 30) {
+	const [x, y] = proj(LAT_MIN, lon);
+	graticule.push(`<line x1="${MC}" y1="${MC}" x2="${f1(x)}" y2="${f1(y)}" />`);
+}
+const track = pathOf(data.track.map((t) => [t[0], t[1]]));
+const trackLabels = data.track
+	.filter((t) => [1600, 2000].includes(t[2]))
+	.map((t) => {
+		const [x, y] = proj(t[0], t[1]);
+		return { x: f1(x), y: f1(y), year: t[2] };
+	});
+const cities = data.cities.map((c) => {
+	const [x, y] = proj(c.lat, c.lon);
+	return { name: c.name, x: f1(x), y: f1(y), lat: c.lat, lon: c.lon };
+});
+const epochs = data.epochs.map((e) => {
+	const [px, py] = proj(e.pole[0], e.pole[1]);
+	return { year: e.year, pole: [f1(px), f1(py)], D: e.D, I: e.I, paths: e.paths.map(pathOf) };
+});
+const uid = Math.random().toString(36).slice(2, 8);
+const payload = JSON.stringify({ cities, epochs, LON0, LAT_MIN });
+const last = epochs.length - 1;
+---
+
+<PmStyles />
+<figure class="pm-box em not-content" data-em data-payload={payload}>
+	<div class="pm-row" role="group" aria-label="Что показать" style="margin-top: 0">
+		<button type="button" class="pm-chip" data-view="cut" aria-pressed="true">Земля — большой магнит</button>
+		<button type="button" class="pm-chip" data-view="map" aria-pressed="false">Компас в городе</button>
+	</div>
+
+	<div class="em__view" data-pane="cut">
+		<svg class="pm-svg em__svg" viewBox="0 0 640 476" role="img" aria-label="Разрез Земли: ось вращения, магнитная ось и магнитные линии">
+			<g class="em__lines">
+				{
+					fieldLines.map((l) => (
+						<g>
+							<path d={l.d} class="em__line" />
+							<path d={l.arrow} class="em__arrow" />
+						</g>
+					))
+				}
+			</g>
+			<circle cx={CX} cy={CY} r={R} class="em__earth"></circle>
+			<g class="em__core" data-core>
+				<circle cx={CX} cy={CY} r={R * 0.546} class="em__outer"></circle>
+				<circle cx={CX} cy={CY} r={R * 0.192} class="em__inner"></circle>
+			</g>
+			<line x1={CX} y1={CY - R - 58} x2={CX} y2={CY + R + 58} class="em__geo"></line>
+			<line x1={axisEnd(R + 44).x} y1={axisEnd(R + 44).y} x2={axisEnd(-R - 44).x} y2={axisEnd(-R - 44).y} class="em__mag"></line>
+			<g class="em__bar" data-bar transform={`rotate(${-TILT} ${CX} ${CY})`}>
+				<rect x={CX - 13} y={CY - 70} width="26" height="70" rx="4" class="em__bs"></rect>
+				<rect x={CX - 13} y={CY} width="26" height="70" rx="4" class="em__bn"></rect>
+				<text x={CX} y={CY - 42} class="em__bl" transform={`rotate(${TILT} ${CX} ${CY - 49})`}>S</text>
+				<text x={CX} y={CY + 56} class="em__bl" transform={`rotate(${TILT} ${CX} ${CY + 49})`}>N</text>
+			</g>
+			<circle cx={CX} cy={CY - R} r="5" class="em__gp"></circle>
+			<circle cx={CX} cy={CY + R} r="5" class="em__gp"></circle>
+			<circle cx={axisEnd(R).x} cy={axisEnd(R).y} r="5" class="em__mp"></circle>
+			<circle cx={axisEnd(-R).x} cy={axisEnd(-R).y} r="5" class="em__mp"></circle>
+			<text x={CX + 12} y={CY - R - 42} class="em__lab em__lab--geo">Северный географический</text>
+			<text x={CX + 12} y={CY + R + 54} class="em__lab em__lab--geo">Южный географический</text>
+			<text x={axisEnd(R + 30).x - 12} y={axisEnd(R + 30).y - 2} class="em__lab em__lab--mag" text-anchor="end">магнитный полюс S</text>
+			<text x={axisEnd(-R - 30).x - 12} y={axisEnd(-R - 30).y + 14} class="em__lab em__lab--mag" text-anchor="end">магнитный полюс N</text>
+			<g class="em__dip" data-dip tabindex="0" role="slider" aria-label="Положение магнитной стрелки на поверхности Земли" aria-valuemin="-180" aria-valuemax="180">
+				<line class="em__horizon" data-horizon></line>
+				<circle r="24" class="em__dipcase" data-case></circle>
+				<g data-needle>
+					<path d="M0 0 L-4 -3 L-22 0 L-4 3 Z" class="em__ns"></path>
+					<path d="M0 0 L4 -3 L22 0 L4 3 Z" class="em__nn"></path>
+					<circle r="2.5" class="em__pin"></circle>
+				</g>
+			</g>
+		</svg>
+		<div class="pm-row">
+			<label class="pm-check"><input type="checkbox" data-toggle="bar" checked /> Воображаемый магнит внутри</label>
+			<label class="pm-check"><input type="checkbox" data-toggle="core" /> Ядро Земли</label>
+		</div>
+		<p class="pm-live" aria-live="polite" data-dip-live></p>
+		<p class="pm-cap">
+			Штриховая линия — ось вращения Земли, сплошная — магнитная ось; угол между ними около 9°. Перетаскивайте стрелку по поверхности Земли. Эта стрелка может поворачиваться и вверх-вниз, поэтому
+			видно, как она наклоняется к земле.
+		</p>
+	</div>
+
+	<div class="em__view" data-pane="map" hidden>
+		<div class="em__mapwrap">
+			<svg class="pm-svg em__map" viewBox="0 0 640 640" role="img" aria-label="Карта северного полушария вокруг Северного полюса">
+				<defs>
+					<clipPath id={`em-clip-${uid}`}><circle cx={MC} cy={MC} r={MR}></circle></clipPath>
+				</defs>
+				<circle cx={MC} cy={MC} r={MR} class="em__sea"></circle>
+				<g clip-path={`url(#em-clip-${uid})`}>
+					<path d={land} class="em__land"></path>
+					<g class="em__grat" set:html={graticule.join('')} />
+					<path d={track} class="em__track"></path>
+					{
+						trackLabels.map((t) => (
+							<text x={t.x + 8} y={t.y - 6} class="em__tlab">
+								{t.year}
+							</text>
+						))
+					}
+					<path class="em__path" data-path></path>
+				</g>
+				<circle cx={MC} cy={MC} r={MR} class="em__rim"></circle>
+				<g class="em__np">
+					<path d={`M${MC} ${MC - 9} L${MC + 3} ${MC - 3} L${MC + 9} ${MC} L${MC + 3} ${MC + 3} L${MC} ${MC + 9} L${MC - 3} ${MC + 3} L${MC - 9} ${MC} L${MC - 3} ${MC - 3} Z`}></path>
+				</g>
+				{
+					cities.map((c, i) => (
+						<circle cx={c.x} cy={c.y} r="5" class="em__city" data-city-dot={i}>
+							<title>{c.name}</title>
+						</circle>
+					))
+				}
+				<g data-pole class="em__pole">
+					<circle r="9"></circle>
+					<text y="5">S</text>
+				</g>
+				<g data-here class="em__here">
+					<line data-north class="em__northline"></line>
+					<g data-mini>
+						<circle r="22" class="em__dipcase"></circle>
+						<g data-mini-needle>
+							<path d="M0 0 L-3 -4 L0 -19 L3 -4 Z" class="em__nn"></path>
+							<path d="M0 0 L-3 4 L0 19 L3 4 Z" class="em__ns"></path>
+						</g>
+					</g>
+					<text class="em__cname" data-cname></text>
+				</g>
+			</svg>
+			<div class="em__side">
+				<svg class="em__dial" viewBox="-80 -80 160 160" aria-hidden="true">
+					<circle r="74" class="em__dialcase"></circle>
+					{
+						Array.from({ length: 36 }, (_, i) => (
+							<line
+								x1="0"
+								y1={i % 9 === 0 ? -60 : -66}
+								x2="0"
+								y2="-72"
+								transform={`rotate(${i * 10})`}
+								class="em__tick"
+							/>
+						))
+					}
+					<text y="-44" class="em__dl">С</text>
+					<text x="47" y="6" class="em__dl">В</text>
+					<text y="56" class="em__dl">Ю</text>
+					<text x="-47" y="6" class="em__dl">З</text>
+					<g data-dial-needle class="em__dialneedle">
+						<path d="M0 0 L-6 -6 L0 -58 L6 -6 Z" class="em__nn"></path>
+						<path d="M0 0 L-6 6 L0 58 L6 6 Z" class="em__ns"></path>
+						<circle r="4" class="em__pin"></circle>
+					</g>
+				</svg>
+				<p class="em__read" data-read></p>
+			</div>
+		</div>
+		<div class="pm-row em__cities" role="group" aria-label="Город">
+			{
+				cities.map((c, i) => (
+					<button type="button" class="pm-chip" data-city={i} aria-pressed={i === 0 ? 'true' : 'false'}>
+						{c.name}
+					</button>
+				))
+			}
+		</div>
+		<label class="pm-slider">
+			<span>Год</span>
+			<output data-year-out>{epochs[last].year}</output>
+			<input type="range" min="0" max={last} step="1" value={last} data-year />
+		</label>
+		<p class="pm-live" aria-live="polite" data-map-live></p>
+		<p class="pm-cap">
+			Карта северного полушария, вид сверху на Северный полюс (звёздочка в центре). Окружности — параллели через каждые 10°. Пунктир — путь магнитного полюса с 1590 года. Цветная линия —
+			путь, по которому придёт путешественник, если всё время идти туда, куда указывает северный конец стрелки. Склонение рассчитано по международной модели магнитного поля Земли IGRF и
+			округлено.
+		</p>
+	</div>
+</figure>
+
+<style is:global>
+	.em__svg,
+	.em__map {
+		touch-action: none;
+	}
+	.em__line {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.8;
+		opacity: 0.75;
+	}
+	.em__arrow {
+		fill: var(--sl-color-accent);
+	}
+	.em__earth {
+		fill: color-mix(in srgb, var(--ig-vx) 30%, var(--ig-surface));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.em__core {
+		transition: opacity 0.4s;
+	}
+	.em__outer {
+		fill: color-mix(in srgb, var(--ig-v) 45%, var(--ig-surface));
+	}
+	.em__inner {
+		fill: var(--ig-v);
+	}
+	.em__bar {
+		transition: opacity 0.4s;
+	}
+	.em__bs {
+		fill: var(--ig-vy);
+		opacity: 0.9;
+	}
+	.em__bn {
+		fill: var(--ig-vx);
+		opacity: 0.9;
+		stroke: var(--sl-color-bg);
+	}
+	.em__bl {
+		fill: var(--sl-color-bg);
+		font-size: 20px;
+		font-weight: 700;
+		text-anchor: middle;
+	}
+	.em__geo {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 5;
+	}
+	.em__mag {
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.em__gp {
+		fill: var(--sl-color-gray-2);
+	}
+	.em__mp {
+		fill: var(--sl-color-white);
+	}
+	.em__lab {
+		font-size: 22px;
+		fill: var(--sl-color-gray-2);
+	}
+	.em__lab--mag {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+	}
+	.em__dip {
+		cursor: grab;
+		outline: none;
+	}
+	.em__dip:focus-visible .em__dipcase {
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+	}
+	.em__dipcase {
+		fill: color-mix(in srgb, var(--sl-color-bg) 88%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.em__horizon {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 4;
+	}
+	.em__nn {
+		fill: var(--ig-vx);
+	}
+	.em__ns {
+		fill: var(--ig-vy);
+	}
+	.em__pin {
+		fill: var(--sl-color-gray-3);
+	}
+	.em__mapwrap {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 11rem;
+		gap: 1rem;
+		align-items: center;
+	}
+	.em__sea {
+		fill: color-mix(in srgb, var(--ig-vx) 14%, var(--ig-surface));
+	}
+	.em__land {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.8;
+	}
+	.em__grat {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.7;
+		opacity: 0.6;
+	}
+	.em__rim {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.em__track {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 2.2;
+		stroke-dasharray: 1 5;
+		stroke-linecap: round;
+	}
+	.em__tlab {
+		font-size: 15px;
+		fill: var(--ig-vy);
+	}
+	.em__path {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.em__np path {
+		fill: var(--sl-color-white);
+	}
+	.em__city {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--sl-color-bg);
+		stroke-width: 1.5;
+		cursor: pointer;
+	}
+	.em__pole circle {
+		fill: var(--ig-vy);
+		stroke: var(--sl-color-bg);
+		stroke-width: 2;
+	}
+	.em__pole text {
+		fill: var(--sl-color-bg);
+		font-size: 13px;
+		font-weight: 700;
+		text-anchor: middle;
+	}
+	.em__pole,
+	.em__here {
+		transition: transform 0.6s cubic-bezier(0.3, 1, 0.4, 1);
+	}
+	.em__northline {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 4;
+	}
+	.em__cname {
+		font-size: 21px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		paint-order: stroke;
+		stroke: var(--sl-color-bg);
+		stroke-width: 4;
+	}
+	.em__dial {
+		width: 100%;
+		max-width: 11rem;
+		display: block;
+		margin-inline: auto;
+	}
+	.em__dialcase {
+		fill: var(--sl-color-bg);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.em__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.em__dl {
+		fill: var(--sl-color-white);
+		font-size: 15px;
+		font-weight: 700;
+		text-anchor: middle;
+	}
+	.em__dialneedle,
+	[data-mini-needle] {
+		transition: transform 0.9s cubic-bezier(0.25, 1.6, 0.5, 1);
+	}
+	.em__read {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		text-align: center;
+	}
+	.em__read b {
+		color: var(--sl-color-white);
+		font-size: 1.15em;
+	}
+	@media (max-width: 40rem) {
+		.em__mapwrap {
+			grid-template-columns: 1fr;
+		}
+		.em__dial {
+			max-width: 9rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.em__pole,
+		.em__here,
+		.em__dialneedle,
+		[data-mini-needle],
+		.em__core,
+		.em__bar {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { reduceMotion, ru } from './mag';
+
+	type Payload = {
+		cities: { name: string; x: number; y: number; lat: number; lon: number }[];
+		epochs: { year: number; pole: number[]; D: number[]; I: number[]; paths: string[] }[];
+		LON0: number;
+		LAT_MIN: number;
+	};
+	const CX = 320;
+	const CY = 238;
+	const R = 104;
+	const TILT = (9.2 * Math.PI) / 180;
+	const MC = 320;
+	/** «в …»: city names in the prepositional case. */
+	const IN: Record<string, string> = {
+		Москва: 'в Москве',
+		'Санкт-Петербург': 'в Санкт-Петербурге',
+		Калининград: 'в Калининграде',
+		Мурманск: 'в Мурманске',
+		Новосибирск: 'в Новосибирске',
+		Норильск: 'в Норильске',
+		Якутск: 'в Якутске',
+		Владивосток: 'во Владивостоке',
+		Анадырь: 'в Анадыре',
+		Рейкьявик: 'в Рейкьявике',
+		Лондон: 'в Лондоне',
+		'Нью-Йорк': 'в Нью-Йорке',
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-em]')) {
+		const P: Payload = JSON.parse(root.dataset.payload!);
+
+		// ---------- views ----------
+		const chips = [...root.querySelectorAll<HTMLButtonElement>('[data-view]')];
+		chips.forEach((c) =>
+			c.addEventListener('click', () => {
+				chips.forEach((b) => b.setAttribute('aria-pressed', String(b === c)));
+				root.querySelectorAll<HTMLElement>('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== c.dataset.view));
+				if (c.dataset.view === 'map') showCity(true);
+			}),
+		);
+
+		// ---------- view 1: the dip needle on the surface ----------
+		const svg = root.querySelector<SVGSVGElement>('.em__svg')!;
+		const dip = root.querySelector<SVGGElement>('[data-dip]')!;
+		const needle = root.querySelector<SVGGElement>('[data-needle]')!;
+		const horizon = root.querySelector<SVGLineElement>('[data-horizon]')!;
+		const dipLive = root.querySelector<HTMLElement>('[data-dip-live]')!;
+		const up = { x: -Math.sin(TILT), y: -Math.cos(TILT) };
+		let alpha = (-35 * Math.PI) / 180; // angle from the top of the picture, clockwise
+		let shown = 0; // smoothed needle angle
+		let goal = 0;
+		let raf = 0;
+
+		const placeDip = () => {
+			const nx = Math.sin(alpha);
+			const ny = -Math.cos(alpha);
+			const x = CX + nx * (R + 27);
+			const y = CY + ny * (R + 27);
+			// dipole field: m points to the magnetic pole in the southern hemisphere (−up)
+			const mx = -up.x;
+			const my = -up.y;
+			const md = mx * nx + my * ny;
+			const bx = 3 * md * nx - mx;
+			const by = 3 * md * ny - my;
+			goal = Math.atan2(by, bx);
+			dip.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+			horizon.setAttribute('x1', String(-ny * 36));
+			horizon.setAttribute('y1', String(nx * 36));
+			horizon.setAttribute('x2', String(ny * 36));
+			horizon.setAttribute('y2', String(-nx * 36));
+			// angle between the needle and the horizon
+			const bn = Math.abs(bx * nx + by * ny);
+			const bt = Math.abs(-bx * ny + by * nx);
+			const I = (Math.atan2(bn, bt) * 180) / Math.PI;
+			const magLat = (Math.asin(Math.max(-1, Math.min(1, up.x * nx + up.y * ny))) * 180) / Math.PI;
+			const where = Math.abs(magLat) > 82 ? 'у магнитного полюса' : Math.abs(magLat) < 6 ? 'у магнитного экватора' : magLat > 0 ? 'в северном полушарии' : 'в южном полушарии';
+			const dipText =
+				I > 84
+					? 'стрелка стоит почти <b>вертикально</b>'
+					: I < 5
+						? 'стрелка лежит почти <b>горизонтально</b>'
+						: `стрелка наклонена к горизонту на <b>${Math.round(I)}°</b>`;
+			const end = magLat > 6 ? ' Её северный конец опущен вниз.' : magLat < -6 ? ' Вниз опущен её южный конец.' : '';
+			dipLive.innerHTML = `${where[0].toUpperCase()}${where.slice(1)} ${dipText}.${end}`;
+			dip.setAttribute('aria-valuenow', String(Math.round((alpha * 180) / Math.PI)));
+			spin();
+		};
+		const spin = () => {
+			if (raf) return;
+			const tick = () => {
+				let d = goal - shown;
+				d = Math.atan2(Math.sin(d), Math.cos(d));
+				shown += reduceMotion() ? d : d * 0.18;
+				needle.setAttribute('transform', `rotate(${((shown * 180) / Math.PI).toFixed(2)})`);
+				raf = Math.abs(d) > 0.002 ? requestAnimationFrame(tick) : 0;
+			};
+			raf = requestAnimationFrame(tick);
+		};
+		let dragging = false;
+		const svgPt = (s: SVGSVGElement, e: PointerEvent) => {
+			const r = s.getBoundingClientRect();
+			const vb = s.viewBox.baseVal;
+			return { x: vb.x + ((e.clientX - r.left) / r.width) * vb.width, y: vb.y + ((e.clientY - r.top) / r.height) * vb.height };
+		};
+		dip.addEventListener('pointerdown', (e) => {
+			e.preventDefault();
+			dragging = true;
+			dip.setPointerCapture(e.pointerId);
+		});
+		dip.addEventListener('pointermove', (e) => {
+			if (!dragging) return;
+			const p = svgPt(svg, e);
+			alpha = Math.atan2(p.x - CX, -(p.y - CY));
+			placeDip();
+		});
+		dip.addEventListener('pointerup', () => (dragging = false));
+		dip.addEventListener('pointercancel', () => (dragging = false));
+		dip.addEventListener('keydown', (e) => {
+			const d = e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : 0;
+			if (!d) return;
+			e.preventDefault();
+			alpha += (d * 5 * Math.PI) / 180;
+			placeDip();
+		});
+		root.querySelectorAll<HTMLInputElement>('[data-toggle]').forEach((inp) => {
+			const el = root.querySelector<SVGGElement>(`[data-${inp.dataset.toggle}]`)!;
+			const set = () => (el.style.opacity = inp.checked ? '1' : '0');
+			inp.addEventListener('change', set);
+			set();
+		});
+		placeDip();
+
+		// ---------- view 2: the map ----------
+		const pathEl = root.querySelector<SVGPathElement>('[data-path]')!;
+		const pole = root.querySelector<SVGGElement>('[data-pole]')!;
+		const here = root.querySelector<SVGGElement>('[data-here]')!;
+		const north = root.querySelector<SVGLineElement>('[data-north]')!;
+		const mini = root.querySelector<SVGGElement>('[data-mini-needle]')!;
+		const cname = root.querySelector<SVGTextElement>('[data-cname]')!;
+		const dialNeedle = root.querySelector<SVGGElement>('[data-dial-needle]')!;
+		const read = root.querySelector<HTMLElement>('[data-read]')!;
+		const mapLive = root.querySelector<HTMLElement>('[data-map-live]')!;
+		const yearIn = root.querySelector<HTMLInputElement>('[data-year]')!;
+		const yearOut = root.querySelector<HTMLOutputElement>('[data-year-out]')!;
+		const cityChips = [...root.querySelectorAll<HTMLButtonElement>('[data-city]')];
+		let city = 0;
+		let ep = P.epochs.length - 1;
+		let dialDeg = 0; // keeps the needle turning the short way
+
+		const showCity = (redraw = false) => {
+			const c = P.cities[city];
+			const e = P.epochs[ep];
+			const D = e.D[city];
+			// local north on the map points to the centre; east is perpendicular (counter-clockwise around the pole)
+			const dx = MC - c.x;
+			const dy = MC - c.y;
+			const r = Math.hypot(dx, dy);
+			const nX = dx / r;
+			const nY = dy / r;
+			const eX = -nY;
+			const eY = nX;
+			// the azimuthal map stretches the parallels by θ / sin θ (θ — distance from the pole)
+			const th = ((90 - c.lat) * Math.PI) / 180;
+			const k = th / Math.sin(th);
+			const dr = (D * Math.PI) / 180;
+			let vx = Math.cos(dr) * nX + k * Math.sin(dr) * eX;
+			let vy = Math.cos(dr) * nY + k * Math.sin(dr) * eY;
+			const vl = Math.hypot(vx, vy);
+			vx /= vl;
+			vy /= vl;
+			const ang = (Math.atan2(vx, -vy) * 180) / Math.PI; // screen angle of the needle from "up"
+			here.style.transform = `translate(${c.x}px, ${c.y}px)`;
+			north.setAttribute('x1', '0');
+			north.setAttribute('y1', '0');
+			north.setAttribute('x2', String(nX * 60));
+			north.setAttribute('y2', String(nY * 60));
+			const mini0 = root.querySelector<SVGGElement>('[data-mini]')!;
+			// the little compass sits beside the city, on the side away from the pole
+			mini0.setAttribute('transform', `translate(${(-nX * 34).toFixed(1)} ${(-nY * 34).toFixed(1)})`);
+			mini.style.transform = `rotate(${ang}deg)`;
+			cname.textContent = c.name;
+			const right = c.x < MC + 40;
+			cname.setAttribute('x', String(right ? 14 : -14));
+			cname.setAttribute('y', String(nY > 0 ? -12 : 26));
+			cname.setAttribute('text-anchor', right ? 'start' : 'end');
+			pole.style.transform = `translate(${e.pole[0]}px, ${e.pole[1]}px)`;
+			pathEl.setAttribute('d', e.paths[city]);
+			if (redraw && !reduceMotion()) {
+				const len = pathEl.getTotalLength();
+				pathEl.style.transition = 'none';
+				pathEl.style.strokeDasharray = `${len}`;
+				pathEl.style.strokeDashoffset = `${len}`;
+				void pathEl.getBoundingClientRect();
+				pathEl.style.transition = 'stroke-dashoffset 1.4s ease-in-out';
+				pathEl.style.strokeDashoffset = '0';
+			} else {
+				pathEl.style.transition = 'none';
+				pathEl.style.strokeDasharray = 'none';
+				pathEl.style.strokeDashoffset = '0';
+			}
+			// the dial: north up, the needle turned by D
+			let target = D;
+			while (target - dialDeg > 180) target -= 360;
+			while (target - dialDeg < -180) target += 360;
+			dialDeg = target;
+			dialNeedle.style.transform = `rotate(${dialDeg}deg)`;
+			const side = Math.abs(D) < 0.5 ? 'почти точно на север' : D > 0 ? `на ${ru(Math.abs(D), 0)}° к востоку` : `на ${ru(Math.abs(D), 0)}° к западу`;
+			read.innerHTML = `${c.name}, ${e.year}<br />Склонение: <b>${D > 0.5 ? '+' : D < -0.5 ? '−' : ''}${ru(Math.abs(D), 0)}°</b>`;
+			mapLive.innerHTML =
+				Math.abs(D) < 0.5
+					? `В ${e.year} году ${IN[c.name]} стрелка компаса показывает <b>почти точно на географический север</b>.`
+					: `В ${e.year} году ${IN[c.name]} северный конец стрелки отклонён от направления на географический север <b>${side}</b>.`;
+			yearOut.textContent = String(e.year);
+		};
+		cityChips.forEach((b) =>
+			b.addEventListener('click', () => {
+				city = Number(b.dataset.city);
+				cityChips.forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
+				showCity(true);
+			}),
+		);
+		root.querySelectorAll<SVGCircleElement>('[data-city-dot]').forEach((d) =>
+			d.addEventListener('click', () => cityChips[Number(d.dataset.cityDot)].click()),
+		);
+		yearIn.addEventListener('input', () => {
+			ep = Number(yearIn.value);
+			showCity(false);
+		});
+		showCity(false);
+	}
+</script>

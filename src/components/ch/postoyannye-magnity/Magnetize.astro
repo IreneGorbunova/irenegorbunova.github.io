@@ -1,0 +1,438 @@
+---
+/**
+ * How iron is magnetised. A bar is drawn with its small magnetic regions (arrows, from S to N of each region).
+ * A magnet held vertically, N pole down, can be dragged over the bar: in a strong enough field the regions turn
+ * along the field. Soft iron turns easily but falls back to disorder when the magnet is taken away; steel needs
+ * a strong field (the pole close by) and keeps the order — it becomes a permanent magnet. Heating destroys the
+ * order; cutting gives two magnets, each with both poles. Qualitative model; the field of the magnet is that of
+ * its two pole faces (1/r²).
+ */
+import PmStyles from './PmStyles.astro';
+
+const COLS = 14;
+const ROWS = 3;
+const X0 = 120;
+const X1 = 520;
+const Y0 = 196;
+const H = 66;
+const cells: { x: number; y: number; c: number }[] = [];
+for (let r = 0; r < ROWS; r++)
+	for (let c = 0; c < COLS; c++)
+		cells.push({ x: X0 + ((c + 0.5) * (X1 - X0)) / COLS, y: Y0 + ((r + 0.5) * H) / ROWS, c });
+---
+
+<PmStyles />
+<figure class="pm-box mz not-content" data-mz>
+	<div class="pm-row" role="group" aria-label="Из чего брусок" style="margin-top: 0">
+		<button type="button" class="pm-chip" data-mat="soft" aria-pressed="true">Мягкое железо</button>
+		<button type="button" class="pm-chip" data-mat="steel" aria-pressed="false">Сталь</button>
+	</div>
+	<svg class="pm-svg mz__svg" viewBox="0 0 640 372" role="img" aria-label="Брусок железа, магнитики внутри него и магнит, которым можно водить над бруском">
+		<g data-halves>
+			{
+				[0, 1].map((h) => (
+					<g class="mz__half" data-half={h}>
+						<rect class="mz__bar" x={h === 0 ? X0 - 8 : (X0 + X1) / 2} y={Y0 - 6} width={(X1 - X0) / 2 + 8} height={H + 12} rx="4" />
+						<rect class="mz__glow" x={h === 0 ? X0 - 8 : (X0 + X1) / 2} y={Y0 - 6} width={(X1 - X0) / 2 + 8} height={H + 12} data-glow />
+						<text class="mz__pole" data-pole="l" x={h === 0 ? X0 + 6 : (X0 + X1) / 2 + 14} y={Y0 + H + 34} />
+						<text class="mz__pole" data-pole="r" x={h === 0 ? (X0 + X1) / 2 - 14 : X1 - 6} y={Y0 + H + 34} />
+						<g data-clips="l" class="mz__clips" transform={`translate(${h === 0 ? X0 + 6 : (X0 + X1) / 2 + 14} ${Y0 + H + 6})`} />
+						<g data-clips="r" class="mz__clips" transform={`translate(${h === 0 ? (X0 + X1) / 2 - 14 : X1 - 6} ${Y0 + H + 6})`} />
+						{cells
+							.filter((c) => (h === 0 ? c.c < COLS / 2 : c.c >= COLS / 2))
+							.map((c) => (
+								<path class="mz__dom" data-dom data-x={c.x} data-y={c.y} />
+							))}
+					</g>
+				))
+			}
+		</g>
+		<g class="mz__magnet" data-magnet tabindex="0" role="button" aria-label="Магнит: перетащите его над бруском">
+			<rect class="mz__ms" x="-22" y="-75" width="44" height="75" rx="5"></rect>
+			<rect class="mz__mn" x="-22" y="0" width="44" height="75" rx="5"></rect>
+			<text class="mz__ml" x="0" y="-30">S</text>
+			<text class="mz__ml" x="0" y="48">N</text>
+		</g>
+		<text class="mz__hint" x="20" y="28">Тяните магнит над бруском</text>
+	</svg>
+	<div class="pm-row">
+		<button type="button" class="pm-btn pm-btn--primary" data-act="stroke">Провести магнитом вдоль бруска</button>
+		<button type="button" class="pm-btn" data-act="away">Убрать магнит</button>
+		<button type="button" class="pm-btn" data-act="heat">Нагреть</button>
+		<button type="button" class="pm-btn" data-act="cut">Разрезать пополам</button>
+		<button type="button" class="pm-btn" data-act="reset">Сначала</button>
+	</div>
+	<p class="pm-live" aria-live="polite" data-live></p>
+	<figcaption class="pm-cap">
+		Стрелки — маленькие области внутри железа; каждая из них — крошечный магнит (стрелка смотрит от его <span class="pm-s">S</span> к <span class="pm-n">N</span>). Внизу на концах бруска — стальные скрепки: они
+		прилипают, только когда брусок намагничен. Модель качественная: областей в настоящем железе гораздо больше, и они намного меньше.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.mz__svg {
+		touch-action: none;
+	}
+	.mz__bar {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.mz__glow {
+		fill: var(--ig-vy);
+		opacity: 0;
+		pointer-events: none;
+	}
+	.mz__dom {
+		stroke: var(--sl-color-white);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		fill: none;
+	}
+	.mz__pole {
+		font-size: 22px;
+		font-weight: 700;
+		text-anchor: middle;
+		transition: opacity 0.3s;
+	}
+	.mz__pole[data-p='N'] {
+		fill: var(--ig-vx);
+	}
+	.mz__pole[data-p='S'] {
+		fill: var(--ig-vy);
+	}
+	.mz__clips path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.mz__half {
+		transition: transform 0.6s cubic-bezier(0.3, 1.2, 0.5, 1);
+	}
+	.mz__magnet {
+		cursor: grab;
+		outline: none;
+	}
+	.mz__magnet:focus-visible rect {
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+	}
+	.mz__ms {
+		fill: var(--ig-vy);
+	}
+	.mz__mn {
+		fill: var(--ig-vx);
+	}
+	.mz__ml {
+		fill: var(--sl-color-bg);
+		font-size: 22px;
+		font-weight: 700;
+		text-anchor: middle;
+	}
+	.mz__hint {
+		fill: var(--sl-color-gray-3);
+		font-size: 21px;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.mz__half {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	import { reduceMotion, loop, rng, wrap } from './mag';
+
+	const MLEN = 75; // distance from the magnet's centre to each pole face
+	const PARK = { x: 590, y: 95 };
+	const MAT = {
+		// the field (≈ 1/d², d in px from the N pole) needed to turn a region, and how fast regions fall back
+		soft: { need: 1 / 115 ** 2, relax: 1.4 },
+		steel: { need: 1 / 75 ** 2, relax: 0 },
+	};
+	const X_MID = 320;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-mz]')) {
+		const svg = root.querySelector('svg')!;
+		const magnet = root.querySelector<SVGGElement>('[data-magnet]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const halves = [...root.querySelectorAll<SVGGElement>('[data-half]')];
+		const glows = [...root.querySelectorAll<SVGRectElement>('[data-glow]')];
+		const doms = [...root.querySelectorAll<SVGPathElement>('[data-dom]')].map((el) => ({
+			el,
+			x: Number(el.dataset.x),
+			y: Number(el.dataset.y),
+			ang: 0,
+			home: 0,
+			touched: false,
+			half: el.closest<SVGGElement>('[data-half]')!.dataset.half === '1' ? 1 : 0,
+		}));
+		const rand = rng(11);
+		let mat: keyof typeof MAT = 'soft';
+		const mpos = { ...PARK };
+		let heat = 0;
+		let cut = false;
+		let stroke: { t: number } | null = null;
+		let parkAnim: { from: { x: number; y: number }; t: number } | null = null;
+
+		const scatter = () => {
+			for (const d of doms) {
+				d.home = rand() * Math.PI * 2;
+				d.touched = false;
+			}
+		};
+		const reset = () => {
+			scatter();
+			for (const d of doms) d.ang = d.home;
+			mpos.x = PARK.x;
+			mpos.y = PARK.y;
+			cut = false;
+			heat = 0;
+			stroke = null;
+			parkAnim = null;
+			render();
+			describe();
+		};
+
+		const fieldAt = (x: number, y: number) => {
+			let bx = 0;
+			let by = 0;
+			for (const [px, py, q] of [
+				[mpos.x, mpos.y + MLEN - 4, 1],
+				[mpos.x, mpos.y - MLEN + 4, -1],
+			]) {
+				const dx = x - px;
+				const dy = y - py;
+				const r2 = dx * dx + dy * dy + 36;
+				const f = q / (r2 * Math.sqrt(r2));
+				bx += f * dx;
+				by += f * dy;
+			}
+			return { bx, by, b: Math.hypot(bx, by) };
+		};
+
+		/** Mean magnetisation along the bar of one half (or both). */
+		const mean = (half?: number) => {
+			let s = 0;
+			let n = 0;
+			for (const d of doms)
+				if (half === undefined || d.half === half) {
+					s += Math.cos(d.ang);
+					n++;
+				}
+			return s / n;
+		};
+
+		const clipPath = (n: number) => {
+			let p = '';
+			for (let i = 0; i < n; i++) {
+				const y = i * 24;
+				p += `M-5 ${y + 2} v16 a5 5 0 0 0 10 0 v-14 a3.5 3.5 0 0 0 -7 0 v12 `;
+			}
+			return p;
+		};
+
+		const render = () => {
+			for (const d of doms) {
+				const c = Math.cos(d.ang);
+				const s = Math.sin(d.ang);
+				const tx = d.x + c * 9;
+				const ty = d.y + s * 9;
+				const f = (v: number) => v.toFixed(1);
+				// a shaft and an open head
+				d.el.setAttribute(
+					'd',
+					`M${f(d.x - c * 9)} ${f(d.y - s * 9)}L${f(tx)} ${f(ty)}M${f(tx - c * 5 - s * 4)} ${f(ty - s * 5 + c * 4)}L${f(tx)} ${f(ty)}L${f(tx - c * 5 + s * 4)} ${f(ty - s * 5 - c * 4)}`,
+				);
+			}
+			magnet.setAttribute('transform', `translate(${mpos.x.toFixed(1)} ${mpos.y.toFixed(1)})`);
+			halves[0].style.transform = cut ? 'translateX(-16px)' : '';
+			halves[1].style.transform = cut ? 'translateX(16px)' : '';
+			glows.forEach((g) => (g.style.opacity = String(0.55 * heat)));
+			// poles and clips: for each half when cut, for the whole bar otherwise
+			halves.forEach((h, i) => {
+				const m = cut ? mean(i) : mean();
+				const strong = Math.abs(m) > 0.3;
+				const right = m > 0 ? 'N' : 'S';
+				const left = m > 0 ? 'S' : 'N';
+				for (const side of ['l', 'r'] as const) {
+					const t = h.querySelector<SVGTextElement>(`[data-pole="${side}"]`)!;
+					// the outer ends of the bar always show; the inner ends only when it is cut
+					const outer = (i === 0 && side === 'l') || (i === 1 && side === 'r');
+					const visible = strong && (outer || cut);
+					t.textContent = side === 'l' ? left : right;
+					t.dataset.p = side === 'l' ? left : right;
+					t.style.opacity = visible ? '1' : '0';
+					const clips = h.querySelector<SVGGElement>(`[data-clips="${side}"]`)!;
+					const n = visible ? Math.min(2, 1 + Math.floor((Math.abs(m) - 0.3) / 0.3)) : 0;
+					clips.innerHTML = n > 0 ? `<path d="${clipPath(n)}"></path>` : '';
+					t.setAttribute('y', String(196 + 66 + 34 + Math.max(0, n) * 24));
+				}
+			});
+		};
+
+		const describe = () => {
+			const m = mean();
+			const mL = mean(0);
+			const mR = mean(1);
+			const near = fieldAt(X_MID, 229).b > 1 / 200 ** 2;
+			if (heat > 0.3) {
+				live.innerHTML = 'Брусок раскалён: тепловое движение разбрасывает магнитики в разные стороны, и брусок теряет магнитные свойства.';
+			} else if (cut && Math.abs(mL) > 0.3 && Math.abs(mR) > 0.3) {
+				live.innerHTML = 'Получились <b>два магнита</b>, и у каждого есть и северный, и южный полюс. Магнит с одним полюсом получить нельзя.';
+			} else if (Math.abs(m) > 0.3) {
+				const pole = m > 0 ? 'справа' : 'слева';
+				live.innerHTML = `Брусок <b>намагничен</b>: почти все магнитики смотрят в одну сторону, северный полюс бруска ${pole}.${near ? '' : mat === 'steel' ? ' Сталь сохраняет намагниченность и без магнита — получился постоянный магнит.' : ''}`;
+			} else if (near && mat === 'soft') {
+				live.innerHTML = 'Магнитики поворачиваются только там, где поле магнита достаточно сильное. Поднесите магнит ближе или проведите им вдоль бруска.';
+			} else {
+				live.innerHTML = 'Брусок <b>не намагничен</b>: магнитики смотрят в разные стороны, и их действия гасят друг друга.';
+			}
+		};
+
+		const step = (dt: number) => {
+			let busy = false;
+			if (stroke) {
+				// the N pole slides along the bar from left to right, just above it, three times
+				stroke.t += dt / 1.3;
+				const pass = Math.floor(stroke.t);
+				const f = stroke.t - pass;
+				if (pass >= 3) {
+					stroke = null;
+					parkAnim = { from: { ...mpos }, t: 0 };
+				} else {
+					const x = 80 + f * 480;
+					const lift = f < 0.08 ? (0.08 - f) * 900 : f > 0.92 ? (f - 0.92) * 900 : 0; // lift at the ends
+					mpos.x = x;
+					mpos.y = 196 - 6 - MLEN - 4 - lift;
+				}
+				busy = true;
+			} else if (parkAnim) {
+				parkAnim.t = Math.min(1, parkAnim.t + dt / 0.6);
+				const e = 1 - (1 - parkAnim.t) ** 3;
+				mpos.x = parkAnim.from.x + (PARK.x - parkAnim.from.x) * e;
+				mpos.y = parkAnim.from.y + (PARK.y - parkAnim.from.y) * e;
+				if (parkAnim.t >= 1) parkAnim = null;
+				busy = true;
+			}
+			const p = MAT[mat];
+			const jitter = heat;
+			for (const d of doms) {
+				const x = d.x + (cut ? (d.half ? 16 : -16) : 0);
+				const f = fieldAt(x, d.y);
+				let goal: number | null = null;
+				let rate = 0;
+				if (heat > 0.05) {
+					goal = d.home;
+					rate = 6 * heat;
+				} else if (f.b > p.need) {
+					goal = Math.atan2(f.by, f.bx);
+					rate = 9;
+					d.touched = true;
+				} else if (p.relax > 0) {
+					goal = d.home;
+					rate = p.relax;
+				} else if (d.touched) {
+					// in a long steel bar a region keeps its order along the bar: it settles to the nearer direction along it
+					goal = Math.cos(d.ang) >= 0 ? 0 : Math.PI;
+					rate = 4;
+				}
+				if (goal !== null) {
+					const diff = wrap(goal - d.ang);
+					if (Math.abs(diff) > 0.003) {
+						d.ang += reduceMotion() ? diff : diff * Math.min(1, dt * rate);
+						busy = true;
+					}
+				}
+				if (jitter > 0.05 && !reduceMotion()) {
+					d.ang += (rand() - 0.5) * 1.2 * jitter;
+					busy = true;
+				}
+			}
+			if (heat > 0) {
+				heat = Math.max(0, heat - dt / 3.5);
+				busy = true;
+			}
+			render();
+			describe();
+			return busy || drag;
+		};
+		const wake = loop(root, step);
+
+		// ---------- dragging the magnet ----------
+		let drag = false;
+		let off = { x: 0, y: 0 };
+		const pt = (e: PointerEvent) => {
+			const r = svg.getBoundingClientRect();
+			const vb = svg.viewBox.baseVal;
+			return { x: ((e.clientX - r.left) / r.width) * vb.width, y: ((e.clientY - r.top) / r.height) * vb.height };
+		};
+		magnet.addEventListener('pointerdown', (e) => {
+			e.preventDefault();
+			stroke = null;
+			parkAnim = null;
+			drag = true;
+			const p = pt(e);
+			off = { x: mpos.x - p.x, y: mpos.y - p.y };
+			magnet.setPointerCapture(e.pointerId);
+			wake();
+		});
+		magnet.addEventListener('pointermove', (e) => {
+			if (!drag) return;
+			const p = pt(e);
+			mpos.x = Math.min(615, Math.max(25, p.x + off.x));
+			// the magnet stays above the bar: its N pole cannot go into the iron
+			mpos.y = Math.min(196 - 6 - MLEN - 2, Math.max(MLEN + 2, p.y + off.y));
+			wake();
+		});
+		const end = () => {
+			drag = false;
+		};
+		magnet.addEventListener('pointerup', end);
+		magnet.addEventListener('pointercancel', end);
+		magnet.addEventListener('keydown', (e) => {
+			const dx = e.key === 'ArrowLeft' ? -15 : e.key === 'ArrowRight' ? 15 : 0;
+			const dy = e.key === 'ArrowUp' ? -15 : e.key === 'ArrowDown' ? 15 : 0;
+			if (!dx && !dy) return;
+			e.preventDefault();
+			mpos.x = Math.min(615, Math.max(25, mpos.x + dx));
+			mpos.y = Math.min(196 - 6 - MLEN - 2, Math.max(MLEN + 2, mpos.y + dy));
+			wake();
+		});
+
+		// ---------- buttons ----------
+		root.querySelectorAll<HTMLButtonElement>('[data-mat]').forEach((b) =>
+			b.addEventListener('click', () => {
+				mat = b.dataset.mat as keyof typeof MAT;
+				root.querySelectorAll('[data-mat]').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
+				reset();
+				wake();
+			}),
+		);
+		const act = (name: string, fn: () => void) => root.querySelector(`[data-act="${name}"]`)!.addEventListener('click', () => (fn(), wake()));
+		act('stroke', () => {
+			if (cut) {
+				cut = false;
+			}
+			parkAnim = null;
+			stroke = { t: 0 };
+		});
+		act('away', () => {
+			stroke = null;
+			parkAnim = { from: { ...mpos }, t: 0 };
+		});
+		act('heat', () => {
+			scatter();
+			heat = 1;
+		});
+		act('cut', () => {
+			cut = !cut;
+			root.querySelector('[data-act="cut"]')!.textContent = cut ? 'Сложить половинки' : 'Разрезать пополам';
+		});
+		act('reset', () => {
+			reset();
+			root.querySelector('[data-act="cut"]')!.textContent = 'Разрезать пополам';
+		});
+		reset();
+	}
+</script>

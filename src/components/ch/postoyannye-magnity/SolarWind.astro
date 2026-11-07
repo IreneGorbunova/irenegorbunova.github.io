@@ -1,0 +1,540 @@
+---
+/**
+ * Solar wind and the Earth's magnetosphere, side view, lengths in Earth radii (Earth is to scale with the
+ * magnetosphere). The boundary of the magnetosphere follows the empirical model of Shue et al. (1997):
+ * r = r₀ (2 / (1 + cos θ))^α, r₀ ≈ 10 Earth radii for a quiet wind and about 6 in a strong storm.
+ * Field lines: the Earth's dipole, its mirror image behind the boundary (Chapman–Ferraro: compression of the
+ * day side) and a tail field that stretches the night side. The wind flows around the magnetosphere; some
+ * particles come along the field lines from the tail into the polar regions, where the air glows: aurora.
+ * The oval of the aurora moves towards the equator in a storm. A magnetometer record shows the storm.
+ */
+import PmStyles from './PmStyles.astro';
+---
+
+<PmStyles />
+<figure class="pm-box sw not-content" data-sw>
+	<canvas class="pm-canvas sw__canvas" width="800" height="500" role="img" aria-label="Солнечный ветер обтекает магнитное поле Земли; у полюсов светятся полярные сияния"></canvas>
+	<label class="pm-slider">
+		<span>Солнечный ветер: <span data-level></span></span>
+		<output data-out></output>
+		<input type="range" min="0" max="100" step="1" value="5" data-storm aria-label="Сила солнечного ветра" />
+	</label>
+	<div class="pm-row">
+		<label class="pm-check"><input type="checkbox" data-show-lines checked /> Магнитные линии</label>
+		<label class="pm-check"><input type="checkbox" data-show-wind checked /> Частицы солнечного ветра</label>
+	</div>
+	<p class="pm-live" aria-live="polite" data-live></p>
+	<figcaption class="pm-cap">
+		Размеры Земли и магнитного поля вокруг неё показаны в одном масштабе; Солнце — далеко слева, в 23 000 радиусах Земли. Солнечный ветер летит от Солнца до Земли несколько суток. Внизу слева — запись магнитометра: во время бури магнитное поле Земли быстро и сильно меняется.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.sw__canvas {
+		margin-top: 0.25rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-black);
+	}
+</style>
+
+<script>
+	import { css, varRGB, onTheme, reduceMotion, loop, rng, fitCanvas, type RGB } from './mag';
+
+	type Pt = { x: number; y: number };
+	const rand = rng(5);
+
+	/** Cities and their geomagnetic latitudes (dipole of IGRF-14, 2025), degrees. */
+	const CITIES: [string, number][] = [
+		['Мурманске', 64.9],
+		['Норильске', 60.5],
+		['Архангельске', 59.8],
+		['Санкт-Петербурге', 56.7],
+		['Москве', 51.7],
+		['Новосибирске', 46.5],
+	];
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-sw]')) {
+		const canvas = root.querySelector('canvas')!;
+		const ctx = canvas.getContext('2d')!;
+		const slider = root.querySelector<HTMLInputElement>('[data-storm]')!;
+		const out = root.querySelector<HTMLOutputElement>('[data-out]')!;
+		const levelEl = root.querySelector<HTMLElement>('[data-level]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const showLines = root.querySelector<HTMLInputElement>('[data-show-lines]')!;
+		const showWind = root.querySelector<HTMLInputElement>('[data-show-wind]')!;
+
+		// view in Earth radii
+		let X0 = -16;
+		let X1 = 34;
+		let Y1 = 20;
+		let WW = 800;
+		let HH = 500;
+		let k = 20; // canvas px per Earth radius
+
+		let s = 0.05; // storm level 0…1
+		let r0 = 10;
+		let al = 0.6;
+		let lines: Pt[][] = [];
+		let auroraLine: Pt[] = [];
+		let latAur = 66;
+		const glow = [0, 0]; // north, south brightness
+
+		let col: Record<string, RGB> = {};
+		const readColours = () => {
+			col = {
+				sun: varRGB(root, '--ig-v'),
+				wind: varRGB(root, '--sl-color-orange'),
+				line: varRGB(root, '--ig-vx'),
+				mp: varRGB(root, '--sl-color-gray-3'),
+				ink: varRGB(root, '--sl-color-gray-2'),
+				earth: varRGB(root, '--sl-color-blue'),
+				night: varRGB(root, '--sl-color-gray-6'),
+				aur: varRGB(root, '--sl-color-green'),
+				aur2: varRGB(root, '--sl-color-red'),
+				trace: varRGB(root, '--sl-color-accent'),
+			};
+		};
+
+		// ---------- physics of the picture ----------
+		const setStorm = (v: number) => {
+			s = v;
+			const dp = 2 * 12.5 ** s; // solar-wind pressure, nPa: 2 (quiet) … 25 (strong storm)
+			const bz = -20 * s; // southward interplanetary field, nT
+			r0 = (10.22 + 1.29 * Math.tanh(0.184 * (bz + 8.14))) * dp ** (-1 / 6.6);
+			al = (0.58 - 0.007 * bz) * (1 + 0.024 * Math.log(dp));
+			latAur = 66 - 17 * s;
+			trace();
+			describe();
+		};
+		const rmp = (th: number) => r0 * (2 / (1 + Math.cos(th))) ** al;
+		const insideMp = (x: number, y: number) => {
+			const r = Math.hypot(x, y);
+			const th = Math.atan2(Math.abs(y), -x); // angle from the Sun direction
+			return th < 2.9 ? r < rmp(th) : true;
+		};
+
+		const B = (x: number, y: number) => {
+			// Earth's dipole, moment pointing south (−y); y up
+			const dip = (cx: number, cy: number) => {
+				const dx = x - cx;
+				const dy = y - cy;
+				const r2 = dx * dx + dy * dy;
+				const r = Math.sqrt(r2);
+				const md = -dy / r; // m·r̂ with m = (0, −1)
+				return { x: (3 * md * dx) / r / (r2 * r), y: (3 * md * (dy / r) + 1) / (r2 * r) };
+			};
+			const a = dip(0, 0);
+			const b = dip(-2 * r0, 0);
+			// tail: field towards the Earth above the equator, away from it below; it grows behind the Earth
+			const ramp = Math.min(1, Math.max(0, (x + 4) / 14));
+			const bt = 0.002 * (1 + 2.2 * s) * ramp * Math.tanh(y / 1.4);
+			return { x: a.x + b.x - bt, y: a.y + b.y };
+		};
+
+		const traceFrom = (lat: number, night: boolean) => {
+			const t = (lat * Math.PI) / 180;
+			let x = (night ? 1 : -1) * Math.cos(t) * 1.001;
+			let y = Math.sin(t) * 1.001;
+			const pts: Pt[] = [{ x, y }];
+			for (let i = 0; i < 4000; i++) {
+				const b1 = B(x, y);
+				const n1 = Math.hypot(b1.x, b1.y);
+				const h = Math.min(0.25, 0.04 * Math.hypot(x, y));
+				const mx = x - (b1.x / n1) * h * 0.5;
+				const my = y - (b1.y / n1) * h * 0.5;
+				const b2 = B(mx, my);
+				const n2 = Math.hypot(b2.x, b2.y);
+				x -= (b2.x / n2) * h;
+				y -= (b2.y / n2) * h;
+				pts.push({ x, y });
+				if (Math.hypot(x, y) < 1) break;
+				if (x > X1 + 3 || x < X0 - 3 || Math.abs(y) > Y1 + 3) break;
+				if (!insideMp(x, y)) break;
+			}
+			return pts;
+		};
+
+		const trace = () => {
+			lines = [];
+			for (const lat of [30, 45, 55, 62, 68, 72, 76, 80, 84]) {
+				lines.push(traceFrom(lat, true));
+				lines.push(traceFrom(lat, false));
+			}
+			auroraLine = traceFrom(latAur, true);
+		};
+
+		// ---------- particles ----------
+		type Wind = { x: number; y: number; vx: number; vy: number };
+		let wind: Wind[] = [];
+		const spawnWind = (w: Wind, anywhere: boolean) => {
+			w.x = anywhere ? X0 + rand() * (X1 - X0) : X0 - rand() * 2;
+			w.y = (rand() * 2 - 1) * (Y1 + 1);
+			w.vx = 1;
+			w.vy = 0;
+		};
+		const makeWind = () => {
+			wind = Array.from({ length: 320 }, () => {
+				const w = { x: 0, y: 0, vx: 1, vy: 0 };
+				spawnWind(w, true);
+				return w;
+			});
+		};
+		type Fly = { line: Pt[]; i: number; south: boolean; ph: number };
+		let flies: Fly[] = [];
+		let spawnT = 0;
+
+		const moveWind = (dt: number) => {
+			const u = (6 + 6 * s) * dt; // Earth radii per second on screen
+			for (const w of wind) {
+				let nx = w.x + w.vx * u;
+				let ny = w.y + w.vy * u;
+				const r = Math.hypot(nx, ny);
+				const th = Math.atan2(Math.abs(ny), -nx);
+				const edge = th < 2.9 ? rmp(th) * 1.06 : 0;
+				if (r < edge) {
+					// slide along the boundary: put the particle on it and turn its velocity along the surface
+					const sy = ny >= 0 ? 1 : -1;
+					const th2 = th + 0.002;
+					const r2 = rmp(th2) * 1.06;
+					const tx = -r2 * Math.cos(th2) - -edge * Math.cos(th);
+					const ty = sy * (r2 * Math.sin(th2) - edge * Math.sin(th));
+					const tl = Math.hypot(tx, ty) || 1;
+					nx = -edge * Math.cos(th);
+					ny = sy * edge * Math.sin(th);
+					w.vx = tx / tl;
+					w.vy = ty / tl;
+				} else if (w.vx < 0.999) {
+					// away from the boundary the flow slowly straightens
+					w.vx += (1 - w.vx) * dt * 0.6;
+					w.vy *= 1 - dt * 0.6;
+				}
+				w.x = nx;
+				w.y = ny;
+				if (w.x > X1 + 1 || Math.abs(w.y) > Y1 + 2) spawnWind(w, false);
+			}
+		};
+
+		const moveFlies = (dt: number) => {
+			spawnT += dt * (1.2 + 9 * s * s);
+			while (spawnT > 1) {
+				spawnT -= 1;
+				if (auroraLine.length > 10) {
+					// start in the tail, where the field line is farthest from the Earth
+					let far = 0;
+					auroraLine.forEach((p, i) => {
+						if (p.x > auroraLine[far].x) far = i;
+					});
+					flies.push({ line: auroraLine, i: far * (0.7 + 0.3 * rand()), south: rand() < 0.5, ph: rand() * 6 });
+				}
+			}
+			for (const f of flies) {
+				f.i -= dt * 110; // points of the line per second, towards the Earth
+				if (f.i <= 0) glow[f.south ? 1 : 0] = Math.min(1, glow[f.south ? 1 : 0] + 0.12);
+			}
+			flies = flies.filter((f) => f.i > 0);
+			glow[0] = Math.max(0.15 + 0.5 * s, glow[0] - dt * 0.5);
+			glow[1] = Math.max(0.15 + 0.5 * s, glow[1] - dt * 0.5);
+		};
+
+		// magnetometer record: a scrolling trace; its swings grow in a storm
+		const REC = 160;
+		const rec: number[] = Array(REC).fill(0);
+		let recT = 0;
+		let recV = 0;
+		const record = (dt: number) => {
+			recT += dt;
+			while (recT > 0.05) {
+				recT -= 0.05;
+				const amp = 0.04 + 0.9 * s * s;
+				recV += (rand() - 0.5) * amp - recV * 0.08;
+				rec.push(recV - (s > 0.4 ? 0.35 * (s - 0.4) : 0));
+				rec.shift();
+			}
+		};
+
+		// ---------- drawing ----------
+		const X = (x: number) => (x - X0) * k;
+		const Y = (y: number) => (Y1 - y) * k;
+
+		const draw = (t: number) => {
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			// the Sun's glow on the left
+			const sg = ctx.createRadialGradient(X(X0 - 6), Y(0), 0, X(X0 - 6), Y(0), 9 * k);
+			sg.addColorStop(0, css(col.sun, 0.75));
+			sg.addColorStop(0.35, css(col.sun, 0.25));
+			sg.addColorStop(1, css(col.sun, 0));
+			ctx.fillStyle = sg;
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+			ctx.fillStyle = css(col.ink);
+			ctx.font = `${Math.round(13 * (k / 20) * 1.15 + 3)}px Alice, Georgia, serif`;
+			ctx.textBaseline = 'top';
+			ctx.fillText('Солнце', 8 * (k / 20) + 4, 8 * (k / 20) + 4);
+			// magnetopause
+			ctx.strokeStyle = css(col.mp, 0.7);
+			ctx.lineWidth = 1.5;
+			ctx.setLineDash([6, 5]);
+			for (const sy of [1, -1]) {
+				ctx.beginPath();
+				for (let th = 0; th < 2.9; th += 0.02) {
+					const r = rmp(th);
+					const x = -r * Math.cos(th);
+					const y = sy * r * Math.sin(th);
+					if (x > X1 + 2) break;
+					if (th === 0) ctx.moveTo(X(x), Y(y));
+					else ctx.lineTo(X(x), Y(y));
+				}
+				ctx.stroke();
+			}
+			ctx.setLineDash([]);
+			// field lines (and their mirror images in the south)
+			if (showLines.checked) {
+				ctx.strokeStyle = css(col.line, 0.65);
+				ctx.lineWidth = 1.3;
+				for (const pts of lines)
+					for (const sy of [1, -1]) {
+						ctx.beginPath();
+						pts.forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(sy * p.y)) : ctx.moveTo(X(p.x), Y(sy * p.y))));
+						ctx.stroke();
+					}
+			}
+			// solar wind
+			if (showWind.checked) {
+				ctx.fillStyle = css(col.wind, 0.85);
+				for (const w of wind) {
+					if (w.x < X0 || w.x > X1) continue;
+					ctx.beginPath();
+					ctx.arc(X(w.x), Y(w.y), Math.max(1.2, k * 0.07), 0, Math.PI * 2);
+					ctx.fill();
+				}
+			}
+			// particles going down the field lines, spiralling around them
+			for (const f of flies) {
+				const i = Math.floor(f.i);
+				const a = f.line[i];
+				const b = f.line[Math.min(f.line.length - 1, i + 1)];
+				if (!a || !b) continue;
+				const fr = f.i - i;
+				const x = a.x + (b.x - a.x) * fr;
+				const y = a.y + (b.y - a.y) * fr;
+				const dx = b.x - a.x;
+				const dy = b.y - a.y;
+				const dl = Math.hypot(dx, dy) || 1;
+				const rr = Math.hypot(x, y);
+				const amp = Math.min(0.35, 0.05 * rr);
+				const w = Math.sin(t * 25 + f.ph) * amp;
+				const px = x - (dy / dl) * w;
+				const py = y + (dx / dl) * w;
+				ctx.fillStyle = css(col.aur, 0.95);
+				ctx.beginPath();
+				ctx.arc(X(px), Y((f.south ? -1 : 1) * py), Math.max(1.5, k * 0.09), 0, Math.PI * 2);
+				ctx.fill();
+			}
+			// the Earth: day side lit from the left
+			const er = k;
+			const eg = ctx.createLinearGradient(X(-1), 0, X(1), 0);
+			eg.addColorStop(0, css(col.earth));
+			eg.addColorStop(0.55, css(col.earth, 0.9));
+			eg.addColorStop(0.62, css(col.night));
+			eg.addColorStop(1, css(col.night));
+			ctx.fillStyle = eg;
+			ctx.beginPath();
+			ctx.arc(X(0), Y(0), er, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.strokeStyle = css(col.mp, 0.6);
+			ctx.lineWidth = 1;
+			ctx.stroke();
+			// aurora ovals: night side at latAur, day side a few degrees nearer the pole
+			const spot = (lat: number, night: boolean, south: boolean, bright: number) => {
+				const tt = (lat * Math.PI) / 180;
+				const x = (night ? 1 : -1) * Math.cos(tt) * 1.04;
+				const y = (south ? -1 : 1) * Math.sin(tt) * 1.04;
+				const r = k * (0.5 + 0.6 * bright);
+				const g = ctx.createRadialGradient(X(x), Y(y), 0, X(x), Y(y), r);
+				g.addColorStop(0, css(col.aur, 0.95 * bright));
+				g.addColorStop(0.45, css(col.aur, 0.5 * bright));
+				g.addColorStop(0.75, css(col.aur2, 0.25 * bright * (0.4 + s)));
+				g.addColorStop(1, css(col.aur2, 0));
+				ctx.fillStyle = g;
+				ctx.beginPath();
+				ctx.arc(X(x), Y(y), r, 0, Math.PI * 2);
+				ctx.fill();
+			};
+			for (const south of [false, true]) {
+				const g = glow[south ? 1 : 0];
+				spot(latAur, true, south, g);
+				spot(Math.min(80, latAur + 10), false, south, g * 0.6);
+			}
+			drawInset(t);
+			// magnetometer record
+			const rw = Math.min(200, canvas.width * 0.3);
+			const rh = rw * 0.32;
+			const rx = 10;
+			const ry = canvas.height - rh - 10;
+			ctx.fillStyle = css(col.night, 0.85);
+			ctx.fillRect(rx, ry, rw, rh);
+			ctx.strokeStyle = css(col.mp, 0.5);
+			ctx.strokeRect(rx, ry, rw, rh);
+			ctx.strokeStyle = css(col.trace);
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			rec.forEach((v, i) => {
+				const x = rx + (i / (REC - 1)) * rw;
+				const y = ry + rh / 2 - Math.max(-0.48, Math.min(0.48, v)) * rh;
+				if (i) ctx.lineTo(x, y);
+				else ctx.moveTo(x, y);
+			});
+			ctx.stroke();
+			ctx.fillStyle = css(col.ink);
+			ctx.textBaseline = 'bottom';
+			ctx.fillText('магнитометр', rx, ry - 3);
+		};
+
+		/**
+		 * Close-up of the Earth (top right): the aurora ovals seen from the side, a little from above the North Pole.
+		 * The oval is nearer the pole on the day side; green light below, red above (oxygen glows red higher up).
+		 * Heights of the curtains are exaggerated.
+		 */
+		const drawInset = (t: number) => {
+			const rI = Math.min(canvas.width * 0.15, 95 * (canvas.width / Math.max(1, canvas.clientWidth)));
+			const cx = canvas.width - rI - 10;
+			const cy = rI + 10;
+			const rE = rI * 0.6;
+			ctx.save();
+			ctx.fillStyle = css(col.night, 0.92);
+			ctx.strokeStyle = css(col.mp, 0.6);
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			ctx.arc(cx, cy, rI, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+			ctx.clip();
+			const eg = ctx.createLinearGradient(cx - rE, 0, cx + rE, 0);
+			eg.addColorStop(0, css(col.earth));
+			eg.addColorStop(0.5, css(col.earth, 0.85));
+			eg.addColorStop(0.6, css(col.night));
+			eg.addColorStop(1, css(col.night));
+			ctx.fillStyle = eg;
+			ctx.beginPath();
+			ctx.arc(cx, cy, rE, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.strokeStyle = css(col.mp, 0.5);
+			ctx.lineWidth = 1;
+			ctx.stroke();
+			const tau = (20 * Math.PI) / 180; // we look a little from above the North Pole
+			const cn = ((90 - latAur) * Math.PI) / 180;
+			const cd = ((90 - Math.min(80, latAur + 10)) * Math.PI) / 180;
+			const g = glow[0];
+			ctx.lineCap = 'round';
+			for (const south of [false, true]) {
+				const gs = south ? glow[1] : g;
+				for (let i = 0; i < 140; i++) {
+					const ph = (i / 140) * Math.PI * 2; // 0 — midnight (away from the Sun)
+					const c = cn + ((cd - cn) * (1 - Math.cos(ph))) / 2;
+					const sy = south ? -1 : 1;
+					const nx = Math.sin(c) * Math.cos(ph);
+					const ny = sy * Math.cos(c);
+					const nz = Math.sin(c) * Math.sin(ph);
+					const y1 = ny * Math.cos(tau) - nz * Math.sin(tau);
+					const z1 = ny * Math.sin(tau) + nz * Math.cos(tau);
+					if (z1 < 0.02) continue; // behind the Earth
+					// brighter on the night side
+					const night = (1 + Math.cos(ph)) / 2;
+					const flick = 0.75 + 0.25 * Math.sin(t * 2.3 + i * 0.9) * Math.sin(t * 1.1 + i * 0.37);
+					const h = rE * (0.1 + 0.22 * gs) * flick * (0.5 + 0.5 * night);
+					const bx = cx + nx * rE * 1.01;
+					const by = cy - y1 * rE * 1.01;
+					// a curtain ray along the outward normal, as seen on the screen
+					const ux = nx;
+					const uy = -y1;
+					const ul = Math.hypot(ux, uy) || 1;
+					const a = Math.min(1, (0.25 + 0.75 * gs) * (0.4 + 0.6 * night));
+					ctx.lineWidth = Math.max(1.5, rE * 0.035);
+					ctx.strokeStyle = css(col.aur, 0.55 * a);
+					ctx.beginPath();
+					ctx.moveTo(bx, by);
+					ctx.lineTo(bx + (ux / ul) * h * 0.7, by + (uy / ul) * h * 0.7);
+					ctx.stroke();
+					ctx.strokeStyle = css(col.aur2, 0.4 * a * (0.3 + s));
+					ctx.beginPath();
+					ctx.moveTo(bx + (ux / ul) * h * 0.7, by + (uy / ul) * h * 0.7);
+					ctx.lineTo(bx + (ux / ul) * h, by + (uy / ul) * h);
+					ctx.stroke();
+				}
+			}
+			ctx.restore();
+			ctx.fillStyle = css(col.ink);
+			ctx.textBaseline = 'top';
+			ctx.textAlign = 'center';
+			ctx.fillText('Земля вблизи', cx, cy + rI + 4);
+			ctx.textAlign = 'left';
+		};
+
+		// ---------- words ----------
+		const describe = () => {
+			const level = s < 0.25 ? 'спокойный' : s < 0.5 ? 'усиленный' : s < 0.8 ? 'магнитная буря' : 'сильная магнитная буря';
+			levelEl.textContent = level;
+			out.textContent = '';
+			// the night edge of the oval (in geomagnetic latitude) moves south in a storm
+			const edge = 64.5 - 16.5 * s;
+			const over = CITIES.filter(([, m]) => m >= edge).map(([c]) => c);
+			const low = CITIES.filter(([, m]) => m < edge && m >= edge - 6).map(([c]) => c);
+			const list = (a: string[]) => (a.length > 1 ? a.slice(0, -1).join(', ') + ' и ' + a[a.length - 1] : a[0]);
+			let txt = `Магнитное поле Земли не пускает солнечный ветер к Земле: граница поля на дневной стороне — примерно в ${Math.round(r0)} радиусах Земли от её центра. `;
+			if (over.length) txt += `Полярное сияние можно увидеть высоко в небе в ${list(over)}`;
+			if (low.length) txt += `${over.length ? ', а низко над северным горизонтом — в ' : 'Полярное сияние можно увидеть только низко над северным горизонтом — в '}${list(low)}`;
+			if (!over.length && !low.length) txt += 'Полярные сияния видны только у самых полюсов';
+			txt += '.';
+			live.textContent = txt;
+		};
+
+		// ---------- loop ----------
+		const wake = loop(root, (dt, t) => {
+			if (!reduceMotion()) {
+				moveWind(dt);
+				moveFlies(dt);
+				record(dt);
+			}
+			draw(t);
+			return !reduceMotion();
+		});
+
+		const resize = () => {
+			const cssW = canvas.clientWidth || 800;
+			if (cssW < 560) {
+				X0 = -13;
+				X1 = 17;
+				Y1 = 18;
+			} else {
+				X0 = -16;
+				X1 = 34;
+				Y1 = 20;
+			}
+			WW = X1 - X0;
+			HH = 2 * Y1;
+			const f = fitCanvas(canvas, WW, HH);
+			k = f.k;
+			trace();
+			makeWind();
+			wake();
+			if (reduceMotion()) draw(0);
+		};
+		slider.addEventListener('input', () => {
+			setStorm(Number(slider.value) / 100);
+			wake();
+			if (reduceMotion()) draw(0);
+		});
+		showLines.addEventListener('change', () => (wake(), reduceMotion() && draw(0)));
+		showWind.addEventListener('change', () => (wake(), reduceMotion() && draw(0)));
+		readColours();
+		onTheme(() => {
+			readColours();
+			if (reduceMotion()) draw(0);
+		});
+		setStorm(Number(slider.value) / 100);
+		new ResizeObserver(resize).observe(canvas);
+		resize();
+		void WW;
+		void HH;
+	}
+</script>

@@ -1,0 +1,375 @@
+---
+/**
+ * «Predict, then check»: two bar magnets on light carts. A click on a magnet turns it round. The pupil predicts
+ * whether the carts will roll together or apart, then releases them. The force is computed from the pole faces
+ * (±q at the ends of each magnet, 1/r² between every pair of poles), rolling friction stops the carts.
+ * The forces on the two carts are always equal and opposite.
+ */
+import PmStyles from './PmStyles.astro';
+---
+
+<PmStyles />
+<figure class="pm-box tm not-content" data-tm>
+	<svg class="pm-svg tm__svg" viewBox="0 0 640 190" role="img" aria-label="Два магнита на тележках">
+		<line class="tm__track" x1="10" y1="168" x2="630" y2="168"></line>
+		<rect class="tm__stop" x="6" y="128" width="8" height="40" rx="2"></rect>
+		<rect class="tm__stop" x="626" y="128" width="8" height="40" rx="2"></rect>
+		<g class="tm__flash" data-flash><circle r="16"></circle></g>
+		{
+			[0, 1].map((i) => (
+				<g class="tm__cart" data-cart={i}>
+					<g class="tm__arrow" data-arrow>
+						<line x1="0" y1="70" x2="0" y2="70" />
+						<path d="M0 70 l-12 -7 v14 z" />
+					</g>
+					<rect class="tm__body" x="-70" y="128" width="140" height="22" rx="5" />
+					<circle class="tm__wheel" cx="-45" cy="156" r="11" />
+					<circle class="tm__wheel" cx="45" cy="156" r="11" />
+					<g class="tm__mag" data-mag tabindex="0" role="button" aria-label="Повернуть магнит">
+						<g data-flip>
+							<rect class="tm__s" x="-80" y="90" width="80" height="36" rx="4" />
+							<rect class="tm__n" x="0" y="90" width="80" height="36" rx="4" />
+							<text class="tm__lt" x="-56" y="115">
+								S
+							</text>
+							<text class="tm__lt" x="56" y="115">
+								N
+							</text>
+						</g>
+					</g>
+				</g>
+			))
+		}
+		<text class="tm__hint" x="320" y="22" text-anchor="middle">Нажмите на магнит, чтобы повернуть его</text>
+	</svg>
+	<div class="tm__ask">
+		<p class="tm__q" data-q></p>
+		<div class="pm-row" role="group" aria-label="Ваш прогноз" style="margin-top: 0.4rem">
+			<button type="button" class="pm-chip tm__pick" data-pick="1">Притянутся</button>
+			<button type="button" class="pm-chip tm__pick" data-pick="-1">Оттолкнутся</button>
+			<button type="button" class="pm-btn pm-btn--primary" data-go disabled>Отпустить тележки</button>
+			<button type="button" class="pm-btn" data-reset hidden>Ещё раз</button>
+		</div>
+	</div>
+	<p class="pm-live" aria-live="polite" data-live></p>
+</figure>
+
+<style is:global>
+	.tm__svg {
+		overflow: visible;
+	}
+	.tm__track {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.tm__stop {
+		fill: var(--sl-color-gray-4);
+	}
+	.tm__body {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.tm__wheel {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.tm__mag {
+		cursor: pointer;
+		outline: none;
+	}
+	.tm__mag:focus-visible rect {
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+	}
+	.tm__n {
+		fill: var(--ig-vx);
+	}
+	.tm__s {
+		fill: var(--ig-vy);
+	}
+	.tm__lt {
+		fill: var(--sl-color-bg);
+		font-size: 22px;
+		font-weight: 700;
+		text-anchor: middle;
+	}
+	.tm__arrow line {
+		stroke: var(--ig-v);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.tm__arrow path {
+		fill: var(--ig-v);
+	}
+	.tm__hint {
+		fill: var(--sl-color-gray-3);
+		font-size: 21px;
+	}
+	.tm__flash circle {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+		opacity: 0;
+	}
+	.tm__q {
+		margin: 0.6rem 0 0;
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.tm__pick.is-right {
+		border-color: var(--sl-color-green);
+		background: color-mix(in srgb, var(--sl-color-green) 22%, transparent);
+	}
+	.tm__pick.is-wrong {
+		border-color: var(--sl-color-red);
+		background: color-mix(in srgb, var(--sl-color-red) 16%, transparent);
+	}
+</style>
+
+<script>
+	import { reduceMotion, loop } from './mag';
+
+	const L = 160; // magnet length in the picture
+	const EPS = 6; // softening of the pole faces
+	const K = 2.2e6; // force constant: acceleration in px/s² = K·q₁q₂/d²
+	const FRICTION = 70; // rolling friction, px/s²
+	const X_MIN = 14 + 80;
+	const X_MAX = 626 - 80;
+	const START_GAP = 96;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-tm]')) {
+		const carts = [...root.querySelectorAll<SVGGElement>('[data-cart]')];
+		const flips = carts.map((c) => c.querySelector<SVGGElement>('[data-flip]')!);
+		const arrows = carts.map((c) => c.querySelector<SVGGElement>('[data-arrow]')!);
+		const flash = root.querySelector<SVGGElement>('[data-flash]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const q = root.querySelector<HTMLElement>('[data-q]')!;
+		const picks = [...root.querySelectorAll<HTMLButtonElement>('[data-pick]')];
+		const go = root.querySelector<HTMLButtonElement>('[data-go]')!;
+		const reset = root.querySelector<HTMLButtonElement>('[data-reset]')!;
+
+		// o = +1: N on the right end; −1: N on the left end
+		const o = [1, -1];
+		const x = [0, 0];
+		const v = [0, 0];
+		const turn = [1, 1]; // horizontal scale of the magnet while it is being turned round
+		const turning = [0, 0]; // progress of the turn, 0 = idle
+		const swapped = [false, false];
+		let running = false;
+		let runT = 0;
+		let done = false;
+		let guess = 0;
+		let flashT = 1;
+
+		const place = () => {
+			x[0] = 320 - L / 2 - START_GAP / 2;
+			x[1] = 320 + L / 2 + START_GAP / 2;
+			v[0] = v[1] = 0;
+		};
+		place();
+
+		/** Force on the right cart (positive = to the right) from the left one. */
+		const forceRight = () => {
+			let f = 0;
+			for (const [qa, da] of [
+				[1, o[0]],
+				[-1, -o[0]],
+			])
+				for (const [qb, db] of [
+					[1, o[1]],
+					[-1, -o[1]],
+				]) {
+					const xa = x[0] + (da * (L / 2 - 6));
+					const xb = x[1] + (db * (L / 2 - 6));
+					const d = xb - xa;
+					f += (K * qa * qb * Math.sign(d)) / (d * d + EPS * EPS);
+				}
+			return f;
+		};
+		const facing = () => {
+			const a = o[0] > 0 ? 'N' : 'S';
+			const b = o[1] > 0 ? 'S' : 'N';
+			return [a, b];
+		};
+		const attract = () => forceRight() < 0;
+
+		const render = () => {
+			carts.forEach((c, i) => c.setAttribute('transform', `translate(${x[i].toFixed(2)} 0)`));
+			flips.forEach((f, i) => f.setAttribute('transform', `scale(${(o[i] * turn[i]).toFixed(3)} 1)`));
+			// letters must not be mirrored: put them back in each half
+			flips.forEach((f, i) => {
+				const mirrored = o[i] < 0;
+				f.querySelectorAll('text').forEach((t, j) => {
+					const cx = j === 0 ? -56 : 56;
+					t.setAttribute('transform', mirrored ? `translate(${2 * cx} 0) scale(-1 1)` : '');
+				});
+			});
+			const f = forceRight();
+			const len = Math.min(70, Math.max(18, 14 * Math.log10(Math.abs(f) + 1)));
+			arrows.forEach((a, i) => {
+				const dir = (i === 1 ? 1 : -1) * Math.sign(f);
+				// the forces are shown only after the release, so that they do not give the answer away
+				a.style.opacity = running || done ? '1' : '0';
+				a.querySelector('line')!.setAttribute('x2', String(dir * (len - 8)));
+				a.querySelector('path')!.setAttribute('d', `M${dir * len} 70 l${-dir * 14} -8 v16 z`);
+			});
+			const c = flash.querySelector('circle')!;
+			c.style.opacity = String(Math.max(0, 1 - flashT));
+			c.setAttribute('r', String(14 + 40 * flashT));
+		};
+
+		const ask = () => {
+			const [a, b] = facing();
+			const name = (p: string) => (p === 'N' ? 'северный' : 'южный');
+			q.textContent = `Друг к другу обращены ${name(a)} (${a}) и ${name(b)} (${b}) полюсы. Что будет, если отпустить тележки?`;
+		};
+
+		const wake = loop(root, (dt) => {
+			let busy = false;
+			for (const i of [0, 1])
+				if (turning[i] > 0) {
+					turning[i] = Math.min(1, turning[i] + dt / 0.5);
+					const t = turning[i];
+					turn[i] = Math.abs(Math.cos(Math.PI * t));
+					if (t >= 0.5 && !swapped[i]) {
+						o[i] = -o[i];
+						swapped[i] = true;
+						ask();
+					}
+					if (t >= 1) {
+						turning[i] = 0;
+						turn[i] = 1;
+						swapped[i] = false;
+					}
+					busy = true;
+				}
+			if (running) {
+				const n = 20;
+				const h = dt / n;
+				for (let s = 0; s < n && running; s++) {
+					const f = forceRight();
+					const acc = [-f, f];
+					for (const i of [0, 1]) {
+						let a = acc[i];
+						if (Math.abs(v[i]) < 1e-3 && Math.abs(a) <= FRICTION) {
+							v[i] = 0;
+							continue;
+						}
+						a -= FRICTION * Math.sign(v[i] || a);
+						v[i] += a * h;
+						x[i] += v[i] * h;
+						if (x[i] < X_MIN || x[i] > X_MAX) {
+							x[i] = Math.min(X_MAX, Math.max(X_MIN, x[i]));
+							v[i] = 0;
+						}
+					}
+					if (x[1] - x[0] <= L) {
+						// the magnets touch: they stick together
+						const mid = (x[0] + x[1]) / 2;
+						x[0] = mid - L / 2;
+						x[1] = mid + L / 2;
+						v[0] = v[1] = 0;
+						flash.setAttribute('transform', `translate(${mid} 108)`);
+						flashT = 0;
+						finish();
+					}
+				}
+				runT += dt;
+				if (running && runT > 0.15 && v[0] === 0 && v[1] === 0) finish();
+				busy = true;
+			}
+			if (flashT < 1) {
+				flashT = Math.min(1, flashT + dt / 0.5);
+				busy = true;
+			}
+			render();
+			return busy;
+		});
+
+		const finish = () => {
+			running = false;
+			done = true;
+			reset.hidden = false;
+			const att = attract();
+			const [a, b] = facing();
+			const right = picks.find((p) => Number(p.dataset.pick) === (att ? 1 : -1))!;
+			right.classList.add('is-right');
+			const ok = guess === (att ? 1 : -1);
+			if (!ok) picks.find((p) => Number(p.dataset.pick) === guess)?.classList.add('is-wrong');
+			const rule = a === b ? 'Одноимённые полюсы отталкиваются.' : 'Разноимённые полюсы притягиваются.';
+			live.innerHTML = `${ok ? '<b>Верно!</b> ' : '<b>Не угадали.</b> '}${rule} Обратите внимание: стрелки сил одинаковой длины — магниты действуют друг на друга с равными силами.`;
+		};
+
+		picks.forEach((p) =>
+			p.addEventListener('click', () => {
+				if (running || done) return;
+				guess = Number(p.dataset.pick);
+				picks.forEach((b) => b.setAttribute('aria-pressed', String(b === p)));
+				go.disabled = false;
+				live.textContent = 'Теперь отпустите тележки и проверьте.';
+			}),
+		);
+		go.addEventListener('click', () => {
+			if (!guess || running || done) return;
+			running = true;
+			runT = 0;
+			go.disabled = true;
+			if (reduceMotion()) {
+				// no animation: jump to the end state
+				if (attract()) {
+					const mid = (x[0] + x[1]) / 2;
+					x[0] = mid - L / 2;
+					x[1] = mid + L / 2;
+				} else {
+					x[0] = X_MIN + 30;
+					x[1] = X_MAX - 30;
+				}
+				finish();
+				render();
+				return;
+			}
+			wake();
+		});
+		const restart = () => {
+			running = false;
+			done = false;
+			guess = 0;
+			place();
+			reset.hidden = true;
+			go.disabled = true;
+			picks.forEach((b) => {
+				b.classList.remove('is-right', 'is-wrong');
+				b.setAttribute('aria-pressed', 'false');
+			});
+			live.textContent = 'Сначала сделайте прогноз.';
+			ask();
+			render();
+		};
+		reset.addEventListener('click', restart);
+		carts.forEach((c, i) => {
+			const mag = c.querySelector<SVGGElement>('[data-mag]')!;
+			const flipIt = () => {
+				if (running || turning[i] > 0) return;
+				if (done) restart();
+				if (reduceMotion()) {
+					o[i] = -o[i];
+					ask();
+					render();
+					return;
+				}
+				turning[i] = 0.001;
+				wake();
+			};
+			mag.addEventListener('click', flipIt);
+			mag.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					flipIt();
+				}
+			});
+		});
+		restart();
+	}
+</script>

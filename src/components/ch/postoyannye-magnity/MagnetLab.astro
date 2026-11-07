@@ -1,0 +1,656 @@
+---
+/**
+ * Magnets on a table: bar and horseshoe magnets can be dragged and turned; iron filings line up along the
+ * magnetic lines, compass needles turn along the field (with a damped swing), the field lines can be drawn.
+ * Two magnets attract or repel; arrows show the forces. The field is the true field of uniformly magnetised
+ * magnets (charged pole faces, see magnets.ts); the Earth's field is neglected next to the magnets.
+ */
+import PmStyles from './PmStyles.astro';
+---
+
+<PmStyles />
+<figure class="pm-box mlab not-content" data-mlab>
+	<div class="pm-row" role="group" aria-label="Что лежит на столе" style="margin-top: 0">
+		<button type="button" class="pm-chip" data-scene="bar" aria-pressed="true">Полосовой магнит</button>
+		<button type="button" class="pm-chip" data-scene="horse" aria-pressed="false">Подковообразный</button>
+		<button type="button" class="pm-chip" data-scene="ns" aria-pressed="false">Два магнита: N к S</button>
+		<button type="button" class="pm-chip" data-scene="nn" aria-pressed="false">Два магнита: N к N</button>
+	</div>
+	<div class="mlab__wrap">
+		<canvas class="pm-canvas mlab__canvas" width="800" height="520" role="img" aria-label="Магниты на столе, железные опилки и компасы"></canvas>
+	</div>
+	<div class="pm-row">
+		<label class="pm-check"><input type="checkbox" data-show="filings" checked /> Опилки</label>
+		<label class="pm-check"><input type="checkbox" data-show="lines" /> Магнитные линии</label>
+		<label class="pm-check"><input type="checkbox" data-show="compass" checked /> Компасы</label>
+	</div>
+	<div class="pm-row">
+		<button type="button" class="pm-btn" data-act="turn">Повернуть на 90°</button>
+		<button type="button" class="pm-btn" data-act="flip">Поменять полюсы местами</button>
+		<button type="button" class="pm-btn pm-btn--primary" data-act="sprinkle">Насыпать опилки заново</button>
+	</div>
+	<p class="pm-live" aria-live="polite" data-live></p>
+	<figcaption class="pm-cap">
+		Тяните магнит, чтобы передвинуть его, а за кружок со стрелкой — чтобы повернуть. Компасы тоже можно переносить. Северный полюс <span class="pm-n">N</span> окрашен синим, южный <span class="pm-s">S</span> —
+		красным; у стрелки компаса так же. Поле магнитов вблизи них намного сильнее поля Земли, поэтому поле Земли в модели не учтено.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.mlab__wrap {
+		margin-top: 0.75rem;
+	}
+	.mlab__canvas {
+		border-radius: 0.75rem;
+		cursor: grab;
+	}
+	.mlab__canvas.is-dragging {
+		cursor: grabbing;
+	}
+</style>
+
+<script>
+	import { css, varRGB, onTheme, reduceMotion, loop, rng, wrap, fitCanvas, type RGB } from './mag';
+	import { makeMagnet, place, inside, field, force, seeds, poles, halfHeight, toWorld, BAR, HORSE, type Magnet } from './magnets';
+
+	const W = 800;
+	type Compass = { x: number; y: number; phi: number; om: number };
+	type Filing = { x: number; y: number; ang: number; tgt: number; s: number; delay: number; hide: boolean };
+	type Pt = { x: number; y: number };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-mlab]')) {
+		const canvas = root.querySelector('canvas')!;
+		const ctx = canvas.getContext('2d')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const chips = [...root.querySelectorAll<HTMLButtonElement>('[data-scene]')];
+		const show = { filings: true, lines: false, compass: true };
+
+		let H = 520;
+		let k = 1; // canvas pixels per world unit
+		let kc = 1; // CSS pixels per world unit
+		let mags: Magnet[] = [];
+		let comps: Compass[] = [];
+		let files: Filing[] = [];
+		let lines: Pt[][] = [];
+		let sel = 0;
+		let scene = 'bar';
+		let dirty = true; // field changed: recompute targets and lines
+		let sprinkleT = 0; // time since the filings were sprinkled
+		let tween: { m: Magnet; from: number; to: number; t: number } | null = null;
+		const rand = rng(7);
+
+		let col: Record<string, RGB> = {};
+		const readColours = () => {
+			col = {
+				n: varRGB(root, '--ig-vx'),
+				s: varRGB(root, '--ig-vy'),
+				fil: varRGB(root, '--sl-color-gray-2'),
+				line: varRGB(root, '--sl-color-accent'),
+				ink: varRGB(root, '--sl-color-white'),
+				bg: varRGB(root, '--sl-color-bg'),
+				metal: varRGB(root, '--sl-color-gray-3'),
+				case: varRGB(root, '--sl-color-gray-5'),
+				force: varRGB(root, '--ig-v'),
+			};
+		};
+
+		const compassR = () => (kc < 0.6 ? 34 : 26);
+
+		// ---------- scenes ----------
+		const setScene = (name: string) => {
+			scene = name;
+			chips.forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.scene === name)));
+			const cx = W / 2;
+			const cy = H / 2;
+			const tall = H > 600;
+			const dx = tall ? 0 : 150;
+			if (name === 'bar') {
+				mags = [makeMagnet('bar', cx, cy, 0)];
+				comps = tall
+					? [{ x: cx - 230, y: cy - 190 }, { x: cx + 40, y: cy - 150 }, { x: cx + 250, y: cy + 60 }, { x: cx - 120, y: cy + 170 }]
+					: [{ x: cx - 260, y: cy - 150 }, { x: cx, y: cy - 110 }, { x: cx + 230, y: cy - 20 }, { x: cx - 60, y: cy + 140 }];
+			} else if (name === 'horse') {
+				mags = [makeMagnet('horse', cx - 40, cy, 0)];
+				comps = tall
+					? [{ x: cx + 110, y: cy }, { x: cx + 200, y: cy - 170 }, { x: cx - 220, y: cy + 160 }, { x: cx + 160, y: cy + 200 }]
+					: [{ x: cx + 110, y: cy }, { x: cx + 210, y: cy - 150 }, { x: cx - 230, y: cy - 120 }, { x: cx + 230, y: cy + 140 }];
+			} else {
+				const gap = 70;
+				const half = BAR.L / 2 + gap / 2;
+				if (tall) {
+					// one above the other on a phone: the magnets stand vertically, N of the upper one points down
+					const a2 = name === 'ns' ? Math.PI / 2 : -Math.PI / 2;
+					mags = [makeMagnet('bar', cx, cy - half, Math.PI / 2), makeMagnet('bar', cx, cy + half, a2)];
+					comps = [{ x: cx + 150, y: cy }, { x: cx - 160, y: cy - 260 }, { x: cx - 150, y: cy + 40 }, { x: cx + 170, y: cy + 250 }];
+				} else {
+					const a2 = name === 'ns' ? 0 : Math.PI;
+					mags = [makeMagnet('bar', cx - half, cy, 0), makeMagnet('bar', cx + half, cy, a2)];
+					comps = [{ x: cx, y: cy - 100 }, { x: cx - 260, y: cy - 150 }, { x: cx + 250, y: cy + 140 }, { x: cx, y: cy + 150 }];
+				}
+				void dx;
+			}
+			comps = comps.map((c) => ({ ...c, phi: -Math.PI / 2, om: 0 }));
+			// compasses start pointing "up" and then swing to the field
+			sel = 0;
+			sprinkle();
+			say();
+		};
+
+		const sprinkle = () => {
+			// filings: about one per 110 CSS px², spread evenly with a little randomness
+			const n = Math.round((W * H * kc * kc) / 110);
+			const step = Math.sqrt((W * H) / n);
+			files = [];
+			for (let y = step / 2; y < H; y += step)
+				for (let x = step / 2; x < W; x += step) {
+					files.push({
+						x: x + (rand() - 0.5) * step * 1.4,
+						y: y + (rand() - 0.5) * step * 1.4,
+						ang: rand() * Math.PI,
+						tgt: 0,
+						s: 0,
+						delay: reduceMotion() ? 0 : 0.15 + rand() * 0.9,
+						hide: false,
+					});
+				}
+			sprinkleT = 0;
+			dirty = true;
+			wake();
+		};
+
+		// ---------- field-dependent things ----------
+		const strength = (b: number) => Math.min(1, Math.max(0, Math.log10(b / 2.5e-6) / 2.1));
+
+		const recompute = () => {
+			for (const f of files) {
+				f.hide = mags.some((m) => inside(m, f.x, f.y, 3));
+				if (f.hide) continue;
+				const { bx, by } = field(mags, f.x, f.y);
+				f.tgt = Math.atan2(by, bx);
+				f.s = strength(Math.hypot(bx, by));
+			}
+			lines = show.lines ? traceAll() : [];
+			dirty = false;
+		};
+
+		const traceAll = () => {
+			const out: Pt[][] = [];
+			const h = 4;
+			const dir = (x: number, y: number) => {
+				const { bx, by } = field(mags, x, y);
+				const b = Math.hypot(bx, by) || 1;
+				return { x: bx / b, y: by / b };
+			};
+			const sPoles = mags.map((m) => poles(m).s);
+			for (const m of mags)
+				for (const s0 of seeds(m)) {
+					if (mags.some((mm) => inside(mm, s0.x, s0.y, 1))) continue;
+					const pts: Pt[] = [s0];
+					let { x, y } = s0;
+					for (let i = 0; i < 900; i++) {
+						const d1 = dir(x, y);
+						const d2 = dir(x + (d1.x * h) / 2, y + (d1.y * h) / 2);
+						x += d2.x * h;
+						y += d2.y * h;
+						pts.push({ x, y });
+						if (x < -200 || x > W + 200 || y < -200 || y > H + 200) break;
+						if (mags.some((mm) => inside(mm, x, y, -1))) break;
+						if (sPoles.some((p) => Math.hypot(p.x - x, p.y - y) < 8)) break;
+					}
+					out.push(pts);
+				}
+			return out;
+		};
+
+		// ---------- drawing ----------
+		const draw = () => {
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.setTransform(k, 0, 0, k, 0, 0);
+			if (show.filings) drawFilings();
+			if (show.lines) drawLines();
+			mags.forEach((m, i) => drawMagnet(m, i === sel));
+			drawForces();
+			if (show.compass) comps.forEach(drawCompass);
+		};
+
+		const drawFilings = () => {
+			const len = 7 / kc;
+			const buckets: Filing[][] = [[], [], [], []];
+			for (const f of files) {
+				if (f.hide || sprinkleT < f.delay * 0.5) continue;
+				const fade = Math.min(1, (sprinkleT - f.delay * 0.5) / 0.25);
+				const b = Math.min(3, Math.floor((0.1 + 0.9 * f.s) * fade * 4));
+				buckets[b].push(f);
+			}
+			ctx.lineCap = 'round';
+			ctx.lineWidth = 1.5 / kc;
+			buckets.forEach((list, b) => {
+				if (!list.length) return;
+				ctx.strokeStyle = css(col.fil, [0.1, 0.3, 0.58, 0.92][b]);
+				ctx.beginPath();
+				for (const f of list) {
+					const l = len * (0.5 + 0.9 * f.s);
+					const c = Math.cos(f.ang) * l * 0.5;
+					const s = Math.sin(f.ang) * l * 0.5;
+					ctx.moveTo(f.x - c, f.y - s);
+					ctx.lineTo(f.x + c, f.y + s);
+				}
+				ctx.stroke();
+			});
+		};
+
+		const arrowHead = (x: number, y: number, ux: number, uy: number, size: number) => {
+			ctx.beginPath();
+			ctx.moveTo(x + ux * size, y + uy * size);
+			ctx.lineTo(x - ux * size * 0.6 - uy * size * 0.6, y - uy * size * 0.6 + ux * size * 0.6);
+			ctx.lineTo(x - ux * size * 0.6 + uy * size * 0.6, y - uy * size * 0.6 - ux * size * 0.6);
+			ctx.closePath();
+			ctx.fill();
+		};
+
+		const drawLines = () => {
+			ctx.strokeStyle = css(col.line, 0.85);
+			ctx.fillStyle = css(col.line, 0.95);
+			ctx.lineWidth = 1.6 / kc;
+			for (const pts of lines) {
+				ctx.beginPath();
+				pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+				ctx.stroke();
+				// arrows every ~170 world units, starting a bit away from the pole
+				for (let i = 25; i < pts.length - 10; i += 42) {
+					const p = pts[i];
+					if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) continue;
+					const q = pts[i + 1];
+					const d = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+					arrowHead(p.x, p.y, (q.x - p.x) / d, (q.y - p.y) / d, 7 / kc);
+				}
+			}
+		};
+
+		const shade = (c: RGB, t: number): RGB => [c[0] + (255 - c[0]) * t, c[1] + (255 - c[1]) * t, c[2] + (255 - c[2]) * t];
+
+		const drawMagnet = (m: Magnet, selected: boolean) => {
+			ctx.save();
+			ctx.translate(m.x, m.y);
+			ctx.rotate(m.a);
+			ctx.shadowColor = 'rgb(0 0 0 / 0.35)';
+			ctx.shadowBlur = 10 / kc;
+			ctx.shadowOffsetY = 3 / kc;
+			const font = `700 ${Math.max(22, 13 / kc)}px Alice, Georgia, serif`;
+			if (m.kind === 'bar') {
+				const { L, W: w } = BAR;
+				const r = 6;
+				const grad = (c: RGB) => {
+					const g = ctx.createLinearGradient(0, -w / 2, 0, w / 2);
+					g.addColorStop(0, css(shade(c, 0.25)));
+					g.addColorStop(0.5, css(c));
+					g.addColorStop(1, css(shade(c, -0.15)));
+					return g;
+				};
+				ctx.fillStyle = grad(col.s);
+				ctx.beginPath();
+				ctx.roundRect(-L / 2, -w / 2, L / 2, w, [r, 0, 0, r]);
+				ctx.fill();
+				ctx.fillStyle = grad(col.n);
+				ctx.beginPath();
+				ctx.roundRect(0, -w / 2, L / 2, w, [0, r, r, 0]);
+				ctx.fill();
+				ctx.shadowColor = 'transparent';
+				ctx.fillStyle = css(col.bg);
+				ctx.font = font;
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				// the letters stay upright whatever the angle
+				for (const [lx, t] of [
+					[L / 2 - 26, 'N'],
+					[-L / 2 + 26, 'S'],
+				] as const) {
+					ctx.save();
+					ctx.translate(lx, 0);
+					ctx.rotate(-m.a);
+					ctx.fillText(t, 0, 1);
+					ctx.restore();
+				}
+			} else {
+				const { X0, TIP, ARM_Y, R_IN, R_OUT } = HORSE;
+				const arm = (sign: number, c: RGB) => {
+					ctx.fillStyle = css(c);
+					ctx.beginPath();
+					ctx.rect(X0, sign < 0 ? -R_OUT : R_IN, TIP - X0, R_OUT - R_IN);
+					ctx.fill();
+				};
+				ctx.fillStyle = css(col.metal);
+				ctx.beginPath();
+				ctx.arc(X0, 0, R_OUT, Math.PI / 2, (3 * Math.PI) / 2);
+				ctx.arc(X0, 0, R_IN, (3 * Math.PI) / 2, Math.PI / 2, true);
+				ctx.closePath();
+				ctx.fill();
+				arm(-1, col.n);
+				arm(1, col.s);
+				ctx.shadowColor = 'transparent';
+				// a lighter stripe across the tips: the bare pole faces
+				ctx.fillStyle = css(col.metal, 0.9);
+				ctx.fillRect(TIP - 7, -R_OUT, 7, R_OUT - R_IN);
+				ctx.fillRect(TIP - 7, R_IN, 7, R_OUT - R_IN);
+				ctx.fillStyle = css(col.bg);
+				ctx.font = font;
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				for (const [ly, t] of [
+					[-ARM_Y, 'N'],
+					[ARM_Y, 'S'],
+				] as const) {
+					ctx.save();
+					ctx.translate(TIP - 30, ly);
+					ctx.rotate(-m.a);
+					ctx.fillText(t, 0, 1);
+					ctx.restore();
+				}
+			}
+			ctx.restore();
+			if (selected) drawHandle(m);
+		};
+
+		const handlePos = (m: Magnet) => toWorld(m, m.kind === 'bar' ? 0 : HORSE.X0 + 10, -(halfHeight(m) + (kc < 0.6 ? 42 : 30)));
+		const handleR = () => (kc < 0.6 ? 26 : 14);
+
+		const drawHandle = (m: Magnet) => {
+			const h = handlePos(m);
+			const base = toWorld(m, m.kind === 'bar' ? 0 : HORSE.X0 + 10, -halfHeight(m));
+			const r = handleR();
+			ctx.strokeStyle = css(col.ink, 0.5);
+			ctx.lineWidth = 1.2 / kc;
+			ctx.setLineDash([3 / kc, 3 / kc]);
+			ctx.beginPath();
+			ctx.moveTo(base.x, base.y);
+			ctx.lineTo(h.x, h.y);
+			ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.fillStyle = css(col.bg, 0.9);
+			ctx.strokeStyle = css(col.line);
+			ctx.lineWidth = 2 / kc;
+			ctx.beginPath();
+			ctx.arc(h.x, h.y, r, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+			// a circular arrow inside
+			ctx.beginPath();
+			ctx.arc(h.x, h.y, r * 0.5, -Math.PI * 0.9, Math.PI * 0.45);
+			ctx.stroke();
+			const ea = Math.PI * 0.45;
+			ctx.fillStyle = css(col.line);
+			arrowHead(h.x + Math.cos(ea) * r * 0.5, h.y + Math.sin(ea) * r * 0.5, -Math.sin(ea), Math.cos(ea), r * 0.35);
+		};
+
+		const drawForces = () => {
+			if (mags.length < 2) return;
+			const f = force(mags[0], mags[1]);
+			const mag = Math.hypot(f.fx, f.fy);
+			if (mag < 2e-6) return;
+			// arrow length grows slowly (logarithmically) with the force
+			const len = Math.min(110, Math.max(24, 45 + 28 * Math.log10(mag / 1e-5)));
+			ctx.strokeStyle = css(col.force);
+			ctx.fillStyle = css(col.force);
+			ctx.lineWidth = 4 / kc;
+			mags.forEach((m, i) => {
+				const sgn = i === 0 ? 1 : -1;
+				const ux = (sgn * f.fx) / mag;
+				const uy = (sgn * f.fy) / mag;
+				// the arrow runs alongside the magnet, so that it does not hide the letters
+				const off = halfHeight(m) + 16;
+				const x0 = m.x - uy * off;
+				const y0 = m.y + ux * off;
+				ctx.beginPath();
+				ctx.moveTo(x0, y0);
+				ctx.lineTo(x0 + ux * (len - 10), y0 + uy * (len - 10));
+				ctx.stroke();
+				arrowHead(x0 + ux * len, y0 + uy * len, ux, uy, 14 / Math.max(kc, 0.7));
+				ctx.beginPath();
+				ctx.arc(x0, y0, 5 / kc, 0, Math.PI * 2);
+				ctx.fill();
+			});
+		};
+
+		const drawCompass = (c: Compass) => {
+			const r = compassR();
+			ctx.save();
+			ctx.translate(c.x, c.y);
+			ctx.shadowColor = 'rgb(0 0 0 / 0.3)';
+			ctx.shadowBlur = 6 / kc;
+			ctx.fillStyle = css(col.bg, 0.92);
+			ctx.beginPath();
+			ctx.arc(0, 0, r, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.shadowColor = 'transparent';
+			ctx.strokeStyle = css(col.metal);
+			ctx.lineWidth = 2.5 / kc;
+			ctx.stroke();
+			ctx.rotate(c.phi);
+			const l = r * 0.82;
+			const w = r * 0.2;
+			ctx.fillStyle = css(col.n);
+			ctx.beginPath();
+			ctx.moveTo(l, 0);
+			ctx.lineTo(0, -w);
+			ctx.lineTo(0, w);
+			ctx.closePath();
+			ctx.fill();
+			ctx.fillStyle = css(col.s);
+			ctx.beginPath();
+			ctx.moveTo(-l, 0);
+			ctx.lineTo(0, -w);
+			ctx.lineTo(0, w);
+			ctx.closePath();
+			ctx.fill();
+			ctx.fillStyle = css(col.metal);
+			ctx.beginPath();
+			ctx.arc(0, 0, r * 0.1, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.restore();
+		};
+
+		// ---------- motion ----------
+		const step = (dt: number) => {
+			let busy = false;
+			if (tween) {
+				tween.t = Math.min(1, tween.t + dt / 0.45);
+				const e = tween.t < 0.5 ? 2 * tween.t * tween.t : 1 - (-2 * tween.t + 2) ** 2 / 2;
+				tween.m.a = tween.from + (tween.to - tween.from) * e;
+				place(tween.m);
+				dirty = true;
+				if (tween.t >= 1) tween = null;
+				busy = true;
+			}
+			if (dirty) recompute();
+			sprinkleT += dt;
+			// filings turn towards the field; in a weak field they stay as they fell
+			for (const f of files) {
+				if (f.hide || sprinkleT < f.delay) {
+					if (!f.hide) busy = true;
+					continue;
+				}
+				const grip = Math.min(1, Math.max(0, (f.s - 0.06) / 0.25));
+				if (grip <= 0) continue;
+				let d = wrap(f.tgt - f.ang);
+				if (d > Math.PI / 2) d -= Math.PI;
+				if (d < -Math.PI / 2) d += Math.PI;
+				if (Math.abs(d) < 0.002) continue;
+				f.ang += reduceMotion() ? d : d * Math.min(1, dt * (3 + 9 * f.s) * grip);
+				busy = true;
+			}
+			// compass needles: a damped swing towards the field
+			for (const c of comps) {
+				const { bx, by } = field(mags, c.x, c.y);
+				const b = Math.hypot(bx, by);
+				const psi = Math.atan2(by, bx);
+				const w0 = Math.min(16, Math.max(3, 9 * Math.sqrt(strength(b) + 0.05)));
+				const d = wrap(c.phi - psi);
+				if (reduceMotion()) {
+					c.phi = psi;
+					c.om = 0;
+					continue;
+				}
+				const acc = -w0 * w0 * Math.sin(d) - 2 * 0.22 * w0 * c.om;
+				c.om += acc * dt;
+				c.phi += c.om * dt;
+				if (Math.abs(d) > 0.002 || Math.abs(c.om) > 0.002) busy = true;
+			}
+			draw();
+			return busy || dragging !== null;
+		};
+		const wake = loop(root, (dt) => step(dt));
+
+		// ---------- words ----------
+		const say = () => {
+			if (mags.length < 2) {
+				live.textContent =
+					scene === 'horse'
+						? 'У подковообразного магнита полюсы рядом, и между ними опилки ложатся почти параллельными линиями.'
+						: 'Опилки гуще и длиннее всего у полюсов: там действие магнита сильнее всего. Посередине магнит почти не притягивает.';
+				return;
+			}
+			const f = force(mags[0], mags[1]);
+			const mag = Math.hypot(f.fx, f.fy);
+			const along = f.fx * (mags[1].x - mags[0].x) + f.fy * (mags[1].y - mags[0].y);
+			// which poles are nearest to each other
+			const p0 = poles(mags[0]);
+			const p1 = poles(mags[1]);
+			const pairs = [
+				['N', 'N', Math.hypot(p0.n.x - p1.n.x, p0.n.y - p1.n.y)],
+				['N', 'S', Math.hypot(p0.n.x - p1.s.x, p0.n.y - p1.s.y)],
+				['S', 'N', Math.hypot(p0.s.x - p1.n.x, p0.s.y - p1.n.y)],
+				['S', 'S', Math.hypot(p0.s.x - p1.s.x, p0.s.y - p1.s.y)],
+			] as const;
+			const near = [...pairs].sort((a, b) => a[2] - b[2])[0];
+			const like = near[0] === near[1];
+			const pole = (p: string) => `<span class="${p === 'N' ? 'pm-n' : 'pm-s'}">${p}</span>`;
+			const what = like ? 'одноимённые' : 'разноимённые';
+			if (mag < 4e-6) {
+				live.innerHTML = 'Магниты далеко друг от друга — они почти не действуют друг на друга.';
+				return;
+			}
+			const verb = along > 0 ? 'притягиваются' : 'отталкиваются';
+			live.innerHTML = `Ближе всего друг к другу полюсы ${pole(near[0])} и ${pole(near[1])} — ${what}. Магниты <b>${verb}</b>: стрелки показывают силы, с которыми они действуют друг на друга.`;
+		};
+
+		// ---------- pointer ----------
+		type Drag = { kind: 'magnet' | 'rotate' | 'compass'; i: number; ox: number; oy: number };
+		let dragging: Drag | null = null;
+		const worldPt = (e: PointerEvent) => {
+			const r = canvas.getBoundingClientRect();
+			return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+		};
+		const pick = (p: Pt): Drag | null => {
+			if (show.compass)
+				for (let i = comps.length - 1; i >= 0; i--)
+					if (Math.hypot(p.x - comps[i].x, p.y - comps[i].y) < compassR() + 4) return { kind: 'compass', i, ox: comps[i].x - p.x, oy: comps[i].y - p.y };
+			const m = mags[sel];
+			if (m) {
+				const h = handlePos(m);
+				if (Math.hypot(p.x - h.x, p.y - h.y) < handleR() + 8) return { kind: 'rotate', i: sel, ox: 0, oy: 0 };
+			}
+			for (let i = mags.length - 1; i >= 0; i--)
+				if (inside(mags[i], p.x, p.y, 6)) return { kind: 'magnet', i, ox: mags[i].x - p.x, oy: mags[i].y - p.y };
+			return null;
+		};
+		const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+		canvas.addEventListener('pointerdown', (e) => {
+			const p = worldPt(e);
+			const d = pick(p);
+			if (!d) return;
+			e.preventDefault();
+			dragging = d;
+			if (d.kind !== 'compass') sel = d.i;
+			canvas.setPointerCapture(e.pointerId);
+			canvas.classList.add('is-dragging');
+			wake();
+		});
+		canvas.addEventListener('pointermove', (e) => {
+			if (!dragging) {
+				const d = pick(worldPt(e));
+				canvas.style.cursor = d ? (d.kind === 'rotate' ? 'alias' : 'grab') : 'default';
+				return;
+			}
+			const p = worldPt(e);
+			if (dragging.kind === 'compass') {
+				const c = comps[dragging.i];
+				c.x = clamp(p.x + dragging.ox, 10, W - 10);
+				c.y = clamp(p.y + dragging.oy, 10, H - 10);
+			} else if (dragging.kind === 'magnet') {
+				const m = mags[dragging.i];
+				m.x = clamp(p.x + dragging.ox, 20, W - 20);
+				m.y = clamp(p.y + dragging.oy, 20, H - 20);
+				place(m);
+				dirty = true;
+				say();
+			} else {
+				const m = mags[dragging.i];
+				let a = Math.atan2(p.y - m.y, p.x - m.x) + Math.PI / 2;
+				const snap = Math.round(a / (Math.PI / 4)) * (Math.PI / 4);
+				if (Math.abs(a - snap) < 0.07) a = snap;
+				m.a = a;
+				place(m);
+				dirty = true;
+				say();
+			}
+			wake();
+		});
+		const endDrag = () => {
+			dragging = null;
+			canvas.classList.remove('is-dragging');
+			say();
+		};
+		canvas.addEventListener('pointerup', endDrag);
+		canvas.addEventListener('pointercancel', endDrag);
+
+		// ---------- controls ----------
+		chips.forEach((c) => c.addEventListener('click', () => setScene(c.dataset.scene!)));
+		root.querySelectorAll<HTMLInputElement>('[data-show]').forEach((inp) =>
+			inp.addEventListener('change', () => {
+				show[inp.dataset.show as keyof typeof show] = inp.checked;
+				dirty = true;
+				wake();
+			}),
+		);
+		const turnBy = (da: number) => {
+			const m = mags[sel];
+			if (!m) return;
+			const from = tween && tween.m === m ? tween.to : m.a;
+			if (reduceMotion()) {
+				m.a = from + da;
+				place(m);
+				dirty = true;
+			} else tween = { m, from: m.a, to: from + da, t: 0 };
+			setTimeout(say, reduceMotion() ? 0 : 480);
+			wake();
+		};
+		root.querySelector('[data-act="turn"]')!.addEventListener('click', () => turnBy(Math.PI / 2));
+		root.querySelector('[data-act="flip"]')!.addEventListener('click', () => turnBy(Math.PI));
+		root.querySelector('[data-act="sprinkle"]')!.addEventListener('click', sprinkle);
+
+		// ---------- size and theme ----------
+		const resize = () => {
+			const cssW = canvas.clientWidth || W;
+			const newH = cssW < 560 ? 760 : 520;
+			const changed = newH !== H;
+			H = newH;
+			const f = fitCanvas(canvas, W, H);
+			k = f.k;
+			kc = f.k / f.dpr;
+			if (changed || !mags.length) setScene(scene);
+			else sprinkle();
+		};
+		readColours();
+		onTheme(() => {
+			readColours();
+			draw();
+		});
+		let rt = 0;
+		new ResizeObserver(() => {
+			clearTimeout(rt);
+			rt = window.setTimeout(resize, 120);
+		}).observe(canvas);
+		resize();
+	}
+</script>
