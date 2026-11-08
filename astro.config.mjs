@@ -31,6 +31,8 @@ export default defineConfig({
 		starlight({
 			title: 'Учебник физики',
 			locales: { root: { label: 'Русский', lang: 'ru' } },
+			// our own «page not found» in the style of the home page: src/pages/404.astro
+			disable404Route: true,
 			head: [
 				{ tag: 'script', content: MOTION_SCRIPT },
 				// visit counter, no cookies: https://irenegorbunova.goatcounter.com
