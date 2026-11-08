@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { satteri } from '@astrojs/markdown-satteri';
 import { katexPlugin } from './src/plugins/katex.mjs';
+import { motionCss, MOTION_SCRIPT } from './src/plugins/motion.mjs';
 
 const grade = (/** @type {number} */ n, /** @type {any[]} */ chapters = []) => ({
 	label: `${n} класс`,
@@ -19,6 +20,8 @@ const section = (/** @type {string} */ label, /** @type {string} */ dir, /** @ty
 
 export default defineConfig({
 	site: 'https://irenegorbunova.github.io',
+	// animations play whatever the system's «reduce motion» setting says (src/plugins/motion.mjs)
+	vite: { css: { postcss: { plugins: [motionCss()] } } },
 	markdown: {
 		processor: satteri({ features: { math: true }, mdastPlugins: [katexPlugin] }),
 	},
@@ -26,6 +29,7 @@ export default defineConfig({
 		starlight({
 			title: 'Учебник физики',
 			locales: { root: { label: 'Русский', lang: 'ru' } },
+			head: [{ tag: 'script', content: MOTION_SCRIPT }],
 			components: { Footer: './src/components/Footer.astro', PageTitle: './src/components/PageTitle.astro' },
 			customCss: [
 				'katex/dist/katex.min.css',

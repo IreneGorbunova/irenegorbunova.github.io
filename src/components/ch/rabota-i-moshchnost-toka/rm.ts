@@ -181,7 +181,4 @@ export const ICON_CSS = `
 :root[data-theme='light'] .rmi .on-halo-cool { fill: rgba(120, 170, 255, 0.45); }
 :root[data-theme='light'] .is-on .rmi .on-chips rect { fill: rgb(90, 150, 255); }
 :root[data-theme='light'] .is-on .rmi .on-fil { stroke: rgb(235, 140, 20); }
-@media (prefers-reduced-motion: reduce) {
-	.is-on .rmi .on-steam, .is-on .rmi .on-waves path, .is-on .rmi .on-puff circle, .is-on .rmi .on-charge { animation: none; opacity: 0.8; transform: none; }
-}
 `;
