@@ -1,0 +1,532 @@
+---
+/**
+ * Water in its three states of matter: ice on a dish, water in an open flask, vapour in a stoppered
+ * flask. Each picture has a magnifier with the molecules (same size and colour in all three):
+ * ice — a lattice whose molecules only vibrate around their places; water — molecules
+ * close together without order that jostle and now and then slip past one another (Brownian dynamics
+ * with soft repulsion); vapour — a few molecules far apart that fly in straight lines and bounce off
+ * each other and the walls (elastic collisions). The ice lattice keeps small gaps, so it is a little
+ * less dense than the liquid, as for real water. Real water vapour is invisible; the flask is tinted only to show that it
+ * fills the whole vessel. Without JavaScript the molecules stand still in their starting places.
+ */
+
+// Ids of the clip paths: unique per instance of the component.
+const u = `som${Math.random().toString(36).slice(2, 8)}`;
+const r1 = (n: number) => Math.round(n * 10) / 10;
+
+// Panel geometry (viewBox 200 × 232): magnifier on top, the vessel below on the table.
+const MAG = { X: 100, Y: 62, R: 56 };
+const GROUND = 226;
+const PR = 6; // molecule radius in the magnifier, the same in all three panels
+
+/** Two dashed lines from the edges of the spot (x, y, r) to the sides of the magnifier. */
+const lens = (x: number, y: number, r: number) => {
+	const L = Math.hypot(MAG.X - x, MAG.Y - y);
+	const [nx, ny] = [(MAG.X - x) / L, (MAG.Y - y) / L];
+	const [px, py] = [-ny, nx];
+	return [1, -1]
+		.map((s) => `<line x1="${r1(x + s * px * r)}" y1="${r1(y + s * py * r)}" x2="${r1(MAG.X + s * px * MAG.R)}" y2="${r1(MAG.Y + s * py * MAG.R)}"/>`)
+		.join('');
+};
+
+/** Erlenmeyer flask: the glass outline (open at the top) and the inner area below the height y. */
+const FL = { nL: 90, nR: 110, top: 140, shoulder: 162, bL: 62, bR: 138, foot: 214 };
+const glass =
+	`M${FL.nL - 4} ${FL.top - 2}q4 1 4 6V${FL.shoulder}L${FL.bL} ${FL.foot}q-4 9 6 ${GROUND - 1 - FL.foot}` +
+	`H${FL.bR - 6}q10 ${-(GROUND - 1 - FL.foot) + 9} 6 ${-(GROUND - 1 - FL.foot)}L${FL.nR} ${FL.shoulder}V${FL.top + 4}q0 -5 4 -6`;
+const xAt = (y: number, side: -1 | 1) => {
+	if (y <= FL.shoulder) return side < 0 ? FL.nL : FL.nR;
+	const t = (y - FL.shoulder) / (FL.foot - FL.shoulder);
+	return side < 0 ? FL.nL - (FL.nL - FL.bL) * t : FL.nR + (FL.bR - FL.nR) * t;
+};
+const below = (y: number) => {
+	const head = y < FL.shoulder ? `M${FL.nL} ${y}V${FL.shoulder}` : `M${r1(xAt(y, -1))} ${y}`;
+	const tail = y < FL.shoulder ? `L${FL.nR} ${FL.shoulder}V${y}Z` : `L${r1(xAt(y, 1))} ${y}Z`;
+	return `${head}L${FL.bL} ${FL.foot}q-4 9 6 ${GROUND - 1 - FL.foot}H${FL.bR - 6}q10 ${-(GROUND - 1 - FL.foot) + 9} 6 ${-(GROUND - 1 - FL.foot)}${tail}`;
+};
+const ground = `<line class="s-ground" x1="16" y1="${GROUND}" x2="184" y2="${GROUND}"/>`;
+
+const LEVEL = 190; // water surface in the open flask
+const SPOT = { solid: [97, 199], liquid: [100, 210], gas: [100, 186] } as const;
+const spotR = 7;
+
+const pics = {
+	solid:
+		lens(SPOT.solid[0], SPOT.solid[1], spotR) +
+		ground +
+		// a saucer: body, then the top surface
+		`<path class="s-dish" d="M40 216Q46 ${GROUND} 62 ${GROUND}H138Q154 ${GROUND} 160 216Z"/>` +
+		`<ellipse class="s-dish-top" cx="100" cy="216" rx="60" ry="7"/>` +
+		// the ice cube: top, side and front faces
+		`<path class="s-ice s-ice--top" d="M75 178L90 167H131L116 178Z"/>` +
+		`<path class="s-ice s-ice--side" d="M116 178L131 167V207L116 219Z"/>` +
+		`<rect class="s-ice" x="75" y="178" width="41" height="41" rx="2.5"/>` +
+		`<path class="s-shine" d="M80 184V200M84 183.5V188M121 174.5V196"/>`,
+	liquid:
+		lens(SPOT.liquid[0], SPOT.liquid[1], spotR) +
+		ground +
+		`<path class="s-water" d="${below(LEVEL)}"/>` +
+		`<line class="s-surface" x1="${r1(xAt(LEVEL, -1) + 1.5)}" y1="${LEVEL}" x2="${r1(xAt(LEVEL, 1) - 1.5)}" y2="${LEVEL}"/>` +
+		`<path class="s-glass" d="${glass}"/>` +
+		`<path class="s-glass-shine" d="M${FL.nL + 4} ${FL.top + 8}V${FL.shoulder - 2}"/>`,
+	gas:
+		lens(SPOT.gas[0], SPOT.gas[1], spotR) +
+		ground +
+		`<path class="s-vapour" d="${below(FL.top + 4)}"/>` +
+		`<path class="s-glass" d="${glass}"/>` +
+		`<path class="s-glass-shine" d="M${FL.nL + 4} ${FL.top + 8}V${FL.shoulder - 2}"/>` +
+		`<path class="s-cork" d="M${FL.nL - 3} ${FL.top - 12}H${FL.nR + 3}L${FL.nR - 1} ${FL.top + 7}H${FL.nL + 1}Z"/>`,
+};
+
+const panels = [
+	{
+		k: 'solid',
+		name: 'Твёрдое — лёд',
+		prop: 'сохраняет форму и объём',
+		label: 'Кубик льда стоит на блюдце. В круге: молекулы льда стоят в строгом порядке и только колеблются около своих мест.',
+	},
+	{
+		k: 'liquid',
+		name: 'Жидкое — вода',
+		prop: 'сохраняет объём, принимает форму сосуда',
+		label: 'Вода в колбе приняла форму её дна, поверхность воды плоская. В круге: молекулы воды расположены близко, без порядка, толкаются и перескакивают с места на место.',
+	},
+	{
+		k: 'gas',
+		name: 'Газообразное — пар',
+		prop: 'занимает весь сосуд',
+		label: 'Пар заполняет всю закрытую колбу. В круге: молекулы пара далеко друг от друга, летают по прямым и отскакивают друг от друга и от стенок.',
+	},
+] as const;
+---
+
+<figure class="som not-content" data-states data-mag={JSON.stringify({ ...MAG, PR })}>
+	<div class="som__row">
+		{
+			panels.map((p) => (
+				<div class="som__panel" data-kind={p.k}>
+					<svg class="som__pic" viewBox="0 0 200 232" role="img" aria-label={p.label}>
+						<defs>
+							<clipPath id={`${u}-${p.k}`}>
+								<circle cx={MAG.X} cy={MAG.Y} r={MAG.R - 1.5} />
+							</clipPath>
+						</defs>
+						<g class="som__scene" set:html={pics[p.k]} />
+						<circle class="som__spot" cx={SPOT[p.k][0]} cy={SPOT[p.k][1]} r={spotR} />
+						<circle class="som__mag-bg" cx={MAG.X} cy={MAG.Y} r={MAG.R} />
+						<g clip-path={`url(#${u}-${p.k})`}>
+							<g class="som__bonds" data-bonds />
+							<g class="som__mols" data-mols />
+						</g>
+						<circle class="som__mag-rim" cx={MAG.X} cy={MAG.Y} r={MAG.R} />
+					</svg>
+					<div class="som__txt">
+						<p class="som__name">{p.name}</p>
+						<p class="som__prop">{p.prop}</p>
+					</div>
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="som__note">В кругах — схема: молекулы сильно увеличены, а их движение замедлено.</figcaption>
+</figure>
+
+<style is:global>
+	.som {
+		--sub: var(--sl-color-blue);
+		--hi: var(--sl-color-white);
+		container-type: inline-size;
+		margin-block: 1.5rem 2rem;
+		padding: 1rem 1.1rem 0.9rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .som {
+		--hi: var(--sl-color-black);
+	}
+	.som__row {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.9rem;
+	}
+	.som__panel {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.35rem;
+		min-width: 0;
+		margin: 0;
+	}
+	.som__pic {
+		display: block;
+		width: 100%;
+		max-width: 15rem;
+		height: auto;
+		aspect-ratio: 200 / 232;
+		overflow: visible;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.som__txt {
+		text-align: center;
+		min-width: 0;
+	}
+	.som__name {
+		margin: 0;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		line-height: 1.25;
+	}
+	.som__prop {
+		margin: 0.15rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		line-height: 1.35;
+	}
+	.som__note {
+		margin: 0.8rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+		text-align: center;
+	}
+	/* narrow: one panel per row, the picture on the left and the words on the right */
+	@container (max-width: 34rem) {
+		.som__row {
+			grid-template-columns: 1fr;
+			gap: 0.6rem;
+		}
+		.som__panel {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			align-items: center;
+			gap: 0.8rem;
+		}
+		.som__panel + .som__panel {
+			padding-top: 0.6rem;
+			border-top: 1px solid var(--sl-color-gray-5);
+		}
+		.som__txt {
+			text-align: left;
+		}
+		.som__note {
+			text-align: left;
+		}
+	}
+
+	/* drawings */
+	.som__pic .s-ground {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.som__scene line:not([class]) {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 4;
+	}
+	.som__pic .s-dish {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.4;
+		stroke-linejoin: round;
+	}
+	.som__pic .s-dish-top {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.4;
+	}
+	.som__pic .s-ice {
+		fill: color-mix(in srgb, color-mix(in srgb, var(--sub) 55%, var(--hi)) 50%, var(--ig-surface));
+		stroke: color-mix(in srgb, var(--sub) 70%, var(--sl-color-white));
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.som__pic .s-ice--top {
+		fill: color-mix(in srgb, var(--sub) 20%, var(--hi));
+	}
+	.som__pic .s-ice--side {
+		fill: color-mix(in srgb, color-mix(in srgb, var(--sub) 80%, var(--hi)) 55%, var(--ig-surface));
+	}
+	.som__pic .s-shine {
+		fill: none;
+		stroke: color-mix(in srgb, var(--hi) 75%, transparent);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.som__pic .s-water {
+		fill: color-mix(in srgb, var(--sub) 38%, transparent);
+	}
+	.som__pic .s-surface {
+		stroke: color-mix(in srgb, var(--sub) 80%, var(--sl-color-white));
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.som__pic .s-vapour {
+		fill: color-mix(in srgb, color-mix(in srgb, var(--sub) 55%, var(--hi)) 16%, transparent);
+	}
+	.som__pic .s-glass {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.6;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+		opacity: 0.85;
+	}
+	.som__pic .s-glass-shine {
+		fill: none;
+		stroke: color-mix(in srgb, var(--hi) 40%, transparent);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.som__pic .s-cork {
+		fill: color-mix(in srgb, var(--ig-v) 45%, var(--sl-color-gray-4));
+		stroke: color-mix(in srgb, var(--ig-v) 30%, var(--sl-color-gray-3));
+		stroke-width: 1.3;
+		stroke-linejoin: round;
+	}
+	.som__spot {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 2;
+	}
+	.som__mag-bg {
+		fill: var(--sl-color-gray-6);
+	}
+	.som__mag-rim {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 2.5;
+	}
+	.som__bonds line {
+		stroke: color-mix(in srgb, var(--sub) 75%, var(--sl-color-white));
+		stroke-width: 2;
+	}
+	.som__mols circle {
+		fill: color-mix(in srgb, var(--sub) 78%, var(--sl-color-white));
+		stroke: color-mix(in srgb, var(--sub) 55%, var(--sl-color-black));
+		stroke-width: 1;
+	}
+</style>
+
+<script>
+	type Mol = { x: number; y: number; vx: number; vy: number; sx: number; sy: number; a: number[]; node: SVGCircleElement };
+	type Kind = 'solid' | 'liquid' | 'gas';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	/** Seeded random numbers, so that the starting pictures are the same after every reload. */
+	const rng = (seed: number) => () => {
+		seed = (seed * 1664525 + 1013904223) >>> 0;
+		return seed / 4294967296;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-states]')) {
+		const { X, Y, R, PR } = JSON.parse(root.dataset.mag!) as { X: number; Y: number; R: number; PR: number };
+		const RIN = R - 2 - PR; // molecule centres stay inside this circle
+		const D0 = 2 * PR + 0.4; // molecules of the liquid push apart when closer than this
+		const A = 2 * PR + 3.2; // nearest-neighbour distance in the ice lattice: small gaps between molecules
+		const rnd = rng(11);
+
+		const make = (g: SVGGElement, list: { x: number; y: number }[]): Mol[] =>
+			list.map(({ x, y }) => {
+				const node = document.createElementNS(NS, 'circle');
+				node.setAttribute('r', String(PR));
+				g.append(node);
+				return { x, y, vx: 0, vy: 0, sx: x, sy: y, a: [], node };
+			});
+
+		// ---- ice: a regular lattice, molecules vibrate around its nodes
+		const lattice: { x: number; y: number }[] = [];
+		for (let r = -6; r <= 6; r++)
+			for (let c = -6; c <= 6; c++) {
+				const x = X + (c + (Math.abs(r) % 2 ? 0.5 : 0)) * A;
+				const y = Y + r * A * 0.866;
+				if (Math.hypot(x - X, y - Y) <= RIN + 1) lattice.push({ x, y });
+			}
+
+		// ---- liquid: about 10 % more molecules per area than in the ice (water is denser than ice)
+		const nLiq = Math.round(lattice.length * 1.1);
+		const liqStart: { x: number; y: number }[] = [];
+		{
+			const sp = D0 * 1.02;
+			for (let r = -10; r <= 10; r++)
+				for (let c = -10; c <= 10; c++) {
+					const x = X + c * sp + (r % 2 ? sp / 2 : 0);
+					const y = Y + r * sp * 0.866;
+					if (Math.hypot(x - X, y - Y) <= RIN) liqStart.push({ x, y });
+				}
+			// leave nLiq of them, chosen at random
+			while (liqStart.length > nLiq) liqStart.splice(Math.floor(rnd() * liqStart.length), 1);
+		}
+
+		// ---- vapour: a few molecules far apart
+		const gasStart: { x: number; y: number }[] = [];
+		while (gasStart.length < 8) {
+			const a = rnd() * 6.2832;
+			const r = Math.sqrt(rnd()) * (RIN - 2);
+			const p = { x: X + r * Math.cos(a), y: Y + r * Math.sin(a) };
+			if (gasStart.every((q) => Math.hypot(q.x - p.x, q.y - p.y) > 5 * PR)) gasStart.push(p);
+		}
+
+		const groups = Object.fromEntries(
+			[...root.querySelectorAll<HTMLElement>('[data-kind]')].map((el) => [el.dataset.kind, el.querySelector<SVGGElement>('[data-mols]')!]),
+		) as Record<Kind, SVGGElement>;
+		const ice = make(groups.solid, lattice);
+		const bondsG = root.querySelector<SVGGElement>('[data-kind=solid] [data-bonds]')!;
+		const bonds: [Mol, Mol, SVGLineElement][] = [];
+		for (let i = 0; i < ice.length; i++)
+			for (let j = i + 1; j < ice.length; j++)
+				if (Math.hypot(ice[i].sx - ice[j].sx, ice[i].sy - ice[j].sy) < A * 1.05) {
+					const ln = document.createElementNS(NS, 'line');
+					bondsG.append(ln);
+					bonds.push([ice[i], ice[j], ln]);
+				}
+		const liq = make(groups.liquid, liqStart);
+		const gas = make(groups.gas, gasStart);
+
+		for (const m of ice) {
+			// two frequencies per direction: an irregular trembling around the node
+			m.a = [10 + rnd() * 5, rnd() * 6.28, 10 + rnd() * 5, rnd() * 6.28, 17 + rnd() * 6, rnd() * 6.28];
+		}
+		const GAS_V = 90; // px/s
+		for (const m of gas) {
+			const a = rnd() * 6.2832;
+			const v = GAS_V * (0.75 + 0.5 * rnd());
+			m.vx = v * Math.cos(a);
+			m.vy = v * Math.sin(a);
+		}
+
+		/** Keeps a molecule inside the magnifier: mirror reflection from its rim. */
+		const wall = (m: Mol) => {
+			const rx = m.x - X;
+			const ry = m.y - Y;
+			const r = Math.hypot(rx, ry);
+			if (r <= RIN) return;
+			m.x = X + (rx / r) * RIN;
+			m.y = Y + (ry / r) * RIN;
+			const vn = (m.vx * rx + m.vy * ry) / r;
+			if (vn > 0) {
+				m.vx -= (2 * vn * rx) / r;
+				m.vy -= (2 * vn * ry) / r;
+			}
+		};
+
+		// liquid: Brownian dynamics with a soft repulsion between touching molecules
+		const GAMMA = 5;
+		const SIGMA = 95; // noise strength: typical speed ≈ σ/√γ ≈ 40 px/s
+		const fx = new Float64Array(liq.length);
+		const fy = new Float64Array(liq.length);
+		const stepLiquid = (dt: number) => {
+			const n = Math.max(1, Math.ceil(dt / 0.004));
+			const h = dt / n;
+			const kick = SIGMA * Math.sqrt(h) * 1.7;
+			for (let it = 0; it < n; it++) {
+				fx.fill(0);
+				fy.fill(0);
+				for (let i = 0; i < liq.length; i++) {
+					const a = liq[i];
+					for (let j = i + 1; j < liq.length; j++) {
+						const b = liq[j];
+						const dx = a.x - b.x;
+						const dy = a.y - b.y;
+						if (Math.abs(dx) > D0 || Math.abs(dy) > D0) continue;
+						const d = Math.hypot(dx, dy) || 0.01;
+						if (d >= D0) continue;
+						const F = Math.min(9000, 2600 * (D0 - d)) / d;
+						fx[i] += F * dx;
+						fy[i] += F * dy;
+						fx[j] -= F * dx;
+						fy[j] -= F * dy;
+					}
+				}
+				for (let i = 0; i < liq.length; i++) {
+					const m = liq[i];
+					m.vx += (fx[i] - GAMMA * m.vx) * h + kick * (Math.random() * 2 - 1);
+					m.vy += (fy[i] - GAMMA * m.vy) * h + kick * (Math.random() * 2 - 1);
+					const v = Math.hypot(m.vx, m.vy);
+					if (v > 150) (m.vx *= 150 / v), (m.vy *= 150 / v);
+					m.x += m.vx * h;
+					m.y += m.vy * h;
+					wall(m);
+				}
+			}
+		};
+
+		// vapour: straight flight, elastic collisions of equal balls and with the rim
+		const stepGas = (dt: number) => {
+			const n = Math.max(1, Math.ceil(dt / 0.01));
+			const h = dt / n;
+			for (let it = 0; it < n; it++) {
+				for (const m of gas) {
+					m.x += m.vx * h;
+					m.y += m.vy * h;
+					wall(m);
+				}
+				for (let i = 0; i < gas.length; i++)
+					for (let j = i + 1; j < gas.length; j++) {
+						const a = gas[i];
+						const b = gas[j];
+						const dx = b.x - a.x;
+						const dy = b.y - a.y;
+						const d = Math.hypot(dx, dy);
+						if (d >= 2 * PR || d === 0) continue;
+						const [nx, ny] = [dx / d, dy / d];
+						const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+						if (rel <= 0) continue;
+						a.vx -= rel * nx;
+						a.vy -= rel * ny;
+						b.vx += rel * nx;
+						b.vy += rel * ny;
+					}
+			}
+		};
+
+		let time = 0;
+		const AMP = 1.3; // px: vibration of the ice molecules, about a tenth of the distance between them
+		const draw = () => {
+			for (const m of ice) {
+				const [w1, p1, w2, p2, w3, p3] = m.a;
+				m.x = m.sx + AMP * (0.8 * Math.sin(w1 * time + p1) + 0.35 * Math.sin(w3 * time + p3));
+				m.y = m.sy + AMP * (0.8 * Math.sin(w2 * time + p2) + 0.35 * Math.cos(w3 * time + p1));
+			}
+			for (const [a, b, ln] of bonds) {
+				ln.setAttribute('x1', a.x.toFixed(1));
+				ln.setAttribute('y1', a.y.toFixed(1));
+				ln.setAttribute('x2', b.x.toFixed(1));
+				ln.setAttribute('y2', b.y.toFixed(1));
+			}
+			for (const list of [ice, liq, gas])
+				for (const m of list) {
+					m.node.setAttribute('cx', m.x.toFixed(1));
+					m.node.setAttribute('cy', m.y.toFixed(1));
+				}
+		};
+
+		// let the liquid lose the order of its starting places before it is first shown
+		for (let k = 0; k < 40; k++) stepLiquid(0.05);
+		draw();
+
+		// animation: runs only while the figure is on screen, real time with a clamped step
+		let raf = 0;
+		let last = 0;
+		const frame = (now: number) => {
+			const dt = Math.min((now - (last || now)) / 1000, 1 / 20);
+			last = now;
+			time += dt;
+			stepLiquid(dt);
+			stepGas(dt);
+			draw();
+			raf = requestAnimationFrame(frame);
+		};
+		new IntersectionObserver((entries) => {
+			const visible = entries.some((e) => e.isIntersecting);
+			if (visible && !raf) {
+				last = 0;
+				raf = requestAnimationFrame(frame);
+			} else if (!visible && raf) {
+				cancelAnimationFrame(raf);
+				raf = 0;
+			}
+		}).observe(root);
+	}
+</script>
