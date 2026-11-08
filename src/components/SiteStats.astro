@@ -1,0 +1,171 @@
+---
+/**
+ * What visitors do on a page, as GoatCounter events (https://irenegorbunova.goatcounter.com). Each event is sent
+ * at most once per page visit; nothing personal is sent, and count.js itself skips localhost and automated browsers.
+ *   Модель: <chapter> / <section>             — a model (<figure class="… not-content">) was touched
+ *   Вопрос верно | Вопрос неверно: <chapter> / <question>  — the first answer to a question was right / wrong
+ *   Решение | Ответы к опыту | Ответ на вопрос | Раскрыто: <chapter> / … — a <details> was opened
+ *   Понятие из списка: <chapter> / <name>      — a row of «Формулы и понятия главы» was opened
+ *   Вывод до конца: <chapter> / <title>       — a step-by-step derivation was opened to the last step
+ *   Решите сами: <chapter> / решено N          — N problems solved in the trainer
+ *   Карточки: <page>                           — the flip-card deck was opened
+ *   Подсказка: <chapter> / <term>              — a «More» note was opened
+ *   Пояснения к формулам: <chapter>            — a note on a formula letter or unit was opened
+ *   Созвездие собрано: <section>               — every star of a section's constellation got lit
+ *   Ссылка наружу: <site> | Контакт: почта | Контакт: телефон — an outgoing link was followed
+ * Rendered once per page: from PageTitle.astro on textbook pages and from pages/index.astro.
+ */
+---
+
+<script>
+	type GC = { count?: (o: { path: string; title?: string; event?: boolean }) => void };
+	const sent = new Set<string>();
+	const send = (path: string, tries = 0) => {
+		const gc = (window as unknown as { goatcounter?: GC }).goatcounter;
+		if (!gc?.count) {
+			// count.js loads asynchronously; wait for it a little
+			if (tries < 10) setTimeout(() => send(path, tries + 1), 1000);
+			return;
+		}
+		gc.count({ path, title: path, event: true });
+	};
+	const count = (path: string) => {
+		const p = path.replace(/\s+/g, ' ').trim().slice(0, 150);
+		if (sent.has(p)) return;
+		sent.add(p);
+		send(p);
+	};
+	/** Visible text of an element: KaTeX formulas once, without their hidden MathML copy. */
+	const textOf = (el: Element | null | undefined) => {
+		if (!el) return '';
+		const c = el.cloneNode(true) as Element;
+		c.querySelectorAll('.katex-mathml').forEach((m) => m.remove());
+		return c.textContent ?? '';
+	};
+	const short = (s: string | null | undefined, n = 70) => {
+		const t = (s ?? '').replace(/\s+/g, ' ').trim();
+		return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+	};
+
+	// outgoing links, on every page
+	document.addEventListener('click', (e) => {
+		const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+		if (!a) return;
+		if (a.protocol === 'mailto:') count('Контакт: почта');
+		else if (a.protocol === 'tel:') count('Контакт: телефон');
+		else if (/^https?:$/.test(a.protocol) && a.host !== location.host) count(`Ссылка наружу: ${a.host.replace(/^www\./, '')}`);
+	});
+
+	const content = document.querySelector<HTMLElement>('.sl-markdown-content');
+	if (content) {
+		const chapter =
+			document.querySelector('#starlight__sidebar a[aria-current="page"]')?.textContent?.trim() ||
+			document.querySelector('h1')?.textContent?.trim() ||
+			location.pathname;
+		const heads = [...content.querySelectorAll<HTMLElement>('h2, h3')];
+		const headOf = (el: Element) =>
+			heads.filter((h) => h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).pop()?.textContent?.trim() || 'вступление';
+		/** The top-level block of the page text that holds `el`. */
+		const blockOf = (el: Element) => {
+			let b: Element = el;
+			while (b.parentElement && b.parentElement !== content) b = b.parentElement;
+			return b.parentElement === content ? b : null;
+		};
+
+		// models: named by the heading above, numbered when one heading has several
+		const figures = [...content.querySelectorAll<HTMLElement>('figure.not-content')].filter(
+			(f) => !f.parentElement?.closest('figure.not-content'),
+		);
+		const names = new Map<Element, string>();
+		const byHead = new Map<string, HTMLElement[]>();
+		for (const f of figures) byHead.set(headOf(f), [...(byHead.get(headOf(f)) ?? []), f]);
+		for (const [h, fs] of byHead) fs.forEach((f, i) => names.set(f, fs.length > 1 ? `${h} (${i + 1})` : h));
+		const touch = (e: Event) => {
+			const f = (e.target as Element | null)?.closest?.('figure.not-content');
+			const top = f && figures.find((x) => x === f || x.contains(f));
+			if (top) count(`Модель: ${chapter} / ${names.get(top)}`);
+		};
+		content.addEventListener('pointerdown', touch);
+		content.addEventListener('input', touch);
+		content.addEventListener('keydown', (e) => {
+			if (['Enter', ' '].includes(e.key) || e.key.startsWith('Arrow')) touch(e);
+		});
+
+		// questions: the first answer (a quiz marks options .is-right / .is-wrong)
+		const answered = new Set<Element>();
+		new MutationObserver((list) => {
+			const hit = new Map<Element, boolean>(); // block → wrong?
+			for (const m of list) {
+				const t = m.target as Element;
+				const right = t.classList.contains('is-right');
+				const wrong = t.classList.contains('is-wrong');
+				if (!right && !wrong) continue;
+				const b = blockOf(t);
+				if (b && !answered.has(b)) hit.set(b, (hit.get(b) ?? false) || wrong);
+			}
+			for (const [b, wrong] of hit) {
+				answered.add(b);
+				const q = b.querySelector('legend, [class*="question"], [class*="__q"], p, b') ?? b;
+				count(`${wrong ? 'Вопрос неверно' : 'Вопрос верно'}: ${chapter} / ${short(textOf(q))}`);
+			}
+		}).observe(content, { attributes: true, attributeFilter: ['class'], subtree: true });
+
+		// opened <details>: solutions, answers to «Что попробовать», answers to questions
+		content.addEventListener(
+			'toggle',
+			(e) => {
+				const d = e.target as HTMLDetailsElement;
+				if (!(d instanceof HTMLDetailsElement) || !d.open) return;
+				if (d.classList.contains('kf-row')) {
+					// a row of «Формулы и понятия главы» (formulas/FormulaList.astro)
+					count(`Понятие из списка: ${chapter} / ${short(textOf(d.querySelector('.kf-row__name, .kf-row__term')))}`);
+					return;
+				}
+				const s = textOf(d.querySelector(':scope > summary')).trim();
+				const h = headOf(d);
+				if (/^(Возможное )?[Рр]ешение$/.test(s)) {
+					// the problem this solution belongs to: «Задача N.» in the paragraph above
+					let p = d.previousElementSibling;
+					while (p && !/^Задача\s*\d+/.test(p.textContent?.trim() ?? '') && !/^H[23]$/.test(p.tagName)) p = p.previousElementSibling;
+					const task = p?.textContent?.trim().match(/^Задача\s*\d+/)?.[0];
+					count(`Решение: ${chapter} / ${task ?? h}`);
+				} else if (/^Что должно было получиться/.test(s)) count(`Ответы к опыту: ${chapter} / ${h}`);
+				else if (/^\d+\./.test(s)) count(`Ответ на вопрос: ${chapter} / ${short(s)}`);
+				else count(`Раскрыто: ${chapter} / ${short(s)}`);
+			},
+			true,
+		);
+
+		// derivations opened to the end (Derivation.astro)
+		document.addEventListener('ig:derivation-done', (e) => {
+			const t = (e as CustomEvent<{ title?: string }>).detail?.title;
+			count(`Вывод до конца: ${chapter} / ${t ?? 'вывод'}`);
+		});
+		// problems solved in «Решите сами» (Trainer.astro)
+		document.addEventListener('ig:trainer', (e) => {
+			const n = (e as CustomEvent<{ solved: number }>).detail?.solved;
+			if (n) count(`Решите сами: ${chapter} / решено ${n}`);
+		});
+		// notes (MoreSetup.astro)
+		document.addEventListener('ig:note', (e) => {
+			const d = (e as CustomEvent<{ kind: string; label: string }>).detail;
+			if (d?.kind === 'more') count(`Подсказка: ${chapter} / ${short(d.label, 50)}`);
+			else if (d?.kind === 'formula') count(`Пояснения к формулам: ${chapter}`);
+		});
+	}
+
+	// flip cards (formulas/CardDeck.astro), on a chapter page or on «Формулы»
+	document.addEventListener('click', (e) => {
+		if (!(e.target as Element | null)?.closest?.('[data-deck-open]')) return;
+		const page =
+			document.querySelector('#starlight__sidebar a[aria-current="page"]')?.textContent?.trim() ||
+			document.querySelector('h1')?.textContent?.trim() ||
+			location.pathname;
+		count(`Карточки: ${page}`);
+	});
+	// a section's constellation completed (sky/Constellation.astro)
+	document.addEventListener('ig:constellation-complete', (e) => {
+		const s = (e as CustomEvent<{ section: string }>).detail?.section;
+		if (s) count(`Созвездие собрано: ${s}`);
+	});
+</script>
