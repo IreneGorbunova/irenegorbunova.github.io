@@ -1,0 +1,1092 @@
+---
+/**
+ * Efficiency of a gas burner (КПД), continuing the chapter's kettle task: a gas burner heats 1,7 kg of water
+ * from 20 °C until it boils. Gas burns at a constant rate; the released energy Q_з = q·m_т, the water gets
+ * Q_п = η·Q_з, the rest Q_пот = Q_з − Q_п is lost. Two modes: η = 100 % (ideal) and η = 40 % (a real stove).
+ * Energy is drawn as glowing portions rising from the flame: useful ones go into the water, lost ones flow
+ * around the kettle into the air or stay in the kettle wall and the burner. With the same burning rate the
+ * run with losses lasts 2,5 times longer (6 s and 15 s).
+ */
+const uid = `eff-${Math.random().toString(36).slice(2, 8)}`;
+// Kettle body: walls from (114, 225) to (134, 138), mirrored about x = 190; bottom at y = 233.
+const BODY = 'M121,233 Q113,233 114,225 L134,138 Q136,130 144,130 L236,130 Q244,130 246,138 L266,225 Q267,233 259,233 Z';
+// Thermometer scale: 20 °C at y = 110, 100 °C at y = 38.
+const ty = (t: number) => 110 - (t - 20) * 0.9;
+const ticks = [20, 40, 60, 80, 100];
+---
+
+<figure class="eff not-content" data-efflab>
+	<div class="eff__top">
+		<div class="eff__seg" role="group" aria-label="Режим">
+			<button type="button" data-mode="1" aria-pressed="true">Без потерь</button>
+			<button type="button" data-mode="0.4" aria-pressed="false">С потерями</button>
+		</div>
+		<div class="eff__buttons">
+			<button type="button" class="eff__btn" data-go>Зажечь</button>
+			<button type="button" class="eff__btn eff__btn--ghost" data-reset>Сначала</button>
+		</div>
+	</div>
+
+	<div class="eff__main">
+		<div class="eff__stage">
+			<svg viewBox="0 0 360 310" class="eff__scene" role="img" aria-label="Газовая горелка нагревает чайник с водой; в воде термометр, слева счётчик сгоревшего газа">
+				<defs>
+					<clipPath id={`${uid}-in`}><path d={BODY} /></clipPath>
+					<radialGradient id={`${uid}-gp`}>
+						<stop offset="0" class="eff__st-p0" />
+						<stop offset="0.5" class="eff__st-p1" />
+						<stop offset="1" class="eff__st-p2" />
+					</radialGradient>
+					<radialGradient id={`${uid}-gs`}>
+						<stop offset="0" class="eff__st-s0" />
+						<stop offset="1" class="eff__st-s1" />
+					</radialGradient>
+					<radialGradient id={`${uid}-gl`}>
+						<stop offset="0" class="eff__st-l0" />
+						<stop offset="0.5" class="eff__st-l1" />
+						<stop offset="1" class="eff__st-l2" />
+					</radialGradient>
+				</defs>
+
+				<!-- floor, gas meter and pipe -->
+				<line class="eff__floor" x1="6" y1="300.5" x2="354" y2="300.5" />
+				<path class="eff__pipe" d="M53,266 V292 H168" />
+				<text class="eff__label" x="53" y="198" text-anchor="middle">Сгорело газа</text>
+				<rect class="eff__meter" x="14" y="206" width="78" height="60" rx="7" />
+				<text class="eff__meter-k" x="53" y="222" text-anchor="middle"><tspan font-style="italic">m</tspan><tspan font-size="8" dy="2">т</tspan></text>
+				<rect class="eff__lcd" x="21" y="228" width="64" height="25" rx="3" />
+				<text class="eff__lcd-t" x="53" y="246" text-anchor="middle" data-meter>0,0 г</text>
+
+				<!-- burner and stand -->
+				<rect class="eff__metal" x="166" y="288" width="48" height="12" rx="3" />
+				<rect class="eff__metal" x="181" y="270" width="18" height="19" />
+				<rect class="eff__metal" x="158" y="264" width="64" height="7" rx="2" data-crown />
+				<g class="eff__stand">
+					<line x1="110" y1="237" x2="98" y2="300" />
+					<line x1="270" y1="237" x2="282" y2="300" />
+					<line x1="104" y1="237" x2="276" y2="237" />
+				</g>
+				<g class="eff__flame" data-flame>
+					<path class="eff__fl0" data-f0 />
+					<path class="eff__fl1" data-f1 />
+				</g>
+
+				<!-- kettle -->
+				<path class="eff__handle" d="M135,150 C98,150 92,200 117,213" />
+				<path class="eff__body" d="M261,201 Q293,197 311,146 L321,150 Q303,213 264,222 Z" />
+				<g clip-path={`url(#${uid}-in)`}>
+					<rect class="eff__water" x="100" y="150" width="180" height="90" data-water />
+					<g data-bubbles></g>
+				</g>
+				<path class="eff__body" d={BODY} />
+				<path class="eff__wave" d="M132,150 H248" />
+				<path class="eff__body" d="M148,130 Q190,100 232,130 Z" />
+				<rect class="eff__body" x="183" y="106" width="14" height="9" rx="4" />
+				<g data-steam></g>
+
+				<!-- thermometer -->
+				<g class="eff__thermo">
+					<rect class="eff__tube" x="157" y="26" width="6" height="190" rx="3" />
+					{
+						ticks.map((t) => (
+							<g>
+								<line x1="150" y1={ty(t)} x2="156" y2={ty(t)} />
+								<text x="147" y={ty(t) + 3.8} text-anchor="end">
+									{t}
+								</text>
+							</g>
+						))
+					}
+					<rect class="eff__col" x="158.6" y={ty(20)} width="2.8" height={219 - ty(20)} data-col />
+					<circle class="eff__bulb" cx="160" cy="219" r="5.5" />
+					<text class="eff__t" x="160" y="17" text-anchor="middle" data-tsvg>20 °C</text>
+				</g>
+
+				<g data-dots></g>
+			</svg>
+		</div>
+
+		<dl class="eff__nums">
+			<div>
+				<dt><span data-k="m">Сгорело газа <i>m</i><sub>т</sub></span></dt>
+				<dd data-v="m">0,0 г</dd>
+			</div>
+			<div>
+				<dt><span data-k="Qz"><i>Q</i><sub>з</sub> — выделилось</span></dt>
+				<dd data-v="Qz">0 кДж</dd>
+			</div>
+			<div>
+				<dt><span data-k="t">Температура воды <i>t</i></span></dt>
+				<dd data-v="t">20 °C</dd>
+			</div>
+			<div class="eff__n-p">
+				<dt><span data-k="Qp"><i>Q</i><sub>п</sub> — получила вода</span></dt>
+				<dd data-v="Qp">0 кДж</dd>
+			</div>
+			<div class="eff__n-l">
+				<dt><span data-k="Ql"><i>Q</i><sub>пот</sub> — потери</span></dt>
+				<dd data-v="Ql">0 кДж</dd>
+			</div>
+			<div class="eff__n-eta">
+				<dt><span data-k="eta">КПД <i>η</i></span></dt>
+				<dd data-v="eta">—</dd>
+			</div>
+		</dl>
+	</div>
+
+	<div class="eff__energy">
+		<p class="eff__energy-title">Энергия сгоревшего газа <i>Q</i><sub>з</sub></p>
+		<div class="eff__track" aria-hidden="true">
+			<span class="eff__fill eff__fill--p" data-bp></span><span class="eff__fill eff__fill--l" data-bl></span>
+			<span class="eff__need" style={`left:${(571.2 / 1500) * 100}%`}></span>
+		</div>
+		<div class="eff__scale" aria-hidden="true">
+			<span>0</span>
+			<span class="eff__need-t" style={`left:${(571.2 / 1500) * 100}%`}>571 кДж — нужно воде</span>
+			<span>1500 кДж</span>
+		</div>
+		<p class="eff__legend">
+			<span><span class="eff__sw eff__sw--p"></span><span><i>Q</i><sub>п</sub> — получила вода</span></span>
+			<span><span class="eff__sw eff__sw--l"></span><span><i>Q</i><sub>пот</sub> — потери</span></span>
+		</p>
+	</div>
+
+	<p class="eff__formula" data-eta></p>
+	<p class="eff__cmp" data-cmp hidden></p>
+	<p class="eff__live" aria-live="polite" data-live></p>
+	<figcaption class="eff__cap">
+		<span class="eff__dotcap">Каждая светящаяся точка — порция энергии от сгоревшего газа.</span> Газ в модели горит гораздо быстрее, чем на настоящей плите.
+	</figcaption>
+</figure>
+
+<style is:global>
+	@media (prefers-reduced-motion: reduce) {
+		.eff__dotcap {
+			display: none;
+		}
+	}
+	.eff {
+		--eff-p: var(--ig-v);
+		--eff-l: hsl(228, 14%, 72%);
+		--eff-cold: hsl(205, 80%, 58%);
+		--eff-warm: hsl(8, 85%, 58%);
+		--eff-glass: color-mix(in srgb, var(--sl-color-gray-3) 14%, transparent);
+		margin-block: 1.5rem 2rem;
+		padding: 1rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-text);
+	}
+	:root[data-theme='light'] .eff {
+		--eff-l: hsl(228, 10%, 58%);
+		--eff-cold: hsl(205, 80%, 55%);
+		--eff-warm: hsl(8, 80%, 55%);
+	}
+	.eff i {
+		font-family: var(--ig-font-math);
+	}
+	.eff button:focus-visible,
+	.eff [data-k]:focus-visible {
+		outline: 2px solid var(--sl-color-text-accent);
+		outline-offset: 2px;
+	}
+	.eff__top {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem 1rem;
+		margin-bottom: 0.75rem;
+	}
+	.eff__seg {
+		display: inline-flex;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.eff__seg button {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.45rem 1rem;
+		border: 0;
+		border-left: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.eff__seg button:first-child {
+		border-left: 0;
+		border-radius: 999px 0 0 999px;
+	}
+	.eff__seg button:last-child {
+		border-radius: 0 999px 999px 0;
+	}
+	.eff__seg button:focus-visible {
+		outline-offset: -3px;
+	}
+	.eff__seg button[aria-pressed='true'] {
+		background: color-mix(in srgb, var(--sl-color-accent) 18%, transparent);
+		color: var(--sl-color-white);
+		font-weight: 700;
+		box-shadow: inset 0 0 0 1px var(--sl-color-accent);
+	}
+	.eff__buttons {
+		display: flex;
+		gap: 0.6rem;
+	}
+	.eff__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		padding: 0.45rem 1.2rem;
+		min-width: 6.5rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.eff__btn:hover {
+		filter: brightness(1.08);
+	}
+	.eff__btn--ghost {
+		min-width: 0;
+		background: transparent;
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-4);
+	}
+	.eff__main {
+		display: grid;
+		grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+		gap: 0.75rem 1rem;
+		align-items: center;
+	}
+	.eff__stage {
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.eff__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.eff__floor {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.eff__pipe {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 5;
+		stroke-linejoin: round;
+	}
+	.eff__label {
+		font-size: 11.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.eff__meter {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.eff__meter-k {
+		font-size: 12px;
+		font-family: var(--ig-font-math);
+		fill: var(--sl-color-gray-2);
+	}
+	.eff__lcd {
+		fill: var(--sl-color-black);
+		stroke: var(--sl-color-gray-4);
+	}
+	.eff__lcd-t {
+		font-size: 15px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.eff__metal {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.eff__stand line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.eff__fl0 {
+		fill: hsl(222, 95%, 60%);
+		opacity: 0.8;
+	}
+	.eff__fl1 {
+		fill: hsl(195, 100%, 82%);
+		opacity: 0.9;
+	}
+	:root[data-theme='light'] .eff__fl0 {
+		fill: hsl(222, 90%, 55%);
+	}
+	:root[data-theme='light'] .eff__fl1 {
+		fill: hsl(195, 95%, 70%);
+	}
+	.eff__flame {
+		transition: opacity 0.3s;
+	}
+	.eff__body {
+		fill: var(--eff-glass);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.2;
+		stroke-linejoin: round;
+	}
+	.eff__handle {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 7;
+		stroke-linecap: round;
+	}
+	.eff__water {
+		fill: var(--eff-cold);
+		opacity: 0.6;
+	}
+	.eff__wave {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+		opacity: 0.5;
+	}
+	.eff__bubble {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.2;
+		opacity: 0.75;
+	}
+	.eff__st-s0 {
+		stop-color: var(--sl-color-gray-2);
+		stop-opacity: 1;
+	}
+	.eff__st-s1 {
+		stop-color: var(--sl-color-gray-2);
+		stop-opacity: 0;
+	}
+	.eff__tube {
+		fill: color-mix(in srgb, var(--sl-color-white) 12%, var(--sl-color-gray-6));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.eff__thermo line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.eff__thermo text {
+		font-size: 10.5px;
+		fill: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.eff__col,
+	.eff__bulb {
+		fill: hsl(355, 80%, 55%);
+	}
+	.eff__thermo .eff__t {
+		font-size: 13.5px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+	.eff__st-p0 {
+		stop-color: color-mix(in srgb, var(--eff-p) 35%, white);
+		stop-opacity: 1;
+	}
+	.eff__st-p1 {
+		stop-color: var(--eff-p);
+		stop-opacity: 0.95;
+	}
+	.eff__st-p2 {
+		stop-color: var(--eff-p);
+		stop-opacity: 0;
+	}
+	.eff__st-l0 {
+		stop-color: var(--eff-l);
+		stop-opacity: 1;
+	}
+	.eff__st-l1 {
+		stop-color: var(--eff-l);
+		stop-opacity: 0.75;
+	}
+	.eff__st-l2 {
+		stop-color: var(--eff-l);
+		stop-opacity: 0;
+	}
+	.eff__nums {
+		display: grid;
+		gap: 0.15rem;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+	}
+	.eff__nums > div {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin: 0;
+		padding: 0.3rem 0.55rem;
+		border-radius: 0.5rem;
+		line-height: 1.4;
+	}
+	.eff__nums dt {
+		margin: 0;
+		color: var(--sl-color-gray-2);
+		font-weight: 400;
+	}
+	.eff__nums dd {
+		margin: 0;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.eff__n-p dd {
+		color: var(--eff-p);
+	}
+	.eff__n-l dd {
+		color: var(--sl-color-gray-2);
+	}
+	.eff__nums > .eff__n-eta {
+		margin-top: 0.2rem;
+		background: var(--sl-color-gray-6);
+	}
+	.eff__n-eta dt,
+	.eff__n-eta dd {
+		font-size: var(--sl-text-base);
+		color: var(--sl-color-white);
+	}
+	.eff__energy {
+		margin-top: 0.9rem;
+	}
+	.eff__energy-title {
+		margin: 0 0 0.3rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.eff__track {
+		position: relative;
+		display: flex;
+		height: 1.1rem;
+		border-radius: 0.35rem;
+		background: var(--sl-color-gray-6);
+	}
+	.eff__fill {
+		display: block;
+		height: 100%;
+		width: 0;
+	}
+	.eff__fill--p {
+		background: var(--eff-p);
+		border-radius: 0.35rem 0 0 0.35rem;
+	}
+	.eff__fill--l,
+	.eff__sw--l {
+		background: repeating-linear-gradient(
+			-45deg,
+			color-mix(in srgb, var(--eff-l) 75%, transparent) 0 3px,
+			color-mix(in srgb, var(--eff-l) 35%, transparent) 3px 6px
+		);
+	}
+	.eff__need {
+		position: absolute;
+		top: -0.25rem;
+		bottom: -0.25rem;
+		border-left: 2px dashed var(--sl-color-white);
+		transform: translateX(-1px);
+	}
+	.eff__scale {
+		position: relative;
+		display: flex;
+		justify-content: space-between;
+		margin-top: 0.25rem;
+		height: 1.3em;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.eff__need-t {
+		position: absolute;
+		top: 0;
+		transform: translateX(-50%);
+		white-space: nowrap;
+		color: var(--sl-color-gray-1);
+	}
+	.eff__legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.2rem 1.25rem;
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.eff__legend > span {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.eff__sw {
+		display: inline-block;
+		width: 1.4rem;
+		height: 0.75rem;
+		border-radius: 0.2rem;
+	}
+	.eff__sw--p {
+		background: var(--eff-p);
+	}
+	.eff__formula {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem 0.45rem;
+		margin: 0.8rem 0 0;
+		padding: 0.45rem 0.75rem;
+		min-height: 3.4rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.eff__formula > span {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		white-space: nowrap;
+	}
+	.eff__frac {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		line-height: 1.25;
+		font-size: 0.92em;
+	}
+	.eff__frac > span + span {
+		border-top: 1px solid currentColor;
+		padding-top: 0.1rem;
+		align-self: stretch;
+		text-align: center;
+	}
+	.eff__formula .eff__p {
+		color: var(--eff-p);
+	}
+	.eff__formula b {
+		color: var(--sl-color-white);
+	}
+	.eff__cmp {
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.eff__cmp b {
+		font-variant-numeric: tabular-nums;
+	}
+	.eff__live {
+		min-height: 1.6em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.eff__cap {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 44rem) {
+		.eff__main {
+			grid-template-columns: 1fr;
+		}
+		/* under the picture: two columns of small cards, the label above the value */
+		.eff__nums {
+			grid-template-columns: 1fr 1fr;
+			gap: 0.4rem;
+		}
+		.eff__nums > div {
+			flex-direction: column;
+			align-items: flex-start;
+			justify-content: flex-start;
+			gap: 0.05rem;
+			background: var(--sl-color-gray-6);
+		}
+		.eff__nums > .eff__n-eta {
+			margin-top: 0;
+		}
+		.eff__n-eta dt,
+		.eff__n-eta dd {
+			font-size: var(--sl-text-sm);
+		}
+		.eff__nums dd {
+			font-size: var(--sl-text-base);
+		}
+		.eff__n-eta {
+			box-shadow: inset 0 0 0 1px var(--sl-color-gray-4);
+		}
+	}
+	@media (max-width: 30rem) {
+		.eff {
+			padding: 0.75rem 0.6rem;
+		}
+		.eff__top {
+			justify-content: center;
+		}
+		.eff__seg button {
+			padding: 0.45rem 0.8rem;
+		}
+		.eff__nums > div {
+			padding: 0.25rem 0.4rem;
+		}
+	}
+</style>
+
+<script>
+	import { ru, fixed, reduceMotion, loop } from './et';
+
+	type NoteEl = HTMLElement & { igNote?: () => Node };
+	type Kind = 'p' | 'air' | 'wall' | 'burner';
+	type Pt = [number, number];
+	type Dot = { kind: Kind; pts: Pt[]; dur: number; hold: number; age: number; el: SVGCircleElement };
+
+	const C = 4200; // J/(kg·°C)
+	const MW = 1.7; // kg of water
+	const T1 = 20;
+	const Q_GAS = 4.4e7; // J/kg, natural gas
+	const Q_NEED = C * MW * (100 - T1); // 571 200 J
+	const RATE = Q_NEED / Q_GAS / 6; // kg/s: the run without losses lasts 6 s
+	const EP = Q_NEED / 48; // energy of one drawn portion: 8 portions a second
+	// what happens to every 10 portions with losses: 4 into the water, 4 into the air, 1 into the kettle, 1 into the burner
+	const LOSS_PATTERN: Kind[] = ['p', 'air', 'air', 'p', 'wall', 'air', 'p', 'air', 'burner', 'p'];
+	const BOIL_T = 3; // s of bubbles and steam after the water boils
+	const NS = 'http://www.w3.org/2000/svg';
+	const WY = 150; // water surface
+
+	// the kettle walls (see BODY in the frontmatter)
+	const xl = (y: number) => 114 + (225 - y) * (20 / 87);
+	const xr = (y: number) => 380 - xl(y);
+
+	const kj = (j: number) => `${ru(Math.round(j / 1000), 0)} кДж`;
+	const grams = (kg: number) => `${fixed(kg * 1000, 1)} г`;
+
+	// Catmull-Rom through the points, u from 0 to 1
+	const along = (p: Pt[], u: number): Pt => {
+		const n = p.length - 1;
+		const s = Math.min(n - 1e-9, Math.max(0, u * n));
+		const i = Math.floor(s);
+		const f = s - i;
+		const a = p[Math.max(0, i - 1)];
+		const b = p[i];
+		const c = p[i + 1];
+		const d = p[Math.min(n, i + 2)];
+		const cr = (k: 0 | 1) =>
+			0.5 * (2 * b[k] + (-a[k] + c[k]) * f + (2 * a[k] - 5 * b[k] + 4 * c[k] - d[k]) * f * f + (-a[k] + 3 * b[k] - 3 * c[k] + d[k]) * f * f * f);
+		return [cr(0), cr(1)];
+	};
+
+	const flamePath = (cx: number, by: number, w: number, h: number, sway: number) => {
+		const l = cx - w / 2;
+		const r = cx + w / 2;
+		const tx = cx + sway;
+		const ty = by - h;
+		return `M${l.toFixed(1)},${by} C${l.toFixed(1)},${(by - h * 0.5).toFixed(1)} ${(tx - w * 0.15).toFixed(1)},${(by - h * 0.75).toFixed(1)} ${tx.toFixed(1)},${ty.toFixed(1)} C${(tx + w * 0.15).toFixed(1)},${(by - h * 0.75).toFixed(1)} ${r.toFixed(1)},${(by - h * 0.5).toFixed(1)} ${r.toFixed(1)},${by}Z`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-efflab]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+		const go = $<HTMLButtonElement>('[data-go]');
+		const resetBtn = $<HTMLButtonElement>('[data-reset]');
+		const flame = $<SVGGElement>('[data-flame]');
+		const f0 = $<SVGPathElement>('[data-f0]');
+		const f1 = $<SVGPathElement>('[data-f1]');
+		const water = $<SVGRectElement>('[data-water]');
+		const bubblesG = $<SVGGElement>('[data-bubbles]');
+		const steamG = $<SVGGElement>('[data-steam]');
+		const dotsG = $<SVGGElement>('[data-dots]');
+		const col = $<SVGRectElement>('[data-col]');
+		const tSvg = $<SVGTextElement>('[data-tsvg]');
+		const meter = $<SVGTextElement>('[data-meter]');
+		const bp = $<HTMLElement>('[data-bp]');
+		const bl = $<HTMLElement>('[data-bl]');
+		const formula = $<HTMLElement>('[data-eta]');
+		const cmp = $<HTMLElement>('[data-cmp]');
+		const live = $<HTMLElement>('[data-live]');
+		const out = (k: string) => $<HTMLElement>(`[data-v="${k}"]`);
+		const outs = { m: out('m'), Qz: out('Qz'), t: out('t'), Qp: out('Qp'), Ql: out('Ql'), eta: out('eta') };
+		const gp = `url(#${$<SVGRadialGradientElement>('radialGradient[id$="-gp"]').id})`;
+		const gl = `url(#${$<SVGRadialGradientElement>('radialGradient[id$="-gl"]').id})`;
+		const gs = `url(#${$<SVGRadialGradientElement>('radialGradient[id$="-gs"]').id})`;
+
+		let eta = 1;
+		let m = 0; // kg of gas burnt
+		let running = false;
+		let paused = false;
+		let done = false;
+		let spawned = 0;
+		let boilAge = BOIL_T;
+		let clock = 0;
+		let dots: Dot[] = [];
+		const bubbles: { x: number; y: number; v: number; ph: number; el: SVGCircleElement }[] = [];
+		const puffs: { age: number; el: SVGCircleElement }[] = [];
+		const results: Record<string, number> = {};
+		let rnd = 1;
+		const r = () => {
+			rnd = (rnd * 16807) % 2147483647;
+			return rnd / 2147483647;
+		};
+
+		const vals = () => {
+			const Qz = Q_GAS * m;
+			const Qp = eta * Qz;
+			return { Qz, Qp, Ql: Qz - Qp, t: Math.min(100, T1 + Qp / (C * MW)) };
+		};
+
+		// ---------- energy portions ----------
+		const spawn = (k: number) => {
+			const kind: Kind = eta === 1 ? 'p' : LOSS_PATTERN[k % 10];
+			const x0 = 166 + r() * 48;
+			const start: Pt = [x0, 256];
+			const side = x0 < 190 ? -1 : 1;
+			let pts: Pt[];
+			let dur: number;
+			let hold: number;
+			if (kind === 'p') {
+				const y = 160 + r() * 62;
+				const x = xl(y) + 9 + r() * (xr(y) - xl(y) - 18);
+				pts = [start, [x0 * 0.7 + x * 0.3, 241], [x0 * 0.4 + x * 0.6, 226], [x, y]];
+				dur = 0.95;
+				hold = 0.4;
+			} else if (kind === 'air') {
+				const s = r() < 0.5 ? -1 : 1;
+				const j = r() * 6;
+				const X = (x: number) => 190 + s * (x - 190);
+				pts = [start, [X(150), 244], [X(105 - j), 240], [X(110 - j), 190], [X(124 - j), 132], [X(106 - j), 72], [X(92 - 2.5 * j), 6]];
+				dur = 2.3;
+				hold = 0;
+			} else if (kind === 'wall') {
+				const y = 188 + r() * 36;
+				const x = side < 0 ? xl(y) : xr(y);
+				pts = [start, [190 + side * 62, 243], [190 + side * 84, 238], [x, y]];
+				dur = 0.75;
+				hold = 1.3;
+			} else {
+				const targets: Pt[] = [
+					[162, 266],
+					[218, 266],
+					[112, 238],
+					[268, 238],
+					[105, 265],
+					[275, 265],
+				];
+				const tg = targets[Math.floor(r() * targets.length)];
+				pts = [start, [(x0 + tg[0]) / 2, 252], tg];
+				dur = 0.5;
+				hold = 1.3;
+			}
+			const el = document.createElementNS(NS, 'circle');
+			el.setAttribute('fill', kind === 'p' ? gp : gl);
+			el.setAttribute('r', '0');
+			dotsG.append(el);
+			dots.push({ kind, pts, dur, hold, age: 0, el });
+		};
+
+		const stepDots = (dt: number) => {
+			dots = dots.filter((d) => {
+				d.age += dt;
+				const u = Math.min(1, d.age / d.dur);
+				const ease = d.kind === 'air' ? u : 1 - (1 - u) * (1 - u) * 0.6 - 0.4 * (1 - u);
+				const [x, y] = along(d.pts, ease);
+				let op = Math.min(1, d.age / 0.12);
+				let rad = 8;
+				if (d.kind === 'air') op *= u > 0.6 ? 1 - (u - 0.6) / 0.4 : 1;
+				if (d.age > d.dur) {
+					const h = (d.age - d.dur) / Math.max(0.01, d.hold);
+					if (h >= 1) {
+						d.el.remove();
+						return false;
+					}
+					if (d.kind === 'p') {
+						op *= 1 - h;
+						rad = 8 * (1 - 0.5 * h);
+					} else {
+						// stays in the metal: glows and fades
+						op *= 1 - h * h;
+						rad = 8 + 3 * Math.sin(Math.PI * Math.min(1, h * 2));
+					}
+				}
+				d.el.setAttribute('cx', x.toFixed(1));
+				d.el.setAttribute('cy', y.toFixed(1));
+				d.el.setAttribute('r', rad.toFixed(1));
+				d.el.setAttribute('opacity', op.toFixed(2));
+				return true;
+			});
+		};
+
+		const clearDots = () => {
+			for (const d of dots) d.el.remove();
+			dots = [];
+		};
+
+		// ---------- boiling ----------
+		const startBoil = () => {
+			boilAge = 0;
+			bubblesG.replaceChildren();
+			steamG.replaceChildren();
+			bubbles.length = 0;
+			puffs.length = 0;
+			for (let i = 0; i < 9; i++) {
+				const el = document.createElementNS(NS, 'circle');
+				el.setAttribute('class', 'eff__bubble');
+				el.setAttribute('r', (1.6 + r() * 2.2).toFixed(1));
+				bubblesG.append(el);
+				const y = 228 - r() * 70;
+				bubbles.push({ x: 132 + r() * 116, y, v: 30 + r() * 30, ph: r() * 6, el });
+			}
+			for (let i = 0; i < 6; i++) {
+				const el = document.createElementNS(NS, 'circle');
+				el.setAttribute('fill', gs);
+				steamG.append(el);
+				puffs.push({ age: (i / 6) * 1.8, el });
+			}
+			drawBoil(0);
+		};
+
+		const drawBoil = (dt: number) => {
+			boilAge += dt;
+			for (const b of bubbles) {
+				b.y -= b.v * dt;
+				if (b.y < WY + 4) {
+					b.y = 228;
+					b.x = 132 + r() * 116;
+				}
+				const x = b.x + 2 * Math.sin(b.y * 0.12 + b.ph);
+				b.el.setAttribute('cx', x.toFixed(1));
+				b.el.setAttribute('cy', b.y.toFixed(1));
+			}
+			for (const p of puffs) {
+				p.age = (p.age + dt) % 1.8;
+				const k = p.age / 1.8;
+				p.el.setAttribute('cx', (318 + 18 * k + 4 * Math.sin(k * 7)).toFixed(1));
+				p.el.setAttribute('cy', (140 - 95 * k).toFixed(1));
+				p.el.setAttribute('r', (6 + 14 * k).toFixed(1));
+				p.el.setAttribute('opacity', (0.6 * (1 - k)).toFixed(2));
+			}
+		};
+
+		const clearBoil = () => {
+			bubblesG.replaceChildren();
+			steamG.replaceChildren();
+			bubbles.length = 0;
+			puffs.length = 0;
+			boilAge = BOIL_T;
+		};
+
+		// ---------- drawing ----------
+		const drawFlame = () => {
+			const on = running && !done;
+			flame.style.opacity = on ? '1' : '0';
+			if (!on) return;
+			const still = reduceMotion();
+			let d0 = '';
+			let d1 = '';
+			for (let i = 0; i < 5; i++) {
+				const cx = 166 + i * 12;
+				const fl = still ? 1 : 1 + 0.13 * Math.sin(clock * 13 + i * 1.9) + 0.07 * Math.sin(clock * 29 + i);
+				const sw = still ? 0 : 1.8 * Math.sin(clock * 7 + i * 2.3);
+				d0 += flamePath(cx, 264, 13, 22 * fl, sw);
+				d1 += flamePath(cx, 264, 6, 10 * fl, sw * 0.5);
+			}
+			f0.setAttribute('d', d0);
+			f1.setAttribute('d', d1);
+		};
+
+		const formulaHtml = (Qz: number, Qp: number) => {
+			const sym = `<span><i>η</i> = <span class="eff__frac"><span class="eff__p"><i>Q</i><sub>п</sub></span><span><i>Q</i><sub>з</sub></span></span> · 100 %</span>`;
+			if (Qz <= 0) return sym;
+			const pct = Math.round((100 * Qp) / Qz);
+			return `${sym}<span>= <span class="eff__frac"><span class="eff__p">${kj(Qp)}</span><span>${kj(Qz)}</span></span> · 100 %</span><span>= <b>${pct} %</b></span>`;
+		};
+
+		let lastFormula = '';
+		const draw = () => {
+			const { Qz, Qp, Ql, t } = vals();
+			const k = (t - T1) / (100 - T1);
+			water.style.fill = `color-mix(in oklab, var(--eff-warm) ${(100 * k).toFixed(1)}%, var(--eff-cold))`;
+			const yc = 110 - (t - 20) * 0.9;
+			col.setAttribute('y', yc.toFixed(1));
+			col.setAttribute('height', (219 - yc).toFixed(1));
+			const tTxt = `${Math.round(t)} °C`;
+			tSvg.textContent = tTxt;
+			meter.textContent = grams(m);
+			outs.m.textContent = grams(m);
+			outs.Qz.textContent = kj(Qz);
+			outs.t.textContent = tTxt;
+			outs.Qp.textContent = kj(Qp);
+			outs.Ql.textContent = kj(Ql);
+			outs.eta.textContent = Qz > 0 ? `${Math.round((100 * Qp) / Qz)} %` : '—';
+			bp.style.width = `${((100 * Qp) / 1.5e6).toFixed(2)}%`;
+			bl.style.width = `${((100 * Ql) / 1.5e6).toFixed(2)}%`;
+			bp.style.borderRadius = Ql > 0 ? '0.35rem 0 0 0.35rem' : '0.35rem';
+			const f = formulaHtml(Qz, Qp);
+			if (f !== lastFormula) {
+				formula.innerHTML = f;
+				lastFormula = f;
+			}
+			drawFlame();
+		};
+
+		let said = '';
+		const say = () => {
+			let s: string;
+			if (done) {
+				s =
+					eta === 1
+						? `Вода закипела. Вся энергия газа ушла в воду, сгорело ${grams(m)} газа.`
+						: `Вода закипела. В воду ушло только 40 % энергии газа, поэтому газа сгорело больше — ${grams(m)}.`;
+			} else if (paused) s = 'Пауза.';
+			else if (running)
+				s =
+					eta === 1
+						? 'Газ горит. Каждая порция энергии уходит в воду.'
+						: 'Газ горит. Из каждых 10 порций энергии в воду уходят 4, остальные нагревают воздух, чайник и горелку.';
+			else
+				s =
+					eta === 1
+						? 'Без потерь вся энергия сгоревшего газа идёт на нагревание воды. Нажмите «Зажечь».'
+						: 'На настоящей плите вода получает только часть энергии газа. Нажмите «Зажечь».';
+			if (s !== said) {
+				said = s;
+				live.textContent = s;
+			}
+		};
+
+		const showCmp = () => {
+			const a = results['1'];
+			const b = results['0.4'];
+			if (a === undefined && b === undefined) {
+				cmp.hidden = true;
+				return;
+			}
+			const parts: string[] = [];
+			if (a !== undefined) parts.push(`без потерь — <b>${grams(a)}</b>`);
+			if (b !== undefined) parts.push(`с потерями — <b>${grams(b)}</b>`);
+			const ratio = a !== undefined && b !== undefined ? ` (в ${ru(b / a, 1)} раза больше)` : '';
+			cmp.innerHTML = `Чтобы вскипятить чайник, сгорело газа: ${parts.join(', ')}${ratio}.`;
+			cmp.hidden = false;
+		};
+
+		const label = () => {
+			go.textContent = !running || done ? 'Зажечь' : paused ? 'Дальше' : 'Пауза';
+		};
+
+		// ---------- the run ----------
+		const advance = (dt: number) => {
+			if (!running || paused || done) return;
+			const mBoil = Q_NEED / (eta * Q_GAS);
+			m = Math.min(mBoil, m + RATE * dt);
+			const n = Math.floor((Q_GAS * m) / EP + 1e-9);
+			while (spawned < n) {
+				if (!reduceMotion()) spawn(spawned);
+				spawned++;
+			}
+			if (m >= mBoil - 1e-12) {
+				done = true;
+				results[String(eta)] = m;
+				showCmp();
+				label();
+				startBoil();
+			}
+		};
+
+		const frame = (dtRaw: number) => {
+			const dt = Math.min(0.05, Math.max(0, dtRaw));
+			if (paused) return;
+			clock += dt;
+			advance(dt);
+			if (!reduceMotion()) {
+				stepDots(dt);
+				if (boilAge < BOIL_T) drawBoil(Math.min(dt, BOIL_T - boilAge));
+			} else if (boilAge < BOIL_T) boilAge = BOIL_T; // static bubbles and steam
+			draw();
+			say();
+		};
+
+		const wake = loop(root, frame, () => !paused && ((running && !done) || dots.length > 0 || (boilAge < BOIL_T && !reduceMotion())));
+
+		const reset = () => {
+			running = false;
+			paused = false;
+			done = false;
+			m = 0;
+			spawned = 0;
+			clock = 0;
+			rnd = eta === 1 ? 7 : 11;
+			clearDots();
+			clearBoil();
+			label();
+			draw();
+			say();
+		};
+
+		modeBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				const v = Number(b.dataset.mode);
+				modeBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				if (v === eta && !running) return;
+				eta = v;
+				reset();
+			}),
+		);
+		go.addEventListener('click', () => {
+			if (done) reset();
+			if (!running) {
+				running = true;
+				paused = false;
+			} else paused = !paused;
+			label();
+			draw();
+			say();
+			wake();
+		});
+		resetBtn.addEventListener('click', reset);
+
+		// ---------- notes on the readouts (MoreSetup.astro, [data-note]) ----------
+		const note = (html: string) => {
+			const p = document.createElement('p');
+			p.innerHTML = html;
+			return p;
+		};
+		const NOTES: Record<string, () => string> = {
+			m: () => `<b><i>m</i><sub>т</sub></b> — масса сгоревшего газа. Газ горит равномерно: за равное время сгорает одинаковая масса.`,
+			Qz: () =>
+				`<b><i>Q</i><sub>з</sub></b> — энергия, которая выделилась при сгорании газа (затраченная): <i>Q</i><sub>з</sub> = <i>q m</i><sub>т</sub> = 4,4·10<sup>7</sup> Дж/кг · ${fixed(m, 4)} кг ≈ ${kj(vals().Qz)}.`,
+			t: () => `Температура воды. Сначала она ${T1} °C, при 100 °C вода закипает, и газ выключают.`,
+			Qp: () => {
+				const t = Math.round(vals().t);
+				return `<b><i>Q</i><sub>п</sub></b> — полезная энергия: она пошла на нагревание воды. <i>Q</i><sub>п</sub> = <i>c m</i><sub>в</sub> (<i>t</i> − <i>t</i><sub>1</sub>) = 4200 · 1,7 · (${t} − ${T1}) Дж ≈ ${kj(C * MW * (t - T1))}.`;
+			},
+			Ql: () => {
+				const { Qz, Qp } = vals();
+				return eta === 1
+					? `<b><i>Q</i><sub>пот</sub></b> — потери. Без потерь вся энергия газа идёт в воду: <i>Q</i><sub>пот</sub> = 0.`
+					: `<b><i>Q</i><sub>пот</sub></b> — потери: эта энергия нагрела воздух, чайник и горелку. <i>Q</i><sub>пот</sub> = <i>Q</i><sub>з</sub> − <i>Q</i><sub>п</sub> = ${kj(Qz)} − ${kj(Qp)} ≈ ${kj(Qz - Qp)}.`;
+			},
+			eta: () =>
+				`<b>КПД</b> (коэффициент полезного действия) показывает, какая часть затраченной энергии пошла на полезное дело: <i>η</i> = <i>Q</i><sub>п</sub> / <i>Q</i><sub>з</sub> · 100 %.`,
+		};
+		for (const el of root.querySelectorAll<NoteEl>('[data-k]')) {
+			const k = el.dataset.k!;
+			el.dataset.note = '';
+			el.tabIndex = 0;
+			el.setAttribute('role', 'button');
+			el.setAttribute('aria-haspopup', 'dialog');
+			el.setAttribute('aria-expanded', 'false');
+			el.igNote = () => note(NOTES[k]());
+		}
+
+		reset();
+	}
+</script>
