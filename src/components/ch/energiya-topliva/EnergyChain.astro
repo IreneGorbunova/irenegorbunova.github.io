@@ -1,17 +1,293 @@
 ---
 /**
  * Energy-flow diagram: choose a situation and watch energy flow from one form to the next.
- * Without JavaScript all situations are shown one under another.
+ * Every card carries a small drawing of its stage (inline SVG 160 × 100, gentle CSS loops,
+ * still frames under reduced motion). Without JavaScript all situations are shown one under another.
  */
-type Node = { t: string; d: string; k: 'p' | 'k' | 'u' | 'f' | 's' };
+type Kind = 'p' | 'k' | 'u' | 'f' | 's';
+type Node = { t: string; d: string; k: Kind; pic: string };
+
+// Ids of the shared gradients: unique per instance of the component.
+const u = `ech${Math.random().toString(36).slice(2, 8)}`;
+const r1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Flame tongue with its base at (x, y). */
+const tongue = (x: number, y: number, w: number, h: number) =>
+	`M${r1(x - w / 2)} ${r1(y)}C${r1(x - w / 2)} ${r1(y - h * 0.45)} ${r1(x - w * 0.12)} ${r1(y - h * 0.62)} ${r1(x)} ${r1(y - h)}` +
+	`C${r1(x + w * 0.12)} ${r1(y - h * 0.62)} ${r1(x + w / 2)} ${r1(y - h * 0.45)} ${r1(x + w / 2)} ${r1(y)}Q${r1(x)} ${r1(y + w * 0.3)} ${r1(x - w / 2)} ${r1(y)}Z`;
+/** Fire of three tongues (orange outside, yellow inside) standing at (x, y), scale k. */
+const fire = (x: number, y: number, k: number) => {
+	const outer = [[0, 0, 30, 46], [-13, 1, 20, 28], [13, 1, 20, 31]];
+	const inner = [[0, 0, 15, 26], [-12, 1, 9, 13], [12, 1, 9, 15]];
+	const g = (list: number[][], cls: string, d0: number) =>
+		list.map(([dx, dy, w, h], i) => `<path class="${cls}" style="--d:${(d0 + i * 0.17).toFixed(2)}s" d="${tongue(x + dx * k, y + dy * k, w * k, h * k)}"/>`).join('');
+	return `<g>${g(outer, 'e-fo', 0)}${g(inner, 'e-fi', 0.08)}</g>`;
+};
+/** A small woodpile (two crossed logs and one on top) standing on (x, y), scale k. */
+const logs = (x: number, y: number, k: number, burnt = false) =>
+	`<g class="e-logs${burnt ? ' is-burnt' : ''}" transform="translate(${x} ${y}) scale(${k})">` +
+	`<rect class="e-log" x="-50" y="-23" width="100" height="18" rx="9" transform="rotate(-7 0 -14)"/>` +
+	`<rect class="e-log" x="-50" y="-23" width="100" height="18" rx="9" transform="rotate(7 0 -14)"/>` +
+	`<rect class="e-log e-log--top" x="-40" y="-38" width="80" height="16" rx="8"/>` +
+	`<circle class="e-ring" cx="-40" cy="-30" r="5.5"/><circle class="e-ring" cx="40" cy="-30" r="5.5"/></g>`;
+/** Vertical wavy line rising from (x, y): n half-waves of height 2s and amplitude a. */
+const wave = (x: number, y: number, n = 3, a = 4, s = 5) =>
+	`M${x} ${y}` + Array.from({ length: n }, (_, i) => `q${i % 2 ? a : -a} ${-s} 0 ${-2 * s}`).join('');
+const heat = (x: number, y: number, d: number, n = 3) => `<path class="e-heat" style="--d:${d}s" d="${wave(x, y, n)}"/>`;
+const steam = (x: number, y: number, d: number) => `<path class="e-steam" style="--d:${d}s" d="${wave(x, y, 3, 3.5, 4.5)}"/>`;
+/** Twinkling four-point star: the energy stored in a fuel. */
+const sparkle = (x: number, y: number, r: number, d: number) => {
+	const c = r * 0.25;
+	return `<path class="e-sparkle" style="--d:${d}s" d="M${x} ${y - r}L${r1(x + c)} ${r1(y - c)}L${x + r} ${y}L${r1(x + c)} ${r1(y + c)}L${x} ${y + r}L${r1(x - c)} ${r1(y + c)}L${x - r} ${y}L${r1(x - c)} ${r1(y - c)}Z"/>`;
+};
+const spark = (x: number, y: number, d: number) => `<circle class="e-spark" style="--d:${d}s" cx="${x}" cy="${y}" r="1.4"/>`;
+/** Arrow head with its tip at (x, y), pointing along the unit vector (ux, uy). */
+const head = (x: number, y: number, ux: number, uy: number, h = 6) =>
+	`<polygon points="${r1(x)},${r1(y)} ${r1(x - ux * h - uy * h * 0.5)},${r1(y - uy * h + ux * h * 0.5)} ${r1(x - ux * h + uy * h * 0.5)},${r1(y - uy * h - ux * h * 0.5)}"/>`;
+/** Arrow from (x1, y1) to (x2, y2); `both` puts a head on each end. */
+const arrow = (x1: number, y1: number, x2: number, y2: number, cls: string, both = false, h = 6) => {
+	const L = Math.hypot(x2 - x1, y2 - y1);
+	const [ux, uy] = [(x2 - x1) / L, (y2 - y1) / L];
+	const [ax, ay] = both ? [x1 + ux * h * 0.8, y1 + uy * h * 0.8] : [x1, y1];
+	return (
+		`<g class="e-arr ${cls}"><line x1="${r1(ax)}" y1="${r1(ay)}" x2="${r1(x2 - ux * h * 0.8)}" y2="${r1(y2 - uy * h * 0.8)}"/>` +
+		head(x2, y2, ux, uy, h) +
+		(both ? head(x1, y1, -ux, -uy, h) : '') +
+		'</g>'
+	);
+};
+/** Clockwise arc arrow around (cx, cy) from angle a1 to a2 (degrees, screen coordinates). */
+const arcArrow = (cx: number, cy: number, R: number, a1: number, a2: number) => {
+	const p = (a: number) => [cx + R * Math.cos((a * Math.PI) / 180), cy + R * Math.sin((a * Math.PI) / 180)];
+	const [x1, y1] = p(a1);
+	const [x2, y2] = p(a2 - 7);
+	const [tx, ty] = p(a2);
+	const L = Math.hypot(tx - x2, ty - y2);
+	return `<g class="e-arr e-arr--k"><path d="M${r1(x1)} ${r1(y1)}A${R} ${R} 0 0 1 ${r1(x2)} ${r1(y2)}"/>${head(tx, ty, (tx - x2) / L, (ty - y2) / L)}</g>`;
+};
+const ground = (y = 88) => `<line class="e-ground" x1="6" y1="${y}" x2="154" y2="${y}"/>`;
+const floor = (y = 86) =>
+	`<line class="e-ground" x1="6" y1="${y}" x2="154" y2="${y}"/><g class="e-hatch">` +
+	Array.from({ length: 18 }, (_, i) => `<line x1="${14 + i * 8}" y1="${y + 1}" x2="${8 + i * 8}" y2="${y + 7}"/>`).join('') +
+	'</g>';
+const ball = (x: number, y: number, r: number) => {
+	const [sx, sy] = [r1(x - r * 0.38), r1(y - r * 0.4)];
+	return `<circle class="e-ball" cx="${x}" cy="${y}" r="${r}"/><ellipse class="e-shine" cx="${sx}" cy="${sy}" rx="${r1(r * 0.3)}" ry="${r1(r * 0.18)}" transform="rotate(-35 ${sx} ${sy})"/>`;
+};
+const wheel = (x: number, y: number) =>
+	`<circle class="e-tyre" cx="${x}" cy="${y}" r="10"/><circle class="e-hub" cx="${x}" cy="${y}" r="5.5"/>` +
+	`<g class="e-spin" style="transform-origin:${x}px ${y}px">` +
+	[0, 60, 120].map((a) => `<line x1="${x - 5}" y1="${y}" x2="${x + 5}" y2="${y}" transform="rotate(${a} ${x} ${y})"/>`).join('') +
+	'</g>';
+const ring = (cx: number, cy: number, R: number, r: number) =>
+	`M${cx - R} ${cy}a${R} ${R} 0 1 0 ${2 * R} 0a${R} ${R} 0 1 0 ${-2 * R} 0Z` +
+	`M${r1(cx - r)} ${cy}a${r} ${r} 0 1 0 ${r1(2 * r)} 0a${r} ${r} 0 1 0 ${r1(-2 * r)} 0Z`;
+/** Brake disc of radius r at (cx, cy) with the caliper on its right; `hot`: heating while it stops, else cooling. */
+const disc = (cx: number, cy: number, r: number, hot: boolean) => {
+	const st = hot ? 'is-heating' : 'is-cooling';
+	const around = (n: number, rr: number, size: number, cls: string, a0 = 0) =>
+		Array.from({ length: n }, (_, i) => {
+			const a = a0 + (i * 2 * Math.PI) / n;
+			return `<circle class="${cls}" cx="${r1(cx + rr * Math.cos(a))}" cy="${r1(cy + rr * Math.sin(a))}" r="${r1(size)}"/>`;
+		}).join('');
+	return (
+		`<circle class="e-halo ${st}" cx="${cx}" cy="${cy}" r="${r1(r * 1.35)}" fill="url(#${u}-hot)"/>` +
+		`<circle class="e-disc" cx="${cx}" cy="${cy}" r="${r}"/>` +
+		`<path class="e-hotring ${st}" fill-rule="evenodd" d="${ring(cx, cy, r - 1, r1(r * 0.47))}"/>` +
+		`<g class="${hot ? 'e-brake' : ''}" style="transform-origin:${cx}px ${cy}px">${around(8, r * 0.7, r * 0.075, 'e-hole')}</g>` +
+		`<circle class="e-hubcap" cx="${cx}" cy="${cy}" r="${r1(r * 0.38)}"/>${around(5, r * 0.2, r * 0.055, 'e-bolt', -Math.PI / 2)}` +
+		`<rect class="e-caliper" x="${r1(cx + r * 0.7)}" y="${r1(cy - r * 0.62)}" width="${r1(r * 0.58)}" height="${r1(r * 1.24)}" rx="${r1(r * 0.2)}"/>`
+	);
+};
+/** A tree fern: trunk standing on (x, y), fronds around its crown. */
+const fern = (x: number, y: number, k: number) => {
+	const cy = y - 38 * k;
+	const fronds = [200, 228, 254, 286, 312, 340, 168, 12]
+		.map((a, i) => {
+			const rad = (a * Math.PI) / 180;
+			const d = (i > 5 ? 12 : 14) * k;
+			const fx = r1(x + d * Math.cos(rad));
+			const fy = r1(cy + d * Math.sin(rad));
+			return `<ellipse class="${i % 2 ? 'e-leaf' : 'e-leaf2'}" cx="${fx}" cy="${fy}" rx="${r1((i > 5 ? 12 : 15) * k)}" ry="${r1(3.6 * k)}" transform="rotate(${a} ${fx} ${fy})"/>`;
+		})
+		.join('');
+	return `<path class="e-trunk" style="stroke-width:${r1(4 * k)}" d="M${x} ${y}Q${r1(x + 3 * k)} ${r1(y - 20 * k)} ${x} ${r1(cy)}"/>${fronds}`;
+};
+/** A horsetail: green stalk with whorls of short leaves. */
+const horsetail = (x: number, y: number, h: number) =>
+	`<line class="e-stalk" x1="${x}" y1="${y}" x2="${x}" y2="${y - h}"/>` +
+	Array.from({ length: Math.floor(h / 6) }, (_, j) => {
+		const yy = y - 6 - j * 6;
+		return `<path class="e-whorl" d="M${x - 4} ${yy - 2.5}L${x} ${yy}L${x + 4} ${yy - 2.5}"/>`;
+	}).join('');
+/** Imprint of a fern frond in the coal: midrib from (x1, y1) to (x2, y2) with leaflets on both sides. */
+const fossil = (x1: number, y1: number, x2: number, y2: number) => {
+	const a = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
+	const leaves = Array.from({ length: 7 }, (_, i) => {
+		const t = 0.1 + i * 0.125;
+		const [x, y] = [r1(x1 + (x2 - x1) * t), r1(y1 + (y2 - y1) * t)];
+		const len = 5.2 * (1 - t * 0.55);
+		return [-1, 1]
+			.map((sd) => {
+				const b = a + sd * 55;
+				const [cx, cy] = [r1(x + len * Math.cos((b * Math.PI) / 180)), r1(y + len * Math.sin((b * Math.PI) / 180))];
+				return `<ellipse cx="${cx}" cy="${cy}" rx="${r1(len)}" ry="${r1(len * 0.38)}" transform="rotate(${r1(b)} ${cx} ${cy})"/>`;
+			})
+			.join('');
+	}).join('');
+	return `<g class="e-fossil"><path d="M${x1} ${y1}L${x2} ${y2}"/>${leaves}</g>`;
+};
+const stars = (list: number[][]) =>
+	list.map(([x, y, r, tw]) => `<circle class="e-star${tw !== undefined ? ' is-tw' : ''}" style="--d:${tw ?? 0}s" cx="${x}" cy="${y}" r="${r}"/>`).join('');
+const sky = (cls: string, h = 100) => `<rect class="${cls}" x="0" y="0" width="160" height="${h}"/>`;
+
+const pic = {
+	wood:
+		`<ellipse class="e-store" cx="80" cy="64" rx="66" ry="34" fill="url(#${u}-store)"/>` +
+		ground() +
+		logs(80, 88, 0.95) +
+		sparkle(40, 40, 5, 0) +
+		sparkle(118, 34, 6, 0.8) +
+		sparkle(86, 22, 4, 1.6) +
+		sparkle(140, 62, 3.5, 1.1),
+	flame:
+		`<ellipse class="e-glow" cx="80" cy="52" rx="62" ry="44" fill="url(#${u}-fire)"/>` +
+		heat(28, 58, 0) +
+		heat(132, 56, 0.9) +
+		ground() +
+		logs(80, 88, 0.95, true) +
+		fire(80, 62, 1.05) +
+		spark(62, 24, 0) +
+		spark(98, 18, 0.6) +
+		spark(84, 10, 1.2),
+	pot:
+		`<ellipse class="e-glow" cx="80" cy="76" rx="50" ry="22" fill="url(#${u}-fire)"/>` +
+		ground() +
+		fire(80, 87, 0.72) +
+		`<ellipse class="e-stone" cx="47" cy="78" rx="14" ry="10"/><ellipse class="e-stone" cx="113" cy="78" rx="14" ry="10"/>` +
+		`<path class="e-pot" d="M46 36L50 62Q51 68 58 68H102Q109 68 110 62L114 36Z"/>` +
+		`<ellipse class="e-pot-in" cx="80" cy="36" rx="34" ry="5.6"/>` +
+		`<ellipse class="e-water" cx="80" cy="37.5" rx="29.5" ry="3.9"/>` +
+		`<circle class="e-bubble" style="--d:0s" cx="68" cy="37.5" r="1.7"/><circle class="e-bubble" style="--d:0.45s" cx="84" cy="38.5" r="1.4"/><circle class="e-bubble" style="--d:0.8s" cx="94" cy="37" r="1.2"/>` +
+		`<path class="e-rim" d="M46 36A34 5.6 0 0 0 114 36"/>` +
+		steam(66, 29, 0) +
+		steam(80, 27, 0.7) +
+		steam(94, 29, 1.4),
+	car:
+		`<line class="e-road" x1="0" y1="89" x2="160" y2="89"/><line class="e-lane" x1="0" y1="95" x2="160" y2="95"/>` +
+		`<g class="e-speed"><line x1="8" y1="52" x2="32" y2="52"/><line x1="2" y1="62" x2="32" y2="62"/><line x1="12" y1="72" x2="34" y2="72"/></g>` +
+		`<path class="e-car" d="M40 76V65Q40 59 47 58L62 56L73 44Q75 42 79 42H102Q106 42 108 45L117 56L130 58Q136 59 136 65V76Q136 79 133 79H43Q40 79 40 76Z"/>` +
+		`<path class="e-glass" d="M66 56L75 46H88V56Z"/><path class="e-glass" d="M92 46H101Q103 46 104 48L111 56H92Z"/>` +
+		`<rect class="e-headlight" x="132" y="62" width="4" height="4" rx="1.5"/><rect class="e-taillight" x="40" y="62" width="3" height="5" rx="1.2"/>` +
+		wheel(62, 79) +
+		wheel(114, 79) +
+		arrow(74, 28, 112, 28, 'e-arr--k') +
+		`<text class="e-lab e-lab--k" x="117" y="32">v</text>`,
+	brake: arcArrow(70, 50, 44, 150, 222) + disc(70, 50, 36, true),
+	brakeCool:
+		`<ellipse class="e-warmair" cx="80" cy="28" rx="56" ry="26" fill="url(#${u}-warm)"/>` +
+		heat(50, 52, 0.3) +
+		heat(66, 42, 0) +
+		heat(80, 40, 0.9) +
+		heat(94, 42, 0.45) +
+		heat(110, 52, 1.2) +
+		disc(80, 66, 22, false),
+	ballUp:
+		floor() +
+		`<line class="e-path" x1="64" y1="36" x2="64" y2="84"/>` +
+		`<line class="e-dim" x1="68" y1="32" x2="118" y2="32"/>` +
+		arrow(112, 33, 112, 85, 'e-arr--p', true) +
+		`<text class="e-lab e-lab--p" x="119" y="63">h</text>` +
+		ball(64, 22, 10),
+	ballFall:
+		floor() +
+		[14, 17.3, 27, 43.3].map((y, i) => `<circle class="e-ghost" style="opacity:${r1(0.12 + i * 0.06)}" cx="64" cy="${y}" r="9"/>`).join('') +
+		`<g class="e-fade"><g class="e-fall">` +
+		`<g class="e-streak"><line x1="58" y1="44" x2="58" y2="54"/><line x1="64" y1="40" x2="64" y2="53"/><line x1="70" y1="44" x2="70" y2="54"/></g>` +
+		ball(64, 66, 9) +
+		`<g class="e-vgrow">${arrow(84, 58, 84, 84, 'e-arr--k')}</g><text class="e-lab e-lab--k" x="90" y="70">v</text>` +
+		`</g></g>`,
+	ballHit:
+		`<ellipse class="e-warm" cx="64" cy="86" rx="30" ry="9" fill="url(#${u}-hot)"/>` +
+		floor() +
+		`<path class="e-ball" d="M44 86C41 71 51 65 64 65C77 65 87 71 84 86Z"/>` +
+		`<ellipse class="e-shine" cx="54.5" cy="71" rx="4" ry="2" transform="rotate(-25 54.5 71)"/>` +
+		`<ellipse cx="64" cy="85" rx="17" ry="4" fill="url(#${u}-hot)"/>` +
+		`<g class="e-impact"><line x1="40" y1="84" x2="32" y2="80"/><line x1="42" y1="78" x2="36" y2="71"/><line x1="88" y1="84" x2="96" y2="80"/><line x1="86" y1="78" x2="92" y2="71"/></g>` +
+		heat(54, 60, 0, 2) +
+		heat(64, 59, 0.6, 2) +
+		heat(74, 60, 1.2, 2) +
+		heat(22, 82, 0.9, 2) +
+		heat(106, 82, 0.3, 2),
+	sun:
+		sky('e-sky') +
+		`<g class="e-sun"><circle cx="24" cy="22" r="10"/>` +
+		Array.from({ length: 8 }, (_, i) => `<line x1="37" y1="22" x2="42" y2="22" transform="rotate(${i * 45} 24 22)"/>`).join('') +
+		'</g>' +
+		arrow(40, 32, 88, 46, 'e-ray') +
+		arrow(36, 38, 60, 62, 'e-ray') +
+		`<path class="e-swamp" d="M0 84Q40 79 80 84T160 83V100H0Z"/>` +
+		horsetail(62, 85, 26) +
+		horsetail(70, 85, 18) +
+		horsetail(48, 85, 14) +
+		fern(104, 85, 1) +
+		fern(140, 85, 0.68),
+	coal:
+		sky('e-sky', 16) +
+		`<rect class="e-l1" x="0" y="17" width="160" height="83"/>` +
+		`<rect class="e-grass" x="0" y="14" width="160" height="4"/>` +
+		`<path class="e-tuft" d="M12 14l-2-5M14 14l1-6M16 14l3-4M58 14l-2-5M60 14l1-6M62 14l3-4M118 14l-2-5M120 14l1-6M122 14l3-4M146 14l1-5M148 14l3-4"/>` +
+		`<path class="e-l2" d="M0 37Q40 33 80 36T160 36V100H0Z"/>` +
+		`<path class="e-coal" d="M0 53Q40 49 80 52T160 52V100H0Z"/>` +
+		`<path class="e-l3" d="M0 73Q40 70 80 72T160 73V100H0Z"/>` +
+		`<path class="e-dots" d="M20 86h.1M48 92h.1M76 84h.1M104 90h.1M132 86h.1M150 94h.1M34 44h.1M70 44h.1M112 42h.1M146 46h.1M10 28h.1M90 27h.1M130 28h.1"/>` +
+		`<path class="e-facet" d="M92 58l8-3 7 4-2 7-9 1zM120 63l6-4 7 3-1 6-8 1zM140 56l5-2 4 3-2 4-6 0z"/>` +
+		fossil(14, 65, 56, 58) +
+		`<ellipse class="e-store" cx="84" cy="62" rx="76" ry="18" fill="url(#${u}-store)"/>` +
+		sparkle(76, 62, 4.5, 0) +
+		sparkle(114, 60, 5, 0.9) +
+		sparkle(146, 66, 3.5, 1.6),
+	stove:
+		`<ellipse class="e-glow" cx="80" cy="60" rx="70" ry="40" fill="url(#${u}-fire)"/>` +
+		ground() +
+		heat(28, 74, 0) +
+		heat(40, 68, 0.7) +
+		heat(120, 68, 0.35) +
+		heat(132, 74, 1.05) +
+		`<rect class="e-iron" x="75" y="-2" width="10" height="34"/>` +
+		`<rect class="e-iron" x="57" y="78" width="6" height="10"/><rect class="e-iron" x="97" y="78" width="6" height="10"/>` +
+		`<rect class="e-iron" x="52" y="34" width="56" height="46" rx="5"/>` +
+		`<rect class="e-iron" x="48" y="29" width="64" height="6" rx="2"/>` +
+		`<rect class="e-door" x="62" y="45" width="36" height="27" rx="3"/>` +
+		fire(80, 68, 0.42) +
+		`<path class="e-lump" d="M64 71l3-5 6-1 3 3-1 3zM74 71l4-6 7-1 3 4-2 3zM86 71l3-5 6 0 1 5z"/>` +
+		`<rect class="e-doorframe" x="62" y="45" width="36" height="27" rx="3"/>`,
+	space:
+		sky('e-space') +
+		stars([[8, 10, 0.9, 0], [28, 48, 0.8], [58, 8, 1.1, 1.2], [88, 22, 0.9], [112, 10, 1.2, 0.6], [142, 26, 0.9], [130, 48, 0.8, 1.8], [100, 40, 0.7], [16, 78, 0.9], [44, 70, 0.8, 2.4], [70, 86, 0.7]]) +
+		`<circle class="e-atm" cx="150" cy="182" r="124"/><circle class="e-earth" cx="150" cy="182" r="110"/>` +
+		`<path class="e-land" d="M104 94q8-9 20-7q10 2 8 8q-10 6-28-1zM140 80q10-6 18-2v8q-10 2-18-6z"/>` +
+		`<g class="e-drift"><g class="e-trail"><line x1="35" y1="22" x2="21" y2="11.5"/><line x1="36" y1="28" x2="14" y2="11.5"/><line x1="41" y1="33" x2="29" y2="24"/></g>` +
+		`<path class="e-rock" d="M34 25L39 20L46 22L48 28L43 33L36 32Z"/>` +
+		arrow(53, 37, 82, 59, 'e-arr--k') +
+		`<text class="e-lab e-lab--k" x="72" y="43">v</text></g>`,
+	meteor:
+		sky('e-night') +
+		stars([[10, 12, 0.9, 0], [36, 30, 0.8], [26, 60, 1, 1.4], [70, 14, 0.9], [96, 42, 0.8, 0.7], [118, 58, 1.1], [150, 18, 0.9, 2], [148, 66, 0.8], [8, 40, 0.7], [84, 70, 0.7]]) +
+		`<g class="e-shoot"><path d="M55 52.2L140 8L61 63.8Z" fill="url(#${u}-trail)"/>` +
+		`<path d="M56.6 55.5L140 8L59.4 60.5Z" fill="url(#${u}-core)"/>` +
+		`<circle cx="58" cy="58" r="13" fill="url(#${u}-head)"/><circle class="e-headcore" cx="58" cy="58" r="2.6"/></g>` +
+		`<path class="e-hill" d="M0 84Q28 74 58 82T118 78T160 82V100H0Z"/>`,
+};
+
 const scenes: { id: string; name: string; nodes: Node[]; note?: string }[] = [
 	{
 		id: 'fire',
 		name: 'Костёр под котелком',
 		nodes: [
-			{ k: 'f', t: 'Энергия топлива', d: 'запасена в дровах и выделяется, когда они соединяются с кислородом воздуха' },
-			{ k: 'u', t: 'Внутренняя энергия пламени', d: 'пламя — это очень горячие газы' },
-			{ k: 'u', t: 'Внутренняя энергия котелка и воды', d: 'вода нагревается и закипает' },
+			{ k: 'f', pic: pic.wood, t: 'Энергия топлива', d: 'запасена в дровах и выделяется, когда они соединяются с кислородом воздуха' },
+			{ k: 'u', pic: pic.flame, t: 'Внутренняя энергия пламени', d: 'пламя — это очень горячие газы' },
+			{ k: 'u', pic: pic.pot, t: 'Внутренняя энергия котелка и воды', d: 'вода нагревается и закипает' },
 		],
 		note: 'Много энергии уходит и на нагревание воздуха вокруг: котелку достаётся только часть.',
 	},
@@ -19,18 +295,18 @@ const scenes: { id: string; name: string; nodes: Node[]; note?: string }[] = [
 		id: 'brake',
 		name: 'Автомобиль тормозит',
 		nodes: [
-			{ k: 'k', t: 'Кинетическая энергия автомобиля', d: 'автомобиль едет' },
-			{ k: 'u', t: 'Внутренняя энергия тормозов и шин', d: 'при трении тормозные колодки и диски сильно нагреваются' },
-			{ k: 'u', t: 'Внутренняя энергия воздуха', d: 'горячие тормоза постепенно остывают, нагревая воздух' },
+			{ k: 'k', pic: pic.car, t: 'Кинетическая энергия автомобиля', d: 'автомобиль едет' },
+			{ k: 'u', pic: pic.brake, t: 'Внутренняя энергия тормозов и шин', d: 'при трении тормозные колодки и диски сильно нагреваются' },
+			{ k: 'u', pic: pic.brakeCool, t: 'Внутренняя энергия воздуха', d: 'горячие тормоза постепенно остывают, нагревая воздух' },
 		],
 	},
 	{
 		id: 'ball',
 		name: 'Мяч падает на пол',
 		nodes: [
-			{ k: 'p', t: 'Потенциальная энергия мяча', d: 'мяч поднят над полом' },
-			{ k: 'k', t: 'Кинетическая энергия мяча', d: 'при падении мяч разгоняется' },
-			{ k: 'u', t: 'Внутренняя энергия мяча и пола', d: 'при ударе мяч и пол сжимаются и чуть-чуть нагреваются' },
+			{ k: 'p', pic: pic.ballUp, t: 'Потенциальная энергия мяча', d: 'мяч поднят над полом' },
+			{ k: 'k', pic: pic.ballFall, t: 'Кинетическая энергия мяча', d: 'при падении мяч разгоняется' },
+			{ k: 'u', pic: pic.ballHit, t: 'Внутренняя энергия мяча и пола', d: 'при ударе мяч и пол сжимаются и чуть-чуть нагреваются' },
 		],
 		note: 'Пока мяч прыгает, его энергия много раз переходит из потенциальной в кинетическую и обратно, и при каждом ударе часть её становится внутренней.',
 	},
@@ -38,9 +314,9 @@ const scenes: { id: string; name: string; nodes: Node[]; note?: string }[] = [
 		id: 'sun',
 		name: 'От Солнца до печки',
 		nodes: [
-			{ k: 's', t: 'Энергия солнечного света', d: 'Солнце освещает и нагревает Землю' },
-			{ k: 'f', t: 'Энергия каменного угля', d: 'древние растения на свету запасали энергию Солнца, а за миллионы лет их остатки превратились в уголь' },
-			{ k: 'u', t: 'Внутренняя энергия печи и воздуха', d: 'уголь сгорает, и в доме становится тепло' },
+			{ k: 's', pic: pic.sun, t: 'Энергия солнечного света', d: 'Солнце освещает и нагревает Землю' },
+			{ k: 'f', pic: pic.coal, t: 'Энергия каменного угля', d: 'древние растения на свету запасали энергию Солнца, а за миллионы лет их остатки превратились в уголь' },
+			{ k: 'u', pic: pic.stove, t: 'Внутренняя энергия печи и воздуха', d: 'уголь сгорает, и в доме становится тепло' },
 		],
 		note: 'Так что, сжигая дрова, уголь, нефть или газ, мы на самом деле используем энергию Солнца, запасённую очень давно.',
 	},
@@ -48,12 +324,12 @@ const scenes: { id: string; name: string; nodes: Node[]; note?: string }[] = [
 		id: 'meteor',
 		name: 'Метеор',
 		nodes: [
-			{ k: 'k', t: 'Кинетическая энергия метеорного тела', d: 'камешек из космоса влетает в атмосферу со скоростью в десятки километров в секунду' },
-			{ k: 'u', t: 'Внутренняя энергия тела и воздуха', d: 'тело тормозится о воздух, оно и воздух вокруг раскаляются и светятся — мы видим «падающую звезду»' },
+			{ k: 'k', pic: pic.space, t: 'Кинетическая энергия метеорного тела', d: 'камешек из космоса влетает в атмосферу со скоростью в десятки километров в секунду' },
+			{ k: 'u', pic: pic.meteor, t: 'Внутренняя энергия тела и воздуха', d: 'тело тормозится о воздух, оно и воздух вокруг раскаляются и светятся — мы видим «падающую звезду»' },
 		],
 	},
 ];
-const names: Record<Node['k'], string> = {
+const names: Record<Kind, string> = {
 	p: 'потенциальная',
 	k: 'кинетическая',
 	u: 'внутренняя',
@@ -63,6 +339,44 @@ const names: Record<Node['k'], string> = {
 ---
 
 <figure class="ech not-content" data-ech>
+	<svg class="ech__defs" width="0" height="0" aria-hidden="true" focusable="false">
+		<defs>
+			<radialGradient id={`${u}-store`}>
+				<stop offset="0" style="stop-color: var(--sl-color-accent); stop-opacity: 0.45" />
+				<stop offset="1" style="stop-color: var(--sl-color-accent); stop-opacity: 0" />
+			</radialGradient>
+			<radialGradient id={`${u}-fire`}>
+				<stop offset="0" style="stop-color: hsl(42, 100%, 60%); stop-opacity: 0.55" />
+				<stop offset="0.5" style="stop-color: hsl(25, 100%, 55%); stop-opacity: 0.22" />
+				<stop offset="1" style="stop-color: hsl(20, 100%, 55%); stop-opacity: 0" />
+			</radialGradient>
+			<radialGradient id={`${u}-hot`}>
+				<stop offset="0" style="stop-color: hsl(30, 100%, 62%); stop-opacity: 0.95" />
+				<stop offset="0.45" style="stop-color: hsl(8, 95%, 52%); stop-opacity: 0.5" />
+				<stop offset="1" style="stop-color: hsl(0, 90%, 50%); stop-opacity: 0" />
+			</radialGradient>
+			<radialGradient id={`${u}-warm`}>
+				<stop offset="0" style="stop-color: var(--ig-vy); stop-opacity: 0.3" />
+				<stop offset="1" style="stop-color: var(--ig-vy); stop-opacity: 0" />
+			</radialGradient>
+			<radialGradient id={`${u}-head`}>
+				<stop offset="0" style="stop-color: #fff; stop-opacity: 1" />
+				<stop offset="0.2" style="stop-color: hsl(50, 100%, 85%); stop-opacity: 0.9" />
+				<stop offset="0.5" style="stop-color: hsl(35, 100%, 62%); stop-opacity: 0.35" />
+				<stop offset="1" style="stop-color: hsl(25, 100%, 60%); stop-opacity: 0" />
+			</radialGradient>
+			<linearGradient id={`${u}-trail`} gradientUnits="userSpaceOnUse" x1="58" y1="58" x2="140" y2="8">
+				<stop offset="0" style="stop-color: hsl(40, 100%, 70%); stop-opacity: 0.55" />
+				<stop offset="0.4" style="stop-color: hsl(25, 100%, 60%); stop-opacity: 0.25" />
+				<stop offset="1" style="stop-color: hsl(20, 100%, 60%); stop-opacity: 0" />
+			</linearGradient>
+			<linearGradient id={`${u}-core`} gradientUnits="userSpaceOnUse" x1="58" y1="58" x2="140" y2="8">
+				<stop offset="0" style="stop-color: #fff; stop-opacity: 1" />
+				<stop offset="0.5" style="stop-color: hsl(48, 100%, 80%); stop-opacity: 0.5" />
+				<stop offset="1" style="stop-color: hsl(48, 100%, 80%); stop-opacity: 0" />
+			</linearGradient>
+		</defs>
+	</svg>
 	<div class="ech__chips" role="tablist" aria-label="Ситуация" hidden data-chips>
 		{
 			scenes.map((s, i) => (
@@ -85,9 +399,12 @@ const names: Record<Node['k'], string> = {
 								</li>
 							)}
 							<li class={`ech__node ech__node--${n.k}`} style={`--i:${i}`}>
-								{names[n.k] && <span class="ech__kind">{names[n.k]}</span>}
-								<span class="ech__t">{n.t}</span>
-								<span class="ech__d">{n.d}</span>
+								<svg class="ech__pic" viewBox="0 0 160 100" aria-hidden="true" focusable="false" set:html={n.pic} />
+								<span class="ech__txt">
+									{names[n.k] && <span class="ech__kind">{names[n.k]}</span>}
+									<span class="ech__t">{n.t}</span>
+									<span class="ech__d">{n.d}</span>
+								</span>
 							</li>
 						</>
 					))}
@@ -105,6 +422,59 @@ const names: Record<Node['k'], string> = {
 		border: 1px solid var(--sl-color-gray-5);
 		border-radius: 1rem;
 		background: var(--ig-surface);
+		/* colours of the drawings */
+		--e-wood: hsl(26, 42%, 40%);
+		--e-wood-top: hsl(28, 45%, 47%);
+		--e-wood-edge: hsl(24, 40%, 22%);
+		--e-ring: hsl(34, 55%, 64%);
+		--e-fo: hsl(22, 95%, 55%);
+		--e-fi: hsl(46, 100%, 66%);
+		--e-iron: hsl(222, 9%, 32%);
+		--e-iron-edge: hsl(222, 9%, 52%);
+		--e-stone: hsl(30, 6%, 46%);
+		--e-stone-edge: hsl(30, 6%, 30%);
+		--e-water: hsl(205, 80%, 62%);
+		--e-steam: var(--sl-color-gray-2);
+		--e-tyre: hsl(225, 12%, 13%);
+		--e-hub: hsl(220, 6%, 66%);
+		--e-glass: hsl(200, 55%, 84%);
+		--e-disc: hsl(220, 6%, 62%);
+		--e-disc-edge: hsl(220, 6%, 38%);
+		--e-leaf: hsl(125, 42%, 44%);
+		--e-leaf2: hsl(110, 45%, 36%);
+		--e-trunk: hsl(28, 40%, 34%);
+		--e-swamp: hsl(80, 22%, 26%);
+		--e-soil: hsl(28, 30%, 32%);
+		--e-rock: hsl(35, 14%, 42%);
+		--e-rock2: hsl(25, 10%, 28%);
+		--e-coal: hsl(220, 10%, 9%);
+		--e-coal-edge: hsl(220, 8%, 40%);
+	}
+	:root[data-theme='light'] .ech {
+		--e-wood: hsl(26, 45%, 44%);
+		--e-wood-top: hsl(28, 50%, 52%);
+		--e-wood-edge: hsl(24, 40%, 26%);
+		--e-fo: hsl(20, 95%, 52%);
+		--e-fi: hsl(44, 100%, 56%);
+		--e-iron: hsl(222, 9%, 36%);
+		--e-iron-edge: hsl(222, 9%, 20%);
+		--e-stone: hsl(30, 6%, 64%);
+		--e-stone-edge: hsl(30, 6%, 42%);
+		--e-water: hsl(205, 75%, 52%);
+		--e-steam: var(--sl-color-gray-4);
+		--e-disc: hsl(220, 6%, 70%);
+		--e-disc-edge: hsl(220, 6%, 42%);
+		--e-swamp: hsl(80, 25%, 40%);
+		--e-soil: hsl(30, 35%, 52%);
+		--e-rock: hsl(35, 16%, 64%);
+		--e-rock2: hsl(25, 10%, 44%);
+		--e-coal: hsl(220, 10%, 13%);
+	}
+	.ech__defs {
+		position: absolute;
+		width: 0;
+		height: 0;
+		overflow: hidden;
 	}
 	.ech__chips {
 		display: flex;
@@ -159,11 +529,12 @@ const names: Record<Node['k'], string> = {
 	.ech__node {
 		--c: var(--ig-vy);
 		flex: 1 1 0;
+		min-width: 0;
 		margin: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 0.2rem;
-		padding: 0.6rem 0.7rem;
+		gap: 0.5rem;
+		padding: 0.6rem 0.7rem 0.7rem;
 		border-radius: 0.75rem;
 		border: 1.5px solid var(--c);
 		background: color-mix(in srgb, var(--c) 12%, transparent);
@@ -180,6 +551,23 @@ const names: Record<Node['k'], string> = {
 	.ech__node--f,
 	.ech__node--s {
 		--c: var(--sl-color-accent);
+	}
+	.ech__pic {
+		display: block;
+		width: 100%;
+		max-width: 15rem;
+		height: auto;
+		aspect-ratio: 160 / 100;
+		align-self: center;
+		border-radius: 0.5rem;
+		background: color-mix(in srgb, var(--ig-surface) 72%, transparent);
+		overflow: hidden;
+	}
+	.ech__txt {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		min-width: 0;
 	}
 	.ech__kind {
 		font-size: var(--sl-text-xs);
@@ -243,12 +631,664 @@ const names: Record<Node['k'], string> = {
 		font-size: var(--sl-text-sm);
 		color: var(--sl-color-gray-2);
 	}
+
+	/* ---- drawings: the still frame (also shown under reduced motion) ---- */
+	.ech__pic text {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 15px;
+	}
+	.ech__pic .e-ground {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.ech__pic .e-hatch line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.ech__pic .e-arr line,
+	.ech__pic .e-arr path {
+		stroke: var(--a);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		fill: none;
+	}
+	.ech__pic .e-arr polygon {
+		fill: var(--a);
+	}
+	.ech__pic .e-arr--k,
+	.ech__pic .e-lab--k {
+		--a: var(--ig-vx);
+	}
+	.ech__pic .e-arr--p,
+	.ech__pic .e-lab--p {
+		--a: var(--ig-v);
+	}
+	.ech__pic .e-lab {
+		fill: var(--a);
+	}
+	/* fuel: stored energy */
+	.ech__pic .e-sparkle {
+		fill: var(--sl-color-accent);
+		transform-box: fill-box;
+		transform-origin: center;
+	}
+	/* wood and fire */
+	.ech__pic .e-log {
+		fill: var(--e-wood);
+		stroke: var(--e-wood-edge);
+		stroke-width: 1.8;
+	}
+	.ech__pic .e-log--top {
+		fill: var(--e-wood-top);
+	}
+	.ech__pic .e-ring {
+		fill: var(--e-ring);
+		stroke: var(--e-wood-edge);
+		stroke-width: 1.8;
+	}
+	.ech__pic .is-burnt .e-log {
+		fill: color-mix(in srgb, var(--e-wood) 45%, hsl(20, 25%, 10%));
+	}
+	.ech__pic .is-burnt .e-ring {
+		fill: hsl(16, 90%, 52%);
+	}
+	.ech__pic .e-fo {
+		fill: var(--e-fo);
+		transform-box: fill-box;
+		transform-origin: 50% 100%;
+	}
+	.ech__pic .e-fi {
+		fill: var(--e-fi);
+		transform-box: fill-box;
+		transform-origin: 50% 100%;
+	}
+	.ech__pic .e-spark {
+		fill: hsl(44, 100%, 62%);
+		opacity: 0.85;
+	}
+	.ech__pic .e-heat {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 2;
+		stroke-linecap: round;
+		opacity: 0.7;
+	}
+	.ech__pic .e-steam {
+		fill: none;
+		stroke: var(--e-steam);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		opacity: 0.7;
+	}
+	.ech__pic .e-stone {
+		fill: var(--e-stone);
+		stroke: var(--e-stone-edge);
+		stroke-width: 1.4;
+	}
+	.ech__pic .e-pot {
+		fill: var(--e-iron);
+		stroke: var(--e-iron-edge);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+	.ech__pic .e-pot-in {
+		fill: color-mix(in srgb, var(--e-iron) 60%, black);
+		stroke: var(--e-iron-edge);
+		stroke-width: 1.6;
+	}
+	.ech__pic .e-rim {
+		fill: none;
+		stroke: var(--e-iron-edge);
+		stroke-width: 1.6;
+	}
+	.ech__pic .e-water {
+		fill: var(--e-water);
+	}
+	.ech__pic .e-bubble {
+		fill: none;
+		stroke: hsl(0, 0%, 100%);
+		stroke-width: 1;
+		transform-box: fill-box;
+		transform-origin: center;
+	}
+	/* car and brakes */
+	.ech__pic .e-road {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+	}
+	.ech__pic .e-lane {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+		stroke-dasharray: 10 8;
+	}
+	.ech__pic .e-speed line {
+		stroke: var(--ig-vx);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-dasharray: 14 6;
+		opacity: 0.8;
+	}
+	.ech__pic .e-car {
+		fill: var(--ig-vx);
+		stroke: color-mix(in srgb, var(--ig-vx) 55%, black);
+		stroke-width: 1.4;
+		stroke-linejoin: round;
+	}
+	.ech__pic .e-glass {
+		fill: var(--e-glass);
+	}
+	.ech__pic .e-headlight {
+		fill: hsl(50, 100%, 70%);
+	}
+	.ech__pic .e-taillight {
+		fill: hsl(0, 80%, 55%);
+	}
+	.ech__pic .e-tyre {
+		fill: var(--e-tyre);
+	}
+	.ech__pic .e-hub {
+		fill: var(--e-hub);
+	}
+	.ech__pic .e-spin line {
+		stroke: var(--e-tyre);
+		stroke-width: 1.4;
+	}
+	.ech__pic .e-spin,
+	.ech__pic .e-brake {
+		transform-box: view-box;
+	}
+	.ech__pic .e-disc {
+		fill: var(--e-disc);
+		stroke: var(--e-disc-edge);
+		stroke-width: 1.6;
+	}
+	.ech__pic .e-hotring {
+		fill: hsl(12, 95%, 54%);
+		opacity: 0.85;
+	}
+	.ech__pic .e-hotring.is-cooling {
+		fill: hsl(6, 80%, 44%);
+		opacity: 0.55;
+	}
+	.ech__pic .e-halo.is-cooling {
+		opacity: 0.3;
+	}
+	.ech__pic .e-hole {
+		fill: var(--e-disc-edge);
+	}
+	.ech__pic .e-hubcap {
+		fill: var(--e-hub);
+		stroke: var(--e-disc-edge);
+		stroke-width: 1.4;
+	}
+	.ech__pic .e-bolt {
+		fill: var(--e-disc-edge);
+	}
+	.ech__pic .e-caliper {
+		fill: var(--e-iron);
+		stroke: var(--e-iron-edge);
+		stroke-width: 1.6;
+	}
+	/* ball */
+	.ech__pic .e-ball,
+	.ech__pic .e-ghost {
+		fill: var(--ig-v);
+		stroke: color-mix(in srgb, var(--ig-v) 55%, black);
+		stroke-width: 1.5;
+	}
+	.ech__pic .e-shine {
+		fill: hsl(0, 0%, 100%);
+		opacity: 0.55;
+	}
+	.ech__pic .e-path {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.4;
+		stroke-dasharray: 1 4;
+		stroke-linecap: round;
+	}
+	.ech__pic .e-dim {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.ech__pic .e-streak line {
+		stroke: var(--ig-vx);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		opacity: 0.75;
+	}
+	.ech__pic .e-impact line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	/* sun, plants, coal, stove */
+	.ech__pic .e-sky {
+		fill: color-mix(in srgb, var(--ig-vx) 16%, transparent);
+	}
+	.ech__pic .e-sun circle {
+		fill: hsl(45, 100%, 58%);
+	}
+	.ech__pic .e-sun line {
+		stroke: hsl(45, 100%, 58%);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.ech__pic .e-ray {
+		--a: hsl(45, 100%, 55%);
+	}
+	:root[data-theme='light'] .ech__pic .e-ray {
+		--a: hsl(38, 100%, 46%);
+	}
+	.ech__pic .e-ray line {
+		stroke-width: 2;
+		stroke-dasharray: 5 4;
+	}
+	.ech__pic .e-swamp {
+		fill: var(--e-swamp);
+	}
+	.ech__pic .e-trunk {
+		fill: none;
+		stroke: var(--e-trunk);
+		stroke-linecap: round;
+	}
+	.ech__pic .e-leaf {
+		fill: var(--e-leaf);
+	}
+	.ech__pic .e-leaf2 {
+		fill: var(--e-leaf2);
+	}
+	.ech__pic .e-stalk,
+	.ech__pic .e-whorl {
+		fill: none;
+		stroke: var(--e-leaf);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.ech__pic .e-whorl {
+		stroke-width: 1.4;
+	}
+	.ech__pic .e-grass {
+		fill: var(--e-leaf);
+	}
+	.ech__pic .e-tuft {
+		fill: none;
+		stroke: var(--e-leaf);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.ech__pic .e-l1 {
+		fill: var(--e-soil);
+	}
+	.ech__pic .e-l2 {
+		fill: var(--e-rock);
+	}
+	.ech__pic .e-coal {
+		fill: var(--e-coal);
+	}
+	.ech__pic .e-l3 {
+		fill: var(--e-rock2);
+	}
+	.ech__pic .e-dots {
+		stroke: color-mix(in srgb, var(--e-rock) 40%, black);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		opacity: 0.5;
+	}
+	.ech__pic .e-facet {
+		fill: none;
+		stroke: var(--e-coal-edge);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.ech__pic .e-fossil path {
+		fill: none;
+		stroke: hsl(220, 8%, 50%);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+	}
+	.ech__pic .e-fossil ellipse {
+		fill: hsl(220, 8%, 42%);
+	}
+	.ech__pic .e-iron {
+		fill: var(--e-iron);
+		stroke: var(--e-iron-edge);
+		stroke-width: 1.4;
+	}
+	.ech__pic .e-door {
+		fill: hsl(20, 30%, 8%);
+	}
+	.ech__pic .e-doorframe {
+		fill: none;
+		stroke: var(--e-iron-edge);
+		stroke-width: 2;
+	}
+	.ech__pic .e-lump {
+		fill: hsl(220, 8%, 16%);
+		stroke: hsl(14, 95%, 52%);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	/* space and the meteor */
+	.ech__pic .e-space {
+		fill: hsl(236, 40%, 8%);
+	}
+	.ech__pic .e-night {
+		fill: hsl(232, 45%, 15%);
+	}
+	.ech__pic .e-star {
+		fill: hsl(0, 0%, 100%);
+		opacity: 0.85;
+	}
+	.ech__pic .e-atm {
+		fill: hsl(200, 90%, 65%);
+		opacity: 0.3;
+	}
+	.ech__pic .e-earth {
+		fill: hsl(210, 60%, 42%);
+	}
+	.ech__pic .e-land {
+		fill: hsl(120, 35%, 40%);
+	}
+	.ech__pic .e-rock {
+		fill: hsl(25, 14%, 52%);
+		stroke: hsl(25, 14%, 72%);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.ech__pic .e-trail line {
+		stroke: hsl(205, 90%, 70%);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		opacity: 0.7;
+	}
+	.ech__pic .e-drift .e-arr--k,
+	.ech__pic .e-drift .e-lab--k {
+		--a: hsl(205, 90%, 66%);
+	}
+	.ech__pic .e-headcore {
+		fill: hsl(0, 0%, 100%);
+	}
+	.ech__pic .e-hill {
+		fill: hsl(232, 35%, 6%);
+	}
+
+	/* ---- gentle loops ---- */
+	.ech__pic .e-store {
+		animation: ech-pulse 3s ease-in-out infinite alternate;
+	}
+	@keyframes ech-pulse {
+		from {
+			opacity: 0.45;
+		}
+	}
+	.ech__pic .e-sparkle {
+		animation: ech-twinkle 2.4s ease-in-out infinite;
+		animation-delay: calc(-1 * var(--d));
+	}
+	@keyframes ech-twinkle {
+		0%,
+		100% {
+			transform: scale(0.55);
+			opacity: 0.5;
+		}
+		50% {
+			transform: scale(1);
+			opacity: 1;
+		}
+	}
+	.ech__pic .e-fo,
+	.ech__pic .e-fi {
+		animation: ech-flick 0.5s ease-in-out infinite alternate;
+		animation-delay: calc(-1 * var(--d));
+	}
+	@keyframes ech-flick {
+		from {
+			transform: scale(0.95, 0.85);
+		}
+		to {
+			transform: scale(1.03, 1.06);
+		}
+	}
+	.ech__pic .e-spark {
+		animation: ech-spark 1.6s ease-out infinite;
+		animation-delay: calc(-1 * var(--d));
+	}
+	@keyframes ech-spark {
+		from {
+			opacity: 1;
+			transform: translateY(8px);
+		}
+		to {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+	}
+	.ech__pic .e-heat,
+	.ech__pic .e-steam {
+		animation: ech-rise 2s ease-in infinite;
+		animation-delay: calc(-1 * var(--d));
+	}
+	@keyframes ech-rise {
+		0% {
+			opacity: 0;
+			transform: translateY(5px);
+		}
+		40% {
+			opacity: 0.8;
+		}
+		100% {
+			opacity: 0;
+			transform: translateY(-8px);
+		}
+	}
+	.ech__pic .e-bubble {
+		animation: ech-pop 1.2s ease-out infinite;
+		animation-delay: calc(-1 * var(--d));
+	}
+	@keyframes ech-pop {
+		0% {
+			opacity: 0;
+			transform: scale(0.3);
+		}
+		60% {
+			opacity: 1;
+			transform: scale(1);
+		}
+		100% {
+			opacity: 0;
+			transform: scale(1.25);
+		}
+	}
+	.ech__pic .e-lane {
+		animation: ech-road 0.45s linear infinite;
+	}
+	@keyframes ech-road {
+		to {
+			stroke-dashoffset: 18;
+		}
+	}
+	.ech__pic .e-speed line {
+		animation: ech-speed 0.4s linear infinite;
+	}
+	@keyframes ech-speed {
+		to {
+			stroke-dashoffset: 20;
+		}
+	}
+	.ech__pic .e-spin {
+		animation: ech-spin 0.5s linear infinite;
+	}
+	@keyframes ech-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	/* the disc slows down and stops while it heats up, then the loop starts again */
+	.ech__pic .e-brake {
+		animation: ech-brake 3.6s infinite;
+	}
+	@keyframes ech-brake {
+		0% {
+			transform: rotate(0deg);
+			animation-timing-function: cubic-bezier(0.2, 0.75, 0.35, 1);
+		}
+		65%,
+		100% {
+			transform: rotate(180deg);
+		}
+	}
+	.ech__pic .e-hotring.is-heating {
+		animation: ech-heatup 3.6s ease-in-out infinite;
+	}
+	@keyframes ech-heatup {
+		0% {
+			opacity: 0.08;
+		}
+		65%,
+		88% {
+			opacity: 0.85;
+		}
+		100% {
+			opacity: 0.08;
+		}
+	}
+	.ech__pic .e-halo.is-heating {
+		animation: ech-halo 3.6s ease-in-out infinite;
+	}
+	@keyframes ech-halo {
+		0% {
+			opacity: 0;
+		}
+		65%,
+		88% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+	/* the ball falls with growing speed: distance ~ t², arrow ~ t */
+	.ech__pic .e-fade {
+		animation: ech-fade 1.9s linear infinite;
+	}
+	@keyframes ech-fade {
+		0% {
+			opacity: 0;
+		}
+		6%,
+		80% {
+			opacity: 1;
+		}
+		96%,
+		100% {
+			opacity: 0;
+		}
+	}
+	.ech__pic .e-fall {
+		animation: ech-fall 1.9s infinite;
+	}
+	@keyframes ech-fall {
+		0% {
+			transform: translateY(-52px);
+			animation-timing-function: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+		}
+		55%,
+		100% {
+			transform: none;
+		}
+	}
+	.ech__pic .e-vgrow {
+		transform-box: fill-box;
+		transform-origin: 50% 0;
+		animation: ech-grow 1.9s infinite;
+	}
+	@keyframes ech-grow {
+		0% {
+			transform: scaleY(0.05);
+			animation-timing-function: linear;
+		}
+		55%,
+		100% {
+			transform: none;
+		}
+	}
+	.ech__pic .e-ray line {
+		animation: ech-ray 0.8s linear infinite;
+	}
+	@keyframes ech-ray {
+		to {
+			stroke-dashoffset: -9;
+		}
+	}
+	.ech__pic .e-star.is-tw {
+		animation: ech-star 2.6s ease-in-out infinite;
+		animation-delay: calc(-1 * var(--d));
+	}
+	@keyframes ech-star {
+		50% {
+			opacity: 0.25;
+		}
+	}
+	.ech__pic .e-drift {
+		animation: ech-drift 3.2s linear infinite;
+	}
+	@keyframes ech-drift {
+		0% {
+			opacity: 0;
+			transform: translate(-12px, -9px);
+		}
+		15%,
+		80% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+			transform: translate(8px, 6px);
+		}
+	}
+	.ech__pic .e-shoot {
+		animation: ech-shoot 3.6s ease-out infinite;
+	}
+	@keyframes ech-shoot {
+		0% {
+			opacity: 0;
+			transform: translate(26px, -16px);
+		}
+		12% {
+			opacity: 1;
+		}
+		60% {
+			opacity: 1;
+			transform: none;
+		}
+		80%,
+		100% {
+			opacity: 0;
+			transform: none;
+		}
+	}
+
 	@media (max-width: 40rem) {
 		.ech {
 			padding: 0.75rem 0.6rem;
 		}
 		.ech__flow {
 			flex-direction: column;
+		}
+		.ech__node {
+			flex-direction: row;
+			align-items: flex-start;
+			gap: 0.65rem;
+			padding: 0.55rem 0.6rem;
+		}
+		.ech__pic {
+			flex: 0 0 7.5rem;
+			width: 7.5rem;
+			align-self: flex-start;
 		}
 		.ech__arrow {
 			flex-basis: 2rem;
@@ -277,8 +1317,9 @@ const names: Record<Node['k'], string> = {
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.ech__arrow span,
-		.ech.is-interactive .ech__scene.is-active .ech__node {
-			animation: none;
+		.ech.is-interactive .ech__scene.is-active .ech__node,
+		.ech__pic * {
+			animation: none !important;
 		}
 	}
 </style>
