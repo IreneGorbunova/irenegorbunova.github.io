@@ -5,6 +5,8 @@ import { satteri } from '@astrojs/markdown-satteri';
 import { katexPlugin } from './src/plugins/katex.mjs';
 import { motionCss, MOTION_SCRIPT } from './src/plugins/motion.mjs';
 
+const GOATCOUNTER = 'https://irenegorbunova.goatcounter.com/count';
+
 const grade = (/** @type {number} */ n, /** @type {any[]} */ chapters = []) => ({
 	label: `${n} класс`,
 	collapsed: true,
@@ -29,7 +31,11 @@ export default defineConfig({
 		starlight({
 			title: 'Учебник физики',
 			locales: { root: { label: 'Русский', lang: 'ru' } },
-			head: [{ tag: 'script', content: MOTION_SCRIPT }],
+			head: [
+				{ tag: 'script', content: MOTION_SCRIPT },
+				// visit counter, no cookies: https://irenegorbunova.goatcounter.com
+				{ tag: 'script', attrs: { 'data-goatcounter': GOATCOUNTER, async: true, src: '//gc.zgo.at/count.js' } },
+			],
 			components: { Footer: './src/components/Footer.astro', PageTitle: './src/components/PageTitle.astro' },
 			customCss: [
 				'katex/dist/katex.min.css',
