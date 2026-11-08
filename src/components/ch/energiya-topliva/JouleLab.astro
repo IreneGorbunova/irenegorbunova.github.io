@@ -42,17 +42,18 @@ const TOP = 150; // top of a weight at the start
 		<circle class="jl__axle-dot" cx="530" cy="120" r="3" />
 
 		<!-- vessel with water -->
-		<rect class="jl__water" x="258" y="186" width="124" height="114" rx="6" data-water />
+		<rect class="jl__water" x="258" y="268.5" width="124" height="31.5" rx="6" data-water />
 		<g data-swirl></g>
 		<!-- paddle wheel -->
-		<line class="jl__shaft" x1="320" y1="92" x2="320" y2="292" />
+		<line class="jl__shaft" x1="320" y1="92" x2="320" y2="297" />
 		<g data-paddles></g>
 		<path class="jl__vessel" d="M256,170 V294 q0,8 8,8 H376 q8,0 8,-8 V170" />
 		<line class="jl__lid" x1="250" y1="170" x2="390" y2="170" />
 		<!-- drum -->
 		<rect class="jl__drum" x="302" y="96" width="36" height="18" rx="3" />
 		<g data-drum-lines></g>
-		<!-- thermometer -->
+		<!-- thermometer, a little lower so that its bulb stays in the shallowest water -->
+		<g transform="translate(0 8)">
 		<rect class="jl__thermo" x="367" y="58" width="10" height="226" rx="5" />
 		<circle class="jl__bulb" cx="372" cy="286" r="7" />
 		<rect class="jl__col" x="370" y="100" width="4" height="186" data-col />
@@ -67,6 +68,7 @@ const TOP = 150; // top of a weight at the start
 					</g>
 				))
 			}
+		</g>
 		</g>
 		<g class="jl__readout">
 			<rect x="400" y="40" width="100" height="34" rx="8" />
@@ -370,6 +372,8 @@ const TOP = 150; // top of a weight at the start
 	const TOP = 150;
 	const DRUM_R = 9; // px, radius of the drum the cords are wound on
 	const FALL = 2.6; // s on screen
+	const BOTTOM = 300; // inner bottom of the vessel
+	const FULL = 126; // px of water at the largest mass: the level is proportional to the mass
 	const RISE = 1.1;
 	const NS = 'http://www.w3.org/2000/svg';
 
@@ -412,7 +416,7 @@ const TOP = 150; // top of a weight at the start
 			el.setAttribute('class', 'jl__swirl');
 			el.setAttribute('r', String(1.2 + (i % 3) * 0.4));
 			swirlG.append(el);
-			return { el, a: Math.random() * 6.28, rx: 12 + Math.random() * 40, y: 196 + Math.random() * 98, k: 0.6 + Math.random() * 0.6 };
+			return { el, a: Math.random() * 6.28, rx: 12 + Math.random() * 40, u: Math.random(), k: 0.6 + Math.random() * 0.6 };
 		});
 		for (let i = 0; i < 3; i++) {
 			const l = document.createElementNS(NS, 'line');
@@ -425,6 +429,7 @@ const TOP = 150; // top of a weight at the start
 		const M = () => Number(bigIn.value);
 		const mw = () => Number(wIn.value);
 		const dtDrop = () => (M() * G * H) / (C * mw());
+		const depth = () => (FULL * mw()) / Number(wIn.max);
 
 		const writeFormula = () => {
 			const big = M();
@@ -466,15 +471,23 @@ const TOP = 150; // top of a weight at the start
 				l.setAttribute('y2', yy.toFixed(1));
 				l.style.opacity = front ? '1' : '0';
 			});
-			// paddle wheel: 4 blades on 3 levels, seen from the side
+			// water level
+			const D = depth();
+			water.setAttribute('y', (BOTTOM - D).toFixed(1));
+			water.setAttribute('height', D.toFixed(1));
+			// paddle wheel: 4 blades on 1–3 levels (as many as the water covers), seen from the side
 			let html = '';
 			const back: string[] = [];
 			const front: string[] = [];
-			for (const ly of [212, 244, 276]) {
+			const levels = D >= 100 ? 3 : D >= 56 ? 2 : 1;
+			const gap = (D - 12) / levels;
+			const hb = Math.max(5, Math.min(14, gap - 6));
+			for (let k = 0; k < levels; k++) {
+				const ly = BOTTOM - 6 - gap * (k + 0.5);
 				for (let b = 0; b < 4; b++) {
-					const a = phi + (b * Math.PI) / 2 + (ly === 244 ? Math.PI / 4 : 0);
+					const a = phi + (b * Math.PI) / 2 + (k % 2 ? Math.PI / 4 : 0);
 					const x = 42 * Math.cos(a);
-					const rect = `<rect class="jl__blade${Math.sin(a) < 0 ? ' jl__blade--back' : ''}" x="${(320 + Math.min(0, x)).toFixed(1)}" y="${ly - 7}" width="${Math.abs(x).toFixed(1)}" height="14" rx="1.5"/>`;
+					const rect = `<rect class="jl__blade${Math.sin(a) < 0 ? ' jl__blade--back' : ''}" x="${(320 + Math.min(0, x)).toFixed(1)}" y="${(ly - hb / 2).toFixed(1)}" width="${Math.abs(x).toFixed(1)}" height="${hb.toFixed(1)}" rx="1.5"/>`;
 					(Math.sin(a) < 0 ? back : front).push(rect);
 				}
 			}
@@ -485,7 +498,7 @@ const TOP = 150; // top of a weight at the start
 			for (const p of swirl) {
 				const a = p.a + swirlPhase * p.k;
 				const x = 320 + p.rx * Math.cos(a);
-				const yy = p.y + 3 * Math.sin(a);
+				const yy = BOTTOM - D + 4 + p.u * Math.max(0, D - 8) + Math.min(3, D / 12) * Math.sin(a);
 				p.el.setAttribute('cx', x.toFixed(1));
 				p.el.setAttribute('cy', yy.toFixed(1));
 				p.el.style.opacity = (0.25 + 0.35 * (Math.sin(a) > 0 ? 1 : 0.4)).toFixed(2);
@@ -618,6 +631,7 @@ const TOP = 150; // top of a weight at the start
 			$<SVGTextElement>('[data-wl-t]').textContent = `${ru(big / 2, 0)} кг`;
 			$<SVGTextElement>('[data-wr-t]').textContent = `${ru(big / 2, 0)} кг`;
 			writeFormula();
+			frame(0);
 		};
 		bigIn.addEventListener('input', sliders);
 		wIn.addEventListener('input', sliders);
