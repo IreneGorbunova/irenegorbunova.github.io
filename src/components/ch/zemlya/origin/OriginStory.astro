@@ -1,0 +1,587 @@
+---
+/**
+ * «Как родились Солнце, Земля и Луна»: a museum-screen animation in ten stages, from a cold cloud to today.
+ * The frame is a pure function of the timeline position (scene.ts), so the scrubber and the stage buttons jump
+ * anywhere instantly. Starts paused on the first frame with a large ▶: the reader chooses when to watch.
+ * Facts and dates checked in Nov 2026 (sources listed in the chapter's review notes).
+ */
+const stages = [
+	{
+		title: 'Холодное облако',
+		text: 'Около 4,6 млрд лет назад здесь было холодное (около −260 °C) облако газа и пыли — в основном водорода и гелия. Возможно, сжиматься его заставила ударная волна от взрыва соседней звезды — сверхновой.',
+	},
+	{
+		title: 'Облако сжимается',
+		text: 'Тяготение стягивает облако к центру. Сжимаясь, оно вращается всё быстрее — как фигуристка, прижимающая руки к телу, — и сплющивается в диск.',
+	},
+	{
+		title: 'Протосолнце и диск',
+		text: 'В центре собирается и разогревается протосолнце, вокруг вращается газопылевой диск. Внутренние части диска обходят центр быстрее внешних — как планеты по законам Кеплера.',
+	},
+	{
+		title: 'Из пыли — глыбы',
+		text: 'Пылинки слипаются в комочки, камешки и глыбы-планетезимали размером в километры. Близко к Солнцу твёрдыми остаются только камень и металл, а за снеговой линией замерзает и вода. Там вещества больше, и раньше всех вырос Юпитер: его ядро набрало 20 масс Земли меньше чем за миллион лет.',
+	},
+	{
+		title: 'Газ уходит',
+		text: 'Излучение и ветер молодого Солнца выдувают из диска остатки газа — за первые несколько миллионов лет. Гиганты успели набрать много водорода и гелия, а каменные планеты — нет.',
+	},
+	{
+		title: 'Зародыши планет сталкиваются',
+		text: 'Тела размером от Луны до Марса сталкиваются и слипаются: Земля растёт десятки миллионов лет. За это время Солнце сжалось и разогрелось, в его ядре пошли термоядерные реакции — водород превращается в гелий.',
+	},
+	{
+		title: 'Гигантское столкновение',
+		text: 'По самой распространённой гипотезе, около 4,5 млрд лет назад в молодую Землю наискосок врезалась Тейя — тело размером с Марс. Раскалённые обломки образовали вокруг Земли кольцо, и из него быстро — по разным расчётам, за время от месяцев до сотни лет — собралась Луна.',
+	},
+	{
+		title: 'Луна совсем близко',
+		text: 'Молодая Луна была примерно в 15 раз ближе, чем сейчас, и в небе казалась в 15 раз больше. Сутки на Земле длились около 5 часов. Приливы отодвигают Луну, а вращение Земли замедляется — это идёт и сегодня.',
+	},
+	{
+		title: 'Кора и океаны',
+		text: 'Океан расплавленной магмы остывает и покрывается твёрдой корой. Водяной пар в атмосфере конденсируется, льют дожди, появляются океаны. Кристаллы циркона из Австралии возрастом около 4,4 млрд лет говорят о том, что жидкая вода на Земле, по-видимому, была уже тогда.',
+	},
+	{
+		title: 'Сегодня',
+		text: 'Прошло 4,57 млрд лет. Сутки длятся 24 часа, Луна в 384 400 км и уходит от нас на 3,8 см в год. Узнали всё это по возрасту метеоритов, по лунным камням «Аполлонов» и «Лун» и по дискам вокруг молодых звёзд.',
+	},
+];
+---
+
+<figure class="ors not-content" data-ors>
+	<div class="ors__screen">
+		<canvas class="ors__canvas" role="img" aria-label="Анимация: рождение Солнца, Земли и Луны"></canvas>
+		<div class="ors__hud" aria-hidden="true">
+			<p class="ors__when" data-when>≈ 4,6 млрд лет назад</p>
+			<p class="ors__rel" data-rel>до рождения Солнечной системы</p>
+			<p class="ors__live" data-live></p>
+		</div>
+		<p class="ors__note" data-note aria-hidden="true"></p>
+		<button type="button" class="ors__start" data-start>
+			<span class="ors__start-icon" aria-hidden="true">▶</span>
+			<span>Смотреть, как всё рождалось</span>
+		</button>
+	</div>
+	<div class="ors__controls">
+		<button type="button" class="ors__btn ors__btn--play" data-play aria-label="Смотреть">
+			<svg viewBox="0 0 20 20" aria-hidden="true"><path data-icon d="M6 4 L16 10 L6 16 Z"></path></svg>
+		</button>
+		<button type="button" class="ors__btn" data-prev aria-label="Предыдущий этап">
+			<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 L7 10 L12.5 15.5"></path></svg>
+		</button>
+		<div class="ors__track">
+			<input class="ors__range" type="range" min="0" max="1000" step="1" value="0" data-scrub aria-label="Время" />
+			<div class="ors__ticks" data-ticks>
+				{stages.map((s, i) => <button type="button" class="ors__tick" data-tick={i} aria-label={`Этап ${i + 1}: ${s.title}`}><span>{i + 1}</span></button>)}
+			</div>
+		</div>
+		<button type="button" class="ors__btn" data-next aria-label="Следующий этап">
+			<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4.5 L13 10 L7.5 15.5"></path></svg>
+		</button>
+	</div>
+	<div class="ors__cap">
+		{
+			stages.map((s, i) => (
+				<div class:list={['ors__item', { 'is-on': i === 0 }]} data-item={i} aria-hidden={i === 0 ? 'false' : 'true'}>
+					<p class="ors__title">
+						<span class="ors__num">{i + 1}</span> {s.title}
+					</p>
+					<p class="ors__text">{s.text}</p>
+				</div>
+			))
+		}
+	</div>
+	<p class="ors__sr" aria-live="polite" data-say></p>
+	<figcaption class="ors__caption">
+		Движение по орбитам сильно замедлено, цвета условны. Шкала внизу справа показывает размер кадра.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ors {
+		--ors-ink: hsl(40 30% 92%);
+		--ors-dim: hsl(230 22% 70%);
+		--ors-line: hsl(230 25% 32%);
+		--ors-accent: hsl(42 100% 70%);
+		position: relative;
+		margin-block: 1.5rem;
+		padding: 0.6rem;
+		border-radius: 1rem;
+		background: radial-gradient(ellipse at 50% 30%, hsl(232 45% 13%), hsl(232 50% 6%));
+		color: var(--ors-ink);
+	}
+	.ors__screen {
+		position: relative;
+		aspect-ratio: 16 / 9;
+		border-radius: 0.7rem;
+		overflow: hidden;
+		background: hsl(232 50% 5%);
+	}
+	.ors__canvas {
+		display: block;
+		width: 100%;
+		height: 100%;
+		touch-action: pan-y;
+	}
+	.ors__hud {
+		position: absolute;
+		top: 0.55rem;
+		left: 0.75rem;
+		pointer-events: none;
+		text-shadow: 0 1px 3px hsl(232 60% 4%);
+	}
+	.ors__hud p {
+		margin: 0;
+		line-height: 1.25;
+	}
+	.ors__when {
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--ors-accent);
+	}
+	.ors__rel,
+	.ors__live {
+		font-size: var(--sl-text-xs);
+		color: var(--ors-ink);
+		font-variant-numeric: tabular-nums;
+	}
+	.ors__live:empty {
+		display: none;
+	}
+	.ors__note {
+		position: absolute;
+		top: 0.6rem;
+		right: 0.6rem;
+		max-width: 45%;
+		margin: 0;
+		padding: 0.15rem 0.55rem;
+		border: 1px solid hsl(230 25% 40% / 0.7);
+		border-radius: 999px;
+		background: hsl(232 50% 8% / 0.7);
+		font-size: var(--sl-text-xs);
+		line-height: 1.35;
+		color: var(--ors-dim);
+		text-align: right;
+		pointer-events: none;
+	}
+	.ors__note:empty {
+		display: none;
+	}
+	.ors__start {
+		position: absolute;
+		left: 50%;
+		bottom: 12%;
+		transform: translateX(-50%);
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin: 0;
+		padding: 0.6rem 1.2rem 0.6rem 0.7rem;
+		border: 1px solid hsl(42 100% 70% / 0.6);
+		border-radius: 999px;
+		background: hsl(232 50% 8% / 0.78);
+		color: var(--ors-ink);
+		font: inherit;
+		font-size: var(--sl-text-base);
+		font-weight: 600;
+		white-space: nowrap;
+		cursor: pointer;
+		backdrop-filter: blur(3px);
+	}
+	.ors__start:hover {
+		border-color: var(--ors-accent);
+		background: hsl(232 50% 12% / 0.85);
+	}
+	.ors__start-icon {
+		display: grid;
+		place-items: center;
+		width: 2.4rem;
+		height: 2.4rem;
+		padding-left: 0.2rem;
+		border-radius: 50%;
+		background: var(--ors-accent);
+		color: hsl(232 50% 10%);
+		font-size: 1.1rem;
+	}
+	.ors__start[hidden] {
+		display: none;
+	}
+	.ors__controls {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		margin-top: 0.5rem;
+	}
+	.ors__btn {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 2.4rem;
+		height: 2.4rem;
+		margin: 0;
+		padding: 0;
+		border: 1px solid var(--ors-line);
+		border-radius: 50%;
+		background: transparent;
+		color: var(--ors-ink);
+		cursor: pointer;
+	}
+	.ors__btn:hover {
+		border-color: var(--ors-accent);
+	}
+	.ors__btn svg {
+		width: 1.15rem;
+		height: 1.15rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.ors__btn--play {
+		border-color: hsl(42 100% 70% / 0.6);
+		color: var(--ors-accent);
+	}
+	.ors__btn--play svg {
+		fill: currentColor;
+		stroke-width: 1;
+	}
+	.ors__btn:focus-visible,
+	.ors__start:focus-visible,
+	.ors__tick:focus-visible {
+		outline: 2px solid var(--ors-accent);
+		outline-offset: 2px;
+	}
+	.ors__track {
+		position: relative;
+		flex: 1;
+		min-width: 0;
+		/* the stage numbers sit clearly below the slider: on a phone a finger on the slider must not land on them */
+		padding-bottom: 1.7rem;
+	}
+	.ors__range {
+		display: block;
+		width: 100%;
+		height: 1.6rem;
+		margin: 0;
+		background: transparent;
+		accent-color: var(--ors-accent);
+		cursor: pointer;
+		-webkit-appearance: none;
+		appearance: none;
+	}
+	.ors__range::-webkit-slider-runnable-track {
+		height: 4px;
+		border-radius: 2px;
+		background: linear-gradient(to right, var(--ors-accent) var(--p, 0%), var(--ors-line) var(--p, 0%));
+	}
+	.ors__range::-moz-range-track {
+		height: 4px;
+		border-radius: 2px;
+		background: var(--ors-line);
+	}
+	.ors__range::-moz-range-progress {
+		height: 4px;
+		border-radius: 2px;
+		background: var(--ors-accent);
+	}
+	.ors__range::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		width: 1.1rem;
+		height: 1.1rem;
+		margin-top: calc(2px - 0.55rem);
+		border: 2px solid hsl(232 50% 8%);
+		border-radius: 50%;
+		background: var(--ors-accent);
+	}
+	.ors__range::-moz-range-thumb {
+		width: 1rem;
+		height: 1rem;
+		border: 2px solid hsl(232 50% 8%);
+		border-radius: 50%;
+		background: var(--ors-accent);
+	}
+	.ors__range:focus-visible {
+		outline: 2px solid var(--ors-accent);
+		outline-offset: 2px;
+		border-radius: 4px;
+	}
+	.ors__ticks {
+		position: absolute;
+		left: 0.55rem;
+		right: 0.55rem;
+		bottom: 0;
+		height: 1.25rem;
+	}
+	.ors__tick {
+		position: absolute;
+		top: 0;
+		transform: translateX(-50%);
+		min-width: 1.1rem;
+		height: 1.25rem;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--ors-dim);
+		font: inherit;
+		font-size: 0.7rem;
+		line-height: 1;
+		cursor: pointer;
+	}
+	.ors__tick::before {
+		content: '';
+		position: absolute;
+		top: -0.82rem;
+		pointer-events: none;
+		left: 50%;
+		width: 1px;
+		height: 0.55rem;
+		background: var(--ors-dim);
+	}
+	.ors__tick span {
+		position: relative;
+		top: 0.12rem;
+	}
+	.ors__tick[aria-current='step'] {
+		color: var(--ors-accent);
+		font-weight: 700;
+	}
+	.ors__cap {
+		display: grid;
+		margin-top: 0.35rem;
+		padding: 0.55rem 0.75rem 0.6rem;
+		border-radius: 0.6rem;
+		background: hsl(232 45% 11% / 0.8);
+	}
+	.ors__item {
+		grid-area: 1 / 1;
+	}
+	.ors__item:not(.is-on) {
+		visibility: hidden;
+	}
+	.ors__sr {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.ors__title {
+		margin: 0;
+		font-weight: 700;
+		font-size: var(--sl-text-base);
+		color: var(--ors-ink);
+	}
+	.ors__num {
+		display: inline-grid;
+		place-items: center;
+		min-width: 1.4rem;
+		height: 1.4rem;
+		margin-right: 0.3rem;
+		border-radius: 50%;
+		background: var(--ors-accent);
+		color: hsl(232 50% 10%);
+		font-size: 0.8rem;
+		vertical-align: 0.08em;
+	}
+	.ors__text {
+		margin: 0.3rem 0 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.5;
+		color: hsl(230 25% 86%);
+	}
+	.ors__caption {
+		margin: 0.45rem 0.2rem 0;
+		font-size: var(--sl-text-xs);
+		color: var(--ors-dim);
+	}
+	@media (max-width: 40rem) {
+		.ors {
+			padding: 0.45rem;
+		}
+		.ors__screen {
+			aspect-ratio: 4 / 5;
+		}
+		.ors__when {
+			font-size: var(--sl-text-base);
+		}
+		.ors__note {
+			top: auto;
+			bottom: 2.1rem;
+			right: auto;
+			left: 0.5rem;
+			max-width: 70%;
+			text-align: left;
+		}
+		.ors__start {
+			font-size: var(--sl-text-sm);
+		}
+		.ors__cap {
+			padding: 0.5rem 0.6rem;
+		}
+	}
+</style>
+
+<script>
+	import { createScene, U, TOTAL, stageAt } from './scene';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ors]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const canvas = q<HTMLCanvasElement>('canvas');
+		const screen = q<HTMLElement>('.ors__screen');
+		const when = q<HTMLElement>('[data-when]');
+		const rel = q<HTMLElement>('[data-rel]');
+		const live = q<HTMLElement>('[data-live]');
+		const note = q<HTMLElement>('[data-note]');
+		const start = q<HTMLButtonElement>('[data-start]');
+		const play = q<HTMLButtonElement>('[data-play]');
+		const icon = q<SVGPathElement>('[data-icon]');
+		const prev = q<HTMLButtonElement>('[data-prev]');
+		const next = q<HTMLButtonElement>('[data-next]');
+		const scrub = q<HTMLInputElement>('[data-scrub]');
+		const ticks = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tick]'));
+		const items = Array.from(root.querySelectorAll<HTMLElement>('[data-item]'));
+		const titles = items.map((it) => it.querySelector('.ors__title')!.textContent!.replace(/^\s*\d+\s*/, '').trim());
+
+		const font = getComputedStyle(root).fontFamily || 'sans-serif';
+		const scene = createScene(canvas, font);
+		(root as HTMLElement & { __ors?: unknown }).__ors = scene;
+
+		let u = 0;
+		let playing = false;
+		let visible = false;
+		let raf = 0;
+		let last = 0;
+		let stage = -1;
+		let dirty = true;
+		let said = false;
+		const say = q<HTMLElement>('[data-say]');
+
+		ticks.forEach((t, i) => (t.style.left = `${(U[i] / TOTAL) * 100}%`));
+
+		const setPlaying = (p: boolean) => {
+			playing = p;
+			icon.setAttribute('d', p ? 'M5.5 4 h3 v12 h-3 Z M11.5 4 h3 v12 h-3 Z' : 'M6 4 L16 10 L6 16 Z');
+			play.setAttribute('aria-label', p ? 'Пауза' : 'Смотреть');
+			if (p) start.hidden = true;
+			kick();
+		};
+		const show = () => {
+			scene.render(u);
+			const r = scene.readout(u);
+			if (when.textContent !== r.when) when.textContent = r.when;
+			if (rel.textContent !== r.rel) rel.textContent = r.rel;
+			if (live.textContent !== r.live) live.textContent = r.live;
+			if (note.textContent !== r.note) note.textContent = r.note;
+			const k = stageAt(u);
+			if (k !== stage) {
+				stage = k;
+				items.forEach((it, i) => {
+					it.classList.toggle('is-on', i === k);
+					it.setAttribute('aria-hidden', String(i !== k));
+				});
+				if (said) say.textContent = `Этап ${k + 1}. ${titles[k]}. ${items[k].querySelector('.ors__text')!.textContent}`;
+				said = true;
+				ticks.forEach((t, i) => (i === k ? t.setAttribute('aria-current', 'step') : t.removeAttribute('aria-current')));
+			}
+			const max = Number(scrub.max);
+			const v = Math.round((u / TOTAL) * max);
+			if (document.activeElement !== scrub || playing) scrub.value = String(v);
+			scrub.style.setProperty('--p', `${(v / max) * 100}%`);
+			scrub.setAttribute('aria-valuetext', `Этап ${k + 1}: ${titles[k]}, ${r.when}`);
+			dirty = false;
+		};
+		const frame = (now: number) => {
+			raf = 0;
+			const dt = Math.min((now - last) / 1000, 0.1);
+			last = now;
+			if (playing && visible) {
+				u += dt;
+				if (u >= TOTAL) {
+					u = TOTAL;
+					setPlaying(false);
+				}
+				dirty = true;
+			}
+			if (dirty && visible) show();
+			if (playing && visible) raf = requestAnimationFrame(frame);
+		};
+		function kick() {
+			if (!raf && visible) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		}
+		const jump = (v: number) => {
+			start.hidden = true;
+			u = Math.max(0, Math.min(TOTAL, v));
+			dirty = true;
+			kick();
+		};
+
+		const resize = () => {
+			const w = screen.clientWidth, h = screen.clientHeight;
+			if (!w || !h) return;
+			scene.resize(w, h, Math.min(2, window.devicePixelRatio || 1));
+			dirty = true;
+			kick();
+		};
+		new ResizeObserver(resize).observe(screen);
+		new IntersectionObserver((es) => {
+			for (const e of es) {
+				visible = e.isIntersecting;
+				if (visible) kick();
+				else if (raf) {
+					cancelAnimationFrame(raf);
+					raf = 0;
+				}
+			}
+		}).observe(root);
+
+		start.addEventListener('click', () => {
+			if (u >= TOTAL) jump(0);
+			setPlaying(true);
+			play.focus({ preventScroll: true });
+		});
+		play.addEventListener('click', () => {
+			if (!playing && u >= TOTAL - 0.01) jump(0);
+			setPlaying(!playing);
+		});
+		const stageStart = (k: number) => U[k] + (k === 0 ? 0 : 0.05);
+		prev.addEventListener('click', () => {
+			const k = stageAt(u);
+			jump(stageStart(u - U[k] < 1.2 && k > 0 ? k - 1 : k));
+		});
+		next.addEventListener('click', () => {
+			const k = stageAt(u);
+			if (k < U.length - 2) jump(stageStart(k + 1));
+			else jump(TOTAL);
+		});
+		ticks.forEach((t, i) =>
+			t.addEventListener('click', () => {
+				start.hidden = true;
+				jump(stageStart(i));
+			}),
+		);
+		scrub.addEventListener('input', () => {
+			start.hidden = true;
+			if (playing) setPlaying(false);
+			jump((Number(scrub.value) / Number(scrub.max)) * TOTAL);
+		});
+		// the surface maps take a moment to build: do it while the reader looks at the first frame
+		type Idle = (f: (d: { timeRemaining: () => number }) => void) => void;
+		const idle: Idle = (window as Window & { requestIdleCallback?: Idle }).requestIdleCallback ?? ((f) => setTimeout(() => f({ timeRemaining: () => 8 }), 100));
+		const prep = (d: { timeRemaining: () => number }) => {
+			let fin = false;
+			do fin = scene.prepare();
+			while (!fin && d.timeRemaining() > 6);
+			if (!fin) idle(prep);
+		};
+		idle(prep);
+	}
+</script>
