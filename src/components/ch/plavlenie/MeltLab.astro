@@ -1041,16 +1041,22 @@ const MAG = { X: 452, Y: 132, R: 112 };
 			const cS = `c_{\\text{тв}}`;
 			const cL = `c_{\\text{ж}}`;
 			const mm = tex(m, 1);
-			const verb = heat ? 'получено' : 'выделилось';
+			const verb = heat ? 'получено' : 'отдано';
+			// signed, as in «Количество теплоты»: Q < 0 when the substance gives heat away (cools or solidifies)
+			const sg = heat ? 1 : -1;
+			const diff = (hi: number, lo: number) => (heat ? `${fmtT(hi)} - ${fmtT(lo)}` : `${fmtT(lo)} - ${fmtT(hi)}`);
 			const names = heat
 				? { s: `Нагревание: ${sub.solid}`, m: 'Плавление', l: `Нагревание: ${sub.liquid}` }
 				: { s: `Охлаждение: ${sub.solid}`, m: 'Отвердевание (кристаллизация)', l: `Охлаждение: ${sub.liquid}` };
 			const narrow = root.clientWidth < 560;
 			const br = (a: string, b: string) => (narrow ? `\\begin{aligned}${a.replace('=', '&=')} \\\\ &= ${b}\\end{aligned}` : `${a} = ${b}`);
 			const formula = {
-				s: br(`Q_{\\text{тв}} = ${cS}\\, m\\,(t_2 - t_1)`, `${tex(sub.cs, 0)}\\cdot ${mm}\\cdot(${fmtT(R.s.hi)} - ${fmtT(R.s.lo)}) ${R.s.q % 1 ? '\\approx' : '='} ${jl(R.s.q)}`),
-				m: br(`Q_{\\lambda} = \\lambda\\, m_{\\text{${heat ? 'распл' : 'отв'}}}`, `${sub.lambdaTex}\\cdot ${tex(R.m.dm, 3)} = ${jl(R.m.q)}`),
-				l: br(`Q_{\\text{ж}} = ${cL}\\, m\\,(t_2 - t_1)`, `${tex(sub.cl, 0)}\\cdot ${mm}\\cdot(${fmtT(R.l.hi)} - ${fmtT(R.l.lo)}) ${R.l.q % 1 ? '\\approx' : '='} ${jl(R.l.q)}`),
+				s: br(`Q_{\\text{тв}} = ${cS}\\, m\\,(t_2 - t_1)`, `${tex(sub.cs, 0)}\\cdot ${mm}\\cdot(${diff(R.s.hi, R.s.lo)}) ${R.s.q % 1 ? '\\approx' : '='} ${jl(sg * R.s.q)}`),
+				m: br(
+					heat ? `Q_{\\lambda} = \\lambda\\, m_{\\text{распл}}` : `Q_{\\lambda} = -\\lambda\\, m_{\\text{отв}}`,
+					`${heat ? '' : '-'}${sub.lambdaTex}\\cdot ${tex(R.m.dm, 3)} = ${jl(sg * R.m.q)}`,
+				),
+				l: br(`Q_{\\text{ж}} = ${cL}\\, m\\,(t_2 - t_1)`, `${tex(sub.cl, 0)}\\cdot ${mm}\\cdot(${diff(R.l.hi, R.l.lo)}) ${R.l.q % 1 ? '\\approx' : '='} ${jl(sg * R.l.q)}`),
 			};
 			const now = stateOf(sub, m, eq);
 			let ph: 's' | 'm' | 'l';
@@ -1068,12 +1074,12 @@ const MAG = { X: 452, Y: 132, R: 112 };
 				row.classList.toggle('is-done', q > 0 || ph === k);
 			});
 			const total = Math.round((R.s.q + R.m.q + R.l.q) * 1000) / 1000;
-			const kj = total / 1000;
+			const kj = (sg * total) / 1000;
 			renderTex(
 				sumEl,
-				br(`Q = Q_{\\text{тв}} + Q_{\\lambda} + Q_{\\text{ж}}`, `${jl(total)} ${total >= 1000 ? `${Math.abs(kj * 10 - Math.round(kj * 10)) > 1e-9 ? '\\approx' : '='} ${tex(kj, 1)}~\\text{кДж}` : ''}`),
+				br(`Q = Q_{\\text{тв}} + Q_{\\lambda} + Q_{\\text{ж}}`, `${jl(sg * total)} ${total >= 1000 ? `${Math.abs(kj * 10 - Math.round(kj * 10)) > 1e-9 ? '\\approx' : '='} ${tex(kj, 1)}~\\text{кДж}` : ''}`),
 			);
-			calcTitle.textContent = heat ? `Сколько теплоты получило вещество с начала нагревания` : `Сколько теплоты выделило вещество с начала охлаждения`;
+			calcTitle.textContent = heat ? `Сколько теплоты получило вещество с начала нагревания` : `Сколько теплоты отдало вещество с начала охлаждения (поэтому Q со знаком минус)`;
 			const minutes = Math.abs(eq - er) / P;
 			checkEl.innerHTML =
 				Math.abs(eq - er) < 1e-6
