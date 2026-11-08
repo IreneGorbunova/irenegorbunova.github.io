@@ -36,7 +36,12 @@ export default defineConfig({
 				// visit counter, no cookies: https://irenegorbunova.goatcounter.com
 				{ tag: 'script', attrs: { 'data-goatcounter': GOATCOUNTER, async: true, src: '//gc.zgo.at/count.js' } },
 			],
-			components: { Footer: './src/components/Footer.astro', PageTitle: './src/components/PageTitle.astro' },
+			components: {
+				Footer: './src/components/Footer.astro',
+				PageTitle: './src/components/PageTitle.astro',
+				ThemeProvider: './src/components/theme/ThemeProvider.astro',
+				ThemeSelect: './src/components/theme/ThemeSelect.astro',
+			},
 			customCss: [
 				'katex/dist/katex.min.css',
 				'@fontsource/alice',
