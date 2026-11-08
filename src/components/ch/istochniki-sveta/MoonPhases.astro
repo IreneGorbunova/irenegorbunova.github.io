@@ -1,0 +1,481 @@
+---
+/**
+ * The phases of the Moon. Left: top view from above the Earth's North pole (not to scale). Sunlight
+ * comes from the left as parallel rays; the Earth has a day and a night half; the Moon goes round
+ * counter-clockwise and is always lit on the Sun's side. The reader drags the Moon (mouse, touch,
+ * arrow keys) or plays a month. Right: the Moon as seen from the Earth at that moment (Northern
+ * hemisphere, a waxing Moon is lit on the right), drawn point by point by drawMoonView (mp.ts):
+ * the terminator is exactly half an ellipse with half-width |cos E|·R, the lit part of the disc
+ * is (1 − cos E)/2. Day of the lunar month = E/360° · 29,53 сут (mean motion).
+ */
+import SvStyles from './SvStyles.astro';
+
+const W = 480;
+const H = 400;
+const CX = 270;
+const CY = 200;
+const RO = 135; // orbit radius in the picture
+const RM = 15; // the Moon
+const RE = 30; // the Earth
+const RAY_END = 104;
+const rays = Array.from({ length: 11 }, (_, i) => 30 + i * 34);
+const pos = (deg: number, r = RO) => {
+	const e = (deg * Math.PI) / 180;
+	return { x: CX - r * Math.cos(e), y: CY + r * Math.sin(e) };
+};
+const marks = [
+	{ deg: 0, label: 'новолуние', lx: pos(0).x, ly: CY - 24 },
+	{ deg: 90, label: 'первая четверть', lx: CX, ly: CY + RO + RM + 17 },
+	{ deg: 180, label: 'полнолуние', lx: pos(180).x, ly: CY - 24 },
+	{ deg: 270, label: 'последняя четверть', lx: CX, ly: CY - RO - RM - 8 },
+];
+// chevrons along the orbit show the direction of motion (counter-clockwise seen from the north)
+const chevrons = [45, 135, 225, 315].map((deg) => {
+	const e = (deg * Math.PI) / 180;
+	const p = pos(deg);
+	return { ...p, rot: (Math.atan2(Math.cos(e), Math.sin(e)) * 180) / Math.PI };
+});
+---
+
+<SvStyles />
+<figure class="sv sv-mp not-content" data-moonphases data-cx={CX} data-cy={CY} data-ro={RO}>
+	<div class="sv-mp__grid">
+		<div class="sv-mp__top">
+			<p class="sv-mp__title">Вид сверху, со стороны Северного полюса</p>
+			<svg class="sv__svg sv-mp__svg" viewBox={`0 0 ${W} ${H}`} data-top role="group" aria-label="Солнце, Земля и Луна: вид сверху, не в масштабе">
+				<defs>
+					<linearGradient data-sun-grad x1="0" y1="0" x2="1" y2="0">
+						<stop offset="0" stop-color="var(--sv-light)" stop-opacity="0.22"></stop>
+						<stop offset="1" stop-color="var(--sv-light)" stop-opacity="0"></stop>
+					</linearGradient>
+				</defs>
+				<rect data-sun-glow fill="none" x="0" y="0" width={RAY_END + 30} height={H}></rect>
+				{
+					rays.map((y) => (
+						<g class="sv-ray">
+							<path class="sv-base" d={`M4 ${y} H${RAY_END - 6}`} />
+							<path class="sv-flow" d={`M4 ${y} H${RAY_END - 6}`} />
+							<path class="sv-mp__head" d={`M${RAY_END - 9} ${y - 4} L${RAY_END} ${y} L${RAY_END - 9} ${y + 4} Z`} />
+						</g>
+					))
+				}
+				<text class="sv-t sv-t--small" x="6" y="17">☀ свет Солнца</text>
+
+				<circle class="sv-mp__orbit" cx={CX} cy={CY} r={RO}></circle>
+				{chevrons.map((c) => <path class="sv-mp__chev" d="M-5 -6 L3 0 L-5 6" transform={`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${c.rot.toFixed(1)})`} />)}
+				{
+					marks.map((m) => (
+						<g class="sv-mp__mark" data-goto={m.deg}>
+							<circle cx={pos(m.deg).x} cy={pos(m.deg).y} r="3.5" />
+							<text class="sv-t sv-t--small" x={m.lx} y={m.ly} text-anchor="middle">
+								{m.label}
+							</text>
+						</g>
+					))
+				}
+
+				<line class="sv-mp__sight" data-sight></line>
+
+				<g class="sv-mp__earth">
+					<circle class="sv-mp__night" cx={CX} cy={CY} r={RE}></circle>
+					<path class="sv-mp__day" d={`M${CX} ${CY - RE} A${RE} ${RE} 0 0 0 ${CX} ${CY + RE} Z`}></path>
+				</g>
+				<text class="sv-t sv-t--small" x={CX} y={CY - RE - 7} text-anchor="middle">утро</text>
+				<text class="sv-t sv-t--small" x={CX} y={CY + RE + 17} text-anchor="middle">вечер</text>
+				<text class="sv-t" x={CX + RE + 8} y={CY + 5}>Земля</text>
+
+				<g class="sv-mp__moon" data-moon tabindex="0" role="slider" aria-label="Луна на орбите. Стрелки — на сутки вперёд или назад" aria-valuemin="0" aria-valuemax="29.5">
+					<circle class="sv-mp__hit" r="30"></circle>
+					<circle class="sv-mp__mnight sv-focus" r={RM}></circle>
+					<path class="sv-mp__mday" d={`M0 ${-RM} A${RM} ${RM} 0 0 0 0 ${RM} Z`}></path>
+					<path class="sv-mp__face" data-face d={`M0 ${-RM - 4} A${RM + 4} ${RM + 4} 0 0 1 0 ${RM + 4}`}></path>
+				</g>
+				<text class="sv-t sv-t--small sv-mp__hint" x={W - 6} y="17" text-anchor="end" data-hint>тяните Луну ⟲</text>
+			</svg>
+			<p class="sv-legend">
+				<span class="nw"><span class="sv-key sv-key--line" style="--c: var(--sl-color-accent)"></span>половина Луны, обращённая к Земле</span>
+				<span class="nw"><span class="sv-key sv-key--dash" style="--c: var(--sl-color-gray-3)"></span>взгляд с Земли на Луну</span>
+			</p>
+		</div>
+
+		<div class="sv-mp__view">
+			<p class="sv-mp__title">Вид с Земли</p>
+			<div class="sv-mp__pic">
+				<canvas class="sv-mp__canvas" data-view role="img" aria-label="Луна, как её видно с Земли"></canvas>
+				<span class="sv-mp__chip" data-chip hidden>рядом с Солнцем — не видна</span>
+			</div>
+			<div class="sv-mp__info">
+				<p class="sv-mp__name" data-name aria-live="polite"></p>
+				<dl class="sv-mp__stats">
+					<div><dt>После новолуния</dt><dd data-day></dd></div>
+					<div><dt>Освещено диска</dt><dd data-lit></dd></div>
+				</dl>
+			</div>
+		</div>
+	</div>
+
+	<div class="sv-row sv-mp__controls">
+		<button type="button" class="sv-btn sv-btn--primary" data-play>▶ Месяц за 15 с</button>
+		<span class="sv-mp__presets" role="group" aria-label="Главные фазы">
+			<button type="button" class="sv-btn" data-to="0">Новолуние</button>
+			<button type="button" class="sv-btn" data-to="90">Первая четверть</button>
+			<button type="button" class="sv-btn" data-to="180">Полнолуние</button>
+			<button type="button" class="sv-btn" data-to="270">Последняя четверть</button>
+		</span>
+	</div>
+	<p class="sv-cap">
+		Вид сверху не в масштабе: на самом деле Луна почти в 4 раза меньше Земли и находится от неё на расстоянии около 30 диаметров Земли, а Солнце почти в 400 раз дальше Луны. Вид с Земли — для Северного полушария.
+	</p>
+</figure>
+
+<style is:global>
+	.sv-mp {
+		--mp-lit: color-mix(in srgb, var(--ig-v) 25%, var(--sl-color-white));
+		--mp-dark: color-mix(in srgb, var(--sl-color-gray-4) 45%, var(--sl-color-black));
+		--mp-day: var(--ig-vx);
+		--mp-night: color-mix(in srgb, var(--ig-vx) 30%, var(--sl-color-black));
+	}
+	:root[data-theme='light'] .sv-mp {
+		--mp-lit: color-mix(in srgb, var(--ig-v) 30%, var(--ig-surface));
+		--mp-dark: color-mix(in srgb, var(--sl-color-gray-2) 75%, var(--ig-surface));
+		--mp-day: color-mix(in srgb, var(--ig-vx) 45%, var(--ig-surface));
+		--mp-night: color-mix(in srgb, var(--ig-vx) 35%, var(--sl-color-gray-1));
+	}
+	.sv-mp__night {
+		fill: var(--mp-night);
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, transparent);
+		stroke-width: 1;
+	}
+	.sv-mp__day {
+		fill: var(--mp-day);
+	}
+	.sv-mp__mnight {
+		fill: var(--mp-dark);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.sv-mp__mday {
+		fill: var(--mp-lit);
+	}
+	.sv-mp__grid {
+		display: grid;
+		grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+		gap: 1rem;
+		align-items: start;
+	}
+	.sv-mp__title {
+		margin: 0 0 0.35rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.sv-mp__svg {
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.sv-mp__head {
+		fill: var(--sv-light);
+		opacity: 0.85;
+	}
+	.sv-mp__orbit {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.3;
+		stroke-dasharray: 2 5;
+	}
+	.sv-mp__chev {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.sv-mp__mark {
+		cursor: pointer;
+	}
+	.sv-mp__mark circle {
+		fill: var(--sl-color-gray-3);
+	}
+	.sv-mp__mark:hover text {
+		fill: var(--sl-color-white);
+	}
+	.sv-mp__sight {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+		stroke-dasharray: 5 4;
+	}
+	.sv-mp__moon {
+		cursor: grab;
+		touch-action: none;
+		outline: none;
+	}
+	.sv-mp__moon.is-drag {
+		cursor: grabbing;
+	}
+	.sv-mp__hit {
+		fill: transparent;
+	}
+	.sv-mp__face {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.sv-mp__hint {
+		transition: opacity 0.6s;
+	}
+
+	.sv-mp .nw {
+		white-space: nowrap;
+	}
+	.sv-mp__pic {
+		position: relative;
+	}
+	.sv-mp__canvas {
+		display: block;
+		width: 100%;
+		aspect-ratio: 1;
+		border-radius: 0.6rem;
+	}
+	.sv-mp__chip {
+		position: absolute;
+		left: 50%;
+		bottom: 0.5rem;
+		transform: translateX(-50%);
+		padding: 0.15rem 0.6rem;
+		border-radius: 999px;
+		font-size: var(--sl-text-xs);
+		white-space: nowrap;
+		color: hsl(230, 40%, 12%);
+		background: hsla(45, 100%, 92%, 0.88);
+		pointer-events: none;
+	}
+	.sv-mp__chip[hidden] {
+		display: none;
+	}
+	.sv-mp__name {
+		margin: 0.6rem 0 0.4rem;
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		line-height: 1.2;
+		color: var(--sl-color-white);
+	}
+	.sv-mp__stats {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+		margin: 0;
+	}
+	.sv-mp__stats > div {
+		padding: 0.4rem 0.6rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		min-width: 0;
+	}
+	.sv-mp__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.sv-mp__stats dd {
+		margin: 0;
+		font-size: var(--sl-text-lg);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.sv-mp__controls {
+		margin-top: 0.8rem;
+	}
+	.sv-mp__presets {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.sv-mp__presets .sv-btn {
+		padding: 0.3rem 0.8rem;
+	}
+	@media (max-width: 40rem) {
+		.sv-mp__grid {
+			grid-template-columns: 1fr;
+			gap: 0.75rem;
+		}
+		.sv-mp .sv-t {
+			font-size: 19px;
+		}
+		.sv-mp .sv-t--small {
+			font-size: 18px;
+		}
+		.sv-mp__view {
+			display: grid;
+			grid-template-columns: 9.5rem minmax(0, 1fr);
+			column-gap: 0.75rem;
+			align-items: center;
+		}
+		.sv-mp__view .sv-mp__title {
+			grid-column: 1 / -1;
+		}
+		.sv-mp__name {
+			margin-top: 0;
+			font-size: var(--sl-text-lg);
+		}
+		.sv-mp__stats {
+			grid-template-columns: 1fr;
+			gap: 0.35rem;
+		}
+		.sv-mp__stats dd {
+			font-size: var(--sl-text-base);
+		}
+		.sv-mp__chip {
+			font-size: 0.7rem;
+			padding: 0.1rem 0.45rem;
+		}
+	}
+</style>
+
+<script>
+	import { MONTH, TAU, dayOf, elongOf, litFraction, phaseName, fmt, drawMoonView, moonXY, elongAt } from './mp';
+
+	const RE = 30;
+	const RM = 15;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-moonphases]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const cx = Number(root.dataset.cx);
+		const cy = Number(root.dataset.cy);
+		const ro = Number(root.dataset.ro);
+		const svg = q<SVGSVGElement>('[data-top]');
+		const moon = q<SVGGElement>('[data-moon]');
+		const face = q<SVGPathElement>('[data-face]');
+		const sight = q<SVGLineElement>('[data-sight]');
+		const canvas = q<HTMLCanvasElement>('[data-view]');
+		const chip = q<HTMLElement>('[data-chip]');
+		const playBtn = q<HTMLButtonElement>('[data-play]');
+		const hint = q<SVGTextElement>('[data-hint]');
+
+		// the sunlight glow gets a gradient id of its own (several instances must not clash)
+		const gid = 'mp-sun-' + Math.random().toString(36).slice(2, 8);
+		q('[data-sun-grad]').id = gid;
+		q<SVGRectElement>('[data-sun-glow]').style.fill = `url(#${gid})`;
+
+		let E = (MONTH / 4 - 2) / MONTH * TAU; // start: a waxing crescent, two days before first quarter
+		let frame = 0;
+
+		function draw() {
+			frame = 0;
+			const p = moonXY(E, cx, cy, ro);
+			moon.setAttribute('transform', `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})`);
+			face.setAttribute('transform', `rotate(${((-E * 180) / Math.PI).toFixed(2)})`);
+			const ux = (p.x - cx) / ro;
+			const uy = (p.y - cy) / ro;
+			sight.setAttribute('x1', (cx + ux * (RE + 3)).toFixed(2));
+			sight.setAttribute('y1', (cy + uy * (RE + 3)).toFixed(2));
+			sight.setAttribute('x2', (p.x - ux * (RM + 7)).toFixed(2));
+			sight.setAttribute('y2', (p.y - uy * (RM + 7)).toFixed(2));
+			drawMoonView(canvas, E);
+			const d = dayOf(E);
+			const name = phaseName(d);
+			q('[data-name]').textContent = name;
+			q('[data-day]').textContent = `${fmt(d, 1)} сут`;
+			q('[data-lit]').textContent = `${fmt(Math.round(100 * litFraction(E)))} %`;
+			chip.hidden = name !== 'Новолуние';
+			moon.setAttribute('aria-valuenow', d.toFixed(1));
+			moon.setAttribute('aria-valuetext', `${fmt(d, 1)} суток после новолуния, ${name[0].toLowerCase() + name.slice(1)}`);
+		}
+		const redraw = () => {
+			if (!frame) frame = requestAnimationFrame(draw);
+		};
+
+		// play: a month in 15 s; presets: a short smooth move
+		let raf = 0;
+		function stop() {
+			cancelAnimationFrame(raf);
+			raf = 0;
+			playBtn.textContent = '▶ Месяц за 15 с';
+		}
+		function play() {
+			stop();
+			playBtn.textContent = '■ Стоп';
+			let last = performance.now();
+			const step = (now: number) => {
+				const dt = Math.min(0.05, (now - last) / 1000);
+				last = now;
+				E = (E + (dt / 15) * TAU) % TAU;
+				draw();
+				raf = requestAnimationFrame(step);
+			};
+			raf = requestAnimationFrame(step);
+		}
+		playBtn.addEventListener('click', () => (raf ? stop() : play()));
+		function goTo(deg: number) {
+			stop();
+			const target = (deg * Math.PI) / 180;
+			let delta = (((target - E) % TAU) + TAU) % TAU; // always forward, as the Moon moves
+			if (delta > TAU - 1e-6) delta = 0;
+			const E0 = E;
+			const dur = 500 + 900 * (delta / TAU);
+			const t0 = performance.now();
+			const step = (now: number) => {
+				const t = Math.min(1, (now - t0) / dur);
+				const k = t < 0.5 ? 2 * t * t : 1 - (2 - 2 * t) ** 2 / 2;
+				E = (E0 + delta * k) % TAU;
+				draw();
+				if (t < 1) raf = requestAnimationFrame(step);
+				else raf = 0;
+			};
+			raf = requestAnimationFrame(step);
+		}
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-to]')) b.addEventListener('click', () => goTo(Number(b.dataset.to)));
+		for (const m of root.querySelectorAll<SVGGElement>('[data-goto]')) m.addEventListener('click', () => goTo(Number(m.dataset.goto)));
+
+		// dragging the Moon
+		const toSvg = (e: PointerEvent) => {
+			const pt = svg.createSVGPoint();
+			pt.x = e.clientX;
+			pt.y = e.clientY;
+			const m = svg.getScreenCTM();
+			return m ? pt.matrixTransform(m.inverse()) : pt;
+		};
+		moon.addEventListener('pointerdown', (e) => {
+			e.preventDefault();
+			stop();
+			moon.focus({ preventScroll: true });
+			moon.setPointerCapture(e.pointerId);
+			moon.classList.add('is-drag');
+			hint.style.opacity = '0';
+			const move = (ev: PointerEvent) => {
+				const p = toSvg(ev);
+				if (Math.hypot(p.x - cx, p.y - cy) < 4) return;
+				E = elongAt(p.x, p.y, cx, cy);
+				redraw();
+			};
+			const up = () => {
+				moon.classList.remove('is-drag');
+				moon.removeEventListener('pointermove', move);
+				moon.removeEventListener('pointerup', up);
+				moon.removeEventListener('pointercancel', up);
+			};
+			moon.addEventListener('pointermove', move);
+			moon.addEventListener('pointerup', up);
+			moon.addEventListener('pointercancel', up);
+		});
+		moon.addEventListener('keydown', (e) => {
+			const step = e.shiftKey ? 0.1 : 1; // days
+			let d = dayOf(E);
+			if (e.key === 'ArrowRight' || e.key === 'ArrowUp') d += step;
+			else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') d -= step;
+			else if (e.key === 'PageUp') d += MONTH / 4;
+			else if (e.key === 'PageDown') d -= MONTH / 4;
+			else if (e.key === 'Home') d = 0;
+			else return;
+			e.preventDefault();
+			stop();
+			hint.style.opacity = '0';
+			E = elongOf(d);
+			draw();
+		});
+
+		new ResizeObserver(() => redraw()).observe(canvas);
+		draw();
+	}
+</script>
