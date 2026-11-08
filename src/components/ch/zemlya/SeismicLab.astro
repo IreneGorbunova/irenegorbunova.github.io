@@ -1,0 +1,620 @@
+---
+/**
+ * An earthquake on the surface and its P and S rays through the Earth, traced numerically in seismic.ts (Snell's law
+ * for a sphere in 10 km shells of a simplified IASP91 velocity model). Nothing is drawn by hand: the shadow zones on
+ * the surface come from a dense fan of 6000 rays per wave. The rays go to the right; the left half shows the layers.
+ * «Землетрясение!» lets the waves run with real travel times (1 minute of travel = 0,4 s).
+ * The toggle makes the inner core liquid — the Earth as seismologists pictured it before Inge Lehmann (1936).
+ */
+const CX = 186;
+const CY = 202;
+const RP = 165;
+const R_EARTH = 6371;
+const rr = (km: number) => (RP * km) / R_EARTH;
+const ticks = [30, 60, 90, 120, 150, 180].map((d) => {
+	const a = (d * Math.PI) / 180;
+	return { x1: CX + RP * Math.sin(a), y1: CY - RP * Math.cos(a), x2: CX + (RP + 5) * Math.sin(a), y2: CY - (RP + 5) * Math.cos(a) };
+});
+---
+
+<figure class="zsm not-content" data-zsm data-geo={JSON.stringify({ CX, CY, RP })}>
+	<svg class="zsm__svg" viewBox="0 0 400 400" role="img" aria-label="Сейсмические лучи внутри Земли и зоны тени">
+		<circle class="zsm__mantle" cx={CX} cy={CY} r={RP} />
+		<circle class="zsm__outer" cx={CX} cy={CY} r={rr(3482)} />
+		<circle class="zsm__inner" data-innerdisc cx={CX} cy={CY} r={rr(1217)} />
+		<circle class="zsm__crust" cx={CX} cy={CY} r={RP} />
+		<line class="zsm__axis" x1={CX} y1={CY - RP} x2={CX} y2={CY + RP} />
+		<text class="zsm__t zsm__t--layer" x={CX - RP + 14} y={CY + 4}>мантия</text>
+		<text class="zsm__t zsm__t--layer" x={CX - rr(2400)} y={CY + 4} text-anchor="middle">ядро</text>
+		<text class="zsm__t" x={CX - 8} y={CY - RP - 10} text-anchor="end">эпицентр</text>
+		<path class="zsm__epi" transform={`translate(${CX} ${CY - RP})`} d="M0 -7 L2 -2 L7 0 L2 2 L0 7 L-2 2 L-7 0 L-2 -2 Z" />
+		{ticks.map((t) => <line class="zsm__tick" {...t} />)}
+		<text class="zsm__t zsm__t--deg" x={CX + RP + 15} y={CY + 4}>90°</text>
+		<text class="zsm__t zsm__t--deg" x={CX} y={CY + RP + 24} text-anchor="middle">180°</text>
+		<g data-cover></g>
+		<g data-shadow></g>
+		<g data-rays-p></g>
+		<g data-rays-s></g>
+		<g data-heads></g>
+		<path class="zsm__hl zsm__hl--p" data-hl-p d="" />
+		<path class="zsm__hl zsm__hl--s" data-hl-s d="" />
+	</svg>
+	<p class="zsm__legend">
+		<span class="zsm__sw zsm__sw--crust"></span>кора, 5–70 км{' '}
+		<span class="zsm__sw zsm__sw--mantle"></span>мантия, до глубины 2900 км{' '}
+		<span class="zsm__sw zsm__sw--outer"></span>внешнее ядро, жидкое{' '}
+		<span class="zsm__sw zsm__sw--inner" data-inner-sw></span><span data-inner-name>внутреннее ядро, твёрдое, радиус около 1220 км</span>
+		<br />
+		<span class="zsm__line zsm__line--p"></span>P-волны{' '}
+		<span class="zsm__line zsm__line--pi"></span>P-волны, прошедшие внутреннее ядро{' '}
+		<span class="zsm__line zsm__line--s"></span>S-волны
+	</p>
+	<div class="zsm__bar">
+		<button type="button" class="zsm__play" data-go>Землетрясение!</button>
+		<button type="button" class="zsm__chip is-on" data-show="p" aria-pressed="true">P-волны</button>
+		<button type="button" class="zsm__chip is-on" data-show="s" aria-pressed="true">S-волны</button>
+		<span class="zsm__clock" data-clock></span>
+	</div>
+	<button type="button" class="zsm__toggle" data-solid aria-pressed="true">
+		<span class="zsm__switch" aria-hidden="true"></span> Внутреннее ядро твёрдое
+	</button>
+	<label class="zsm__slider">
+		<span>Один луч: угол к вертикали <b data-i0>20°</b></span>
+		<input type="range" min="1" max="40" step="0.2" value="20" data-ray aria-label="Угол, под которым луч выходит из очага" />
+	</label>
+	<p class="zsm__msg" data-msg aria-live="polite"></p>
+	<figcaption class="zsm__caption">
+		Разрез Земли через эпицентр. Лучи рассчитаны по закону преломления для слоёв со скоростями волн, измеренными
+		сейсмологами (упрощённая модель IASP91); показаны лучи, идущие вправо, влево всё так же. Цветные дуги снаружи — где
+		на поверхность приходят волны; модель считает их по 6000 лучам каждого вида.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.zsm {
+		margin-block: 1.5rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.zsm__svg {
+		display: block;
+		width: 100%;
+		max-width: 34rem;
+		height: auto;
+		margin-inline: auto;
+		border-radius: 0.7rem;
+		background: #070a1a;
+	}
+	.zsm__mantle {
+		fill: #5c3a2c;
+	}
+	.zsm__outer {
+		fill: #a15a24;
+	}
+	.zsm__inner {
+		fill: #e0a640;
+		transition: fill 0.3s;
+	}
+	.zsm__inner.is-liquid {
+		fill: #a15a24;
+	}
+	.zsm__crust {
+		fill: none;
+		stroke: #9ccf86;
+		stroke-width: 2;
+	}
+	.zsm__axis {
+		stroke: rgb(255 255 255 / 0.18);
+		stroke-dasharray: 3 4;
+	}
+	.zsm__epi {
+		fill: #ffe39a;
+	}
+	.zsm__tick {
+		stroke: rgb(235 238 255 / 0.55);
+	}
+	.zsm__t {
+		fill: rgb(235 238 255 / 0.9);
+		font-size: 12.5px;
+		font-family: var(--sl-font);
+		paint-order: stroke;
+		stroke: #070a1a;
+		stroke-width: 3px;
+	}
+	.zsm__t--layer {
+		fill: rgb(255 240 220 / 0.85);
+		stroke: none;
+	}
+	.zsm__t--deg {
+		fill: rgb(235 238 255 / 0.6);
+		font-size: 11px;
+	}
+	.zsm__t--sh {
+		fill: #ffd0d0;
+		font-size: 12px;
+	}
+	.zsm__ray {
+		fill: none;
+		stroke-width: 1;
+		opacity: 0.85;
+	}
+	.zsm__ray--p {
+		stroke: #9fd8ff;
+	}
+	.zsm__ray--pi {
+		stroke: #7dffb6;
+	}
+	.zsm__ray--s {
+		stroke: #ff8fb8;
+	}
+	.zsm__stop {
+		fill: #ff8fb8;
+	}
+	.zsm__head {
+		stroke: none;
+	}
+	.zsm__cov {
+		fill: none;
+		stroke-width: 4;
+		stroke-linecap: butt;
+	}
+	.zsm__shtick {
+		stroke: #ffd0d0;
+		stroke-width: 1.2;
+	}
+	.zsm__sharc {
+		fill: none;
+		stroke: #ffd0d0;
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	.zsm__hl {
+		fill: none;
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.zsm__hl--p {
+		stroke: #d9f0ff;
+	}
+	.zsm__hl--s {
+		stroke: #ffc2d8;
+	}
+	.zsm__legend {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.7;
+		color: var(--sl-color-gray-2);
+	}
+	.zsm__sw {
+		display: inline-block;
+		width: 0.8rem;
+		height: 0.8rem;
+		margin: 0 0.3rem 0 0.4rem;
+		vertical-align: -0.1rem;
+		border-radius: 0.2rem;
+	}
+	.zsm__sw--crust {
+		background: #9ccf86;
+	}
+	.zsm__sw--mantle {
+		background: #5c3a2c;
+	}
+	.zsm__sw--outer {
+		background: #a15a24;
+	}
+	.zsm__sw--inner {
+		background: #e0a640;
+	}
+	.zsm__sw--inner.is-liquid {
+		background: #a15a24;
+	}
+	.zsm__line {
+		display: inline-block;
+		width: 1.2rem;
+		height: 0;
+		margin: 0 0.3rem 0 0.4rem;
+		vertical-align: middle;
+		border-top: 3px solid;
+	}
+	.zsm__line--p {
+		border-color: #5aa9e6;
+	}
+	.zsm__line--pi {
+		border-color: #2fbf7a;
+	}
+	.zsm__line--s {
+		border-color: #e0558a;
+	}
+	.zsm__bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.45rem 0.6rem;
+		margin-top: 0.7rem;
+	}
+	.zsm__play {
+		margin: 0;
+		padding: 0.35rem 1rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-black);
+		background: var(--sl-color-accent-high);
+		border: 1px solid var(--sl-color-accent-high);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.zsm__chip,
+	.zsm__toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0;
+		padding: 0.3rem 0.85rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.zsm__chip.is-on {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.zsm__toggle {
+		margin-top: 0.5rem;
+		padding-left: 0.5rem;
+	}
+	.zsm__chip:hover,
+	.zsm__toggle:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.zsm__switch {
+		position: relative;
+		flex: none;
+		width: 2rem;
+		height: 1.1rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		transition: background-color 0.2s;
+	}
+	.zsm__switch::after {
+		content: '';
+		position: absolute;
+		top: 0.15rem;
+		left: 0.15rem;
+		width: 0.8rem;
+		height: 0.8rem;
+		border-radius: 50%;
+		background: var(--sl-color-white);
+		transition: transform 0.2s;
+	}
+	.zsm__toggle[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+	}
+	.zsm__toggle[aria-pressed='true'] .zsm__switch {
+		background: var(--sl-color-accent);
+	}
+	.zsm__toggle[aria-pressed='true'] .zsm__switch::after {
+		transform: translateX(0.9rem);
+	}
+	.zsm__clock {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.zsm__slider {
+		display: grid;
+		grid-template-columns: minmax(8rem, auto) 1fr;
+		align-items: center;
+		gap: 0.6rem;
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.zsm__slider b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.zsm__slider input {
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.zsm__msg {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+		line-height: 1.55;
+		color: var(--sl-color-gray-2);
+	}
+	.zsm__msg b {
+		color: var(--sl-color-white);
+	}
+	.zsm__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 30rem) {
+		.zsm {
+			padding: 0.5rem;
+		}
+	}
+</style>
+
+<script>
+	import { fmt, loop, attrs } from '../luna/util';
+	import { buildShells, trace, gaps, R_EARTH, type Ray } from './seismic';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const SHOWN = [1, 2, 3, 4, 5, 5.5, 6, 7, 8, 9, 10, 11, 12, 13, 13.4, 14, 15, 16, 17, 18, 19, 20, 21.5, 23, 24.5, 26, 27.5, 29, 31, 33, 35];
+	const T_END = 22 * 60; // s of travel shown in the animation
+	const SPEED = 150; // s of travel per second
+
+	interface Drawn {
+		path: SVGPathElement;
+		head: SVGCircleElement;
+		len: number[];
+		t: number[];
+		xy: [number, number][];
+		total: number;
+	}
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-zsm]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const { CX, CY, RP } = JSON.parse(root.dataset.geo!);
+		const gP = q<SVGGElement>('[data-rays-p]');
+		const gS = q<SVGGElement>('[data-rays-s]');
+		const gHeads = q<SVGGElement>('[data-heads]');
+		const gCover = q<SVGGElement>('[data-cover]');
+		const gShadow = q<SVGGElement>('[data-shadow]');
+		const hlP = q<SVGPathElement>('[data-hl-p]');
+		const hlS = q<SVGPathElement>('[data-hl-s]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		const clock = q<HTMLElement>('[data-clock]');
+		const solidBtn = q<HTMLButtonElement>('[data-solid]');
+		const raySl = q<HTMLInputElement>('[data-ray]');
+		const i0El = q<HTMLElement>('[data-i0]');
+		const msg = q<HTMLElement>('[data-msg]');
+		const showBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-show]'));
+
+		let solid = true;
+		let shells = buildShells(true);
+		let drawn: Drawn[] = [];
+		let anim = -1; // travel time in s, or −1 when not animating
+		let shadowText = '';
+
+		const xy = (r: number, th: number): [number, number] => [CX + ((RP * r) / R_EARTH) * Math.sin(th), CY - ((RP * r) / R_EARTH) * Math.cos(th)];
+		const toPath = (ray: Ray) => {
+			const pts: [number, number][] = [];
+			const ts: number[] = [];
+			let last: [number, number] | null = null;
+			ray.pts.forEach(([r, th], i) => {
+				const p = xy(r, th);
+				const end = i === ray.pts.length - 1;
+				if (!last || end || Math.hypot(p[0] - last[0], p[1] - last[1]) > 1.2) {
+					pts.push(p);
+					ts.push(ray.times[i]);
+					last = p;
+				}
+			});
+			const len = [0];
+			for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+			const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('');
+			return { d, len, ts, pts };
+		};
+		const arc = (r: number, a0: number, a1: number) => {
+			const p0 = [CX + r * Math.sin(a0), CY - r * Math.cos(a0)];
+			const p1 = [CX + r * Math.sin(a1), CY - r * Math.cos(a1)];
+			return `M ${p0[0]} ${p0[1]} A ${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${p1[0]} ${p1[1]}`;
+		};
+		const DEG = Math.PI / 180;
+
+		const build = () => {
+			gP.replaceChildren();
+			gS.replaceChildren();
+			gHeads.replaceChildren();
+			gCover.replaceChildren();
+			gShadow.replaceChildren();
+			drawn = [];
+			for (const wave of ['P', 'S'] as const) {
+				for (const i0 of SHOWN) {
+					const ray = trace(i0, wave, shells);
+					const { d, len, ts, pts } = toPath(ray);
+					const path = document.createElementNS(NS, 'path');
+					const cls = wave === 'S' ? 'zsm__ray--s' : ray.inner ? 'zsm__ray--pi' : 'zsm__ray--p';
+					attrs(path, { d, class: `zsm__ray ${cls}` });
+					(wave === 'P' ? gP : gS).append(path);
+					if (ray.stopped) {
+						const end = pts[pts.length - 1];
+						const c = document.createElementNS(NS, 'circle');
+						attrs(c, { cx: end[0], cy: end[1], r: 1.6, class: 'zsm__stop' });
+						gS.append(c);
+					}
+					const head = document.createElementNS(NS, 'circle');
+					attrs(head, { r: 2.2, class: 'zsm__head', fill: wave === 'S' ? '#ff8fb8' : ray.inner ? '#7dffb6' : '#9fd8ff' });
+					head.style.display = 'none';
+					gHeads.append(head);
+					drawn.push({ path, head, len, t: ts, xy: pts, total: len[len.length - 1] });
+				}
+			}
+			// coverage from dense fans
+			const arrive = { P: [] as number[], Pi: [] as number[], S: [] as number[] };
+			for (const wave of ['P', 'S'] as const) {
+				for (let i = 0; i < 6000; i++) {
+					const r = trace(0.01 + (45 * i) / 6000, wave, shells);
+					if (r.dist === null) continue;
+					const x = Math.min(r.dist % 360, 360 - (r.dist % 360));
+					if (wave === 'S') arrive.S.push(x);
+					else if (r.inner) arrive.Pi.push(x);
+					else arrive.P.push(x);
+				}
+			}
+			const cover = (list: number[], radius: number, color: string) => {
+				// covered = complement of the gaps (gaps narrower than 1.5° are gaps between sampled rays)
+				const g = gaps(list, 0, 0.5).filter(([a, b]) => b - a >= 1.5);
+				let s = 0;
+				const segs: [number, number][] = [];
+				for (const [a, b] of g) {
+					if (a > s) segs.push([s, a]);
+					s = b;
+				}
+				if (s < 180) segs.push([s, 180]);
+				for (const [a, b] of segs) {
+					if (b - a < 0.5) continue;
+					const p = document.createElementNS(NS, 'path');
+					attrs(p, { d: arc(radius, a * DEG, b * DEG), class: 'zsm__cov', stroke: color });
+					gCover.append(p);
+				}
+				return g;
+			};
+			const gp = cover(arrive.P, RP + 5, '#9fd8ff');
+			if (arrive.Pi.length) {
+				// the inner-core arrivals: only where they are
+				const lo = Math.min(...arrive.Pi);
+				const hi = Math.max(...arrive.Pi);
+				const p = document.createElementNS(NS, 'path');
+				attrs(p, { d: arc(RP + 5, lo * DEG, hi * DEG), class: 'zsm__cov', stroke: '#7dffb6', 'stroke-dasharray': '3 2' });
+				gCover.append(p);
+			}
+			const gs = cover(arrive.S, RP + 10, '#ff8fb8');
+			// the shadow zone of P (without the inner-core waves) and the S shadow
+			const pz = gp.find(([a, b]) => a > 60 && b < 179) ?? [0, 0];
+			const sz = gs.find(([a]) => a > 60) ?? [0, 180];
+			const tickAt = (deg: number, label: string, out: number) => {
+				const a = deg * DEG;
+				const l = document.createElementNS(NS, 'line');
+				attrs(l, { x1: CX + (RP + 2) * Math.sin(a), y1: CY - (RP + 2) * Math.cos(a), x2: CX + (RP + 20) * Math.sin(a), y2: CY - (RP + 20) * Math.cos(a), class: 'zsm__shtick' });
+				const t = document.createElementNS(NS, 'text');
+				attrs(t, { x: CX + (RP + out) * Math.sin(a), y: CY - (RP + out) * Math.cos(a) + 4, class: 'zsm__t zsm__t--sh', 'text-anchor': 'start' });
+				t.textContent = label;
+				gShadow.append(l, t);
+			};
+			tickAt(pz[0], `${Math.round(pz[0])}°`, 23);
+			tickAt(pz[1], `${Math.round(pz[1])}°`, 23);
+			const sh = document.createElementNS(NS, 'path');
+			attrs(sh, { d: arc(RP + 17, pz[0] * DEG, pz[1] * DEG), class: 'zsm__sharc' });
+			gShadow.append(sh);
+			const mid = ((pz[0] + pz[1]) / 2) * DEG;
+			const lab = document.createElementNS(NS, 'text');
+			attrs(lab, { x: CX + (RP + 26) * Math.sin(mid) - 2, y: CY - (RP + 26) * Math.cos(mid) + 10, class: 'zsm__t zsm__t--sh', 'text-anchor': 'middle' });
+			lab.textContent = 'зона тени P';
+			gShadow.append(lab);
+			shadowText =
+				`<b>Зона тени P-волн: от ${Math.round(pz[0])}° до ${Math.round(pz[1])}°</b> от эпицентра. ` +
+				`<b>S-волны</b> не приходят дальше ${Math.round(sz[0])}°: через жидкое ядро они не проходят.` +
+				(solid
+					? ' В зону тени попадают только слабые P-волны, прошедшие через твёрдое внутреннее ядро (зелёные).'
+					: ' Если ядро всё жидкое, зона тени P-волн пуста.');
+			highlight();
+			showHide();
+		};
+
+		const highlight = () => {
+			const i0 = Number(raySl.value);
+			i0El.textContent = `${fmt(i0, i0 % 1 ? 1 : 0)}°`;
+			const p = trace(i0, 'P', shells);
+			const s = trace(i0, 'S', shells);
+			hlP.setAttribute('d', toPath(p).d);
+			hlS.setAttribute('d', toPath(s).d);
+			const km = (d: number) => fmt(Math.round((d * Math.PI * R_EARTH) / 180 / 10) * 10, 0);
+			const ptxt =
+				p.dist === null
+					? 'P-волна не вышла на поверхность'
+					: `P-волна пришла на ${fmt(p.dist, 0)}° (${km(p.dist)} км по поверхности) через ${fmt(p.time / 60, 1)} мин${p.inner ? ', пройдя внутреннее ядро' : ''}`;
+			const stxt = s.stopped
+				? 'S-волна дошла до жидкого ядра и дальше не прошла'
+				: s.dist === null
+					? 'S-волна не вышла на поверхность'
+					: `S-волна — туда же, на ${fmt(s.dist, 0)}°, через ${fmt(s.time / 60, 1)} мин`;
+			msg.innerHTML = `${shadowText}<br/>Выделенный луч: ${ptxt}; ${s.stopped || s.dist === null || p.dist === null || Math.abs(s.dist - p.dist) > 1 ? stxt.replace('туда же, ', '') : stxt}.`;
+		};
+
+		const showHide = () => {
+			const onP = showBtns[0].classList.contains('is-on');
+			const onS = showBtns[1].classList.contains('is-on');
+			gP.style.display = hlP.style.display = onP ? '' : 'none';
+			gS.style.display = hlS.style.display = onS ? '' : 'none';
+			drawn.forEach((d, i) => {
+				const isP = i < SHOWN.length;
+				d.head.style.visibility = (isP ? onP : onS) ? '' : 'hidden';
+			});
+		};
+
+		const frame = () => {
+			for (const d of drawn) {
+				if (anim < 0) {
+					d.path.style.strokeDasharray = '';
+					d.head.style.display = 'none';
+					continue;
+				}
+				const T = d.t;
+				let L = d.total;
+				let pos = d.xy[d.xy.length - 1];
+				if (anim < T[T.length - 1]) {
+					let lo = 0;
+					let hi = T.length - 1;
+					while (hi - lo > 1) {
+						const m = (lo + hi) >> 1;
+						if (T[m] <= anim) lo = m;
+						else hi = m;
+					}
+					const f = (anim - T[lo]) / Math.max(1e-9, T[hi] - T[lo]);
+					L = d.len[lo] + f * (d.len[hi] - d.len[lo]);
+					pos = [d.xy[lo][0] + f * (d.xy[hi][0] - d.xy[lo][0]), d.xy[lo][1] + f * (d.xy[hi][1] - d.xy[lo][1])];
+				}
+				d.path.style.strokeDasharray = `${L.toFixed(1)} ${(d.total + 10).toFixed(0)}`;
+				d.head.style.display = '';
+				attrs(d.head, { cx: pos[0], cy: pos[1] });
+			}
+			clock.textContent = anim < 0 ? '' : `Прошло ${fmt(anim / 60, 1)} мин`;
+			hlP.style.opacity = hlS.style.opacity = anim >= 0 ? '0' : '1';
+		};
+
+		loop(root, (dt) => {
+			if (anim < 0) return;
+			anim += dt * SPEED;
+			if (anim >= T_END) {
+				anim = T_END;
+				frame();
+				anim = -2; // finished: keep the last frame until the next change
+				hlP.style.opacity = hlS.style.opacity = '1';
+				go.textContent = 'Землетрясение!';
+				return;
+			}
+			frame();
+		});
+		go.addEventListener('click', () => {
+			anim = 0;
+			go.textContent = 'Ещё раз';
+			frame();
+		});
+		for (const b of showBtns)
+			b.addEventListener('click', () => {
+				b.classList.toggle('is-on');
+				b.setAttribute('aria-pressed', String(b.classList.contains('is-on')));
+				showHide();
+			});
+		solidBtn.addEventListener('click', () => {
+			solid = !solid;
+			solidBtn.setAttribute('aria-pressed', String(solid));
+			q('[data-innerdisc]').classList.toggle('is-liquid', !solid);
+			q('[data-inner-sw]').classList.toggle('is-liquid', !solid);
+			q('[data-inner-name]').textContent = solid ? 'внутреннее ядро, твёрдое, радиус около 1220 км' : 'внутреннее ядро — тоже жидкое (так думали до 1936 года)';
+			shells = buildShells(solid);
+			anim = -1;
+			build();
+			frame();
+		});
+		raySl.addEventListener('input', highlight);
+		build();
+	}
+</script>

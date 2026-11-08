@@ -82,7 +82,7 @@ export default defineConfig({
 				grade(11, [
 					section('Электродинамика', '11-klass/elektrodinamika', ['elektromagnitnaya-indukciya']),
 					section('Квантовая физика', '11-klass/kvantovaya-fizika', ['fotoeffekt']),
-					section('Строение Вселенной', '11-klass/stroenie-vselennoy', ['luna', 'vselennaya']),
+					section('Строение Вселенной', '11-klass/stroenie-vselennoy', ['zemlya', 'luna', 'vselennaya']),
 				]),
 				{ label: 'Формулы', slug: 'uchebnik/formuly' },
 				{ label: 'Моё небо', slug: 'uchebnik/nebo' },

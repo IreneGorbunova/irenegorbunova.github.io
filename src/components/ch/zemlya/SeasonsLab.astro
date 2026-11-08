@@ -1,0 +1,904 @@
+---
+/**
+ * Why there are seasons. Left: the Earth on its orbit seen from above the ecliptic at 24° (orthographic): the orbit
+ * is the real ellipse (the Sun at its focus), the axis keeps one direction in space (to the north celestial pole),
+ * the lit half faces the Sun, the motion is counter-clockwise seen from the north. Right: the Earth at noon seen
+ * from the side so that the axis lies in the picture plane: the axis leans towards the Sun by the declination δ,
+ * the observer at latitude φ sees the Sun at the height h = 90° − |φ − δ|.
+ * Readouts: δ, h, the day length (cos H₀ = −tg φ·tg δ, no refraction), sin h, the Earth–Sun distance.
+ * The chart: the power on 1 m² of level ground at noon over the year, and on 1 m² facing the Sun (distance only).
+ * All numbers come from sun.ts (the Sun's position in 2026).
+ */
+import { sunAt, DEG, EPS } from './sun';
+
+const uid = `zsl-${Math.random().toString(36).slice(2, 8)}`;
+// the orbit view
+const CX = 200;
+const CY = 120;
+const A = 150; // px per AU
+const ELEV = 24; // the view is 24° above the plane of the orbit
+const S = Math.sin(ELEV * DEG);
+const orbitPos = (day: number) => {
+	const { lon, r } = sunAt(day);
+	const psi = (lon + 90) * DEG;
+	return { x: CX + A * r * Math.cos(psi), y: CY - A * r * Math.sin(psi) * S };
+};
+const orbitD =
+	Array.from({ length: 366 }, (_, i) => {
+		const p = orbitPos(i);
+		return `${i ? 'L' : 'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+	}).join(' ') + ' Z';
+// small arrows along the orbit: the direction of motion
+const arrows = [45, 135, 228, 318].map((d) => {
+	const p = orbitPos(d);
+	const q = orbitPos(d + 2);
+	const ang = (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI;
+	return `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${ang.toFixed(1)})`;
+});
+// the four dates: where to write them
+const marks = [
+	{ day: 78, text: '20 марта', dx: 0, dy: -27 },
+	{ day: 171, text: '21 июня', dx: 0, dy: -27 },
+	{ day: 265, text: '23 сентября', dx: 0, dy: 33 },
+	{ day: 354, text: '21 декабря', dx: 0, dy: -27 },
+].map((m) => ({ ...m, ...orbitPos(m.day) }));
+const stars = [
+	[18, 20], [70, 46], [130, 14], [262, 24], [330, 52], [384, 16], [24, 168], [380, 150], [300, 214], [96, 222], [360, 236], [160, 236], [12, 100],
+];
+// the close view
+const EX = 232;
+const EY = 150;
+const ER = 100;
+const rays = [36, 62, 88, 114, 140, 166, 192, 218, 244, 270].map((y) => {
+	const dy = y - EY;
+	const x2 = Math.abs(dy) < ER ? EX - Math.sqrt(ER * ER - dy * dy) : 400;
+	return { y, x2: x2 - 1 };
+});
+// the chart
+const PX0 = 42;
+const PX1 = 392;
+const PY0 = 10;
+const PY1 = 112;
+const MONTH_START = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
+const MONTH_LETTERS = ['Я', 'Ф', 'М', 'А', 'М', 'И', 'И', 'А', 'С', 'О', 'Н', 'Д'];
+const cx = (d: number) => PX0 + ((PX1 - PX0) * d) / 365;
+const cy = (w: number) => PY1 - ((PY1 - PY0) * w) / 1500;
+---
+
+<figure
+	class="zsl not-content"
+	data-zsl
+	data-geo={JSON.stringify({ CX, CY, A, S, ELEV, EX, EY, ER, PX0, PX1, PY0, PY1, EPS })}
+>
+	<div class="zsl__views">
+		<div class="zsl__view">
+			<p class="zsl__vt">Земля на орбите</p>
+			<svg class="zsl__svg" viewBox="0 0 400 250" role="img" aria-label="Земля обходит Солнце, её ось всё время направлена в одну сторону">
+				<g class="zsl__stars">{stars.map(([x, y]) => <circle cx={x} cy={y} r="0.9" />)}</g>
+				<path class="zsl__orbit" d={orbitD} />
+				{arrows.map((t) => <path class="zsl__arrow" transform={t} d="M 4 0 L -3 -3.2 L -3 3.2 Z" />)}
+				<line class="zsl__rline" data-rline />
+				<circle class="zsl__glow" cx={CX} cy={CY} r="26" />
+				<circle class="zsl__sun" cx={CX} cy={CY} r="13" />
+				<text class="zsl__rtext" data-rtext text-anchor="middle"></text>
+				{
+					marks.map((m) => (
+						<g>
+							<circle class="zsl__tick" cx={m.x} cy={m.y} r="2.2" />
+							<text class="zsl__t" x={m.x + m.dx} y={m.y + m.dy} text-anchor="middle">
+								{m.text}
+							</text>
+						</g>
+					))
+				}
+				<g data-earth>
+					<circle class="zsl__night" r="12" />
+					<path class="zsl__day" data-lit d="" />
+					<line class="zsl__axis" data-axis />
+					<circle class="zsl__pole" data-pole r="2" />
+				</g>
+			</svg>
+		</div>
+		<div class="zsl__view">
+			<p class="zsl__vt">Земля крупно: полдень</p>
+			<svg class="zsl__svg" viewBox="0 0 400 300" role="img" aria-label="Земля сбоку: наклон оси к Солнцу и высота Солнца в полдень">
+				<defs>
+					<clipPath id={`${uid}-day`}><rect x="0" y="0" width={EX} height="300" /></clipPath>
+					<clipPath id={`${uid}-night`}><rect x={EX} y="0" width={400 - EX} height="300" /></clipPath>
+				</defs>
+				{
+					rays.map((r) => (
+						<g class="zsl__ray">
+							<line x1="8" y1={r.y} x2={r.x2} y2={r.y} />
+							<path transform={`translate(38 ${r.y})`} d="M 5 0 L -3 -3.2 L -3 3.2 Z" />
+						</g>
+					))
+				}
+				<text class="zsl__t zsl__t--sun" x="8" y="22">лучи Солнца</text>
+				<circle class="zsl__night" cx={EX} cy={EY} r={ER} />
+				<path class="zsl__day" d={`M ${EX} ${EY - ER} A ${ER} ${ER} 0 0 0 ${EX} ${EY + ER} Z`} />
+				<line class="zsl__term" x1={EX} y1={EY - ER - 22} x2={EX} y2={EY + ER + 8} />
+				<text class="zsl__t zsl__t--dim" x={EX - 82} y={EY + ER + 24} text-anchor="middle">день</text>
+				<text class="zsl__t zsl__t--dim" x={EX + 82} y={EY + ER + 24} text-anchor="middle">ночь</text>
+				<g data-tilt transform={`translate(${EX} ${EY})`}>
+					<line class="zsl__eq" x1={-ER} y1="0" x2={ER} y2="0" />
+					<text class="zsl__t zsl__t--eq" x={ER - 6} y="-5" text-anchor="end">экватор</text>
+					<line class="zsl__axis" x1="0" y1={-ER * 1.32} x2="0" y2={ER * 1.32} />
+					<text class="zsl__t zsl__t--pole" x="0" y={-ER * 1.32 - 6} text-anchor="middle">С</text>
+					<text class="zsl__t zsl__t--pole" x="0" y={ER * 1.32 + 15} text-anchor="middle">Ю</text>
+				</g>
+				<g clip-path={`url(#${uid}-day)`}><line class="zsl__par zsl__par--day" data-par /></g>
+				<g clip-path={`url(#${uid}-night)`}><line class="zsl__par zsl__par--night" data-par /></g>
+				<path class="zsl__darc" data-darc d="" />
+				<text class="zsl__t zsl__t--d" data-dtext></text>
+				<line class="zsl__sunray" data-sunray />
+				<line class="zsl__horizon" data-horizon />
+				<path class="zsl__harc" data-harc d="" />
+				<line class="zsl__man" data-man />
+				<circle class="zsl__head" data-head r="3.2" />
+				<text class="zsl__t zsl__t--h" data-htext></text>
+			</svg>
+		</div>
+	</div>
+
+	<div class="zsl__controls">
+		<div class="zsl__row">
+			<button type="button" class="zsl__play" data-play>Пуск: год за 15 с</button>
+			<span class="zsl__date" data-date aria-live="polite">21 июня</span>
+		</div>
+		<label class="zsl__slider">
+			<span>Дата</span>
+			<input type="range" min="0" max="364" step="1" value="171" data-day aria-label="День года" />
+		</label>
+		<div class="zsl__chips" role="group" aria-label="Особые даты">
+			<button type="button" class="zsl__chip" data-goto="78">20 марта</button>
+			<button type="button" class="zsl__chip" data-goto="171">21 июня</button>
+			<button type="button" class="zsl__chip" data-goto="265">23 сентября</button>
+			<button type="button" class="zsl__chip" data-goto="354">21 декабря</button>
+		</div>
+		<label class="zsl__slider">
+			<span>Широта <b data-latlabel>55,75° с. ш.</b></span>
+			<input type="range" min="-90" max="90" step="0.25" value="55.75" data-lat aria-label="Широта места" />
+		</label>
+		<div class="zsl__chips" role="group" aria-label="Места">
+			<button type="button" class="zsl__chip" data-lat-go="55.75">Москва</button>
+			<button type="button" class="zsl__chip" data-lat-go="69">Мурманск</button>
+			<button type="button" class="zsl__chip" data-lat-go="0">экватор</button>
+			<button type="button" class="zsl__chip" data-lat-go="-34">Сидней</button>
+			<button type="button" class="zsl__chip" data-lat-go="90">Северный полюс</button>
+		</div>
+		<button type="button" class="zsl__toggle" data-notilt aria-pressed="false">
+			<span class="zsl__switch" aria-hidden="true"></span> А если бы ось не была наклонена?
+		</button>
+	</div>
+
+	<div class="zsl__read">
+		<div class="zsl__tile">
+			<span class="zsl__name">Склонение Солнца <i>δ</i></span>
+			<b data-r-dec>+23,4°</b>
+			<span class="zsl__sub">насколько ось наклонена к Солнцу</span>
+		</div>
+		<div class="zsl__tile">
+			<span class="zsl__name">Высота Солнца в полдень <i>h</i></span>
+			<b data-r-h>57,7°</b>
+			<span class="zsl__sub" data-r-hdir>Солнце на юге</span>
+		</div>
+		<div class="zsl__tile">
+			<span class="zsl__name">Долгота дня</span>
+			<b data-r-day>17 ч 16 мин</b>
+			<span class="zsl__bar" aria-hidden="true"><span data-r-daybar></span></span>
+		</div>
+		<div class="zsl__tile">
+			<span class="zsl__name">На 1 м² земли в полдень</span>
+			<b data-r-pow>85 %</b>
+			<span class="zsl__sub">от мощности при Солнце в зените, sin <i>h</i></span>
+		</div>
+		<div class="zsl__tile">
+			<span class="zsl__name">От Земли до Солнца</span>
+			<b data-r-dist>152,0 млн км</b>
+			<span class="zsl__sub" data-r-dist2></span>
+		</div>
+	</div>
+
+	<div class="zsl__chart">
+		<p class="zsl__ct">Мощность солнечных лучей за год, Вт на 1 м² (без учёта атмосферы)</p>
+		<svg class="zsl__csvg" viewBox="0 0 400 136" role="img" aria-label="График мощности солнечных лучей за год">
+			{
+				[0, 500, 1000, 1500].map((w) => (
+					<g>
+						<line class="zsl__grid" x1={PX0} x2={PX1} y1={cy(w)} y2={cy(w)} />
+						<text class="zsl__ax" x={PX0 - 6} y={cy(w) + 4} text-anchor="end">
+							{w}
+						</text>
+					</g>
+				))
+			}
+			{MONTH_START.slice(0, 12).map((d, i) => <text class="zsl__ax" x={cx(d + (MONTH_START[i + 1] - d) / 2)} y="130" text-anchor="middle">{MONTH_LETTERS[i]}</text>)}
+			{MONTH_START.slice(1, 12).map((d) => <line class="zsl__mtick" x1={cx(d)} x2={cx(d)} y1={PY1} y2={PY1 + 4} />)}
+			<path class="zsl__cdist" data-cdist d="" />
+			<path class="zsl__cpow" data-cpow d="" />
+			<line class="zsl__cnow" data-cnow y1={PY0 - 4} y2={PY1} />
+			<circle class="zsl__cdot zsl__cdot--dist" data-cdot-dist r="3.5" />
+			<circle class="zsl__cdot zsl__cdot--pow" data-cdot-pow r="4" />
+		</svg>
+		<p class="zsl__legend">
+			<span class="zsl__key zsl__key--pow"></span> на 1 м² земли в полдень{' '}
+			<span class="zsl__key zsl__key--dist"></span> на 1 м², повёрнутый к Солнцу: зависит только от расстояния
+		</p>
+	</div>
+
+	<figcaption class="zsl__caption">
+		Вверху орбита видна наискосок, сверху и сбоку; Земля обходит Солнце против часовой стрелки, если смотреть с
+		севера. Пунктир от Солнца до Земли — расстояние между ними. Внизу Земля в полдень, повёрнутая к нам так, что её
+		ось лежит в плоскости рисунка. Размеры Земли и Солнца сильно увеличены. Долготу дня модель считает для центра
+		Солнца и без преломления лучей в атмосфере; настоящий день на 10–20 минут длиннее.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.zsl {
+		margin-block: 1.5rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.zsl i {
+		font-family: var(--ig-font-math);
+	}
+	.zsl__views {
+		display: grid;
+		gap: 0.6rem;
+	}
+	.zsl__view {
+		width: 100%;
+		max-width: 34rem;
+		margin: 0 auto;
+	}
+	.zsl__vt {
+		margin: 0 0 0.25rem;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		color: var(--sl-color-gray-2);
+	}
+	.zsl__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.7rem;
+		background: radial-gradient(circle at 50% 48%, #2a1f0c, #070a1a 42%, #02030a);
+	}
+	.zsl__stars circle {
+		fill: rgb(225 232 255 / 0.7);
+	}
+	.zsl__orbit {
+		fill: none;
+		stroke: rgb(180 195 255 / 0.45);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.zsl__arrow {
+		fill: rgb(180 195 255 / 0.7);
+	}
+	.zsl__glow {
+		fill: #ffd66b;
+		opacity: 0.18;
+	}
+	.zsl__sun {
+		fill: #ffd66b;
+	}
+	.zsl__rline {
+		stroke: #ffd66b;
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+		opacity: 0.75;
+	}
+	.zsl__rtext {
+		fill: #ffe39a;
+		font-size: 12px;
+		font-family: var(--sl-font);
+		paint-order: stroke;
+		stroke: #070a1a;
+		stroke-width: 3px;
+	}
+	.zsl__tick {
+		fill: rgb(200 210 255 / 0.8);
+	}
+	.zsl__t {
+		fill: rgb(235 238 255 / 0.9);
+		font-size: 12.5px;
+		font-family: var(--sl-font);
+		paint-order: stroke;
+		stroke: #070a1a;
+		stroke-width: 3px;
+	}
+	.zsl__t--sun {
+		fill: #ffe39a;
+	}
+	.zsl__t--dim {
+		fill: rgb(235 238 255 / 0.6);
+	}
+	.zsl__t--eq {
+		font-size: 11px;
+		fill: rgb(235 238 255 / 0.75);
+		stroke: none;
+	}
+	.zsl__t--pole {
+		font-weight: 700;
+		font-size: 12px;
+	}
+	.zsl__t--h {
+		fill: #ffe39a;
+		font-weight: 700;
+		font-size: 13px;
+	}
+	.zsl__t--d {
+		fill: #b9d3ff;
+		font-size: 12px;
+	}
+	.zsl__night {
+		fill: #252c3d;
+	}
+	.zsl__day {
+		fill: #4b86d8;
+	}
+	.zsl__axis {
+		stroke: #f1f3ff;
+		stroke-width: 1.6;
+	}
+	.zsl__pole {
+		fill: #ff8fa3;
+	}
+	.zsl__ray line {
+		stroke: #ffd66b;
+		stroke-width: 1;
+		opacity: 0.5;
+	}
+	.zsl__ray path {
+		fill: #ffd66b;
+		opacity: 0.7;
+	}
+	.zsl__term {
+		stroke: rgb(235 238 255 / 0.35);
+		stroke-dasharray: 3 3;
+	}
+	.zsl__eq {
+		stroke: rgb(235 238 255 / 0.5);
+		stroke-width: 1;
+	}
+	.zsl__par {
+		stroke-width: 2.4;
+	}
+	.zsl__par--day {
+		stroke: #ffd66b;
+	}
+	.zsl__par--night {
+		stroke: #8a93ad;
+		stroke-dasharray: 4 3;
+	}
+	.zsl__darc {
+		fill: none;
+		stroke: #b9d3ff;
+		stroke-width: 1.2;
+	}
+	.zsl__sunray {
+		stroke: #ffd66b;
+		stroke-width: 2.2;
+	}
+	.zsl__horizon {
+		stroke: #9be59b;
+		stroke-width: 2;
+	}
+	.zsl__harc {
+		fill: rgb(255 214 107 / 0.25);
+		stroke: #ffd66b;
+		stroke-width: 1.2;
+	}
+	.zsl__man {
+		stroke: #ffffff;
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	.zsl__head {
+		fill: #ffffff;
+	}
+	.zsl__controls {
+		display: grid;
+		gap: 0.5rem;
+		margin-top: 0.7rem;
+	}
+	.zsl__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.9rem;
+	}
+	.zsl__date {
+		font-family: var(--ig-font-display);
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.zsl__play {
+		margin: 0;
+		padding: 0.35rem 1rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-black);
+		background: var(--sl-color-accent-high);
+		border: 1px solid var(--sl-color-accent-high);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.zsl__slider {
+		display: grid;
+		grid-template-columns: minmax(5.5rem, auto) 1fr;
+		align-items: center;
+		gap: 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.zsl__slider b {
+		display: block;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.zsl__slider input {
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.zsl__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.zsl__chip,
+	.zsl__toggle {
+		margin: 0;
+		padding: 0.25rem 0.75rem;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.zsl__chip:hover,
+	.zsl__toggle:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.zsl__chip.is-on {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.zsl__toggle {
+		justify-self: start;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.35rem 0.9rem 0.35rem 0.5rem;
+		font-size: var(--sl-text-sm);
+	}
+	.zsl__switch {
+		position: relative;
+		flex: none;
+		width: 2rem;
+		height: 1.1rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		transition: background-color 0.2s;
+	}
+	.zsl__switch::after {
+		content: '';
+		position: absolute;
+		top: 0.15rem;
+		left: 0.15rem;
+		width: 0.8rem;
+		height: 0.8rem;
+		border-radius: 50%;
+		background: var(--sl-color-white);
+		transition: transform 0.2s;
+	}
+	.zsl__toggle[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+	}
+	.zsl__toggle[aria-pressed='true'] .zsl__switch {
+		background: var(--sl-color-accent);
+	}
+	.zsl__toggle[aria-pressed='true'] .zsl__switch::after {
+		transform: translateX(0.9rem);
+	}
+	.zsl__read {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.zsl__tile {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 0.5rem 0.7rem;
+		border-radius: 0.7rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-xs);
+		line-height: 1.35;
+		color: var(--sl-color-gray-2);
+	}
+	.zsl__tile b {
+		font-size: var(--sl-text-lg);
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.zsl__sub {
+		color: var(--sl-color-gray-3);
+	}
+	.zsl__bar {
+		position: relative;
+		display: block;
+		height: 0.45rem;
+		margin-top: 0.2rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		overflow: hidden;
+	}
+	.zsl__bar span {
+		position: absolute;
+		inset: 0 auto 0 50%;
+		width: 0;
+		transform: translateX(-50%);
+		background: var(--ig-v);
+	}
+	.zsl__chart {
+		margin-top: 0.75rem;
+	}
+	.zsl__ct {
+		margin: 0 0 0.2rem;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		color: var(--sl-color-gray-2);
+	}
+	.zsl__csvg {
+		display: block;
+		width: 100%;
+		max-width: 40rem;
+		height: auto;
+	}
+	.zsl__grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.zsl__mtick {
+		stroke: var(--sl-color-gray-4);
+	}
+	.zsl__ax {
+		fill: var(--sl-color-gray-3);
+		font-size: 12.5px;
+		font-family: var(--sl-font);
+	}
+	.zsl__cpow {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.4;
+	}
+	.zsl__cdist {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 2;
+		stroke-dasharray: 5 4;
+	}
+	.zsl__cnow {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.zsl__cdot--pow {
+		fill: var(--ig-v);
+	}
+	.zsl__cdot--dist {
+		fill: var(--ig-vx);
+	}
+	.zsl__legend {
+		margin: 0.2rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.zsl__key {
+		display: inline-block;
+		width: 1.4rem;
+		height: 0;
+		margin-right: 0.25rem;
+		vertical-align: middle;
+		border-top: 2.5px solid var(--ig-v);
+	}
+	.zsl__key--dist {
+		margin-left: 0.6rem;
+		border-top: 2.5px dashed var(--ig-vx);
+	}
+	.zsl__caption {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 30rem) {
+		.zsl {
+			padding: 0.5rem;
+		}
+	}
+</style>
+
+<script>
+	import { fmt, loop, attrs } from '../luna/util';
+	import { sunAt, dateLabel, noonHeight, dayLength, DEG, AU_MKM, I0_MEAN } from './sun';
+
+	const sgn = (v: number, d = 1) => {
+		const s = fmt(Math.abs(v), d);
+		return Number(s.replace(',', '.').replace(/\s/g, '')) === 0 ? s : (v < 0 ? '−' : '+') + s;
+	};
+	const hm = (h: number) => {
+		let H = Math.floor(h);
+		let M = Math.round((h - H) * 60);
+		if (M === 60) {
+			H += 1;
+			M = 0;
+		}
+		return M ? `${H} ч ${M} мин` : `${H} ч`;
+	};
+	const latText = (v: number) => {
+		const a = Math.abs(v);
+		const s = Number.isInteger(a) ? String(a) : fmt(a, 2);
+		if (a === 0) return '0° (экватор)';
+		return `${s}° ${v > 0 ? 'с. ш.' : 'ю. ш.'}`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-zsl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const G = JSON.parse(root.dataset.geo!);
+		const daySl = q<HTMLInputElement>('[data-day]');
+		const latSl = q<HTMLInputElement>('[data-lat]');
+		const play = q<HTMLButtonElement>('[data-play]');
+		const noTiltBtn = q<HTMLButtonElement>('[data-notilt]');
+		const earth = q<SVGGElement>('[data-earth]');
+		const lit = q<SVGPathElement>('[data-lit]');
+		const axis = q<SVGLineElement>('[data-axis]');
+		const pole = q<SVGCircleElement>('[data-pole]');
+		const rline = q<SVGLineElement>('[data-rline]');
+		const rtext = q<SVGTextElement>('[data-rtext]');
+		const tilt = q<SVGGElement>('[data-tilt]');
+		const pars = Array.from(root.querySelectorAll<SVGLineElement>('[data-par]'));
+		const darc = q<SVGPathElement>('[data-darc]');
+		const dtext = q<SVGTextElement>('[data-dtext]');
+		const sunray = q<SVGLineElement>('[data-sunray]');
+		const horizon = q<SVGLineElement>('[data-horizon]');
+		const harc = q<SVGPathElement>('[data-harc]');
+		const man = q<SVGLineElement>('[data-man]');
+		const head = q<SVGCircleElement>('[data-head]');
+		const htext = q<SVGTextElement>('[data-htext]');
+		const cpow = q<SVGPathElement>('[data-cpow]');
+		const cdist = q<SVGPathElement>('[data-cdist]');
+		const cnow = q<SVGLineElement>('[data-cnow]');
+		const cdotP = q<SVGCircleElement>('[data-cdot-pow]');
+		const cdotD = q<SVGCircleElement>('[data-cdot-dist]');
+		const out = {
+			date: q<HTMLElement>('[data-date]'),
+			lat: q<HTMLElement>('[data-latlabel]'),
+			dec: q<HTMLElement>('[data-r-dec]'),
+			h: q<HTMLElement>('[data-r-h]'),
+			hdir: q<HTMLElement>('[data-r-hdir]'),
+			day: q<HTMLElement>('[data-r-day]'),
+			bar: q<HTMLElement>('[data-r-daybar]'),
+			pow: q<HTMLElement>('[data-r-pow]'),
+			dist: q<HTMLElement>('[data-r-dist]'),
+			dist2: q<HTMLElement>('[data-r-dist2]'),
+		};
+		const dateChips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-goto]'));
+		const latChips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-lat-go]'));
+
+		let day = Number(daySl.value);
+		let lat = Number(latSl.value);
+		let noTilt = false;
+		let running = false;
+		const tiltDeg = () => (noTilt ? 0 : G.EPS);
+
+		const chartX = (d: number) => G.PX0 + ((G.PX1 - G.PX0) * d) / 365;
+		const chartY = (w: number) => G.PY1 - ((G.PY1 - G.PY0) * w) / 1500;
+		const powerAt = (d: number) => {
+			const s = sunAt(d, tiltDeg());
+			const I0 = I0_MEAN / (s.r * s.r);
+			return { I0, P: I0 * Math.max(0, Math.sin(noonHeight(lat, s.dec) * DEG)) };
+		};
+		const drawChart = () => {
+			let a = '';
+			let b = '';
+			for (let d = 0; d <= 365; d += 1) {
+				const { I0, P } = powerAt(d);
+				a += `${d ? 'L' : 'M'} ${chartX(d).toFixed(1)} ${chartY(P).toFixed(1)} `;
+				b += `${d ? 'L' : 'M'} ${chartX(d).toFixed(1)} ${chartY(I0).toFixed(1)} `;
+			}
+			cpow.setAttribute('d', a);
+			cdist.setAttribute('d', b);
+		};
+
+		// the lit part of a small sphere seen at an angle; (sx, sy) — the Sun's direction projected on the screen,
+		// k — the cosine of the angle between the Sun's direction and the direction to the viewer
+		const litPath = (r: number, sx: number, sy: number, k: number) => {
+			const beta = (Math.atan2(sy, sx) * 180) / Math.PI;
+			const rx = Math.max(0.01, r * Math.abs(k));
+			const sweep = k > 0 ? 1 : 0;
+			return { d: `M 0 ${-r} A ${r} ${r} 0 0 1 0 ${r} A ${rx} ${r} 0 0 ${sweep} 0 ${-r} Z`, rot: beta };
+		};
+
+		const draw = () => {
+			const s = sunAt(day, tiltDeg());
+			const dec = s.dec;
+			// --- the orbit view
+			const psi = (s.lon + 90) * DEG;
+			const ex = G.CX + G.A * s.r * Math.cos(psi);
+			const ey = G.CY - G.A * s.r * Math.sin(psi) * G.S;
+			earth.setAttribute('transform', `translate(${ex.toFixed(2)} ${ey.toFixed(2)})`);
+			const elev = G.ELEV * DEG;
+			const sx = -Math.cos(psi);
+			const sy = Math.sin(psi) * Math.sin(elev);
+			const k = Math.sin(psi) * Math.cos(elev);
+			const lp = litPath(12, sx, sy, k);
+			lit.setAttribute('d', lp.d);
+			lit.setAttribute('transform', `rotate(${lp.rot.toFixed(2)})`);
+			const e = tiltDeg() * DEG;
+			const axX = Math.sin(e);
+			const axY = -Math.cos(e) * Math.cos(elev);
+			const L = 20;
+			attrs(axis, { x1: -axX * L, y1: -axY * L, x2: axX * L, y2: axY * L });
+			attrs(pole, { cx: axX * L, cy: axY * L });
+			// the Sun–Earth line and its length
+			const ux = ex - G.CX;
+			const uy = ey - G.CY;
+			const ul = Math.hypot(ux, uy);
+			attrs(rline, { x1: G.CX + (ux / ul) * 16, y1: G.CY + (uy / ul) * 16, x2: ex - (ux / ul) * 15, y2: ey - (uy / ul) * 15 });
+			const mx = (G.CX + ex) / 2;
+			const my = (G.CY + ey) / 2;
+			// the label sits beside the line, on its upper side
+			let nx = -uy / ul;
+			let ny = ux / ul;
+			if (ny > 0) {
+				nx = -nx;
+				ny = -ny;
+			}
+			attrs(rtext, { x: mx + nx * 9, y: my + ny * 9 + 4 });
+			rtext.textContent = `${fmt(s.r * AU_MKM, 1)} млн км`;
+
+			// --- the close view: the axis leans towards the Sun by δ
+			tilt.setAttribute('transform', `translate(${G.EX} ${G.EY}) rotate(${(-dec).toFixed(3)})`);
+			const R = G.ER;
+			const n = { x: -Math.sin(dec * DEG), y: -Math.cos(dec * DEG) }; // to the north pole
+			const eS = { x: -Math.cos(dec * DEG), y: Math.sin(dec * DEG) }; // along the equator, to the Sun's side
+			const c = Math.cos(lat * DEG);
+			const sn = Math.sin(lat * DEG);
+			const P = { x: G.EX + R * (c * eS.x + sn * n.x), y: G.EY + R * (c * eS.y + sn * n.y) };
+			const P2 = { x: G.EX + R * (-c * eS.x + sn * n.x), y: G.EY + R * (-c * eS.y + sn * n.y) };
+			for (const p of pars) attrs(p, { x1: P.x, y1: P.y, x2: P2.x, y2: P2.y });
+			// δ: the angle between the terminator (straight up) and the axis
+			const ra = R * 1.17;
+			const a0 = -Math.PI / 2;
+			const a1 = Math.atan2(n.y, n.x);
+			if (Math.abs(dec) > 0.4) {
+				const p0 = { x: G.EX + ra * Math.cos(a0), y: G.EY + ra * Math.sin(a0) };
+				const p1 = { x: G.EX + ra * Math.cos(a1), y: G.EY + ra * Math.sin(a1) };
+				darc.setAttribute('d', `M ${p0.x} ${p0.y} A ${ra} ${ra} 0 0 ${a1 > a0 ? 1 : 0} ${p1.x} ${p1.y}`);
+				// the label goes on the other side of the vertical line, away from the axis and its letter
+				attrs(dtext, { x: G.EX + (dec > 0 ? 7 : -7), y: G.EY - ra - 3, 'text-anchor': dec > 0 ? 'start' : 'end' });
+				dtext.textContent = `δ = ${sgn(dec)}°`;
+			} else {
+				darc.setAttribute('d', '');
+				attrs(dtext, { x: G.EX + 8, y: G.EY - ra - 2, 'text-anchor': 'start' });
+				dtext.textContent = 'δ = 0°';
+			}
+			// the observer at noon
+			const up = { x: (P.x - G.EX) / R, y: (P.y - G.EY) / R };
+			const h = noonHeight(lat, dec);
+			attrs(man, { x1: P.x, y1: P.y, x2: P.x + up.x * 12, y2: P.y + up.y * 12 });
+			attrs(head, { cx: P.x + up.x * 15.5, cy: P.y + up.y * 15.5 });
+			// the horizon: tangent at P; t points to the Sun's side
+			let t = { x: -up.y, y: up.x };
+			if (t.x > 0 || (Math.abs(t.x) < 1e-9 && t.y > 0)) t = { x: -t.x, y: -t.y };
+			attrs(horizon, { x1: P.x - t.x * 34, y1: P.y - t.y * 34, x2: P.x + t.x * 34, y2: P.y + t.y * 34 });
+			const lightOn = h > 0;
+			man.style.opacity = head.style.opacity = lightOn ? '1' : '0.55';
+			if (lightOn) {
+				attrs(sunray, { x1: 4, y1: P.y, x2: P.x, y2: P.y });
+				const rr = 24;
+				const at = Math.atan2(t.y, t.x);
+				const as = Math.PI; // the ray comes from the left
+				// sweep from the horizon to the ray through the smaller angle
+				let d = as - at;
+				while (d > Math.PI) d -= 2 * Math.PI;
+				while (d < -Math.PI) d += 2 * Math.PI;
+				const q0 = { x: P.x + rr * Math.cos(at), y: P.y + rr * Math.sin(at) };
+				const q1 = { x: P.x + rr * Math.cos(at + d), y: P.y + rr * Math.sin(at + d) };
+				harc.setAttribute('d', `M ${P.x} ${P.y} L ${q0.x} ${q0.y} A ${rr} ${rr} 0 0 ${d > 0 ? 1 : 0} ${q1.x} ${q1.y} Z`);
+				const am = at + d / 2;
+				const lx = P.x + 40 * Math.cos(am);
+				const ly = P.y + 40 * Math.sin(am);
+				attrs(htext, { x: Math.max(6, lx), y: Math.max(14, Math.min(292, ly + 4)), 'text-anchor': lx < 60 ? 'start' : 'end' });
+				htext.textContent = `h = ${fmt(h, 1)}°`;
+			} else {
+				attrs(sunray, { x1: 0, y1: 0, x2: 0, y2: 0 });
+				harc.setAttribute('d', '');
+				attrs(htext, { x: Math.min(394, P.x + 10), y: Math.max(14, P.y - 14), 'text-anchor': P.x > 300 ? 'end' : 'start' });
+				htext.textContent = 'Солнце не взошло';
+			}
+
+			// --- readouts
+			out.date.textContent = dateLabel(day);
+			out.lat.textContent = latText(lat);
+			out.dec.textContent = `${sgn(dec)}°`;
+			out.h.textContent = h > 0 ? `${fmt(h, 1)}°` : 'под горизонтом';
+			const diff = lat - dec;
+			out.hdir.textContent =
+				h <= 0 ? 'полярная ночь' : Math.abs(diff) < 0.05 ? 'Солнце в зените' : diff > 0 ? 'Солнце на юге' : 'Солнце на севере';
+			const dl = dayLength(lat, dec);
+			out.day.textContent = dl >= 24 ? '24 ч' : dl <= 0 ? '0 ч' : hm(dl);
+			out.bar.style.width = `${(dl / 24) * 100}%`;
+			const bar = out.bar.parentElement!;
+			bar.title = dl >= 24 ? 'полярный день' : dl <= 0 ? 'полярная ночь' : '';
+			out.pow.textContent = h > 0 ? `${fmt(Math.sin(h * DEG) * 100, 0)} %` : '0 %';
+			out.dist.textContent = `${fmt(s.r * AU_MKM, 1)} млн км`;
+			const rel = (1 / (s.r * s.r) - 1) * 100;
+			out.dist2.textContent =
+				Math.abs(rel) < 0.5 ? 'лучи как в среднем за год' : `лучи на ${fmt(Math.abs(rel), 1)} % ${rel > 0 ? 'сильнее' : 'слабее'} среднего`;
+			// --- the chart marker
+			const { I0, P: Pw } = powerAt(day);
+			const xx = chartX(day);
+			attrs(cnow, { x1: xx, x2: xx });
+			attrs(cdotP, { cx: xx, cy: chartY(Pw) });
+			attrs(cdotD, { cx: xx, cy: chartY(I0) });
+			// chips
+			for (const ch of dateChips) ch.classList.toggle('is-on', Number(ch.dataset.goto) === Math.round(day));
+			for (const ch of latChips) ch.classList.toggle('is-on', Number(ch.dataset.latGo) === lat);
+			daySl.value = String(Math.round(day));
+		};
+
+		const setRunning = (v: boolean) => {
+			running = v;
+			play.textContent = v ? 'Пауза' : 'Пуск: год за 15 с';
+		};
+		loop(root, (dt) => {
+			if (!running) return;
+			day = (day + (dt * 365) / 15) % 365;
+			draw();
+		});
+		play.addEventListener('click', () => setRunning(!running));
+		daySl.addEventListener('input', () => {
+			setRunning(false);
+			day = Number(daySl.value);
+			draw();
+		});
+		latSl.addEventListener('input', () => {
+			lat = Number(latSl.value);
+			drawChart();
+			draw();
+		});
+		for (const ch of dateChips)
+			ch.addEventListener('click', () => {
+				setRunning(false);
+				day = Number(ch.dataset.goto);
+				draw();
+			});
+		for (const ch of latChips)
+			ch.addEventListener('click', () => {
+				lat = Number(ch.dataset.latGo);
+				latSl.value = String(lat);
+				drawChart();
+				draw();
+			});
+		noTiltBtn.addEventListener('click', () => {
+			noTilt = !noTilt;
+			noTiltBtn.setAttribute('aria-pressed', String(noTilt));
+			drawChart();
+			draw();
+		});
+		drawChart();
+		draw();
+	}
+</script>
