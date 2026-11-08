@@ -69,7 +69,7 @@ export default defineConfig({
 					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'otrazhenie-i-prelomlenie', 'linzy']),
 				]),
 				grade(9, [
-					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['zakony-nyutona']),
+					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['zakony-nyutona', 'zakon-vsemirnogo-tyagoteniya']),
 					section('Механические колебания и волны. Звук', '9-klass/kolebaniya-i-volny', ['mayatnik']),
 				]),
 				grade(10, [
