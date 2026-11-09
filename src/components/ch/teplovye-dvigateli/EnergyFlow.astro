@@ -1,0 +1,516 @@
+---
+/**
+ * «Куда уходит энергия топлива»: a flow (Sankey) diagram of 100 J of fuel energy for four engines,
+ * with a smooth transition between them, particles flowing along the bands, a live sentence and
+ * η = A_п / Q_з · 100 %. Above it, a «guess first» question: which engine has the smallest efficiency.
+ *
+ * Shares (percent of the fuel's energy):
+ * - petrol, diesel: SPECS[...].shares from engine.ts (the same as in EngineLab).
+ * - steam locomotive: heat balance of properly worked US locomotives, University of Illinois Engineering
+ *   Experiment Station, Bulletin vol. XVI no. 2 (1918), «The Economic Use of Coal in Railway Locomotives»,
+ *   as given in Nature 103, 213 (1919): heat in stack gases 14, cinders 8, unburnt gases 4, ash pan 4
+ *   (smoke and unburnt coal: 30); radiation 5, auxiliaries 6, rest 1 (other: 12); exhaust steam 52; drawbar 6.
+ * - power-station steam turbine: IEA Coal Industry Advisory Board, «Power Generation from Coal» (2010), Fig. 2.3
+ *   (after White, 1991), a typical 500 MW coal-fired unit: electrical output 39, condenser 52.5, boiler losses 5.5,
+ *   steam range 0.5 + turbine-generator 1.5 + works auxiliaries 1.0 (other: 3); rounded to 39, 52, 6, 3.
+ */
+const engines = [
+	{ id: 'loco', label: 'Паровоз' },
+	{ id: 'petrol', label: 'Бензиновый' },
+	{ id: 'diesel', label: 'Дизельный' },
+	{ id: 'tes', label: 'Паровая турбина' },
+];
+---
+
+<figure class="ef not-content" data-ef>
+	<p class="ef__title">Куда уходит энергия топлива</p>
+	<div class="ef__guess" data-guess>
+		<p class="ef__q">Сначала угадайте: у какого двигателя в полезную работу идёт меньше всего энергии топлива?</p>
+		<div class="ef__opts" role="group" aria-label="Варианты ответа">
+			{
+				engines.map((e) => (
+					<button type="button" class="ef__opt" data-opt={e.id}>
+						<span class="ef__mark" aria-hidden="true" />
+						{e.label}
+					</button>
+				))
+			}
+		</div>
+		<p class="ef__fb" aria-live="polite" data-fb></p>
+	</div>
+	<svg class="ef__svg" role="img" aria-label="Диаграмма: куда уходит энергия топлива" data-svg></svg>
+	<div class="ef__modes" role="group" aria-label="Двигатель">
+		{
+			engines.map((e) => (
+				<button type="button" class="ef__mode" data-mode={e.id} aria-pressed="false">
+					{e.label}
+				</button>
+			))
+		}
+	</div>
+	<div class="ef__calc">
+		<p class="ef__line" aria-live="polite" data-line></p>
+		<p class="ef__more" data-more></p>
+		<div class="ef__math" data-math></div>
+	</div>
+	<figcaption class="ef__cap">
+		Доли примерные, для типичных машин: у паровоза&nbsp;— по испытаниям американских паровозов начала XX&nbsp;века, у турбины&nbsp;— для
+		угольной электростанции, где один энергоблок даёт 500&nbsp;МВт.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ef {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ef i {
+		font-family: var(--ig-font-math);
+	}
+	.ef__title {
+		margin: 0 0 0.5rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.ef__guess {
+		margin-bottom: 0.6rem;
+		padding: 0.6rem 0.75rem;
+		border-radius: 0.75rem;
+		border: 1px dashed var(--sl-color-gray-5);
+	}
+	.ef__q {
+		margin: 0 0 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ef__opts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.ef__opt {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0;
+		padding: 0.35rem 0.85rem 0.35rem 0.45rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background-color 0.2s;
+	}
+	.ef__opt:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+	}
+	.ef__opt:disabled {
+		cursor: default;
+	}
+	.ef__mark {
+		display: grid;
+		place-items: center;
+		width: 1.15rem;
+		height: 1.15rem;
+		border-radius: 50%;
+		border: 1.5px solid var(--sl-color-gray-3);
+		font-size: 0.75rem;
+		font-weight: 700;
+		line-height: 1;
+	}
+	.ef__opt.is-right {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.ef__opt.is-right .ef__mark {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ef__opt.is-right .ef__mark::after {
+		content: '✓';
+	}
+	.ef__opt.is-wrong {
+		border-color: var(--ig-vy);
+		opacity: 0.75;
+		text-decoration: line-through;
+		text-decoration-color: var(--ig-vy);
+	}
+	.ef__opt.is-wrong .ef__mark {
+		border-color: var(--ig-vy);
+		color: var(--ig-vy);
+	}
+	.ef__opt.is-wrong .ef__mark::after {
+		content: '✗';
+	}
+	.ef__fb {
+		margin: 0.45rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ef__fb:empty {
+		display: none;
+	}
+	.ef__fb b {
+		color: var(--sl-color-text-accent);
+	}
+	.ef__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin: 0.3rem 0 0.4rem;
+		overflow: visible;
+	}
+	.ef__svg text {
+		font-family: var(--__sl-font);
+		font-size: 13px;
+		fill: var(--sl-color-gray-2);
+	}
+	.ef__svg .ef-v {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.ef__svg .ef-src {
+		fill: var(--ig-v);
+	}
+	.ef__svg .ef-band {
+		opacity: 0.42;
+	}
+	.ef__svg .ef-dots {
+		fill: none;
+		stroke-linecap: round;
+		stroke-dasharray: 0 15;
+		animation: ef-flow 0.9s linear infinite;
+	}
+	@keyframes ef-flow {
+		to {
+			stroke-dashoffset: -15;
+		}
+	}
+	.ef-c0 {
+		fill: var(--sl-color-accent);
+		stroke: var(--sl-color-accent);
+	}
+	.ef-c1 {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-3);
+	}
+	.ef-c2 {
+		fill: var(--ig-vx);
+		stroke: var(--ig-vx);
+	}
+	.ef-c3 {
+		fill: var(--ig-vy);
+		stroke: var(--ig-vy);
+	}
+	.ef__svg .ef-dots.ef-c0,
+	.ef__svg .ef-dots.ef-c1,
+	.ef__svg .ef-dots.ef-c2,
+	.ef__svg .ef-dots.ef-c3 {
+		fill: none;
+	}
+	.ef__modes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.ef__mode {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		margin: 0;
+		padding: 0.4rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		transition:
+			background-color 0.25s,
+			color 0.25s,
+			border-color 0.25s;
+	}
+	.ef__mode:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ef__mode.is-on {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ef__calc {
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ef__line,
+	.ef__more {
+		margin: 0 0 0.35rem;
+	}
+	.ef__line b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ef__math {
+		overflow-x: auto;
+		overflow-y: hidden;
+		color: var(--sl-color-white);
+	}
+	.ef__math .katex-display {
+		margin: 0.4rem 0;
+	}
+	.ef__cap {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.ef {
+			padding: 0.75rem;
+		}
+		.ef__svg text {
+			font-size: 12px;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { SPECS } from './engine';
+
+	type Id = 'loco' | 'petrol' | 'diesel' | 'tes';
+	interface Engine {
+		name: string; // in the live line
+		work: string; // what the useful work does
+		bands: [string, string, string, string];
+		s: number[]; // percent of the fuel's energy: useful, then three losses
+		more: (s: number[]) => string;
+	}
+	const pct = (a: readonly number[]) => a.map((x) => Math.round(x * 100));
+	const ENG: Record<Id, Engine> = {
+		loco: {
+			name: 'Паровоз',
+			work: 'тянет поезд',
+			bands: ['Полезная работа', 'Дым и несгоревший уголь', 'Отработавший пар', 'Прочие потери'],
+			s: [6, 30, 52, 12],
+			more: (s) =>
+				`Больше половины — ${s[2]} Дж — уносит отработавший пар: он вылетает в трубу вместе с дымом. Ещё ${s[1]} Дж уходят с горячим дымом, искрами и несгоревшим углём, ${s[3]} Дж — на нагревание воздуха вокруг котла, насосы и тормоза.`,
+		},
+		petrol: {
+			name: 'Бензиновый двигатель автомобиля',
+			work: 'вращает колёса',
+			bands: ['Полезная работа', 'Выхлопные газы', 'Охлаждение двигателя', 'Трение'],
+			s: pct(SPECS.petrol.shares),
+			more: (s) =>
+				`Больше всего — ${s[1]} Дж — уносят горячие выхлопные газы, ${s[2]} Дж нагревают охлаждающую воду и воздух, ${s[3]} Дж уходят на трение.`,
+		},
+		diesel: {
+			name: 'Дизельный двигатель',
+			work: 'вращает колёса',
+			bands: ['Полезная работа', 'Выхлопные газы', 'Охлаждение двигателя', 'Трение'],
+			s: pct(SPECS.diesel.shares),
+			more: (s) =>
+				`Воздух в дизеле сжимается сильнее, поэтому полезная работа больше, чем у бензинового двигателя. Выхлопные газы уносят ${s[1]} Дж, охлаждающая вода — ${s[2]} Дж, на трение уходят ${s[3]} Дж.`,
+		},
+		tes: {
+			name: 'Паровая турбина электростанции',
+			work: 'вращает генератор тока',
+			bands: ['Полезная работа', 'Дым из трубы котла', 'Охлаждение в конденсаторе', 'Прочие потери'],
+			s: [39, 6, 52, 3],
+			more: (s) =>
+				`Больше половины — ${s[2]} Дж — забирает холодная вода в конденсаторе: там пар, который вышел из турбины, снова превращается в воду. С дымом из трубы котла уходят ${s[1]} Дж, ${s[3]} Дж — на трение и нагревание воздуха.`,
+		},
+	};
+	const ANSWER: Id = 'loco';
+	const NS = 'http://www.w3.org/2000/svg';
+	const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+	let uidN = 0;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ef]')) {
+		const uid = `ef${++uidN}-${Math.random().toString(36).slice(2, 7)}`;
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const line = q<HTMLElement>('[data-line]');
+		const more = q<HTMLElement>('[data-more]');
+		const math = q<HTMLElement>('[data-math]');
+		const fb = q<HTMLElement>('[data-fb]');
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+		const optBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-opt]'));
+
+		const mk = <K extends keyof SVGElementTagNameMap>(tag: K, a: Record<string, string | number>, parent: Element = svg) => {
+			const e = document.createElementNS(NS, tag);
+			for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+			parent.append(e);
+			return e;
+		};
+
+		// ---------- static parts of the drawing
+		const defs = mk('defs', {});
+		const head = mk('text', { x: 0, y: 14 });
+		head.innerHTML = 'Энергия топлива <tspan class="ef-v">100 Дж</tspan>';
+		const src = mk('rect', { x: 0, width: 14, rx: 3, class: 'ef-src' });
+		const bands = [0, 1, 2, 3].map((i) => {
+			const clip = mk('clipPath', { id: `${uid}-c${i}` }, defs);
+			const clipPath = mk('path', {}, clip);
+			const g = mk('g', {});
+			const area = mk('path', { class: `ef-band ef-c${i}` }, g);
+			const dots = mk('g', { 'clip-path': `url(#${uid}-c${i})` }, g);
+			const name = mk('text', {});
+			const val = mk('text', { class: 'ef-v' });
+			return { clipPath, area, dots, rows: [] as SVGPathElement[], name, val };
+		});
+
+		let cur: Id = 'petrol';
+		let shown = ENG.petrol.s.slice(); // shares on the screen (animated)
+		let from = shown.slice();
+		let t0 = 0;
+		let anim = 0;
+		const DUR = 750;
+
+		// ---------- layout for the shares on the screen
+		const draw = () => {
+			const W = Math.max(260, svg.clientWidth || root.clientWidth - 24);
+			const narrow = W < 480;
+			const HS = narrow ? 170 : 200; // height of the source bar = 100 %
+			const TOP = 26;
+			const SLOT = narrow ? 32 : 34; // smallest place for a label
+			const GAP = narrow ? 6 : 8;
+			const e = ENG[cur];
+			bands.forEach((b, i) => (b.name.textContent = e.bands[i]));
+			let lw = 0;
+			for (const b of bands) {
+				try {
+					lw = Math.max(lw, b.name.getComputedTextLength());
+				} catch {
+					lw = Math.max(lw, 7.2 * (b.name.textContent ?? '').length);
+				}
+			}
+			if (!lw) lw = 7.2 * Math.max(...e.bands.map((s) => s.length));
+			const x1 = W - lw - 10;
+			const hs = shown.map((s) => (HS * s) / 100);
+			const slots = hs.map((h) => Math.max(h, SLOT));
+			const right = slots.reduce((a, b) => a + b, 0) + 3 * GAP;
+			const H = Math.max(HS, right);
+			const ys0 = TOP + (H - HS) / 2;
+			const yr0 = TOP + (H - right) / 2;
+			svg.setAttribute('viewBox', `0 0 ${W} ${TOP + H + 4}`);
+			src.setAttribute('y', String(ys0));
+			src.setAttribute('height', String(HS));
+			let ys = ys0;
+			let yr = yr0;
+			const xa = 14;
+			const xm = xa + (x1 - xa) * 0.5;
+			bands.forEach((b, i) => {
+				const h = hs[i];
+				const ye = yr + (slots[i] - h) / 2;
+				const edge = (o: number) => `C ${xm} ${ys + o} ${xm} ${ye + o} ${x1} ${ye + o}`;
+				const d = `M ${xa} ${ys} ${edge(0)} L ${x1} ${ye + h} C ${xm} ${ye + h} ${xm} ${ys + h} ${xa} ${ys + h} Z`;
+				b.area.setAttribute('d', d);
+				b.clipPath.setAttribute('d', d);
+				// rows of particles along the band, their number grows with its width
+				const n = Math.max(1, Math.round(h / 11));
+				while (b.rows.length < n) {
+					const k = b.rows.length;
+					const r = mk('path', { class: `ef-dots ef-c${i}` }, b.dots);
+					r.style.animationDelay = `${-((k * 0.37 + i * 0.21) % 0.9)}s`;
+					b.rows.push(r);
+				}
+				while (b.rows.length > n) b.rows.pop()!.remove();
+				const sw = Math.min(4, Math.max(2, h * 0.5));
+				b.rows.forEach((r, k) => {
+					const o = ((k + 0.5) * h) / n;
+					r.setAttribute('d', `M ${xa - 20} ${ys + o} L ${xa} ${ys + o} ${edge(o)} L ${x1 + 20} ${ye + o}`);
+					r.setAttribute('stroke-width', String(sw));
+				});
+				const cy = ye + h / 2;
+				b.name.setAttribute('x', String(x1 + 8));
+				b.name.setAttribute('y', String(cy - 3));
+				b.val.setAttribute('x', String(x1 + 8));
+				b.val.setAttribute('y', String(cy + 12));
+				const v = Math.round(shown[i]);
+				b.val.textContent = `${v} Дж · ${v} %`;
+				ys += h;
+				yr += slots[i] + GAP;
+			});
+		};
+
+		const step = (now: number) => {
+			const k = Math.min(1, (now - t0) / DUR);
+			const e = ease(k);
+			shown = from.map((f, i) => f + (ENG[cur].s[i] - f) * e);
+			draw();
+			anim = k < 1 ? requestAnimationFrame(step) : 0;
+		};
+
+		const fmtEta = () => {
+			const e = ENG[cur];
+			const A = e.s[0];
+			const one = `\\eta = \\frac{A_\\text{п}}{Q_\\text{з}}\\cdot 100\\,\\% = \\frac{${A}~\\text{Дж}}{100~\\text{Дж}}\\cdot 100\\,\\% = ${A}\\,\\%`;
+			const two = `\\begin{aligned}\\eta &= \\frac{A_\\text{п}}{Q_\\text{з}}\\cdot 100\\,\\% \\\\ &= \\frac{${A}~\\text{Дж}}{100~\\text{Дж}}\\cdot 100\\,\\% = ${A}\\,\\%\\end{aligned}`;
+			katex.render(one, math, { displayMode: true, throwOnError: false });
+			if (math.scrollWidth > math.clientWidth + 1) katex.render(two, math, { displayMode: true, throwOnError: false });
+		};
+
+		const texts = () => {
+			const e = ENG[cur];
+			const A = e.s[0];
+			line.innerHTML = `<b>${e.name}.</b> Из каждых 100 Дж энергии топлива в полезную работу (${e.work}) идёт <b>${A} Дж</b>, а <b>${100 - A} Дж</b> теряются.`;
+			more.textContent = e.more(e.s);
+			fmtEta();
+		};
+
+		const select = (id: Id, animate = true) => {
+			cur = id;
+			modeBtns.forEach((b) => {
+				const on = b.dataset.mode === id;
+				b.classList.toggle('is-on', on);
+				b.setAttribute('aria-pressed', String(on));
+			});
+			texts();
+			from = shown.slice();
+			if (anim) cancelAnimationFrame(anim);
+			if (animate) {
+				t0 = performance.now();
+				anim = requestAnimationFrame(step);
+			} else {
+				shown = ENG[id].s.slice();
+				draw();
+			}
+		};
+		modeBtns.forEach((b) => b.addEventListener('click', () => select(b.dataset.mode as Id)));
+
+		// ---------- guess first
+		optBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				const id = b.dataset.opt as Id;
+				const right = id === ANSWER;
+				optBtns.forEach((x) => (x.disabled = true));
+				b.classList.add(right ? 'is-right' : 'is-wrong');
+				if (!right) optBtns.find((x) => x.dataset.opt === ANSWER)!.classList.add('is-right');
+				const a = ENG[ANSWER].s[0];
+				fb.innerHTML = right
+					? `<b>Верно!</b> У паровоза в полезную работу идёт всего ${a} Дж из каждых 100. Посмотрите на диаграмме, куда уходит остальное.`
+					: `Нет: у этого двигателя в работу идёт ${ENG[id].s[0]} Дж из 100. Меньше всего — у паровоза: всего ${a} Дж. Посмотрите на диаграмме, куда уходит остальное.`;
+				select(ANSWER);
+			}),
+		);
+
+		let lastW = 0;
+		new ResizeObserver(() => {
+			const w = svg.clientWidth;
+			if (Math.abs(w - lastW) < 1) return;
+			lastW = w;
+			if (!anim) draw();
+			fmtEta();
+		}).observe(svg);
+		select('petrol', false);
+	}
+</script>
