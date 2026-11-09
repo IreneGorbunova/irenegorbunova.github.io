@@ -1,0 +1,886 @@
+---
+/**
+ * Three short looping opening scenes of «Тепловые двигатели. КПД теплового двигателя».
+ * Kettle: water in a kettle on a gas stove heats and boils; steam collects under the lid and pushes on it more and more
+ *   (arrows) until it throws the lid up; the lid flies on a parabola (constant g, slow motion ≈ 2,7×), lands with a small
+ *   bounce, a puff of steam escapes from the gap. Water stands at the same level in the spout and in the body.
+ * Car: a car drawn at 40 px per metre and shown 1,2× larger (4,3 m long, wheels 0,65 m across) pulls away at 2,4 м/с² up to 6 м/с and drives on;
+ *   the road moves under it and every wheel turns by s / r (rolling without slipping); trees and hills move slower
+ *   (parallax). Hot exhaust leaves the pipe backwards, stops in the air (so it trails behind the car), rises and fades.
+ * Power station: fuel burns in the furnace, the water in the boiler boils, steam runs to the turbine, which spins up
+ *   (ω = Ω(1 − e^(−t/τ))) and turns the generator on the same shaft; then the line is live and the window of a house
+ *   lights up; the cooling tower breathes out a white cloud of droplets.
+ * Each scene keeps going during the held final frame (the time runs on), then restarts. Plays only while visible.
+ * Fact in the popover: thermal power stations made 57,5 % of the electricity of the UES of Russia in 2025
+ * (АО «СО ЕЭС», press release 14.01.2026, so-ups.ru/news/press/press-release-view/news/29416/; 2024: 57,3 %), hence
+ * «больше половины».
+ */
+import IntroFrame from '@components/intro/IntroFrame.astro';
+import More from '@components/More.astro';
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
+
+// Kettle: walls from (112, 168) up to (140, 108) and from (248, 168) to (220, 108); bottom 178, opening 150…210 at y 102.
+const xl = (y: number) => 112 + ((168 - y) * 28) / 60;
+const LEVEL = 136;
+const A = { x: r2(xl(166)), y: 166 }; // spout joins the wall between A and D
+const D = { x: r2(xl(146)), y: 146 };
+const B = { x: 79, y: 111 }; // lower lip of the spout
+const C = { x: 89, y: 104 }; // upper lip
+const onAB = r2(A.x + ((B.x - A.x) * (A.y - LEVEL)) / (A.y - B.y));
+const onDC = r2(D.x + ((C.x - D.x) * (D.y - LEVEL)) / (D.y - C.y));
+const kettleFill = `M${C.x} ${C.y} L${D.x} ${D.y} L140 108 Q143 102 150 102 H210 Q217 102 220 108 L248 168 Q250 178 240 178 H120 Q110 178 112 168 L${A.x} ${A.y} L${B.x} ${B.y} Z`;
+const kettleLine = `M${C.x} ${C.y} L${D.x} ${D.y} L140 108 Q143 102 150 102 M210 102 Q217 102 220 108 L248 168 Q250 178 240 178 H120 Q110 178 112 168 L${A.x} ${A.y} L${B.x} ${B.y}`;
+const flame = (x: number, base: number) => `M ${x} ${base} q -5 -6 0 -15 q 5 9 0 15 z`;
+
+// Car: rear wheel at x 134, front at 238, radius 13, road contact at y 196.
+const WHEELS = [134, 238];
+const carBody =
+	'M102 184 L100 166 Q100 154 110 151 L136 137 Q140 135 146 135 H200 Q206 135 210 138 L230 152 L262 156 Q272 158 272 168 V180 Q272 184 268 184 H254 A16 16 0 0 0 222 184 H150 A16 16 0 0 0 118 184 Z';
+// Hills: periodic over 360 px, drawn twice so the band can slide.
+const hill = (x: number) => 124 - 10 * Math.sin((2 * Math.PI * x) / 360) - 6 * Math.sin((4 * Math.PI * x) / 360 + 1);
+const hillsPath = (() => {
+	const pts: string[] = [];
+	for (let x = 0; x <= 720; x += 12) pts.push(`${x} ${r2(hill(x))}`);
+	return `M0 176 L${pts.join(' L')} L720 176 Z`;
+})();
+const TREES = [20, 110, 200, 290, 380];
+
+// Power station.
+const ROWS = [122, 132, 142, 152, 162]; // turbine stages
+---
+
+<IntroFrame data-eintro>
+	<div class="intro__card" data-scene="kettle">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Чайник на газовой плите: вода закипает, пар давит на крышку всё сильнее, подбрасывает её, и из-под крышки вырываются клубы пара">
+			<rect class="ein-wall" x="0" y="0" width="360" height="188" />
+			<rect class="ein-hob" x="40" y="188" width="280" height="14" rx="5" />
+			<rect class="ein-front" x="52" y="202" width="256" height="38" />
+			<g class="ein-flames">
+				{[-36, -18, 0, 18, 36].map((dx, j) => (
+					<path style={`--d:${(j * 0.13).toFixed(2)}s`} d={flame(180 + dx, 188)} />
+				))}
+			</g>
+			<path class="ein-grate" d="M98 188 V178 H124 M262 188 V178 H236" />
+			<path class="ein-kettle-in" d={kettleFill} />
+			<path class="ein-water" d="" data-water />
+			<g data-bubbles />
+			<g class="ein-force" data-force>
+				{[164, 180, 196].map((x) => (
+					<path d="" data-x={x} />
+				))}
+			</g>
+			<path class="ein-kettle" d={kettleLine} />
+			<path class="ein-handle" d="M224 124 C264 112 270 170 245 168" />
+			<g class="ein-wisp" data-wisp>
+				{[0, 1, 2].map((i) => (
+					<path style={`--d:${(i * 0.45).toFixed(2)}s`} d={`M ${82 - 3 * i} ${102 - 2 * i} q -8 -6 -6 -14 q 2 -8 -6 -14`} />
+				))}
+			</g>
+			<g data-lid>
+				<path class="ein-lid" d="M146 102 Q180 82 214 102 Z" />
+				<rect class="ein-lid" x="175" y="84" width="10" height="9" rx="3" />
+			</g>
+			<g class="ein-puffs" data-puffs />
+		</svg>
+		<div class="intro__foot">
+			<p>Пар подбрасывает крышку кипящего чайника — <More term="пар совершает работу">Пара под крышкой становится всё больше, и он давит на неё всё сильнее — пока не приподнимет её. Поднимая крышку, пар совершает работу, как рука, которая поднимает груз. Часть пара вырывается наружу, давление падает, и крышка падает обратно.<br />Рассказывают, что маленький Джеймс Уатт подолгу смотрел, как пар подбрасывает крышку чайника, и так задумался о силе пара. Проверить эту историю невозможно, да и паровые машины появились ещё до рождения Уатта, — но он сделал их намного экономичнее.</More>.</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+
+	<div class="intro__card" data-scene="car">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Автомобиль трогается и едет по дороге: колёса катятся, деревья проплывают назад, из выхлопной трубы вырываются горячие газы и остаются позади">
+			<rect class="ein-sky" x="0" y="0" width="360" height="200" />
+			<g data-clouds>
+				{[[70, 34, 1], [250, 52, 0.8]].map(([x, y, k]) => (
+					<path class="ein-cloud" data-x={x} data-y={y} data-k={k} transform={`translate(${x} ${y}) scale(${k})`} d="M-26 0 a 10 10 0 0 1 9 -12 a 13 13 0 0 1 24 -4 a 10 10 0 0 1 19 16 z" />
+				))}
+			</g>
+			<!-- drawn at 40 px per metre, shown 1,2× larger -->
+			<g transform="translate(6 -46) scale(1.2)">
+			<path class="ein-hills" d={hillsPath} data-hills />
+			<g data-trees>
+				{TREES.map((x) => (
+					<g data-tree={x}>
+						<rect class="ein-trunk" x="-2" y="-16" width="4" height="16" />
+						<circle class="ein-crown" cx="0" cy="-24" r="11" />
+					</g>
+				))}
+			</g>
+			<rect class="ein-grass" x="-40" y="164" width="400" height="12" />
+			<rect class="ein-road" x="-40" y="176" width="400" height="36" />
+			<path class="ein-dash" d="M-56 186 H416" data-dash />
+			<line class="ein-edge" x1="-40" x2="360" y1="208" y2="208" />
+			<rect class="ein-grass" x="-40" y="212" width="400" height="40" />
+			<g class="ein-shim" data-shim>
+				{[0, 1, 2].map((i) => (
+					<path style={`--d:${(i * 0.2).toFixed(2)}s`} d={`M ${88 - 6 * i} ${180 - 5 * i} q -6 -3 -12 0 t -12 0 t -12 0`} />
+				))}
+			</g>
+			<g data-exhaust />
+			<rect class="ein-pipe" x="90" y="180" width="14" height="4" rx="1.5" />
+			<path class="ein-car" d={carBody} />
+			<path class="ein-glass" d="M131 152 L143 141 H198 L214 152 Z" />
+			<path class="ein-trim" d="M172 141 V182 M150 162 h8 M188 162 h8" />
+			<ellipse class="ein-headlight" cx="268" cy="162" rx="3" ry="4" />
+			<rect class="ein-taillight" x="99.5" y="157" width="3.5" height="8" rx="1.5" />
+			{WHEELS.map((x) => (
+				<g transform={`translate(${x} 183)`}>
+					<circle class="ein-tyre" r="13" />
+					<g data-wheel>
+						<circle class="ein-rim" r="8" />
+						{[0, 72, 144, 216, 288].map((a) => (
+							<line class="ein-spoke" x1="0" y1="0" x2={r2(7 * Math.cos((a * Math.PI) / 180))} y2={r2(7 * Math.sin((a * Math.PI) / 180))} />
+						))}
+						<circle class="ein-hub" r="2.2" />
+					</g>
+				</g>
+			))}
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>Автомобиль едет за счёт энергии сгоревшего бензина. Но <More term="на движение идёт только около четверти этой энергии">Из каждых 100&nbsp;Дж энергии бензина на движение автомобиля идёт примерно 25&nbsp;Дж. Около 40&nbsp;Дж уносят горячие выхлопные газы, около 30&nbsp;Дж нагревают воду, которая охлаждает двигатель (её остужает встречный воздух в радиаторе), и около 5&nbsp;Дж уходит на трение деталей двигателя. У разных бензиновых двигателей на полезную работу идёт от одной пятой до двух пятых энергии топлива.</More>, остальное уносят горячие выхлопные газы и воздух, охлаждающий двигатель.</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+
+	<div class="intro__card" data-scene="station">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Тепловая электростанция: в топке горит топливо, в котле кипит вода, пар по трубе идёт в турбину, она раскручивается и вращает генератор; по проводам ток идёт к дому, и в окне загорается свет; над градирней поднимается облако пара">
+			<rect class="ein-sky" x="0" y="0" width="360" height="200" />
+			<!-- cooling tower (behind) and its cloud -->
+			<path class="ein-tower" d="M238 200 Q256 140 252 76 H286 Q282 140 300 200 Z" />
+			<ellipse class="ein-tower-top" cx="269" cy="76" rx="17" ry="3" />
+			<g class="ein-vapour" data-vapour />
+			<!-- boiler house with the furnace and the boiler, cut open -->
+			<g class="ein-smoke" data-smoke />
+			<rect class="ein-stack" x="68" y="40" width="11" height="58" />
+			<rect class="ein-house" x="14" y="96" width="82" height="104" />
+			<rect class="ein-room" x="22" y="104" width="66" height="92" rx="3" />
+			<rect class="ein-furnace" x="26" y="160" width="58" height="32" rx="3" data-furnace />
+			<g class="ein-flames ein-flames--big" data-fire>
+				{[-20, -10, 0, 10, 20].map((dx, j) => (
+					<path style={`--d:${(j * 0.11).toFixed(2)}s`} d={flame(55 + dx, 190)} />
+				))}
+			</g>
+			<rect class="ein-drum" x="28" y="110" width="54" height="40" rx="8" />
+			<path class="ein-water" d="M28 130 H82 V142 Q82 150 74 150 H36 Q28 150 28 142 Z" />
+			<g data-drumbubbles />
+			<!-- steam pipe to the turbine -->
+			<path class="ein-pipe2" d="M82 118 H114 Q120 118 120 124 V146" />
+			<path class="ein-steamflow" d="M82 118 H114 Q120 118 120 124 V146" data-flow />
+			<!-- turbine: casing cut open, the rotor turns -->
+			<rect class="ein-plinth" x="106" y="186" width="146" height="14" />
+			<rect class="ein-shaft" x="106" y="157" width="148" height="6" rx="2" />
+			<path class="ein-casing-in" d="M112 147 L172 137 V183 L112 173 Z" />
+			<g data-rotor>
+				{ROWS.map((x, k) => (
+					<g data-row={x} data-r={9 + 2.2 * k}>
+						<ellipse class="ein-disc" cx={x} cy="160" rx={r2(0.28 * (9 + 2.2 * k))} ry={r2(9 + 2.2 * k)} />
+					</g>
+				))}
+				<g data-row="179" data-r="7">
+					<ellipse class="ein-disc" cx="179" cy="160" rx="2" ry="7" />
+				</g>
+			</g>
+			<path class="ein-casing" d="M112 147 L172 137 V183 L112 173 Z" />
+			<!-- generator on the same shaft -->
+			<rect class="ein-gen" x="186" y="138" width="56" height="44" rx="6" />
+			<path class="ein-fins" d="M196 142 V178 M206 142 V178 M216 142 V178 M226 142 V178" />
+			<path class="ein-coil" d="M234 138 V128 H240" />
+			<g data-row="248" data-r="5">
+				<ellipse class="ein-disc" cx="248" cy="160" rx="1.5" ry="5" />
+			</g>
+			<!-- power line to a house -->
+			<path class="ein-pylon" d="M302 200 L308 104 L314 200 M300 104 H316 M304 160 L313 176 M312 160 L303 176 M305 130 L311 144 M311 130 L305 144" />
+			<path class="ein-wire" d="M240 128 Q270 124 301 104 M315 104 Q322 136 322 160" />
+			<path class="ein-wire ein-wire--live" d="M240 128 Q270 124 301 104 M315 104 Q322 136 322 160" data-live />
+			<path class="ein-roof" d="M314 168 L336 146 L358 168 Z" />
+			<rect class="ein-home" x="318" y="166" width="36" height="34" />
+			<circle class="ein-glow" cx="336" cy="180" r="16" data-glow />
+			<rect class="ein-window" x="329" y="173" width="14" height="14" data-window />
+			<path class="ein-frame" d="M329 173 H343 V187 H329 Z M336 173 V187 M329 180 H343" />
+			<rect class="ein-ground" x="0" y="200" width="360" height="40" />
+			<text class="ein-label" x="55" y="222" text-anchor="middle">котёл</text>
+			<text class="ein-label" x="142" y="222" text-anchor="middle">турбина</text>
+			<text class="ein-label" x="214" y="222" text-anchor="middle">генератор</text>
+		</svg>
+		<div class="intro__foot">
+			<p>На тепловой электростанции сжигают газ или уголь. Пар вращает турбину, и <More term="в наших розетках появляется ток">Топливо горит в топке и нагревает воду в котле. Горячий пар под большим давлением вращает турбину, а она — генератор тока, который стоит с ней на одном валу. Тепловые электростанции вырабатывают больше половины всей электроэнергии России. А белые облака над высокими башнями-градирнями — не дым, а мельчайшие капельки воды: в градирнях остужают воду, которой охлаждают отработавший пар.</More>.</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+</IntroFrame>
+
+<style is:global>
+	[data-eintro] {
+		--ein-light: var(--sl-color-white);
+		--ein-steam: color-mix(in srgb, var(--sl-color-gray-1) 55%, transparent);
+		--ein-ink: var(--sl-color-gray-6);
+		--ein-car: color-mix(in srgb, var(--ig-vy) 70%, var(--sl-color-gray-4));
+	}
+	:root[data-theme='light'] [data-eintro] {
+		--ein-light: var(--sl-color-black);
+		--ein-steam: color-mix(in srgb, var(--sl-color-gray-4) 50%, transparent);
+		--ein-ink: var(--sl-color-gray-2);
+		--ein-car: color-mix(in srgb, var(--ig-vy) 85%, var(--sl-color-gray-5));
+	}
+	/* kettle */
+	.ein-wall {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 45%, transparent);
+	}
+	.ein-hob {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ein-front {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 80%, var(--ig-surface));
+	}
+	.ein-grate {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.ein-flames path {
+		fill: var(--ig-vx);
+		transform-box: fill-box;
+		transform-origin: 50% 100%;
+		animation: ein-flame 0.45s ease-in-out infinite alternate;
+		animation-delay: var(--d);
+	}
+	.ein-flames--big path {
+		fill: var(--ig-v);
+	}
+	@keyframes ein-flame {
+		from { transform: scaleY(0.8); }
+		to { transform: scaleY(1.1); }
+	}
+	.ein-kettle-in {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, var(--ig-surface));
+	}
+	.ein-water {
+		fill: color-mix(in srgb, var(--ig-vx) 42%, transparent);
+	}
+	.ein-bubble {
+		fill: color-mix(in srgb, var(--ein-light) 22%, transparent);
+		stroke: color-mix(in srgb, var(--ein-light) 85%, transparent);
+		stroke-width: 1.1;
+	}
+	.ein-force path {
+		fill: var(--ig-vy);
+		stroke: var(--ig-vy);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.ein-kettle {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.ein-handle {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 6;
+		stroke-linecap: round;
+	}
+	.ein-lid {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 60%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.ein-wisp path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		opacity: 0;
+		animation: ein-wisp 1.35s ease-in infinite;
+		animation-delay: var(--d);
+	}
+	@keyframes ein-wisp {
+		0% { opacity: 0; transform: translate(2px, 2px); }
+		30% { opacity: calc(0.8 * var(--steam, 0)); }
+		100% { opacity: 0; transform: translate(-8px, -12px); }
+	}
+	.ein-puffs circle,
+	.ein-vapour circle {
+		fill: var(--ein-steam);
+	}
+	/* car */
+	.ein-sky {
+		fill: color-mix(in srgb, var(--ig-vx) 16%, transparent);
+	}
+	.ein-cloud {
+		fill: color-mix(in srgb, var(--sl-color-gray-1) 22%, transparent);
+	}
+	.ein-hills {
+		fill: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-gray-5));
+	}
+	.ein-trunk {
+		fill: color-mix(in srgb, var(--ig-v) 35%, var(--sl-color-gray-4));
+	}
+	.ein-crown {
+		fill: color-mix(in srgb, var(--ig-vx) 25%, color-mix(in srgb, var(--ig-v) 30%, var(--sl-color-gray-4)));
+	}
+	.ein-grass,
+	.ein-ground {
+		fill: color-mix(in srgb, var(--ig-v) 30%, var(--sl-color-gray-5));
+	}
+	.ein-road {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 70%, var(--ig-surface));
+	}
+	.ein-dash {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-dasharray: 26 30;
+	}
+	.ein-edge {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ein-car {
+		fill: var(--ein-car);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.ein-glass {
+		fill: color-mix(in srgb, var(--ig-vx) 40%, var(--ig-surface));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.ein-trim {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-gray-1) 45%, transparent);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+	}
+	.ein-headlight {
+		fill: var(--ig-v);
+	}
+	.ein-taillight {
+		fill: var(--sl-color-red);
+	}
+	.ein-pipe {
+		fill: var(--sl-color-gray-3);
+	}
+	.ein-tyre {
+		fill: var(--ein-ink);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.ein-rim {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.ein-spoke {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+	.ein-hub {
+		fill: var(--sl-color-gray-2);
+	}
+	.ein-shim path {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		opacity: 0.45;
+		animation: ein-shim 0.6s ease-in-out infinite alternate;
+		animation-delay: var(--d);
+	}
+	@keyframes ein-shim {
+		from { transform: translate(0, 0) scaleY(1); opacity: 0.2; }
+		to { transform: translate(-3px, -1px) scaleY(-1); opacity: 0.55; }
+	}
+	.ein-shim path {
+		transform-box: fill-box;
+		transform-origin: 50% 50%;
+	}
+	/* power station */
+	.ein-tower {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 55%, transparent);
+	}
+	.ein-tower-top {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 80%, var(--ig-surface));
+	}
+	.ein-smoke circle {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 40%, transparent);
+	}
+	.ein-stack {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+	}
+	.ein-house {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 75%, var(--ig-surface));
+	}
+	.ein-room {
+		fill: var(--ig-surface);
+	}
+	.ein-furnace {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-3);
+	}
+	.ein-drum {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.ein-pipe2 {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 7;
+		stroke-linejoin: round;
+	}
+	.ein-steamflow {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-dasharray: 5 7;
+		opacity: 0;
+	}
+	.ein-plinth {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ein-shaft {
+		fill: var(--sl-color-gray-3);
+	}
+	.ein-casing-in {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 60%, var(--ig-surface));
+	}
+	.ein-casing {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.ein-disc {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 50%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.ein-blade {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.ein-gen {
+		fill: color-mix(in srgb, var(--ig-vx) 30%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.ein-fins {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-gray-1) 35%, transparent);
+		stroke-width: 1.2;
+	}
+	.ein-coil,
+	.ein-wire {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.ein-wire--live {
+		stroke: var(--ig-v);
+		stroke-width: 2.4;
+		opacity: 0;
+	}
+	.ein-pylon {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+	.ein-roof {
+		fill: color-mix(in srgb, var(--ig-vy) 45%, var(--sl-color-gray-4));
+	}
+	.ein-home {
+		fill: color-mix(in srgb, var(--ig-v) 25%, var(--sl-color-gray-4));
+	}
+	.ein-window {
+		fill: color-mix(in srgb, var(--ig-v) 0%, var(--ig-surface));
+	}
+	.ein-glow {
+		fill: var(--ig-v);
+		opacity: 0;
+	}
+	.ein-frame {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.ein-label {
+		font-size: 12px;
+		fill: var(--sl-color-gray-2);
+	}
+</style>
+
+<script>
+	import { scene, clamp } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const f1 = (v: number) => v.toFixed(1);
+	const mk = (parent: Element, tag: string, cls: string) => {
+		const e = document.createElementNS(NS, tag);
+		e.setAttribute('class', cls);
+		parent.append(e);
+		return e;
+	};
+	const smooth = (u: number) => u * u * (3 - 2 * u);
+
+	/** Scene time in seconds: run·x while the scene plays, then it runs on during the held final frame. */
+	const clockOf = (run: number) => {
+		let held = -1;
+		return (x: number) => {
+			const now = performance.now() / 1000;
+			if (x < 1) {
+				held = -1;
+				return run * x;
+			}
+			if (held < 0) held = now;
+			return run + (now - held);
+		};
+	};
+
+	/* ---------- kettle ---------- */
+	const KETTLE_RUN = 7;
+	const BOIL = 2; // s: the water boils from here on
+	const G = 800; // px/s² (slow motion ≈ 2,7× at the kettle's scale of 0,62 px per mm)
+	const E = 0.35; // coefficient of restitution of the lid
+	// Lid jumps: start times and heights; after the last listed one they repeat every 0,5 s.
+	const JUMPS: [number, number][] = [
+		[2.95, 6],
+		[3.75, 8],
+		[4.4, 7],
+		[4.95, 9],
+		[5.5, 8],
+		[6.0, 9],
+		[6.5, 8],
+	];
+	const jumpAt = (k: number): [number, number] => {
+		if (k < JUMPS.length) return JUMPS[k];
+		const j = k - JUMPS.length;
+		return [7.0 + 0.5 * j, [9, 7, 8][j % 3]];
+	};
+	const flight = (h: number) => 2 * Math.sqrt((2 * h) / G);
+
+	const kettle = (card: HTMLElement) => {
+		const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+		const water = $<SVGPathElement>('[data-water]');
+		const lid = $<SVGGElement>('[data-lid]');
+		const wisp = $<SVGGElement>('[data-wisp]');
+		const arrows = Array.from(card.querySelectorAll<SVGPathElement>('[data-force] path'));
+		const bubG = $<SVGGElement>('[data-bubbles]');
+		const puffG = $<SVGGElement>('[data-puffs]');
+		const LEFT = 128;
+		const RIGHT = 232;
+		const LEVEL = 136;
+		const BOTTOM = 176;
+		const bubbles = Array.from({ length: 16 }, (_, i) => ({
+			c: mk(bubG, 'circle', 'ein-bubble'),
+			x: 140 + ((i * 29) % 82),
+			ph: (i * 0.618) % 1,
+			v: 0.6 + ((i * 5) % 4) * 0.12,
+			r: 1.3 + ((i * 7) % 3) * 0.4,
+			k: ((i * 3) % 16) / 16,
+		}));
+		const PUFF_LIFE = 1.5;
+		const puffs = Array.from({ length: 6 }, () => {
+			const g = mk(puffG, 'g', '');
+			return [0, 1, 2].map(() => mk(g, 'circle', ''));
+		});
+		const time = clockOf(KETTLE_RUN);
+		// fixed part of the water outline: the water in the spout, then the right wall, bottom, left wall
+		const spout = 'M94.42 136 L114.35 136 L122.27 146 L126.93 136';
+		const rest = 'L233.07 136 L248 168 Q250 178 240 178 H120 Q110 178 112 168 L112.93 166 Z';
+
+		scene(card, KETTLE_RUN, (x) => {
+			const t = time(x);
+			const now = performance.now() / 1000;
+			const boiling = t >= BOIL;
+			// lid: find the jump in progress (or the last one) for this moment
+			let k = 0;
+			while (jumpAt(k + 1)[0] <= t) k++;
+			let h = 0;
+			let since = -1; // s since the start of the current jump
+			let prevEnd = BOIL; // when the lid last came to rest
+			const [t0, H] = jumpAt(k);
+			if (t >= t0) {
+				since = t - t0;
+				const T = flight(H);
+				const T2 = E * T;
+				if (since < T) h = H * (4 * (since / T) * (1 - since / T));
+				else if (since < T + T2) {
+					const u = (since - T) / T2;
+					h = E * E * H * 4 * u * (1 - u);
+				}
+				prevEnd = t0 + T + T2;
+			} else if (k > 0) {
+				const [tp, Hp] = jumpAt(k - 1);
+				prevEnd = tp + flight(Hp) * (1 + E);
+			}
+			// pressure of the steam under the lid: builds while the lid rests, drops when it lifts
+			let p = 0;
+			if (boiling) {
+				const nextT = t >= t0 ? jumpAt(k + 1)[0] : t0;
+				const flying = t >= t0 && since < flight(H) * (1 + E);
+				p = flying ? Math.max(0, 1 - since / 0.08) : clamp((t - Math.max(prevEnd, BOIL)) / (nextT - Math.max(prevEnd, BOIL)));
+			}
+			const tilt = -1.1 * h;
+			lid.setAttribute('transform', `translate(0 ${f1(-h)}) rotate(${f1(tilt)} 146 102)`);
+			arrows.forEach((a, i) => {
+				const len = (4 + 16 * p) * (i === 1 ? 1 : 0.8);
+				const x0 = Number(a.dataset.x);
+				const y0 = 131;
+				const yt = y0 - len;
+				a.style.opacity = p > 0.03 ? '1' : '0';
+				a.setAttribute('d', `M${x0} ${y0} V${f1(yt + 3)} M${x0 - 3.5} ${f1(yt + 4)} L${x0} ${f1(yt)} L${x0 + 3.5} ${f1(yt + 4)} Z`);
+			});
+			// water surface: wavy while boiling
+			const amp = boiling ? 1.5 : 0;
+			const pts: string[] = [];
+			for (let i = 0; i <= 14; i++) {
+				const xp = 126.93 + ((233.07 - 126.93) * i) / 14;
+				const wob = i === 0 || i === 14 ? 0 : amp * Math.sin(xp / 7 + now * 9) * Math.sin(xp / 23 - now * 3);
+				pts.push(`${f1(xp)} ${f1(LEVEL + wob)}`);
+			}
+			water.setAttribute('d', `${spout} L${pts.join(' L')} ${rest}`);
+			wisp.style.setProperty('--steam', boiling ? '1' : clamp((t - 0.8) / (BOIL - 0.8) * 0.5).toFixed(2));
+			// bubbles: first small ones that collapse on the way up, then big ones that burst at the surface
+			const pre = clamp(t / BOIL);
+			for (const q of bubbles) {
+				const on = boiling || q.k < pre * pre * 0.7;
+				if (!on) {
+					q.c.style.opacity = '0';
+					continue;
+				}
+				const f = (q.ph + now * q.v * (boiling ? 1 : 0.7)) % 1;
+				const depth = BOTTOM - LEVEL;
+				let y: number;
+				let r: number;
+				let op = 1;
+				if (boiling) {
+					y = BOTTOM - f * (depth - 2);
+					r = q.r + 2.8 * f;
+					op = f < 0.92 ? 1 : (1 - f) / 0.08;
+				} else {
+					y = BOTTOM - f * depth * 0.45;
+					r = q.r * (f < 0.5 ? 1 : 1 - (f - 0.5) / 0.5);
+				}
+				q.c.setAttribute('cx', f1(Math.min(RIGHT - 6, Math.max(LEFT + 6, q.x + 1.5 * Math.sin(f * 9 + q.ph * 6)))));
+				q.c.setAttribute('cy', f1(y));
+				q.c.setAttribute('r', f1(Math.max(0, r)));
+				q.c.style.opacity = op.toFixed(2);
+			}
+			// puffs from the gap under the lid (mostly on the side that lifts), one per jump
+			let n = 0;
+			for (let j = Math.max(0, k - 5); j <= k; j++) {
+				const [tj, Hj] = jumpAt(j);
+				const age = t - tj;
+				if (age < 0 || age > PUFF_LIFE || n >= puffs.length) continue;
+				const u = age / PUFF_LIFE;
+				const grow = 1 - Math.exp(-age / 0.25);
+				const cx = 214 + 20 * grow + 10 * u;
+				const cy = 98 - 34 * u - 6 * grow;
+				const s = (0.6 + Hj / 9) * (3 + 9 * grow + 6 * u);
+				const op = (1 - u) ** 1.3 * clamp(age / 0.06);
+				puffs[n].forEach((c, m) => {
+					c.setAttribute('cx', f1(cx + [-0.6, 0.5, 0.1][m] * s));
+					c.setAttribute('cy', f1(cy + [0.15, 0.1, -0.45][m] * s));
+					c.setAttribute('r', f1(s * [0.65, 0.75, 0.6][m]));
+				});
+				puffs[n][0].parentElement!.style.opacity = op.toFixed(2);
+				n++;
+			}
+			for (; n < puffs.length; n++) puffs[n][0].parentElement!.style.opacity = '0';
+		});
+	};
+
+	/* ---------- car ---------- */
+	const CAR_RUN = 6;
+	const R_WHEEL = 13; // px (0,32 m at 40 px/m)
+	const T_GO = 0.8; // s: pulls away
+	const ACC = 96; // px/s² = 2,4 m/s²
+	const V = 240; // px/s = 6 m/s
+	const T_CRUISE = T_GO + V / ACC;
+	const dist = (t: number) => {
+		if (t <= T_GO) return 0;
+		if (t <= T_CRUISE) return (ACC * (t - T_GO) ** 2) / 2;
+		return (ACC * (T_CRUISE - T_GO) ** 2) / 2 + V * (t - T_CRUISE);
+	};
+
+	const car = (card: HTMLElement) => {
+		const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+		const wheels = Array.from(card.querySelectorAll<SVGGElement>('[data-wheel]'));
+		const dash = $<SVGPathElement>('[data-dash]');
+		const hills = $<SVGPathElement>('[data-hills]');
+		const trees = Array.from(card.querySelectorAll<SVGGElement>('[data-tree]'));
+		const clouds = Array.from(card.querySelectorAll<SVGPathElement>('.ein-cloud'));
+		const exG = $<SVGGElement>('[data-exhaust]');
+		const shim = $<SVGGElement>('[data-shim]');
+		const EVERY = 0.04; // s between puffs
+		const LIFE = 1.1;
+		const pool = Array.from({ length: Math.ceil(LIFE / EVERY) + 2 }, () => mk(exG, 'circle', ''));
+		const time = clockOf(CAR_RUN);
+		const PIPE = { x: 90, y: 182 };
+		const U = 70; // px/s: speed of the gas leaving the pipe
+		const TD = 0.2; // s: the gas stops in the air
+		scene(card, CAR_RUN, (x) => {
+			const t = time(x);
+			const s = dist(t);
+			const throttle = t > T_GO && t < T_CRUISE ? 1 : t >= T_CRUISE ? 0.6 : 0.3;
+			const ang = ((s / R_WHEEL) * 180) / Math.PI;
+			for (const w of wheels) w.setAttribute('transform', `rotate(${f1(ang % 360)})`);
+			dash.setAttribute('transform', `translate(${f1(-(s % 56))} 0)`);
+			hills.setAttribute('transform', `translate(${f1(-((0.1 * s) % 360))} 0)`);
+			for (const c of clouds) {
+				const xc = ((((Number(c.dataset.x) - 0.03 * s) % 420) + 420) % 420) - 30;
+				c.setAttribute('transform', `translate(${f1(xc)} ${c.dataset.y}) scale(${c.dataset.k})`);
+			}
+			for (const tr of trees) {
+				const x0 = Number(tr.dataset.tree);
+				const xp = ((((x0 - 0.6 * s) % 450) + 450) % 450) - 45;
+				tr.setAttribute('transform', `translate(${f1(xp)} 166)`);
+			}
+			shim.style.opacity = (0.5 + 0.5 * throttle).toFixed(2);
+			// exhaust: puffs leave the pipe backwards, stop in the air (so they fall behind the moving car), rise and fade
+			let n = 0;
+			const kLast = Math.floor(t / EVERY);
+			for (let k = kLast; k >= 0 && n < pool.length; k--) {
+				const te = k * EVERY;
+				const age = Math.max(0, t - te);
+				if (age > LIFE) break;
+				const c = pool[n++];
+				const u = age / LIFE;
+				const back = U * TD * (1 - Math.exp(-age / TD)) + (s - dist(te));
+				const th = te > T_GO && te < T_CRUISE ? 1 : te >= T_CRUISE ? 0.6 : 0.3;
+				c.setAttribute('cx', f1(PIPE.x - 3 - back));
+				c.setAttribute('cy', f1(PIPE.y - 12 * age - 2 * Math.sin(k * 1.7)));
+				c.setAttribute('r', f1((2 + 3 * th) * (0.8 + 2.6 * Math.sqrt(u))));
+				c.style.fill = `color-mix(in srgb, var(--ig-vy) ${Math.round(70 * (1 - u) ** 2)}%, var(--sl-color-gray-3))`;
+				c.style.opacity = ((0.18 + 0.22 * th) * (1 - u) * clamp(age / 0.05)).toFixed(2);
+			}
+			for (; n < pool.length; n++) pool[n].style.opacity = '0';
+		});
+	};
+
+	/* ---------- power station ---------- */
+	const ST_RUN = 7;
+	const T_STEAM = 1.6; // s: steam reaches the turbine
+	const TAU = 0.9; // s: spin-up time of the turbine
+	const OMEGA = 2 * Math.PI * 0.9; // rad/s on screen
+	const turnAngle = (t: number) => {
+		const u = t - T_STEAM;
+		return u <= 0 ? 0 : OMEGA * (u - TAU * (1 - Math.exp(-u / TAU)));
+	};
+	const omega = (t: number) => (t <= T_STEAM ? 0 : OMEGA * (1 - Math.exp(-(t - T_STEAM) / TAU)));
+
+	const station = (card: HTMLElement) => {
+		const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+		const fire = $<SVGGElement>('[data-fire]');
+		const furnace = $<SVGRectElement>('[data-furnace]');
+		const flow = $<SVGPathElement>('[data-flow]');
+		const live = $<SVGPathElement>('[data-live]');
+		const win = $<SVGRectElement>('[data-window]');
+		const glow = $<SVGCircleElement>('[data-glow]');
+		const smokeG = $<SVGGElement>('[data-smoke]');
+		const vapG = $<SVGGElement>('[data-vapour]');
+		const bubG = $<SVGGElement>('[data-drumbubbles]');
+		const time = clockOf(ST_RUN);
+		// rotor rows: blades on the rim of each disc, seen from the side (the front half)
+		const NB = 10;
+		const rows = Array.from(card.querySelectorAll<SVGGElement>('[data-row]')).map((g) => ({
+			x: Number(g.dataset.row),
+			r: Number(g.dataset.r),
+			blades: Array.from({ length: NB }, () => mk(g, 'line', 'ein-blade')),
+		}));
+		const bubbles = Array.from({ length: 8 }, (_, i) => ({
+			c: mk(bubG, 'circle', 'ein-bubble'),
+			x: 34 + ((i * 23) % 42),
+			ph: (i * 0.618) % 1,
+			r: 1 + ((i * 7) % 3) * 0.4,
+		}));
+		const smoke = Array.from({ length: 6 }, () => mk(smokeG, 'circle', ''));
+		const vapour = Array.from({ length: 8 }, () => mk(vapG, 'circle', ''));
+		const PERIOD_S = 0.55;
+		const PERIOD_V = 0.5;
+		scene(card, ST_RUN, (x) => {
+			const t = time(x);
+			const now = performance.now() / 1000;
+			const f = smooth(clamp(t / 0.9));
+			fire.style.opacity = f.toFixed(2);
+			fire.setAttribute('transform', `translate(55 190) scale(${(0.6 + 0.6 * f).toFixed(2)} ${(0.4 + 0.9 * f).toFixed(2)}) translate(-55 -190)`);
+			furnace.style.fill = `color-mix(in srgb, var(--ig-v) ${Math.round(30 * f)}%, var(--ig-surface))`;
+			// boiler: bubbles once the water is hot
+			const heat = clamp((t - 0.7) / 0.9);
+			for (const q of bubbles) {
+				const ff = (q.ph + now * 0.9) % 1;
+				q.c.setAttribute('cx', f1(q.x + Math.sin(ff * 8 + q.ph * 5)));
+				q.c.setAttribute('cy', f1(149 - 18 * ff));
+				q.c.setAttribute('r', f1(q.r * (0.6 + heat * ff * 1.6)));
+				q.c.style.opacity = (heat * (ff < 0.9 ? 1 : (1 - ff) / 0.1)).toFixed(2);
+			}
+			// steam along the pipe
+			const st = clamp((t - (T_STEAM - 0.6)) / 0.6);
+			flow.style.opacity = (0.85 * st).toFixed(2);
+			flow.style.strokeDashoffset = f1(-60 * Math.max(0, t - (T_STEAM - 0.6)));
+			// turbine and generator: one shaft
+			const th = turnAngle(t);
+			for (const row of rows) {
+				row.blades.forEach((b, j) => {
+					const a = th + (2 * Math.PI * j) / NB + row.x * 0.37;
+					const c = Math.cos(a);
+					const sn = Math.sin(a);
+					const rx = 0.28 * row.r;
+					b.setAttribute('x1', f1(row.x + rx * c * 0.55));
+					b.setAttribute('y1', f1(160 - row.r * sn * 0.55));
+					b.setAttribute('x2', f1(row.x + rx * c));
+					b.setAttribute('y2', f1(160 - row.r * sn));
+					b.style.opacity = c > 0 ? (0.35 + 0.65 * c).toFixed(2) : '0';
+				});
+			}
+			// electricity once the generator is up to speed
+			const on = smooth(clamp((omega(t) / OMEGA - 0.85) / 0.12));
+			live.style.opacity = (0.75 * on).toFixed(2);
+			win.style.fill = `color-mix(in srgb, var(--ig-v) ${Math.round(100 * on)}%, var(--ig-surface))`;
+			glow.style.opacity = (0.3 * on).toFixed(2);
+			// smoke from the stack
+			smoke.forEach((c, i) => {
+				const age = (t + i * PERIOD_S) % (smoke.length * PERIOD_S);
+				const born = t - age;
+				const u = age / (smoke.length * PERIOD_S);
+				const ok = born > 0.4 ? 1 : 0;
+				c.setAttribute('cx', f1(73.5 + 26 * u + 3 * Math.sin(i * 2.1)));
+				c.setAttribute('cy', f1(37 - 26 * u));
+				c.setAttribute('r', f1(4 + 10 * u));
+				c.style.opacity = (ok * f * (1 - u) * clamp(age / 0.2)).toFixed(2);
+			});
+			// cloud over the cooling tower
+			const vp = clamp((t - (T_STEAM + 0.5)) / 1.2);
+			vapour.forEach((c, i) => {
+				const age = (t + i * PERIOD_V) % (vapour.length * PERIOD_V);
+				const u = age / (vapour.length * PERIOD_V);
+				c.setAttribute('cx', f1(269 + 26 * u ** 1.3 + 5 * Math.sin(i * 1.9)));
+				c.setAttribute('cy', f1(72 - 48 * u));
+				c.setAttribute('r', f1(9 + 13 * u));
+				c.style.opacity = (vp * Math.min(1, 6 * u) * (1 - u) ** 1.2 * 1.2).toFixed(2);
+			});
+		});
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-eintro]')) {
+		kettle(root.querySelector<HTMLElement>('[data-scene="kettle"]')!);
+		car(root.querySelector<HTMLElement>('[data-scene="car"]')!);
+		station(root.querySelector<HTMLElement>('[data-scene="station"]')!);
+	}
+</script>
