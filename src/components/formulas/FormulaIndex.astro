@@ -1,12 +1,32 @@
 ---
 /**
- * The page of all formulas: chapters with `formulas:` in their frontmatter, in sidebar (textbook) order,
- * grouped by grade and section, with the card deck for a grade and for the cards due today.
+ * The page of all formulas: chapters with `formulas:` in their frontmatter, in sidebar (textbook) order.
+ * Each grade has a block per section, closed at first: its name, how many chapters and cards it holds and
+ * PREVIEW of its formulas (the first formula of each chapter in turn, then the second ones, …); open, its
+ * chapters with their formula rows and a deck for the section.
+ * The card deck also opens for a whole grade and for the cards due today. A link to #<grade>-<section>
+ * (e.g. #8-klass-teplovye-yavleniya) opens that block.
  */
 import { getCollection } from 'astro:content';
 import CardDeck from './CardDeck.astro';
 import FormulaList from './FormulaList.astro';
-import { cardParts, chapterLabel } from './render';
+import { cardParts, chapterLabel, tex } from './render';
+
+const PREVIEW = 3;
+/** Take the first item of each list in turn, then the second ones, …, up to n items. */
+const roundRobin = <T,>(lists: T[][], n: number): T[] => {
+	const out: T[] = [];
+	for (let i = 0; out.length < n && lists.some((l) => i < l.length); i++)
+		for (const l of lists) if (i < l.length && out.length < n) out.push(l[i]);
+	return out;
+};
+/** «1 глава», «2 главы», «5 глав». */
+const plural = (n: number, [one, few, many]: [string, string, string]) => {
+	const d = n % 10;
+	const dd = n % 100;
+	const w = d === 1 && dd !== 11 ? one : d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? few : many;
+	return `${n}\u00a0${w}`;
+};
 
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const entries = await getCollection('docs', (e) => Boolean(e.data.formulas?.length));
@@ -29,17 +49,21 @@ const grades = Astro.locals.starlightRoute.sidebar
 					.map((h) => byId.get(idOf(h)))
 					.filter((e) => e !== undefined),
 			}))
-			.filter((s) => s.chapters.length > 0),
+			.filter((s) => s.chapters.length > 0)
+			.map((s) => ({
+				...s,
+				id: s.chapters[0].id.split('/').slice(1, 3).join('-'),
+				cards: s.chapters.flatMap((c) =>
+					c.data.formulas!.map((f) => cardParts(c.id, chapterLabel(c), `${base}${c.id}/`, f)),
+				),
+				preview: roundRobin(
+					s.chapters.map((c) => c.data.formulas!.filter((f) => f.tex)),
+					PREVIEW,
+				).map((f) => tex(`\\displaystyle ${f.tex}`)),
+			})),
 	}))
 	.filter((g) => g.sections.length > 0)
-	.map((g) => ({
-		...g,
-		cards: g.sections.flatMap((s) =>
-			s.chapters.flatMap((c) =>
-				c.data.formulas!.map((f) => cardParts(c.id, chapterLabel(c), `${base}${c.id}/`, f)),
-			),
-		),
-	}));
+	.map((g) => ({ ...g, cards: g.sections.flatMap((s) => s.cards) }));
 const all = grades.flatMap((g) => g.cards);
 const deckId = 'deck-all';
 ---
@@ -59,24 +83,64 @@ const deckId = 'deck-all';
 						Учить все карточки класса ({g.cards.length})
 					</button>
 				</p>
-				{g.sections.map((s) => (
-					<>
-						<h3>{s.label}</h3>
-						{s.chapters.map((c) => (
-							<div class="fi__chapter not-content">
-								<a class="fi__link" href={`${base}${c.id}/`}>
-									{chapterLabel(c)}
-								</a>
-								<FormulaList items={c.data.formulas!} />
+				<div class="fi__sections not-content">
+					{g.sections.map((s) => (
+						<details class="fi__sec" id={s.id}>
+							<summary>
+								<h3 class="fi__sec-title">{s.label}</h3>
+								<span class="fi__sec-meta">
+									{plural(s.chapters.length, ['глава', 'главы', 'глав'])} ·{' '}
+									{plural(s.cards.length, ['карточка', 'карточки', 'карточек'])}
+								</span>
+								{s.preview.length > 0 && (
+									<span class="fi__sec-preview" aria-hidden="true">
+										{s.preview.map((html) => (
+											<span set:html={html} />
+										))}
+									</span>
+								)}
+							</summary>
+							<div class="fi__sec-body">
+								<p class="fi__sec-learn">
+									<button
+										type="button"
+										class="fi-btn fi-btn--line"
+										data-deck-open={deckId}
+										data-deck-keys={s.cards.map((c) => c.key).join(' ')}
+									>
+										Учить карточки темы ({s.cards.length})
+									</button>
+								</p>
+								{s.chapters.map((c) => (
+									<div class="fi__chapter">
+										<a class="fi__link" href={`${base}${c.id}/`}>
+											{chapterLabel(c)}
+										</a>
+										<FormulaList items={c.data.formulas!} />
+									</div>
+								))}
 							</div>
-						))}
-					</>
-				))}
+						</details>
+					))}
+				</div>
 			</>
 		))
 	}
 	<CardDeck id={deckId} cards={all} />
 </div>
+
+<script>
+	// A link to a section (#8-klass-teplovye-yavleniya) opens its block.
+	const openHash = () => {
+		const el = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+		if (el instanceof HTMLDetailsElement && el.classList.contains('fi__sec')) {
+			el.open = true;
+			el.scrollIntoView();
+		}
+	};
+	openHash();
+	addEventListener('hashchange', openHash);
+</script>
 
 <style>
 	.fi-btn {
@@ -94,18 +158,101 @@ const deckId = 'deck-all';
 	.fi-btn:hover {
 		filter: brightness(1.08);
 	}
-	.fi__chapter {
-		margin-top: 1rem;
-		padding: 0.9rem 1.1rem 0.6rem;
+	.fi-btn--line {
+		background: transparent;
+		color: var(--sl-color-text-accent);
+	}
+	.fi-btn--line:hover {
+		filter: none;
+		background: var(--sl-color-accent-low);
+	}
+	.fi__sections {
+		display: grid;
+		gap: 0.75rem;
+		margin-top: 1.25rem;
+	}
+	.fi__sec {
 		border: 1px solid var(--sl-color-gray-5);
 		border-radius: 1rem;
 		background: var(--ig-surface);
+		scroll-margin-top: calc(var(--sl-nav-height, 4rem) + 1rem);
+		transition: border-color 0.2s;
+	}
+	.fi__sec:hover,
+	.fi__sec[open] {
+		border-color: var(--sl-color-accent);
+	}
+	.fi__sec > summary {
+		display: grid;
+		gap: 0.15rem;
+		padding: 0.9rem 3rem 1rem 1.25rem;
+		position: relative;
+		list-style: none;
+		cursor: pointer;
+	}
+	.fi__sec > summary::-webkit-details-marker {
+		display: none;
+	}
+	.fi__sec > summary::after {
+		content: '';
+		position: absolute;
+		right: 1.25rem;
+		top: 1.6rem;
+		width: 0.65rem;
+		height: 0.65rem;
+		border-right: 2px solid var(--sl-color-gray-3);
+		border-bottom: 2px solid var(--sl-color-gray-3);
+		transform: rotate(45deg);
+		transition: transform 0.2s;
+	}
+	.fi__sec[open] > summary::after {
+		transform: translateY(0.3rem) rotate(225deg);
+	}
+	.fi__sec > summary:hover::after {
+		border-color: var(--sl-color-accent);
+	}
+	.fi__sec-title {
+		margin: 0;
+		font-family: var(--ig-font-display);
+		font-size: 2rem;
+		font-weight: 400;
+		line-height: 1.2;
+		color: var(--sl-color-white);
+	}
+	.fi__sec-meta {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.fi__sec-preview {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.3rem 1.75rem;
+		margin-top: 0.4rem;
+		color: var(--sl-color-text-accent);
+	}
+	.fi__sec-preview .katex {
+		font-size: 1.05em;
+	}
+	.fi__sec[open] .fi__sec-preview {
+		display: none;
+	}
+	.fi__sec-body {
+		padding: 0 1.25rem 0.75rem;
+	}
+	.fi__sec-learn {
+		margin: 0 0 0.25rem;
+	}
+	.fi__chapter {
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--sl-color-gray-5);
 	}
 	.fi__link {
 		display: inline-block;
-		margin-bottom: 0.2rem;
+		margin-bottom: 0.1rem;
 		font-family: var(--ig-font-display);
-		font-size: 1.75rem;
+		font-size: 1.6rem;
 		line-height: 1.2;
 		text-decoration: none;
 		color: var(--sl-color-white);
@@ -115,5 +262,11 @@ const deckId = 'deck-all';
 	}
 	.fi__due[hidden] {
 		display: none;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.fi__sec,
+		.fi__sec > summary::after {
+			transition: none;
+		}
 	}
 </style>
