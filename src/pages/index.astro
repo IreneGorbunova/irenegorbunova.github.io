@@ -190,7 +190,7 @@ const photo = {
 					</article>
 				</div>
 				<p class="signup" data-reveal>
-					<a class="btn btn--primary" href="#kontakty" data-signup>Записаться на занятия</a>
+					<a class="btn btn--primary" href="#zapis" data-signup>Записаться на занятия</a>
 				</p>
 			</section>
 
@@ -226,13 +226,77 @@ const photo = {
 						<a class="contact" href="https://t.me/lafrira" target="_blank" rel="noopener"><span>Telegram</span><span>@lafrira</span></a>
 						<a class="contact" href="mailto:gorbunova.irina.serg@gmail.com"><span>Почта</span><span>gorbunova.irina.serg@gmail.com</span></a>
 					</div>
-					<!-- feedback: the message goes to Irina's e-mail through FormSubmit (formsubmit.co); nothing is shown on the site -->
-					<form class="feedback" data-feedback action="https://formsubmit.co/ajax/gorbunova.irina.serg@gmail.com" method="post">
-						<textarea name="message" rows="4" maxlength="4000" required aria-label="Сообщение" placeholder="Запись на занятие, комментарий, отзыв или замеченная ошибка…"></textarea>
+					<!-- the form goes to Irina's e-mail through FormSubmit (formsubmit.co); nothing is shown on the site.
+					     Two kinds: a sign-up for lessons (a way to answer is required) and a free message. -->
+					<form
+						class="feedback"
+						id="zapis"
+						data-feedback
+						action="https://formsubmit.co/ajax/gorbunova.irina.serg@gmail.com"
+						method="post"
+					>
+						<div class="feedback__kind" role="radiogroup" aria-label="Что вы хотите">
+							<label><input type="radio" name="kind" value="signup" checked /><span>Записаться на занятие</span></label>
+							<label><input type="radio" name="kind" value="message" /><span>Отзыв или вопрос</span></label>
+						</div>
+						<fieldset class="feedback__set" data-kind="signup">
+							<legend class="sr-only">Запись на занятие</legend>
+							<label class="field">
+								<span class="field__name">Как к вам обращаться</span>
+								<input type="text" name="name" maxlength="100" autocomplete="name" placeholder="Имя ученика или родителя" />
+							</label>
+							<label class="field">
+								<span class="field__name">Как с вами связаться <span class="field__req">обязательно</span></span>
+								<input
+									type="text"
+									name="contact"
+									maxlength="200"
+									required
+									autocomplete="email"
+									placeholder="Telegram, почта или телефон"
+								/>
+							</label>
+							<div class="field">
+								<span class="field__name" id="f-grade">Класс</span>
+								<div class="chips" role="radiogroup" aria-labelledby="f-grade">
+									{['7', '8', '9', '10', '11'].map((g) => (
+										<label>
+											<input type="radio" name="grade" value={g} />
+											<span>{g}</span>
+										</label>
+									))}
+								</div>
+							</div>
+							<div class="field">
+								<span class="field__name" id="f-goal">Что нужно</span>
+								<div class="chips" role="group" aria-labelledby="f-goal">
+									{['Школьная программа', 'ОГЭ', 'ЕГЭ'].map((g) => (
+										<label>
+											<input type="checkbox" name="goal" value={g} />
+											<span>{g}</span>
+										</label>
+									))}
+								</div>
+							</div>
+							<label class="field">
+								<span class="field__name">Комментарий</span>
+								<textarea name="note" rows="3" maxlength="4000" placeholder="Удобное время, что хочется подтянуть…"></textarea>
+							</label>
+						</fieldset>
+						<fieldset class="feedback__set" data-kind="message" hidden disabled>
+							<legend class="sr-only">Отзыв или вопрос</legend>
+							<textarea
+								name="message"
+								rows="4"
+								maxlength="4000"
+								required
+								aria-label="Сообщение"
+								placeholder="Комментарий, отзыв, вопрос или замеченная ошибка…"></textarea>
+						</fieldset>
 						<input class="feedback__trap" type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" />
 						<div class="feedback__row">
 							<p class="feedback__status" data-status role="status" aria-live="polite"></p>
-							<button class="btn btn--primary" type="submit" data-send>Отправить</button>
+							<button class="btn btn--primary" type="submit" data-send>Записаться</button>
 						</div>
 					</form>
 				</div>
@@ -427,19 +491,59 @@ const photo = {
 			);
 			items.forEach((el) => io.observe(el));
 
-			// feedback form (FormSubmit's AJAX endpoint answers JSON with success "true" / "false")
+			// the contact form (FormSubmit's AJAX endpoint answers JSON with success "true" / "false"): a sign-up for
+			// lessons or a free message; the inactive part is a disabled fieldset, so it is neither checked nor sent
 			for (const form of document.querySelectorAll<HTMLFormElement>('[data-feedback]')) {
-				const text = form.querySelector('textarea')!;
 				const status = form.querySelector<HTMLElement>('[data-status]')!;
 				const send = form.querySelector<HTMLButtonElement>('[data-send]')!;
-				const say = (msg: string, kind = '') => {
+				const sets = form.querySelectorAll<HTMLFieldSetElement>('fieldset[data-kind]');
+				const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement;
+				const kind = () => (form.querySelector<HTMLInputElement>('input[name="kind"]:checked')?.value ?? 'signup');
+				const say = (msg: string, how = '') => {
 					status.textContent = msg;
-					status.dataset.kind = kind;
+					status.dataset.kind = how;
 				};
+				const show = () => {
+					const k = kind();
+					for (const set of sets) {
+						const on = set.dataset.kind === k;
+						set.hidden = !on;
+						set.disabled = !on;
+					}
+					send.textContent = k === 'signup' ? 'Записаться' : 'Отправить';
+					say('');
+				};
+				for (const r of form.querySelectorAll('input[name="kind"]')) r.addEventListener('change', show);
+				// the button under «Занятия» opens the sign-up
+				for (const a of document.querySelectorAll('[data-signup]'))
+					a.addEventListener('click', () => {
+						form.querySelector<HTMLInputElement>('input[name="kind"][value="signup"]')!.checked = true;
+						show();
+					});
 				form.addEventListener('submit', async (e) => {
 					e.preventDefault();
-					const message = text.value.trim();
-					if (!message) return;
+					const k = kind();
+					let body: Record<string, string>;
+					if (k === 'signup') {
+						const contact = field('contact').value.trim();
+						if (!contact) return;
+						const name = field('name').value.trim();
+						const grade = form.querySelector<HTMLInputElement>('input[name="grade"]:checked')?.value ?? '';
+						const goals = [...form.querySelectorAll<HTMLInputElement>('input[name="goal"]:checked')].map((x) => x.value);
+						body = {
+							Имя: name || '—',
+							Контакт: contact,
+							Класс: grade || '—',
+							'Что нужно': goals.join(', ') || '—',
+							Комментарий: field('note').value.trim() || '—',
+							_subject: `Запись на занятие${name ? `: ${name}` : ''}`,
+						};
+						if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) body._replyto = contact;
+					} else {
+						const message = field('message').value.trim();
+						if (!message) return;
+						body = { message, _subject: 'Сообщение с сайта «Физика, которая нравится»' };
+					}
 					send.disabled = true;
 					say('Отправляю…');
 					try {
@@ -447,20 +551,27 @@ const photo = {
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 							body: JSON.stringify({
-								message,
+								...body,
 								_honey: (form.elements.namedItem('_honey') as HTMLInputElement).value,
-								_subject: 'Сообщение с сайта «Физика, которая нравится»',
 								_template: 'box',
 								_captcha: 'false',
 							}),
 						});
 						const data = (await res.json().catch(() => ({}))) as { success?: string | boolean };
 						if (!res.ok || String(data.success) !== 'true') throw new Error('not sent');
-						text.value = '';
-						say('Спасибо! Сообщение отправлено.', 'ok');
-						document.dispatchEvent(new CustomEvent('ig:feedback'));
+						const kindRadios = form.querySelectorAll<HTMLInputElement>('input[name="kind"]');
+						form.reset();
+						for (const r of kindRadios) r.checked = r.value === k;
+						show();
+						if (k === 'signup') {
+							say('Спасибо! Заявка отправлена, Ирина свяжется с вами.', 'ok');
+							document.dispatchEvent(new CustomEvent('ig:signup'));
+						} else {
+							say('Спасибо! Сообщение отправлено.', 'ok');
+							document.dispatchEvent(new CustomEvent('ig:feedback'));
+						}
 					} catch {
-						say('Не получилось отправить. Попробуйте ещё раз или напишите на почту.', 'err');
+						say('Не получилось отправить. Попробуйте ещё раз или напишите в Telegram или на почту.', 'err');
 					} finally {
 						send.disabled = false;
 					}
@@ -1065,6 +1176,130 @@ const photo = {
 		max-width: 38rem;
 		margin: 2rem auto 0;
 		text-align: left;
+		scroll-margin-top: 6rem;
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	.feedback__set {
+		margin: 0;
+		padding: 0;
+		border: 0;
+		min-width: 0;
+	}
+	.feedback__set[hidden] {
+		display: none;
+	}
+	/* the switch between the two kinds of message */
+	.feedback__kind {
+		display: flex;
+		gap: 0.35rem;
+		padding: 0.3rem;
+		margin-bottom: 1.25rem;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		background: rgb(255 255 255 / 0.03);
+	}
+	.feedback__kind label {
+		flex: 1;
+	}
+	.feedback__kind span,
+	.chips span {
+		display: block;
+		text-align: center;
+		cursor: pointer;
+		border-radius: 999px;
+		transition:
+			background 0.2s,
+			color 0.2s,
+			border-color 0.2s;
+	}
+	.feedback__kind span {
+		padding: 0.55rem 0.8rem;
+		font-weight: 700;
+		font-size: 0.95rem;
+		line-height: 1.25;
+		color: var(--muted);
+	}
+	.feedback__kind input,
+	.chips input {
+		position: absolute;
+		opacity: 0;
+		pointer-events: none;
+	}
+	.feedback__kind input:checked + span {
+		background: linear-gradient(180deg, var(--gold-hi), var(--gold));
+		color: #1a1405;
+	}
+	.feedback__kind input:focus-visible + span,
+	.chips input:focus-visible + span {
+		outline: 2px solid var(--gold);
+		outline-offset: 2px;
+	}
+	.field {
+		display: block;
+		margin-bottom: 1rem;
+	}
+	.field__name {
+		display: block;
+		margin-bottom: 0.35rem;
+		font-size: 0.95rem;
+		font-weight: 700;
+	}
+	.field__req {
+		margin-left: 0.4rem;
+		font-weight: 400;
+		font-size: 0.8rem;
+		color: var(--gold-hi);
+	}
+	.feedback input[type='text'] {
+		display: block;
+		width: 100%;
+		box-sizing: border-box;
+		padding: 0.7rem 1.1rem;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		background: rgb(255 255 255 / 0.03);
+		color: var(--text);
+		font: inherit;
+		font-size: 1rem;
+	}
+	.feedback input[type='text']::placeholder {
+		color: var(--faint);
+	}
+	.feedback input[type='text']:focus {
+		outline: none;
+		border-color: rgb(243 201 105 / 0.6);
+		background: rgb(255 255 255 / 0.06);
+	}
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+	.chips label {
+		position: relative;
+	}
+	.chips span {
+		min-width: 2.6rem;
+		padding: 0.4rem 0.9rem;
+		border: 1px solid var(--line);
+		font-size: 0.95rem;
+		color: var(--text);
+		background: rgb(255 255 255 / 0.03);
+	}
+	.chips span:hover {
+		border-color: rgb(243 201 105 / 0.5);
+	}
+	.chips input:checked + span {
+		border-color: var(--gold);
+		background: rgb(243 201 105 / 0.16);
+		color: var(--gold-hi);
 	}
 	.feedback textarea {
 		display: block;
