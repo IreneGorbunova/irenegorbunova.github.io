@@ -124,6 +124,7 @@ const photo = {
 										<circle class="binary__star binary__star--a" cx="384" cy="92" r="4.5"></circle>
 										<circle class="binary__star binary__star--b" cx="364" cy="92" r="4.5"></circle>
 									</svg>
+									<span class="binary__hint">Двойная звезда. Нажмите, чтобы узнать о ней</span>
 								</button>
 								<div class="binary__card" id="binary-card" role="tooltip">
 									<p class="binary__title">Двойная звезда</p>
@@ -382,7 +383,7 @@ const photo = {
 						trailB.setAttribute('d', b);
 					}
 				};
-				const narrow = matchMedia('(max-width: 60rem)');
+				const narrow = matchMedia('(min-width: 48.01rem) and (max-width: 60rem)');
 				const layout = () => {
 					binary.classList.toggle('binary--compact', narrow.matches);
 					sky.setAttribute('viewBox', narrow.matches ? '344 62 60 60' : '0 0 420 130');
@@ -405,15 +406,20 @@ const photo = {
 					started = performance.now();
 					shift = 0;
 				};
-				new IntersectionObserver(([e]) => {
-					if (e.isIntersecting === visible) return;
-					visible = e.isIntersecting;
-					if (visible) {
-						if (started < 0) restart();
-						else shift += performance.now() - hiddenAt;
-						requestAnimationFrame(frame);
-					} else hiddenAt = performance.now();
-				}).observe(binary);
+				// the story runs while at least half of the drawing is on screen (on a phone it starts as you read about the moves)
+				new IntersectionObserver(
+					([e]) => {
+						const on = e.intersectionRatio >= 0.5;
+						if (on === visible) return;
+						visible = on;
+						if (visible) {
+							if (started < 0) restart();
+							else shift += performance.now() - hiddenAt;
+							requestAnimationFrame(frame);
+						} else hiddenAt = performance.now();
+					},
+					{ threshold: [0, 0.5] },
+				).observe(binary);
 
 				// the caption: hover, tap, keyboard
 				let hover = false;
@@ -891,6 +897,7 @@ const photo = {
 		border-radius: 1rem;
 		background: none;
 		color: inherit;
+		font: inherit;
 		cursor: pointer;
 		-webkit-tap-highlight-color: transparent;
 	}
@@ -902,6 +909,13 @@ const photo = {
 		display: block;
 		width: 100%;
 		overflow: visible;
+	}
+	.binary__hint {
+		display: none;
+		margin-top: 0.35rem;
+		font-size: 0.85rem;
+		color: var(--muted);
+		text-align: center;
 	}
 	.binary--compact {
 		flex: none;
@@ -1424,12 +1438,38 @@ const photo = {
 			position: static;
 			min-height: 0;
 		}
-		/* On a phone the block is a column, with no empty corner to fill. */
-		.binary {
-			display: none;
+		/* On a phone the block is a column: the binary star moves from the heading to the paragraph about the moves
+		   (after the third one), drawn across the whole width, with a line under it to tap. */
+		.about__text {
+			display: flex;
+			flex-direction: column;
 		}
 		.about__head {
-			justify-content: center;
+			display: contents;
+		}
+		.about__text > p,
+		.about__text > p + p {
+			order: 3;
+			margin: 0 0 0.8rem;
+		}
+		.about__text > p:nth-of-type(-n + 3) {
+			order: 1;
+		}
+		.binary {
+			order: 2;
+			flex: none;
+			width: 100%;
+			margin: 0.2rem 0 1.2rem;
+		}
+		.binary__stops text {
+			font-size: 17px;
+		}
+		.binary__hint {
+			display: block;
+		}
+		.binary__card {
+			left: 0;
+			width: auto;
 		}
 		.about__photo {
 			position: static;
