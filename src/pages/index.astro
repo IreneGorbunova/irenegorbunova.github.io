@@ -100,18 +100,46 @@ const photo = {
 					<div class="about__text">
 						<div class="about__head">
 							<h2>Обо мне</h2>
-							<svg class="orbit" viewBox="0 0 220 110" aria-hidden="true" data-orbit>
-								<defs>
-									<radialGradient id="orbit-sun">
-										<stop offset="0" stop-color="#fff6d8"></stop>
-										<stop offset="0.55" stop-color="#ffdf9c"></stop>
-										<stop offset="1" stop-color="#f3c969"></stop>
-									</radialGradient>
-								</defs>
-								<ellipse class="orbit__path" cx="110" cy="55" rx="96" ry="34"></ellipse>
-								<circle class="orbit__sun" cx="110" cy="55" r="12" fill="url(#orbit-sun)"></circle>
-								<circle class="orbit__planet" cx="158" cy="84.4" r="6" data-orbit-planet></circle>
-							</svg>
+							<div class="binary" data-binary>
+								<button
+									type="button"
+									class="binary__btn"
+									aria-label="Двойная звезда"
+									aria-expanded="false"
+									aria-controls="binary-card"
+									aria-describedby="binary-card"
+								>
+									<svg class="binary__sky" viewBox="0 0 420 130" aria-hidden="true">
+										<path class="binary__route" d="M114 22 Q46 22 32 84 Q200 -6 374 92"></path>
+										<g class="binary__stops">
+											<circle cx="114" cy="22" r="2.2"></circle>
+											<circle cx="32" cy="84" r="2.2"></circle>
+											<circle cx="374" cy="92" r="2.2"></circle>
+											<text class="binary__east" x="134" y="26">Россия</text>
+											<text x="32" y="114">Италия</text>
+											<text x="374" y="122">Китай</text>
+										</g>
+										<path class="binary__trail binary__trail--a" d=""></path>
+										<path class="binary__trail binary__trail--b" d=""></path>
+										<circle class="binary__star binary__star--a" cx="384" cy="92" r="4.5"></circle>
+										<circle class="binary__star binary__star--b" cx="364" cy="92" r="4.5"></circle>
+									</svg>
+								</button>
+								<div class="binary__card" id="binary-card" role="tooltip">
+									<p class="binary__title">Двойная звезда</p>
+									<p>
+										Две звезды равной массы кружат вокруг общего центра масс, и&nbsp;ни одна не вращается вокруг
+										другой. Физики называют такую пару связанной системой: звёзды удерживают друг друга
+										притяжением, светят друг другу и всюду движутся вместе. Для меня это символ нашей семьи:
+										вместе с мужем мы прошли путь из России через Италию в&nbsp;Китай.
+									</p>
+									<p>
+										В полёте каждая звезда рисует петли и волны. По такой волнистой траектории Сириуса Фридрих
+										Бессель в&nbsp;1844&nbsp;году понял, что рядом с ним есть невидимый спутник. Сам спутник, белый
+										карлик Сириус&nbsp;B, впервые увидели в телескоп только в&nbsp;1862&nbsp;году.
+									</p>
+								</div>
+							</div>
 						</div>
 						<p>Меня зовут Ирина, я учитель физики.</p>
 						<p>
@@ -217,33 +245,166 @@ const photo = {
 		</footer>
 
 		<script>
-			// «Обо мне»: the planet goes round the Sun. The orbit is a circle seen from above at a slant, so the angle
-			// grows evenly, and the planet looks a little bigger on the near side (the bottom of the ellipse).
-			const orbit = document.querySelector<SVGSVGElement>('[data-orbit]');
-			const planet = orbit?.querySelector<SVGCircleElement>('[data-orbit-planet]');
-			if (orbit && planet && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-				const PERIOD = 12000;
+			// «Обо мне»: a binary star of two equal masses (both circle their common centre of mass) drifts along the
+			// route Россия → Италия → Китай and stays in the last stop. Each star leaves a trail: while the pair drifts,
+			// the trails curl into loops, as the path of a real binary star does (Bessel found Sirius B from it, 1844).
+			// Between phones and wide screens the corner is narrow: there the pair just circles in the last stop, without
+			// the route, the names and the trails. Hover, tap or keyboard focus opens the caption («Двойная звезда»);
+			// opening it replays the route once the story is over and sends `ig:binary` (counted by SiteStats.astro).
+			const binary = document.querySelector<HTMLElement>('[data-binary]');
+			if (binary) {
+				const $ = <T extends Element>(q: string) => binary.querySelector<T>(q)!;
+				const sky = $<SVGSVGElement>('.binary__sky');
+				const btn = $<HTMLButtonElement>('.binary__btn');
+				const starA = $<SVGCircleElement>('.binary__star--a');
+				const starB = $<SVGCircleElement>('.binary__star--b');
+				const trailA = $<SVGPathElement>('.binary__trail--a');
+				const trailB = $<SVGPathElement>('.binary__trail--b');
+				type P = [number, number];
+				// the route: two quadratic arcs, sampled by length so the pair moves evenly along them
+				const arc = (a: P, c: P, b: P) => {
+					const pts: P[] = [];
+					for (let i = 0; i <= 200; i++) {
+						const u = i / 200;
+						const v = 1 - u;
+						pts.push([v * v * a[0] + 2 * v * u * c[0] + u * u * b[0], v * v * a[1] + 2 * v * u * c[1] + u * u * b[1]]);
+					}
+					const len = [0];
+					for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+					return (f: number): P => {
+						const target = f * len[len.length - 1];
+						let i = 1;
+						while (i < len.length - 1 && len[i] < target) i++;
+						const k = (target - len[i - 1]) / (len[i] - len[i - 1] || 1);
+						return [pts[i - 1][0] + k * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + k * (pts[i][1] - pts[i - 1][1])];
+					};
+				};
+				const RUSSIA: P = [114, 22];
+				const ITALY: P = [32, 84];
+				const CHINA: P = [374, 92];
+				const leg1 = arc(RUSSIA, [46, 22], ITALY);
+				const leg2 = arc(ITALY, [200, -6], CHINA);
+				// seconds: stay, fly, stay, fly, then stay for good
+				const T = [1.2, 3.5, 2.5, 9];
+				const END = T[0] + T[1] + T[2] + T[3];
+				const PERIOD = 1.1; // one turn of the pair, s
+				const R = 10; // each star's distance from the centre of mass
+				const ease = (u: number) => (1 - Math.cos(Math.PI * u)) / 2;
+				const centre = (t: number): P => {
+					if (t < T[0]) return RUSSIA;
+					if ((t -= T[0]) < T[1]) return leg1(ease(t / T[1]));
+					if ((t -= T[1]) < T[2]) return ITALY;
+					if ((t -= T[2]) < T[3]) return leg2(ease(t / T[3]));
+					return CHINA;
+				};
+				let a = '';
+				let b = '';
+				const step = (t: number) => {
+					const [x, y] = centre(t);
+					const phi = (2 * Math.PI * t) / PERIOD;
+					const dx = R * Math.cos(phi);
+					const dy = R * Math.sin(phi);
+					const ax = (x + dx).toFixed(1), ay = (y + dy).toFixed(1);
+					const bx = (x - dx).toFixed(1), by = (y - dy).toFixed(1);
+					starA.setAttribute('cx', ax);
+					starA.setAttribute('cy', ay);
+					starB.setAttribute('cx', bx);
+					starB.setAttribute('cy', by);
+					// the trails stop growing one turn after the last stop: from then on they would only redraw a circle
+					if (t <= END + PERIOD) {
+						a += `${a ? 'L' : 'M'}${ax} ${ay}`;
+						b += `${b ? 'L' : 'M'}${bx} ${by}`;
+						trailA.setAttribute('d', a);
+						trailB.setAttribute('d', b);
+					}
+				};
+				const narrow = matchMedia('(max-width: 60rem)');
+				const layout = () => {
+					binary.classList.toggle('binary--compact', narrow.matches);
+					sky.setAttribute('viewBox', narrow.matches ? '344 62 60 60' : '0 0 420 130');
+				};
+				narrow.addEventListener('change', layout);
+				layout();
+
 				let visible = false;
-				let start = performance.now();
-				let angle = -Math.PI / 3;
-				const frame = (now: number) => {
+				let started = -1;
+				let shift = 0; // time spent off screen, not counted
+				let hiddenAt = 0;
+				const elapsed = () => (performance.now() - started - shift) / 1000;
+				const frame = () => {
 					if (!visible) return;
-					const a = angle + ((now - start) / PERIOD) * 2 * Math.PI;
-					planet.setAttribute('cx', (110 + 96 * Math.cos(a)).toFixed(2));
-					planet.setAttribute('cy', (55 - 34 * Math.sin(a)).toFixed(2));
-					planet.setAttribute('r', (6 * (1 - 0.15 * Math.sin(a))).toFixed(2));
+					step(narrow.matches ? END + PERIOD + elapsed() : elapsed());
 					requestAnimationFrame(frame);
+				};
+				const restart = () => {
+					a = b = '';
+					started = performance.now();
+					shift = 0;
 				};
 				new IntersectionObserver(([e]) => {
 					if (e.isIntersecting === visible) return;
 					visible = e.isIntersecting;
 					if (visible) {
-						start = performance.now();
+						if (started < 0) restart();
+						else shift += performance.now() - hiddenAt;
 						requestAnimationFrame(frame);
-					} else {
-						angle += ((performance.now() - start) / PERIOD) * 2 * Math.PI;
+					} else hiddenAt = performance.now();
+				}).observe(binary);
+
+				// the caption: hover, tap, keyboard
+				let hover = false;
+				let focus = false;
+				let pinned = false;
+				let open = false;
+				const update = () => {
+					const now = hover || focus || pinned;
+					if (now === open) return;
+					open = now;
+					if (open) {
+						if (elapsed() > END + PERIOD) restart();
+						document.dispatchEvent(new CustomEvent('ig:binary'));
 					}
-				}).observe(orbit);
+					binary.classList.toggle('is-open', open);
+					btn.setAttribute('aria-expanded', String(open));
+				};
+				const close = () => {
+					hover = focus = pinned = false;
+					update();
+				};
+				binary.addEventListener('pointerenter', (e) => {
+					if (e.pointerType === 'mouse') {
+						hover = true;
+						update();
+					}
+				});
+				binary.addEventListener('pointerleave', (e) => {
+					if (e.pointerType === 'mouse') {
+						hover = false;
+						update();
+					}
+				});
+				btn.addEventListener('click', () => {
+					// the first click (or tap) keeps the caption open, the next one closes it
+					if (pinned) hover = focus = pinned = false;
+					else pinned = true;
+					update();
+				});
+				btn.addEventListener('focus', () => {
+					if (btn.matches(':focus-visible')) {
+						focus = true;
+						update();
+					}
+				});
+				btn.addEventListener('blur', () => {
+					focus = pinned = false;
+					update();
+				});
+				document.addEventListener('keydown', (e) => {
+					if (e.key === 'Escape' && open) close();
+				});
+				document.addEventListener('pointerdown', (e) => {
+					if (open && !binary.contains(e.target as Node)) close();
+				});
 			}
 
 			// Once the page is scrolled, the bar gets its own background, so the text below does not show through it.
@@ -605,25 +766,121 @@ const photo = {
 		justify-content: space-between;
 		gap: 1.5rem;
 	}
-	.orbit {
-		flex: none;
-		width: clamp(8rem, 16vw, 12.5rem);
-		margin-bottom: 0.75rem;
+	.binary {
+		position: relative;
+		flex: 0 1 25rem;
+		min-width: 0;
+		margin-bottom: 0.5rem;
+	}
+	.binary__btn {
+		display: block;
+		width: 100%;
+		padding: 0;
+		border: 0;
+		border-radius: 1rem;
+		background: none;
+		color: inherit;
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.binary__btn:focus-visible {
+		outline: 2px solid var(--gold);
+		outline-offset: 4px;
+	}
+	.binary__sky {
+		display: block;
+		width: 100%;
 		overflow: visible;
 	}
-	.orbit__path {
+	.binary--compact {
+		flex: none;
+		width: 4.5rem;
+	}
+	.binary--compact :is(.binary__route, .binary__stops, .binary__trail) {
+		display: none;
+	}
+	.binary__card {
+		position: absolute;
+		z-index: 5;
+		top: calc(100% + 0.5rem);
+		right: 0;
+		width: min(24rem, calc(100vw - 2rem));
+		padding: 0.8rem 1.15rem 0.9rem;
+		text-align: left;
+		background: rgb(13 18 50);
+		border: 1px solid rgb(243 201 105 / 0.45);
+		border-radius: 1rem;
+		box-shadow: 0 14px 40px rgb(0 0 0 / 0.45);
+		font-size: 0.95rem;
+		line-height: 1.55;
+		opacity: 0;
+		visibility: hidden;
+		transform: translateY(-4px);
+		transition:
+			opacity 0.2s ease,
+			transform 0.2s ease,
+			visibility 0s linear 0.2s;
+	}
+	.binary.is-open .binary__card {
+		opacity: 1;
+		visibility: visible;
+		transform: none;
+		transition:
+			opacity 0.2s ease,
+			transform 0.2s ease;
+	}
+	.binary .binary__card p {
+		margin: 0;
+	}
+	.binary .binary__card p + p {
+		margin-top: 0.5rem;
+	}
+	.binary__title {
+		font-family: var(--font-display);
+		font-size: 1.65rem;
+		line-height: 1.1;
+		color: var(--gold-hi);
+		margin-bottom: 0.3rem !important;
+	}
+	.binary__route {
 		fill: none;
 		stroke: var(--gold);
-		stroke-width: 1.2;
+		stroke-width: 1;
 		stroke-dasharray: 2 5;
-		opacity: 0.6;
+		opacity: 0.35;
 	}
-	.orbit__sun {
-		filter: drop-shadow(0 0 8px rgb(243 201 105 / 0.9));
+	.binary__stops circle {
+		fill: var(--muted);
+		opacity: 0.8;
 	}
-	.orbit__planet {
-		fill: #7fb2ff;
-		filter: drop-shadow(0 0 5px #7fb2ff);
+	.binary__stops text {
+		fill: var(--muted);
+		font-family: var(--font);
+		font-size: 13px;
+		text-anchor: middle;
+	}
+	.binary__stops .binary__east {
+		text-anchor: start;
+	}
+	.binary__trail {
+		fill: none;
+		stroke-width: 1;
+		stroke-linejoin: round;
+		opacity: 0.45;
+	}
+	.binary__trail--a {
+		stroke: var(--gold);
+	}
+	.binary__trail--b {
+		stroke: #7fb2ff;
+	}
+	.binary__star--a {
+		fill: var(--gold-hi);
+		filter: drop-shadow(0 0 6px rgb(243 201 105 / 0.9));
+	}
+	.binary__star--b {
+		fill: #9cc3ff;
+		filter: drop-shadow(0 0 6px #7fb2ff);
 	}
 	.about__text p {
 		margin: 0.4rem 0;
@@ -933,7 +1190,7 @@ const photo = {
 			min-height: 0;
 		}
 		/* On a phone the block is a column, with no empty corner to fill. */
-		.orbit {
+		.binary {
 			display: none;
 		}
 		.about__head {
