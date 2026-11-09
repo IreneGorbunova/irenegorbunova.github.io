@@ -80,10 +80,21 @@ export const annotate = (tex, gloss) => {
 					continue;
 				}
 				const end = closing(tex, k);
-				const whole = tex.slice(i, end + 1);
-				const unit = name === 'text' ? UNIT_BY_TEX[tex.slice(k + 1, end).trim()] : undefined;
+				let stop = end + 1;
+				let unit;
+				if (name === 'text') {
+					const word = tex.slice(k + 1, end).trim();
+					// a power right after the unit belongs to it: \text{м}^3 is «м³», not «м»
+					const pow = /^\^\{?([23])\}?/.exec(tex.slice(stop));
+					const powered = pow && UNIT_BY_TEX[word + (pow[1] === '2' ? '²' : '³')];
+					if (powered) {
+						unit = powered;
+						stop += pow[0].length;
+					} else unit = pow ? undefined : UNIT_BY_TEX[word];
+				}
+				const whole = tex.slice(i, stop);
 				out += unit ? `\\htmlData{u=${unit}}{${whole}}` : whole;
-				i = end + 1;
+				i = stop;
 				continue;
 			}
 			if (GREEK.has(name)) {
