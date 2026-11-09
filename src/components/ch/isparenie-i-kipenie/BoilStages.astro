@@ -1,0 +1,579 @@
+---
+/**
+ * The three stages of boiling from the section «Кипение», in a flat-bottomed glass flask on a hot plate.
+ * 1 (0–4,5 s): the water warms from 20 to 70 °C; small bubbles appear on the bottom and the walls and stay there.
+ * 2 (4,5–9,5 s): 70 → 100 °C; the water is warmer at the bottom than at the top. Bubbles on the bottom grow,
+ *   detach and rise, but in the cooler upper water the vapour in them condenses: they shrink and vanish.
+ *   The height where they vanish rises as the upper water warms; arcs at the side stand for the noise.
+ * 3 (9,5–15,5 s): all the water is at 100 °C; rising bubbles grow on the way up (more vapour, less water
+ *   pressure above them) and burst at the surface; vapour leaves the neck; the thermometer stays at 100 °C.
+ * Every frame is a function of the scene time t only, so the stage buttons (1, 2, 3) jump to any stage.
+ * Loops only while visible; «Повторить» restarts; with reduced motion it shows still frames.
+ */
+const uid = `bst${Math.random().toString(36).slice(2, 8)}`;
+// flask: bulb circle (CX, CY, R) cut flat at the bottom (YB), neck of half-width NW up to NT
+const CX = 176;
+const CY = 196;
+const R = 84;
+const YB = 266;
+const NW = 18;
+const NT = 56;
+const HW = Math.sqrt(R * R - (YB - CY) ** 2); // half-width of the flat bottom
+const YJ = CY - Math.sqrt(R * R - NW * NW); // where the neck meets the bulb
+const f1 = (v: number) => v.toFixed(1);
+const outline = `M${CX - NW - 5} ${NT - 3} Q${CX - NW} ${NT - 2} ${CX - NW} ${NT + 4} V${f1(YJ)} A${R} ${R} 0 0 0 ${f1(CX - HW)} ${YB} H${f1(CX + HW)} A${R} ${R} 0 0 0 ${CX + NW} ${f1(YJ)} V${NT + 4} Q${CX + NW} ${NT - 2} ${CX + NW + 5} ${NT - 3}`;
+const ri = R - 1.5;
+const hwi = Math.sqrt(ri * ri - (YB - 1.5 - CY) ** 2);
+const inside = `M${f1(CX - hwi)} ${YB - 1.5} A${ri} ${ri} 0 1 1 ${f1(CX + hwi)} ${YB - 1.5} Z`;
+// thermometer: column top at ty(t)
+const TX = 186;
+const ty = (t: number) => 132 - 0.8 * t;
+const stages = [
+	{ n: 1, label: 'Пузырьки на дне и на стенках' },
+	{ n: 2, label: 'Пузырьки схлопываются — чайник шумит' },
+	{ n: 3, label: 'Вода кипит' },
+];
+---
+
+<figure class="bst not-content" data-bst>
+	<div class="bst__top">
+		<div class="bst__nums" role="group" aria-label="Этап кипения">
+			{stages.map((s) => (
+				<button type="button" class="bst__num" data-stage={s.n} aria-pressed={s.n === 1 ? 'true' : 'false'} aria-label={`Этап ${s.n}: ${s.label}`}>{s.n}</button>
+			))}
+		</div>
+		<p class="bst__label" data-label>1. {stages[0].label}</p>
+	</div>
+	<svg class="bst__svg" viewBox="0 0 360 310" role="img" aria-label="Вода в стеклянной колбе на плитке. 1: на дне и на стенках появляются мелкие пузырьки. 2: внизу вода теплее, чем вверху; пузырьки отрываются от дна, всплывают и схлопываются в холодной верхней воде. 3: вся вода прогрелась; пузырьки растут по пути вверх и лопаются на поверхности, из колбы выходит пар, термометр стоит на 100 °C">
+		<defs>
+			<clipPath id={`${uid}-in`}>
+				<path d={inside} />
+			</clipPath>
+			<linearGradient id={`${uid}-warm`} gradientUnits="userSpaceOnUse" x1="0" y1={YB} x2="0" y2="150">
+				<stop class="bst__warm" offset="0.1" data-wb />
+				<stop class="bst__warm" offset="0.85" data-wt />
+			</linearGradient>
+		</defs>
+
+		<!-- hot plate -->
+		<rect class="bst__plate" x="104" y={YB} width="144" height="10" rx="3" />
+		<rect class="bst__glow" x="114" y={YB + 3} width="124" height="4" rx="2" />
+		<rect class="bst__base" x="96" y={YB + 10} width="160" height="24" rx="5" />
+		<circle class="bst__knob" cx="236" cy={YB + 22} r="6" />
+
+		<!-- glass, water, bubbles -->
+		<path class="bst__glass" d={inside} />
+		<g clip-path={`url(#${uid}-in)`}>
+			<path class="bst__water" d="" data-water />
+			<path d="" data-warmwater fill={`url(#${uid}-warm)`} />
+			<g data-bubbles></g>
+			<g data-pops></g>
+		</g>
+
+		<!-- thermometer in the water -->
+		<rect class="bst__tube" x={TX - 4} y="26" width="8" height="200" rx="4" />
+		{[20, 40, 60, 80].map((t) => <line class="bst__tick" x1={TX - 4} x2={TX - 1} y1={ty(t)} y2={ty(t)} />)}
+		<line class="bst__tick bst__tick--100" x1={TX - 8} x2={TX + 8} y1={ty(100)} y2={ty(100)} />
+		<rect class="bst__col" x={TX - 1.6} y={ty(20)} width="3.2" height={224 - ty(20)} data-col />
+		<circle class="bst__col" cx={TX} cy="225" r="5.5" />
+
+		<path class="bst__flask" d={outline} />
+
+		<!-- reading -->
+		<rect class="bst__pill" x="214" y="38" width="84" height="30" rx="15" />
+		<text class="bst__read" x="256" y="59" text-anchor="middle" data-read>20&nbsp;°C</text>
+
+		<!-- stage 2: warmer below, cooler above; noise -->
+		<g class="bst__fade" data-s2>
+			<text class="bst__note bst__note--cold" x="90" y="168" text-anchor="end">холоднее</text>
+			<text class="bst__note bst__note--warm" x="106" y="254" text-anchor="end">теплее</text>
+			<g class="bst__noise" transform="translate(262 206)">
+				{[14, 23, 32].map((r) => (
+					<path d={`M${f1(r * Math.cos(0.6))} ${f1(-r * Math.sin(0.6))} A${r} ${r} 0 0 1 ${f1(r * Math.cos(0.6))} ${f1(r * Math.sin(0.6))}`} data-arc />
+				))}
+			</g>
+		</g>
+
+		<!-- stage 3: vapour out of the neck -->
+		<g class="bst__fade" data-s3>
+			<g class="bst__steam">
+				{[0, 1, 2].map(() => <path d="" data-wisp />)}
+			</g>
+			<text class="bst__note" x="142" y="34" text-anchor="end">пар</text>
+		</g>
+	</svg>
+	<div class="bst__foot">
+		<p>Пока вверху вода холоднее, пузырьки схлопываются по пути; когда прогреется вся вода, они доходят до поверхности, и вода кипит при 100&nbsp;°C.</p>
+		<button type="button" class="bst__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.bst {
+		--bst-bub: var(--sl-color-white);
+		--bst-bub-edge: var(--sl-color-white);
+		--bst-warmk: 1;
+		margin-block: 1.5rem 2rem;
+		padding: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .bst {
+		--bst-bub: var(--sl-color-black);
+		--bst-bub-edge: color-mix(in srgb, var(--ig-vx) 70%, var(--sl-color-white));
+		--bst-warmk: 0.6;
+	}
+	.bst__top {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin-bottom: 0.4rem;
+	}
+	.bst__nums {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.bst__num {
+		margin: 0;
+		width: 2.4rem;
+		height: 2.4rem;
+		padding: 0;
+		font: inherit;
+		font-weight: 700;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		touch-action: manipulation;
+	}
+	.bst__num:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.bst__num[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.bst__label {
+		flex: 1 1 12rem;
+		margin: 0;
+		font-weight: 600;
+		line-height: 1.3;
+		color: var(--sl-color-white);
+	}
+	@media (max-width: 40rem) {
+		.bst__label {
+			font-size: var(--sl-text-sm);
+			min-height: 2.6em;
+			display: flex;
+			align-items: center;
+		}
+	}
+	.bst__svg {
+		display: block;
+		width: 100%;
+		max-width: 30rem;
+		height: auto;
+		margin-inline: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.bst text {
+		font-family: var(--__sl-font);
+	}
+	.bst__foot {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+	}
+	.bst__foot p {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.4;
+		color: var(--sl-color-gray-2);
+	}
+	.bst__again {
+		flex: none;
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.bst__again:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.bst__plate {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 70%, var(--ig-surface));
+		stroke: var(--sl-color-gray-3);
+	}
+	.bst__glow {
+		fill: var(--sl-color-red);
+		opacity: 0.85;
+	}
+	.bst__base {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 80%, var(--ig-surface));
+		stroke: var(--sl-color-gray-4);
+	}
+	.bst__knob {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.bst__glass {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 30%, transparent);
+	}
+	.bst__water {
+		fill: color-mix(in srgb, var(--ig-vx) 40%, transparent);
+	}
+	.bst__warm {
+		stop-color: var(--ig-vy);
+		stop-opacity: calc(var(--w, 0) * var(--bst-warmk));
+	}
+	.bst__bubble {
+		fill: color-mix(in srgb, var(--bst-bub) 25%, transparent);
+		stroke: color-mix(in srgb, var(--bst-bub-edge) 85%, transparent);
+		stroke-width: 1.1;
+	}
+	.bst__pop {
+		fill: none;
+		stroke: var(--bst-bub-edge);
+		stroke-width: 1.3;
+	}
+	.bst__flask {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.bst__tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-1) 22%, var(--ig-surface));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.bst__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.bst__tick--100 {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.bst__col {
+		fill: var(--sl-color-red);
+	}
+	.bst__pill {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-4);
+	}
+	.bst__read {
+		font-size: 18px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.bst__note {
+		font-size: 16px;
+		font-weight: 600;
+		fill: var(--sl-color-gray-2);
+	}
+	.bst__note--cold {
+		fill: var(--ig-vx);
+	}
+	.bst__note--warm {
+		fill: var(--ig-vy);
+	}
+	.bst__fade {
+		opacity: 0;
+	}
+	.bst__noise path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	.bst__steam path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { loop, reduce } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const f1 = (v: number) => v.toFixed(1);
+	const sm = (x: number) => {
+		const c = Math.min(1, Math.max(0, x));
+		return c * c * (3 - 2 * c);
+	};
+	/** Deterministic pseudo-random number in [0, 1). */
+	const rnd = (i: number) => {
+		const s = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+		return s - Math.floor(s);
+	};
+
+	// geometry (as in the markup)
+	const CX = 176;
+	const CY = 196;
+	const R = 84;
+	const YB = 264.5; // inner bottom
+	const YS = 150; // water surface
+	const D = YB - YS;
+	const ty = (t: number) => 132 - 0.8 * t;
+	// timeline, s
+	const S2 = 4.5;
+	const S3 = 9.5;
+	const END = 15.5;
+	const STARTS = [0, S2, S3];
+	const STILL = [3.8, 8, 13.5]; // frames shown for each stage with reduced motion
+	const LABELS = ['Пузырьки на дне и на стенках', 'Пузырьки схлопываются — чайник шумит', 'Вода кипит'];
+
+	/** Temperature of the water: 20 → 70 °C in stage 1, → 100 °C in stage 2, then 100 °C while it boils. */
+	const temp = (t: number) => {
+		if (t < S2) {
+			const u = t / S2;
+			return 20 + (50 * (1 - Math.exp(-0.5 * u))) / (1 - Math.exp(-0.5));
+		}
+		if (t < S3) return 70 + 30 * (1 - (1 - (t - S2) / (S3 - S2)) ** 1.6);
+		return 100;
+	};
+
+	type Emit = { te: number; r0: number; boil: boolean; wob: number; hc: number; end: number };
+	type Site = { x: number; on: number; rs: number; emits: Emit[] };
+
+	/** Rise of a detached bubble: height of its centre above the detachment point and its radius at age a. */
+	const rise = (e: Emit, a: number) => {
+		if (e.boil) {
+			// all the water is at 100 °C: vapour keeps evaporating into the bubble and the water above presses less
+			const h = 46 * a * (1 + 0.3 * a);
+			return { h, r: e.r0 * (1 + (1.15 * h) / D) };
+		}
+		// cooler water above: the vapour condenses and the bubble shrinks to nothing at the height hc
+		const h = 38 * a;
+		const q = Math.min(1, h / e.hc);
+		return { h, r: e.r0 * Math.sqrt(Math.max(0, 1 - q ** 4)) };
+	};
+
+	const makeSites = (): Site[] => {
+		const xs = [-38, -28, -17, -7, 4, 14, 25, 36];
+		const extra = [-33, -12, 9, 31]; // sites that start only when the water boils
+		const sites: Site[] = [];
+		const all = [...xs.map((x) => ({ x, late: false })), ...extra.map((x) => ({ x, late: true }))];
+		all.forEach(({ x, late }, i) => {
+			const site: Site = {
+				x: CX + x,
+				on: late ? S3 : 0.6 + 3 * rnd(i + 1),
+				rs: late ? 0 : 1.9 + 0.7 * rnd(i + 11),
+				emits: [],
+			};
+			let te = late ? S3 + 0.25 + 0.5 * rnd(i + 21) : S2 + 0.4 + 1.1 * rnd(i + 21);
+			let k = 0;
+			while (te < END + 3) {
+				const boil = te >= S3;
+				const u = Math.min(1, (te - S2) / (S3 - S2));
+				const e: Emit = {
+					te,
+					r0: (boil ? 3.6 : 3.3) + 1.1 * rnd(i * 31 + k),
+					boil,
+					wob: 6.3 * rnd(i * 17 + k),
+					hc: D * (0.24 + 0.58 * u ** 1.4) * (0.85 + 0.3 * rnd(i * 7 + k)),
+					end: 0,
+				};
+				if (boil) {
+					// age at which the top of the bubble reaches the surface
+					let a = 0;
+					while (a < 4) {
+						const { h, r } = rise(e, a);
+						if (e.r0 + h + r >= D) break;
+						a += 0.01;
+					}
+					e.end = a;
+				} else e.end = e.hc / 38;
+				site.emits.push(e);
+				te += boil ? 0.5 + 0.35 * rnd(i * 13 + k) : 1.05 + 0.6 * rnd(i * 13 + k);
+				k++;
+			}
+			sites.push(site);
+		});
+		return sites;
+	};
+
+	// bubbles stuck on the walls (stage 1 onwards): angle from the bottom, radius, appearance time
+	const walls = Array.from({ length: 10 }, (_, i) => {
+		const side = i % 2 ? 1 : -1;
+		const phi = ((40 + 14 * Math.floor(i / 2) + 6 * rnd(i + 50)) * Math.PI) / 180;
+		const r = 1.5 + 0.9 * rnd(i + 60);
+		const rr = R - 1.5 - r;
+		return { x: CX + side * rr * Math.sin(phi), y: CY + rr * Math.cos(phi), r, on: 1 + 3 * rnd(i + 70) };
+	});
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bst]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const water = $<SVGPathElement>('[data-water]');
+		const warmWater = $<SVGPathElement>('[data-warmwater]');
+		const wb = $<SVGStopElement>('[data-wb]');
+		const wt = $<SVGStopElement>('[data-wt]');
+		const col = $<SVGRectElement>('[data-col]');
+		const read = $<SVGTextElement>('[data-read]');
+		const s2g = $<SVGGElement>('[data-s2]');
+		const s3g = $<SVGGElement>('[data-s3]');
+		const arcs = Array.from(root.querySelectorAll<SVGPathElement>('[data-arc]'));
+		const wisps = Array.from(root.querySelectorAll<SVGPathElement>('[data-wisp]'));
+		const label = $<HTMLElement>('[data-label]');
+		const nums = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-stage]'));
+		const pool = (g: SVGGElement, tag: string, cls: string, n: number) =>
+			Array.from({ length: n }, () => {
+				const c = document.createElementNS(NS, tag);
+				c.setAttribute('class', cls);
+				c.setAttribute('r', '0');
+				g.append(c);
+				return c;
+			});
+		const bubs = pool($('[data-bubbles]'), 'circle', 'bst__bubble', 80);
+		const pops = pool($('[data-pops]'), 'ellipse', 'bst__pop', 16);
+		const sites = makeSites();
+		let stage = 0;
+
+		const draw = (t: number) => {
+			const st = t < S2 ? 1 : t < S3 ? 2 : 3;
+			if (st !== stage) {
+				stage = st;
+				label.textContent = `${st}. ${LABELS[st - 1]}`;
+				nums.forEach((b, i) => b.setAttribute('aria-pressed', String(i + 1 === st)));
+			}
+			// thermometer
+			const T = temp(t);
+			col.setAttribute('y', f1(ty(T)));
+			col.setAttribute('height', f1(224 - ty(T)));
+			read.textContent = `${Math.round(T)} °C`;
+			// water: warmth below (wB) and above (wT); flat surface until the water boils
+			const u1 = Math.min(1, t / S2);
+			const u2 = Math.min(1, Math.max(0, (t - S2) / (S3 - S2)));
+			const wB = t < S2 ? 0.26 * u1 : 0.26 + 0.18 * u2;
+			const wT = t < S2 ? 0.03 * u1 : 0.03 + 0.41 * u2 ** 2.2;
+			wb.style.setProperty('--w', wB.toFixed(3));
+			wt.style.setProperty('--w', wT.toFixed(3));
+			const amp = 1.8 * sm((t - S3) / 0.8);
+			const surf: string[] = [];
+			for (let i = 0; i <= 24; i++) {
+				const x = CX - R + (2 * R * i) / 24;
+				const y = YS + amp * Math.sin(x / 6.5 + t * 9) * Math.sin(x / 19 - t * 3.3);
+				surf.push(`${f1(x)} ${f1(y)}`);
+			}
+			const wd = `M${surf.join(' L')} L${CX + R} 270 L${CX - R} 270 Z`;
+			water.setAttribute('d', wd);
+			warmWater.setAttribute('d', wd);
+
+			// bubbles
+			let nb = 0;
+			let np = 0;
+			const put = (x: number, y: number, r: number) => {
+				if (r < 0.3 || nb >= bubs.length) return;
+				const c = bubs[nb++];
+				c.setAttribute('cx', f1(x));
+				c.setAttribute('cy', f1(y));
+				c.setAttribute('r', f1(r));
+			};
+			for (const w of walls) put(w.x, w.y, w.r * sm((t - w.on) / 0.8));
+			for (const s of sites) {
+				if (t < s.on) continue;
+				// the bubble sitting on the bottom
+				let r = s.rs * sm((t - s.on) / 0.8);
+				if (t >= S2) {
+					const k = s.emits.findIndex((e) => e.te > t);
+					if (k >= 0) {
+						const next = s.emits[k];
+						const prev = k > 0 ? s.emits[k - 1].te : Math.max(S2, s.on);
+						const r1 = k > 0 ? 0.8 : s.rs;
+						const g = Math.min(1, (t - prev) / (next.te - prev));
+						r = r1 + (next.r0 - r1) * g;
+					}
+				}
+				put(s.x, YB - r, r);
+				// detached bubbles
+				for (const e of s.emits) {
+					if (e.te > t) break;
+					const a = t - e.te;
+					if (e.boil && a >= e.end && a < e.end + 0.4 && np < pops.length) {
+						// burst at the surface: a ring spreading on the water
+						const { r: rb } = rise(e, e.end);
+						const p = (a - e.end) / 0.4;
+						const el = pops[np++];
+						el.setAttribute('cx', f1(s.x + 1.6 * Math.sin(e.end * 7 + e.wob)));
+						el.setAttribute('cy', f1(YS));
+						el.setAttribute('rx', f1(rb * (0.7 + 0.9 * p)));
+						el.setAttribute('ry', f1(rb * (0.25 + 0.3 * p)));
+						el.style.opacity = (1 - p).toFixed(2);
+					}
+					if (a >= e.end) continue;
+					const { h, r: rr } = rise(e, a);
+					put(s.x + 1.6 * Math.sin(a * 7 + e.wob), YB - e.r0 - h, rr);
+				}
+			}
+			for (let i = nb; i < bubs.length; i++) bubs[i].setAttribute('r', '0');
+			for (let i = np; i < pops.length; i++) pops[i].style.opacity = '0';
+
+			// stage 2 notes and the noise
+			const o2 = sm((t - S2) / 0.5) * (1 - sm((t - S3 + 0.2) / 0.5));
+			s2g.style.opacity = o2.toFixed(2);
+			arcs.forEach((p, i) => (p.style.opacity = (0.3 + 0.7 * Math.max(0, Math.sin(t * 9 - i * 1.1))).toFixed(2)));
+			// stage 3: vapour leaves the neck
+			const o3 = sm((t - S3 - 0.3) / 0.8);
+			s3g.style.opacity = o3.toFixed(2);
+			wisps.forEach((p, i) => {
+				const ph = (t * 0.7 + i / 3) % 1;
+				const x = 158 + 7 * i;
+				const y = 54 - 26 * ph;
+				const s = 0.6 + 0.6 * ph;
+				p.setAttribute('d', `M ${f1(x)} ${f1(y)} q ${f1(-5 * s)} ${f1(-6 * s)} 0 ${f1(-12 * s)} q ${f1(5 * s)} ${f1(-6 * s)} 0 ${f1(-12 * s)}`);
+				p.style.opacity = Math.sin(Math.PI * ph).toFixed(2);
+			});
+		};
+
+		let t = 0;
+		let once = false; // reduced motion: «Повторить» plays the whole scene once
+		const wake = loop(root, (dt) => {
+			if (reduce() && !once) return false;
+			t += dt;
+			if (t >= END) {
+				t = once ? END - 0.01 : 0;
+				if (once) {
+					once = false;
+					draw(t);
+					return false;
+				}
+			}
+			draw(t);
+			return true;
+		});
+		const go = (t0: number) => {
+			t = t0;
+			draw(t);
+			wake();
+		};
+		nums.forEach((b, i) =>
+			b.addEventListener('click', () => {
+				once = false;
+				go(reduce() ? STILL[i] : STARTS[i]);
+			}),
+		);
+		$('[data-again]').addEventListener('click', () => {
+			once = reduce();
+			go(0);
+		});
+		go(reduce() ? STILL[2] : 0);
+	}
+</script>

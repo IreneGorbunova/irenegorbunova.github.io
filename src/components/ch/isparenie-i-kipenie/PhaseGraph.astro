@@ -1,0 +1,414 @@
+---
+/**
+ * Graph of all changes of state of 0,1 kg of water: ice at −20 °C is heated to steam at 120 °C and cooled back.
+ * Same family as ch/plavlenie/GraphSegments.astro (heating red, cooling blue, tap a segment to read about it,
+ * questions answered by tapping), but the time axis is SCHEMATIC: in true proportions the ice parts would be
+ * ~2 % of the boiling plateau. The true heats are in the explanations:
+ * AB 4200 J, BC 34 000 J, CD 42 000 J, DE 230 000 J, EF 4000 J; the cooling half gives the same amounts back.
+ * c of steam ≈ 2000 J/(kg·°C): steam tables give c_p ≈ 2,0–2,1 kJ/(kg·K) for water vapour at 1 atm, 100–120 °C.
+ */
+const P = {
+	A: [0, -20],
+	B: [4, 0],
+	C: [10, 0],
+	D: [17, 100],
+	E: [28, 100],
+	F: [32, 120],
+	G: [36, 100],
+	H: [47, 100],
+	K: [54, 0],
+	L: [60, 0],
+	M: [64, -20],
+} as const;
+type Key = keyof typeof P;
+const G = { X0: 64, X1: 586, Y0: 300, Y1: 28, XMAX: 66, YMIN: -40, YMAX: 135 };
+const gx = (v: number) => G.X0 + (v / G.XMAX) * (G.X1 - G.X0);
+const gy = (t: number) => G.Y0 - ((t - G.YMIN) / (G.YMAX - G.YMIN)) * (G.Y0 - G.Y1);
+const segs: [Key, Key, 'heat' | 'cool'][] = [
+	['A', 'B', 'heat'],
+	['B', 'C', 'heat'],
+	['C', 'D', 'heat'],
+	['D', 'E', 'heat'],
+	['E', 'F', 'heat'],
+	['F', 'G', 'cool'],
+	['G', 'H', 'cool'],
+	['H', 'K', 'cool'],
+	['K', 'L', 'cool'],
+	['L', 'M', 'cool'],
+];
+const yt = [-20, 0, 20, 40, 60, 80, 100, 120];
+const xg = [4, 10, 17, 28, 32, 36, 47, 54, 60, 64];
+const labelPos: Record<Key, [number, number, string]> = {
+	A: [10, 26, 'start'],
+	B: [-8, -10, 'end'],
+	C: [8, 26, 'start'],
+	D: [-8, -10, 'end'],
+	E: [8, 26, 'start'],
+	F: [0, -12, 'middle'],
+	G: [-8, 26, 'end'],
+	H: [8, -10, 'start'],
+	K: [-8, 26, 'end'],
+	L: [8, -10, 'start'],
+	M: [-10, 26, 'end'],
+};
+/** Invisible hit box around a segment: its time column, its temperature range ± HIT units. */
+const HIT = 36;
+const box = (a: Key, b: Key) => {
+	const y1 = Math.min(gy(P[a][1]), gy(P[b][1])) - HIT;
+	const y2 = Math.max(gy(P[a][1]), gy(P[b][1])) + HIT;
+	return { x: gx(P[a][0]), y: y1, width: gx(P[b][0]) - gx(P[a][0]), height: y2 - y1 };
+};
+---
+
+<figure class="pgr not-content" data-pgr>
+	<p class="pgr__q" aria-live="polite" data-q></p>
+	<svg class="pgr__svg" viewBox="0 0 600 366" role="group" aria-label="График нагревания, плавления, кипения воды и обратных переходов">
+		<g class="pgr__grid">
+			{xg.map((v) => <line x1={gx(v)} x2={gx(v)} y1={G.Y0} y2={G.Y1} />)}
+			{yt.map((v) => <line x1={G.X0} x2={G.X1} y1={gy(v)} y2={gy(v)} />)}
+		</g>
+		<line class="pgr__axis" x1={G.X0} y1={G.Y0} x2={G.X1 + 6} y2={G.Y0}></line>
+		<line class="pgr__axis" x1={G.X0} y1={G.Y0} x2={G.X0} y2={G.Y1 - 6}></line>
+		<g class="pgr__ticks">
+			{yt.map((v) => <text x={G.X0 - 8} y={gy(v) + 5} text-anchor="end">{String(v).replace('-', '−')}</text>)}
+			<text class="pgr__name" x={G.X0 + 8} y={G.Y1 + 2}><tspan class="pgr__math">t</tspan>, °C</text>
+			<text class="pgr__name" x={(G.X0 + G.X1) / 2} y={G.Y0 + 30} text-anchor="middle">время</text>
+			<text class="pgr__note" x={(G.X0 + G.X1) / 2} y={G.Y0 + 58} text-anchor="middle">участки не в масштабе</text>
+		</g>
+		{
+			segs.map(([a, b, kind]) => (
+				<g class="pgr__seg" data-seg={a + b} tabindex="0" role="button" aria-label={`Участок ${a}${b}`}>
+					<rect class="pgr__hit" {...box(a, b)} />
+					<line class={`pgr__line pgr__line--${kind}`} x1={gx(P[a][0])} y1={gy(P[a][1])} x2={gx(P[b][0])} y2={gy(P[b][1])} />
+				</g>
+			))
+		}
+		{
+			(Object.keys(P) as Key[]).map((k) => (
+				<g class="pgr__pt">
+					<circle cx={gx(P[k][0])} cy={gy(P[k][1])} r="4.5" />
+					<text x={gx(P[k][0]) + labelPos[k][0]} y={gy(P[k][1]) + labelPos[k][1]} text-anchor={labelPos[k][2]}>
+						{k}
+					</text>
+				</g>
+			))
+		}
+	</svg>
+	<div class="pgr__info" data-info hidden></div>
+	<div class="pgr__nav">
+		<p class="pgr__fb" aria-live="polite" data-fb></p>
+		<button type="button" class="pgr__next" data-next hidden>Следующий вопрос</button>
+	</div>
+	<template data-text="AB">
+		<b>AB — лёд нагревается</b> от −20&nbsp;°C до 0&nbsp;°C. Частицы льда колеблются около своих мест всё быстрее. Лёд получает теплоту, <i>Q</i>&nbsp;&gt;&nbsp;0:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = <i>c</i><sub>льда</sub><i>m</i>(<i>t</i><sub>2</sub> − <i>t</i><sub>1</sub>)</span> <span class="pgr__nw">= 2100 · 0,1 · (0 − (−20))</span> <span class="pgr__nw">= 4200 Дж.</span></span>
+	</template>
+	<template data-text="BC">
+		<b>BC — лёд плавится</b> при 0&nbsp;°C. Кристаллическая решётка разрушается: частицы покидают свои места. Лёд получает теплоту, <i>Q</i>&nbsp;&gt;&nbsp;0, а температура не меняется:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = λ<i>m</i></span> <span class="pgr__nw">= 3,4·10<sup>5</sup> · 0,1</span> <span class="pgr__nw">= 34&nbsp;000 Дж.</span></span>
+	</template>
+	<template data-text="CD">
+		<b>CD — вода нагревается</b> от 0&nbsp;°C до 100&nbsp;°C. Частицы воды движутся всё быстрее. Вода получает теплоту, <i>Q</i>&nbsp;&gt;&nbsp;0:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = <i>c</i><sub>воды</sub><i>m</i>(<i>t</i><sub>2</sub> − <i>t</i><sub>1</sub>)</span> <span class="pgr__nw">= 4200 · 0,1 · (100 − 0)</span> <span class="pgr__nw">= 42&nbsp;000 Дж.</span></span>
+	</template>
+	<template data-text="DE">
+		<b>DE — вода кипит</b>: идёт парообразование при 100&nbsp;°C. Частицы отрываются друг от друга и улетают в пар. Вода получает теплоту, <i>Q</i>&nbsp;&gt;&nbsp;0, а температура не меняется:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = <i>Lm</i></span> <span class="pgr__nw">= 2,3·10<sup>6</sup> · 0,1</span> <span class="pgr__nw">= 230&nbsp;000 Дж.</span></span>
+		Это в 5,5 раза больше, чем на участке CD: <span class="pgr__nw">230&nbsp;000 : 42&nbsp;000 ≈ 5,5.</span> Если нагреватель работает ровно, вода кипит в 5,5 раза дольше, чем нагревалась от 0 до 100&nbsp;°C. В масштабе участок DE был бы в 5,5 раза длиннее CD.
+	</template>
+	<template data-text="EF">
+		<b>EF — пар нагревается</b> от 100&nbsp;°C до 120&nbsp;°C. Вся вода уже стала паром. Частицы пара далеко друг от друга и летают всё быстрее. Пар получает теплоту, <i>Q</i>&nbsp;&gt;&nbsp;0. Удельная теплоёмкость пара — около 2000&nbsp;Дж/(кг·°C):
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = <i>c</i><sub>пара</sub><i>m</i>(<i>t</i><sub>2</sub> − <i>t</i><sub>1</sub>)</span> <span class="pgr__nw">= 2000 · 0,1 · (120 − 100)</span> <span class="pgr__nw">= 4000 Дж.</span></span>
+	</template>
+	<template data-text="FG">
+		<b>FG — пар остывает</b> от 120&nbsp;°C до 100&nbsp;°C. Частицы пара движутся медленнее. Пар отдаёт теплоту, <i>Q</i>&nbsp;&lt;&nbsp;0:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = <i>c</i><sub>пара</sub><i>m</i>(<i>t</i><sub>2</sub> − <i>t</i><sub>1</sub>)</span> <span class="pgr__nw">= 2000 · 0,1 · (100 − 120)</span> <span class="pgr__nw">= −4000 Дж.</span></span>
+	</template>
+	<template data-text="GH">
+		<b>GH — пар конденсируется</b> при 100&nbsp;°C — той же температуре, при которой вода кипела. Частицы пара сближаются и снова становятся водой. Пар отдаёт теплоту, <i>Q</i>&nbsp;&lt;&nbsp;0, а температура не меняется:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = −<i>Lm</i></span> <span class="pgr__nw">= −2,3·10<sup>6</sup> · 0,1</span> <span class="pgr__nw">= −230&nbsp;000 Дж.</span></span>
+		Пар отдаёт столько же теплоты, сколько вода получила на участке DE.
+	</template>
+	<template data-text="HK">
+		<b>HK — вода остывает</b> от 100&nbsp;°C до 0&nbsp;°C. Частицы воды движутся медленнее. Вода отдаёт теплоту, <i>Q</i>&nbsp;&lt;&nbsp;0:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = <i>c</i><sub>воды</sub><i>m</i>(<i>t</i><sub>2</sub> − <i>t</i><sub>1</sub>)</span> <span class="pgr__nw">= 4200 · 0,1 · (0 − 100)</span> <span class="pgr__nw">= −42&nbsp;000 Дж.</span></span>
+	</template>
+	<template data-text="KL">
+		<b>KL — вода отвердевает (кристаллизуется)</b> при 0&nbsp;°C — той же температуре, при которой лёд плавился. Частицы выстраиваются в кристаллическую решётку. Вода отдаёт теплоту, <i>Q</i>&nbsp;&lt;&nbsp;0, а температура не меняется:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = −λ<i>m</i></span> <span class="pgr__nw">= −3,4·10<sup>5</sup> · 0,1</span> <span class="pgr__nw">= −34&nbsp;000 Дж.</span></span>
+	</template>
+	<template data-text="LM">
+		<b>LM — лёд остывает</b> от 0&nbsp;°C до −20&nbsp;°C. Частицы льда колеблются около своих мест всё медленнее. Лёд отдаёт теплоту, <i>Q</i>&nbsp;&lt;&nbsp;0:
+		<span class="pgr__calc"><span class="pgr__nw"><i>Q</i> = <i>c</i><sub>льда</sub><i>m</i>(<i>t</i><sub>2</sub> − <i>t</i><sub>1</sub>)</span> <span class="pgr__nw">= 2100 · 0,1 · (−20 − 0)</span> <span class="pgr__nw">= −4200 Дж.</span></span>
+	</template>
+</figure>
+
+<style is:global>
+	.pgr {
+		margin-block: 1.5rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.pgr i,
+	.pgr__math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.pgr__nw {
+		white-space: nowrap;
+	}
+	.pgr__q {
+		margin: 0 0 0.4rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.pgr__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.pgr text {
+		font-family: var(--__sl-font);
+	}
+	.pgr__grid line {
+		stroke: var(--sl-color-gray-5);
+	}
+	.pgr__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.pgr__ticks text {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+	}
+	.pgr__ticks .pgr__name {
+		fill: var(--sl-color-gray-2);
+		font-size: 16px;
+	}
+	.pgr__ticks .pgr__note {
+		fill: var(--sl-color-gray-2);
+		font-size: 15px;
+		font-style: italic;
+	}
+	.pgr__seg {
+		cursor: pointer;
+		outline: none;
+	}
+	.pgr__hit {
+		fill: transparent;
+	}
+	.pgr__line {
+		stroke-width: 4;
+		stroke-linecap: round;
+		pointer-events: none;
+		transition:
+			stroke-width 0.2s,
+			opacity 0.2s;
+	}
+	.pgr__line--heat {
+		stroke: var(--ig-vy);
+	}
+	.pgr__line--cool {
+		stroke: var(--ig-vx);
+	}
+	.pgr__seg:hover .pgr__line,
+	.pgr__seg:focus-visible .pgr__line {
+		stroke-width: 7;
+	}
+	.pgr__seg.is-picked .pgr__line,
+	.pgr__seg.is-found .pgr__line {
+		stroke-width: 8;
+		stroke: var(--sl-color-accent);
+	}
+	.pgr__seg.is-wrong .pgr__line {
+		animation: pgr-shake 0.4s;
+	}
+	@keyframes pgr-shake {
+		30% {
+			opacity: 0.2;
+		}
+	}
+	.pgr__pt circle {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		pointer-events: none;
+	}
+	.pgr__pt text {
+		fill: var(--sl-color-white);
+		font-size: 17px;
+		font-weight: 700;
+		pointer-events: none;
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 5px;
+		stroke-linejoin: round;
+	}
+	.pgr__info {
+		margin-top: 0.5rem;
+		padding: 0.6rem 0.8rem;
+		border-left: 4px solid var(--sl-color-accent);
+		border-radius: 0.4rem;
+		background: color-mix(in srgb, var(--sl-color-accent) 10%, transparent);
+		color: var(--sl-color-gray-1);
+		animation: pgr-in 0.35s ease-out;
+	}
+	.pgr__info[hidden] {
+		display: none;
+	}
+	.pgr__info b {
+		color: var(--sl-color-white);
+	}
+	.pgr__calc {
+		display: block;
+		margin-block: 0.3rem;
+	}
+	@keyframes pgr-in {
+		from {
+			opacity: 0;
+			transform: translateY(0.3rem);
+		}
+	}
+	.pgr__nav {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1rem;
+		margin-top: 0.5rem;
+	}
+	.pgr__fb {
+		flex: 1 1 14rem;
+		min-height: 1.4em;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.pgr__fb.is-right {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+	.pgr__next {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.pgr__next[hidden] {
+		display: none;
+	}
+	@media (max-width: 40rem) {
+		.pgr {
+			padding: 0.75rem;
+		}
+		.pgr__ticks text {
+			font-size: 24px;
+		}
+		.pgr__ticks .pgr__name {
+			font-size: 25px;
+		}
+		.pgr__ticks .pgr__note {
+			font-size: 24px;
+		}
+		.pgr__pt text {
+			font-size: 26px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.pgr__info,
+		.pgr__seg.is-wrong .pgr__line {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	/** Question and its right segments (several when the question asks for all of them). */
+	const QUESTIONS: [string, string[]][] = [
+		['На каком участке вода кипит? Нажмите на него.', ['DE']],
+		['На каком участке пар конденсируется?', ['GH']],
+		['На каком участке нагревается пар?', ['EF']],
+		['На каких двух участках вещество получает теплоту, а температура не меняется? Найдите оба.', ['BC', 'DE']],
+		['На каких двух участках вещество отдаёт теплоту, а температура не меняется? Найдите оба.', ['GH', 'KL']],
+		['На каком участке остывает вода?', ['HK']],
+	];
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pgr]')) {
+		const q = root.querySelector<HTMLElement>('[data-q]')!;
+		const info = root.querySelector<HTMLElement>('[data-info]')!;
+		const fb = root.querySelector<HTMLElement>('[data-fb]')!;
+		const next = root.querySelector<HTMLButtonElement>('[data-next]')!;
+		const segs = Array.from(root.querySelectorAll<SVGGElement>('[data-seg]'));
+		const text = (id: string) => root.querySelector<HTMLTemplateElement>(`template[data-text="${id}"]`)!.innerHTML;
+		let k = 0;
+		let done = false;
+		const found = new Set<string>();
+		const ask = () => {
+			found.clear();
+			segs.forEach((s) => s.classList.remove('is-found'));
+			fb.textContent = '';
+			fb.classList.remove('is-right');
+			next.hidden = true;
+			if (k >= QUESTIONS.length) {
+				done = true;
+				q.textContent = 'Все вопросы пройдены! Нажимайте на любой участок, чтобы перечитать объяснение.';
+				return;
+			}
+			q.textContent = `Вопрос ${k + 1} из ${QUESTIONS.length}. ${QUESTIONS[k][0]}`;
+		};
+		const pick = (g: SVGGElement) => {
+			const id = g.dataset.seg!;
+			segs.forEach((s) => s.classList.toggle('is-picked', s === g));
+			info.innerHTML = text(id);
+			info.hidden = false;
+			info.style.animation = 'none';
+			void info.offsetWidth;
+			info.style.animation = '';
+			if (done || !next.hidden) return;
+			const right = QUESTIONS[k][1];
+			if (found.has(id)) {
+				fb.textContent = 'Этот участок уже найден. Найдите второй.';
+			} else if (right.includes(id)) {
+				found.add(id);
+				g.classList.add('is-found');
+				const left = right.length - found.size;
+				fb.classList.add('is-right');
+				if (left === 0) {
+					fb.textContent = right.length > 1 ? 'Верно! Оба участка найдены.' : 'Верно!';
+					next.hidden = false;
+				} else {
+					fb.textContent = 'Верно! Это один из двух участков. Найдите второй.';
+				}
+			} else {
+				fb.classList.remove('is-right');
+				fb.textContent = `Нет, это участок ${id}. Прочитайте, что на нём происходит, и попробуйте ещё раз.`;
+				g.classList.remove('is-wrong');
+				void g.getBoundingClientRect();
+				g.classList.add('is-wrong');
+			}
+		};
+		segs.forEach((g) => {
+			g.addEventListener('click', () => pick(g));
+			g.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					pick(g);
+				}
+			});
+		});
+		next.addEventListener('click', () => {
+			k += 1;
+			ask();
+		});
+		ask();
+	}
+</script>
