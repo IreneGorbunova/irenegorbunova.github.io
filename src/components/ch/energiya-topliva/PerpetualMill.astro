@@ -1,0 +1,408 @@
+---
+/**
+ * Robert Fludd's «self-feeding» water mill (1618) and why it stops. Water from the tank turns an overshot wheel;
+ * the wheel turns a millstone and an Archimedes screw that lifts water from the pool back into the tank.
+ * Of the energy mgh released by each litre that falls, only half lifts water back (k = 0.5, schematic); the rest
+ * goes into the millstone's work and friction, i.e. into internal energy. So the tank holds a fraction V of its
+ * water with dV/dt = −(1 − k)·q, and the outflow q ∝ √V (Torricelli): √V falls linearly and the tank empties
+ * at x = XE of the run. The gauge shows the energy of the water in the tank (∝ V, potential energy above the pool)
+ * and what went into heating (1 − V): their sum is always 100 %. The wheel's speed is ∝ q.
+ */
+import More from '@components/More.astro';
+
+const uid = `pm${Math.random().toString(36).slice(2, 8)}`;
+// screw: lower end in the pool, upper end above the tank
+const SB = { x: 26, y: 224 };
+const ST = { x: 112, y: 44 };
+const SL = Math.hypot(ST.x - SB.x, ST.y - SB.y);
+const SA = (Math.atan2(ST.y - SB.y, ST.x - SB.x) * 180) / Math.PI;
+// wheel, millstone, pulley on the screw
+const W = { x: 250, y: 152, r: 46 };
+const M = { x: 342, y: 152, r: 27 };
+const SP = { x: SB.x + (ST.x - SB.x) * (54 / 180), y: 170 };
+/** Two lines of a belt between pulleys of radius r at a and b (outer tangents). */
+const belt = (a: { x: number; y: number }, b: { x: number; y: number }, r: number) => {
+	const dx = b.x - a.x;
+	const dy = b.y - a.y;
+	const l = Math.hypot(dx, dy);
+	const nx = (-dy / l) * r;
+	const ny = (dx / l) * r;
+	const f = (v: number) => v.toFixed(1);
+	return `M${f(a.x + nx)} ${f(a.y + ny)} L${f(b.x + nx)} ${f(b.y + ny)} M${f(a.x - nx)} ${f(a.y - ny)} L${f(b.x - nx)} ${f(b.y - ny)}`;
+};
+const buckets = Array.from({ length: 12 }, (_, i) => i * 30);
+const heat = (x: number, y: number) => [-7, 7].map((dx) => `M ${x + dx} ${y} q -4 -6 0 -12 q 4 -6 0 -12`);
+---
+
+<figure class="pm not-content" data-pm>
+	<svg class="pm__svg" viewBox="0 0 400 312" role="img" aria-label="«Вечная» мельница: вода из бака падает на колесо, колесо вращает жернов и архимедов винт, винт поднимает воду обратно в бак, но меньше, чем упало. Бак пустеет, колесо останавливается; энергия воды в баке уменьшается, а то, что ушло в нагревание, растёт, и их сумма всё время 100 %">
+		<defs>
+			<clipPath id={`${uid}-tube`}>
+				<rect x="0" y="-10" width={SL} height="20" rx="4" />
+			</clipPath>
+		</defs>
+		<rect class="pm__bg" x="0" y="0" width="400" height="232" rx="8" />
+
+		<!-- pool with the water that has fallen -->
+		<rect class="pm__water" x="10" y="212" width="294" height="16" data-pool />
+		<path class="pm__basin" d="M8 194 V228 H306 V194" />
+		<line class="pm__ground" x1="306" y1="228" x2="392" y2="228" />
+
+		<!-- belts from the wheel's axle to the screw and to the millstone -->
+		<path class="pm__belt" d={belt(W, SP, 6)} />
+		<path class="pm__belt" d={belt(W, M, 7)} />
+
+		<!-- Archimedes screw -->
+		<g transform={`translate(${SB.x} ${SB.y}) rotate(${SA.toFixed(2)})`}>
+			<rect class="pm__tube" x="0" y="-10" width={SL} height="20" rx="4" />
+			<g clip-path={`url(#${uid}-tube)`}>
+				<g data-pockets></g>
+				<g class="pm__thread" data-thread></g>
+			</g>
+			<line class="pm__axis" x1="-6" y1="0" x2={SL + 6} y2="0" />
+		</g>
+		<circle class="pm__pulley" cx={SP.x} cy={SP.y} r="6" />
+		<!-- chute from the screw into the tank, and the water it pours -->
+		<path class="pm__chute" d={`M${ST.x - 2} ${ST.y + 2} L${ST.x + 30} ${ST.y + 14}`} />
+		<path class="pm__stream" d={`M${ST.x + 28} ${ST.y + 15} q 6 4 7 ${74 - ST.y}`} data-back />
+
+		<!-- tank -->
+		<rect class="pm__water" x="125" y="62" width="88" height="34" data-tank />
+		<path class="pm__vessel" d="M124 56 V96 H214 V56" />
+		<path class="pm__chute" d="M214 93 L262 95" />
+		<text class="pm__lab" x="169" y="49" text-anchor="middle">бак</text>
+		<text class="pm__lab" x="64" y="112" text-anchor="end">винт</text>
+
+		<!-- water falling on the wheel and leaving it -->
+		<path class="pm__stream" d={`M262 96 q 4 3 4 ${W.y - W.r - 93}`} data-fall />
+		<path class="pm__stream" d={`M${W.x + 32} ${W.y + 34} q 6 8 7 ${212 - W.y - 34}`} data-out />
+
+		<!-- overshot water wheel -->
+		<g data-wheel transform={`translate(${W.x} ${W.y})`}>
+			<circle class="pm__rim" r={W.r} />
+			<circle class="pm__rim" r={W.r - 9} />
+			{buckets.map((a) => <line class="pm__spoke" x1="0" y1="0" x2={W.r - 9} y2="0" transform={`rotate(${a + 15})`} />)}
+			{buckets.map((a) => <path class="pm__bucket" d={`M${W.r - 9} 0 L${W.r} 0 L${W.r} 8`} transform={`rotate(${a})`} />)}
+		</g>
+		<circle class="pm__pulley" cx={W.x} cy={W.y} r="7" />
+
+		<!-- millstone on its stand -->
+		<path class="pm__stand" d={`M${M.x - 22} 228 L${M.x} ${M.y} L${M.x + 22} 228`} />
+		<g data-stone transform={`translate(${M.x} ${M.y})`}>
+			<circle class="pm__stone" r={M.r} />
+			{[0, 60, 120].map((a) => <line class="pm__groove" x1={-M.r + 5} y1="0" x2={M.r - 5} y2="0" transform={`rotate(${a})`} />)}
+		</g>
+		<circle class="pm__pulley" cx={M.x} cy={M.y} r="7" />
+		<text class="pm__lab" x={M.x} y={M.y - M.r - 46} text-anchor="middle">жернов</text>
+
+		<!-- heating by friction in the bearings and at the millstone -->
+		<g class="pm__heat" data-heat>
+			{[...heat(W.x, W.y - 14), ...heat(M.x, M.y - M.r - 4), ...heat(SP.x + 16, SP.y - 4)].map((d, i) => (
+				<path style={`--d:${((i % 2) * 0.6 + Math.floor(i / 2) * 0.25).toFixed(2)}s`} d={d} />
+			))}
+		</g>
+
+		<!-- energy gauge: the two parts always add up to the same length -->
+		<text class="pm__glab pm__glab--top" x="12" y="256">Энергия воды в баке</text>
+		<text class="pm__glab pm__glab--heat" x="388" y="256" text-anchor="end">Ушло в нагревание</text>
+		<rect class="pm__frame" x="11" y="263" width="378" height="26" rx="5" />
+		<rect class="pm__seg pm__seg--top" x="12" y="264" width="376" height="24" data-etop />
+		<rect class="pm__seg pm__seg--heat" x="388" y="264" width="0" height="24" data-eheat />
+		<text class="pm__pct" x="20" y="282" data-ptop>100 %</text>
+		<text class="pm__pct" x="380" y="282" text-anchor="end" data-pheat></text>
+		<text class="pm__sum" x="200" y="308" text-anchor="middle">вместе — всё время 100 %</text>
+	</svg>
+	<div class="pm__foot">
+		<p>Это <More term="«вечная» мельница 1618 года">Её описал английский врач и философ <b>Роберт Фладд</b>. Даже без трения винт смог бы поднять обратно в лучшем случае ровно столько воды, сколько упало, — и на жернов не осталось бы ничего. А трение есть всегда: в осях, о воду, о воздух, поэтому воды поднимается меньше. Работа жернова тоже в конце концов идёт на нагревание муки и камней. Рисунок схематический: здесь винт возвращает половину упавшей воды.</More>: вода из бака крутит колесо, а колесо — жернов и <More term="винт">Архимедов винт — наклонная труба с винтовой перегородкой внутри. Нижний конец трубы стоит в воде; когда винт вращается, вода поднимается по нему вверх.</More>, который поднимает воду обратно в бак. Но обратно попадает меньше воды, чем упало, — часть энергии уходит в нагревание, поэтому бак пустеет и мельница останавливается.</p>
+		<button type="button" class="pm__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.pm {
+		margin-block: 1.5rem 2rem;
+		padding: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.pm__svg {
+		display: block;
+		width: 100%;
+		max-width: 32rem;
+		height: auto;
+		margin-inline: auto;
+		border-radius: 0.6rem;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.pm text {
+		font-family: var(--__sl-font);
+	}
+	.pm__foot {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+	}
+	.pm__foot p {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.4;
+		color: var(--sl-color-gray-2);
+	}
+	.pm__again {
+		flex: none;
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.pm__again:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.pm__bg {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 35%, transparent);
+	}
+	.pm__water {
+		fill: color-mix(in srgb, var(--ig-vx) 50%, transparent);
+	}
+	.pm__basin,
+	.pm__vessel {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.pm__ground {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.pm__chute {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.pm__stream {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vx) 80%, transparent);
+		stroke-linecap: round;
+		stroke-dasharray: 7 4;
+	}
+	.pm__belt {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.pm__tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.pm__thread line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.pm__pockets path,
+	.pm__pocket {
+		fill: color-mix(in srgb, var(--ig-vx) 70%, transparent);
+	}
+	.pm__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.pm__pulley {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.pm__rim {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.pm__spoke {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.pm__bucket {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.pm__stand {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.pm__stone {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 45%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.pm__groove {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.pm__lab {
+		font-size: 16px;
+		fill: var(--sl-color-gray-2);
+	}
+	.pm__heat path {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		opacity: 0;
+		animation: pm-heat 1.2s ease-in infinite;
+		animation-delay: var(--d);
+	}
+	@keyframes pm-heat {
+		0% { opacity: 0; transform: translateY(3px); }
+		40% { opacity: calc(0.9 * var(--heat, 0)); }
+		100% { opacity: 0; transform: translateY(-9px); }
+	}
+	.pm__glab {
+		font-size: 16px;
+		font-weight: 600;
+	}
+	.pm__glab--top {
+		fill: var(--ig-v);
+	}
+	.pm__glab--heat {
+		fill: var(--ig-vy);
+	}
+	.pm__frame {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 4;
+	}
+	.pm__seg--top {
+		fill: var(--ig-v);
+	}
+	.pm__seg--heat {
+		fill: var(--ig-vy);
+	}
+	.pm__pct {
+		font-size: 16px;
+		font-weight: 700;
+		fill: var(--sl-color-black);
+		font-variant-numeric: tabular-nums;
+	}
+	.pm__sum {
+		font-size: 16px;
+		fill: var(--sl-color-gray-2);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.pm__heat path {
+			animation: none;
+			opacity: calc(0.7 * var(--heat, 0));
+		}
+	}
+</style>
+
+<script>
+	import { scene, reduce } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const RUN = 11; // s
+	const XE = 0.8; // share of the run after which the tank is empty
+	const K = 0.5; // share of the fallen water the screw lifts back (schematic)
+	const W0 = 2 * Math.PI * 0.55; // wheel at the start, rad/s
+	const GEAR = 1.6; // screw turns per wheel turn
+	const PITCH = 18; // thread pitch along the screw, px
+	const TUBE = Math.hypot(112 - 26, 44 - 224); // screw length, px (as in the markup)
+	const BAR = 376;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pm]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const wheel = $<SVGGElement>('[data-wheel]');
+		const stone = $<SVGGElement>('[data-stone]');
+		const tank = $<SVGRectElement>('[data-tank]');
+		const pool = $<SVGRectElement>('[data-pool]');
+		const fall = $<SVGPathElement>('[data-fall]');
+		const out = $<SVGPathElement>('[data-out]');
+		const back = $<SVGPathElement>('[data-back]');
+		const heat = $<SVGGElement>('[data-heat]');
+		const etop = $<SVGRectElement>('[data-etop]');
+		const eheat = $<SVGRectElement>('[data-eheat]');
+		const ptop = $<SVGTextElement>('[data-ptop]');
+		const pheat = $<SVGTextElement>('[data-pheat]');
+		const thread = $<SVGGElement>('[data-thread]');
+		const pocketsG = $<SVGGElement>('[data-pockets]');
+		const n = Math.ceil(TUBE / PITCH) + 2;
+		const lines = Array.from({ length: n }, () => {
+			const l = document.createElementNS(NS, 'line');
+			thread.append(l);
+			return l;
+		});
+		const pockets = Array.from({ length: n }, () => {
+			const p = document.createElementNS(NS, 'path');
+			p.setAttribute('class', 'pm__pocket');
+			pocketsG.append(p);
+			return p;
+		});
+		const W = { x: 250, y: 152 };
+		const M = { x: 342, y: 152 };
+
+		scene(root, RUN, (x) => {
+			const s = Math.max(0, 1 - x / XE); // √(share of water in the tank) = outflow / initial outflow
+			const v = s * s; // share of water in the tank = its energy / initial energy
+			const xe = Math.min(x, XE);
+			const theta = W0 * RUN * (xe - (xe * xe) / (2 * XE)); // ∫ω dt with ω = W0·s
+			const deg = (theta * 180) / Math.PI;
+			wheel.setAttribute('transform', `translate(${W.x} ${W.y}) rotate(${deg.toFixed(1)})`);
+			stone.setAttribute('transform', `translate(${M.x} ${M.y}) rotate(${deg.toFixed(1)})`);
+			// the thread runs up the screw by one pitch per screw turn
+			const shift = (((theta * GEAR) / (2 * Math.PI)) * PITCH) % PITCH;
+			lines.forEach((l, i) => {
+				const u = (i - 1) * PITCH + shift;
+				l.setAttribute('x1', u.toFixed(1));
+				l.setAttribute('y1', '10');
+				l.setAttribute('x2', (u + 8).toFixed(1));
+				l.setAttribute('y2', '-10');
+				// water carried in the lower half of each turn
+				const p = pockets[i];
+				p.setAttribute('d', `M${(u + 1.5).toFixed(1)} 10 L${(u + 4).toFixed(1)} 3 L${(u + PITCH - 3).toFixed(1)} 3 L${(u + PITCH - 1).toFixed(1)} 10 Z`);
+				p.style.opacity = (u > 12 ? s : Math.min(1, 0.6 + s)).toFixed(2);
+			});
+			// water: tank 34 px deep when full; the same water spread over the pool raises it by 10 px
+			const th = 34 * v;
+			tank.setAttribute('y', (96 - th).toFixed(1));
+			tank.setAttribute('height', th.toFixed(1));
+			const py = 212 - 10 * (1 - v);
+			pool.setAttribute('y', py.toFixed(1));
+			pool.setAttribute('height', (228 - py).toFixed(1));
+			// streams: width ∝ flow; the screw returns K of what falls
+			const now = reduce() ? 0 : performance.now() / 1000;
+			const stream = (el: SVGPathElement, q: number) => {
+				el.style.strokeWidth = (1 + 7 * q).toFixed(2);
+				el.style.opacity = q > 0.01 ? '1' : '0';
+				el.style.strokeDashoffset = (-now * 40).toFixed(1);
+			};
+			stream(fall, s);
+			stream(out, s);
+			stream(back, K * s);
+			heat.style.setProperty('--heat', s.toFixed(2));
+			// energy: water in the tank + what went into heating = 100 %
+			const top = Math.round(100 * v);
+			const w = BAR * v;
+			etop.setAttribute('width', w.toFixed(1));
+			eheat.setAttribute('x', (12 + w).toFixed(1));
+			eheat.setAttribute('width', (BAR - w).toFixed(1));
+			ptop.textContent = w > 52 ? `${top} %` : '';
+			pheat.textContent = BAR - w > 52 ? `${100 - top} %` : '';
+		});
+	}
+</script>
