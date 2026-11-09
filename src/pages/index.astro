@@ -134,11 +134,19 @@ const textbook = `${base}uchebnik/`;
 			<section id="kontakty" class="section">
 				<div class="panel contacts" data-reveal>
 					<h2>Контакты</h2>
-					<p>Пишите в Telegram или на почту.</p>
 					<div class="contacts__list">
 						<a class="contact" href="https://t.me/lafrira" target="_blank" rel="noopener"><span>Telegram</span><span>@lafrira</span></a>
 						<a class="contact" href="mailto:gorbunova.irina.serg@gmail.com"><span>Почта</span><span>gorbunova.irina.serg@gmail.com</span></a>
 					</div>
+					<!-- feedback: the message goes to Irina's e-mail through FormSubmit (formsubmit.co); nothing is shown on the site -->
+					<form class="feedback" data-feedback action="https://formsubmit.co/ajax/gorbunova.irina.serg@gmail.com" method="post">
+						<textarea name="message" rows="4" maxlength="4000" required aria-label="Сообщение" placeholder="Комментарий, отзыв или замеченная ошибка…"></textarea>
+						<input class="feedback__trap" type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" />
+						<div class="feedback__row">
+							<p class="feedback__status" data-status role="status" aria-live="polite"></p>
+							<button class="btn btn--primary" type="submit" data-send>Отправить</button>
+						</div>
+					</form>
 				</div>
 			</section>
 		</main>
@@ -162,6 +170,46 @@ const textbook = `${base}uchebnik/`;
 				{ rootMargin: '0px 0px -10% 0px' },
 			);
 			items.forEach((el) => io.observe(el));
+
+			// feedback form (FormSubmit's AJAX endpoint answers JSON with success "true" / "false")
+			for (const form of document.querySelectorAll<HTMLFormElement>('[data-feedback]')) {
+				const text = form.querySelector('textarea')!;
+				const status = form.querySelector<HTMLElement>('[data-status]')!;
+				const send = form.querySelector<HTMLButtonElement>('[data-send]')!;
+				const say = (msg: string, kind = '') => {
+					status.textContent = msg;
+					status.dataset.kind = kind;
+				};
+				form.addEventListener('submit', async (e) => {
+					e.preventDefault();
+					const message = text.value.trim();
+					if (!message) return;
+					send.disabled = true;
+					say('Отправляю…');
+					try {
+						const res = await fetch(form.action, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+							body: JSON.stringify({
+								message,
+								_honey: (form.elements.namedItem('_honey') as HTMLInputElement).value,
+								_subject: 'Сообщение с сайта «Физика, которая нравится»',
+								_template: 'box',
+								_captcha: 'false',
+							}),
+						});
+						const data = (await res.json().catch(() => ({}))) as { success?: string | boolean };
+						if (!res.ok || String(data.success) !== 'true') throw new Error('not sent');
+						text.value = '';
+						say('Спасибо! Сообщение отправлено.', 'ok');
+						document.dispatchEvent(new CustomEvent('ig:feedback'));
+					} catch {
+						say('Не получилось отправить. Попробуйте ещё раз или напишите на почту.', 'err');
+					} finally {
+						send.disabled = false;
+					}
+				});
+			}
 		</script>
 	</body>
 </html>
@@ -576,8 +624,8 @@ const textbook = `${base}uchebnik/`;
 		padding: clamp(1.5rem, 5vw, 3rem);
 		text-align: center;
 	}
-	.contacts > p {
-		margin: 0.75rem 0 1.75rem;
+	.contacts h2 {
+		margin-bottom: 1.75rem;
 	}
 	.contacts__list {
 		display: flex;
@@ -605,6 +653,70 @@ const textbook = `${base}uchebnik/`;
 	}
 	.contact span:first-child {
 		font-weight: 700;
+	}
+	.feedback {
+		max-width: 38rem;
+		margin: 2rem auto 0;
+		text-align: left;
+	}
+	.feedback textarea {
+		display: block;
+		width: 100%;
+		box-sizing: border-box;
+		min-height: 7rem;
+		resize: vertical;
+		padding: 0.9rem 1.1rem;
+		border: 1px solid var(--line);
+		border-radius: 1rem;
+		background: rgb(255 255 255 / 0.03);
+		color: var(--text);
+		font: inherit;
+		font-size: 1rem;
+		line-height: 1.5;
+	}
+	.feedback textarea::placeholder {
+		color: var(--faint);
+	}
+	.feedback textarea:focus {
+		outline: none;
+		border-color: rgb(243 201 105 / 0.6);
+		background: rgb(255 255 255 / 0.06);
+	}
+	.feedback__trap {
+		position: absolute;
+		left: -9999px;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+	}
+	.feedback__row {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 1rem;
+		margin-top: 0.75rem;
+	}
+	.feedback__status {
+		flex: 1;
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--muted);
+	}
+	.feedback__status[data-kind='ok'] {
+		color: var(--gold-hi);
+	}
+	.feedback__status[data-kind='err'] {
+		color: #ff9a9a;
+	}
+	.feedback .btn {
+		border: 0;
+		font-family: inherit;
+		cursor: pointer;
+	}
+	.feedback .btn:disabled {
+		opacity: 0.6;
+		cursor: default;
+		transform: none;
 	}
 	.contact span:last-child {
 		font-size: 0.9rem;
