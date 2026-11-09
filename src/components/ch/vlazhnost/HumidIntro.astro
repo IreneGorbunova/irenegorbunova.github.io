@@ -1,0 +1,546 @@
+---
+/**
+ * Three short looping opening scenes of «Испарение. Насыщенный и ненасыщенный пар. Влажность воздуха».
+ * Puddle: after a rain the sun comes out, 13:00 → 17:00 in 7 s. The wet asphalt dries first; the puddle (a shallow
+ *   bowl, so its level falls evenly and its area falls linearly in time) shrinks as √(1 − t) and is gone by 16:40.
+ * Bottle: a 0,5 L bottle at 5 °C from the fridge in a room at 28 °C (dew point about 16 °C), 0 → 2 min in 7 s.
+ *   The glass mists over in seconds, droplets grow (r ∝ √t), a few run down; the water inside warms only to 6 °C
+ *   (about 13 W in by convection and condensation, 2,1 kJ/°C).
+ * Dawn: a clear summer night, 21:00 → 5:00 in 8 s; the air cools from 18 °C to 11 °C (evening 70 %, dew point
+ *   about 12 °C). The grass cools faster than the air, so dew appears first (≈ 0:00); fog over the river when the
+ *   air itself reaches the dew point (≈ 2:40); the sun rises at the end.
+ * Plays only while visible; with reduced motion shows the final state.
+ */
+import IntroFrame from '@components/intro/IntroFrame.astro';
+import More from '@components/More.astro';
+
+const uid = `vhi${Math.random().toString(36).slice(2, 8)}`;
+// a small deterministic pseudo-random sequence for the droplets and the grass
+let seed = 7;
+const rnd = () => {
+	seed = (seed * 16807) % 2147483647;
+	return (seed - 1) / 2147483646;
+};
+// Bottle: body from x 158 to 202, y 96 to 176
+const drops = Array.from({ length: 48 }, () => ({
+	cx: 162 + rnd() * 36,
+	cy: 98 + rnd() * 72,
+	x0: 0.06 + rnd() * 0.45,
+	r: 1.3 + rnd() * 2.1,
+}));
+const runners = [
+	{ cx: 167, cy: 112 },
+	{ cx: 186, cy: 104 },
+	{ cx: 195, cy: 128 },
+];
+// Dawn: grass blades along the bottom with a dew drop on each tip
+const blades = Array.from({ length: 30 }, (_, i) => {
+	const x = 6 + i * 12 + (rnd() - 0.5) * 6;
+	const h = 22 + rnd() * 16;
+	const lean = (rnd() - 0.5) * 12;
+	return { x, h, lean, tx: x + lean, ty: 240 - h, x0: 0.4 + rnd() * 0.4 };
+});
+const stars = [
+	[40, 30], [78, 58], [112, 22], [150, 46], [196, 18], [232, 52], [270, 28], [312, 44], [340, 18], [92, 88], [210, 84], [330, 82],
+];
+const puddle =
+	'M70 184 C70 166 120 160 160 163 C200 158 270 160 292 176 C306 188 280 206 230 205 C190 210 150 204 110 206 C80 206 70 196 70 184 Z';
+---
+
+<IntroFrame data-vhintro>
+	<div class="intro__card" data-scene="puddle">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="После дождя выходит солнце; с 13 до 17 часов мокрый асфальт подсыхает, а лужа становится всё меньше и наконец исчезает">
+			<rect class="vhi__sky" x="0" y="0" width="360" height="124" />
+			<g class="vhi__sun" data-sun>
+				<circle r="14" />
+				{Array.from({ length: 8 }, (_, i) => (
+					<line x1="19" y1="0" x2="26" y2="0" transform={`rotate(${i * 45})`} />
+				))}
+			</g>
+			<path class="vhi__cloud" data-cloud d="M166 56 a16 16 0 0 1 22 -20 a22 22 0 0 1 40 -6 a18 18 0 0 1 30 14 a14 14 0 0 1 2 26 h-84 a14 14 0 0 1 -10 -14 z" />
+			<g class="vhi__clock">
+				<circle cx="22" cy="22" r="9" />
+				<path d="M22 16 V22" data-hand />
+				<text x="37" y="28" data-clock>13:00</text>
+			</g>
+			<!-- trees and a lawn behind the kerb -->
+			{[36, 84, 300, 340].map((x, i) => (
+				<g class="vhi__tree">
+					<rect x={x - 2} y="92" width="4" height="26" />
+					<circle cx={x} cy={86 - (i % 2) * 6} r={16 + (i % 2) * 4} />
+				</g>
+			))}
+			<rect class="vhi__lawn" x="0" y="112" width="360" height="12" />
+			<rect class="vhi__kerb" x="0" y="122" width="360" height="6" />
+			<rect class="vhi__asphalt" x="0" y="128" width="360" height="112" />
+			<rect class="vhi__wet" x="0" y="128" width="360" height="112" data-wet />
+			<path class="vhi__damp" d={puddle} data-damp />
+			<g data-puddle>
+				<path class="vhi__puddle" d={puddle} />
+				<path class="vhi__glint" d="M110 182 h46 M190 174 h58 M150 194 h70" />
+				<ellipse class="vhi__sunglint" cx="250" cy="182" rx="12" ry="3" />
+			</g>
+			<g data-vapour></g>
+		</svg>
+		<div class="intro__foot">
+			<p>После дождя лужа на асфальте за несколько часов высыхает: вода незаметно уходит в воздух. <More term="Почему?">Вода превращается в водяной пар, а пар невидим, как и воздух. Этот переход идёт с открытой поверхности воды и при обычной температуре: его называют испарением, и о нём рассказано в первом разделе. Мокрый асфальт вокруг лужи высыхает раньше: там вода лежит тонкой плёнкой. Быстрее всего лужи сохнут в тёплый, сухой и ветреный день.</More></p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+
+	<div class="intro__card" data-scene="bottle">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Летом из холодильника достали закрытую бутылку с водой при 5 °C; в комнате 28 °C; за две минуты стекло запотевает и покрывается каплями, несколько капель стекают на стол">
+			<defs>
+				<clipPath id={`${uid}-body`}>
+					<path d="M158 96 Q158 82 171 74 V52 H189 V74 Q202 82 202 96 V170 Q202 176 196 176 H164 Q158 176 158 170 Z" />
+				</clipPath>
+			</defs>
+			<rect class="vhi__wall" x="0" y="0" width="360" height="240" />
+			<g class="vhi__clock">
+				<circle cx="22" cy="22" r="9" />
+				<path d="M19 10 h6 M22 13 V22" data-hand />
+				<text x="37" y="28" data-clock>0:00</text>
+			</g>
+			<!-- window with the summer sun -->
+			<rect class="vhi__window" x="252" y="20" width="88" height="76" rx="3" />
+			<g class="vhi__sun" transform="translate(318 42)">
+				<circle r="8" />
+				{Array.from({ length: 8 }, (_, i) => (
+					<line x1="11" y1="0" x2="15" y2="0" transform={`rotate(${i * 45})`} />
+				))}
+			</g>
+			<path class="vhi__frame" d="M296 20 V96 M252 58 H340" />
+			<rect class="vhi__frame-out" x="252" y="20" width="88" height="76" rx="3" />
+			<!-- table -->
+			<rect class="vhi__table" x="0" y="176" width="360" height="10" />
+			<rect class="vhi__front" x="0" y="186" width="360" height="54" />
+			<rect class="vhi__pill" x="56" y="200" width="104" height="26" rx="13" />
+			<text class="vhi__read" x="108" y="218" text-anchor="middle" data-tb>вода 5 °C</text>
+			<rect class="vhi__pill" x="186" y="200" width="122" height="26" rx="13" />
+			<text class="vhi__read" x="247" y="218" text-anchor="middle">воздух 28 °C</text>
+			<!-- the water that ran down -->
+			<ellipse class="vhi__pool" cx="180" cy="177" rx="0" ry="2.6" data-pool />
+			<!-- bottle -->
+			<g clip-path={`url(#${uid}-body)`}>
+				<rect class="vhi__bwater" x="150" y="86" width="60" height="96" />
+				<rect class="vhi__mist" x="150" y="40" width="60" height="140" data-mist />
+				<g data-drops>
+					{drops.map((d) => (
+						<circle class="vhi__drop" cx={d.cx.toFixed(1)} cy={d.cy.toFixed(1)} r="0" data-x0={d.x0.toFixed(3)} data-r={d.r.toFixed(2)} />
+					))}
+				</g>
+				<g data-runners>
+					{runners.map((d) => (
+						<g data-cy={d.cy}>
+							<line class="vhi__trail" x1={d.cx} x2={d.cx} y1={d.cy} y2={d.cy} />
+							<circle class="vhi__drop" cx={d.cx} cy={d.cy} r="0" />
+						</g>
+					))}
+				</g>
+			</g>
+			<path class="vhi__glass" d="M158 96 Q158 82 171 74 V52 H189 V74 Q202 82 202 96 V170 Q202 176 196 176 H164 Q158 176 158 170 Z" />
+			<path class="vhi__shine" d="M165 100 V164" />
+			<rect class="vhi__cap" x="169" y="40" width="22" height="13" rx="2" />
+		</svg>
+		<div class="intro__foot">
+			<p>Бутылка из холодильника летом сразу «потеет»: стекло покрывается каплями, хотя бутылка закрыта. <More term="Почему?">Вода берётся не из бутылки, а из воздуха: в нём всегда есть невидимый водяной пар. Воздух у холодного стекла остывает, и часть пара превращается в капельки воды. Почему это происходит, только если стекло достаточно холодное, — в разделе «Точка росы». Так же зимой запотевают очки, когда входишь с мороза в тёплый дом.</More></p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+
+	<div class="intro__card" data-scene="dawn">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Ясная летняя ночь у реки, с 21 часа до 5 утра: воздух остывает с 18 до 11 °C, на траве выступает роса, над рекой поднимается туман, всходит солнце">
+			<defs>
+				<filter id={`${uid}-blur`} x="-30%" y="-100%" width="160%" height="300%">
+					<feGaussianBlur stdDeviation="6" />
+				</filter>
+			</defs>
+			<rect class="vhi__dsky" x="0" y="0" width="360" height="176" data-dsky />
+			<g class="vhi__stars" data-stars>
+				{stars.map(([x, y]) => <circle cx={x} cy={y} r="1.3" />)}
+			</g>
+			<circle class="vhi__rising" cx="292" cy="160" r="15" data-rising />
+			<path class="vhi__hills" d="M0 150 Q60 118 130 140 Q200 112 270 138 Q320 124 360 134 V180 H0 Z" />
+			<path class="vhi__river" d="M0 170 Q120 158 200 170 Q280 182 360 166 V194 Q280 208 200 198 Q110 188 0 200 Z" />
+			<path class="vhi__meadow" d="M0 198 Q110 186 200 196 Q280 204 360 192 V240 H0 Z" />
+			<g class="vhi__grass">
+				{blades.map((b) => <path d={`M${(b.x - 2).toFixed(1)} 240 Q${(b.x + b.lean * 0.3).toFixed(1)} ${(240 - b.h * 0.6).toFixed(1)} ${b.tx.toFixed(1)} ${b.ty.toFixed(1)} Q${(b.x + 2 + b.lean * 0.4).toFixed(1)} ${(240 - b.h * 0.5).toFixed(1)} ${(b.x + 2).toFixed(1)} 240 Z`} />)}
+			</g>
+			<rect class="vhi__shade" x="0" y="112" width="360" height="128" data-shade />
+			<g class="vhi__fog" data-fog filter={`url(#${uid}-blur)`}>
+				{[40, 130, 220, 310].map((x, i) => (
+					<ellipse style={`--d:${-i * 1.7}s`} cx={x} cy={178 - (i % 2) * 4} rx="66" ry="13" />
+				))}
+				<ellipse style="--d:-3s" cx="180" cy="166" rx="120" ry="8" />
+			</g>
+			<g data-dew>
+				{blades.map((b) => <circle class="vhi__dew" cx={b.tx.toFixed(1)} cy={(b.ty + 2).toFixed(1)} r="0" data-x0={b.x0.toFixed(3)} />)}
+			</g>
+			<g class="vhi__clock vhi__clock--night">
+				<circle cx="22" cy="22" r="9" />
+				<path d="M22 16 V22" data-hand />
+				<text x="37" y="28" data-clock>21:00</text>
+			</g>
+			<rect class="vhi__pill" x="236" y="208" width="116" height="26" rx="13" />
+			<text class="vhi__read" x="294" y="226" text-anchor="middle" data-ta>воздух 18 °C</text>
+		</svg>
+		<div class="intro__foot">
+			<p>Ясной летней ночью воздух остывает: к утру трава мокрая от росы, а над рекой стоит туман. <More term="Почему?">Дождя не было: и роса, и туман — это вода из воздуха. В нём всегда есть невидимый водяной пар. Ясной ночью трава остывает сильнее воздуха, и пар оседает на ней капельками — это роса. Когда до того же остывает и сам воздух, капельки появляются прямо в нём — это туман. Утром солнце нагревает воздух, капельки снова превращаются в пар, и туман рассеивается.</More></p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+</IntroFrame>
+
+<style is:global>
+	[data-vhintro] {
+		--vhi-day: color-mix(in srgb, var(--ig-vx) 22%, var(--ig-surface));
+		--vhi-night: color-mix(in srgb, var(--ig-vx) 12%, var(--sl-color-black));
+		--vhi-star: var(--sl-color-white);
+		--vhi-fog: var(--sl-color-gray-2);
+		--vhi-drop: color-mix(in srgb, var(--sl-color-white) 75%, var(--ig-vx));
+	}
+	:root[data-theme='light'] [data-vhintro] {
+		--vhi-night: color-mix(in srgb, var(--ig-vx) 35%, var(--sl-color-gray-1));
+		--vhi-star: var(--sl-color-black);
+		--vhi-fog: var(--sl-color-black);
+		--vhi-drop: color-mix(in srgb, var(--sl-color-black) 70%, var(--ig-vx));
+	}
+	/* three cards: the third one centred under the first two on wide screens */
+	@media (min-width: 40.01rem) {
+		[data-vhintro] .intro__card:nth-child(3) {
+			grid-column: 1 / -1;
+			justify-self: center;
+			width: calc(50% - 0.375rem);
+		}
+	}
+	/* the clock, pills and readings as in «Количество теплоты» */
+	.vhi__clock circle {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+	}
+	.vhi__clock path {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.vhi__clock text {
+		font-size: 17px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vhi__clock--night circle,
+	.vhi__clock--night path {
+		stroke: var(--vhi-star);
+	}
+	.vhi__clock--night text {
+		fill: var(--vhi-star);
+	}
+	.vhi__wall {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 45%, transparent);
+	}
+	.vhi__table {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.vhi__front {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 80%, var(--ig-surface));
+	}
+	.vhi__pill {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.vhi__read {
+		font-size: 15px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	/* puddle */
+	.vhi__sky {
+		fill: color-mix(in srgb, var(--ig-vx) 16%, transparent);
+	}
+	.vhi__sun circle {
+		fill: var(--ig-v);
+	}
+	.vhi__sun line {
+		stroke: var(--ig-v);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.vhi__cloud {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 70%, var(--ig-surface));
+	}
+	.vhi__tree rect {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 60%, var(--ig-v));
+	}
+	.vhi__tree circle {
+		fill: color-mix(in srgb, var(--sl-color-green) 45%, var(--sl-color-gray-5));
+	}
+	.vhi__lawn {
+		fill: color-mix(in srgb, var(--sl-color-green) 35%, var(--sl-color-gray-5));
+	}
+	.vhi__kerb {
+		fill: var(--sl-color-gray-4);
+	}
+	.vhi__asphalt {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 55%, var(--sl-color-gray-5));
+	}
+	.vhi__wet,
+	.vhi__damp {
+		fill: color-mix(in srgb, var(--sl-color-gray-6, var(--sl-color-black)) 70%, var(--sl-color-gray-4));
+	}
+	:root[data-theme='light'] .vhi__wet,
+	:root[data-theme='light'] .vhi__damp {
+		fill: var(--sl-color-gray-3);
+	}
+	.vhi__puddle {
+		fill: color-mix(in srgb, var(--ig-vx) 45%, var(--sl-color-gray-5));
+	}
+	.vhi__glint {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-white) 45%, transparent);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.vhi__sunglint {
+		fill: color-mix(in srgb, var(--ig-v) 70%, transparent);
+	}
+	.vhi__vap {
+		fill: color-mix(in srgb, var(--ig-vx) 70%, var(--sl-color-white));
+	}
+	/* bottle */
+	.vhi__window {
+		fill: color-mix(in srgb, var(--ig-vx) 22%, var(--ig-surface));
+	}
+	.vhi__winsun {
+		fill: var(--ig-v);
+	}
+	.vhi__frame,
+	.vhi__frame-out {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.vhi__bwater {
+		fill: color-mix(in srgb, var(--ig-vx) 38%, transparent);
+	}
+	.vhi__mist {
+		fill: var(--vhi-drop);
+		opacity: 0;
+	}
+	.vhi__drop {
+		fill: var(--vhi-drop);
+		stroke: color-mix(in srgb, var(--ig-vx) 70%, transparent);
+		stroke-width: 0.6;
+	}
+	.vhi__trail {
+		stroke: color-mix(in srgb, var(--vhi-drop) 55%, transparent);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.vhi__pool {
+		fill: color-mix(in srgb, var(--ig-vx) 55%, var(--vhi-drop));
+	}
+	.vhi__glass {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.vhi__shine {
+		stroke: color-mix(in srgb, var(--sl-color-white) 30%, transparent);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.vhi__cap {
+		fill: var(--ig-vx);
+	}
+	/* dawn */
+	.vhi__stars circle {
+		fill: var(--vhi-star);
+	}
+	.vhi__rising {
+		fill: var(--ig-v);
+	}
+	.vhi__hills {
+		fill: color-mix(in srgb, var(--sl-color-green) 25%, var(--sl-color-gray-4));
+	}
+	.vhi__river {
+		fill: color-mix(in srgb, var(--ig-vx) 50%, var(--sl-color-gray-5));
+	}
+	.vhi__meadow {
+		fill: color-mix(in srgb, var(--sl-color-green) 35%, var(--sl-color-gray-5));
+	}
+	.vhi__grass path {
+		fill: color-mix(in srgb, var(--sl-color-green) 65%, var(--sl-color-gray-4));
+	}
+	.vhi__shade {
+		fill: var(--vhi-night);
+		opacity: 0;
+	}
+	.vhi__fog {
+		opacity: 0;
+	}
+	.vhi__fog ellipse {
+		fill: var(--vhi-fog);
+		animation: vhi-drift 5s ease-in-out infinite alternate;
+		animation-delay: var(--d);
+	}
+	@keyframes vhi-drift {
+		from { transform: translateX(-10px); }
+		to { transform: translateX(10px); }
+	}
+	.vhi__dew {
+		fill: var(--vhi-drop);
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, transparent);
+		stroke-width: 0.5;
+	}
+	.vhi__dew.is-lit {
+		fill: color-mix(in srgb, var(--ig-v) 55%, var(--vhi-drop));
+	}
+</style>
+
+<script>
+	import { scene, clamp, reduce } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const f1 = (v: number) => v.toFixed(1);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vhintro]')) {
+		// Puddle: 13:00 → 17:00 in 7 s
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="puddle"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const clock = $<SVGTextElement>('[data-clock]');
+			const hand = $<SVGPathElement>('[data-hand]');
+			const sun = $<SVGGElement>('[data-sun]');
+			const cloud = $<SVGPathElement>('[data-cloud]');
+			const wet = $<SVGRectElement>('[data-wet]');
+			const damp = $<SVGPathElement>('[data-damp]');
+			const pud = $<SVGGElement>('[data-puddle]');
+			const vapG = $<SVGGElement>('[data-vapour]');
+			const CX = 183;
+			const CY = 184;
+			const vap = Array.from({ length: 14 }, (_, i) => {
+				const c = document.createElementNS(NS, 'circle');
+				c.setAttribute('class', 'vhi__vap');
+				c.setAttribute('r', '1.5');
+				vapG.append(c);
+				return { c, dx: Math.random() * 1.6 - 0.8, ph: Math.random(), v: 0.3 + Math.random() * 0.25 };
+			});
+			const at = (cx: number, cy: number, s: number) => `translate(${CX} ${CY}) scale(${s.toFixed(3)}) translate(${-cx} ${-cy})`;
+			scene(card, 7, (x) => {
+				const h = 13 + 4 * x;
+				const hh = Math.floor(h);
+				const mm = Math.floor((h - hh) * 60);
+				clock.textContent = `${hh}:${String(mm).padStart(2, '0')}`;
+				const ang = ((h % 12) / 12) * 2 * Math.PI;
+				hand.setAttribute('d', `M22 22 L${f1(22 + 6 * Math.sin(ang))} ${f1(22 - 6 * Math.cos(ang))}`);
+				// the afternoon sun goes down to the west; the rain cloud moves away
+				sun.setAttribute('transform', `translate(${f1(196 + 66 * x)} ${f1(34 + 16 * x)})`);
+				const go = clamp(x / 0.35);
+				cloud.setAttribute('transform', `translate(${f1(120 * go)} 0)`);
+				cloud.style.opacity = (1 - go).toFixed(2);
+				wet.style.opacity = (0.55 * (1 - clamp(x / 0.3))).toFixed(2);
+				// a shallow bowl: the level falls evenly, the area falls linearly in time
+				const s = Math.sqrt(Math.max(0, 1 - x / 0.92));
+				pud.setAttribute('transform', at(CX, CY, s));
+				pud.style.opacity = s > 0 ? '1' : '0';
+				damp.setAttribute('transform', at(CX, CY, Math.min(1, s + 0.1)));
+				damp.style.opacity = (0.6 * (1 - clamp((x - 0.86) / 0.14))).toFixed(2);
+				const still = reduce();
+				const now = performance.now() / 1000;
+				for (const d of vap) {
+					const f = still ? d.ph : (d.ph + now * d.v) % 1;
+					d.c.setAttribute('cx', f1(CX + d.dx * 105 * s + 3 * Math.sin(f * 7 + d.ph * 9)));
+					d.c.setAttribute('cy', f1(CY - 4 - f * 64));
+					d.c.style.opacity = (0.85 * Math.min(1, 3 * s) * Math.sin(Math.PI * f)).toFixed(2);
+				}
+			});
+		}
+
+		// Bottle: 0 → 2 min in 7 s
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="bottle"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const clock = $<SVGTextElement>('[data-clock]');
+			const hand = $<SVGPathElement>('[data-hand]');
+			const tb = $<SVGTextElement>('[data-tb]');
+			const mist = $<SVGRectElement>('[data-mist]');
+			const pool = $<SVGEllipseElement>('[data-pool]');
+			const drops = Array.from(card.querySelectorAll<SVGCircleElement>('[data-drops] circle'));
+			const runners = Array.from(card.querySelectorAll<SVGGElement>('[data-runners] > g'));
+			scene(card, 7, (x) => {
+				const s = 120 * x;
+				const m = Math.floor(s / 60);
+				const sec = Math.floor(s % 60);
+				clock.textContent = `${m}:${String(sec).padStart(2, '0')}`;
+				const ang = (s / 60) * 2 * Math.PI;
+				hand.setAttribute('d', `M22 22 L${f1(22 + 6 * Math.sin(ang))} ${f1(22 - 6 * Math.cos(ang))}`);
+				tb.textContent = `вода ${Math.round(5 + 1 * x)} °C`;
+				// the glass mists over at once, then the film gathers into droplets
+				mist.style.opacity = (0.45 * clamp(x / 0.1) - 0.2 * clamp((x - 0.1) / 0.6)).toFixed(2);
+				for (const d of drops) {
+					const g = clamp((x - Number(d.dataset.x0)) / 0.5);
+					d.setAttribute('r', (Number(d.dataset.r) * Math.sqrt(g)).toFixed(2));
+				}
+				for (const [i, g] of runners.entries()) {
+					const cy0 = Number(g.dataset.cy);
+					const grow = clamp((x - 0.15 - 0.05 * i) / 0.4);
+					const run = clamp((x - 0.58 - 0.07 * i) / 0.25);
+					const y = cy0 + (174 - cy0) * run * run;
+					const c = g.querySelector('circle')!;
+					const l = g.querySelector('line')!;
+					c.setAttribute('cy', f1(y));
+					c.setAttribute('r', (3.2 * Math.sqrt(grow) * (1 - 0.3 * run)).toFixed(2));
+					c.style.opacity = run >= 1 ? '0' : '1';
+					l.setAttribute('y2', f1(y));
+				}
+				pool.setAttribute('rx', f1(18 * clamp((x - 0.7) / 0.3)));
+			});
+		}
+
+		// Dawn: 21:00 → 5:00 in 8 s
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="dawn"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const clock = $<SVGTextElement>('[data-clock]');
+			const hand = $<SVGPathElement>('[data-hand]');
+			const sky = $<SVGRectElement>('[data-dsky]');
+			const stars = $<SVGGElement>('[data-stars]');
+			const shade = $<SVGRectElement>('[data-shade]');
+			const fog = $<SVGGElement>('[data-fog]');
+			const rising = $<SVGCircleElement>('[data-rising]');
+			const ta = $<SVGTextElement>('[data-ta]');
+			const dew = Array.from(card.querySelectorAll<SVGCircleElement>('[data-dew] circle'));
+			scene(card, 8, (x) => {
+				const h = (21 + 8 * x) % 24;
+				const hh = Math.floor(h);
+				const mm = Math.floor((h - hh) * 60);
+				clock.textContent = `${hh}:${String(mm).padStart(2, '0')}`;
+				const ang = ((h % 12) / 12) * 2 * Math.PI;
+				hand.setAttribute('d', `M22 22 L${f1(22 + 6 * Math.sin(ang))} ${f1(22 - 6 * Math.cos(ang))}`);
+				// darkness: dusk → night → dawn
+				const d = x < 0.25 ? 0.45 + 0.55 * (x / 0.25) : x < 0.62 ? 1 : 1 - 0.85 * ((x - 0.62) / 0.38);
+				sky.style.fill = `color-mix(in srgb, var(--vhi-day) ${Math.round(100 * (1 - d))}%, var(--vhi-night))`;
+				stars.style.opacity = clamp((d - 0.6) / 0.3).toFixed(2);
+				shade.style.opacity = (0.55 * d).toFixed(2);
+				rising.setAttribute('cy', f1(166 - 26 * clamp((x - 0.84) / 0.16)));
+				// the air cools from 18 °C to 11 °C, faster in the evening
+				const t = 11 + 7 * (1 - x) ** 1.5;
+				ta.textContent = `воздух ${Math.round(t)} °C`;
+				// fog when the air itself reaches the dew point (≈ 12 °C)
+				fog.style.opacity = (0.9 * clamp((x - 0.7) / 0.25)).toFixed(2);
+				for (const c of dew) {
+					const g = clamp((x - Number(c.dataset.x0)) / 0.15);
+					c.setAttribute('r', (2 * Math.sqrt(g)).toFixed(2));
+					c.classList.toggle('is-lit', x > 0.92);
+				}
+			});
+		}
+	}
+</script>
