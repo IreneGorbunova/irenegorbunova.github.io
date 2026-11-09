@@ -16,7 +16,7 @@ const strokes = ['Впуск', 'Сжатие', 'Рабочий ход', 'Вып�
 		<button type="button" class="tdl__mode" data-mode="diesel" aria-pressed="false">Дизельный</button>
 	</div>
 	<div class="tdl__top">
-		<div class="tdl__engine" data-host></div>
+		<div class="tdl__engine" data-host><p class="tdl__hint">Нажмите на деталь двигателя, чтобы узнать, что это.</p></div>
 		<div class="tdl__panel">
 			<ol class="tdl__strokes">
 				{
@@ -111,6 +111,12 @@ const strokes = ['Впуск', 'Сжатие', 'Рабочий ход', 'Вып�
 		grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
 		gap: 1rem 1.25rem;
 		align-items: start;
+	}
+	.tdl__hint {
+		margin: 0 0 0.3rem;
+		text-wrap: balance;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
 	}
 	.tdl__strokes {
 		list-style: none;
@@ -420,7 +426,7 @@ const strokes = ['Впуск', 'Сжатие', 'Рабочий ход', 'Вып�
 
 <script>
 	import katex from 'katex';
-	import { buildEngine, SPECS, PATM, type Mode, type State } from './engine';
+	import { buildEngine, SPECS, PATM, type Mode, type State, type PartId } from './engine';
 
 	const NS = 'http://www.w3.org/2000/svg';
 	const fmt = (v: number, d = 0) =>
@@ -442,12 +448,26 @@ const strokes = ['Впуск', 'Сжатие', 'Рабочий ход', 'Вып�
 			'<b>Выпускной клапан открыт.</b> Поршень идёт вверх и выталкивает отработавшие газы в выхлопную трубу. Они уносят с собой много тепла.',
 		],
 	};
+	// notes of the engine parts (a tap on a part or on its caption)
+	const PART_NOTES: Record<PartId, (m: Mode) => string> = {
+		cylinder: () => '<b>Цилиндр</b> — толстостенная металлическая труба, закрытая сверху. Внутри неё ходит поршень, а над поршнем сжимается и сгорает топливо.',
+		piston: () => '<b>Поршень</b> — металлический «стакан», который плотно входит в цилиндр и движется в нём вверх и вниз. Кольца на поршне не дают газу просочиться вниз.',
+		rod: () => '<b>Шатун</b> — стержень, который соединяет поршень с коленом вала. Вместе с валом он превращает движение поршня вверх-вниз во вращение.',
+		crank: () => '<b>Коленчатый вал</b> — вал с изогнутым «коленом», к которому крепится шатун. Когда поршень ходит вверх-вниз, колено описывает круг, и вал вращается.',
+		flywheel: () => '<b>Маховик</b> — тяжёлое колесо на валу. Разогнавшись, он по инерции продолжает вращаться и двигает поршень, когда газ его не толкает.',
+		valveIn: (m) =>
+			`<b>Впускной клапан</b> открывается во время впуска: через него в цилиндр поступает ${m === 'petrol' ? 'горючая смесь — пары бензина с воздухом' : 'чистый воздух'}. В остальных тактах пружина держит его закрытым.`,
+		valveEx: () => '<b>Выпускной клапан</b> открывается во время выпуска: через него из цилиндра выходят отработавшие газы. В остальных тактах пружина держит его закрытым.',
+		plug: () => '<b>Свеча</b>: между её электродами в нужный момент проскакивает электрическая искра и поджигает смесь.',
+		injector: () => '<b>Форсунка</b> впрыскивает топливо в цилиндр в конце сжатия. Капли топлива загораются сами — от сильно нагретого воздуха.',
+		water: () => '<b>Охлаждающая вода</b> течёт вокруг цилиндра и не даёт стенкам перегреться. Тепло, которое она уносит, для работы двигателя потеряно.',
+	};
 	const NAMES = ['Полезная работа', 'С выхлопными газами', 'Охлаждение двигателя', 'Трение'];
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-tdl]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
 		const uid = root.dataset.uid!;
-		const view = buildEngine(q('[data-host]'), uid);
+		const view = buildEngine(q('[data-host]'), uid, true);
 		const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 		const strokesEl = Array.from(root.querySelectorAll<HTMLElement>('[data-stroke]'));
 		const progEl = strokesEl.map((s) => s.querySelector<HTMLElement>('[data-prog]')!);
@@ -633,6 +653,31 @@ const strokes = ['Впуск', 'Сжатие', 'Рабочий ход', 'Вып�
 		}
 		new ResizeObserver(() => tBar.parentElement!.style.setProperty('--full', `${tBar.parentElement!.clientWidth}px`)).observe(tBar.parentElement!);
 		new IntersectionObserver((es) => (visible = es[0].isIntersecting)).observe(root);
+		// tappable parts: the shared note window (MoreSetup.astro) opens their notes
+		type NoteEl = SVGGElement & { igNote?: () => Node; click?: () => void };
+		for (const p of view.parts) {
+			const note = () => {
+				const el = document.createElement('p');
+				el.innerHTML = PART_NOTES[p.id](mode);
+				return el;
+			};
+			for (const el of [p.g, p.label] as NoteEl[]) {
+				el.dataset.note = '';
+				el.dataset.noteTap = ''; // tap or click only: the parts move under a resting mouse
+				el.igNote = note;
+				// SVG elements have no click(); the keyboard handler of the notes calls it
+				el.click = () => el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+				el.addEventListener('pointerenter', () => (p.g.classList.add('is-hl'), p.label.classList.add('is-hl')));
+				el.addEventListener('pointerleave', () => (p.g.classList.remove('is-hl'), p.label.classList.remove('is-hl')));
+			}
+			p.g.setAttribute('tabindex', '0');
+			p.g.setAttribute('role', 'button');
+			p.g.setAttribute('aria-label', p.name);
+			p.g.setAttribute('aria-haspopup', 'dialog');
+			p.g.setAttribute('aria-expanded', 'false');
+			p.g.addEventListener('focus', () => p.label.classList.add('is-hl'));
+			p.g.addEventListener('blur', () => p.label.classList.remove('is-hl'));
+		}
 		setPlaying(playing);
 		drawSankey();
 		renderEta();

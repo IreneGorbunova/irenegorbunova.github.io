@@ -190,15 +190,26 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
 	return e;
 }
 
+export type PartId = 'cylinder' | 'piston' | 'rod' | 'crank' | 'flywheel' | 'valveIn' | 'valveEx' | 'plug' | 'injector' | 'water';
+
+/** A tappable engine part: `g` holds a highlight and an invisible, larger hit shape; `label` is its caption. */
+export interface Part {
+	id: PartId;
+	name: string;
+	g: SVGGElement;
+	label: SVGGElement;
+}
+
 export interface EngineView {
 	svg: SVGSVGElement;
+	parts: Part[];
 	render(phi: number, mode: Mode, dt: number, omega: number): State;
 	setLabels(on: boolean): void;
 	setMotionArrow(on: boolean): void;
 	scatter(): void;
 }
 
-export function buildEngine(host: Element, uid: string): EngineView {
+export function buildEngine(host: Element, uid: string, withParts = false): EngineView {
 	const svg = el('svg', { viewBox: '0 0 360 410', class: 'td-eng', role: 'img' });
 	svg.setAttribute('aria-label', 'Четырёхтактный двигатель внутреннего сгорания в разрезе');
 	host.append(svg);
@@ -319,16 +330,95 @@ export function buildEngine(host: Element, uid: string): EngineView {
 		});
 		return { g, line };
 	};
-	label(['впускной', 'клапан'], 64, 104, 'end', CX - VX - 10, H0 + 2);
-	label(['выпускной', 'клапан'], 284, 104, 'start', CX + VX + 10, H0 + 2);
+	const vInLbl = label(['впускной', 'клапан'], 64, 104, 'end', CX - VX - 10, H0 + 2).g;
+	const vExLbl = label(['выпускной', 'клапан'], 284, 104, 'start', CX + VX + 10, H0 + 2).g;
 	const plugLbl = label(['свеча'], 250, 16, 'start', CX + 7, 14).g;
 	const injLbl = label(['форсунка'], 250, 16, 'start', CX + 8, 14).g;
-	const pistLbl = label(['поршень'], 64, 196, 'end', CX - 40, 196).line;
-	label(['цилиндр'], 270, 160, 'start', CX + BORE / 2 + 4, 160);
-	const rodLbl = label(['шатун'], 64, 262, 'end', CX - 6, 262).line;
-	label(['коленчатый', 'вал'], 268, 318, 'start', CX + 14, CY + 4);
-	label(['маховик'], 64, 386, 'end', CX - 50, CY + 50);
-	label(['охлаждающая', 'вода'], 266, 222, 'start', CX + BORE / 2 + 16, 200);
+	const pistL = label(['поршень'], 64, 196, 'end', CX - 40, 196);
+	const pistLbl = pistL.line;
+	const cylLbl = label(['цилиндр'], 270, 160, 'start', CX + BORE / 2 + 4, 160).g;
+	const rodL = label(['шатун'], 64, 262, 'end', CX - 6, 262);
+	const rodLbl = rodL.line;
+	const crankLbl = label(['коленчатый', 'вал'], 268, 318, 'start', CX + 14, CY + 4).g;
+	const flyLbl = label(['маховик'], 64, 386, 'end', CX - 50, CY + 50).g;
+	const waterLbl = label(['охлаждающая', 'вода'], 266, 222, 'start', CX + BORE / 2 + 16, 200).g;
+
+	// tappable parts: drawn last, so that their invisible hit shapes lie above everything
+	const tappable: Part[] = [];
+	const moving: { piston?: SVGGElement; valveIn?: SVGGElement; valveEx?: SVGGElement; crank?: SVGGElement; rod?: SVGLineElement[] } = {};
+	if (withParts) {
+		const layer = el('g', { class: 'td-parts' }, svg);
+		const part = (id: PartId, name: string, lbl: SVGGElement, shapes: (g: SVGGElement) => void) => {
+			const g = el('g', { class: 'td-part' }, layer);
+			el('desc', {}, g).textContent = name;
+			shapes(g);
+			tappable.push({ id, name, g, label: lbl });
+			return g;
+		};
+		// a highlight (outline of the part) and a larger invisible area to tap
+		const hl = <K extends keyof SVGElementTagNameMap>(g: Element, tag: K, a: Record<string, string | number>) => el(tag, { ...a, class: 'td-hl' }, g);
+		const hit = <K extends keyof SVGElementTagNameMap>(g: Element, tag: K, a: Record<string, string | number>) => el(tag, { ...a, class: 'td-hit' }, g);
+		part('flywheel', 'Маховик', flyLbl, (g) => {
+			hl(g, 'circle', { cx: CX, cy: CY, r: 70, class: 'td-hl' }).classList.add('td-hl--ring');
+			hit(g, 'circle', { cx: CX, cy: CY, r: 77 });
+		});
+		// the rod lies under the crank: the crank is small, the rod is long enough to tap above it
+		const rodHl = el('line', { class: 'td-hl td-hl--rod' });
+		const rodHit = el('line', { class: 'td-hit', 'stroke-width': 26 });
+		part('rod', 'Шатун', rodL.g, (g) => g.append(rodHl, rodHit));
+		moving.rod = [rodHl, rodHit];
+		moving.crank = part('crank', 'Коленчатый вал', crankLbl, (g) => {
+			const web = `M ${CX - 12} ${CY} A 12 12 0 0 1 ${CX + 12} ${CY} L ${CX + 9} ${CY - R} A 9 9 0 0 1 ${CX - 9} ${CY - R} Z`;
+			const cw = `M ${CX - 30} ${CY + 8} A 31 31 0 0 0 ${CX + 30} ${CY + 8} L ${CX + 10} ${CY} L ${CX - 10} ${CY} Z`;
+			hl(g, 'path', { d: `${web} ${cw}` });
+			hit(g, 'path', { d: `${web} ${cw}`, 'stroke-width': 12 });
+		});
+		part('cylinder', 'Цилиндр', cylLbl, (g) => {
+			const yBotC = H0 + CLEAR_MAX + 2 * R + PIST_H + 6;
+			for (const x of [CX - BORE / 2 - 8, CX + BORE / 2]) hl(g, 'rect', { x, y: H0, width: 8, height: yBotC - H0 });
+			// the walls and the space inside them (the piston and the valves lie above)
+			hit(g, 'rect', { x: CX - BORE / 2 - 13, y: H0, width: BORE + 26, height: yBotC - H0 });
+			hl(g, 'rect', { x: CX - BORE / 2 - 26, y: 30, width: BORE + 52, height: H0 - 30, rx: 6 });
+			hit(g, 'rect', { x: CX - BORE / 2 - 26, y: 28, width: BORE + 52, height: H0 - 28 });
+		});
+		part('water', 'Охлаждающая вода', waterLbl, (g) => {
+			for (const x of [CX - BORE / 2 - 24, CX + BORE / 2 + 8]) {
+				hl(g, 'rect', { x, y: H0 - 2, width: 16, height: H0 + CLEAR_MAX + 2 * R + PIST_H + 6 - H0 - 30, rx: 4 });
+				hit(g, 'rect', { x: x - 3, y: H0 - 2, width: 19, height: H0 + CLEAR_MAX + 2 * R + PIST_H + 6 - H0 - 30 });
+			}
+		});
+		moving.piston = part('piston', 'Поршень', pistL.g, (g) => {
+			hl(g, 'rect', { x: CX - BORE / 2 + 1, y: 0, width: BORE - 2, height: PIST_H, rx: 3 });
+			hit(g, 'rect', { x: CX - BORE / 2, y: -3, width: BORE, height: PIST_H + 6 });
+		});
+		const valvePart = (id: PartId, name: string, lbl: SVGGElement, x: number) =>
+			part(id, name, lbl, (g) => {
+				hl(g, 'path', { d: `M ${x - 13} ${H0} L ${x + 13} ${H0} L ${x + 4} ${H0 - 6} L ${x + 2.5} ${H0 - 6} L ${x + 2.5} 16 L ${x + 9} 16 L ${x + 9} 12 L ${x - 9} 12 L ${x - 9} 16 L ${x - 2.5} 16 L ${x - 2.5} ${H0 - 6} L ${x - 4} ${H0 - 6} Z` });
+				hit(g, 'rect', { x: x - 15, y: 8, width: 30, height: H0 - 4 });
+			});
+		moving.valveIn = valvePart('valveIn', 'Впускной клапан', vInLbl, CX - VX);
+		moving.valveEx = valvePart('valveEx', 'Выпускной клапан', vExLbl, CX + VX);
+		part('plug', 'Свеча', plugLbl, (g) => {
+			hl(g, 'path', { d: `M ${CX - 6} 4 L ${CX + 6} 4 L ${CX + 6} 26 L ${CX + 8} 26 L ${CX + 8} 36 L ${CX + 5} 36 L ${CX + 5} ${H0 + 4} L ${CX - 5} ${H0 + 4} L ${CX - 5} 36 L ${CX - 8} 36 L ${CX - 8} 26 L ${CX - 6} 26 Z` });
+			hit(g, 'rect', { x: CX - 14, y: 0, width: 28, height: H0 + 6 });
+		});
+		part('injector', 'Форсунка', injLbl, (g) => {
+			hl(g, 'path', { d: `M ${CX - 7} 4 L ${CX + 7} 4 L ${CX + 7} 34 L ${CX + 5} 34 L ${CX + 3} ${H0 + 1} L ${CX - 3} ${H0 + 1} L ${CX - 5} 34 L ${CX - 7} 34 Z` });
+			hit(g, 'rect', { x: CX - 14, y: 0, width: 28, height: H0 + 6 });
+		});
+		// the captions open the same notes: an invisible box behind each caption's text
+		for (const p of tappable) {
+			const t = p.label.querySelector('text')!;
+			const n = t.querySelectorAll('tspan').length;
+			const x = Number(t.getAttribute('x'));
+			const y = Number(t.getAttribute('y'));
+			const w = Math.max(...Array.from(t.querySelectorAll('tspan'), (s) => (s.textContent ?? '').length)) * 7.6 + 10;
+			const anchorEnd = t.getAttribute('text-anchor') === 'end';
+			const box = el('rect', { x: anchorEnd ? x - w + 5 : x - 5, y: y - 15, width: w, height: 14 * n + 8, class: 'td-hit' });
+			p.label.prepend(box);
+			p.label.classList.add('td-cap');
+		}
+	}
 
 	const at = (p: SVGPathElement, s: number) => p.getPointAtLength(s * p.getTotalLength());
 
@@ -344,6 +434,19 @@ export function buildEngine(host: Element, uid: string): EngineView {
 		piston.setAttribute('transform', `translate(0 ${top})`);
 		pistonPin.setAttribute('cy', String(PIN_FROM_TOP + CLEAR_MAX - st.clear));
 		pistLbl.setAttribute('y2', String(top + 34));
+		if (moving.piston) {
+			moving.piston.setAttribute('transform', `translate(0 ${top})`);
+			moving.crank!.setAttribute('transform', `rotate(${(th * 180) / Math.PI} ${CX} ${CY})`);
+			moving.valveIn!.setAttribute('transform', `translate(0 ${LIFT * st.liftIn})`);
+			moving.valveEx!.setAttribute('transform', `translate(0 ${LIFT * st.liftEx})`);
+			for (const l of moving.rod!) {
+				l.setAttribute('x1', String(cpx));
+				l.setAttribute('y1', String(cpy));
+				l.setAttribute('x2', String(CX));
+				l.setAttribute('y2', String(pinY));
+			}
+			for (const p of tappable) if (p.id === 'plug' || p.id === 'injector') p.g.style.display = (p.id === 'plug') === (mode === 'petrol') ? '' : 'none';
+		}
 		rodLbl.setAttribute('x2', String((cpx + CX) / 2 - 4));
 		rodLbl.setAttribute('y2', String((cpy + pinY) / 2));
 		rod.setAttribute('x1', String(cpx));
@@ -466,6 +569,7 @@ export function buildEngine(host: Element, uid: string): EngineView {
 
 	return {
 		svg,
+		parts: tappable,
 		render,
 		setLabels: (on) => labels.style.setProperty('display', on ? '' : 'none'),
 		setMotionArrow: (on) => motion.style.setProperty('display', on ? '' : 'none'),
