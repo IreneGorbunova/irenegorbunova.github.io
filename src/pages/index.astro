@@ -6,11 +6,28 @@ import SiteStats from '../components/SiteStats.astro';
 import HeroMoon from '../components/moon/HeroMoon.astro';
 import NovoeList from '../components/NovoeList.astro';
 import { MOTION_SCRIPT } from '../plugins/motion.mjs';
-import { Picture } from 'astro:assets';
-import irina from '../assets/irina.jpg';
+import { getImage } from 'astro:assets';
+import irinaPortrait from '../assets/irina-portrait.jpg';
+import irinaFace from '../assets/irina-face.jpg';
 
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const textbook = `${base}uchebnik/`;
+
+// «Обо мне»: on a computer the portrait fills the column left of the text, on a phone the face is a circle.
+// High quality on purpose: the photo must stay sharp on every screen. The portrait is cropped to the height of
+// the text, so it is drawn wider than its column: sizes="36rem" is that drawn width, not the column's.
+const QUALITY = { avif: 80, webp: 92, jpg: 92 };
+const srcset = async (src: ImageMetadata, widths: number[], format: 'avif' | 'webp') =>
+	(await getImage({ src, widths, format, quality: QUALITY[format] })).srcSet.attribute;
+const FACE = [200, 400, 600, 990];
+const PORTRAIT = [336, 672, 1008, 1344];
+const photo = {
+	faceAvif: await srcset(irinaFace, FACE, 'avif'),
+	faceWebp: await srcset(irinaFace, FACE, 'webp'),
+	portraitAvif: await srcset(irinaPortrait, PORTRAIT, 'avif'),
+	portraitWebp: await srcset(irinaPortrait, PORTRAIT, 'webp'),
+	fallback: await getImage({ src: irinaPortrait, width: 1008, format: 'jpg', quality: QUALITY.jpg }),
+};
 ---
 
 <!doctype html>
@@ -65,14 +82,21 @@ const textbook = `${base}uchebnik/`;
 
 			<section id="obo-mne" class="section">
 				<div class="panel about" data-reveal>
-					<Picture
-						src={irina}
-						formats={['avif', 'webp']}
-						widths={[256, 512, 768]}
-						sizes="16rem"
-						alt="Ирина"
-						class="about__photo"
-					/>
+					<picture class="about__pic">
+						<source media="(max-width: 48rem)" type="image/avif" srcset={photo.faceAvif} sizes="12rem" />
+						<source media="(max-width: 48rem)" type="image/webp" srcset={photo.faceWebp} sizes="12rem" />
+						<source type="image/avif" srcset={photo.portraitAvif} sizes="36rem" />
+						<source type="image/webp" srcset={photo.portraitWebp} sizes="36rem" />
+						<img
+							class="about__photo"
+							src={photo.fallback.src}
+							width={photo.fallback.attributes.width}
+							height={photo.fallback.attributes.height}
+							alt="Ирина"
+							loading="lazy"
+							decoding="async"
+						/>
+					</picture>
 					<div class="about__text">
 						<h2>Обо мне</h2>
 						<p>Меня зовут Ирина, я учитель физики.</p>
@@ -503,22 +527,27 @@ const textbook = `${base}uchebnik/`;
 
 	.about {
 		display: grid;
-		grid-template-columns: auto 1fr;
+		grid-template-columns: clamp(14rem, 26vw, 21rem) 1fr;
 		gap: clamp(1.5rem, 5vw, 3.5rem);
-		align-items: center;
+		align-items: stretch;
 		padding: clamp(1.5rem, 5vw, 3rem);
 	}
-	.about__photo {
+	/* The portrait takes the height of the text next to it. */
+	.about__pic {
+		position: relative;
 		display: block;
-		width: clamp(10rem, 24vw, 16rem);
-		height: auto;
-		aspect-ratio: 1;
+		min-height: 20rem;
+	}
+	.about__photo {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
 		object-fit: cover;
-		border-radius: 50%;
-		border: 2px solid rgb(243 201 105 / 0.6);
-		box-shadow:
-			0 0 0 6px rgb(243 201 105 / 0.08),
-			0 0 40px rgb(243 201 105 / 0.2);
+		object-position: 47% 50%;
+		border-radius: 1rem;
+		border: 1px solid rgb(243 201 105 / 0.45);
+		box-shadow: 0 0 40px rgb(243 201 105 / 0.15);
 	}
 	.about__text h2 {
 		margin-bottom: 0.75rem;
@@ -821,6 +850,21 @@ const textbook = `${base}uchebnik/`;
 			grid-template-columns: 1fr;
 			justify-items: center;
 			text-align: center;
+		}
+		.about__pic {
+			position: static;
+			min-height: 0;
+		}
+		.about__photo {
+			position: static;
+			width: clamp(10rem, 45vw, 12rem);
+			height: auto;
+			aspect-ratio: 1;
+			border-radius: 50%;
+			border: 2px solid rgb(243 201 105 / 0.6);
+			box-shadow:
+				0 0 0 6px rgb(243 201 105 / 0.08),
+				0 0 40px rgb(243 201 105 / 0.2);
 		}
 		.cards {
 			grid-template-columns: 1fr;
