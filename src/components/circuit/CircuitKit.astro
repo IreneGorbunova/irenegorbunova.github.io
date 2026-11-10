@@ -1,0 +1,603 @@
+---
+/**
+ * «Конструктор цепей»: a free-form DC circuit constructor on a dot grid.
+ * Parts are dragged from the palette (or tapped into a free spot), wires are drawn from node to node,
+ * a part dropped on a wire is inserted into it. The circuit is solved exactly (solver.ts) after every change;
+ * electrons drift against the current, lamps glow with their power, meters show their readings.
+ *
+ * Props: preset — the starting circuit from presets.ts ('lamps', 'ohm', 'fuse'; empty board by default).
+ */
+import { icon } from './symbols';
+import type { Kind } from './solver';
+
+interface Props {
+	preset?: string;
+}
+const { preset = 'empty' } = Astro.props;
+const PALETTE: { kind: Kind; name: string; html?: string }[] = [
+	{ kind: 'source', name: 'Источник' },
+	{ kind: 'key', name: 'Ключ' },
+	{ kind: 'lamp', name: 'Лампа' },
+	{ kind: 'resistor', name: 'Резистор' },
+	{ kind: 'rheostat', name: 'Реостат' },
+	{ kind: 'ammeter', name: 'Амперметр' },
+	{ kind: 'voltmeter', name: 'Вольтметр' },
+	{ kind: 'fuse', name: 'Предохранитель', html: 'Предохра&shy;нитель' },
+	{ kind: 'wire', name: 'Провод' },
+];
+---
+
+<figure class="ck not-content" data-ck data-preset={preset}>
+	<div class="ck__pal" role="group" aria-label="Детали: перетащите на поле или нажмите, чтобы добавить">
+		{
+			PALETTE.map((p) => (
+				<button type="button" class="ck__pb" data-add={p.kind} aria-label={`Добавить: ${p.name.toLowerCase()}`}>
+					<Fragment set:html={icon(p.kind)} />
+					<span set:html={p.html ?? p.name} />
+				</button>
+			))
+		}
+	</div>
+
+	<div class="ck__wrap" data-wrap>
+		<svg
+			class="ck__board"
+			data-board
+			viewBox="0 0 700 450"
+			role="img"
+			aria-label="Поле для сборки цепи: точки сетки, детали и провода"
+		>
+			<defs></defs>
+			<g class="ck__grid" data-l="grid"></g>
+			<g class="ck__hotl" data-l="hot"></g>
+			<g class="ck__wires" data-l="wires"></g>
+			<g class="ck__dots" data-l="dots"></g>
+			<g class="ck__halos" data-l="halos"></g>
+			<g class="ck__bodies" data-l="bodies"></g>
+			<g class="ck__joints" data-l="joints"></g>
+			<g class="ck__labels" data-l="labels"></g>
+			<g class="ck__ui" data-l="ui"></g>
+		</svg>
+	</div>
+
+	<div class="ck__panel">
+		<p class="ck__empty" data-empty>Нажмите на деталь на поле, чтобы изменить её.</p>
+		<div class="ck__selbox" data-selbox hidden>
+			<b class="ck__name" data-name></b>
+			<label class="ck__sl" data-sl>
+				<span class="ck__sym" data-sym></span>
+				<input type="range" data-range />
+				<output data-out></output>
+			</label>
+			<span class="ck__state" data-state></span>
+			<span class="ck__acts">
+				<button type="button" class="ck__tb ck__tb--main" data-act="toggle">Замкнуть</button>
+				<button type="button" class="ck__tb ck__tb--main" data-act="replace">Заменить</button>
+				<button type="button" class="ck__tb" data-act="rotate">⟳ Повернуть</button>
+				<button type="button" class="ck__tb" data-act="delete">Удалить</button>
+			</span>
+		</div>
+	</div>
+
+	<div class="ck__row2">
+		<span class="ck__show">Показать:</span>
+		<span class="ck__seg" role="radiogroup" aria-label="Что показывать на проводах">
+			<button type="button" role="radio" aria-checked="true" class="is-on" data-mode="e">электроны</button>
+			<button type="button" role="radio" aria-checked="false" data-mode="i">направление тока</button>
+		</span>
+		<span class="ck__tools">
+			<button type="button" class="ck__tb" data-undo disabled>↶ Отменить</button>
+			<button type="button" class="ck__tb" data-clear>Очистить</button>
+		</span>
+	</div>
+
+	<p class="ck__msg" data-msg aria-live="polite"></p>
+	<p class="ck__hint">
+		Перетащите деталь на поле. Потяните за кружок на конце выбранной детали, чтобы повернуть её, а от любой точки поля — чтобы
+		провести провод. Нажмите на ключ, чтобы замкнуть или разомкнуть цепь.
+	</p>
+	<figcaption class="ck__legend">
+		<span class="ck__key-e"></span>свободные электроны движутся навстречу току, <span class="ck__key-i"></span>ток направлен
+		от «+» источника к «−». Чем больше сила тока, тем быстрее они движутся (скорость показана условно). Лампы рассчитаны на 6 В,
+		при напряжении больше 9 В нить перегорает. Сопротивление ламп считаем неизменным, приборы — идеальными: амперметр не имеет
+		сопротивления, через вольтметр ток почти не идёт.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ck {
+		container: ck / inline-size;
+		margin-block: 2rem;
+		padding: 0.9rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		--ck-board: color-mix(in srgb, var(--sl-color-black) 55%, var(--ig-surface));
+	}
+	.ck [hidden] {
+		display: none !important;
+	}
+	.ck i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+
+	/* palette */
+	.ck__pal {
+		display: flex;
+		gap: 5px;
+	}
+	.ck__pb {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1px;
+		padding: 4px 2px 5px;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 10px;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-gray-1);
+		font: inherit;
+		font-size: 0.72rem;
+		line-height: 1.15;
+		cursor: grab;
+		user-select: none;
+		-webkit-user-select: none;
+		hyphens: manual;
+	}
+	.ck__pb:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ck__pb:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 1px;
+	}
+	.ck.is-dragging,
+	.ck.is-dragging * {
+		cursor: grabbing;
+	}
+	.ck__icon {
+		width: 52px;
+		height: 22px;
+		flex: none;
+		overflow: visible;
+	}
+	.ck__icon .ck__w {
+		stroke: var(--sl-color-gray-2);
+	}
+	.ck__icon .ck__glass,
+	.ck__icon .ck__box,
+	.ck__icon .ck__bg {
+		fill: var(--sl-color-gray-6);
+	}
+	.ck__icon .ck__letter {
+		font-size: 17px;
+	}
+
+	/* board */
+	.ck__wrap {
+		margin-top: 0.6rem;
+		aspect-ratio: 700 / 450;
+		border-radius: 10px;
+		background: var(--ck-board);
+		touch-action: none;
+	}
+	@container ck (max-width: 519.98px) {
+		.ck__wrap {
+			aspect-ratio: 400 / 500;
+		}
+	}
+	.ck__board {
+		display: block;
+		width: 100%;
+		height: 100%;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+		font-family: var(--__sl-font);
+	}
+	.ck__grid circle {
+		fill: var(--sl-color-gray-4);
+		opacity: 0.6;
+	}
+	.ck__w {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+		fill: none;
+	}
+	.ck--bad {
+		opacity: 0.35;
+	}
+	.ck__hotl line {
+		stroke: var(--ig-vy);
+		stroke-width: 9;
+		stroke-linecap: round;
+		opacity: 0.5;
+		animation: ck-hot 0.9s ease-in-out infinite alternate;
+	}
+	@keyframes ck-hot {
+		to {
+			opacity: 0.85;
+		}
+	}
+	.ck__e {
+		fill: var(--ig-vx);
+	}
+	.ck__dots g {
+		transition: opacity 0.3s;
+	}
+	.ck__g0 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0.85;
+	}
+	.ck__g1 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0.3;
+	}
+	.ck__g2 {
+		stop-color: var(--ig-v);
+		stop-opacity: 0;
+	}
+	.ck__halos circle {
+		pointer-events: none;
+	}
+	.ck__bg {
+		fill: var(--ck-board);
+	}
+	.ck__plate {
+		stroke: var(--sl-color-white);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.ck__minus {
+		fill: var(--sl-color-white);
+	}
+	.ck__box,
+	.ck__glass {
+		fill: var(--ck-board);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.4;
+	}
+	.ck__glass--dead {
+		stroke: var(--sl-color-gray-3);
+		stroke-dasharray: 4 3;
+	}
+	.ck__heat {
+		fill: var(--ig-v);
+	}
+	.ck__fil {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	.ck__fil--hot {
+		stroke: var(--sl-color-black);
+	}
+	.ck__fil--dead {
+		stroke: var(--sl-color-gray-3);
+	}
+	.ck__contact {
+		fill: var(--sl-color-gray-2);
+	}
+	.ck__lever {
+		stroke: var(--sl-color-gray-2);
+	}
+	.ck__ah {
+		fill: var(--sl-color-gray-2);
+	}
+	.ck__melt {
+		stroke: var(--ig-vy);
+	}
+	.ck__part--tap {
+		cursor: pointer;
+	}
+	.ck__joint {
+		fill: var(--sl-color-gray-2);
+	}
+	.ck__term {
+		fill: var(--ck-board);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+	}
+	.ck__letter {
+		fill: var(--sl-color-white);
+		font-size: 16px;
+		font-weight: 700;
+		text-anchor: middle;
+	}
+	.ck__plus,
+	.ck__num {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+	}
+	.ck__val {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+	}
+	.ck.is-narrow .ck__val {
+		font-size: 15px;
+	}
+	.ck__sign {
+		fill: var(--sl-color-gray-2);
+		font-size: 16px;
+	}
+	.ck__read {
+		font-size: 17px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.ck__read--i {
+		fill: var(--ig-vx);
+	}
+	.ck__read--u {
+		fill: var(--ig-vy);
+	}
+	.ck__read--over {
+		fill: var(--ig-vy);
+		font-size: 15px;
+	}
+	.ck.is-narrow .ck__read {
+		font-size: 20px;
+	}
+	.ck.is-narrow .ck__read--over {
+		font-size: 17px;
+	}
+	.ck.is-narrow .ck__letter {
+		font-size: 18px;
+	}
+	.ck.is-narrow .ck__plus,
+	.ck.is-narrow .ck__num {
+		font-size: 15px;
+	}
+	.ck__sel {
+		fill: none;
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.6;
+		stroke-dasharray: 5 4;
+	}
+	.ck__selw {
+		stroke: var(--sl-color-accent);
+		stroke-width: 7;
+		stroke-linecap: round;
+		opacity: 0.35;
+	}
+	.ck__handle {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-accent);
+		stroke-width: 2.4;
+	}
+	.ck.is-narrow .ck__handle {
+		r: 10px;
+	}
+	.ck__draw {
+		stroke: var(--sl-color-accent);
+		stroke-width: 2.6;
+		stroke-dasharray: 6 5;
+		stroke-linecap: round;
+	}
+	.ck__drawend {
+		fill: var(--sl-color-accent);
+	}
+
+	/* panel */
+	.ck__panel {
+		margin-top: 0.6rem;
+		padding: 0.55rem 0.8rem;
+		min-height: 3.1rem;
+		display: flex;
+		align-items: center;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 12px;
+		background: var(--sl-color-gray-6);
+	}
+	.ck__empty {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.ck__selbox {
+		flex: 1;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem 1rem;
+	}
+	.ck__name {
+		color: var(--sl-color-white);
+		font-weight: 400;
+		white-space: nowrap;
+	}
+	.ck__sl {
+		flex: 1 1 13rem;
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		min-width: 0;
+	}
+	.ck__sym {
+		color: var(--sl-color-gray-2);
+		font-size: 1.1em;
+		white-space: nowrap;
+	}
+	.ck__sym sub {
+		font-family: var(--__sl-font);
+		font-style: normal;
+		font-size: 0.65em;
+	}
+	.ck__sl input {
+		flex: 1;
+		min-width: 0;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.ck__sl output {
+		min-width: 3.6em;
+		text-align: right;
+		font-weight: 700;
+		color: var(--sl-color-accent);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.ck__state {
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-sm);
+	}
+	.ck__acts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-left: auto;
+	}
+	.ck__tb {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.85rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.ck__tb:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.ck__tb:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.ck__tb--main {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+
+	/* second row */
+	.ck__row2 {
+		margin-top: 0.6rem;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.8rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ck__seg {
+		display: inline-flex;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		padding: 3px;
+		gap: 2px;
+	}
+	.ck__seg button {
+		font: inherit;
+		padding: 0.2rem 0.75rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.ck__seg button.is-on {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ck__tools {
+		display: flex;
+		gap: 0.5rem;
+		margin-left: auto;
+	}
+	.ck__msg {
+		margin: 0.6rem 0.1rem 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+		color: var(--sl-color-gray-2);
+	}
+	.ck__msg:empty {
+		display: none;
+	}
+	.ck__warn {
+		color: var(--ig-vy);
+		font-weight: 700;
+	}
+	.ck__hint {
+		margin: 0.6rem 0.1rem 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+		color: var(--sl-color-gray-3);
+	}
+	.ck__legend {
+		margin: 0.45rem 0.1rem 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+	.ck__key-e {
+		display: inline-block;
+		width: 0.55rem;
+		height: 0.55rem;
+		margin: 0 0.35rem 0.1rem 0;
+		border-radius: 50%;
+		background: var(--ig-vx);
+		vertical-align: middle;
+	}
+	.ck__key-i {
+		display: inline-block;
+		width: 0;
+		height: 0;
+		margin: 0 0.35rem 0.1rem 0.1rem;
+		border: 0.32rem solid transparent;
+		border-left: 0.55rem solid var(--ig-vx);
+		border-right: 0;
+		vertical-align: middle;
+	}
+
+	@media (max-width: 40rem) {
+		.ck {
+			padding: 0.65rem;
+		}
+		.ck__pal {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+		.ck__pb {
+			flex-direction: row;
+			justify-content: flex-start;
+			gap: 3px;
+			padding: 4px 4px;
+			font-size: 0.7rem;
+			text-align: left;
+		}
+		.ck__icon {
+			width: 34px;
+			height: 20px;
+		}
+		.ck__selbox {
+			gap: 0.75rem 0.8rem;
+		}
+		.ck__sl {
+			flex-basis: 100%;
+			order: 2;
+		}
+		.ck__name {
+			order: 1;
+		}
+		.ck__state {
+			order: 1;
+		}
+		.ck__acts {
+			order: 3;
+			margin-left: 0;
+		}
+	}
+</style>
+
+<script>
+	import { mount } from './kit';
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ck]')) mount(root);
+</script>
