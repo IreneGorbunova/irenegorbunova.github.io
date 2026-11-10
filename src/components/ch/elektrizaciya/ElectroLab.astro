@@ -6,7 +6,10 @@
  * pass to the electroscope. The electroscope is a conductor: a charged rod nearby pushes or pulls its
  * free electrons (electrification by influence), so the leaves diverge even without contact; a finger
  * connects the electroscope with the Earth. Neutral pieces of paper are attracted by a strong enough
- * field of either sign. One drawn charge stands for 10^9 electrons (a real rod: ~10^10).
+ * field of either sign: the field shifts the bound charges inside every molecule of the paper (a
+ * dielectric), so the side of a piece nearest the rod gets the sign opposite to the rod's. Each piece
+ * shows three small «+ −» pairs, and a magnifier shows the piece in the strongest field with the
+ * electroscope's charge glyphs. One drawn charge stands for 10^9 electrons (a real rod: ~10^10).
  */
 const W = 700;
 const H = 450;
@@ -14,6 +17,9 @@ const TABLE = 420;
 const B = { x: 580, y: 150, r: 22 }; // ball of the electroscope
 const CASE = { x: 508, y: 238, w: 144, h: 174 };
 const PIVOT = { x: 580, y: 292 };
+const LENS_R = 80; // magnifier over a piece of paper
+const LENS_W = 124; // the piece under it, about 8 times its 16 x 10 size
+const LENS_H = 78;
 const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 ---
 
@@ -63,6 +69,17 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 			d={`M ${CASE.x + 16} ${CASE.y + 22} q -4 50 0 110`}
 			fill="none"></path>
 
+		<!-- magnifier over the piece of paper in the strongest field (under the rod and the cloth) -->
+		<g class="ell__lens" data-lens opacity="0" aria-hidden="true">
+			<path class="ell__lens-tip" data-lens-tip></path>
+			<g data-lens-body>
+				<circle class="ell__lens-bg" r={LENS_R}></circle>
+				<rect class="ell__bit" x={-LENS_W / 2} y={-LENS_H / 2} width={LENS_W} height={LENS_H} rx="6"></rect>
+				<g data-lens-q></g>
+				<circle class="ell__lens-rim" r={LENS_R + 1}></circle>
+			</g>
+		</g>
+
 		<!-- rod (drawn by the script), cloth, flying electrons, finger -->
 		<g class="ell__rod" data-rod tabindex="0" role="button" aria-label="Палочка: перетаскивайте её"></g>
 		<g data-bits></g>
@@ -98,7 +115,8 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 		электрона не хватает. Бледные пары «+&nbsp;−» показывают, что в незаряженном теле положительных и отрицательных
 		зарядов поровну. Каждый значок — это примерно миллиард (10<sup>9</sup>) электронов: на настоящей натёртой палочке
 		лишних электронов десятки миллиардов. Тяните ткань по палочке, чтобы потереть, и подносите палочку к шару
-		электроскопа и к бумажкам.
+		электроскопа и к бумажкам. В лупе — сильно увеличенная бумажка. Поле палочки сдвигает заряды внутри каждой её
+		молекулы: «+» и «−» каждой пары немного расходятся, но остаются в своей молекуле.
 	</figcaption>
 </figure>
 
@@ -265,6 +283,37 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 		fill: var(--el-paper);
 		stroke: var(--sl-color-gray-3);
 		stroke-width: 1;
+	}
+	.ell__bitq circle {
+		stroke: none;
+	}
+	.ell__bitq .p {
+		fill: var(--el-p);
+	}
+	.ell__bitq .n {
+		fill: var(--el-n);
+	}
+	.ell__lens {
+		pointer-events: none;
+	}
+	.ell__lens-bg {
+		fill: var(--sl-color-bg);
+	}
+	.ell__lens-rim {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.ell__lens-tip {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 25%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ell__mol {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+		stroke-dasharray: 3 2.5;
 	}
 	.ell__finger-skin {
 		fill: var(--el-skin);
@@ -480,6 +529,18 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 	const BIT_LIFT = 2.4; // field strength that lifts a piece of paper
 	const BIT_DROP = 1.1;
 	const BITS_X = [300, 328, 356, 386, 414, 444];
+	// polarization of the paper: P = 1 − exp(−S/P_FIELD) grows with the field S (linear when weak, then
+	// saturates: the charges never leave their molecules); drawn from P_SHOW on, so a far rod shows nothing
+	const P_FIELD = 1;
+	const P_SHOW = 0.12;
+	const MOL_X = [-5, 0, 5]; // three molecules in a piece (16 x 10 px)
+	const MOL_TURN = [62, -48, 30]; // degrees: how far each molecule is turned from the field when P = 0
+	const LENS_R = 80;
+	const LENS_SPOTS = [
+		{ x: 225, y: 328 },
+		{ x: 428, y: 200 },
+	]; // free places for the magnifier: left of the paper, or above it, whichever the rod leaves open
+	const LENS_MOL_X = [-40, 0, 40];
 
 	type Pair = 'ebonite' | 'glass';
 	const PAIRS = {
@@ -511,7 +572,10 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 		state: 'table' | 'fly' | 'stuck' | 'fall';
 		dx: number;
 		dy: number;
-		g: SVGRectElement;
+		g: SVGGElement;
+		p: number; // polarization 0…1, smoothed
+		ang: number; // direction of the field at the piece, rad
+		q: SVGCircleElement[]; // three pairs: + and − of each molecule
 	};
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-ell]')) {
@@ -524,6 +588,10 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 		const gBits = root.querySelector<SVGGElement>('[data-bits]')!;
 		const gFinger = root.querySelector<SVGGElement>('[data-finger]')!;
 		const gFlow = root.querySelector<SVGGElement>('[data-flow]')!;
+		const gLens = root.querySelector<SVGGElement>('[data-lens]')!;
+		const gLensBody = root.querySelector<SVGGElement>('[data-lens-body]')!;
+		const gLensQ = root.querySelector<SVGGElement>('[data-lens-q]')!;
+		const lensTip = root.querySelector<SVGPathElement>('[data-lens-tip]')!;
 		const live = root.querySelector<HTMLElement>('[data-live]')!;
 		const formula = root.querySelector<HTMLElement>('[data-formula]')!;
 		const qRodEl = root.querySelector<HTMLElement>('[data-q-rod]')!;
@@ -878,7 +946,8 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 		};
 
 		// ---------- pieces of paper ----------
-		const field = (x: number, y: number) => {
+		/** Field of the rod's charges at (x, y): its direction (where a «+» is pushed) and strength S. */
+		const fieldVec = (x: number, y: number) => {
 			let ex = 0;
 			let ey = 0;
 			for (const q of rodQ) {
@@ -891,8 +960,9 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 				ex += (q.s * dx) / (r2 * r);
 				ey += (q.s * dy) / (r2 * r);
 			}
-			return Math.hypot(ex, ey) * 1000;
+			return { ang: Math.atan2(ey, ex), S: Math.hypot(ex, ey) * 1000 };
 		};
+		const field = (x: number, y: number) => fieldVec(x, y).S;
 		const nearestOnRod = (x: number, y: number) => {
 			const cx = Math.min(rod.x + RL - 2, Math.max(rod.x + GRIP, x));
 			const sy = y > rod.y ? 1 : -1;
@@ -903,9 +973,129 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 			gBits.replaceChildren();
 			bits.length = 0;
 			BITS_X.forEach((x, k) => {
-				const g = el('rect', { class: 'ell__bit', x: -8, y: -5, width: 16, height: 10, rx: 1.5 }, gBits);
-				bits.push({ x, y: TABLE - 5, vx: 0, vy: 0, rot: (k * 37) % 50 - 25, wob: 0, state: 'table', dx: 0, dy: 0, g });
+				const g = el('g', {}, gBits);
+				el('rect', { class: 'ell__bit', x: -8, y: -5, width: 16, height: 10, rx: 1.5 }, g);
+				const pq = el('g', { class: 'ell__bitq', opacity: 0 }, g);
+				const q: SVGCircleElement[] = [];
+				for (const _ of MOL_X) {
+					q.push(el('circle', { class: 'p', r: 1.6 }, pq));
+					q.push(el('circle', { class: 'n', r: 1.6 }, pq));
+				}
+				bits.push({ x, y: TABLE - 5, vx: 0, vy: 0, rot: (k * 37) % 50 - 25, wob: 0, state: 'table', dx: 0, dy: 0, g, p: 0, ang: 0, q });
 			});
+			buildLens();
+		};
+
+		// ---------- polarization: the magnifier and the pairs in every piece ----------
+		const lens = { x: LENS_SPOTS[0].x, y: LENS_SPOTS[0].y, spot: 0, a: 0, bit: -1 };
+		let lensQ: { mol: SVGEllipseElement; p: SVGGElement; n: SVGGElement }[] = [];
+		let lensR = 9; // charge glyphs in the magnifier: larger than on the rod, it magnifies
+		const buildLens = () => {
+			gLensQ.replaceChildren();
+			lensR = narrow() ? 11 : 9;
+			lensQ = LENS_MOL_X.map(() => ({
+				mol: el('ellipse', { class: 'ell__mol' }, gLensQ),
+				n: chargeSymbol(-1, lensR, gLensQ),
+				p: chargeSymbol(1, lensR, gLensQ),
+			}));
+			lens.a = 0;
+			lens.bit = -1;
+			gLens.setAttribute('opacity', '0');
+		};
+		const pTarget = (S: number) => 1 - Math.exp(-S / P_FIELD);
+		const shown = (p: number) => Math.min(1, Math.max(0, (p - P_SHOW) / 0.25));
+		/** Angle of molecule k: turned at random when the field is weak, along the field when it is strong. */
+		const molAngle = (ang: number, p: number, k: number) => ang + (1 - p) * MOL_TURN[k] * (Math.PI / 180);
+		const polarize = (b: Bit, dt: number, rotDeg: number) => {
+			const f = fieldVec(b.x, b.y);
+			const goal = rodQ.length ? pTarget(f.S) : 0;
+			b.p += (goal - b.p) * Math.min(1, dt / 0.15);
+			if (Math.abs(goal - b.p) < 0.002) b.p = goal;
+			b.ang = f.ang;
+			const o = shown(b.p);
+			b.q[0].parentElement!.setAttribute('opacity', o.toFixed(2));
+			if (o === 0) return;
+			const half = 1.2 + 1.0 * b.p; // half the distance between + and −, px
+			MOL_X.forEach((x, k) => {
+				const a = molAngle(f.ang, b.p, k) - (rotDeg * Math.PI) / 180; // in the frame of the piece
+				const ux = Math.cos(a) * half;
+				const uy = Math.sin(a) * half;
+				b.q[2 * k].setAttribute('cx', (x + ux).toFixed(2));
+				b.q[2 * k].setAttribute('cy', uy.toFixed(2));
+				b.q[2 * k + 1].setAttribute('cx', (x - ux).toFixed(2));
+				b.q[2 * k + 1].setAttribute('cy', (-uy).toFixed(2));
+			});
+		};
+		const clearance = (c: Pt) => {
+			// distance from the magnifier's rim to the rod and the cloth (negative: they overlap)
+			const box = (x0: number, y0: number, x1: number, y1: number) =>
+				Math.hypot(Math.max(x0 - c.x, 0, c.x - x1), Math.max(y0 - c.y, 0, c.y - y1)) - LENS_R;
+			return Math.min(
+				box(rod.x, rod.y - RT / 2, rod.x + RL, rod.y + RT / 2),
+				box(cloth.x - CW / 2, cloth.y - CH / 2, cloth.x + CW / 2, cloth.y + CH / 2),
+			);
+		};
+		const stepLens = (dt: number) => {
+			// the piece in the strongest field (keep the current one unless another is clearly stronger)
+			let best = lens.bit;
+			for (let k = 0; k < bits.length; k++)
+				if (best < 0 || bits[k].p > bits[best].p * 1.15 + 0.01) best = k;
+			lens.bit = best;
+			const b = bits[best];
+			const goalA = b ? shown(b.p) : 0;
+			lens.a += (goalA - lens.a) * Math.min(1, dt / 0.2);
+			if (Math.abs(goalA - lens.a) < 0.005) lens.a = goalA;
+			gLens.setAttribute('opacity', lens.a.toFixed(3));
+			if (!b || lens.a === 0) return false;
+			// the place the rod and the cloth leave open
+			const here = clearance(LENS_SPOTS[lens.spot]);
+			const other = clearance(LENS_SPOTS[1 - lens.spot]);
+			if (here < 6 && other > here + 20) lens.spot = 1 - lens.spot;
+			const goal = LENS_SPOTS[lens.spot];
+			const k = Math.min(1, dt / 0.18);
+			lens.x += (goal.x - lens.x) * k;
+			lens.y += (goal.y - lens.y) * k;
+			if (Math.hypot(goal.x - lens.x, goal.y - lens.y) < 0.3) {
+				lens.x = goal.x;
+				lens.y = goal.y;
+			}
+			gLensBody.setAttribute('transform', `translate(${lens.x.toFixed(1)} ${lens.y.toFixed(1)})`);
+			// a pointer from the magnifier to the piece
+			const dx = b.x - lens.x;
+			const dy = b.y - lens.y;
+			const d = Math.hypot(dx, dy);
+			if (d > LENS_R + 16) {
+				const ux = dx / d;
+				const uy = dy / d;
+				const bx = lens.x + ux * (LENS_R - 2);
+				const by = lens.y + uy * (LENS_R - 2);
+				lensTip.setAttribute(
+					'd',
+					`M ${(bx - uy * 10).toFixed(1)} ${(by + ux * 10).toFixed(1)} L ${(b.x - ux * 9).toFixed(1)} ${(b.y - uy * 9).toFixed(1)} L ${(bx + uy * 10).toFixed(1)} ${(by - ux * 10).toFixed(1)} Z`,
+				);
+			} else lensTip.setAttribute('d', '');
+			// the molecules of the piece, magnified: + shifted along the field, − against it
+			const R = lensR;
+			const half = R * (0.5 + 0.55 * b.p); // up to 1.05 R: the pair stretches but stays one molecule
+			lensQ.forEach((m, k) => {
+				const a = molAngle(b.ang, b.p, k);
+				const ux = Math.cos(a);
+				const uy = Math.sin(a);
+				const x = LENS_MOL_X[k];
+				m.p.setAttribute('transform', `translate(${(x + ux * half).toFixed(2)} ${(uy * half).toFixed(2)})`);
+				m.n.setAttribute('transform', `translate(${(x - ux * half).toFixed(2)} ${(-uy * half).toFixed(2)})`);
+				m.mol.setAttribute('rx', (half + R + 3).toFixed(2));
+				m.mol.setAttribute('ry', (R + 3).toFixed(2));
+				m.mol.setAttribute('transform', `translate(${x} 0) rotate(${((a * 180) / Math.PI).toFixed(1)})`);
+			});
+			if (lens.a > 0.5)
+				say(
+					'polar',
+					sumRod() < 0
+						? 'Посмотрите в лупу. Бумага — диэлектрик: её электроны не уходят далеко, как в металле электроскопа, а лишь чуть сдвигаются внутри каждой молекулы. Ближняя к палочке сторона бумажки заряжается положительно, дальняя — отрицательно, и ближнюю палочка притягивает сильнее.'
+						: 'Посмотрите в лупу. Бумага — диэлектрик: её электроны не уходят далеко, как в металле электроскопа, а лишь чуть сдвигаются внутри каждой молекулы. Ближняя к палочке сторона бумажки заряжается отрицательно, дальняя — положительно, и ближнюю палочка притягивает сильнее.',
+				);
+			return Math.abs(goalA - lens.a) > 0 || Math.hypot(goal.x - lens.x, goal.y - lens.y) > 0;
 		};
 		const stepBits = (dt: number, t: number) => {
 			let lifted = false;
@@ -963,11 +1153,12 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 				const wob = b.state === 'table' && !reduceMotion() ? b.wob * 14 * Math.sin(t * 20 + b.x) : 0;
 				const lift = b.state === 'table' ? -b.wob * 3 : 0;
 				b.g.setAttribute('transform', `translate(${b.x.toFixed(1)} ${(b.y + lift).toFixed(1)}) rotate(${(b.rot + wob).toFixed(1)})`);
+				polarize(b, dt, b.rot + wob);
 			}
 			if (lifted)
 				say(
 					'bits',
-					'Бумажки не были заряжены, но всё равно подскочили к палочке. Заряженное тело притягивает и незаряженные лёгкие тела — с любым знаком заряда.',
+					'Бумажки не были заряжены, но всё равно подскочили к палочке. Заряженное тело притягивает и незаряженные лёгкие тела — с любым знаком заряда. Почему — видно в лупе.',
 				);
 		};
 
@@ -1127,7 +1318,10 @@ const uid = `ell-${Math.random().toString(36).slice(2, 8)}`;
 			}
 
 			stepBits(dt, t);
+			const lensMoving = stepLens(dt);
 			const busy =
+				lensMoving ||
+				bits.some((b) => Math.abs(b.p - (rodQ.length ? pTarget(field(b.x, b.y)) : 0)) > 0.002) ||
 				anim !== null ||
 				flies.length > 0 ||
 				flowDots.length > 0 ||
