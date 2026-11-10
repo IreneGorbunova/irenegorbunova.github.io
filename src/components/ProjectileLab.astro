@@ -2,7 +2,25 @@
 /**
  * Interactive model: a body thrown at an angle to the horizon (no air resistance).
  * Equal scales on both axes (10 px per metre), so angles on screen are true angles.
+ *
+ * Optional air resistance (`air` shows the switch and turns it on; without `air` the model is airless, as before): quadratic drag
+ * F = ½·C·ρ·S·υ², ρ = 1,2 kg/m³, integrated with RK4 (fixed step 0,002 s). With air on, the airless
+ * parabola for the same angle and speed stays as a thin dashed ghost, and the readouts show both.
+ * Drag coefficients for these Reynolds numbers (≈ 1–3·10⁵ at 15–25 m/s):
+ *   tennis ball 0,55 (wind tunnel 0,55–0,66, free flight ≈ 0,51: Chadwick & Haake 2000; Goodwill, Chin & Haake 2004);
+ *   football 0,25 (around and past the drag crisis: ≈ 0,47 below it, 0,15–0,20 well above it; Asai et al. 2007, Asai & Seo 2013);
+ *   shot 0,47 (smooth sphere below the drag crisis, Achenbach 1972).
  */
+interface Props {
+	/** Start with air resistance switched on. */
+	air?: boolean;
+}
+const { air = false } = Astro.props;
+const BODIES = [
+	{ name: 'футбольный мяч', short: 'футбол', m: 0.43, d: 0.22, C: 0.25, info: '0,43 кг, диаметр 22 см', it: false },
+	{ name: 'теннисный мяч', short: 'теннис', m: 0.058, d: 0.067, C: 0.55, info: '0,058 кг, диаметр 6,7 см', it: false },
+	{ name: 'ядро для толкания', short: 'ядро', m: 7.26, d: 0.12, C: 0.47, info: '7,26 кг, диаметр 12 см', it: true },
+];
 const uid = `lab-${Math.random().toString(36).slice(2, 8)}`;
 const OX = 48;
 const OY = 354;
@@ -13,7 +31,7 @@ const xs = [10, 20, 30, 40, 50, 60];
 const ys = [10, 20, 30];
 ---
 
-<figure class="lab not-content" data-lab>
+<figure class="lab not-content" data-lab data-bodies={JSON.stringify(BODIES)}>
 	<svg
 		class="lab__plot"
 		viewBox="0 0 720 384"
@@ -54,6 +72,8 @@ const ys = [10, 20, 30];
 		</g>
 
 		<g data-traces></g>
+		<path class="lab__ghost" data-ghost></path>
+		<text class="lab__ghost-label" data-ghost-label>без воздуха</text>
 		<path class="lab__preview" data-preview></path>
 		<line class="lab__hline" data-hline></line>
 		<text class="lab__mark" data-hlabel>H</text>
@@ -78,6 +98,19 @@ const ys = [10, 20, 30];
 			<output data-v-out>20 м/с</output>
 			<input type="range" min="5" max="25" step="0.5" value="20" data-speed />
 		</label>
+		<div class="lab__air" hidden={!air}>
+			<label class="lab__check"><input type="checkbox" checked={air} data-air /> Учесть сопротивление воздуха</label>
+			<div class="lab__bodies" role="radiogroup" aria-label="Что бросаем" hidden={!air} data-body-group>
+				{
+					BODIES.map((b, k) => (
+						<button type="button" class="lab__body" role="radio" aria-checked={k === 0 ? 'true' : 'false'} data-body={k}>
+							{b.name}
+						</button>
+					))
+				}
+				<span class="lab__body-info" data-body-info>{BODIES[0].info}</span>
+			</div>
+		</div>
 		<div class="lab__buttons">
 			<button type="button" class="lab__btn lab__btn--primary" data-throw>Бросить</button>
 			<button type="button" class="lab__btn" data-clear>Стереть следы</button>
@@ -85,9 +118,9 @@ const ys = [10, 20, 30];
 	</div>
 
 	<dl class="lab__stats">
-		<div><dt>Время полёта</dt><dd data-T>—</dd></div>
-		<div><dt>Наибольшая высота <i>H</i></dt><dd data-H>—</dd></div>
-		<div><dt>Дальность <i>L</i></dt><dd data-L>—</dd></div>
+		<div><dt>Время полёта</dt><dd data-T>—</dd><dd class="lab__alt" hidden data-T0></dd></div>
+		<div><dt>Наибольшая высота <i>H</i></dt><dd data-H>—</dd><dd class="lab__alt" hidden data-H0></dd></div>
+		<div><dt>Дальность <i>L</i></dt><dd data-L>—</dd><dd class="lab__alt" hidden data-L0></dd></div>
 	</dl>
 	<p class="lab__live" data-live aria-live="polite"></p>
 
@@ -95,7 +128,7 @@ const ys = [10, 20, 30];
 		<span class="lab__key lab__key--v"></span><i>υ</i> — скорость
 		<span class="lab__key lab__key--vx"></span><i>υ<sub>x</sub></i>
 		<span class="lab__key lab__key--vy"></span><i>υ<sub>y</sub></i> — её проекции.
-		Сопротивление воздуха не учитывается, <span class="lab__nowrap"><i>g</i> = 9,8 м/с²</span>.
+		{' '}<span data-note-noair>Сопротивление воздуха не учитывается,</span><span hidden data-note-air>Тонкий пунктир — тот же бросок без воздуха,</span> <span class="lab__nowrap"><i>g</i> = 9,8 м/с²</span>.
 	</figcaption>
 </figure>
 
@@ -133,6 +166,17 @@ const ys = [10, 20, 30];
 		stroke: var(--sl-color-gray-3);
 		stroke-width: 1.5;
 		stroke-dasharray: 6 6;
+	}
+	.lab__ghost {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 2 4;
+	}
+	.lab__ghost-label {
+		fill: var(--sl-color-gray-3);
+		font-size: 13px;
+		font-family: var(--__sl-font);
 	}
 	.lab__trail {
 		fill: none;
@@ -220,6 +264,59 @@ const ys = [10, 20, 30];
 		width: 100%;
 		accent-color: var(--sl-color-accent);
 	}
+	.lab__air[hidden] {
+		display: none;
+	}
+	.lab__air {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1rem;
+	}
+	.lab__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.lab__check input {
+		width: 1.05rem;
+		height: 1.05rem;
+		accent-color: var(--sl-color-accent);
+	}
+	.lab__bodies:not([hidden]) {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.lab__body {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.8rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.lab__body:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.lab__body[aria-checked='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 20%, transparent);
+		color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.lab__body-info {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		white-space: nowrap;
+	}
 	.lab__buttons {
 		grid-column: 1 / -1;
 		display: flex;
@@ -268,6 +365,11 @@ const ys = [10, 20, 30];
 		color: var(--sl-color-white);
 		font-variant-numeric: tabular-nums;
 	}
+	.lab__stats dd.lab__alt {
+		font-size: var(--sl-text-xs);
+		font-weight: 400;
+		color: var(--sl-color-gray-3);
+	}
 	.lab__live {
 		min-height: 1.5em;
 		margin: 0.6rem 0 0;
@@ -312,7 +414,8 @@ const ys = [10, 20, 30];
 		.lab__ticks text {
 			font-size: 24px;
 		}
-		.lab__trace text {
+		.lab__trace text,
+		.lab__ghost-label {
 			font-size: 22px;
 		}
 		.lab__mark {
@@ -332,6 +435,17 @@ const ys = [10, 20, 30];
 		.lab__stats dd {
 			font-size: var(--sl-text-lg);
 		}
+		.lab.is-air .lab__stats > div {
+			display: grid;
+			grid-template-columns: 1fr auto;
+			column-gap: 0.5rem;
+		}
+		.lab.is-air .lab__stats dd {
+			text-align: right;
+		}
+		.lab.is-air .lab__stats dd.lab__alt {
+			grid-column: 2;
+		}
 	}
 </style>
 
@@ -343,6 +457,9 @@ const ys = [10, 20, 30];
 	const K = 2.4; // arrow length, px per (m/s)
 	const MAX_TRACES = 4;
 	const SVG_NS = 'http://www.w3.org/2000/svg';
+	const RHO = 1.2; // air density, kg/m³
+	const DT = 0.002; // RK4 step, s
+	const EVERY = 4; // every 4th RK4 point (0,008 s) is drawn
 
 	const fmt = (v: number, digits = 1) =>
 		v.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -350,6 +467,62 @@ const ys = [10, 20, 30];
 	const py = (y: number) => OY - y * S;
 
 	type Throw = { deg: number; a: number; v0: number; T: number; H: number; L: number };
+	type Body = { name: string; short: string; m: number; d: number; C: number; info: string; it: boolean };
+	// A throw with air: states (x, y, υx, υy) every DT, the last one is the landing point at time T.
+	type AirThrow = Throw & { xH: number; st: Float64Array; n: number; k: number };
+
+	// Quadratic drag: a = −k·υ·υ⃗ − g·ŷ with k = C·ρ·S / (2m).
+	const flyAir = (p: Throw, k: number): AirThrow => {
+		const f = (s: number[]) => {
+			const v = Math.hypot(s[2], s[3]);
+			return [s[2], s[3], -k * v * s[2], -G - k * v * s[3]];
+		};
+		const out: number[] = [];
+		let s = [0, 0, p.v0 * Math.cos(p.a), p.v0 * Math.sin(p.a)];
+		out.push(...s);
+		let H = 0;
+		let xH = 0;
+		for (let i = 1; i < 100000; i++) {
+			const k1 = f(s);
+			const k2 = f(s.map((u, j) => u + (DT / 2) * k1[j]));
+			const k3 = f(s.map((u, j) => u + (DT / 2) * k2[j]));
+			const k4 = f(s.map((u, j) => u + DT * k3[j]));
+			const nx = s.map((u, j) => u + (DT / 6) * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]));
+			if (s[3] > 0 && nx[3] <= 0) {
+				// top of the path: υy is linear over a step, so y gains υy·τ/2 until υy = 0
+				const fr = s[3] / (s[3] - nx[3]);
+				H = s[1] + (s[3] * fr * DT) / 2;
+				xH = s[0] + fr * (nx[0] - s[0]);
+			}
+			if (nx[1] < 0) {
+				const fr = s[1] / (s[1] - nx[1]);
+				const land = s.map((u, j) => u + fr * (nx[j] - u));
+				land[1] = 0;
+				out.push(...land);
+				return { ...p, T: (i - 1 + fr) * DT, H, xH, L: land[0], st: Float64Array.from(out), n: i + 1, k };
+			}
+			s = nx;
+			out.push(...s);
+		}
+		throw new Error('no landing');
+	};
+
+	// State at time t (linear between RK4 points; the last interval ends at the landing).
+	const stateAt = (q: AirThrow, t: number) => {
+		const u = Math.min(t, q.T) / DT;
+		const i = Math.min(Math.floor(u), q.n - 2);
+		const tb = i + 1 === q.n - 1 ? q.T / DT : i + 1;
+		const fr = Math.min(1, (u - i) / (tb - i));
+		const at = (j: number) => q.st[4 * i + j] + fr * (q.st[4 * (i + 1) + j] - q.st[4 * i + j]);
+		return { i, x: at(0), y: at(1), vx: at(2), vy: at(3) };
+	};
+
+	const airPath = (q: AirThrow, t: number) => {
+		const e = stateAt(q, t);
+		let d = `M ${px(0)} ${py(0)}`;
+		for (let i = EVERY; i <= e.i; i += EVERY) d += ` L ${px(q.st[4 * i]).toFixed(1)} ${py(q.st[4 * i + 1]).toFixed(1)}`;
+		return `${d} L ${px(e.x).toFixed(1)} ${py(e.y).toFixed(1)}`;
+	};
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-lab]')) {
 		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
@@ -375,8 +548,19 @@ const ys = [10, 20, 30];
 		const outH = q<HTMLElement>('[data-H]');
 		const outL = q<HTMLElement>('[data-L]');
 		const live = q<HTMLElement>('[data-live]');
+		const airIn = q<HTMLInputElement>('[data-air]');
+		const bodyGroup = q<HTMLElement>('[data-body-group]');
+		const bodyBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-body]')];
+		const bodyInfo = q<HTMLElement>('[data-body-info]');
+		const ghost = q<SVGPathElement>('[data-ghost]');
+		const ghostLabel = q<SVGTextElement>('[data-ghost-label]');
+		const alt = [q<HTMLElement>('[data-T0]'), q<HTMLElement>('[data-H0]'), q<HTMLElement>('[data-L0]')];
+		const noteNoAir = q<HTMLElement>('[data-note-noair]');
+		const noteAir = q<HTMLElement>('[data-note-air]');
+		const BODIES: Body[] = JSON.parse(root.dataset.bodies!);
 
 		let raf = 0;
+		let body = 0;
 
 		const current = (): Throw => {
 			const deg = Number(aIn.value);
@@ -390,6 +574,11 @@ const ys = [10, 20, 30];
 				H: (v0 * Math.sin(a)) ** 2 / (2 * G),
 				L: (v0 * v0 * Math.sin(2 * a)) / G,
 			};
+		};
+
+		const withAir = (p: Throw) => {
+			const b = BODIES[body];
+			return flyAir(p, (b.C * RHO * Math.PI * b.d * b.d) / 4 / (2 * b.m));
 		};
 
 		// Exact parabola segment from launch to time t as a quadratic Bézier:
@@ -410,23 +599,32 @@ const ys = [10, 20, 30];
 			el.style.visibility = Math.hypot(x2 - x1, y2 - y1) < 4 ? 'hidden' : 'visible';
 		};
 
-		const placeBall = (p: Throw, t: number) => {
-			const vx = p.v0 * Math.cos(p.a);
-			const vy = p.v0 * Math.sin(p.a) - G * t;
-			const x = px(vx * t);
-			const y = py(p.v0 * Math.sin(p.a) * t - (G * t * t) / 2);
+		const setVectors = (x: number, y: number, vx: number, vy: number) => {
 			ball.setAttribute('cx', String(x));
 			ball.setAttribute('cy', String(y));
 			setLine(vec.vx, x, y, x + vx * K, y);
 			setLine(vec.vy, x, y, x, y - vy * K);
 			setLine(vec.v, x, y, x + vx * K, y - vy * K);
-			return { t, x: vx * t, y: p.v0 * Math.sin(p.a) * t - (G * t * t) / 2, v: Math.hypot(vx, vy) };
 		};
 
-		const drawStatic = (p: Throw) => {
-			preview.setAttribute('d', segment(p, p.T));
-			setLine(hline, px(p.L / 2), py(p.H), px(p.L / 2), py(0));
-			hlabel.setAttribute('x', String(px(p.L / 2) + 6));
+		const placeBall = (p: Throw, t: number) => {
+			const vx = p.v0 * Math.cos(p.a);
+			const vy = p.v0 * Math.sin(p.a) - G * t;
+			setVectors(px(vx * t), py(p.v0 * Math.sin(p.a) * t - (G * t * t) / 2), vx, vy);
+			return { t, x: vx * t, y: p.v0 * Math.sin(p.a) * t - (G * t * t) / 2, v: Math.hypot(vx, vy), vx };
+		};
+
+		const placeAir = (r: AirThrow, t: number) => {
+			const e = stateAt(r, t);
+			setVectors(px(e.x), py(e.y), e.vx, e.vy);
+			return { t, x: e.x, y: e.y, v: Math.hypot(e.vx, e.vy), vx: e.vx };
+		};
+
+		// p: the throw that flies (with air when it is on); p0: the same throw without air.
+		const drawStatic = (p: Throw, xH: number, p0: Throw | null) => {
+			preview.setAttribute('d', p0 ? airPath(p as AirThrow, p.T) : segment(p, p.T));
+			setLine(hline, px(xH), py(p.H), px(xH), py(0));
+			hlabel.setAttribute('x', String(px(xH) + 6));
 			hlabel.setAttribute('y', String(py(p.H / 2) + 5));
 			hlabel.style.visibility = p.H * S > 18 ? 'visible' : 'hidden';
 			const nearEdge = px(p.L) > 650;
@@ -445,48 +643,118 @@ const ys = [10, 20, 30];
 			outT.textContent = `${fmt(p.T, 2)} с`;
 			outH.textContent = `${fmt(p.H)} м`;
 			outL.textContent = `${fmt(p.L)} м`;
+			ghost.setAttribute('d', p0 ? segment(p0, p0.T) : '');
+			ghostLabel.style.visibility = p0 ? 'visible' : 'hidden';
+			if (p0) {
+				ghostLabel.setAttribute('x', String(px(p0.L / 2) + 8));
+				ghostLabel.setAttribute('y', String(py(p0.H) - 6));
+				alt[0].textContent = `без воздуха ${fmt(p0.T, 2)} с`;
+				alt[1].textContent = `без воздуха ${fmt(p0.H)} м`;
+				alt[2].textContent = `без воздуха ${fmt(p0.L)} м`;
+			}
 		};
 
-		const addTrace = (p: Throw) => {
+		// With air, throws of different bodies at one angle have close tops: lift a label above the ones it would cover.
+		const unclutter = (text: SVGTextElement) => {
+			const others = [...traces.querySelectorAll('text')].filter((t) => t !== text);
+			for (let k = 0; k < 8; k++) {
+				const a = text.getBBox();
+				const hit = others.find((t) => {
+					const o = t.getBBox();
+					return a.x < o.x + o.width && o.x < a.x + a.width && a.y < o.y + o.height && o.y < a.y + a.height;
+				});
+				if (!hit) return;
+				const o = hit.getBBox();
+				text.setAttribute('y', String(o.y - 4 - (a.y + a.height - Number(text.getAttribute('y')))));
+			}
+		};
+
+		const addTrace = (p: Throw, d: string, label: string, xH: number) => {
 			const g = document.createElementNS(SVG_NS, 'g');
 			g.classList.add('lab__trace');
 			const path = document.createElementNS(SVG_NS, 'path');
-			path.setAttribute('d', segment(p, p.T));
-			const label = document.createElementNS(SVG_NS, 'text');
-			label.setAttribute('x', String(px(p.L / 2) - 8));
-			label.setAttribute('y', String(py(p.H) - 6));
-			label.setAttribute('text-anchor', 'end');
-			label.textContent = `${p.deg}°`;
-			g.append(path, label);
+			path.setAttribute('d', d);
+			const text = document.createElementNS(SVG_NS, 'text');
+			text.setAttribute('x', String(px(xH) - 8));
+			text.setAttribute('y', String(py(p.H) - 6));
+			text.setAttribute('text-anchor', 'end');
+			text.textContent = label;
+			g.append(path, text);
 			traces.append(g);
 			while (traces.children.length > MAX_TRACES) traces.firstElementChild!.remove();
+			return text;
+		};
+
+		const setMode = () => {
+			const on = airIn.checked;
+			root.classList.toggle('is-air', on);
+			bodyGroup.hidden = !on;
+			alt.forEach((el) => (el.hidden = !on));
+			noteNoAir.hidden = on;
+			noteAir.hidden = !on;
+			bodyBtns.forEach((b, k) => b.setAttribute('aria-checked', String(k === body)));
+			bodyInfo.textContent = BODIES[body].info;
 		};
 
 		const reset = () => {
 			cancelAnimationFrame(raf);
-			const p = current();
+			setMode();
+			const p0 = current();
 			trail.setAttribute('d', '');
-			drawStatic(p);
-			placeBall(p, 0);
+			if (airIn.checked) {
+				const r = withAir(p0);
+				drawStatic(r, r.xH, p0);
+				placeAir(r, 0);
+			} else {
+				drawStatic(p0, p0.L / 2, null);
+				placeBall(p0, 0);
+			}
 			live.textContent = 'Выберите угол и скорость и нажмите «Бросить».';
 		};
 
 		const launch = () => {
 			cancelAnimationFrame(raf);
-			const p = current();
-			drawStatic(p);
+			const p0 = current();
+			const r = airIn.checked ? withAir(p0) : null;
+			const p = r ?? p0;
+			const b = BODIES[body];
+			if (r) drawStatic(r, r.xH, p0);
+			else drawStatic(p0, p0.L / 2, null);
 			const start = performance.now();
 			const frame = (now: number) => {
 				const t = Math.min((now - start) / 1000, p.T);
-				const s = placeBall(p, t);
-				trail.setAttribute('d', segment(p, t));
-				if (t < p.T) {
-					live.innerHTML = `<i>t</i> = ${fmt(s.t, 2)} с · <i>x</i> = ${fmt(s.x)} м · <i>y</i> = ${fmt(Math.max(s.y, 0))} м · <i>υ</i> = ${fmt(s.v)} м/с`;
-					raf = requestAnimationFrame(frame);
+				if (r) {
+					const s = placeAir(r, t);
+					trail.setAttribute('d', airPath(r, t));
+					if (t < p.T) {
+						const nw = (h: string) => `<span class="lab__nowrap">${h}</span>`;
+						live.innerHTML = [
+							nw(`<i>t</i> = ${fmt(s.t, 2)} с`),
+							nw(`<i>x</i> = ${fmt(s.x)} м`),
+							nw(`<i>y</i> = ${fmt(Math.max(s.y, 0))} м`),
+							nw(`<i>υ</i> = ${fmt(s.v)} м/с`),
+							nw(`<i>υ<sub>x</sub></i> = ${fmt(s.vx)} м/с`),
+						].join(' · ');
+						raf = requestAnimationFrame(frame);
+						return;
+					}
 				} else {
-					Object.values(vec).forEach((v) => (v.style.visibility = 'hidden'));
-					addTrace(p);
-					live.textContent = `Мяч упал через ${fmt(p.T, 2)} с на расстоянии ${fmt(p.L)} м.`;
+					const s = placeBall(p0, t);
+					trail.setAttribute('d', segment(p0, t));
+					if (t < p.T) {
+						live.innerHTML = `<i>t</i> = ${fmt(s.t, 2)} с · <i>x</i> = ${fmt(s.x)} м · <i>y</i> = ${fmt(Math.max(s.y, 0))} м · <i>υ</i> = ${fmt(s.v)} м/с`;
+						raf = requestAnimationFrame(frame);
+						return;
+					}
+				}
+				Object.values(vec).forEach((v) => (v.style.visibility = 'hidden'));
+				if (r) {
+					unclutter(addTrace(r, airPath(r, r.T), `${b.short} ${r.deg}°`, r.xH));
+					const what = b.it ? 'Ядро упало' : 'Мяч упал';
+					live.textContent = `${what} через ${fmt(r.T, 2)} с на расстоянии ${fmt(r.L)} м. Без воздуха — ${fmt(p0.L)} м.`;
+				} else {
+					addTrace(p0, segment(p0, p0.T), `${p0.deg}°`, p0.L / 2);
+					live.textContent = `Мяч упал через ${fmt(p0.T, 2)} с на расстоянии ${fmt(p0.L)} м.`;
 				}
 			};
 			raf = requestAnimationFrame(frame);
@@ -494,6 +762,13 @@ const ys = [10, 20, 30];
 
 		aIn.addEventListener('input', reset);
 		vIn.addEventListener('input', reset);
+		airIn.addEventListener('change', reset);
+		bodyBtns.forEach((btn, k) =>
+			btn.addEventListener('click', () => {
+				body = k;
+				reset();
+			}),
+		);
 		q<HTMLButtonElement>('[data-throw]').addEventListener('click', launch);
 		q<HTMLButtonElement>('[data-clear]').addEventListener('click', () => traces.replaceChildren());
 		reset();
