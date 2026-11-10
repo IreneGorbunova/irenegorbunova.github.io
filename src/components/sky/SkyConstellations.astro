@@ -1,18 +1,85 @@
 ---
-/** «Моё небо»: the constellations of the sections that have one (constellations.ts). */
+/** «Моё небо»: every section's constellation, grade by grade (constellations.ts, sections.ts). */
 import Constellation from './Constellation.astro';
 import { skySections } from './sections';
 
 const secs = skySections(Astro.locals.starlightRoute);
+const grades = [...new Set(secs.map((s) => s.grade))].map((grade) => ({ grade, secs: secs.filter((s) => s.grade === grade) }));
+const nChapters = secs.reduce((a, s) => a + s.chapters.length, 0);
 ---
 
+<p class="skys" data-sky-summary>Разделов — {secs.length}, глав — {nChapters}.</p>
 {
-	secs.map((sec) => (
-		<section class="skyc">
-			<h2 class="skyc__title">
-				{sec.grade}: {sec.section}
-			</h2>
-			<Constellation sec={sec} size="full" />
+	grades.map((g) => (
+		<section class="skyg">
+			<h2>{g.grade}</h2>
+			<div class="skyg__grid">
+				{g.secs.map((sec) => (
+					<section class={`skyc${sec.chapters.length >= 5 ? ' skyc--wide' : ''}`}>
+						<h3 class="skyc__title">{sec.section}</h3>
+						<Constellation sec={sec} size="full" />
+					</section>
+				))}
+			</div>
 		</section>
 	))
 }
+
+<style is:global>
+	.skys {
+		color: var(--sl-color-gray-2);
+	}
+	/* on a wide screen two sections side by side; a section with many chapters takes the whole row */
+	.skyg__grid > * {
+		margin-top: 0 !important;
+	}
+	.skyc .cs--full {
+		margin-block: 0.35rem 1rem;
+	}
+	@media (min-width: 50rem) {
+		.skyg__grid {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 0 1.25rem;
+			align-items: start;
+		}
+		.skyc--wide {
+			grid-column: 1 / -1;
+		}
+		/* a wide card puts its sky beside the chapter list */
+		.skyc--wide .cs--full {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: 0 1rem;
+			align-items: start;
+		}
+		.skyc--wide .cs--full .cs__svg {
+			width: 20rem;
+		}
+	}
+	.skyc__title {
+		margin-top: 0.5rem !important;
+		margin-bottom: 0 !important;
+		font-size: var(--sl-text-base) !important;
+		line-height: 1.3 !important;
+		color: var(--sl-color-gray-2) !important;
+	}
+</style>
+
+<script>
+	// the whole sky in one line, after the constellations have painted themselves
+	const summary = document.querySelector<HTMLElement>('[data-sky-summary]');
+	const count = () => {
+		if (!summary) return;
+		const roots = [...document.querySelectorAll<HTMLElement>('.cs--full')];
+		const all = roots.flatMap((r) => [...r.querySelectorAll('.cs__star')]);
+		const lit = all.filter((s) => s.classList.contains('is-lit')).length;
+		const done = roots.filter((r) => r.classList.contains('is-complete')).length;
+		summary.textContent = lit
+			? `Зажжено звёзд: ${lit} из ${all.length}. Собрано созвездий: ${done} из ${roots.length}.`
+			: `Пока ни одна звезда не горит — откройте любую главу. Созвездий на небе: ${roots.length}.`;
+	};
+	setTimeout(count);
+	document.addEventListener('ig:sky', () => setTimeout(count));
+	window.addEventListener('storage', (e) => e.key === 'ig:sky' && setTimeout(count));
+</script>

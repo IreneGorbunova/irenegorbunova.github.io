@@ -1,11 +1,13 @@
 ---
 /**
  * A section's constellation (constellations.ts). Each chapter of the section owns a block of its stars and lights
- * them as its rays light (rays.ts, localStorage). A line appears when both its stars are lit; when every star is lit,
- * Hevelius' figure fades in. `size="mini"` sits under a chapter title (the chapter's own stars are ringed),
- * `size="full"` on «Моё небо» with the name, progress and a fact.
+ * them as its steps get done (progress.ts, localStorage). A line appears when both its stars are lit; when every star
+ * is lit, Hevelius' figure fades in. `size="mini"` sits under a chapter title (the chapter's own stars are ringed);
+ * `size="full"` is on «Моё небо», with the name, the progress, a fact, and the chapters: what is done and what is left
+ * in each, a link to it; a tap on a star or a row picks out that chapter's stars.
  */
-import { CONSTELLATIONS, project, blocks } from './constellations';
+import { CONSTELLATIONS, ART_CREDIT, project, blocks } from './constellations';
+import { LABEL, type Step } from './progress';
 import type { SkySection } from './sections';
 
 interface Props {
@@ -15,8 +17,10 @@ interface Props {
 }
 const { sec, size, current } = Astro.props;
 const c = CONSTELLATIONS[sec.key];
+const full = size === 'full';
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
-const uid = `cs-${sec.key}-${size}`;
+// unique per section: one constellation may serve two sections while a new section waits for its own
+const uid = `cs-${size}-${sec.grade}-${sec.section}`.replace(/[^\p{L}\p{N}-]+/gu, '-');
 
 const sky = c.stars.map((s) => project(c, s.ra, s.dec));
 const own = blocks(c.stars.length, Math.max(1, sec.chapters.length));
@@ -24,41 +28,66 @@ const owner: number[] = [];
 own.forEach((b, i) => b.forEach((k) => (owner[k] = i)));
 
 const A = c.art;
-// the frame: the stars plus a margin; on the full view the margin leaves room for the figure around them
+// the frame: the stars and, on the full view, a margin for their glow; the figure may run past it and fades at the edges
 const xs = sky.map((p) => p[0]);
 const ys = sky.map((p) => p[1]);
-const sx = Math.max(...xs) - Math.min(...xs);
-const sy = Math.max(...ys) - Math.min(...ys);
-const mx = size === 'full' && A ? 0.1 * sx : 0;
-const my = size === 'full' && A ? 0.12 * sy : 0;
-const W = size === 'full' ? 720 : 240;
-const pad = size === 'full' ? 18 : 14;
-const K = (W - 2 * pad) / Math.max(sx + 2 * mx, 1e-9);
-const H = Math.round((sy + 2 * my) * K + 2 * pad);
-const ox = pad + (mx - Math.min(...xs)) * K;
-const oy = pad + (my - Math.min(...ys)) * K;
+let [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+if (full) {
+	const m = 0.09 * Math.max(x1 - x0, y1 - y0);
+	[x0, x1, y0, y1] = [x0 - m, x1 + m, y0 - m, y1 + m];
+}
+const W = full ? 720 : 240;
+const pad = 14;
+const K = (W - 2 * pad) / Math.max(x1 - x0, 1e-9);
+const H = Math.round((y1 - y0) * K + 2 * pad);
+const ox = pad - x0 * K;
+const oy = pad - y0 * K;
 const P = sky.map(([x, y]) => [+(x * K + ox).toFixed(1), +(y * K + oy).toFixed(1)]);
 const idx = Object.fromEntries(c.stars.map((s, i) => [s.id, i]));
-const unit = W / (size === 'full' ? 260 : 120);
-const rOf = (mag: number) => +(unit * (0.9 + (3.9 - mag) * 0.45)).toFixed(2);
-const art =
-	A &&
-	`matrix(${[A.s * A.R[0][0] * K, A.s * A.R[1][0] * K, A.s * A.R[0][1] * K, A.s * A.R[1][1] * K, A.t[0] * K + ox, A.t[1] * K + oy]
-		.map((v) => v.toFixed(5))
-		.join(' ')})`;
+const unit = W / (full ? 230 : 120);
+const rOf = (mag: number) => +(unit * (0.9 + (3.9 - Math.min(Math.max(mag, -0.5), 4.5)) * 0.45)).toFixed(2);
+const art = A && { x: A.box[0] * K + ox, y: A.box[1] * K + oy, w: (A.box[2] - A.box[0]) * K, h: (A.box[3] - A.box[1]) * K };
 const data = sec.chapters.map((ch, i) => ({ id: ch.id, need: ch.need, stars: own[i] ?? [] }));
 const mine = sec.chapters.findIndex((ch) => ch.id === current);
+// the sky must not fill the screen: it narrows so that its height stays within --cs-h (set below by screen width)
+// on the full view, 9rem for a mini
+const maxW = full
+	? `max-width: min(100%, calc(var(--cs-h) * ${(W / H).toFixed(4)}))`
+	: `max-width: min(100%, ${((9 * W) / H).toFixed(2)}rem)`;
+const fade = (W + H) * 0.035; // width of the soft edge where the figure leaves the frame
 ---
 
 <div class={`cs cs--${size}`} data-constellation={JSON.stringify(data)} data-n={c.stars.length} data-section={`${sec.grade}: ${sec.section}`}>
-	<svg class="cs__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Созвездие ${c.name}`}>
+	<svg class="cs__svg" viewBox={`0 0 ${W} ${H}`} style={maxW} role="img" aria-label={`Созвездие ${c.name}`}>
 		{
-			A && (
+			art && (
 				<>
 					<mask id={`${uid}-m`} style="mask-type: alpha" maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}>
-						<image data-href={`${base}${A.file}`} x={A.rect.x} y={A.rect.y} width={A.rect.w} height={A.rect.h} transform={art} preserveAspectRatio="none" />
+						<image data-href={`${base}${A!.file}`} x={art.x.toFixed(1)} y={art.y.toFixed(1)} width={art.w.toFixed(1)} height={art.h.toFixed(1)} preserveAspectRatio="none" />
 					</mask>
-					<rect class="cs__art" x="0" y="0" width={W} height={H} mask={`url(#${uid}-m)`} />
+					<linearGradient id={`${uid}-gx`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={W} y2="0">
+						<stop offset="0" stop-color="#000" />
+						<stop offset={(fade / W).toFixed(3)} stop-color="#fff" />
+						<stop offset={(1 - fade / W).toFixed(3)} stop-color="#fff" />
+						<stop offset="1" stop-color="#000" />
+					</linearGradient>
+					<linearGradient id={`${uid}-gy`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={H}>
+						<stop offset="0" stop-color="#000" />
+						<stop offset={(fade / H).toFixed(3)} stop-color="#fff" />
+						<stop offset={(1 - fade / H).toFixed(3)} stop-color="#fff" />
+						<stop offset="1" stop-color="#000" />
+					</linearGradient>
+					<mask id={`${uid}-fx`} maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}>
+						<rect x="0" y="0" width={W} height={H} fill={`url(#${uid}-gx)`} />
+					</mask>
+					<mask id={`${uid}-fy`} maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}>
+						<rect x="0" y="0" width={W} height={H} fill={`url(#${uid}-gy)`} />
+					</mask>
+					<g mask={`url(#${uid}-fy)`}>
+						<g mask={`url(#${uid}-fx)`}>
+							<rect class="cs__art" x="0" y="0" width={W} height={H} mask={`url(#${uid}-m)`} />
+						</g>
+					</g>
 				</>
 			)
 		}
@@ -69,30 +98,62 @@ const mine = sec.chapters.findIndex((ch) => ch.id === current);
 		</g>
 		<g class="cs__stars">
 			{c.stars.map((s, i) => (
-				<g class={`cs__star${owner[i] === mine ? ' is-mine' : ''}`} data-i={i} transform={`translate(${P[i][0]} ${P[i][1]})`}>
+				<g class={`cs__star${owner[i] === mine ? ' is-mine' : ''}`} data-i={i} data-ch={owner[i]} transform={`translate(${P[i][0]} ${P[i][1]})`}>
 					<title>{`${s.name} — ${sec.chapters[owner[i]]?.label ?? ''}`}</title>
+					{full && <circle class="cs__hit" r={unit * 5} />}
 					<circle class="cs__halo" r={rOf(s.mag) * 3.2} />
 					{owner[i] === mine && <circle class="cs__ring" r={rOf(s.mag) + unit * 1.3} />}
+					{full && <circle class="cs__sel" r={rOf(s.mag) + unit * 1.8} />}
 					<circle class="cs__core" r={rOf(s.mag)} />
 				</g>
 			))}
 		</g>
 	</svg>
 	{
-		size === 'full' && (
+		full && (
 			<div class="cs__info">
-				<p class="cs__name">
-					{c.name}
-					<span class="cs__progress" data-progress />
-				</p>
+				<div class="cs__head">
+					<p class="cs__name">
+						{c.name}
+						<span class="cs__progress" data-progress />
+					</p>
+					<button class="cs__toggle" type="button" aria-expanded="false" data-toggle>
+						{`Главы: ${sec.chapters.length}`}
+					</button>
+				</div>
 				<p class="cs__fact" data-fact hidden>
 					{c.fact}
 				</p>
 				{A && (
 					<p class="cs__credit" data-fact hidden>
-						{A.credit}
+						{ART_CREDIT}
 					</p>
 				)}
+				<ol class="cs__chapters" data-list>
+					{sec.chapters.map((ch, i) => (
+						<li class="cs__chapter" data-row={i}>
+							<a class="cs__go" href={ch.href}>
+								{ch.label}
+							</a>
+							<span class="cs__count" data-count />
+							<span class="cs__steps">
+								{(ch.need.split('') as Step[]).map((r, k) => (
+									<>
+										<span class="cs__step" data-step={r}>
+											<span class="cs__mark" aria-hidden="true" />
+											{LABEL[r]}
+											<span class="sr-only" data-sr>
+												{' '}
+												— ещё нет
+											</span>
+										</span>
+										{k < ch.need.length - 1 && <span aria-hidden="true"> · </span>}
+									</>
+								))}
+							</span>
+						</li>
+					))}
+				</ol>
 			</div>
 		)
 	}
@@ -108,21 +169,27 @@ const mine = sec.chapters.findIndex((ch) => ch.id === current);
 		width: 100%;
 		height: auto;
 		overflow: visible;
+		margin-inline: auto;
 	}
 	.cs--mini {
 		flex: none;
 		width: 11rem;
 	}
 	.cs--full {
+		--cs-h: min(22vh, 15rem);
 		max-width: 44rem;
 		overflow: hidden;
-		margin-block: 1rem 2rem;
+		margin-block: 1rem 1.5rem;
 		padding: 0.75rem;
 		border-radius: 1rem;
 		background: radial-gradient(ellipse at 50% 40%, hsl(232 45% 16%), hsl(232 50% 7%));
 		color: hsl(40 30% 92%);
-		--cs-dim: hsl(230 15% 45%);
+		--cs-dim: hsl(230 18% 55%);
 		--cs-star: hsl(45 100% 85%);
+		--cs-accent: hsl(45 90% 72%);
+	}
+	.cs--full .cs__svg {
+		overflow: hidden;
 	}
 	.cs__art {
 		fill: var(--ig-v);
@@ -164,6 +231,22 @@ const mine = sec.chapters.findIndex((ch) => ch.id === current);
 		stroke-dasharray: 2 2;
 		opacity: 0.8;
 	}
+	.cs__hit {
+		fill: transparent;
+	}
+	.cs--full .cs__star {
+		cursor: pointer;
+	}
+	.cs__sel {
+		fill: none;
+		stroke: var(--cs-accent);
+		stroke-width: 1.4;
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+	.cs__star.is-sel .cs__sel {
+		opacity: 0.9;
+	}
 	.cs__star.is-lit .cs__core {
 		fill: var(--cs-star);
 	}
@@ -178,10 +261,13 @@ const mine = sec.chapters.findIndex((ch) => ch.id === current);
 		animation: cs-flare 1.6s ease-out;
 	}
 	.cs__info {
-		padding: 0.25rem 0.5rem 0.25rem;
+		padding: 0.25rem 0.5rem;
+	}
+	.cs__info p {
+		margin: 0;
 	}
 	.cs__name {
-		margin: 0.25rem 0 0;
+		margin-top: 0.25rem !important;
 		font-family: var(--ig-font-display);
 		font-size: var(--sl-text-3xl);
 		line-height: 1.2;
@@ -194,7 +280,7 @@ const mine = sec.chapters.findIndex((ch) => ch.id === current);
 	}
 	.cs__fact,
 	.cs__credit {
-		margin: 0.5rem 0 0;
+		margin-top: 0.5rem !important;
 		font-size: var(--sl-text-sm);
 		line-height: 1.55;
 	}
@@ -202,7 +288,97 @@ const mine = sec.chapters.findIndex((ch) => ch.id === current);
 		opacity: 0.7;
 		font-size: var(--sl-text-xs);
 	}
+	.cs__head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.25rem 0.75rem;
+	}
+	.cs__toggle {
+		display: none;
+		flex: none;
+		padding: 0.3rem 0.75rem;
+		border: 1px solid hsl(230 20% 40%);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--cs-star);
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		cursor: pointer;
+	}
+	.cs__toggle::after {
+		content: ' ▾';
+	}
+	.cs__toggle[aria-expanded='true']::after {
+		content: ' ▴';
+	}
+	@media (max-width: 50rem) {
+		.cs.has-toggle .cs__toggle {
+			display: inline-block;
+		}
+		.cs.has-toggle .cs__chapters:not(.is-open) {
+			display: none;
+		}
+	}
+	.cs__chapters {
+		margin: 0.5rem 0 0.25rem !important;
+		padding: 0 !important;
+		list-style: none;
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+	}
+	.cs__chapter {
+		margin: 0 !important;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.5rem;
+		border-left: 3px solid transparent;
+		transition: background 0.3s;
+	}
+	.cs__chapter.is-sel {
+		background: hsl(232 40% 24% / 0.7);
+		border-left-color: var(--cs-accent);
+	}
+	.cs__go {
+		color: var(--cs-star);
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.cs__go:hover,
+	.cs__go:focus-visible {
+		text-decoration: underline;
+	}
+	.cs__count {
+		margin-left: 0.5rem;
+		opacity: 0.7;
+		white-space: nowrap;
+	}
+	.cs__steps {
+		margin-left: 0.5rem;
+		opacity: 0.9;
+	}
+	.cs__step {
+		white-space: nowrap;
+		color: hsl(230 15% 70%);
+	}
+	.cs__mark::before {
+		content: '○ ';
+	}
+	.cs__step.is-done {
+		color: var(--cs-accent);
+	}
+	.cs__step.is-done .cs__mark::before {
+		content: '✦ ';
+	}
+	@media (min-width: 50rem) {
+		.cs--full {
+			--cs-h: min(36vh, 18rem);
+		}
+	}
 	@media (max-width: 40rem) {
+		.cs__name {
+			font-size: var(--sl-text-2xl);
+		}
 		.cs__progress {
 			display: block;
 			margin-left: 0;
@@ -213,37 +389,42 @@ const mine = sec.chapters.findIndex((ch) => ch.id === current);
 			transform: scale(2.4);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.cs__star.is-new .cs__core {
-			animation: none;
-		}
-		.cs__art,
-		.cs__lines line {
-			transition: none;
-		}
-	}
 </style>
 
 <script>
-	import { load } from './rays';
+	import { load } from './progress';
 	import { litCount } from './constellations';
 
 	type Ch = { id: string; need: string; stars: number[] };
+	const starsWord = (n: number) =>
+		n % 10 === 1 && n % 100 !== 11 ? 'звезды' : 'звёзд'; // «из 1 звезды», «из 5 звёзд»
 	for (const root of document.querySelectorAll<HTMLElement>('[data-constellation]')) {
 		const chapters = JSON.parse(root.dataset.constellation!) as Ch[];
 		const n = Number(root.dataset.n);
-		const stars = [...root.querySelectorAll<SVGGElement>('.cs__star')];
+		const starEls = [...root.querySelectorAll<SVGGElement>('.cs__star')];
 		const lines = [...root.querySelectorAll<SVGLineElement>('.cs__lines line')];
+		const rows = [...root.querySelectorAll<HTMLElement>('[data-row]')];
 		const progress = root.querySelector<HTMLElement>('[data-progress]');
 		let first = true;
 		const paint = () => {
 			const all = load();
 			const lit = new Set<number>();
-			for (const ch of chapters) {
-				const done = (all[ch.id] ?? '').split('').filter((r) => ch.need.includes(r)).length;
-				ch.stars.slice(0, litCount(ch.stars.length, done, ch.need.length)).forEach((k) => lit.add(k));
-			}
-			stars.forEach((s, i) => {
+			chapters.forEach((ch, i) => {
+				const done = (all[ch.id] ?? '').split('').filter((r) => ch.need.includes(r));
+				const k = litCount(ch.stars.length, done.length, ch.need.length);
+				ch.stars.slice(0, k).forEach((s) => lit.add(s));
+				const row = rows[i];
+				if (!row) return;
+				for (const st of row.querySelectorAll<HTMLElement>('[data-step]')) {
+					const on = done.includes(st.dataset.step!);
+					st.classList.toggle('is-done', on);
+					st.querySelector('[data-sr]')!.textContent = on ? ' — сделано' : ' — ещё нет';
+				}
+				const cnt = row.querySelector<HTMLElement>('[data-count]')!;
+				cnt.textContent = `★ ${k}/${ch.stars.length}`;
+				cnt.title = `горит ${k} из ${ch.stars.length} ${starsWord(ch.stars.length)} главы`;
+			});
+			starEls.forEach((s, i) => {
 				const on = lit.has(i);
 				if (on && !s.classList.contains('is-lit') && !first) s.classList.add('is-new');
 				s.classList.toggle('is-lit', on);
@@ -259,11 +440,47 @@ const mine = sec.chapters.findIndex((ch) => ch.id === current);
 				if (img && !img.getAttribute('href')) img.setAttribute('href', img.dataset.href!);
 			}
 			for (const f of root.querySelectorAll<HTMLElement>('[data-fact]')) f.hidden = !complete;
-			if (progress) progress.textContent = complete ? 'созвездие собрано!' : `зажжено ${lit.size} из ${n} звёзд`;
+			if (progress) progress.textContent = complete ? 'созвездие собрано!' : `зажжено ${lit.size} из ${n} ${starsWord(n)}`;
 			first = false;
 		};
 		paint();
 		document.addEventListener('ig:sky', paint);
 		window.addEventListener('storage', (e) => e.key === 'ig:sky' && paint());
+
+		// on a phone the chapter list folds away behind a button; a tap on a star unfolds it
+		const toggle = root.querySelector<HTMLButtonElement>('[data-toggle]');
+		const list = root.querySelector<HTMLElement>('[data-list]');
+		const unfold = (open: boolean) => {
+			list?.classList.toggle('is-open', open);
+			toggle?.setAttribute('aria-expanded', String(open));
+		};
+		if (toggle) {
+			root.classList.add('has-toggle');
+			toggle.addEventListener('click', () => unfold(!list?.classList.contains('is-open')));
+		}
+
+		// full view: a chapter's stars and its row light up together; a tap on a star picks its chapter
+		if (rows.length) {
+			let chosen: number | null = null;
+			const pick = (i: number | null) => {
+				starEls.forEach((s) => s.classList.toggle('is-sel', i !== null && Number(s.dataset.ch) === i));
+				rows.forEach((r, k) => r.classList.toggle('is-sel', k === i));
+			};
+			for (const s of starEls) {
+				s.addEventListener('click', () => {
+					const i = Number(s.dataset.ch);
+					chosen = chosen === i ? null : i;
+					pick(chosen);
+					if (chosen !== null) unfold(true);
+					if (chosen !== null) rows[chosen]?.querySelector('a')?.focus({ preventScroll: true });
+				});
+			}
+			rows.forEach((r, i) => {
+				r.addEventListener('pointerenter', () => pick(i));
+				r.addEventListener('pointerleave', () => pick(chosen));
+				r.addEventListener('focusin', () => pick(i));
+				r.addEventListener('focusout', () => pick(chosen));
+			});
+		}
 	}
 </script>

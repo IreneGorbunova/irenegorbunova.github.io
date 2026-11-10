@@ -1,0 +1,123 @@
+---
+/**
+ * Under a chapter title: the section's constellation (the slot, Constellation.astro size="mini") and the chapter's
+ * steps — moving a model, going through a derivation, answering a question and (where the chapter has «Решите сами»)
+ * solving three problems. Watches the page for these steps, stores them (progress.ts) and lets the constellation
+ * repaint (event 'ig:sky'). Hidden without JavaScript.
+ */
+import { PROBLEMS } from '../../data/problems/index.mjs';
+import { LABEL, needOf } from './progress';
+
+const { entry } = Astro.locals.starlightRoute;
+const slug = entry.id.split('/').pop()!;
+const need = needOf(slug in PROBLEMS);
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+
+<div class="csky" data-csky={entry.id} data-slug={slug} data-need={need.join('')} hidden>
+	<slot />
+	<p class="csky__items">
+		<span class="sr-only">Звёзды главы загораются за:</span>
+		{
+			need.map((r, i) => (
+				<>
+					<span class="csky__item" data-item={r}>
+						{LABEL[r]}
+						<span class="sr-only" data-sr>
+							{' '}
+							— ещё нет
+						</span>
+					</span>
+					{i < need.length - 1 && <span aria-hidden="true"> · </span>}
+				</>
+			))
+		}
+	</p>
+	<a class="csky__link" href={`${base}uchebnik/nebo/`}>Моё небо</a>
+</div>
+
+<style is:global>
+	.csky {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 0.7rem;
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.csky[hidden] {
+		display: none;
+	}
+	.csky__items {
+		margin: 0;
+	}
+	.csky__item.is-lit {
+		color: var(--sl-color-text-accent);
+	}
+	.csky__link {
+		color: var(--sl-color-text-accent);
+	}
+</style>
+
+<script>
+	import { load, save, TRAINER_GOAL, type Step } from './progress';
+
+	const root = document.querySelector<HTMLElement>('[data-csky]');
+	if (root) {
+		const id = root.dataset.csky!;
+		const slug = root.dataset.slug!;
+		const need = root.dataset.need!.split('') as Step[];
+		const content = document.querySelector<HTMLElement>('.sl-markdown-content');
+		const done = new Set((load()[id] ?? '').split('').filter((r) => need.includes(r as Step)) as Step[]);
+
+		const paint = () => {
+			for (const item of root.querySelectorAll<HTMLElement>('[data-item]')) {
+				const lit = done.has(item.dataset.item as Step);
+				item.classList.toggle('is-lit', lit);
+				item.querySelector('[data-sr]')!.textContent = lit ? ' — сделано' : ' — ещё нет';
+			}
+		};
+
+		const light = (r: Step) => {
+			if (!need.includes(r) || done.has(r)) return;
+			done.add(r);
+			const all = load();
+			all[id] = need.filter((x) => done.has(x)).join('');
+			save(all);
+			paint();
+			document.dispatchEvent(new CustomEvent('ig:sky')); // the section's constellation repaints
+		};
+
+		root.hidden = false;
+		paint();
+
+		// m: the student touched a model (every model is a <figure class="… not-content">)
+		const onModel = (e: Event) => {
+			if ((e.target as Element | null)?.closest?.('figure.not-content')) light('m');
+		};
+		content?.addEventListener('pointerdown', onModel);
+		content?.addEventListener('input', onModel);
+		content?.addEventListener('keydown', (e) => {
+			if (['Enter', ' '].includes(e.key) || e.key.startsWith('Arrow')) onModel(e);
+		});
+		// d: a derivation was opened to the last step (Derivation.astro)
+		document.addEventListener('ig:derivation-done', () => light('d'));
+		// q: a question was answered (every quiz marks the right option with .is-right)
+		if (content) {
+			new MutationObserver((list) => {
+				if (list.some((m) => (m.target as Element).classList.contains('is-right'))) light('q');
+			}).observe(content, { attributes: true, attributeFilter: ['class'], subtree: true });
+		}
+		// t: three problems solved in «Решите сами» (Trainer.astro)
+		try {
+			const solved = JSON.parse(localStorage.getItem('ig:trainer') ?? '{}')?.[slug]?.solved ?? 0;
+			if (solved >= TRAINER_GOAL) light('t');
+		} catch {
+			/* storage off */
+		}
+		document.addEventListener('ig:trainer', (e) => {
+			if ((e as CustomEvent<{ solved: number }>).detail.solved >= TRAINER_GOAL) light('t');
+		});
+	}
+</script>
