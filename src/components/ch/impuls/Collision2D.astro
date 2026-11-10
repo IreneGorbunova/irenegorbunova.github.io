@@ -1,0 +1,1814 @@
+---
+/**
+ * Collisions on a plane: two pucks slide on smooth ice (top view, one true scale in metres).
+ * Elastic impact of smooth pucks (the impulse acts along the line of centres), perfectly inelastic
+ * impact (the pucks stick and move on as one rigid body) or a burst (two pucks held by a latch with a
+ * compressed spring between them fly apart). Everything is analytic, see collision2d.ts.
+ * Velocities are set by dragging the tips of the momentum arrows, pucks are moved by dragging them.
+ * The panel «Сумма импульсов» adds the momentum vectors tip to tail before (pale) and after (bright).
+ * Other parts of the page start a preset with the window event `imp:collide2d` (detail: preset key).
+ */
+const presets = [
+	{
+		key: 'head',
+		label: 'Лобовой удар',
+		mode: 'elastic',
+		m1: 1,
+		m2: 1,
+		r1: { x: 0.45, y: 0.75 },
+		v1: { x: 1, y: 0 },
+		r2: { x: 1.25, y: 0.75 },
+		v2: { x: 0, y: 0 },
+	},
+	{
+		key: 'glancing',
+		label: 'Скользящий удар равных шайб',
+		mode: 'elastic',
+		m1: 1,
+		m2: 1,
+		r1: { x: 0.45, y: 0.75 },
+		v1: { x: 1, y: 0 },
+		r2: { x: 1.25, y: 0.65 },
+		v2: { x: 0, y: 0 },
+	},
+	{
+		key: 'stick',
+		label: 'Слипание',
+		mode: 'inelastic',
+		m1: 2,
+		m2: 1,
+		r1: { x: 0.3, y: 0.65 },
+		v1: { x: 0.6, y: 0 },
+		r2: { x: 0.72, y: 0.14 },
+		v2: { x: 0, y: 0.6 },
+	},
+	{
+		key: 'shell',
+		label: 'Разрыв снаряда',
+		mode: 'burst',
+		m1: 1,
+		m2: 2,
+		s0: { x: 0.5, y: 0.75 },
+		V: { x: 0.6, y: 0 },
+		u1: { x: 0.9, y: 0.6 },
+	},
+];
+---
+
+<figure class="imp-2d not-content" data-imp-2d>
+	<div class="imp-2d__modes" role="radiogroup" aria-label="Что происходит с шайбами">
+		<button type="button" role="radio" aria-checked="true" data-mode="elastic">Упругий удар</button>
+		<button type="button" role="radio" aria-checked="false" data-mode="inelastic">Неупругий (шайбы слипаются)</button>
+		<button type="button" role="radio" aria-checked="false" data-mode="burst">Разлёт</button>
+	</div>
+	<p class="imp-2d__note" data-note></p>
+
+	<div class="imp-2d__stage" data-stage>
+		<div class="imp-2d__field-box">
+			<svg class="imp-2d__field" data-field role="img" aria-label="Вид сверху на гладкий лёд: две шайбы и стрелки их импульсов"></svg>
+			<span class="imp-2d__slowmo" data-slowmo hidden>Замедлено в 4 раза</span>
+		</div>
+		<div class="imp-2d__buttons">
+			<button type="button" class="imp-2d__btn imp-2d__btn--primary" data-run>Пуск</button>
+			<button type="button" class="imp-2d__btn" data-reset>Сначала</button>
+			<label class="imp-2d__check"><input type="checkbox" data-slow /> <span>Замедленно</span></label>
+		</div>
+		<div class="imp-2d__panel-box">
+			<p class="imp-2d__panel-title">Сумма импульсов</p>
+			<svg class="imp-2d__panel" data-panel role="img" aria-label="Стрелки импульсов шайб, сложенные одна за другой, до и после удара"></svg>
+			<p class="imp-2d__panel-key">
+				<span class="imp-2d__key imp-2d__key--1"></span>шайба 1
+				<span class="imp-2d__key imp-2d__key--2"></span>шайба 2
+				<span class="imp-2d__key imp-2d__key--s"></span>сумма<br />
+				<span data-panel-when>бледные — до удара, яркие — после</span>; клетка — <span class="imp-2d__nw" data-cell></span>
+			</p>
+		</div>
+	</div>
+
+	<p class="imp-2d__live" data-live aria-live="polite"></p>
+
+	<div class="imp-2d__pucks">
+		<fieldset class="imp-2d__puck imp-2d__puck--1">
+			<legend>Шайба 1</legend>
+			<label class="imp-2d__slider">
+				<span>Масса <i>m</i><sub>1</sub></span>
+				<output data-out="m1"></output>
+				<input type="range" min="0.5" max="3" step="0.5" value="1" data-in="m1" />
+			</label>
+			<p class="imp-2d__speed" data-speed="1"></p>
+		</fieldset>
+		<fieldset class="imp-2d__puck imp-2d__puck--2">
+			<legend>Шайба 2</legend>
+			<label class="imp-2d__slider">
+				<span>Масса <i>m</i><sub>2</sub></span>
+				<output data-out="m2"></output>
+				<input type="range" min="0.5" max="3" step="0.5" value="1" data-in="m2" />
+			</label>
+			<p class="imp-2d__speed" data-speed="2"></p>
+		</fieldset>
+	</div>
+	<p class="imp-2d__hint" data-hint></p>
+
+	<div class="imp-2d__presets">
+		<span class="imp-2d__presets-title">Готовые опыты:</span>
+		{
+			presets.map((p) => (
+				<button type="button" class="imp-2d__chip" data-preset={JSON.stringify(p)} data-key={p.key}>
+					{p.label}
+				</button>
+			))
+		}
+	</div>
+
+	<div class="imp-2d__table-box">
+		<table class="imp-2d__table" data-table>
+			<thead>
+				<tr>
+					<th rowspan="2" class="imp-2d__corner">Импульс, кг·м/с</th>
+					<th colspan="2" data-th-before>до удара</th>
+					<th colspan="2" data-th-after>после удара</th>
+				</tr>
+				<tr>
+					<th><i>p<sub>x</sub></i></th>
+					<th><i>p<sub>y</sub></i></th>
+					<th><i>p<sub>x</sub></i></th>
+					<th><i>p<sub>y</sub></i></th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr class="imp-2d__row--1">
+					<th>Шайба 1</th>
+					<td data-c="b1x"></td>
+					<td data-c="b1y"></td>
+					<td data-c="a1x"></td>
+					<td data-c="a1y"></td>
+				</tr>
+				<tr class="imp-2d__row--2">
+					<th>Шайба 2</th>
+					<td data-c="b2x"></td>
+					<td data-c="b2y"></td>
+					<td data-c="a2x"></td>
+					<td data-c="a2y"></td>
+				</tr>
+				<tr class="imp-2d__row--s">
+					<th>Сумма</th>
+					<td data-c="bsx"></td>
+					<td data-c="bsy"></td>
+					<td data-c="asx"></td>
+					<td data-c="asy"></td>
+				</tr>
+				<tr class="imp-2d__row--e">
+					<th>Энергия <i>E</i><sub>к</sub>, Дж</th>
+					<td colspan="2" data-c="eb"></td>
+					<td colspan="2" data-c="ea"></td>
+				</tr>
+			</tbody>
+		</table>
+		<p class="imp-2d__after-note" data-after-note></p>
+	</div>
+
+	<figcaption class="imp-2d__legend">
+		Лёд гладкий, трения нет. Стрелки у шайб — их импульсы <i>p</i> = <i>mυ</i>, все в одном масштабе.
+		Ось <i>x</i> направлена вправо, ось <i>y</i> — вверх.
+		Опыт кончается, когда шайба доезжает до края льда: бортик толкнул бы её и изменил бы суммарный импульс.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.imp-2d {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-text);
+	}
+	.imp-2d i {
+		font-family: var(--ig-font-math);
+	}
+	.imp-2d__modes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		padding: 0.25rem;
+		border-radius: 1.2rem;
+		background: var(--sl-color-gray-6);
+		width: fit-content;
+		max-width: 100%;
+	}
+	.imp-2d__modes button {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.95rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		transition:
+			background 0.2s,
+			color 0.2s;
+	}
+	.imp-2d__modes button[aria-checked='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.imp-2d__modes button:focus-visible,
+	.imp-2d__chip:focus-visible,
+	.imp-2d__btn:focus-visible,
+	.imp-2d .hit:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.imp-2d__note {
+		margin: 0.6rem 0 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		min-height: 3em;
+	}
+	.imp-2d__stage {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas: 'field' 'buttons' 'panel';
+		gap: 0.75rem;
+	}
+	.imp-2d__stage.is-wide {
+		grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+		grid-template-areas: 'field panel' 'buttons panel';
+		align-items: start;
+	}
+	.imp-2d__field-box {
+		grid-area: field;
+		position: relative;
+		min-width: 0;
+	}
+	.imp-2d__panel-box {
+		grid-area: panel;
+		min-width: 0;
+	}
+	.imp-2d__nw {
+		white-space: nowrap;
+	}
+	.imp-2d__field,
+	.imp-2d__panel {
+		display: block;
+		width: 100%;
+		overflow: hidden;
+		font-family: var(--__sl-font);
+		touch-action: pan-y;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.imp-2d__panel {
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.imp-2d__panel-title {
+		margin: 0 0 0.3rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.imp-2d__panel-key {
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.7;
+		color: var(--sl-color-gray-3);
+	}
+	.imp-2d__key {
+		display: inline-block;
+		width: 1rem;
+		height: 4px;
+		margin: 0 0.3rem 0.2rem 0.5rem;
+		vertical-align: middle;
+		border-radius: 2px;
+	}
+	.imp-2d__key:first-child {
+		margin-left: 0;
+	}
+	.imp-2d__key--1 {
+		background: var(--ig-vx);
+	}
+	.imp-2d__key--2 {
+		background: var(--ig-vy);
+	}
+	.imp-2d__key--s {
+		background: var(--ig-v);
+	}
+	.imp-2d__slowmo {
+		position: absolute;
+		top: 0.35rem;
+		right: 0.35rem;
+		padding: 0.15rem 0.6rem;
+		border-radius: 999px;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		color: var(--sl-color-black);
+		background: var(--sl-color-accent);
+		pointer-events: none;
+	}
+	.imp-2d__slowmo[hidden] {
+		display: none;
+	}
+
+	/* SVG parts */
+	.imp-2d text {
+		fill: var(--sl-color-gray-2);
+	}
+	.imp-2d .t-small {
+		font-size: 12px;
+		fill: var(--sl-color-gray-3);
+	}
+	.imp-2d .t-math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.imp-2d .t-halo {
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.imp-2d .t-halo6 {
+		paint-order: stroke;
+		stroke: var(--sl-color-gray-6);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.imp-2d .ice {
+		fill: color-mix(in srgb, var(--ig-vx) 7%, var(--ig-surface));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.imp-2d .grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+		opacity: 0.55;
+	}
+	.imp-2d .grid.major {
+		opacity: 1;
+	}
+	.imp-2d .zero {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 4;
+	}
+	.imp-2d .tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.imp-2d .c1 {
+		fill: var(--ig-vx);
+	}
+	.imp-2d .c2 {
+		fill: var(--ig-vy);
+	}
+	.imp-2d .cs {
+		fill: var(--ig-v);
+	}
+	.imp-2d text.c1 {
+		fill: var(--ig-vx);
+	}
+	.imp-2d text.c2 {
+		fill: var(--ig-vy);
+	}
+	.imp-2d text.cs {
+		fill: var(--ig-v);
+	}
+	.imp-2d .arrow {
+		stroke: var(--ig-surface);
+		stroke-width: 1;
+		paint-order: stroke;
+	}
+	.imp-2d__panel .arrow {
+		stroke: var(--sl-color-gray-6);
+	}
+	.imp-2d .pale {
+		opacity: 0.38;
+	}
+	.imp-2d .plan {
+		opacity: 0.6;
+	}
+	.imp-2d .puck1 {
+		fill: color-mix(in srgb, var(--ig-vx) 24%, var(--ig-surface));
+		stroke: var(--ig-vx);
+		stroke-width: 2;
+	}
+	.imp-2d .puck2 {
+		fill: color-mix(in srgb, var(--ig-vy) 24%, var(--ig-surface));
+		stroke: var(--ig-vy);
+		stroke-width: 2;
+	}
+	.imp-2d .latch {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.imp-2d .ghost {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+		stroke-dasharray: 4 3;
+	}
+	.imp-2d .centres {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 6 4;
+	}
+	.imp-2d .trail {
+		fill: none;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-dasharray: 1 5;
+	}
+	.imp-2d .trail.t1 {
+		stroke: var(--ig-vx);
+	}
+	.imp-2d .trail.t2 {
+		stroke: var(--ig-vy);
+	}
+	.imp-2d .trail.ts {
+		stroke: var(--ig-v);
+		stroke-dasharray: 6 5;
+		stroke-width: 1.5;
+	}
+	.imp-2d .cm {
+		stroke: var(--ig-v);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.imp-2d .knob {
+		fill: var(--ig-surface);
+		stroke-width: 2.5;
+		pointer-events: none;
+	}
+	.imp-2d .knob.k1 {
+		stroke: var(--ig-vx);
+	}
+	.imp-2d .knob.k2 {
+		stroke: var(--ig-vy);
+	}
+	.imp-2d .knob.ks {
+		stroke: var(--ig-v);
+	}
+	.imp-2d .knob.parked {
+		stroke-dasharray: 3 2.5;
+	}
+	.imp-2d .hit {
+		fill: transparent;
+		stroke: none;
+		cursor: grab;
+		touch-action: none;
+		outline: none;
+	}
+	.imp-2d .hit.disc {
+		cursor: move;
+	}
+	.imp-2d.is-dragging .hit {
+		cursor: grabbing;
+	}
+	.imp-2d .tip-label {
+		font-size: 13px;
+		font-weight: 600;
+		fill: var(--sl-color-white);
+	}
+	.imp-2d .flash {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.5;
+	}
+	.imp-2d .right-angle {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+	}
+	.imp-2d .end-ring {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.6;
+	}
+	.imp-2d .origin {
+		fill: var(--sl-color-white);
+	}
+
+	/* controls */
+	.imp-2d__buttons {
+		grid-area: buttons;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+	}
+	.imp-2d__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1.2rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.imp-2d__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.imp-2d__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.imp-2d__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.imp-2d__check input {
+		accent-color: var(--sl-color-accent);
+		width: 1.05rem;
+		height: 1.05rem;
+		margin: 0;
+	}
+	.imp-2d__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.imp-2d__live b {
+		color: var(--sl-color-white);
+	}
+	.imp-2d__pucks {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+		margin-top: 0.5rem;
+	}
+	.imp-2d__puck {
+		margin: 0;
+		padding: 0.4rem 0.8rem 0.5rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-left-width: 4px;
+		border-radius: 0.6rem;
+		display: grid;
+		gap: 0.35rem;
+		min-width: 0;
+	}
+	.imp-2d__puck--1 {
+		border-left-color: var(--ig-vx);
+	}
+	.imp-2d__puck--2 {
+		border-left-color: var(--ig-vy);
+	}
+	.imp-2d__puck legend {
+		padding: 0 0.3rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.imp-2d__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.15rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.imp-2d__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-2d__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		margin: 0;
+		accent-color: var(--sl-color-accent);
+	}
+	.imp-2d__speed {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-2d__speed b {
+		color: var(--sl-color-white);
+	}
+	.imp-2d__hint {
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.imp-2d__presets {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		margin-top: 0.75rem;
+	}
+	.imp-2d__presets-title {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+		margin-right: 0.2rem;
+	}
+	.imp-2d__chip {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.3rem 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-5);
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-gray-1);
+		cursor: pointer;
+	}
+	.imp-2d__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+
+	/* readouts */
+	.imp-2d__table-box {
+		margin-top: 0.85rem;
+		padding-top: 0.75rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.imp-2d__table {
+		display: table;
+		width: 100%;
+		margin: 0;
+		border-collapse: collapse;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+	}
+	.imp-2d__table th,
+	.imp-2d__table td {
+		padding: 0.25rem 0.4rem;
+		border: 0;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		text-align: right;
+		white-space: nowrap;
+		background: transparent;
+	}
+	.imp-2d__table thead th {
+		font-weight: 600;
+		color: var(--sl-color-gray-2);
+		text-align: center;
+	}
+	.imp-2d__table th.imp-2d__corner {
+		text-align: left;
+		font-size: var(--sl-text-xs);
+		font-weight: 400;
+		color: var(--sl-color-gray-3);
+		white-space: normal;
+		vertical-align: bottom;
+	}
+	.imp-2d__table tbody th {
+		text-align: left;
+		font-weight: 600;
+		color: var(--sl-color-gray-2);
+	}
+	.imp-2d__table td {
+		color: var(--sl-color-white);
+	}
+	.imp-2d__table td:nth-child(4) {
+		border-left: 1px solid var(--sl-color-gray-5);
+	}
+	.imp-2d__table thead tr:first-child th:nth-child(3),
+	.imp-2d__table thead tr:last-child th:nth-child(3) {
+		border-left: 1px solid var(--sl-color-gray-5);
+	}
+	.imp-2d__table tr.imp-2d__row--e td:nth-child(3) {
+		border-left: 1px solid var(--sl-color-gray-5);
+	}
+	.imp-2d__row--1 th {
+		box-shadow: inset 4px 0 0 var(--ig-vx);
+		padding-left: 0.6rem;
+	}
+	.imp-2d__row--2 th {
+		box-shadow: inset 4px 0 0 var(--ig-vy);
+		padding-left: 0.6rem;
+	}
+	.imp-2d__row--s th {
+		box-shadow: inset 4px 0 0 var(--ig-v);
+		padding-left: 0.6rem;
+	}
+	.imp-2d__row--s td {
+		font-weight: 700;
+	}
+	.imp-2d__row--e th {
+		font-weight: 400;
+	}
+	.imp-2d__row--e td {
+		text-align: center;
+	}
+	.imp-2d__after-note {
+		margin: 0.4rem 0 0;
+		min-height: 1.5em;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.imp-2d__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.6;
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.imp-2d {
+			padding: 0.75rem;
+		}
+		.imp-2d__modes button {
+			padding: 0.35rem 0.7rem;
+		}
+		.imp-2d__pucks {
+			gap: 0.5rem;
+		}
+		.imp-2d__puck {
+			padding: 0.3rem 0.55rem 0.45rem;
+		}
+		.imp-2d__table th,
+		.imp-2d__table td {
+			padding: 0.25rem 0.25rem;
+		}
+		.imp-2d__table {
+			font-size: var(--sl-text-xs);
+		}
+	}
+</style>
+
+<script>
+	import {
+		plan,
+		radius,
+		clampBurst,
+		burstOk,
+		burstU2,
+		angleDeg,
+		arrowPath,
+		add,
+		sub,
+		mul,
+		len,
+		unit,
+		FW,
+		FH,
+		VMAX,
+		VPAIR,
+		TS,
+		KM,
+		MARGIN,
+		type Mode,
+		type Plan,
+		type Setup,
+		type V2,
+	} from './collision2d';
+	import { svg, attrs, fmt, roundPair, clamp, niceStep, stepDigits } from './util';
+
+	const NOTES: Record<Mode, string> = {
+		elastic:
+			'Упругие шайбы скользят по гладкому льду. В момент удара шайбы толкают друг друга вдоль линии, соединяющей их центры, и разлетаются.',
+		inelastic:
+			'На шайбах липучки: при ударе шайбы слипаются и дальше скользят вместе, как одно тело.',
+		burst:
+			'Две шайбы сцеплены защёлкой, между ними сжата пружина. Через 1,2 с после пуска защёлка открывается, и пружина расталкивает шайбы — как осколки разорвавшегося снаряда.',
+	};
+	const HINTS: Record<Mode, string> = {
+		elastic:
+			'Тяните за кружок на конце стрелки — так задаётся скорость шайбы. Саму шайбу можно передвинуть: так удар придётся сбоку. Стрелку второй шайбы можно вытянуть из пунктирного кружка.',
+		inelastic:
+			'Тяните за кружок на конце стрелки — так задаётся скорость шайбы. Саму шайбу можно передвинуть: так удар придётся сбоку. Стрелку второй шайбы можно вытянуть из пунктирного кружка.',
+		burst:
+			'Жёлтая стрелка — импульс сцепленных шайб: её кончик задаёт их скорость. Пунктиром показано место разлёта; тяните кружок синей стрелки — так задаётся скорость первой шайбы после разлёта, а вторая получает такой импульс, чтобы сумма не изменилась.',
+	};
+	const SLOW = 4;
+
+	type Drag =
+		| { kind: 'vel'; i: 0 | 1 }
+		| { kind: 'pos'; i: 0 | 1 }
+		| { kind: 'pairV' }
+		| { kind: 'pairPos' }
+		| { kind: 'u1' };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-imp-2d]')) {
+		const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+		const stage = q<HTMLElement>('[data-stage]');
+		const field = q<SVGSVGElement>('[data-field]');
+		const panel = q<SVGSVGElement>('[data-panel]');
+		const slowBadge = q<HTMLElement>('[data-slowmo]');
+		const note = q<HTMLElement>('[data-note]');
+		const hint = q<HTMLElement>('[data-hint]');
+		const live = q<HTMLElement>('[data-live]');
+		const slowBox = q<HTMLInputElement>('[data-slow]');
+		const runBtn = q<HTMLButtonElement>('[data-run]');
+		const inM = [q<HTMLInputElement>('[data-in="m1"]'), q<HTMLInputElement>('[data-in="m2"]')];
+		const outM = [q<HTMLOutputElement>('[data-out="m1"]'), q<HTMLOutputElement>('[data-out="m2"]')];
+		const speedOut = [q<HTMLElement>('[data-speed="1"]'), q<HTMLElement>('[data-speed="2"]')];
+		const cell = (k: string) => q<HTMLElement>(`[data-c="${k}"]`);
+		const modeBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+
+		// ---------- state ----------
+		let mode: Mode = 'elastic';
+		const S: Setup = {
+			mode: 'elastic',
+			m1: 1,
+			m2: 1,
+			r1: { x: 0.45, y: 0.75 },
+			v1: { x: 1, y: 0 },
+			r2: { x: 1.25, y: 0.65 },
+			v2: { x: 0, y: 0 },
+			s0: { x: 0.5, y: 0.75 },
+			V: { x: 0.6, y: 0 },
+			u1: { x: 0.9, y: 0.6 },
+		};
+		let P: Plan;
+		let t = 0;
+		let running = false;
+		let finished = false;
+		let raf = 0;
+		let last = 0;
+		let phase = '';
+		let drag: Drag | null = null;
+		const lastDir: [V2, V2] = [
+			{ x: 1, y: 0 },
+			{ x: 0, y: 1 },
+		];
+
+		// ---------- layout ----------
+		let W = 0; // width of the field svg, px
+		let F: ReturnType<typeof buildField>;
+		let Q: ReturnType<typeof buildPanel>;
+		let wide = false;
+		let lastSW = 0;
+
+		const editable = () => !running && t === 0;
+
+		function buildField() {
+			field.replaceChildren();
+			const pad = 1;
+			const Sx = (W - 2 * pad) / FW; // px per metre
+			const fx = pad;
+			const fy = pad;
+			const fh = FH * Sx;
+			const H = Math.ceil(fh + 2 * pad + 30);
+			attrs(field, { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+			const X = (x: number) => fx + x * Sx;
+			const Y = (y: number) => fy + (FH - y) * Sx;
+			const K = KM * Sx; // px per kg·m/s
+			svg('rect', { class: 'ice', x: fx, y: fy, width: FW * Sx, height: fh, rx: 8 }, field);
+			const grid = svg('g', {}, field);
+			const step = Sx * 0.1 < 16 ? 0.25 : 0.1;
+			for (let i = 1; i * step < FW - 1e-9; i++) {
+				const major = Math.abs((i * step) % 0.5) < 1e-6 || Math.abs(((i * step) % 0.5) - 0.5) < 1e-6;
+				svg('line', { class: `grid${major ? ' major' : ''}`, x1: X(i * step), x2: X(i * step), y1: fy + 1, y2: fy + fh - 1 }, grid);
+			}
+			for (let i = 1; i * step < FH - 1e-9; i++) {
+				const major = Math.abs((i * step) % 0.5) < 1e-6 || Math.abs(((i * step) % 0.5) - 0.5) < 1e-6;
+				svg('line', { class: `grid${major ? ' major' : ''}`, x1: fx + 1, x2: fx + FW * Sx - 1, y1: Y(i * step), y2: Y(i * step) }, grid);
+			}
+			const view = svg('text', { x: fx + 8, y: fy + 16, class: 't-small t-halo' }, field);
+			view.textContent = 'лёд, вид сверху';
+
+			// scale row under the field: axes, 0,5 m, 1 kg·m/s
+			const yS = fy + fh + 19;
+			const ax = svg('g', {}, field);
+			const ox = fx + 4;
+			ax.append(svg('path', { class: 'arrow cs', d: arrowPath(ox, yS + 2, ox + 26, yS + 2, 1.6, 6, 6) }));
+			ax.append(svg('path', { class: 'arrow cs', d: arrowPath(ox, yS + 2, ox, yS - 18, 1.6, 6, 6) }));
+			const tx = svg('text', { x: ox + 29, y: yS + 6, class: 't-small t-math' }, ax);
+			tx.textContent = 'x';
+			const ty = svg('text', { x: ox + 5, y: yS - 9, class: 't-small t-math' }, ax);
+			ty.textContent = 'y';
+			// right part: "0,5 м" bar and the arrow "1 кг·м/с"
+			const barL = 0.5 * Sx;
+			let xr = fx + FW * Sx - 2;
+			const pT = svg('text', { x: xr, y: yS + 6, 'text-anchor': 'end', class: 't-small' }, field);
+			pT.textContent = '1 кг·м/с';
+			xr -= (pT.getComputedTextLength?.() || 52) + 6;
+			svg('path', { class: 'arrow cs', d: arrowPath(xr - K, yS + 2, xr, yS + 2, 2.4, 8, 8) }, field);
+			xr -= K + 18;
+			const mT = svg('text', { x: xr, y: yS + 6, 'text-anchor': 'end', class: 't-small' }, field);
+			mT.textContent = '0,5 м';
+			xr -= (mT.getComputedTextLength?.() || 34) + 6;
+			svg('line', { class: 'tick', x1: xr - barL, x2: xr, y1: yS + 2, y2: yS + 2 }, field);
+			svg('line', { class: 'tick', x1: xr - barL, x2: xr - barL, y1: yS - 2, y2: yS + 6 }, field);
+			svg('line', { class: 'tick', x1: xr, x2: xr, y1: yS - 2, y2: yS + 6 }, field);
+
+			// trails, ghosts, pucks, arrows, knobs (in drawing order)
+			const trails = [svg('path', { class: 'trail t1' }, field), svg('path', { class: 'trail t2' }, field), svg('path', { class: 'trail ts' }, field)];
+			const ghostG = svg('g', {}, field);
+			const flash = svg('circle', { class: 'flash', r: 0 }, field);
+			const pucks = [0, 1].map((i) => {
+				const g = svg('g', {}, field);
+				const c = svg('circle', { class: `puck${i + 1}` }, g);
+				return { g, c };
+			});
+			const latch = svg('line', { class: 'latch' }, field);
+			const cm = svg('path', { class: 'cm' }, field);
+			const arr = {
+				p1: svg('path', { class: 'arrow c1' }, field),
+				p2: svg('path', { class: 'arrow c2' }, field),
+				ps: svg('path', { class: 'arrow cs' }, field),
+				q1: svg('path', { class: 'arrow c1 plan' }, field),
+				q2: svg('path', { class: 'arrow c2 plan' }, field),
+			};
+			const lab = {
+				p1: symLabel(field, 'p', '1', 'c1 t-halo'),
+				p2: symLabel(field, 'p', '2', 'c2 t-halo'),
+				ps: symLabel(field, 'p', '', 'cs t-halo'),
+				q1: symLabel(field, 'p', '1', 'c1 t-halo'),
+				q2: symLabel(field, 'p', '2', 'c2 t-halo'),
+			};
+			const knobs = {
+				v0: svg('circle', { class: 'knob k1', r: 7 }, field),
+				v1: svg('circle', { class: 'knob k2', r: 7 }, field),
+				pairV: svg('circle', { class: 'knob ks', r: 7 }, field),
+				u1: svg('circle', { class: 'knob k1', r: 7 }, field),
+			};
+			const tip = svg('text', { class: 'tip-label t-halo', 'text-anchor': 'middle' }, field);
+			const zero = [symLabel(field, 'p', '1', 'c1 t-halo'), symLabel(field, 'p', '2', 'c2 t-halo')];
+			zero.forEach((z) => svg('tspan', { dy: -4 }, z).append(' = 0'));
+			// invisible grab areas on top (big enough for a finger)
+			const hits = {
+				pos0: svg('circle', { class: 'hit disc', tabindex: 0, role: 'slider', 'aria-label': 'Шайба 1: положение' }, field),
+				pos1: svg('circle', { class: 'hit disc', tabindex: 0, role: 'slider', 'aria-label': 'Шайба 2: положение' }, field),
+				pairPos: svg('circle', { class: 'hit disc', tabindex: 0, role: 'slider', 'aria-label': 'Сцепленные шайбы: положение' }, field),
+				v0: svg('circle', { class: 'hit', r: 22, tabindex: 0, role: 'slider', 'aria-label': 'Скорость шайбы 1' }, field),
+				v1: svg('circle', { class: 'hit', r: 22, tabindex: 0, role: 'slider', 'aria-label': 'Скорость шайбы 2' }, field),
+				pairV: svg('circle', { class: 'hit', r: 22, tabindex: 0, role: 'slider', 'aria-label': 'Скорость сцепленных шайб' }, field),
+				u1: svg('circle', { class: 'hit', r: 22, tabindex: 0, role: 'slider', 'aria-label': 'Скорость шайбы 1 после разлёта' }, field),
+			};
+			hits.pos0.dataset.drag = JSON.stringify({ kind: 'pos', i: 0 });
+			hits.pos1.dataset.drag = JSON.stringify({ kind: 'pos', i: 1 });
+			hits.pairPos.dataset.drag = JSON.stringify({ kind: 'pairPos' });
+			hits.v0.dataset.drag = JSON.stringify({ kind: 'vel', i: 0 });
+			hits.v1.dataset.drag = JSON.stringify({ kind: 'vel', i: 1 });
+			hits.pairV.dataset.drag = JSON.stringify({ kind: 'pairV' });
+			hits.u1.dataset.drag = JSON.stringify({ kind: 'u1' });
+			return { Sx, X, Y, K, H, fx, fy, fh, trails, ghostG, flash, pucks, latch, cm, arr, lab, knobs, tip, zero, hits };
+		}
+
+		/** Label with an italic letter and a subscript: p₁ … */
+		function symLabel(parent: Element, letter: string, sub: string, cls: string) {
+			const t = svg('text', { class: cls, 'font-size': 14 }, parent);
+			const a = svg('tspan', { class: 't-math' }, t);
+			a.textContent = letter;
+			if (sub) {
+				const b = svg('tspan', { dy: 4, 'font-size': '0.75em' }, t);
+				b.textContent = sub;
+			}
+			return t;
+		}
+
+		function buildPanel(Hp: number, Wp: number) {
+			panel.replaceChildren();
+			attrs(panel, { viewBox: `0 0 ${Wp} ${Hp}`, width: Wp, height: Hp });
+			const grid = svg('g', {}, panel);
+			const pale = {
+				a1: svg('path', { class: 'arrow c1 pale' }, panel),
+				a2: svg('path', { class: 'arrow c2 pale' }, panel),
+				as: svg('path', { class: 'arrow cs pale' }, panel),
+			};
+			const solid = {
+				a1: svg('path', { class: 'arrow c1' }, panel),
+				a2: svg('path', { class: 'arrow c2' }, panel),
+				as: svg('path', { class: 'arrow cs' }, panel),
+			};
+			const right = svg('path', { class: 'right-angle' }, panel);
+			const ring = svg('circle', { class: 'end-ring', r: 7 }, panel);
+			const origin = svg('circle', { class: 'origin', r: 3 }, panel);
+			const tag = svg('text', { class: 't-small t-halo6' }, panel);
+			const ang = svg('text', { class: 't-small t-halo6' }, panel);
+			return { Wp, Hp, grid, pale, solid, right, ring, origin, tag, ang, K: 40, ox: 0, oy: 0 };
+		}
+
+		function relayout(force = false) {
+			const sw = Math.floor(stage.clientWidth);
+			if (!sw || (!force && Math.abs(sw - lastSW) < 2)) return;
+			lastSW = sw;
+			wide = sw >= 600;
+			stage.classList.toggle('is-wide', wide);
+			const fb = q<HTMLElement>('.imp-2d__field-box');
+			W = Math.floor(fb.clientWidth);
+			F = buildField();
+			const pb = q<HTMLElement>('.imp-2d__panel-box');
+			const Wp = Math.floor(pb.clientWidth);
+			const Hp = wide ? Math.max(200, Math.round(F.H - 26)) : Math.round(clamp(Wp * 0.62, 190, 260));
+			Q = buildPanel(Hp, Wp);
+			if (P) {
+				fitPanel();
+				render();
+			}
+		}
+
+		// ---------- the setup ----------
+		const masses = () => [S.m1, S.m2];
+		const rad = () => [radius(S.m1), radius(S.m2)];
+
+		/** Keeps the pucks inside the field and apart from each other. */
+		function tidy(moved: 0 | 1 = 1) {
+			const r = rad();
+			const keep = (p: V2, ri: number): V2 => ({
+				x: clamp(p.x, ri + MARGIN, FW - ri - MARGIN),
+				y: clamp(p.y, ri + MARGIN, FH - ri - MARGIN),
+			});
+			S.r1 = keep(S.r1, r[0]);
+			S.r2 = keep(S.r2, r[1]);
+			const need = r[0] + r[1] + 0.005;
+			for (let k = 0; k < 4; k++) {
+				const d = sub(S.r2, S.r1);
+				if (len(d) >= need) break;
+				const n = unit(d, { x: 1, y: 0 });
+				if (moved === 1) S.r2 = keep(add(S.r1, mul(n, need)), r[1]);
+				else S.r1 = keep(sub(S.r2, mul(n, need)), r[0]);
+				if (len(sub(S.r2, S.r1)) < need) {
+					// pushed against the edge: move the other one instead
+					if (moved === 1) S.r1 = keep(sub(S.r2, mul(n, need)), r[0]);
+					else S.r2 = keep(add(S.r1, mul(n, need)), r[1]);
+				}
+			}
+			const ext = r[0] + r[1];
+			S.s0 = { x: clamp(S.s0.x, ext + MARGIN, FW - ext - MARGIN), y: clamp(S.s0.y, ext + MARGIN, FH - ext - MARGIN) };
+			if (len(S.V) > VPAIR) S.V = mul(unit(S.V), VPAIR);
+			S.u1 = clampSnap(S.u1);
+		}
+
+		/** u1 moved into the allowed region, then rounded to 0,01 m/s (still allowed). */
+		function clampSnap(want: V2): V2 {
+			let c = clampBurst(S.m1, S.m2, S.V, want);
+			for (let k = 0; k < 100; k++) {
+				const r = { x: Math.round(c.x * 100) / 100, y: Math.round(c.y * 100) / 100 };
+				if (burstOk(S.m1, S.m2, S.V, r)) return r;
+				c = add(S.V, mul(sub(c, S.V), 0.99));
+			}
+			return S.V;
+		}
+
+		/** A dragged momentum tip → velocity: speed in steps of 0,05 m/s, direction in whole degrees. */
+		function snapVel(p: V2, m: number, vmax: number): V2 {
+			const v = mul(p, 1 / m);
+			const s = Math.min(vmax, Math.round(len(v) / 0.05) * 0.05);
+			if (s < 1e-9) return { x: 0, y: 0 };
+			const a = (Math.round((Math.atan2(v.y, v.x) * 180) / Math.PI) * Math.PI) / 180;
+			return { x: s * Math.cos(a), y: s * Math.sin(a) };
+		}
+
+		// ---------- rendering ----------
+		const scr = (p: V2) => ({ x: F.X(p.x), y: F.Y(p.y) });
+
+		/** Point where the knob of a momentum arrow is drawn (outside the puck even for a short arrow). */
+		function knobAt(anchor: V2, p: V2, rpx: number, dirIfZero: V2) {
+			const a = scr(anchor);
+			const lx = p.x * F.K;
+			const ly = -p.y * F.K;
+			const L = Math.hypot(lx, ly);
+			const minL = rpx + 13;
+			if (L >= minL) return { x: a.x + lx, y: a.y + ly, parked: false };
+			const d = L > 0.5 ? { x: lx / L, y: ly / L } : { x: dirIfZero.x, y: -dirIfZero.y };
+			return { x: a.x + d.x * minL, y: a.y + d.y * minL, parked: true };
+		}
+
+		function placeLabel(el: SVGTextElement, from: { x: number; y: number }, to: { x: number; y: number }, extra = 0) {
+			const dx = to.x - from.x;
+			const dy = to.y - from.y;
+			const L = Math.hypot(dx, dy);
+			if (L < 2) {
+				el.style.visibility = 'hidden';
+				return;
+			}
+			el.style.visibility = 'visible';
+			const ux = dx / L;
+			const uy = dy / L;
+			const off = 12 + extra;
+			let x = to.x + ux * off;
+			let y = to.y + uy * off + 5;
+			const anchor = Math.abs(ux) < 0.4 ? 'middle' : ux > 0 ? 'start' : 'end';
+			x = clamp(x, anchor === 'start' ? 4 : anchor === 'end' ? 24 : 14, anchor === 'start' ? W - 24 : anchor === 'end' ? W - 4 : W - 14);
+			y = clamp(y, 14, F.fy + F.fh - 4);
+			attrs(el, { x, y, 'text-anchor': anchor });
+		}
+
+		function setArrow(path: SVGPathElement, label: SVGTextElement | null, anchor: V2, p: V2, show: boolean, extra = 0) {
+			if (!show) {
+				path.setAttribute('d', '');
+				if (label) label.style.visibility = 'hidden';
+				return;
+			}
+			const a = scr(anchor);
+			const b = { x: a.x + p.x * F.K, y: a.y - p.y * F.K };
+			path.setAttribute('d', arrowPath(a.x, a.y, b.x, b.y, 3.6, 12, 12));
+			if (label) placeLabel(label, a, b, extra);
+		}
+
+		function trailPath(pts: V2[]) {
+			if (pts.length < 2) return '';
+			return pts.map((p, k) => `${k ? 'L' : 'M'}${F.X(p.x).toFixed(1)},${F.Y(p.y).toFixed(1)}`).join(' ');
+		}
+
+		function trails(upTo: number) {
+			const tt = Math.min(upTo, P.tEnd);
+			const pts: [V2[], V2[]] = [[], []];
+			const add2 = (time: number) => {
+				const st = P.state(time);
+				pts[0].push(st.pos[0]);
+				pts[1].push(st.pos[1]);
+			};
+			add2(0);
+			if (tt <= 0) return pts;
+			if (P.hit && tt > P.tEvent) {
+				add2(P.tEvent);
+				if (mode === 'inelastic' && Math.abs(P.omega) > 1e-6) {
+					for (let s = P.tEvent + 0.02; s < tt; s += 0.02) add2(s);
+				}
+			}
+			add2(tt);
+			return pts;
+		}
+
+		function render() {
+			const st = P.state(t);
+			const ms = masses();
+			const r = rad();
+			const rpx = r.map((x) => x * F.Sx);
+			const edit = editable();
+			const burst = mode === 'burst';
+
+			// trails (pucks' centres) and the path of the centre of mass of a stuck pair
+			const tr = trails(t);
+			const showTrails = t > 0;
+			F.trails[0].setAttribute('d', showTrails && !(burst && !st.after) ? trailPath(tr[0]) : '');
+			F.trails[1].setAttribute('d', showTrails && !(burst && !st.after) ? trailPath(tr[1]) : '');
+			if (burst && showTrails) {
+				const c0 = S.s0;
+				const c1 = add(S.s0, mul(S.V, Math.min(t, P.hit ? TS : P.tEnd)));
+				F.trails[2].setAttribute('d', trailPath([c0, c1]));
+				if (st.after) {
+					// pieces' paths start at the place of the burst
+					F.trails[0].setAttribute('d', trailPath([P.contact[0], st.pos[0]]));
+					F.trails[1].setAttribute('d', trailPath([P.contact[1], st.pos[1]]));
+				}
+			} else if (mode === 'inelastic' && st.after) {
+				const C0 = mul(add(mul(P.contact[0], ms[0]), mul(P.contact[1], ms[1])), 1 / (ms[0] + ms[1]));
+				F.trails[2].setAttribute('d', trailPath([C0, add(C0, mul(P.V, t - P.tEvent))]));
+			} else F.trails[2].setAttribute('d', '');
+
+			// ghosts: the pucks at the moment of the impact and the line of centres; the place of the burst
+			F.ghostG.replaceChildren();
+			const ghost = (c: V2, ri: number) => svg('circle', { class: 'ghost', cx: F.X(c.x), cy: F.Y(c.y), r: ri * F.Sx }, F.ghostG);
+			if (burst) {
+				if (P.hit && (edit || st.after || t > 0)) {
+					ghost(P.contact[0], r[0]);
+					ghost(P.contact[1], r[1]);
+				}
+			} else if (P.hit && st.after) {
+				ghost(P.contact[0], r[0]);
+				ghost(P.contact[1], r[1]);
+				const n = P.n;
+				const a = sub(P.contact[0], mul(n, r[0] + 0.12));
+				const b = add(P.contact[1], mul(n, r[1] + 0.12));
+				svg('line', { class: 'centres', x1: F.X(a.x), y1: F.Y(a.y), x2: F.X(b.x), y2: F.Y(b.y) }, F.ghostG);
+			}
+			// a short flash at the moment of the event
+			const since = t - P.tEvent;
+			if (P.hit && since >= 0 && since < 0.35) {
+				const c = burst ? add(S.s0, mul(S.V, TS)) : add(P.contact[0], mul(P.n, r[0]));
+				const k = since / 0.35;
+				attrs(F.flash, { cx: F.X(c.x), cy: F.Y(c.y), r: (6 + 22 * k).toFixed(1), opacity: (1 - k).toFixed(2) });
+			} else F.flash.setAttribute('r', '0');
+
+			// pucks
+			for (let i = 0; i < 2; i++) {
+				const p = scr(st.pos[i]);
+				attrs(F.pucks[i].c, { cx: p.x, cy: p.y, r: rpx[i] });
+			}
+			// the latch of the pair
+			if (burst && !st.after) {
+				const n = P.n;
+				const c = add(st.pos[1], mul(n, r[1]));
+				const tng = { x: -n.y, y: n.x };
+				const h = Math.min(r[0], r[1]) * 0.55;
+				const a = add(c, mul(tng, h));
+				const b = sub(c, mul(tng, h));
+				attrs(F.latch, { x1: F.X(a.x), y1: F.Y(a.y), x2: F.X(b.x), y2: F.Y(b.y) });
+				F.latch.style.visibility = 'visible';
+			} else F.latch.style.visibility = 'hidden';
+			// the centre of mass of a stuck pair
+			const joinedAfter = mode === 'inelastic' && st.after;
+			const pairNow = burst && !st.after;
+			if (joinedAfter || pairNow) {
+				const C = mul(add(mul(st.pos[0], ms[0]), mul(st.pos[1], ms[1])), 1 / (ms[0] + ms[1]));
+				const c = scr(C);
+				const s = 5;
+				F.cm.setAttribute('d', `M${c.x - s},${c.y - s} L${c.x + s},${c.y + s} M${c.x - s},${c.y + s} L${c.x + s},${c.y - s}`);
+			} else F.cm.setAttribute('d', '');
+
+			// momentum arrows
+			const pNow: [V2, V2] = [mul(st.vel[0], ms[0]), mul(st.vel[1], ms[1])];
+			const C = mul(add(mul(st.pos[0], ms[0]), mul(st.pos[1], ms[1])), 1 / (ms[0] + ms[1]));
+			const kb = { v0: F.knobs.v0, v1: F.knobs.v1, pairV: F.knobs.pairV, u1: F.knobs.u1 };
+			Object.values(kb).forEach((k) => (k.style.visibility = 'hidden'));
+			Object.values(F.hits).forEach((h) => (h.style.display = 'none'));
+			const showKnob = (k: SVGCircleElement, h: SVGCircleElement, pos: { x: number; y: number; parked?: boolean }) => {
+				attrs(k, { cx: pos.x, cy: pos.y });
+				k.classList.toggle('parked', !!pos.parked);
+				k.style.visibility = 'visible';
+				attrs(h, { cx: pos.x, cy: pos.y });
+				h.style.display = '';
+			};
+			const sepPair = joinedAfter || pairNow;
+			setArrow(F.arr.p1, F.lab.p1, st.pos[0], pNow[0], !sepPair, edit ? 6 : 0);
+			setArrow(F.arr.p2, F.lab.p2, st.pos[1], pNow[1], !sepPair, edit ? 6 : 0);
+			for (const i of [0, 1]) {
+				const z = F.zero[i];
+				const rest = !sepPair && len(pNow[i]) * F.K < 2;
+				z.style.visibility = rest ? 'visible' : 'hidden';
+				if (rest) {
+					const c = scr(st.pos[i]);
+					const below = c.y + rpx[i] + 17 < F.fy + F.fh - 2;
+					attrs(z, { x: clamp(c.x, 26, W - 26), y: below ? c.y + rpx[i] + 16 : c.y - rpx[i] - 8, 'text-anchor': 'middle' });
+				}
+			}
+			setArrow(F.arr.ps, F.lab.ps, C, P.sum, sepPair, edit ? 6 : 0);
+			// burst: the planned momenta of the pieces at the place of the burst
+			const showPlan = burst && edit && P.hit;
+			const split = add(S.s0, mul(S.V, TS));
+			setArrow(F.arr.q1, F.lab.q1, split, P.afterP[0], showPlan, 6);
+			setArrow(F.arr.q2, F.lab.q2, split, P.afterP[1], showPlan);
+			if (edit) {
+				if (!burst) {
+					for (const i of [0, 1] as const) {
+						const v = i ? S.v2 : S.v1;
+						const pos = knobAt(i ? S.r2 : S.r1, mul(v, ms[i]), rpx[i], lastDir[i]);
+						showKnob(i ? kb.v1 : kb.v0, i ? F.hits.v1 : F.hits.v0, pos);
+						const hc = scr(i ? S.r2 : S.r1);
+						const hh = i ? F.hits.pos1 : F.hits.pos0;
+						attrs(hh, { cx: hc.x, cy: hc.y, r: Math.max(rpx[i] + 4, 16) });
+						hh.style.display = '';
+					}
+				} else {
+					showKnob(kb.pairV, F.hits.pairV, knobAt(S.s0, P.sum, (r[0] + r[1]) * F.Sx, { x: 1, y: 0 }));
+					const c = scr(S.s0);
+					attrs(F.hits.pairPos, { cx: c.x, cy: c.y, r: Math.max((r[0] + r[1]) * F.Sx, 18) });
+					F.hits.pairPos.style.display = '';
+					if (P.hit) showKnob(kb.u1, F.hits.u1, knobAt(split, P.afterP[0], 4, { x: 0, y: 1 }));
+				}
+			}
+			renderPanel(st.after);
+			renderTable(st.after);
+		}
+
+		// ---------- the panel «Сумма импульсов» ----------
+		function fitPanel() {
+			const pts: V2[] = [{ x: 0, y: 0 }, P.before[0], P.sum];
+			if (P.hit) pts.push(P.afterP[0]);
+			const x0 = Math.min(...pts.map((p) => p.x));
+			const x1 = Math.max(...pts.map((p) => p.x));
+			const y0 = Math.min(...pts.map((p) => p.y));
+			const y1 = Math.max(...pts.map((p) => p.y));
+			const pad = 24;
+			const w = Q.Wp - 2 * pad;
+			const h = Q.Hp - 2 * pad - 14;
+			const K = Math.min(F.K * 3, w / Math.max(x1 - x0, 1e-6), h / Math.max(y1 - y0, 1e-6));
+			Q.K = K;
+			Q.ox = Q.Wp / 2 - ((x0 + x1) / 2) * K;
+			Q.oy = (Q.Hp + 14) / 2 + ((y0 + y1) / 2) * K;
+			// grid
+			Q.grid.replaceChildren();
+			const step = niceStep(Q.Wp / K, Q.Wp, 28);
+			q<HTMLElement>('[data-cell]').textContent = `${fmt(step, stepDigits(step), true)} кг·м/с`;
+			for (let k = Math.ceil(-Q.ox / K / step); Q.ox + k * step * K < Q.Wp; k++) {
+				const x = Q.ox + k * step * K;
+				svg('line', { class: k === 0 ? 'zero' : 'grid', x1: x, x2: x, y1: 0, y2: Q.Hp }, Q.grid);
+			}
+			for (let k = Math.ceil((Q.oy - Q.Hp) / K / step); Q.oy - k * step * K > 0; k++) {
+				const y = Q.oy - k * step * K;
+				svg('line', { class: k === 0 ? 'zero' : 'grid', x1: 0, x2: Q.Wp, y1: y, y2: y }, Q.grid);
+			}
+			const lx = svg('text', { x: Q.Wp - 6, y: clamp(Q.oy - 6, 12, Q.Hp - 4), 'text-anchor': 'end', class: 't-small t-halo6' }, Q.grid);
+			lx.innerHTML = '<tspan class="t-math">p</tspan><tspan dy="3" font-size="0.75em" class="t-math">x</tspan>';
+			const ly = svg('text', { x: clamp(Q.ox + 6, 4, Q.Wp - 20), y: 13, class: 't-small t-halo6' }, Q.grid);
+			ly.innerHTML = '<tspan class="t-math">p</tspan><tspan dy="3" font-size="0.75em" class="t-math">y</tspan>';
+		}
+
+		function chain(set: { a1: SVGPathElement; a2: SVGPathElement; as: SVGPathElement }, p1: V2, p2: V2, show: boolean, single = false) {
+			const P0 = { x: Q.ox, y: Q.oy };
+			const pt = (p: V2) => ({ x: Q.ox + p.x * Q.K, y: Q.oy - p.y * Q.K });
+			if (!show) {
+				set.a1.setAttribute('d', '');
+				set.a2.setAttribute('d', '');
+				set.as.setAttribute('d', '');
+				return;
+			}
+			const A = pt(p1);
+			const B = pt(add(p1, p2));
+			set.a1.setAttribute('d', single ? '' : arrowPath(P0.x, P0.y, A.x, A.y, 3.4, 11, 11));
+			set.a2.setAttribute('d', single ? '' : arrowPath(A.x, A.y, B.x, B.y, 3.4, 11, 11));
+			set.as.setAttribute('d', arrowPath(P0.x, P0.y, B.x, B.y, single ? 4.4 : 2.6, 12, 12));
+		}
+
+		function renderPanel(after: boolean) {
+			const burst = mode === 'burst';
+			const joined = mode === 'inelastic';
+			chain(Q.pale, P.before[0], P.before[1], true);
+			const showAfter = P.hit && after;
+			chain(Q.solid, P.afterP[0], P.afterP[1], showAfter, joined);
+			attrs(Q.origin, { cx: Q.ox, cy: Q.oy });
+			const end = { x: Q.ox + P.sum.x * Q.K, y: Q.oy - P.sum.y * Q.K };
+			attrs(Q.ring, { cx: end.x, cy: end.y });
+			Q.ring.style.visibility = len(P.sum) * Q.K > 3 ? 'visible' : 'hidden';
+			// right angle at the joint of the two "after" arrows
+			Q.right.setAttribute('d', '');
+			Q.ang.textContent = '';
+			if (showAfter && !joined && len(P.afterP[0]) > 1e-3 && len(P.afterP[1]) > 1e-3) {
+				const A = { x: Q.ox + P.afterP[0].x * Q.K, y: Q.oy - P.afterP[0].y * Q.K };
+				const e1 = unit({ x: -P.afterP[0].x, y: P.afterP[0].y });
+				const e2 = unit({ x: P.afterP[1].x, y: -P.afterP[1].y });
+				const deg = angleDeg(P.afterP[0], P.afterP[1]);
+				if (Math.abs(deg - 90) < 0.5) {
+					const s = 9;
+					const a = { x: A.x + e1.x * s, y: A.y + e1.y * s };
+					const b = { x: A.x + (e1.x + e2.x) * s, y: A.y + (e1.y + e2.y) * s };
+					const c = { x: A.x + e2.x * s, y: A.y + e2.y * s };
+					Q.right.setAttribute('d', `M${a.x},${a.y} L${b.x},${b.y} L${c.x},${c.y}`);
+				}
+			}
+			Q.tag.textContent = showAfter ? (burst ? 'после разлёта' : 'после удара') : burst ? 'до разлёта' : 'до удара';
+			attrs(Q.tag, { x: 6, y: Q.Hp - 7 });
+		}
+
+		// ---------- readouts ----------
+		function renderTable(after: boolean) {
+			const b = P.before;
+			const [b1x, b2x, bsx] = roundPair(b[0].x, b[1].x, 2);
+			const [b1y, b2y, bsy] = roundPair(b[0].y, b[1].y, 2);
+			const set = (k: string, v: number | string) => {
+				const s = typeof v === 'number' ? fmt(v, 2) : v;
+				const c = cell(k);
+				if (c.textContent !== s) c.textContent = s;
+			};
+			set('b1x', b1x);
+			set('b1y', b1y);
+			set('b2x', b2x);
+			set('b2y', b2y);
+			set('bsx', bsx);
+			set('bsy', bsy);
+			set('eb', fmt(P.ekBefore, 2));
+			const show = P.hit && after;
+			const finalNoHit = !P.hit && finished;
+			if (show || finalNoHit) {
+				const a = P.afterP;
+				const [a1x, a2x] = roundPair(a[0].x, a[1].x, 2);
+				const [a1y, a2y] = roundPair(a[0].y, a[1].y, 2);
+				if (mode === 'inelastic' && P.hit) {
+					for (const k of ['a1x', 'a1y', 'a2x', 'a2y']) set(k, '—');
+				} else {
+					set('a1x', a1x);
+					set('a1y', a1y);
+					set('a2x', a2x);
+					set('a2y', a2y);
+				}
+				set('asx', bsx);
+				set('asy', bsy);
+				set('ea', fmt(P.ekAfter, 2));
+			} else {
+				for (const k of ['a1x', 'a1y', 'a2x', 'a2y', 'asx', 'asy', 'ea']) set(k, '?');
+			}
+			// the "after" sum written straight from the momenta after the event, to the same rounding
+			if (show) {
+				const sx = Math.round((P.afterP[0].x + P.afterP[1].x) * 100) / 100;
+				const sy = Math.round((P.afterP[0].y + P.afterP[1].y) * 100) / 100;
+				set('asx', sx);
+				set('asy', sy);
+			}
+			const nb = q<HTMLElement>('[data-after-note]');
+			let txt = '';
+			if (show) {
+				if (mode === 'elastic') txt = 'Кинетическая энергия не изменилась: удар упругий.';
+				else if (mode === 'inelastic') {
+					txt = 'Шайбы слиплись: их общий импульс — в строке «Сумма». Часть кинетической энергии перешла во внутреннюю: липучки смялись и нагрелись.';
+					if (P.ekSpin >= 0.005) txt += ` Из ${fmt(P.ekAfter, 2)} Дж после удара ${fmt(P.ekSpin, 2)} Дж приходится на вращение слипшихся шайб.`;
+				} else txt = 'Кинетическая энергия выросла: её дала распрямившаяся пружина.';
+			}
+			if (nb.textContent !== txt) nb.textContent = txt;
+		}
+
+		function renderSpeeds() {
+			const ms = masses();
+			for (const i of [0, 1] as const) {
+				let html: string;
+				if (mode === 'burst') {
+					const u = i ? burstU2(S.m1, S.m2, S.V, S.u1) : S.u1;
+					html = `после разлёта <i>υ</i><sub>${i + 1}</sub> = <b>${fmt(len(u), 2)} м/с</b>`;
+				} else {
+					const v = i ? S.v2 : S.v1;
+					html = `<i>υ</i><sub>${i + 1}</sub> = <b>${fmt(len(v), 2)} м/с</b>`;
+					if (len(v) > 1e-9) html += `, угол с осью <i>x</i> ${fmt(dirDeg(v), 0)}°`;
+				}
+				if (speedOut[i].innerHTML !== html) speedOut[i].innerHTML = html;
+				outM[i].value = `${fmt(ms[i], 1, true)} кг`;
+			}
+		}
+		const dirDeg = (v: V2) => Math.round((Math.atan2(v.y, v.x) * 180) / Math.PI);
+
+		// ---------- run control ----------
+		function status(next: string, html: string) {
+			if (phase === next) return;
+			phase = next;
+			live.innerHTML = html;
+		}
+
+		function finalText() {
+			const s = P.sum;
+			const sumTxt = `<i>p<sub>x</sub></i> = ${fmt(s.x, 2)}, <i>p<sub>y</sub></i> = ${fmt(s.y, 2)} кг·м/с`;
+			if (!P.hit) {
+				if (mode === 'burst') return 'Сцепленные шайбы доехали до края льда раньше, чем открылась защёлка. Сделайте их скорость поменьше.';
+				return 'Шайбы разминулись: удара не было, и импульс каждой шайбы не изменился.';
+			}
+			if (mode === 'inelastic') {
+				const V = len(P.V);
+				let txt = `Слипшиеся шайбы едут туда, куда была направлена сумма импульсов до удара, со скоростью <b><i>υ</i> = ${fmt(V, 2)} м/с</b>. Суммарный импульс не изменился: ${sumTxt}.`;
+				if (Math.abs(P.omega) > 0.05) txt += ' Удар был не в лоб, поэтому шайбы ещё и вращаются; по прямой движется точка, отмеченная крестиком.';
+				return txt;
+			}
+			const u = P.afterP.map((p, i) => len(p) / masses()[i]);
+			let txt = '';
+			if (u[0] > 0.005 && u[1] > 0.005) {
+				const deg = angleDeg(P.afterP[0], P.afterP[1]);
+				txt = `Шайбы разлетелись под углом <b>${fmt(deg, 0)}°</b> друг к другу: <i>υ</i><sub>1</sub> = ${fmt(u[0], 2)} м/с, <i>υ</i><sub>2</sub> = ${fmt(u[1], 2)} м/с. `;
+			} else if (u[0] <= 0.005) txt = `Первая шайба остановилась, вторая едет со скоростью <i>υ</i><sub>2</sub> = ${fmt(u[1], 2)} м/с. `;
+			else txt = `Вторая шайба остановилась, первая едет со скоростью <i>υ</i><sub>1</sub> = ${fmt(u[0], 2)} м/с. `;
+			if (mode === 'burst') return `${txt}Импульсы шайб в сумме дают импульс сцепленных шайб до разлёта: ${sumTxt}.`;
+			return `${txt}Суммарный импульс не изменился: ${sumTxt}.`;
+		}
+
+		function idleText() {
+			if (mode === 'burst') return 'Нажмите «Пуск»: шайбы поедут, и через 1,2 с защёлка откроется.';
+			if (len(S.v1) < 1e-9 && len(S.v2) < 1e-9) return 'Обе шайбы стоят. Потяните за кружок у шайбы, чтобы задать ей скорость.';
+			return 'Задайте скорости и положение шайб и нажмите «Пуск».';
+		}
+
+		function reset() {
+			cancelAnimationFrame(raf);
+			running = false;
+			finished = false;
+			t = 0;
+			phase = '';
+			S.mode = mode;
+			S.m1 = Number(inM[0].value);
+			S.m2 = Number(inM[1].value);
+			tidy();
+			P = plan({ ...S });
+			slowBadge.hidden = true;
+			runBtn.textContent = 'Пуск';
+			fitPanel();
+			renderSpeeds();
+			render();
+			status('idle', idleText());
+			const when = mode === 'burst' ? 'бледные — до разлёта, яркие — после' : 'бледные — до удара, яркие — после';
+			q<HTMLElement>('[data-panel-when]').textContent = when;
+			q<HTMLElement>('[data-th-before]').textContent = mode === 'burst' ? 'до разлёта' : 'до удара';
+			q<HTMLElement>('[data-th-after]').textContent = mode === 'burst' ? 'после разлёта' : 'после удара';
+			root.dataset.state = 'idle';
+		}
+
+		function finish() {
+			running = false;
+			finished = true;
+			t = P.tEnd;
+			slowBadge.hidden = true;
+			runBtn.textContent = 'Пуск';
+			render();
+			status('done', finalText());
+			root.dataset.state = 'done';
+		}
+
+		function frame(now: number) {
+			const real = Math.min(0.05, (now - last) / 1000);
+			last = now;
+			const rate = slowBox.checked ? 1 / SLOW : 1;
+			slowBadge.hidden = !slowBox.checked;
+			t = Math.min(P.tEnd, t + real * rate);
+			const st = P.state(t);
+			if (P.hit && st.after) {
+				if (t - P.tEvent < 0.6)
+					status(
+						'event',
+						mode === 'elastic'
+							? 'Удар! Шайбы толкнули друг друга вдоль линии, соединяющей их центры (пунктир).'
+							: mode === 'inelastic'
+								? 'Удар! Шайбы слиплись.'
+								: 'Защёлка открылась: пружина толкнула шайбы в разные стороны.',
+					);
+				else status('after', mode === 'inelastic' ? 'Слипшиеся шайбы скользят вместе…' : 'Шайбы разлетаются…');
+			} else
+				status(
+					'before',
+					mode !== 'burst' ? 'Шайбы скользят…' : len(S.V) > 1e-9 ? 'Сцепленные шайбы скользят вместе…' : 'Пружина сжата, защёлка вот-вот откроется…',
+				);
+			if (t >= P.tEnd) {
+				finish();
+				return;
+			}
+			render();
+			raf = requestAnimationFrame(frame);
+		}
+
+		function start() {
+			if (running) return;
+			if (finished || t > 0) reset();
+			if (mode !== 'burst' && len(S.v1) < 1e-9 && len(S.v2) < 1e-9) {
+				status('idle2', 'Обе шайбы стоят — задайте скорость хотя бы одной из них.');
+				return;
+			}
+			running = true;
+			root.dataset.state = 'running';
+			runBtn.textContent = 'Идёт…';
+			last = performance.now();
+			render();
+			raf = requestAnimationFrame(frame);
+		}
+
+		// ---------- dragging ----------
+		let grab = { dx: 0, dy: 0, moved: false, x0: 0, y0: 0 };
+		const local = (e: PointerEvent) => {
+			const b = field.getBoundingClientRect();
+			return { x: ((e.clientX - b.left) * W) / b.width, y: ((e.clientY - b.top) * F.H) / b.height };
+		};
+		const toPhys = (p: { x: number; y: number }): V2 => ({ x: (p.x - F.fx) / F.Sx, y: FH - (p.y - F.fy) / F.Sx });
+		const snap2 = (v: number) => Math.round(v * 100) / 100;
+
+		function anchorOf(d: Drag): V2 {
+			if (d.kind === 'vel') return d.i ? S.r2 : S.r1;
+			if (d.kind === 'pairV') return S.s0;
+			return add(S.s0, mul(S.V, TS));
+		}
+
+		function applyDrag(d: Drag, sp: { x: number; y: number }) {
+			const r = rad();
+			if (d.kind === 'pos' || d.kind === 'pairPos') {
+				const p = toPhys({ x: sp.x - grab.dx, y: sp.y - grab.dy });
+				const q2 = { x: snap2(p.x), y: snap2(p.y) };
+				if (d.kind === 'pairPos') S.s0 = q2;
+				else if (d.i === 0) S.r1 = q2;
+				else S.r2 = q2;
+				tidy(d.kind === 'pos' ? d.i : 1);
+				return;
+			}
+			const a = scr(anchorOf(d));
+			const tipX = sp.x - grab.dx;
+			const tipY = sp.y - grab.dy;
+			const lx = tipX - a.x;
+			const ly = tipY - a.y;
+			const Lpx = Math.hypot(lx, ly);
+			const p: V2 = { x: lx / F.K, y: -ly / F.K };
+			if (d.kind === 'vel') {
+				const m = d.i ? S.m2 : S.m1;
+				const v = Lpx < r[d.i] * F.Sx * 0.9 ? { x: 0, y: 0 } : snapVel(p, m, VMAX);
+				if (len(v) > 1e-9) lastDir[d.i] = unit(v);
+				if (d.i) S.v2 = v;
+				else S.v1 = v;
+			} else if (d.kind === 'pairV') {
+				const M = S.m1 + S.m2;
+				S.V = Lpx < (r[0] + r[1]) * F.Sx * 0.9 ? { x: 0, y: 0 } : snapVel(p, M, VPAIR);
+				S.u1 = clampSnap(S.u1);
+			} else {
+				const want = Lpx < 5 ? S.V : snapVel(p, S.m1, 10);
+				S.u1 = clampSnap(want);
+			}
+		}
+
+		function dragLabel(d: Drag) {
+			if (d.kind === 'pos' || d.kind === 'pairPos') {
+				F.tip.textContent = '';
+				return;
+			}
+			let v: V2;
+			let a: V2;
+			let sub = '';
+			if (d.kind === 'vel') {
+				v = d.i ? S.v2 : S.v1;
+				a = d.i ? S.r2 : S.r1;
+				sub = String(d.i + 1);
+			} else if (d.kind === 'pairV') {
+				v = S.V;
+				a = S.s0;
+			} else {
+				v = S.u1;
+				a = add(S.s0, mul(S.V, TS));
+				sub = '1';
+			}
+			F.tip.innerHTML = `<tspan class="t-math">υ</tspan>${sub ? `<tspan dy="4" font-size="0.75em">${sub}</tspan><tspan dy="-4">` : '<tspan>'} = ${fmt(len(v), 2)} м/с</tspan>`;
+			const c = scr(a);
+			attrs(F.tip, { x: clamp(c.x, 60, W - 60), y: clamp(c.y - 30 - (d.kind === 'vel' ? rad()[d.i] * F.Sx : 0), 16, F.fy + F.fh - 6) });
+		}
+
+		function hitAt(sp: { x: number; y: number }): Drag | null {
+			// arrow tips first (the nearest within 24 px), then the pucks
+			let best: { d: Drag; dist: number } | null = null;
+			for (const h of [F.hits.v0, F.hits.v1, F.hits.pairV, F.hits.u1, F.hits.pos0, F.hits.pos1, F.hits.pairPos]) {
+				if (h.style.display === 'none') continue;
+				const cx = Number(h.getAttribute('cx'));
+				const cy = Number(h.getAttribute('cy'));
+				const rr = Number(h.getAttribute('r'));
+				const dist = Math.hypot(sp.x - cx, sp.y - cy);
+				const isDisc = h.classList.contains('disc');
+				if (dist <= rr && (!best || (isDisc ? dist + 100 : dist) < best.dist)) best = { d: JSON.parse(h.dataset.drag!), dist: isDisc ? dist + 100 : dist };
+			}
+			return best ? best.d : null;
+		}
+
+		/** What a touch at sp would grab in the start position (after a run the start is checked without showing it). */
+		function grabbable(sp: { x: number; y: number }): Drag | null {
+			if (running) return null;
+			if (editable()) return hitAt(sp);
+			if (!finished) return null;
+			const keep = t;
+			t = 0;
+			render();
+			const d = hitAt(sp);
+			t = keep;
+			render();
+			return d;
+		}
+
+		function beginDrag(e: PointerEvent) {
+			if (e.button !== 0 && e.pointerType === 'mouse') return;
+			const sp = local(e);
+			const d = grabbable(sp);
+			if (!d) return;
+			if (!editable()) reset(); // after a run: back to the start
+			e.preventDefault();
+			field.setPointerCapture(e.pointerId);
+			drag = d;
+			root.classList.add('is-dragging');
+			// offset between the finger and the point it holds
+			if (d.kind === 'pos' || d.kind === 'pairPos') {
+				const c = scr(d.kind === 'pairPos' ? S.s0 : d.i ? S.r2 : S.r1);
+				grab = { dx: sp.x - c.x, dy: sp.y - c.y, moved: false, x0: sp.x, y0: sp.y };
+			} else {
+				const a = scr(anchorOf(d));
+				const ms = masses();
+				const p = d.kind === 'vel' ? mul(d.i ? S.v2 : S.v1, ms[d.i]) : d.kind === 'pairV' ? P.sum : P.afterP[0];
+				const tip = { x: a.x + p.x * F.K, y: a.y - p.y * F.K };
+				const r = rad();
+				const rp = d.kind === 'vel' ? r[d.i] * F.Sx : d.kind === 'pairV' ? (r[0] + r[1]) * F.Sx : 4;
+				// a short arrow has its knob "parked" outside the puck: then the finger itself is the tip
+				const parked = Math.hypot(p.x * F.K, p.y * F.K) < rp + 13;
+				grab = parked
+					? { dx: 0, dy: 0, moved: false, x0: sp.x, y0: sp.y }
+					: { dx: sp.x - tip.x, dy: sp.y - tip.y, moved: false, x0: sp.x, y0: sp.y };
+			}
+		}
+
+		field.addEventListener('pointerdown', beginDrag);
+		field.addEventListener('pointermove', (e) => {
+			if (!drag) return;
+			const sp = local(e);
+			if (!grab.moved && Math.hypot(sp.x - grab.x0, sp.y - grab.y0) < 3) return;
+			grab.moved = true;
+			applyDrag(drag, sp);
+			P = plan({ ...S });
+			fitPanel();
+			renderSpeeds();
+			render();
+			dragLabel(drag);
+			status('idle', idleText());
+		});
+		const endDrag = () => {
+			if (!drag) return;
+			drag = null;
+			root.classList.remove('is-dragging');
+			F.tip.textContent = '';
+		};
+		field.addEventListener('pointerup', endDrag);
+		field.addEventListener('pointercancel', endDrag);
+		// touch-action is ignored on SVG shapes in some browsers: stop the page scroll on a grab area
+		field.addEventListener(
+			'touchstart',
+			(e) => {
+				const tch = e.touches[0];
+				if (!tch) return;
+				const b = field.getBoundingClientRect();
+				const sp = { x: ((tch.clientX - b.left) * W) / b.width, y: ((tch.clientY - b.top) * F.H) / b.height };
+				if (grabbable(sp)) e.preventDefault();
+			},
+			{ passive: false },
+		);
+		// keyboard: arrows change the focused velocity (↑↓ speed, ←→ direction) or move the focused puck
+		field.addEventListener('keydown', (e) => {
+			const tgt = e.target as SVGElement;
+			if (!tgt.classList?.contains('hit') || !tgt.dataset.drag) return;
+			if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+			e.preventDefault();
+			if (!editable()) reset();
+			const d: Drag = JSON.parse(tgt.dataset.drag);
+			const k = e.key;
+			if (d.kind === 'pos' || d.kind === 'pairPos') {
+				const dv = { x: k === 'ArrowRight' ? 0.01 : k === 'ArrowLeft' ? -0.01 : 0, y: k === 'ArrowUp' ? 0.01 : k === 'ArrowDown' ? -0.01 : 0 };
+				if (d.kind === 'pairPos') S.s0 = add(S.s0, dv);
+				else if (d.i === 0) S.r1 = add(S.r1, dv);
+				else S.r2 = add(S.r2, dv);
+				tidy(d.kind === 'pos' ? d.i : 1);
+			} else {
+				const cur = d.kind === 'vel' ? (d.i ? S.v2 : S.v1) : d.kind === 'pairV' ? S.V : S.u1;
+				let s = len(cur);
+				let a = len(cur) > 1e-9 ? Math.atan2(cur.y, cur.x) : 0;
+				if (k === 'ArrowUp') s += 0.05;
+				if (k === 'ArrowDown') s = Math.max(0, s - 0.05);
+				if (k === 'ArrowLeft') a += (5 * Math.PI) / 180;
+				if (k === 'ArrowRight') a -= (5 * Math.PI) / 180;
+				const v = { x: s * Math.cos(a), y: s * Math.sin(a) };
+				if (d.kind === 'vel') {
+					const vv = snapVel(v, 1, VMAX);
+					if (d.i) S.v2 = vv;
+					else S.v1 = vv;
+				} else if (d.kind === 'pairV') {
+					S.V = snapVel(v, 1, VPAIR);
+					S.u1 = clampSnap(S.u1);
+				} else S.u1 = clampSnap(snapVel(v, 1, 10));
+			}
+			P = plan({ ...S });
+			fitPanel();
+			renderSpeeds();
+			render();
+			const again = Array.from(field.querySelectorAll<SVGElement>('.hit')).find((h) => h.dataset.drag === tgt.dataset.drag);
+			again?.focus();
+		});
+
+		// ---------- modes, presets, buttons ----------
+		function setMode(m: Mode) {
+			mode = m;
+			modeBtns.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === m)));
+			note.textContent = NOTES[m];
+			hint.textContent = HINTS[m];
+		}
+
+		function applyPreset(p: any) {
+			setMode(p.mode);
+			inM[0].value = String(p.m1);
+			inM[1].value = String(p.m2);
+			S.m1 = p.m1;
+			S.m2 = p.m2;
+			if (p.mode === 'burst') {
+				S.s0 = { ...p.s0 };
+				S.V = { ...p.V };
+				S.u1 = { ...p.u1 };
+			} else {
+				S.r1 = { ...p.r1 };
+				S.r2 = { ...p.r2 };
+				S.v1 = { ...p.v1 };
+				S.v2 = { ...p.v2 };
+			}
+			reset();
+		}
+
+		modeBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				setMode(b.dataset.mode as Mode);
+				reset();
+			}),
+		);
+		root.querySelector('[data-mode]')?.parentElement?.addEventListener('keydown', (e) => {
+			const ev = e as KeyboardEvent;
+			if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+			const i = modeBtns.findIndex((b) => b.dataset.mode === mode);
+			const j = (i + (ev.key === 'ArrowRight' ? 1 : modeBtns.length - 1)) % modeBtns.length;
+			modeBtns[j].focus();
+			modeBtns[j].click();
+		});
+		inM.forEach((el) => el.addEventListener('input', reset));
+		runBtn.addEventListener('click', start);
+		q<HTMLButtonElement>('[data-reset]').addEventListener('click', reset);
+		slowBox.addEventListener('change', () => {
+			if (running) slowBadge.hidden = !slowBox.checked;
+		});
+		root.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((b) =>
+			b.addEventListener('click', () => {
+				applyPreset(JSON.parse(b.dataset.preset!));
+				start();
+			}),
+		);
+		// other parts of the page start a preset of this model with this event
+		window.addEventListener('imp:collide2d', (e) => {
+			const key = (e as CustomEvent).detail;
+			const b = root.querySelector<HTMLButtonElement>(`[data-key="${key}"]`);
+			if (!b) return;
+			applyPreset(JSON.parse(b.dataset.preset!));
+			root.scrollIntoView({ block: 'start', behavior: 'smooth' });
+			setTimeout(start, 700);
+		});
+
+		// debugging and tests: the current plan, in plain numbers
+		(root as any).igCollision2d = () => ({ mode, t, running, finished, setup: JSON.parse(JSON.stringify(S)), plan: P && { hit: P.hit, tEvent: P.tEvent, tEnd: P.tEnd, before: P.before, afterP: P.afterP, sum: P.sum, ekBefore: P.ekBefore, ekAfter: P.ekAfter, omega: P.omega } });
+
+		setMode('elastic');
+		relayout(true);
+		reset();
+		new ResizeObserver(() => relayout()).observe(stage);
+	}
+</script>
