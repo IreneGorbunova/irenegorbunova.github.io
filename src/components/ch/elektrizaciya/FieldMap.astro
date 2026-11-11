@@ -4,9 +4,14 @@
  * numerically along the field of point charges (field ∝ q/r², summed); they leave «+» and end on «−».
  * The balls and a small positive test charge can be dragged; the arrow on the test charge shows
  * the force from the field — its length is proportional to the force (capped near the balls).
+ * «Пуск» lets the test charge go: it is a tiny charged speck in oil, so drag balances the force at
+ * every moment and the speck moves along the field line, faster where the force is larger (viscous
+ * drag a·υ plus a small quadratic part b·υ², which keeps a run a few seconds long). It stops at a «−»
+ * ball, at the edge of the picture, or where the forces of two like balls cancel.
  */
 const W = 560;
 const H = 340;
+const uid = `fm-${Math.random().toString(36).slice(2, 8)}`;
 ---
 
 <figure class="fm not-content" data-fm>
@@ -18,13 +23,14 @@ const H = 340;
 	</div>
 	<svg class="fm__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Линии электрического поля вокруг заряженных шариков" data-svg>
 		<defs>
-			<marker id="fm-tip" class="fm__tip" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+			<marker id={`${uid}-tip`} class="fm__tip" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto">
 				<path d="M1,1 L9,5 L1,9 z"></path>
 			</marker>
 		</defs>
 		<rect class="fm__bg" x="0" y="0" width={W} height={H} rx="12"></rect>
 		<g data-lines></g>
 		<g data-arrows></g>
+		<polyline class="fm__trail" data-trail points=""></polyline>
 		<g data-charges></g>
 		<g class="fm__probe" data-probe tabindex="0" role="button" aria-label="Пробный заряд: перетаскивайте его">
 			<line class="fm__force" data-force x1="0" y1="0" x2="0" y2="0"></line>
@@ -35,14 +41,19 @@ const H = 340;
 			<line class="fm__plus" x1="0" y1="-3.5" x2="0" y2="3.5"></line>
 		</g>
 	</svg>
-	<div class="fm__meter">
-		<span>Сила, с которой поле действует на пробный заряд:</span>
-		<span class="fm__bar"><span data-bar></span></span>
+	<div class="fm__controls">
+		<button type="button" class="fm__btn" data-run aria-pressed="false">Пуск</button>
+		<div class="fm__meter">
+			<span>Сила, с которой поле действует на пробный заряд:</span>
+			<span class="fm__bar"><span data-bar></span></span>
+		</div>
 	</div>
+	<p class="fm__live" data-live aria-live="polite">Нажмите «Пуск» — и пробный заряд поплывёт туда, куда его толкает поле.</p>
 	<figcaption class="fm__legend">
 		Линии показывают, куда поле толкает маленький положительный заряд: они выходят из «+» и входят в «−». Где линии
 		гуще, там поле сильнее. Перетаскивайте заряженные шарики и пробный заряд <span class="fm__dot"></span> — стрелка
-		показывает силу, с которой на него действует поле.
+		показывает силу, с которой на него действует поле. По «Пуску» пробный заряд — это крошечная пылинка в масле:
+		трение не даёт ей разгоняться, поэтому она ползёт вдоль линии поля, и тем быстрее, чем больше сила.
 	</figcaption>
 </figure>
 
@@ -169,12 +180,50 @@ const H = 340;
 	.fm__forcehead {
 		fill: var(--ig-v);
 	}
+	.fm__trail {
+		fill: none;
+		stroke: var(--fm-p);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0.45;
+		pointer-events: none;
+	}
+	.fm__controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.9rem;
+		margin-top: 0.6rem;
+	}
+	.fm__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		min-width: 6.5rem;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.fm__btn[aria-pressed='true'] {
+		background: transparent;
+		color: var(--sl-color-white);
+	}
 	.fm__meter {
+		flex: 1 1 16rem;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.3rem 0.6rem;
-		margin-top: 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fm__live {
+		min-height: 3em;
+		margin: 0.5rem 0 0;
 		font-size: var(--sl-text-sm);
 		color: var(--sl-color-gray-2);
 	}
@@ -219,13 +268,22 @@ const H = 340;
 </style>
 
 <script>
-	import { el, svgPoint } from './util';
+	import { animator, el, svgPoint } from './util';
 
 	const W = 560;
 	const H = 340;
 	const R = 16; // ball radius, px
 	const N_LINES = 16;
 	const ARROW_K = 260000; // px of arrow per unit of field (1/px²)
+	// Speed of the released test charge: the drag a·υ + b·υ² equals the force, so
+	// υ = V0·(√(1 + 4L/L0) − 1)/2, where L is the force in px of (uncapped) arrow:
+	// υ ≈ V0·L/L0 (proportional to the force) while the force is small, slower growth near the balls.
+	const V0 = 36; // px/s
+	const L0 = 4; // px of arrow
+	const P_R = 7; // radius of the test charge, px
+	const STEP = 1.5; // max px per integration step
+	const CANCEL = 0.2; // the forces of two balls cancel when |ΣF| < CANCEL·Σ|F| ...
+	const CANCEL_L = 8; // ... and the force is below this (px of arrow)
 
 	type Q = { x: number; y: number; s: 1 | -1; g?: SVGGElement };
 	const PRESETS: Record<string, Q[]> = {
@@ -251,6 +309,10 @@ const H = 340;
 		const head = root.querySelector<SVGPathElement>('[data-forcehead]')!;
 		const bar = root.querySelector<HTMLElement>('[data-bar]')!;
 		const presetBtns = root.querySelectorAll<HTMLButtonElement>('[data-preset]');
+		const trail = root.querySelector<SVGPolylineElement>('[data-trail]')!;
+		const runBtn = root.querySelector<HTMLButtonElement>('[data-run]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const tipUrl = `url(#${root.querySelector('marker')!.id})`;
 
 		let qs: Q[] = [];
 		const pr = { x: 430, y: 90 };
@@ -311,7 +373,7 @@ const H = 340;
 						const m = Math.floor(vis.length * 0.5);
 						const [x1, y1] = vis[m - 1];
 						const [x2, y2] = vis[m + 1];
-						el('line', { x1, y1, x2, y2, 'marker-end': 'url(#fm-tip)', class: 'fm__line' }, gArrows);
+						el('line', { x1, y1, x2, y2, 'marker-end': tipUrl, class: 'fm__line' }, gArrows);
 					}
 				}
 			}
@@ -359,6 +421,9 @@ const H = 340;
 			}
 			pr.x = key === 'pn' || key === 'pp' ? 280 : 400;
 			pr.y = key === 'pn' || key === 'pp' ? 95 : 110;
+			setRunning(false);
+			clearTrail();
+			say(HINT);
 			draw();
 		};
 
@@ -377,8 +442,19 @@ const H = 340;
 		};
 		function dragger(g: SVGGElement, o: { x: number; y: number }, full: boolean) {
 			let grab: { x: number; y: number } | null = null;
+			// taking the test charge stops its run; once it is moved, its old trail is wiped
+			const grabbed = () => {
+				if (!full && running) {
+					setRunning(false);
+					say('Пауза: вы взяли пробный заряд. Поставьте его, куда хотите, и нажмите «Пуск».');
+				}
+			};
+			const moved = () => {
+				if (!full) clearTrail();
+			};
 			g.addEventListener('pointerdown', (e) => {
 				e.preventDefault();
+				grabbed();
 				const p = svgPoint(svg, e);
 				grab = { x: p.x - o.x, y: p.y - o.y };
 				g.classList.add('is-dragging');
@@ -401,6 +477,7 @@ const H = 340;
 						}
 					}
 				}
+				moved();
 				schedule(full);
 			});
 			const end = () => {
@@ -414,12 +491,123 @@ const H = 340;
 				const d = { ArrowLeft: [-s, 0], ArrowRight: [s, 0], ArrowUp: [0, -s], ArrowDown: [0, s] }[e.key];
 				if (!d) return;
 				e.preventDefault();
+				grabbed();
 				o.x = Math.min(W - R, Math.max(R, o.x + d[0]));
 				o.y = Math.min(H - R, Math.max(R, o.y + d[1]));
+				moved();
 				schedule(full);
 			});
 		}
 		dragger(probe, pr, false);
+
+		// ---------- «Пуск»: the test charge moves with the field ----------
+		const HINT = 'Нажмите «Пуск» — и пробный заряд поплывёт туда, куда его толкает поле.';
+		let running = false;
+		let trailPts: string[] = [];
+		let lastPt = { x: NaN, y: NaN };
+		const say = (t: string) => {
+			if (live.textContent !== t) live.textContent = t;
+		};
+		const addTrail = (force = false) => {
+			if (!force && Math.hypot(pr.x - lastPt.x, pr.y - lastPt.y) < 2) return;
+			lastPt = { x: pr.x, y: pr.y };
+			trailPts.push(`${pr.x.toFixed(1)},${pr.y.toFixed(1)}`);
+			if (trailPts.length > 3000) trailPts = trailPts.slice(-3000);
+			trail.setAttribute('points', trailPts.join(' '));
+		};
+		function clearTrail() {
+			trailPts = [];
+			lastPt = { x: NaN, y: NaN };
+			trail.setAttribute('points', '');
+		}
+		function setRunning(on: boolean) {
+			running = on;
+			runBtn.textContent = on ? 'Пауза' : 'Пуск';
+			runBtn.setAttribute('aria-pressed', String(on));
+			if (on) wake();
+		}
+		/** Velocity of the speck at (x, y), px/s, along the force. */
+		const vel = (x: number, y: number) => {
+			const { ex, ey } = E(x, y);
+			const e = Math.hypot(ex, ey);
+			if (e === 0) return { vx: 0, vy: 0, v: 0 };
+			const v = (V0 * (Math.sqrt(1 + (4 * e * ARROW_K) / L0) - 1)) / 2;
+			return { vx: (v * ex) / e, vy: (v * ey) / e, v };
+		};
+		/** Why the speck has to stop where it is now, or null. */
+		const stopReason = (): string | null => {
+			for (const q of qs) {
+				const d = Math.hypot(pr.x - q.x, pr.y - q.y);
+				if (q.s < 0 && d <= R + P_R) {
+					// rests on the surface of the «−» ball
+					const k = (R + P_R) / (d || 1);
+					pr.x = q.x + (pr.x - q.x) * k;
+					pr.y = q.y + (pr.y - q.y) * k;
+					return 'Пробный заряд «+» притянулся к шарику «−» и остановился на нём.';
+				}
+			}
+			const { vx, vy } = vel(pr.x, pr.y);
+			if ((pr.x <= R && vx < 0) || (pr.x >= W - R && vx > 0) || (pr.y <= R && vy < 0) || (pr.y >= H - R && vy > 0)) {
+				pr.x = Math.min(W - R, Math.max(R, pr.x));
+				pr.y = Math.min(H - R, Math.max(R, pr.y));
+				return 'Пробный заряд уплыл к краю картинки. Поле толкает его и дальше, но чем дальше, тем слабее.';
+			}
+			if (qs.length > 1) {
+				const { ex, ey } = E(pr.x, pr.y);
+				let sum = 0;
+				for (const q of qs) {
+					const r2 = Math.max((pr.x - q.x) ** 2 + (pr.y - q.y) ** 2, R * R);
+					sum += 1 / r2;
+				}
+				const L = Math.hypot(ex, ey) * ARROW_K;
+				if (L < CANCEL * sum * ARROW_K && L < CANCEL_L)
+					return 'Здесь шарики толкают пробный заряд в противоположные стороны почти одинаково: сила почти равна нулю, и он остановился. Сдвиньте его чуть в сторону от линии между шариками — и поле унесёт его.';
+			}
+			return null;
+		};
+		const stopWith = (why: string) => {
+			setRunning(false);
+			addTrail(true);
+			drawProbe();
+			say(why);
+		};
+		const frame = (dt: number) => {
+			if (!running) return;
+			let left = dt;
+			while (left > 1e-6) {
+				const a = vel(pr.x, pr.y);
+				if (a.v < 1e-3) break;
+				const h = Math.min(left, STEP / a.v);
+				const b = vel(pr.x + (a.vx * h) / 2, pr.y + (a.vy * h) / 2); // midpoint method
+				pr.x += b.vx * h;
+				pr.y += b.vy * h;
+				left -= h;
+				const why = stopReason();
+				if (why) {
+					stopWith(why);
+					return;
+				}
+				addTrail();
+			}
+			drawProbe();
+		};
+		const wake = animator(root, () => running, frame);
+		runBtn.addEventListener('click', () => {
+			if (running) {
+				setRunning(false);
+				say('Пауза. Нажмите «Пуск», чтобы пробный заряд поплыл дальше.');
+				return;
+			}
+			const why = stopReason();
+			if (why) {
+				drawProbe();
+				say(why);
+				return;
+			}
+			addTrail(true);
+			say('Пробный заряд плывёт туда, куда показывает стрелка силы.');
+			setRunning(true);
+		});
 
 		presetBtns.forEach((b) =>
 			b.addEventListener('click', () => {
