@@ -2,6 +2,10 @@
 /**
  * Live efficiency: choose a fuel, its mass and the useful work; Q = qm and η = A/Q·100 %
  * are recomputed as the sliders move, and η is compared with real engines.
+ * The scheme under the sliders: fuel → «сгорает» → Q_з = qm → two bands, A_п (useful work) and
+ * Q_пот (losses), their widths in scale (A_п + Q_пот = Q_з). A_п ≥ Q_з is impossible: the useful band
+ * then takes the whole block, and the missing energy is a red dashed wedge «взять неоткуда».
+ * Horizontal at ≥ 560 px, vertical below; laid out in px by the script (ResizeObserver).
  * q — rounded table values (Дж/кг), as in Пёрышкин's table.
  */
 const fuels = [
@@ -32,13 +36,26 @@ const engines = [
 		<label class="tdc__slider">
 			<span>Полезная работа двигателя <i>A</i><sub>п</sub></span>
 			<output data-a-out>23 МДж</output>
-			<input type="range" min="1" max="200" step="1" value="23" data-a />
+			<input type="range" min="0" max="200" step="1" value="23" data-a />
 		</label>
+	</div>
+	<div class="tdc__flow" data-flow>
+		<svg class="tdc__fsvg" aria-hidden="true">
+			<path class="tdc__farrow" data-p="arrow"></path>
+			<path class="tdc__fband tdc__fband--loss" data-p="loss"></path>
+			<path class="tdc__fband tdc__fband--use" data-p="use"></path>
+			<path class="tdc__fband tdc__fband--miss" data-p="miss"></path>
+			<path class="tdc__fcut" data-p="cut"></path>
+		</svg>
+		<div class="tdc__fbox tdc__fbox--fuel" data-f="fuel"><span data-fname>бензин</span><span class="tdc__nw"><i>m</i> = <b data-fm>2</b> кг</span></div>
+		<div class="tdc__ftag" data-f="burn">сгорает</div>
+		<div class="tdc__fbox tdc__fbox--q" data-f="q"><span class="tdc__nw"><i>Q</i><sub>з</sub> = <i>qm</i></span><b class="tdc__nw" data-fq>92 МДж</b></div>
+		<div class="tdc__feta" data-f="eta"></div>
+		<div class="tdc__flbl tdc__flbl--use" data-f="use"></div>
+		<div class="tdc__flbl tdc__flbl--loss" data-f="loss"></div>
 	</div>
 	<div class="tdc__math" data-math1></div>
 	<div class="tdc__math" data-math2></div>
-	<div class="tdc__bar" aria-hidden="true"><span class="tdc__use" data-use></span></div>
-	<p class="tdc__barlbl"><span><span class="tdc__key tdc__key--use"></span>полезная работа</span><span><span class="tdc__key"></span>потери: выхлоп, охлаждение, трение</span></p>
 	<p class="tdc__msg" data-msg aria-live="polite"></p>
 	<div class="tdc__cmp">
 		<p class="tdc__cmpt">КПД настоящих двигателей (примерно) и вашего — вертикальная линия:</p>
@@ -134,45 +151,114 @@ const engines = [
 	.tdc__math .katex-display {
 		margin: 0.5rem 0;
 	}
-	.tdc__bar {
+	.tdc__flow {
 		position: relative;
-		height: 0.9rem;
-		border-radius: 999px;
-		background: var(--sl-color-gray-5);
-		overflow: hidden;
+		margin: 1rem 0 0.4rem;
+		min-height: 12rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.3;
+		color: var(--sl-color-white);
 	}
-	.tdc__use {
+	.tdc__flow > * {
 		position: absolute;
-		inset: 0 auto 0 0;
-		width: 0;
-		background: var(--sl-color-accent);
-		transition: width 0.25s ease-out;
+		box-sizing: border-box;
 	}
-	.tdc__bar.is-bad .tdc__use {
-		background: var(--ig-vy);
+	.tdc__fsvg {
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		overflow: visible;
 	}
-	.tdc__barlbl {
+	.tdc__nw {
+		white-space: nowrap;
+	}
+	.tdc__flow sub {
+		font-size: 0.72em;
+		line-height: 0;
+	}
+	.tdc__fbox {
 		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		gap: 0.2rem 1rem;
-		margin: 0.3rem 0 0;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.15rem;
+		padding: 0.45rem 0.4rem;
+		border-radius: 0.6rem;
+		text-align: center;
+	}
+	.tdc__fbox--fuel {
+		border: 1.5px solid var(--ig-v);
+		background: color-mix(in srgb, var(--ig-v) 14%, transparent);
+	}
+	.tdc__fbox--q {
+		border: 1.5px solid var(--ig-v);
+		background: color-mix(in srgb, var(--ig-v) 30%, var(--ig-surface));
+		font-size: var(--sl-text-base);
+	}
+	.tdc__fbox b {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.tdc__ftag {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		text-align: center;
+		white-space: nowrap;
+	}
+	.tdc__farrow {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.tdc__fband--use {
+		fill: var(--ig-v);
+		opacity: 0.9;
+	}
+	.tdc__fband--loss {
+		fill: var(--sl-color-gray-4);
+	}
+	.tdc__fband--miss {
+		fill: color-mix(in srgb, var(--ig-vy) 35%, transparent);
+		stroke: var(--ig-vy);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 3;
+	}
+	.tdc__fcut {
+		fill: none;
+		stroke: var(--ig-surface);
+		stroke-width: 3.5;
+		stroke-linejoin: round;
+	}
+	.tdc__feta {
+		font-weight: 700;
+		white-space: nowrap;
+		color: var(--ig-v);
+		font-variant-numeric: tabular-nums;
+	}
+	.tdc__feta.is-bad {
+		color: var(--ig-vy);
+	}
+	.tdc__flbl b {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.tdc__flbl--use b {
+		color: var(--ig-v);
+	}
+	.tdc__flbl small {
+		display: block;
 		font-size: var(--sl-text-xs);
 		color: var(--sl-color-gray-3);
 	}
-	.tdc__key {
-		display: inline-block;
-		width: 0.7rem;
-		height: 0.7rem;
-		margin-right: 0.3rem;
-		border-radius: 3px;
-		vertical-align: -0.05rem;
-		background: var(--sl-color-gray-5);
-		border: 1px solid var(--sl-color-gray-4);
+	.tdc__flbl .tdc__bad {
+		display: block;
+		font-weight: 600;
+		color: var(--ig-vy);
 	}
-	.tdc__key--use {
-		background: var(--sl-color-accent);
-		border-color: var(--sl-color-accent);
+	.tdc__flbl--loss.is-bad b {
+		color: var(--ig-vy);
 	}
 	.tdc__msg {
 		min-height: 3em;
@@ -258,12 +344,6 @@ const engines = [
 			gap: 0.4rem;
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.tdc__use,
-		.tdc__line {
-			transition: none;
-		}
-	}
 </style>
 
 <script>
@@ -280,7 +360,17 @@ const engines = [
 		const r = Number(v.toFixed(maxDec));
 		return comma(String(r));
 	};
-	const txt = (v: number, maxDec = 1) => String(Number(v.toFixed(maxDec))).replace('.', ',');
+	const txt = (v: number, maxDec = 1) => String(Number(v.toFixed(maxDec))).replace('.', ',').replace('-', '−');
+	/** η as in the formula: whole percent from 10 % up, one decimal below; «≈» when rounded. */
+	const etaParts = (eta: number) => {
+		const dec = eta >= 10 ? 0 : 1;
+		const r = Number(eta.toFixed(dec));
+		return { sign: Math.abs(eta - r) > 1e-9 ? '≈' : '=', tex: num(eta, dec), text: txt(eta, dec) };
+	};
+	/** Cubic band edge with control points at the middle of its length: y(u) = y0 + (y1 − y0)·(3u² − 2u³). */
+	const ease = (u: number) => 3 * u * u - 2 * u * u * u;
+	const along = (u: number) => 1.5 * u * (1 - u) + u * u * u;
+	const f1 = (v: number) => v.toFixed(1);
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-tdc]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
@@ -290,12 +380,190 @@ const engines = [
 		const aOut = q<HTMLOutputElement>('[data-a-out]');
 		const m1 = q<HTMLElement>('[data-math1]');
 		const m2 = q<HTMLElement>('[data-math2]');
-		const use = q<HTMLElement>('[data-use]');
-		const bar = q<HTMLElement>('.tdc__bar');
 		const msg = q<HTMLElement>('[data-msg]');
 		const line = q<HTMLElement>('[data-line]');
+		const flow = q<HTMLElement>('[data-flow]');
+		const el = (k: string) => flow.querySelector<HTMLElement>(`[data-f="${k}"]`)!;
+		const path = (k: string) => flow.querySelector<SVGPathElement>(`[data-p="${k}"]`)!;
+		const fFuel = el('fuel');
+		const fBurn = el('burn');
+		const fQ = el('q');
+		const fEta = el('eta');
+		const fUse = el('use');
+		const fLoss = el('loss');
+		const pArrow = path('arrow');
+		const pUse = path('use');
+		const pLoss = path('loss');
+		const pMiss = path('miss');
+		const pCut = path('cut');
 		const fuelBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-q]'));
 		let fuel = fuelBtns[0];
+		let st = { Q: 1, A: 0 };
+
+		/** Lays the scheme out in px for the current width: horizontal from 560 px, vertical below. */
+		const layout = () => {
+			const W = flow.clientWidth;
+			if (!W) return;
+			const { Q, A } = st;
+			const hor = W >= 560;
+			flow.classList.toggle('is-v', !hor);
+			const put = (e: HTMLElement, x: number, y: number, w?: number, h?: number) => {
+				e.style.left = `${f1(x)}px`;
+				e.style.top = `${f1(y)}px`;
+				e.style.width = w === undefined ? '' : `${f1(w)}px`;
+				e.style.height = h === undefined ? '' : `${f1(h)}px`;
+			};
+			// (s, t): s along the flow, t across it; horizontal: (x, y) = (s, t), vertical: (x, y) = (t, s).
+			const P = (s: number, t: number) => (hor ? `${f1(s)} ${f1(t)}` : `${f1(t)} ${f1(s)}`);
+			const band = (s0: number, a0: number, b0: number, s1: number, a1: number, b1: number) => {
+				const sm = (s0 + s1) / 2;
+				return `M${P(s0, a0)}C${P(sm, a0)} ${P(sm, a1)} ${P(s1, a1)}L${P(s1, b1)}C${P(sm, b1)} ${P(sm, b0)} ${P(s0, b0)}Z`;
+			};
+			const bad = A >= Q;
+			let a0: number, a1: number; // the arrow «сгорает» runs from s = a0 to a1 at t = tAr
+			let qs1: number, se: number, B: number, qt0: number, Hc: number, tAr: number;
+			let gapHi: number; // the far side across the flow
+			let tR = 0;
+			let cut = false;
+			// sizes
+			if (hor) {
+				const fw = 108;
+				const lw = Math.min(230, Math.max(150, Math.round(W * 0.28)));
+				a0 = fw + 6;
+				a1 = fw + 60;
+				const qs = fw + 66;
+				const qw = 108;
+				B = 124; // block height = Q_з
+				qs1 = qs + qw;
+				se = W - lw - 10;
+				put(fUse, se + 10, 0, lw);
+				put(fLoss, se + 10, 0, lw);
+				const h1 = fUse.offsetHeight;
+				const h2 = fLoss.offsetHeight;
+				Hc = Math.max(B + 84, h1 + h2 + 16);
+				qt0 = (Hc - B) / 2;
+				tAr = Hc / 2;
+				put(fFuel, 0, 0, fw);
+				put(fFuel, 0, tAr - fFuel.offsetHeight / 2, fw);
+				put(fBurn, a0, 0, a1 - a0);
+				put(fBurn, a0, tAr - fBurn.offsetHeight - 5, a1 - a0);
+				put(fQ, qs, qt0, qw, B);
+				if (!bad) {
+					const tA = (B * A) / Q;
+					const tL = B - tA;
+					fUse.style.top = `${f1(Math.min(Math.max(tA / 2 - h1 / 2, 0), Hc - h1 - h2 - 8))}px`;
+					fLoss.style.top = `${f1(Math.max(Math.min(Hc - tL / 2 - h2 / 2, Hc - h2), h1 + 8))}px`;
+				} else {
+					tR = (B * (A - Q)) / Q;
+					const tRmax = Hc - B - 30;
+					if (tR > tRmax) [tR, cut] = [tRmax, true];
+					fUse.style.top = `${f1(Math.max((tR + B) / 2 - h1 / 2, 0))}px`;
+					fLoss.style.top = `${f1(Hc - h2)}px`;
+				}
+				gapHi = Hc;
+			} else {
+				const fw = Math.min(240, Math.round(W * 0.62));
+				put(fFuel, (W - fw) / 2, 0, fw);
+				const hf = fFuel.offsetHeight;
+				a0 = hf + 5;
+				a1 = hf + 41;
+				tAr = W / 2;
+				put(fBurn, W / 2 + 10, 0);
+				put(fBurn, W / 2 + 10, (a0 + a1) / 2 - fBurn.offsetHeight / 2);
+				const qs = hf + 46;
+				const qh = 68;
+				B = Math.round(W * 0.56); // block width = Q_з
+				qt0 = (W - B) / 2;
+				put(fQ, qt0, qs, B, qh);
+				qs1 = qs + qh;
+				se = qs1 + 100;
+				const lw = W / 2 - 6;
+				put(fUse, 0, se + 6, lw);
+				put(fLoss, W / 2 + 6, se + 6, lw);
+				Hc = se + 6 + Math.max(fUse.offsetHeight, fLoss.offsetHeight);
+				if (bad) {
+					tR = (B * (A - Q)) / Q;
+					const tRmax = W - B - 90;
+					if (tR > tRmax) [tR, cut] = [tRmax, true];
+				}
+				gapHi = W;
+			}
+			flow.style.height = `${f1(Hc)}px`;
+			// arrow «сгорает»
+			const hd = 7;
+			pArrow.setAttribute('d', `M${P(a0, tAr)}L${P(a1, tAr)}M${P(a1 - hd, tAr - hd * 0.7)}L${P(a1, tAr)}L${P(a1 - hd, tAr + hd * 0.7)}`);
+			// bands: the block's far edge spans t = qt0…qt1 (= Q_з); the ends lie at t = 0 (useful) and t = Hend (losses)
+			const qt1 = qt0 + B;
+			const Hend = hor ? Hc : gapHi;
+			if (!bad) {
+				const tA = (B * A) / Q;
+				const tL = B - tA;
+				pUse.setAttribute('d', tA > 0 ? band(qs1, qt0, qt0 + tA, se, 0, tA) : '');
+				pLoss.setAttribute('d', tL > 0 ? band(qs1, qt0 + tA, qt1, se, Hend - tL, Hend) : '');
+				pMiss.setAttribute('d', '');
+				// η in the gap between the bands
+				placeEta((sv) => [qt0 + tA + (tA - qt0 - tA) * sv, qt0 + tA + (Hend - tL - qt0 - tA) * sv]);
+			} else {
+				pUse.setAttribute('d', band(qs1, qt0, qt1, se, tR, tR + B));
+				pLoss.setAttribute('d', '');
+				pMiss.setAttribute('d', tR > 0 ? `M${P(qs1, qt0)}C${P((qs1 + se) / 2, qt0)} ${P((qs1 + se) / 2, 0)} ${P(se, 0)}L${P(se, tR)}C${P((qs1 + se) / 2, tR)} ${P((qs1 + se) / 2, qt0)} ${P(qs1, qt0)}Z` : '');
+				// η beyond the useful band
+				placeEta((sv) => [qt1 + (tR + B - qt1) * sv, Hend]);
+			}
+			// break marks across a capped wedge: it would be wider in scale
+			if (cut) {
+				const sc = se - 16;
+				let d = `M${P(sc, -4)}`;
+				for (let t = -4, k = 0; t < tR + 4; k++) {
+					t = Math.min(t + 6, tR + 4);
+					d += `L${P(sc + (k % 2 ? -4 : 4), t)}`;
+				}
+				pCut.setAttribute('d', d);
+			} else pCut.setAttribute('d', '');
+
+			/**
+			 * Puts η where the free room between the bands is widest enough: gap(v) gives the t-range of that room
+			 * at the band's eased fraction v; the label's whole extent along s is checked, from the split onwards.
+			 */
+			function placeEta(gap: (v: number) => [number, number]) {
+				const w = fEta.offsetWidth;
+				const h = fEta.offsetHeight;
+				const ls = hor ? w : h; // extent along the flow
+				const lt = hor ? h : w; // extent across it
+				const L = se - qs1;
+				const vAt = (s: number) => {
+					const x = Math.min(Math.max((s - qs1) / L, 0), 1);
+					let lo = 0;
+					let hi = 1;
+					for (let k = 0; k < 30; k++) {
+						const mid = (lo + hi) / 2;
+						if (along(mid) < x) lo = mid;
+						else hi = mid;
+					}
+					return ease(lo);
+				};
+				let best: [number, number] = [qs1 + L - ls / 2, 0];
+				let bestRoom = -Infinity;
+				for (let sc = qs1 + ls / 2 + 4; sc <= se - ls / 2; sc += 2) {
+					let lo = -Infinity;
+					let hi = Infinity;
+					for (let k = 0; k <= 8; k++) {
+						const [a, b] = gap(vAt(sc - ls / 2 + (ls * k) / 8));
+						lo = Math.max(lo, a);
+						hi = Math.min(hi, b);
+					}
+					const room = hi - lo - lt;
+					if (room >= 10) {
+						best = [sc, (lo + hi) / 2];
+						break;
+					}
+					if (room > bestRoom) [bestRoom, best] = [room, [sc, (lo + hi) / 2]];
+				}
+				const [sc, tc] = best;
+				if (hor) put(fEta, sc - w / 2, tc - h / 2);
+				else put(fEta, Math.min(Math.max(tc - w / 2, 0), W - w), sc - h / 2);
+			}
+		};
 
 		const update = () => {
 			const qv = Number(fuel.dataset.q);
@@ -311,16 +579,16 @@ const engines = [
 				m1,
 				{ displayMode: true, throwOnError: false },
 			);
-			const etaTex = eta >= 10 ? num(eta, 0) : num(eta, 1);
+			const e = etaParts(eta);
+			// on a phone the second half goes to its own line, so the formula never scrolls
+			const brk = root.clientWidth < 480 ? '\\\\ &' : '';
 			katex.render(
-				`\\eta = \\frac{A_\\text{п}}{Q_\\text{з}}\\cdot 100\\,\\% = \\frac{${A}~\\text{МДж}}{${num(Q)}~\\text{МДж}}\\cdot 100\\,\\% ${Math.abs(eta - Number(etaTex.replace('{,}', '.'))) > 1e-9 ? '\\approx' : '='} ${etaTex}\\,\\%`,
+				`\\begin{aligned}\\eta &= \\frac{A_\\text{п}}{Q_\\text{з}}\\cdot 100\\,\\% ${brk}= \\frac{${A}~\\text{МДж}}{${num(Q)}~\\text{МДж}}\\cdot 100\\,\\% ${e.sign === '≈' ? '\\approx' : '='} ${e.tex}\\,\\%\\end{aligned}`,
 				m2,
 				{ displayMode: true, throwOnError: false },
 			);
-			use.style.width = `${Math.min(100, eta)}%`;
 			line.style.left = `${Math.min(100, eta)}%`;
 			const bad = eta >= 100;
-			bar.classList.toggle('is-bad', bad);
 			msg.classList.toggle('is-bad', bad);
 			if (bad)
 				msg.textContent =
@@ -328,6 +596,27 @@ const engines = [
 			else if (eta > 65)
 				msg.textContent = `Закон сохранения энергии такое позволяет, но таких тепловых двигателей пока нет: даже у лучших тепловых установок КПД около 60 %.`;
 			else msg.textContent = `Полезная работа — ${txt(A)} МДж, а ${txt(Q - A)} МДж (${txt(100 - eta, 0)} %) уходит в окружающую среду, в основном в виде тепла.`;
+
+			// the scheme
+			q<HTMLElement>('[data-fname]').textContent = fuel.dataset.name!;
+			q<HTMLElement>('[data-fm]').textContent = txt(m);
+			q<HTMLElement>('[data-fq]').textContent = `${txt(Q)} МДж`;
+			fEta.innerHTML = `<i>η</i> ${e.sign} ${e.text} %`;
+			fEta.classList.toggle('is-bad', bad);
+			const Ap = `<i>A</i><sub>п</sub>`;
+			const Qp = `<i>Q</i><sub>пот</sub>`;
+			fUse.innerHTML =
+				`<span class="tdc__nw">${Ap} = <b>${A} МДж</b></span> — полезная работа` +
+				(A > Q ? `<span class="tdc__bad">не хватает ${txt(A - Q)} МДж: взять неоткуда</span>` : '');
+			fLoss.classList.toggle('is-bad', bad);
+			fLoss.innerHTML =
+				A > Q
+					? `<span class="tdc__nw">${Qp} = <b>${txt(Q - A)} МДж</b></span><span class="tdc__bad">потери меньше нуля — так не бывает</span>`
+					: A === Q
+						? `<span class="tdc__nw">${Qp} = <b>0 МДж</b></span><span class="tdc__bad">без потерь — так не бывает</span>`
+						: `<span class="tdc__nw">${Qp} = <b>${txt(Q - A)} МДж</b></span> — потери<small>выхлоп, охлаждение, трение</small>`;
+			st = { Q, A };
+			layout();
 		};
 		fuelBtns.forEach((b) =>
 			b.addEventListener('click', () => {
@@ -343,6 +632,14 @@ const engines = [
 			line.style.height = `${axis - top + 4}px`;
 		};
 		new ResizeObserver(fit).observe(root);
+		let lastW = 0;
+		new ResizeObserver(() => {
+			if (flow.clientWidth !== lastW) {
+				lastW = flow.clientWidth;
+				update();
+			}
+		}).observe(flow);
+		document.fonts?.ready.then(layout);
 		mIn.addEventListener('input', update);
 		aIn.addEventListener('input', update);
 		update();
