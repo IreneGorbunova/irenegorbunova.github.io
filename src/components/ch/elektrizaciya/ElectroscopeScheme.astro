@@ -1,0 +1,698 @@
+---
+/**
+ * «Электроскоп и электрометр»: labelled schemes of the two school instruments. On a wide figure both
+ * stand side by side in one picture: the parts they share are named in the middle with lines to both,
+ * the parts that differ (two foil leaves; a needle on an axis and a scale) are highlighted. On a phone
+ * the two schemes are stacked, each labelled on its right, with the slider between them.
+ * The slider «Заряд» charges both instruments equally: the leaves diverge more (no scale, the angle
+ * saturates), the needle turns 6° per unit of charge, so its reading on the scale equals the charge
+ * in these units (one division = one unit).
+ */
+import EscInstrument from './EscInstrument.astro';
+import { G } from './escGeom';
+
+const { BY, BR, CY, RC, VH, PIV_N, RS } = G;
+const rad = (d: number) => (d * Math.PI) / 180;
+const uid = `esc-${Math.random().toString(36).slice(2, 8)}`;
+
+// wide: one picture, shared labels in the middle
+const WW = 620;
+const XL = 96;
+const XR = 524;
+const MX = 310;
+// phone: one instrument per picture, labels on its right
+const NW = 370;
+const NX = 98;
+const LX = 196;
+
+type Lead = { ax: number; ay: number; side: -1 | 1; dyn?: 'leaf' | 'needle' };
+type Label = { lines: string[]; sub?: string; ly: number; hl?: boolean; leads: Lead[] };
+/** Width of a label line, roughly (14 px font); the script corrects the leaders after measuring. */
+const halfW = (l: Label) => Math.max(...l.lines.map((s) => s.length), l.sub ? l.sub.length * 0.9 : 0) * 3.7;
+
+const wide: Label[] = [
+	{ lines: ['металлический шар'], ly: 40, leads: [{ ax: XL + 19, ay: 38, side: -1 }, { ax: XR - 19, ay: 38, side: 1 }] },
+	{ lines: ['металлический стержень'], ly: 96, leads: [{ ax: XL + 3, ay: 100, side: -1 }, { ax: XR - 3, ay: 100, side: 1 }] },
+	{
+		lines: ['пробка из диэлектрика'],
+		sub: '(пластмасса, эбонит)',
+		ly: 128,
+		leads: [{ ax: XL + 15, ay: CY - RC - 2, side: -1 }, { ax: XR - 15, ay: CY - RC - 2, side: 1 }],
+	},
+	{
+		lines: ['шкала'],
+		ly: 180,
+		hl: true,
+		leads: [{ ax: XR - RS * Math.sin(rad(40)), ay: PIV_N - RS * Math.cos(rad(40)), side: 1 }],
+	},
+	{ lines: ['лёгкая стрелка на оси'], ly: 216, hl: true, leads: [{ ax: XR - 3, ay: PIV_N - 30, side: 1, dyn: 'needle' }] },
+	{ lines: ['два листочка из фольги'], ly: 252, hl: true, leads: [{ ax: XL + 12, ay: 246, side: -1, dyn: 'leaf' }] },
+	{
+		lines: ['металлический корпус'],
+		sub: 'со стёклами',
+		ly: 290,
+		leads: [
+			{ ax: XL + RC * Math.cos(rad(50)), ay: CY + RC * Math.sin(rad(50)), side: -1 },
+			{ ax: XR - RC * Math.cos(rad(50)), ay: CY + RC * Math.sin(rad(50)), side: 1 },
+		],
+	},
+];
+const narrowCommon: Label[] = [
+	{ lines: ['металлический шар'], ly: 34, leads: [{ ax: NX + 14, ay: BY - 8, side: 1 }] },
+	{ lines: ['металлический', 'стержень'], ly: 86, leads: [{ ax: NX + 3, ay: 100, side: 1 }] },
+	{ lines: ['пробка из диэлектрика'], sub: '(пластмасса, эбонит)', ly: 132, leads: [{ ax: NX + 15, ay: CY - RC - 2, side: 1 }] },
+];
+const narrowScope: Label[] = [
+	...narrowCommon,
+	{
+		lines: ['металлический корпус'],
+		sub: 'со стёклами',
+		ly: 184,
+		leads: [{ ax: NX + RC * Math.cos(rad(22)), ay: CY - RC * Math.sin(rad(22)), side: 1 }],
+	},
+	{ lines: ['два листочка', 'из фольги'], ly: 244, hl: true, leads: [{ ax: NX + 12, ay: 246, side: 1, dyn: 'leaf' }] },
+];
+const narrowMeter: Label[] = [
+	...narrowCommon,
+	{
+		lines: ['шкала'],
+		ly: 178,
+		hl: true,
+		leads: [{ ax: NX + RS * Math.sin(rad(42)), ay: PIV_N - RS * Math.cos(rad(42)), side: 1 }],
+	},
+	{ lines: ['лёгкая стрелка', 'на оси'], ly: 214, hl: true, leads: [{ ax: NX + 3, ay: PIV_N - 30, side: 1, dyn: 'needle' }] },
+	{
+		lines: ['металлический корпус'],
+		sub: 'со стёклами',
+		ly: 268,
+		leads: [{ ax: NX + RC * Math.cos(rad(38)), ay: CY + RC * Math.sin(rad(38)), side: 1 }],
+	},
+];
+/** End of a leader next to the label: before a left-aligned label, or at either side of a centred one. */
+const endX = (l: Label, d: Lead, centred: boolean) => (centred ? MX + d.side * (halfW(l) + 8) : LX - 6);
+const sets = [
+	{ key: 'wide', labels: wide, centred: true, x: MX },
+	{ key: 'scope', labels: narrowScope, centred: false, x: LX },
+	{ key: 'meter', labels: narrowMeter, centred: false, x: LX },
+].map((s) => ({
+	...s,
+	items: s.labels.map((l) => ({
+		...l,
+		leads: l.leads.map((d) => ({ ...d, ex: endX(l, d, s.centred), ey: l.ly - 4 })),
+	})),
+}));
+const labelSet = (key: string) => sets.find((s) => s.key === key)!;
+---
+
+<figure class="esc not-content" data-esc>
+	<div class="esc__wide">
+		<svg
+			class="esc__svg"
+			viewBox={`0 -34 ${WW} ${VH + 34}`}
+			role="img"
+			aria-label="Электроскоп и электрометр рядом. Общие части: металлический шар, металлический стержень, пробка из диэлектрика, металлический корпус со стёклами. У электроскопа два листочка из фольги, у электрометра лёгкая стрелка на оси и шкала."
+			data-svg
+		>
+			<defs>
+				<radialGradient id={`${uid}-ball`} cx="0.35" cy="0.32" r="0.75">
+					<stop offset="0" class="esc__metal-hi"></stop>
+					<stop offset="1" class="esc__metal-lo"></stop>
+				</radialGradient>
+				<linearGradient id={`${uid}-glass`} x1="0" y1="0" x2="1" y2="1">
+					<stop offset="0" class="esc__glass-hi"></stop>
+					<stop offset="0.55" class="esc__glass-mid"></stop>
+					<stop offset="1" class="esc__glass-lo"></stop>
+				</linearGradient>
+			</defs>
+			<text class="esc__name" x={XL} y="-10" text-anchor="middle">Электроскоп</text>
+			<text class="esc__name" x={XR} y="-10" text-anchor="middle">Электрометр</text>
+			<EscInstrument kind="scope" cx={XL} ball={`${uid}-ball`} glass={`${uid}-glass`} />
+			<EscInstrument kind="meter" cx={XR} dir={-1} ball={`${uid}-ball`} glass={`${uid}-glass`} />
+			{
+				labelSet('wide').items.map((l) => (
+					<g class:list={['esc__lab', { 'is-hl': l.hl }]}>
+						{l.leads.map((d) => (
+							<>
+								<path class="esc__lead" d={`M ${d.ax} ${d.ay} L ${d.ex} ${d.ey}`} data-lead={d.dyn ?? ''} data-side={d.side} data-ex={d.ex} data-ey={d.ey} />
+								<circle class="esc__dot" cx={d.ax} cy={d.ay} r="2.5" data-dot={d.dyn} />
+							</>
+						))}
+						<text x={MX} y={l.ly} text-anchor="middle" data-mid>
+							{l.lines.map((s, i) => (
+								<tspan x={MX} dy={i ? 16 : 0}>
+									{s}
+								</tspan>
+							))}
+							{l.sub && (
+								<tspan x={MX} dy="15" class="esc__sub">
+									{l.sub}
+								</tspan>
+							)}
+						</text>
+					</g>
+				))
+			}
+		</svg>
+	</div>
+
+	<div class="esc__one esc__one--scope">
+		<p class="esc__title">Электроскоп</p>
+		<svg
+			class="esc__svg"
+			viewBox={`0 0 ${NW} ${VH}`}
+			role="img"
+			aria-label="Схема электроскопа: металлический шар, металлический стержень, пробка из диэлектрика, металлический корпус со стёклами, два листочка из фольги."
+			data-svg
+		>
+			<defs>
+				<radialGradient id={`${uid}-ball2`} cx="0.35" cy="0.32" r="0.75">
+					<stop offset="0" class="esc__metal-hi"></stop>
+					<stop offset="1" class="esc__metal-lo"></stop>
+				</radialGradient>
+				<linearGradient id={`${uid}-glass2`} x1="0" y1="0" x2="1" y2="1">
+					<stop offset="0" class="esc__glass-hi"></stop>
+					<stop offset="0.55" class="esc__glass-mid"></stop>
+					<stop offset="1" class="esc__glass-lo"></stop>
+				</linearGradient>
+			</defs>
+			<EscInstrument kind="scope" cx={NX} ball={`${uid}-ball2`} glass={`${uid}-glass2`} />
+			{
+				labelSet('scope').items.map((l) => (
+					<g class:list={['esc__lab', { 'is-hl': l.hl }]}>
+						{l.leads.map((d) => (
+							<>
+								<path class="esc__lead" d={`M ${d.ax} ${d.ay} L ${d.ex} ${d.ey}`} data-lead={d.dyn ?? ''} data-side={d.side} data-ex={d.ex} data-ey={d.ey} />
+								<circle class="esc__dot" cx={d.ax} cy={d.ay} r="2.5" data-dot={d.dyn} />
+							</>
+						))}
+						<text x={LX} y={l.ly}>
+							{l.lines.map((s, i) => (
+								<tspan x={LX} dy={i ? 16 : 0}>
+									{s}
+								</tspan>
+							))}
+							{l.sub && (
+								<tspan x={LX} dy="15" class="esc__sub">
+									{l.sub}
+								</tspan>
+							)}
+						</text>
+					</g>
+				))
+			}
+		</svg>
+	</div>
+
+	<label class="esc__slider">
+		<span>Заряд</span>
+		<output data-out>нет</output>
+		<input type="range" min="0" max="10" step="1" value="0" data-q-in aria-label="Заряд обоих приборов" />
+	</label>
+
+	<div class="esc__one esc__one--meter">
+		<p class="esc__title">Электрометр</p>
+		<svg
+			class="esc__svg"
+			viewBox={`0 0 ${NW} ${VH}`}
+			role="img"
+			aria-label="Схема электрометра: металлический шар, металлический стержень, пробка из диэлектрика, лёгкая стрелка на оси, шкала, металлический корпус со стёклами."
+			data-svg
+		>
+			<defs>
+				<radialGradient id={`${uid}-ball3`} cx="0.35" cy="0.32" r="0.75">
+					<stop offset="0" class="esc__metal-hi"></stop>
+					<stop offset="1" class="esc__metal-lo"></stop>
+				</radialGradient>
+				<linearGradient id={`${uid}-glass3`} x1="0" y1="0" x2="1" y2="1">
+					<stop offset="0" class="esc__glass-hi"></stop>
+					<stop offset="0.55" class="esc__glass-mid"></stop>
+					<stop offset="1" class="esc__glass-lo"></stop>
+				</linearGradient>
+			</defs>
+			<EscInstrument kind="meter" cx={NX} ball={`${uid}-ball3`} glass={`${uid}-glass3`} />
+			{
+				labelSet('meter').items.map((l) => (
+					<g class:list={['esc__lab', { 'is-hl': l.hl }]}>
+						{l.leads.map((d) => (
+							<>
+								<path class="esc__lead" d={`M ${d.ax} ${d.ay} L ${d.ex} ${d.ey}`} data-lead={d.dyn ?? ''} data-side={d.side} data-ex={d.ex} data-ey={d.ey} />
+								<circle class="esc__dot" cx={d.ax} cy={d.ay} r="2.5" data-dot={d.dyn} />
+							</>
+						))}
+						<text x={LX} y={l.ly}>
+							{l.lines.map((s, i) => (
+								<tspan x={LX} dy={i ? 16 : 0}>
+									{s}
+								</tspan>
+							))}
+							{l.sub && (
+								<tspan x={LX} dy="15" class="esc__sub">
+									{l.sub}
+								</tspan>
+							)}
+						</text>
+					</g>
+				))
+			}
+		</svg>
+	</div>
+
+	<div class="esc__chips" aria-live="polite">
+		<span class="esc__chip">электроскоп: <b data-scope-read>листочки висят</b></span>
+		<span class="esc__chip">электрометр: <b data-meter-read>стрелка на нуле</b></span>
+	</div>
+
+	<figcaption class="esc__text">
+		<p>
+			Электроскоп показывает только, <b>есть ли</b> у тела заряд, и примерно — больше он или меньше: чем больше заряд, тем
+			сильнее расходятся листочки.
+		</p>
+		<p>
+			У электрометра вместо листочков стрелка перед <b>шкалой</b>: по делениям можно сравнить заряды разных тел. Стрелка и
+			стержень заряжены одноимённо и отталкиваются. Значки <span class="esc__sym">−</span> — лишние электроны.
+		</p>
+	</figcaption>
+</figure>
+
+<style is:global>
+	.esc {
+		--esc-n: var(--ig-vx);
+		--esc-hl: var(--ig-v);
+		container-type: inline-size;
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.esc__one {
+		display: none;
+	}
+	.esc__slider {
+		margin-top: 0.5rem;
+	}
+	@container (max-width: 520px) {
+		.esc__wide {
+			display: none;
+		}
+		.esc__one {
+			display: block;
+			max-width: 26rem;
+			margin-inline: auto;
+		}
+		.esc__one--meter {
+			margin-top: 0.6rem;
+		}
+	}
+	.esc__title {
+		margin: 0;
+		font-family: var(--ig-font-display);
+		font-size: var(--sl-text-lg);
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.esc__name {
+		fill: var(--sl-color-white);
+		font-family: var(--ig-font-display);
+		font-size: 19px;
+		font-weight: 600;
+	}
+	.esc__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		margin-top: 0.3rem;
+	}
+	.esc__case {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 7;
+	}
+	.esc__glass-hi {
+		stop-color: color-mix(in srgb, var(--ig-vx) 26%, transparent);
+	}
+	.esc__glass-mid {
+		stop-color: color-mix(in srgb, var(--ig-vx) 6%, transparent);
+	}
+	.esc__glass-lo {
+		stop-color: color-mix(in srgb, var(--ig-vx) 16%, transparent);
+	}
+	.esc__shine {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-white) 28%, transparent);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.esc__foot {
+		fill: var(--sl-color-gray-4);
+	}
+	.esc__stem {
+		fill: var(--sl-color-gray-3);
+	}
+	.esc__plug {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	:root[data-theme='light'] .esc__plug {
+		fill: var(--sl-color-gray-2);
+	}
+	.esc__metal-hi {
+		stop-color: var(--sl-color-gray-1);
+	}
+	.esc__metal-lo {
+		stop-color: var(--sl-color-gray-4);
+	}
+	:root[data-theme='light'] .esc__metal-hi {
+		stop-color: var(--sl-color-gray-6);
+	}
+	:root[data-theme='light'] .esc__metal-lo {
+		stop-color: var(--sl-color-gray-3);
+	}
+	.esc__ball {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.esc__leaf {
+		fill: color-mix(in srgb, var(--esc-hl) 75%, transparent);
+		stroke: var(--esc-hl);
+		stroke-width: 1;
+	}
+	.esc__needle {
+		fill: var(--esc-hl);
+		stroke: color-mix(in srgb, var(--esc-hl) 70%, var(--sl-color-black));
+		stroke-width: 0.8;
+	}
+	.esc__axis {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.esc__scale {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.esc__tick {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.esc__num {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+		font-family: var(--__sl-font);
+		font-variant-numeric: tabular-nums;
+	}
+	.esc__lab text {
+		fill: var(--sl-color-gray-2);
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.esc__lab .esc__sub {
+		fill: var(--sl-color-gray-3);
+		font-size: 12.5px;
+	}
+	.esc__lead {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.esc__dot {
+		fill: var(--sl-color-gray-2);
+	}
+	.esc__lab.is-hl text {
+		fill: var(--esc-hl);
+		font-weight: 700;
+	}
+	.esc__lab.is-hl .esc__lead {
+		stroke: var(--esc-hl);
+		stroke-width: 1.4;
+	}
+	.esc__lab.is-hl .esc__dot {
+		fill: var(--esc-hl);
+	}
+	.esc .chg circle {
+		fill: var(--esc-n);
+		stroke: color-mix(in srgb, var(--esc-n) 60%, var(--sl-color-white));
+		stroke-width: 1;
+	}
+	.esc .chg line {
+		stroke: var(--sl-color-black);
+		stroke-width: 1.7;
+		stroke-linecap: round;
+	}
+	.esc__slider {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		align-items: center;
+		gap: 0.2rem 0.75rem;
+		padding: 0.5rem 0.9rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.esc__slider span {
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.esc__slider output {
+		justify-self: end;
+		font-weight: 700;
+		color: var(--sl-color-accent-high);
+		font-variant-numeric: tabular-nums;
+	}
+	.esc__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.esc__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-top: 0.7rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.esc__chip {
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.esc__chip b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.esc__text {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.55;
+		color: var(--sl-color-gray-2);
+	}
+	.esc__text p {
+		margin: 0.3rem 0 0;
+	}
+	.esc__text b {
+		color: var(--sl-color-white);
+	}
+	.esc__sym {
+		display: inline-grid;
+		place-items: center;
+		width: 1.05rem;
+		height: 1.05rem;
+		border-radius: 50%;
+		background: var(--esc-n);
+		color: var(--sl-color-black);
+		font-weight: 700;
+		line-height: 1;
+	}
+	@media (max-width: 40rem) {
+		.esc {
+			padding: 0.75rem;
+		}
+	}
+</style>
+
+<script>
+	import { animator, chargeSymbol, el } from './util';
+	import { G } from './escGeom';
+
+	const { BY, LEAF, PIV_L, PIV_N, SPAN, LEAF_MAX, Q_HALF } = G;
+	const QR = 5.5; // radius of a charge glyph
+
+	type Inst = { kind: string; cx: number; dir: number; g: SVGGElement };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-esc]')) {
+		const input = root.querySelector<HTMLInputElement>('[data-q-in]')!;
+		const out = root.querySelector<HTMLOutputElement>('[data-out]')!;
+		const scopeRead = root.querySelector<HTMLElement>('[data-scope-read]')!;
+		const meterRead = root.querySelector<HTMLElement>('[data-meter-read]')!;
+		const insts: Inst[] = [...root.querySelectorAll<SVGGElement>('[data-inst]')].map((g) => ({
+			kind: g.dataset.inst!,
+			cx: Number(g.dataset.cx),
+			dir: Number(g.dataset.dir),
+			g,
+		}));
+
+		// the leaves of every electroscope: [0] turns left, [1] turns right
+		const leaves = new Map<Inst, { g: SVGGElement; q: SVGGElement }[]>();
+		for (const s of insts.filter((i) => i.kind === 'scope')) {
+			const host = s.g.querySelector<SVGGElement>('[data-leaves]')!;
+			leaves.set(
+				s,
+				[0, 1].map(() => {
+					const g = el('g', {}, host);
+					el('path', { class: 'esc__leaf', d: `M -2 0 L 2 0 L 7 ${LEAF} Q 0 ${LEAF + 6} -7 ${LEAF} Z` }, g);
+					return { g, q: el('g', {}, g) };
+				}),
+			);
+		}
+
+		// labels of the centred (wide) picture: leaders end right at the measured text
+		const fitLeaders = () => {
+			for (const t of root.querySelectorAll<SVGTextElement>('text[data-mid]')) {
+				let w = 0;
+				try {
+					w = t.getBBox().width;
+				} catch {
+					return;
+				}
+				if (!w) return; // hidden: keep the estimate
+				const cx = Number(t.getAttribute('x'));
+				for (const p of t.parentElement!.querySelectorAll<SVGPathElement>('path[data-lead]')) {
+					const side = Number(p.dataset.side);
+					p.dataset.ex = String(cx + side * (w / 2 + 8));
+					if (!p.dataset.lead) {
+						const d = p.getAttribute('d')!.split(' ');
+						p.setAttribute('d', `M ${d[1]} ${d[2]} L ${p.dataset.ex} ${p.dataset.ey}`);
+					}
+				}
+			}
+		};
+
+		let q = 0;
+		let th = 0; // angle of each leaf from the vertical, degrees
+		let thV = 0;
+		let na = 0; // needle angle, degrees
+		let naV = 0;
+		let qKey = '';
+
+		const leafGoal = () => (LEAF_MAX * q) / (q + Q_HALF);
+		const needleGoal = () => SPAN * q;
+
+		/** Charge glyphs on the balls, the leaves, the stem below the axis and the needle. */
+		const drawQ = () => {
+			const nBall = q === 0 ? 0 : Math.min(3, 1 + Math.floor(q / 4));
+			const nLeaf = q === 0 ? 0 : q >= 6 ? 2 : 1;
+			const key = `${nBall}|${nLeaf}`;
+			if (key === qKey) return;
+			qKey = key;
+			const ballAt = [
+				[-9, -8],
+				[9, -8],
+				[0, 9],
+			];
+			for (const s of insts) {
+				const gq = s.g.querySelector<SVGGElement>(':scope > [data-q]')!;
+				gq.replaceChildren();
+				for (let k = 0; k < nBall; k++) {
+					const c = chargeSymbol(-1, QR, gq);
+					c.setAttribute('transform', `translate(${s.cx + ballAt[k][0]} ${BY + ballAt[k][1]})`);
+				}
+				if (s.kind === 'scope') {
+					for (const l of leaves.get(s)!) {
+						l.q.replaceChildren();
+						for (let k = 0; k < nLeaf; k++) {
+							const c = chargeSymbol(-1, QR * 0.9, l.q);
+							c.setAttribute('transform', `translate(0 ${LEAF - 12 - k * 13})`);
+						}
+					}
+				} else {
+					const gn = s.g.querySelector<SVGGElement>('[data-nq]')!;
+					gn.replaceChildren();
+					for (let k = 0; k < nLeaf; k++) {
+						const c = chargeSymbol(-1, QR * 0.9, gq);
+						c.setAttribute('transform', `translate(${s.cx - 0.5} ${PIV_N + 18 + k * 12})`);
+						const n = chargeSymbol(-1, QR * 0.9, gn);
+						n.setAttribute('transform', `translate(0 ${-40 + k * 12})`);
+					}
+				}
+			}
+		};
+
+		const draw = () => {
+			for (const s of insts) {
+				const svg = s.g.ownerSVGElement!;
+				if (s.kind === 'scope') {
+					const [a, b] = leaves.get(s)!;
+					a.g.setAttribute('transform', `translate(${s.cx} ${PIV_L}) rotate(${th.toFixed(2)})`);
+					b.g.setAttribute('transform', `translate(${s.cx} ${PIV_L}) rotate(${(-th).toFixed(2)})`);
+				} else {
+					s.g
+						.querySelector('[data-needle]')!
+						.setAttribute('transform', `translate(${s.cx} ${PIV_N}) rotate(${(s.dir * na).toFixed(2)})`);
+				}
+				// the leaders to the right leaf and to the needle follow them
+				const lead = svg.querySelector<SVGPathElement>(`path[data-lead="${s.kind === 'scope' ? 'leaf' : 'needle'}"]`);
+				const dot = svg.querySelector<SVGCircleElement>(`circle[data-dot="${s.kind === 'scope' ? 'leaf' : 'needle'}"]`);
+				if (!lead || !dot) continue;
+				let x: number;
+				let y: number;
+				if (s.kind === 'scope') {
+					const a = (th * Math.PI) / 180;
+					x = s.cx + Math.sin(a) * LEAF * 0.62 + 4;
+					y = PIV_L + Math.cos(a) * LEAF * 0.62;
+				} else {
+					const b = (na * Math.PI) / 180;
+					x = s.cx + s.dir * (Math.sin(b) * 30 + 2);
+					y = PIV_N - Math.cos(b) * 30;
+				}
+				dot.setAttribute('cx', x.toFixed(1));
+				dot.setAttribute('cy', y.toFixed(1));
+				lead.setAttribute('d', `M ${x.toFixed(1)} ${y.toFixed(1)} L ${lead.dataset.ex} ${lead.dataset.ey}`);
+			}
+		};
+
+		const frame = (dt: number) => {
+			thV += (60 * (leafGoal() - th) - 9 * thV) * dt;
+			th = Math.max(0, th + thV * dt);
+			naV += (45 * (needleGoal() - na) - 5.5 * naV) * dt;
+			na = Math.max(0, na + naV * dt);
+			draw();
+		};
+		const active = () =>
+			Math.abs(leafGoal() - th) > 0.03 ||
+			Math.abs(thV) > 0.03 ||
+			Math.abs(needleGoal() - na) > 0.03 ||
+			Math.abs(naV) > 0.03;
+		const wake = animator(root, active, frame);
+
+		const words = () => {
+			if (q === 0) return 'листочки висят';
+			if (q <= 3) return 'листочки немного разошлись';
+			if (q <= 7) return 'листочки разошлись';
+			return 'листочки разошлись сильно';
+		};
+		const update = () => {
+			q = Number(input.value);
+			out.textContent = q === 0 ? 'нет' : String(q);
+			scopeRead.textContent = words();
+			meterRead.textContent = q === 0 ? 'стрелка на нуле' : `стрелка на делении ${q}`;
+			drawQ();
+			wake();
+		};
+		input.addEventListener('input', update);
+		update();
+		fitLeaders();
+		draw();
+		// fonts may arrive later and the wide picture may appear on a resize: measure again
+		document.fonts?.ready.then(() => {
+			fitLeaders();
+			draw();
+		});
+		new ResizeObserver(() => {
+			fitLeaders();
+			draw();
+		}).observe(root);
+	}
+</script>

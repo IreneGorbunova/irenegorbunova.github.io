@@ -1,0 +1,72 @@
+---
+/**
+ * One instrument of ElectroscopeScheme: an electroscope (two foil leaves) or an electrometer (a needle on
+ * an axis in front of a scale), drawn around the vertical axis x = cx. `dir` = −1 mirrors the electrometer
+ * (the needle turns to the left). The moving parts are animated by ElectroscopeScheme's script.
+ */
+import { G } from './escGeom';
+
+interface Props {
+	kind: 'scope' | 'meter';
+	cx: number;
+	dir?: 1 | -1;
+	ball: string; // id of the ball gradient
+	glass: string; // id of the glass gradient
+}
+const { kind, cx, dir = 1, ball, glass } = Astro.props;
+const { BY, BR, CY, RC, VH, PIV_L, PIV_N, SPAN, NDIV, RS } = G;
+const rad = (d: number) => (d * Math.PI) / 180;
+const ticks = Array.from({ length: NDIV + 1 }, (_, k) => {
+	const a = rad(k * SPAN);
+	const r2 = RS + (k % 5 === 0 ? 10 : 6);
+	return {
+		x1: cx + dir * RS * Math.sin(a),
+		y1: PIV_N - RS * Math.cos(a),
+		x2: cx + dir * r2 * Math.sin(a),
+		y2: PIV_N - r2 * Math.cos(a),
+	};
+});
+const nums = [0, 5, 10].map((k) => ({
+	k,
+	x: cx + dir * ((RS + 20) * Math.sin(rad(k * SPAN)) + (k === 0 ? 9 : 0)), // «0» beside the stem, not behind it
+	y: PIV_N - (RS + 20) * Math.cos(rad(k * SPAN)) + 5,
+}));
+const end = rad(NDIV * SPAN);
+const arc = `M ${cx} ${PIV_N - RS} A ${RS} ${RS} 0 0 ${dir > 0 ? 1 : 0} ${cx + dir * RS * Math.sin(end)} ${PIV_N - RS * Math.cos(end)}`;
+---
+
+<g data-inst={kind} data-cx={cx} data-dir={dir}>
+	<rect class="esc__foot" x={cx - 7} y={CY + RC} width="14" height={VH - 18 - CY - RC}></rect>
+	<rect class="esc__foot" x={cx - 48} y={VH - 18} width="96" height="10" rx="3"></rect>
+	<circle class="esc__case" cx={cx} cy={CY} r={RC} fill={`url(#${glass})`}></circle>
+	<path class="esc__shine" d={`M ${cx - 50} ${CY - 44} A 66 66 0 0 1 ${cx - 12} ${CY - 66}`}></path>
+	{
+		kind === 'scope' ? (
+			<>
+				<rect class="esc__stem" x={cx - 3} y={BY + BR - 3} width="6" height={PIV_L - BY - BR + 6} rx="2" />
+				<g data-leaves />
+			</>
+		) : (
+			<>
+				<path class="esc__scale" d={arc} />
+				{ticks.map((t) => (
+					<line class="esc__tick" x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />
+				))}
+				{nums.map((n) => (
+					<text class="esc__num" x={n.x} y={n.y} text-anchor="middle">
+						{n.k}
+					</text>
+				))}
+				<rect class="esc__stem" x={cx - 3} y={BY + BR - 3} width="6" height={PIV_N + 40 - BY - BR} rx="2" />
+				<g data-needle>
+					<path class="esc__needle" d="M -1.4 -48 L 1.4 -48 L 2.6 22 Q 0 27 -2.6 22 Z" />
+					<g data-nq />
+				</g>
+				<circle class="esc__axis" cx={cx} cy={PIV_N} r="4" />
+			</>
+		)
+	}
+	<rect class="esc__plug" x={cx - 15} y={CY - RC - 11} width="30" height="22" rx="4"></rect>
+	<circle class="esc__ball" cx={cx} cy={BY} r={BR} fill={`url(#${ball})`}></circle>
+	<g data-q></g>
+</g>

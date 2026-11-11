@@ -1,0 +1,615 @@
+---
+/**
+ * «Электризация через влияние»: a looping animation. A charged rod slowly approaches the ball of a neutral
+ * electroscope without touching it and then moves away. The metal has bound positive charges (pale «+»,
+ * fixed) and as many free electrons («−»). An ebonite rod (−) pushes four free electrons from the ball
+ * down the stem into the leaves; a glass rod (+) pulls four electrons from the leaves up into the ball.
+ * The leaves get charges of one sign and diverge; where an electron is missing its «+» lights up. The
+ * charge of the whole electroscope stays 0. The induced charge grows as the rod comes closer (∝ 1/d).
+ */
+const W = 440;
+const H = 330;
+const B = { x: 318, y: 70, r: 34 };
+const CASE = { x: 248, y: 130, w: 140, h: 166 };
+const PIVOT = { x: 318, y: 182 };
+const TABLE = 316;
+const VX = 50; // the picture shows x from VX and y from VY: the rest is empty
+const VY = 26;
+const uid = `ind-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="ind not-content" data-ind>
+	<div class="ind__pairs" role="radiogroup" aria-label="Какую палочку подносим">
+		<button type="button" class="ind__pair is-on" role="radio" aria-checked="true" data-rod="ebonite">эбонит (−)</button>
+		<button type="button" class="ind__pair" role="radio" aria-checked="false" data-rod="glass">стекло (+)</button>
+	</div>
+
+	<svg
+		class="ind__svg"
+		viewBox={`${VX} ${VY} ${W - VX - 38} ${TABLE + 6 - VY}`}
+		role="img"
+		aria-label="Заряженную палочку подносят к шару незаряженного электроскопа, не касаясь его. Свободные электроны металла перемещаются, листочки расходятся. Палочку убирают — листочки опадают."
+		data-svg
+	>
+		<defs>
+			<radialGradient id={`${uid}-ball`} cx="0.35" cy="0.32" r="0.75">
+				<stop offset="0" class="ind__metal-hi"></stop>
+				<stop offset="1" class="ind__metal-lo"></stop>
+			</radialGradient>
+			<linearGradient id={`${uid}-glass`} x1="0" y1="0" x2="0" y2="1">
+				<stop offset="0" class="ind__glass-hi"></stop>
+				<stop offset="0.5" class="ind__glass-mid"></stop>
+				<stop offset="1" class="ind__glass-lo"></stop>
+			</linearGradient>
+		</defs>
+		<line class="ind__table" x1={VX} y1={TABLE} x2={W} y2={TABLE}></line>
+		<rect class="ind__case" x={CASE.x} y={CASE.y} width={CASE.w} height={CASE.h} rx="14"></rect>
+		<rect class="ind__foot" x={CASE.x + 10} y={CASE.y + CASE.h} width="20" height={TABLE - CASE.y - CASE.h}></rect>
+		<rect class="ind__foot" x={CASE.x + CASE.w - 30} y={CASE.y + CASE.h} width="20" height={TABLE - CASE.y - CASE.h}></rect>
+		<rect class="ind__stem" x={B.x - 3} y={B.y + B.r - 3} width="6" height={PIVOT.y - B.y - B.r + 5} rx="2"></rect>
+		<g data-leaves></g>
+		<rect class="ind__plug" x={B.x - 15} y={CASE.y - 10} width="30" height="20" rx="4"></rect>
+		<circle class="ind__ball" cx={B.x} cy={B.y} r={B.r} fill={`url(#${uid}-ball)`}></circle>
+		<g data-ions></g>
+		<g data-electrons></g>
+		<path class="ind__shine" d={`M ${CASE.x + 14} ${CASE.y + 22} q -4 50 0 110`}></path>
+		<g data-rodg></g>
+	</svg>
+
+	<div class="ind__row">
+		<div class="ind__chips" aria-live="off">
+			<span class="ind__chip">шар: <b data-q-ball>0</b></span>
+			<span class="ind__chip">стержень и листочки: <b data-q-low>0</b></span>
+			<span class="ind__chip">весь электроскоп: <b data-q-all>0</b></span>
+		</div>
+		<button type="button" class="ind__btn" data-again>Сначала</button>
+	</div>
+	<p class="ind__live" data-live aria-live="polite"></p>
+
+	<figcaption class="ind__legend">
+		<span class="ind__sym ind__sym--n">−</span> свободный электрон металла, он может перемещаться по всему электроскопу.
+		Бледный <span class="ind__sym ind__sym--p ind__sym--pale">+</span> — положительный заряд, связанный с металлом: он остаётся
+		на месте. Яркий <span class="ind__sym ind__sym--p">+</span> — здесь не хватает электрона. Электроны только переходят из одной части
+		электроскопа в другую, поэтому его заряд всё время равен нулю. Это электризация через влияние.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ind {
+		--ind-p: var(--ig-vy);
+		--ind-n: var(--ig-vx);
+		--ind-ebonite: var(--sl-color-gray-5);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .ind {
+		--ind-ebonite: var(--sl-color-gray-2);
+	}
+	.ind__pairs {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.ind__pair {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.95rem;
+		border-radius: 999px;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.ind__pair.is-on {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.ind__svg {
+		display: block;
+		width: 100%;
+		max-width: 30rem;
+		height: auto;
+		margin: 0.6rem auto 0;
+	}
+	.ind__table {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.ind__case {
+		fill: color-mix(in srgb, var(--ig-vx) 6%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.ind__foot {
+		fill: var(--sl-color-gray-4);
+	}
+	.ind__shine {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-white) 25%, transparent);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.ind__stem {
+		fill: var(--sl-color-gray-3);
+	}
+	.ind__plug {
+		fill: var(--ind-ebonite);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ind__metal-hi {
+		stop-color: var(--sl-color-gray-1);
+	}
+	.ind__metal-lo {
+		stop-color: var(--sl-color-gray-4);
+	}
+	:root[data-theme='light'] .ind__metal-hi {
+		stop-color: var(--sl-color-gray-6);
+	}
+	:root[data-theme='light'] .ind__metal-lo {
+		stop-color: var(--sl-color-gray-3);
+	}
+	.ind__ball {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ind__leaf {
+		fill: color-mix(in srgb, var(--ig-v) 75%, transparent);
+		stroke: var(--ig-v);
+		stroke-width: 1;
+	}
+	.ind__glass-hi {
+		stop-color: color-mix(in srgb, var(--ig-vx) 35%, transparent);
+	}
+	.ind__glass-mid {
+		stop-color: color-mix(in srgb, var(--ig-vx) 8%, transparent);
+	}
+	.ind__glass-lo {
+		stop-color: color-mix(in srgb, var(--ig-vx) 22%, transparent);
+	}
+	.ind__rod-body--ebonite {
+		fill: var(--ind-ebonite);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.ind__rod-body--glass {
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, var(--sl-color-gray-3));
+		stroke-width: 1.5;
+	}
+	.ind__grip {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 55%, transparent);
+	}
+	.ind__lbl {
+		fill: var(--sl-color-gray-2);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.ind .chg circle {
+		stroke-width: 1;
+	}
+	.ind .chg line {
+		stroke: var(--sl-color-black);
+		stroke-width: 1.7;
+		stroke-linecap: round;
+	}
+	.ind .chg--p circle {
+		fill: var(--ind-p);
+		stroke: color-mix(in srgb, var(--ind-p) 60%, var(--sl-color-white));
+	}
+	.ind .chg--n circle {
+		fill: var(--ind-n);
+		stroke: color-mix(in srgb, var(--ind-n) 60%, var(--sl-color-white));
+	}
+	.ind__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin-top: 0.6rem;
+	}
+	.ind__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ind__chip {
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		font-variant-numeric: tabular-nums;
+	}
+	.ind__chip b {
+		display: inline-block;
+		min-width: 1.6em;
+		text-align: center;
+		color: var(--sl-color-white);
+	}
+	.ind__chip b.is-p {
+		color: var(--ind-p);
+	}
+	.ind__chip b.is-n {
+		color: var(--ind-n);
+	}
+	.ind__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.ind__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ind__live {
+		min-height: 4.5em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ind__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.6;
+		color: var(--sl-color-gray-3);
+	}
+	.ind__sym {
+		display: inline-grid;
+		place-items: center;
+		width: 1.05rem;
+		height: 1.05rem;
+		border-radius: 50%;
+		color: var(--sl-color-black);
+		font-weight: 700;
+		line-height: 1;
+	}
+	.ind__sym--n {
+		background: var(--ind-n);
+	}
+	.ind__sym--p {
+		background: var(--ind-p);
+	}
+	.ind__sym--pale {
+		opacity: 0.4;
+	}
+	@media (max-width: 40rem) {
+		.ind {
+			padding: 0.75rem;
+		}
+		.ind__live {
+			min-height: 7em;
+		}
+		.ind__lbl {
+			font-size: 17px;
+		}
+	}
+</style>
+
+<script>
+	import { animator, chargeSymbol, el } from './util';
+
+	const B = { x: 318, y: 70, r: 34 };
+	const PIVOT = { x: 318, y: 182 };
+	const LEAF_L = 86;
+	const LEAF_MAX = 44; // degrees
+	const Q_HALF = 2.5; // leaf charge (in drawn charges) for half of LEAF_MAX
+	const ROD_Y = 66;
+	const RL = 230; // rod length
+	const RT = 24; // rod thickness
+	const GRIP = 50;
+	const TIP_FAR = 120; // x of the rod tip far away and near the ball (it never touches: gap 16 px)
+	const TIP_NEAR = B.x - B.r - 16;
+	const T_REST = 1.4;
+	const T_IN = 3.4;
+	const T_HOLD = 3.4;
+	const T_OUT = 3;
+	const T_END = 2.2;
+	const T_ALL = T_REST + T_IN + T_HOLD + T_OUT + T_END;
+	const RI = 5; // bound «+»
+	const RE = 4.4; // free electron
+	const K = 4; // electrons that move
+	const STAGGER = 0.35;
+
+	type Pt = { x: number; y: number };
+	type Rod = 'ebonite' | 'glass';
+	/** A place in the metal: in the ball (world coordinates), on the stem, or on leaf 0/1 (leaf frame). */
+	type Place = { part: 'ball' | 'stem' | 'leaf'; leaf?: 0 | 1; x: number; y: number };
+	type Electron = { home: Place; to: Place | null; g: SVGGElement; ion: SVGGElement | null; u: number; at: Pt };
+
+	const ease = (k: number) => k * k * (3 - 2 * k);
+	const clamp = (v: number) => Math.min(1, Math.max(0, v));
+
+	// sites of the bound charges; the electron of each sits right below its «+»
+	const ring = [30, 90, 150, 210, 270, 330].map((a) => ({
+		a,
+		x: B.x + 17 * Math.cos((a * Math.PI) / 180),
+		y: B.y + 17 * Math.sin((a * Math.PI) / 180),
+	}));
+	const ballSites = [...ring, { a: -1, x: B.x, y: B.y }];
+	const stemSites = [150, 168].map((y) => ({ x: B.x, y }));
+	const leafD = [20, 46, 72];
+	// extra places for the moved electrons: on the leaves between the «+», or on the ball's side facing the rod
+	const leafExtra = [33, 59];
+	const ballExtra = [160, 200, 125, 235].map((a) => ({
+		x: B.x + 28 * Math.cos((a * Math.PI) / 180),
+		y: B.y + 28 * Math.sin((a * Math.PI) / 180),
+	}));
+	const MOVERS_EBONITE = [270, -1, 150, 210]; // the ball's electrons that go down (order of leaving)
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ind]')) {
+		const svg = root.querySelector<SVGSVGElement>('[data-svg]')!;
+		const gLeaves = root.querySelector<SVGGElement>('[data-leaves]')!;
+		const gIons = root.querySelector<SVGGElement>('[data-ions]')!;
+		const gEl = root.querySelector<SVGGElement>('[data-electrons]')!;
+		const gRod = root.querySelector<SVGGElement>('[data-rodg]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const qBall = root.querySelector<HTMLElement>('[data-q-ball]')!;
+		const qLow = root.querySelector<HTMLElement>('[data-q-low]')!;
+		const qAll = root.querySelector<HTMLElement>('[data-q-all]')!;
+		const again = root.querySelector<HTMLButtonElement>('[data-again]')!;
+		const rodBtns = root.querySelectorAll<HTMLButtonElement>('[data-rod]');
+		const glassFill = svg.querySelector('linearGradient')!.id;
+
+		let rod: Rod = 'ebonite';
+		let t = 0;
+		let P = 0; // how strongly the metal is polarised, 0…1 (smoothed)
+		let th = 0;
+		let thV = 0;
+		let phase = '';
+		let electrons: Electron[] = [];
+		const leaves: { g: SVGGElement; ions: SVGGElement }[] = [0, 1].map(() => {
+			const g = el('g', {}, gLeaves);
+			el('path', { class: 'ind__leaf', d: `M -2 0 L 2 0 L 8 ${LEAF_L} Q 0 ${LEAF_L + 7} -8 ${LEAF_L} Z` }, g);
+			return { g, ions: el('g', {}, g) };
+		});
+
+		// ---------- geometry ----------
+		/** Leaf 0 turns to the left, leaf 1 to the right. */
+		const leafAngle = (i: number) => ((i === 0 ? th : -th) * Math.PI) / 180;
+		const world = (p: Place): Pt => {
+			if (p.part !== 'leaf') return { x: p.x, y: p.y };
+			const a = leafAngle(p.leaf!);
+			return {
+				x: PIVOT.x + p.x * Math.cos(a) - p.y * Math.sin(a),
+				y: PIVOT.y + p.x * Math.sin(a) + p.y * Math.cos(a),
+			};
+		};
+		/** The way along the metal: through the bottom of the ball and down the stem. */
+		const route = (a: Place, b: Place): Pt[] => {
+			const pts = [world(a)];
+			const top = { x: B.x, y: B.y + B.r - 6 };
+			const down = a.part !== 'leaf' && b.part === 'leaf';
+			const up = a.part === 'leaf' && b.part !== 'leaf';
+			if (down) pts.push(top, { ...PIVOT });
+			if (up) pts.push({ ...PIVOT }, top);
+			pts.push(world(b));
+			return pts;
+		};
+		const along = (pts: Pt[], u: number): Pt => {
+			const seg: number[] = [];
+			let L = 0;
+			for (let i = 1; i < pts.length; i++) {
+				const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+				seg.push(d);
+				L += d;
+			}
+			let s = u * L;
+			for (let i = 1; i < pts.length; i++) {
+				if (s <= seg[i - 1] || i === pts.length - 1) {
+					const k = seg[i - 1] ? Math.min(1, s / seg[i - 1]) : 1;
+					return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * k, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * k };
+				}
+				s -= seg[i - 1];
+			}
+			return pts[pts.length - 1];
+		};
+		const region = (p: Pt) => (Math.hypot(p.x - B.x, p.y - B.y) <= B.r + 1 ? 'ball' : 'low');
+
+		// ---------- building the charges ----------
+		const build = () => {
+			gIons.replaceChildren();
+			gEl.replaceChildren();
+			leaves.forEach((l) => l.ions.replaceChildren());
+			electrons = [];
+			const ion = (p: Place) => {
+				const host = p.part === 'leaf' ? leaves[p.leaf!].ions : gIons;
+				const g = chargeSymbol(1, RI, host);
+				g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${(p.y - 8).toFixed(1)})`);
+				g.setAttribute('opacity', '0.35');
+				return g;
+			};
+			const add = (home: Place, withIon = true) => {
+				const g = chargeSymbol(-1, RE, gEl);
+				electrons.push({ home, to: null, g, ion: withIon ? ion(home) : null, u: 0, at: { x: 0, y: 0 } });
+			};
+			ballSites.forEach((s) => add({ part: 'ball', x: s.x, y: s.y + 4 }));
+			stemSites.forEach((s) => add({ part: 'stem', x: s.x, y: s.y + 4 }));
+			for (const leaf of [0, 1] as const) for (const d of leafD) add({ part: 'leaf', leaf, x: 0, y: d + 4 });
+			// the electrons that will move, in the order they leave
+			if (rod === 'ebonite') {
+				MOVERS_EBONITE.forEach((a, k) => {
+					const s = a < 0 ? ballSites[6] : ballSites[ring.findIndex((r) => r.a === a)];
+					const e = electrons.find((x) => x.home.part === 'ball' && x.home.x === s.x && x.home.y === s.y + 4)!;
+					e.to = { part: 'leaf', leaf: (k % 2) as 0 | 1, x: 1, y: leafExtra[k < 2 ? 1 : 0] };
+				});
+			} else {
+				// from the leaves up to the ball: the electrons nearest the stem leave first
+				const order: [0 | 1, number][] = [
+					[1, 46],
+					[0, 46],
+					[1, 72],
+					[0, 72],
+				];
+				order.forEach(([leaf, d], k) => {
+					const e = electrons.find((x) => x.home.part === 'leaf' && x.home.leaf === leaf && x.home.y === d + 4)!;
+					e.to = { part: 'ball', x: ballExtra[k].x, y: ballExtra[k].y };
+				});
+			}
+			// keep the movers in leaving order at the front
+			electrons.sort((a, b) => Number(!!b.to) - Number(!!a.to));
+		};
+
+		const drawRod = () => {
+			gRod.replaceChildren();
+			const glass = rod === 'glass';
+			el(
+				'rect',
+				{
+					class: `ind__rod-body ind__rod-body--${rod}`,
+					x: -RL,
+					y: -RT / 2,
+					width: RL,
+					height: RT,
+					rx: RT / 2,
+					...(glass ? { fill: `url(#${glassFill})` } : {}),
+				},
+				gRod,
+			);
+			el('rect', { class: 'ind__grip', x: -RL, y: -RT / 2, width: GRIP, height: RT, rx: RT / 2 }, gRod);
+			for (let k = 0; k < 6; k++) {
+				const c = chargeSymbol(glass ? 1 : -1, 6, gRod);
+				c.setAttribute('transform', `translate(${-14 - k * 24} 0)`);
+			}
+			const lbl = el('text', { class: 'ind__lbl', x: -8, y: -RT / 2 - 9, 'text-anchor': 'end' }, gRod);
+			lbl.textContent = glass ? 'стекло' : 'эбонит';
+		};
+
+		// ---------- the timeline ----------
+		const tipAt = (t: number) => {
+			if (t < T_REST) return TIP_FAR;
+			if (t < T_REST + T_IN) return TIP_FAR + (TIP_NEAR - TIP_FAR) * ease((t - T_REST) / T_IN);
+			if (t < T_REST + T_IN + T_HOLD) return TIP_NEAR;
+			if (t < T_ALL - T_END) return TIP_NEAR + (TIP_FAR - TIP_NEAR) * ease((t - T_REST - T_IN - T_HOLD) / T_OUT);
+			return TIP_FAR;
+		};
+		/** Induced charge ∝ 1/d (d from the rod tip to the ball centre), 0 far away, 1 nearest. */
+		const pol = (tip: number) => {
+			const d = Math.hypot(B.x - tip, B.y - ROD_Y);
+			const d0 = Math.hypot(B.x - TIP_FAR, B.y - ROD_Y);
+			const d1 = Math.hypot(B.x - TIP_NEAR, B.y - ROD_Y);
+			return clamp((1 / d - 1 / d0) / (1 / d1 - 1 / d0));
+		};
+		const texts = {
+			ebonite: {
+				rest: 'Электроскоп не заряжен: в каждой его части положительных зарядов столько же, сколько электронов.',
+				in: 'Подносим к шару отрицательно заряженную эбонитовую палочку, не касаясь его.',
+				hold: 'Лишние электроны палочки отталкивают свободные электроны металла: часть их ушла по стержню вниз, на листочки. Листочки заряжены отрицательно и отталкиваются, а шару теперь не хватает электронов — он заряжен положительно.',
+				out: 'Убираем палочку — электроны возвращаются на шар.',
+				end: 'Электроны вернулись на свои места, листочки опали. Заряд электроскопа всё время был равен нулю.',
+			},
+			glass: {
+				rest: 'Электроскоп не заряжен: в каждой его части положительных зарядов столько же, сколько электронов.',
+				in: 'Подносим к шару положительно заряженную стеклянную палочку, не касаясь его.',
+				hold: 'Палочка притягивает свободные электроны металла: часть их поднялась с листочков на шар. На шаре теперь лишние электроны, а листочкам электронов не хватает — оба заряжены положительно и тоже отталкиваются.',
+				out: 'Убираем палочку — электроны возвращаются на листочки.',
+				end: 'Электроны вернулись на свои места, листочки опали. Заряд электроскопа всё время был равен нулю.',
+			},
+		};
+		const phaseAt = (t: number) =>
+			t < T_REST ? 'rest' : t < T_REST + T_IN ? 'in' : t < T_REST + T_IN + T_HOLD ? 'hold' : t < T_ALL - T_END ? 'out' : 'end';
+
+		const chip = (b: HTMLElement, v: number) => {
+			b.textContent = v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`;
+			b.classList.toggle('is-p', v > 0);
+			b.classList.toggle('is-n', v < 0);
+		};
+
+		const frame = (dt: number) => {
+			t += dt;
+			if (t >= T_ALL) t -= T_ALL;
+			const tip = tipAt(t);
+			gRod.setAttribute('transform', `translate(${tip.toFixed(1)} ${ROD_Y})`);
+			const goal = pol(tip);
+			P += (goal - P) * Math.min(1, dt / 0.25);
+			if (t < dt) P = goal; // a new round starts from rest
+
+			// the moving electrons, one after another, all of them along the metal
+			const span = 1 + (K - 1) * STAGGER;
+			let qLeaves = 0;
+			electrons.forEach((e, k) => {
+				let p: Pt;
+				if (e.to) {
+					e.u = ease(clamp(P * span - k * STAGGER));
+					p = along(route(e.home, e.to), e.u);
+					const away = Math.hypot(p.x - world(e.home).x, p.y - world(e.home).y);
+					e.ion?.setAttribute('opacity', (0.35 + 0.65 * clamp(away / 10)).toFixed(2));
+					// share of this electron's charge that has reached (ebonite) or left (glass) the leaves
+					qLeaves += rod === 'ebonite' ? clamp((p.y - PIVOT.y) / 8) : clamp((PIVOT.y + 8 - p.y) / 8);
+				} else {
+					// the others shift a little: away from a negative rod, towards a positive one
+					const s = (rod === 'ebonite' ? 1 : -1) * P;
+					const h = world(e.home);
+					p = e.home.part === 'ball' ? { x: h.x + 2.5 * s, y: h.y + 1.5 * s } : h;
+				}
+				e.g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
+				e.at = p;
+			});
+
+			// the leaves repel each other: the angle grows with their charge
+			const goalTh = (LEAF_MAX * qLeaves) / (qLeaves + Q_HALF);
+			thV += (40 * (goalTh - th) - 8 * thV) * dt;
+			th = Math.max(0, th + thV * dt);
+			leaves[0].g.setAttribute('transform', `translate(${PIVOT.x} ${PIVOT.y}) rotate(${th.toFixed(2)})`);
+			leaves[1].g.setAttribute('transform', `translate(${PIVOT.x} ${PIVOT.y}) rotate(${(-th).toFixed(2)})`);
+
+			// charges of the parts: bound «+» minus electrons present
+			let ball = 0;
+			let low = 0;
+			for (const e of electrons) {
+				if (e.ion) {
+					if (e.home.part === 'ball') ball += 1;
+					else low += 1;
+				}
+				if (region(e.at) === 'ball') ball -= 1;
+				else low -= 1;
+			}
+			chip(qBall, ball);
+			chip(qLow, low);
+			chip(qAll, ball + low);
+
+			const ph = phaseAt(t);
+			if (ph !== phase) {
+				phase = ph;
+				live.textContent = texts[rod][ph as keyof (typeof texts)['ebonite']];
+			}
+		};
+		const wake = animator(root, () => true, frame);
+
+		const restart = () => {
+			t = 0;
+			P = 0;
+			th = 0;
+			thV = 0;
+			phase = '';
+			build();
+			drawRod();
+			frame(0);
+			wake();
+		};
+		again.addEventListener('click', restart);
+		rodBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				rod = b.dataset.rod as Rod;
+				rodBtns.forEach((o) => {
+					o.classList.toggle('is-on', o === b);
+					o.setAttribute('aria-checked', String(o === b));
+				});
+				restart();
+			}),
+		);
+		restart();
+	}
+</script>

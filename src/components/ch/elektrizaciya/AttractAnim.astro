@@ -1,0 +1,565 @@
+---
+/**
+ * «Почему притягиваются незаряженные тела»: a looping animation. A charged rod slowly comes down over a
+ * small piece of paper (drawn strongly magnified, five of its molecules drawn as ovals with a «+» and a
+ * «−»). The rod's field shifts the charges inside every molecule: the near side of the piece gets the
+ * sign opposite to the rod's. The rod attracts the near side and repels the far side, which is farther
+ * away and so is pushed less; the sum pulls the piece to the rod. When it exceeds the weight, the piece
+ * jumps up. Model: the rod is a long line charge, field ∝ 1/r; the shift of the charges grows with the
+ * field and saturates; forces F = C·p/r on the two sides; C is chosen so that the sum equals the weight
+ * 95 px below the rod's axis. All arrows share one scale.
+ */
+const W = 440;
+const H = 350;
+const TABLE = 290;
+const VY = 50; // the strip above is empty: the rod comes from there
+const PAPER = { x: 90, y: 230, w: 210, h: 60 };
+const uid = `att-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="att not-content" data-att>
+	<div class="att__pairs" role="radiogroup" aria-label="Какую палочку подносим">
+		<button type="button" class="att__pair is-on" role="radio" aria-checked="true" data-kind="ebonite">эбонит (−)</button>
+		<button type="button" class="att__pair" role="radio" aria-checked="false" data-kind="glass">стекло (+)</button>
+	</div>
+
+	<svg
+		class="att__svg"
+		viewBox={`0 ${VY} ${W} ${H - VY}`}
+		role="img"
+		aria-label="Заряженная палочка опускается к кусочку бумаги. В молекулах бумаги заряды сдвигаются, бумажку притягивает к палочке, и она подскакивает."
+		data-svg
+	>
+		<defs>
+			<linearGradient id={`${uid}-glass`} x1="0" y1="0" x2="0" y2="1">
+				<stop offset="0" class="att__glass-hi"></stop>
+				<stop offset="0.5" class="att__glass-mid"></stop>
+				<stop offset="1" class="att__glass-lo"></stop>
+			</linearGradient>
+		</defs>
+		<rect class="att__table" x="0" y={TABLE} width={W} height={H - TABLE}></rect>
+		<line class="att__table-top" x1="0" y1={TABLE} x2={W} y2={TABLE}></line>
+		<g data-scene>
+			<g data-paper>
+				<rect class="att__paper" x={PAPER.x} y={PAPER.y} width={PAPER.w} height={PAPER.h} rx="4"></rect>
+				<g data-mols></g>
+			</g>
+			<g class="att__forces" data-forces>
+				<g class="att__arrow att__arrow--el" data-f="near"><line></line><path></path></g>
+				<g class="att__arrow att__arrow--rep" data-f="far"><line></line><path></path></g>
+				<g class="att__arrow att__arrow--net" data-f="net"><line></line><path></path></g>
+				<g class="att__arrow att__arrow--g" data-f="g"><line></line><path></path></g>
+				<circle class="att__cm" r="3" data-cm></circle>
+				<line class="att__tie" data-tie></line>
+				<text class="att__flbl att__flbl--el" text-anchor="end" data-l="near">притяжение</text>
+				<text class="att__flbl att__flbl--rep" text-anchor="end" data-l="far">отталкивание</text>
+				<text class="att__flbl att__flbl--net" data-l="net">в сумме</text>
+				<text class="att__flbl att__flbl--g" data-l="g">сила тяжести</text>
+			</g>
+			<g data-rod></g>
+		</g>
+	</svg>
+
+	<div class="att__row">
+		<div class="att__chips" aria-live="off">
+			<span class="att__chip">заряд бумажки: <b>0</b></span>
+			<span class="att__chip">притяжение в сумме: <b data-ratio>0</b></span>
+		</div>
+		<button type="button" class="att__btn" data-again>Повторить</button>
+	</div>
+	<p class="att__live" data-live aria-live="polite"></p>
+
+	<figcaption class="att__legend">
+		Бумажка и её молекулы нарисованы во много раз увеличенными. Бумага — диэлектрик: заряды не покидают своих молекул, а только
+		чуть сдвигаются внутри них, поэтому бумажка в целом остаётся незаряженной. В металле не так: там свободные электроны
+		переходят по всему телу. Все стрелки нарисованы в одном масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.att {
+		--att-p: var(--ig-vy);
+		--att-n: var(--ig-vx);
+		--att-ebonite: var(--sl-color-gray-5);
+		--att-paper: var(--sl-color-gray-1);
+		--att-f: var(--ig-v);
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	:root[data-theme='light'] .att {
+		--att-ebonite: var(--sl-color-gray-2);
+		--att-paper: var(--sl-color-white);
+	}
+	.att__pairs {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.att__pair {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.95rem;
+		border-radius: 999px;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.att__pair.is-on {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.att__svg {
+		display: block;
+		width: 100%;
+		max-width: 36rem;
+		height: auto;
+		margin: 0.6rem auto 0;
+	}
+	.att__table {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 45%, transparent);
+	}
+	.att__table-top {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.att__paper {
+		fill: color-mix(in srgb, var(--att-paper) 14%, var(--ig-surface));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.att__mol {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 18%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 3 2.5;
+	}
+	.att .chg circle {
+		stroke-width: 1;
+	}
+	.att .chg line {
+		stroke: var(--sl-color-black);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+	.att .chg--p circle {
+		fill: var(--att-p);
+		stroke: color-mix(in srgb, var(--att-p) 60%, var(--sl-color-white));
+	}
+	.att .chg--n circle {
+		fill: var(--att-n);
+		stroke: color-mix(in srgb, var(--att-n) 60%, var(--sl-color-white));
+	}
+	.att__rod-body--ebonite {
+		fill: var(--att-ebonite);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.att__rod-body--glass {
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, var(--sl-color-gray-3));
+		stroke-width: 1.5;
+	}
+	.att__glass-hi {
+		stop-color: color-mix(in srgb, var(--ig-vx) 35%, transparent);
+	}
+	.att__glass-mid {
+		stop-color: color-mix(in srgb, var(--ig-vx) 8%, transparent);
+	}
+	.att__glass-lo {
+		stop-color: color-mix(in srgb, var(--ig-vx) 22%, transparent);
+	}
+	.att__grip {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 55%, transparent);
+	}
+	.att__lbl {
+		fill: var(--sl-color-gray-2);
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.att__arrow line {
+		stroke-width: 3.5;
+		stroke-linecap: round;
+	}
+	.att__arrow--net line,
+	.att__arrow--g line {
+		stroke-width: 5;
+	}
+	.att__arrow--el,
+	.att__arrow--net {
+		stroke: var(--att-f);
+		color: var(--att-f);
+	}
+	.att__arrow--rep {
+		stroke: color-mix(in srgb, var(--att-f) 55%, var(--sl-color-gray-3));
+		color: color-mix(in srgb, var(--att-f) 55%, var(--sl-color-gray-3));
+	}
+	.att__arrow--g {
+		stroke: var(--sl-color-gray-2);
+		color: var(--sl-color-gray-2);
+	}
+	.att__arrow path {
+		stroke: none;
+	}
+	.att__arrow--el path,
+	.att__arrow--net path {
+		fill: var(--att-f);
+	}
+	.att__arrow--rep path {
+		fill: color-mix(in srgb, var(--att-f) 55%, var(--sl-color-gray-3));
+	}
+	.att__arrow--g path {
+		fill: var(--sl-color-gray-2);
+	}
+	.att__cm {
+		fill: var(--sl-color-gray-2);
+	}
+	.att__tie {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.att__flbl {
+		font-size: 14px;
+		font-family: var(--__sl-font);
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.att__flbl--el,
+	.att__flbl--net {
+		fill: var(--att-f);
+		font-weight: 600;
+	}
+	.att__flbl--rep {
+		fill: color-mix(in srgb, var(--att-f) 55%, var(--sl-color-gray-2));
+	}
+	.att__flbl--g {
+		fill: var(--sl-color-gray-2);
+	}
+	.att__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin-top: 0.6rem;
+	}
+	.att__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.att__chip {
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		font-variant-numeric: tabular-nums;
+	}
+	.att__chip b {
+		color: var(--sl-color-white);
+	}
+	.att__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.att__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.att__live {
+		min-height: 4.5em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.att__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.att {
+			padding: 0.75rem;
+		}
+		.att__live {
+			min-height: 7em;
+		}
+		.att__flbl {
+			font-size: 16px;
+		}
+		.att__lbl {
+			font-size: 17px;
+		}
+	}
+</style>
+
+<script>
+	import { animator, chargeSymbol, el, fmt } from './util';
+
+	const PAPER = { x: 90, y: 230, w: 210, h: 60 };
+	const TOP = PAPER.y;
+	const BOT = PAPER.y + PAPER.h;
+	const MID = (TOP + BOT) / 2;
+	const MOL_X = [111, 153, 195, 237, 279];
+	const MOL_TURN = [62, -48, 30, -75, 18]; // degrees from the field when the charges are not shifted
+	const MR = 8; // charge glyph in a molecule
+	const ROD_R = 15; // half the rod's thickness
+	const RN_JUMP = 95; // the sum of the forces equals the weight when the near side is this far from the rod's axis
+	const RN_MIN = 88; // the rod stops here (gap to the paper 73 px)
+	const YC0 = 20; // the rod's axis at the start (just out of sight)
+	const YC1 = TOP - RN_MIN;
+	const FW = 22; // px: the weight's arrow; all forces share this scale
+	const G_PX = 900; // px/s²: free-fall acceleration in the picture
+	const X_PAIR = 195; // arrows of the two sides
+	const X_SUM = 322; // arrows of the sum and of the weight
+	const T_REST = 1;
+	const T_DOWN = 6.5;
+	const T_HOLD = 2.6; // after the piece reaches the rod
+	const T_FADE = 0.6;
+
+	type Kind = 'ebonite' | 'glass';
+	const ease = (k: number) => k * k * (3 - 2 * k);
+	const easeOut = (k: number) => 1 - (1 - k) ** 2.2;
+	const clamp = (v: number) => Math.min(1, Math.max(0, v));
+
+	// polarization p: grows with the field E ∝ 1/r (r to the middle of the piece) and saturates; 0 at the start
+	const E = (yc: number) => 1 / (MID - yc);
+	const E_JUMP = E(TOP - RN_JUMP);
+	const f = (e: number) => 1 - Math.exp(-1.2 * e * e);
+	const F0 = f(E(YC0) / E_JUMP);
+	const pol = (yc: number) => clamp((f(E(yc) / E_JUMP) - F0) / (1 - F0));
+	/** Forces in units of the weight: on the near side (attraction) and the far side (repulsion). */
+	const forces = (yc: number, lift: number) => {
+		const p = pol(yc + lift); // the field at the middle of the piece, which has risen by lift
+		const rn = TOP - lift - yc;
+		const rf = BOT - lift - yc;
+		return { p, near: (C * p) / rn, far: (C * p) / rf };
+	};
+	const C = 1 / (pol(TOP - RN_JUMP) * (1 / RN_JUMP - 1 / (RN_JUMP + PAPER.h)));
+
+		for (const root of document.querySelectorAll<HTMLElement>('[data-att]')) {
+		const svg = root.querySelector<SVGSVGElement>('[data-svg]')!;
+		const gScene = root.querySelector<SVGGElement>('[data-scene]')!;
+		const gPaper = root.querySelector<SVGGElement>('[data-paper]')!;
+		const gMols = root.querySelector<SVGGElement>('[data-mols]')!;
+		const gForces = root.querySelector<SVGGElement>('[data-forces]')!;
+		const gRod = root.querySelector<SVGGElement>('[data-rod]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const ratioEl = root.querySelector<HTMLElement>('[data-ratio]')!;
+		const again = root.querySelector<HTMLButtonElement>('[data-again]')!;
+		const kindBtns = root.querySelectorAll<HTMLButtonElement>('[data-kind]');
+		const arrows = Object.fromEntries(
+			[...root.querySelectorAll<SVGGElement>('[data-f]')].map((a) => [a.dataset.f!, a]),
+		) as Record<'near' | 'far' | 'net' | 'g', SVGGElement>;
+		const labels = Object.fromEntries(
+			[...root.querySelectorAll<SVGTextElement>('[data-l]')].map((a) => [a.dataset.l!, a]),
+		) as Record<'near' | 'far' | 'net' | 'g', SVGTextElement>;
+		const cm = root.querySelector<SVGCircleElement>('[data-cm]')!;
+		const tie = root.querySelector<SVGLineElement>('[data-tie]')!;
+
+		const glassFill = svg.querySelector('linearGradient')!.id;
+
+		let kind: Kind = 'ebonite';
+		let t = 0;
+		let lift = 0; // how far the piece has risen
+		let v = 0;
+		let state: 'table' | 'fly' | 'stuck' = 'table';
+		let stuckAt = 0;
+		let fAlpha = 1; // opacity of the force arrows
+		let said = '';
+
+		const mols = MOL_X.map(() => ({
+			oval: el('ellipse', { class: 'att__mol' }, gMols),
+			p: null as unknown as SVGGElement,
+			n: null as unknown as SVGGElement,
+		}));
+		mols.forEach((m) => {
+			m.n = chargeSymbol(-1, MR, gMols);
+			m.p = chargeSymbol(1, MR, gMols);
+		});
+
+		const drawRod = () => {
+			gRod.replaceChildren();
+			const glass = kind === 'glass';
+			el(
+				'rect',
+				{
+					class: `att__rod-body att__rod-body--${kind}`,
+					x: -40,
+					y: -ROD_R,
+					width: 440,
+					height: 2 * ROD_R,
+					rx: ROD_R,
+					...(glass ? { fill: `url(#${glassFill})` } : {}),
+				},
+				gRod,
+			);
+			el('rect', { class: 'att__grip', x: -40, y: -ROD_R, width: 90, height: 2 * ROD_R, rx: ROD_R }, gRod);
+			for (let k = 0; k < 9; k++) {
+				const c = chargeSymbol(glass ? 1 : -1, 6.5, gRod);
+				c.setAttribute('transform', `translate(${80 + k * 38} 0)`);
+			}
+			const lbl = el('text', { class: 'att__lbl', x: 10, y: -ROD_R - 8 }, gRod);
+			lbl.textContent = glass ? 'стекло' : 'эбонит';
+		};
+
+		const rodY = (t: number) => {
+			if (t < T_REST) return YC0;
+			return YC0 + (YC1 - YC0) * easeOut(clamp((t - T_REST) / T_DOWN));
+		};
+
+		/** A vertical arrow from (x, y0), len < 0 points up; the head is 9 px long. */
+		const arrow = (a: SVGGElement, x: number, y0: number, len: number, lbl: SVGTextElement, lx: number, ly: number) => {
+			const show = Math.abs(len) > 6;
+			a.style.display = show ? '' : 'none';
+			lbl.style.display = show ? '' : 'none';
+			if (!show) return;
+			const s = Math.sign(len);
+			const y1 = y0 + len;
+			const line = a.firstElementChild!;
+			line.setAttribute('x1', String(x));
+			line.setAttribute('x2', String(x));
+			line.setAttribute('y1', y0.toFixed(1));
+			line.setAttribute('y2', (y1 - s * 7).toFixed(1));
+			a.lastElementChild!.setAttribute('d', `M ${x - 6} ${(y1 - s * 10).toFixed(1)} L ${x} ${y1.toFixed(1)} L ${x + 6} ${(y1 - s * 10).toFixed(1)} Z`);
+			lbl.setAttribute('x', String(lx));
+			lbl.setAttribute('y', ly.toFixed(1));
+		};
+
+		const texts = {
+			ebonite: {
+				rest: 'Бумажка не заряжена: в каждой её молекуле положительный и отрицательный заряды равны.',
+				shift: 'Подносим отрицательно заряженную палочку. В каждой молекуле бумаги заряды чуть сдвигаются: «+» — ближе к палочке, «−» — дальше. Из молекул они не уходят.',
+				pull: 'Ближнюю сторону бумажки палочка притягивает, дальнюю — отталкивает, но слабее: дальняя сторона дальше от палочки. В сумме бумажку тянет вверх, к палочке.',
+				jump: 'Притяжение стало больше силы тяжести — и бумажка подскочила к палочке, хотя сама она не заряжена.',
+			},
+			glass: {
+				rest: 'Бумажка не заряжена: в каждой её молекуле положительный и отрицательный заряды равны.',
+				shift: 'Подносим положительно заряженную палочку. Теперь заряды в молекулах сдвигаются наоборот: «−» — ближе к палочке, «+» — дальше.',
+				pull: 'Ближняя сторона опять заряжена противоположно палочке и притягивается сильнее, чем отталкивается дальняя. В сумме бумажку снова тянет к палочке.',
+				jump: 'Притяжение стало больше силы тяжести — бумажка подскочила к палочке. Палочка с зарядом любого знака притягивает незаряженные тела.',
+			},
+		};
+		const say = (key: 'rest' | 'shift' | 'pull' | 'jump') => {
+			if (said === key) return;
+			said = key;
+			live.textContent = texts[kind][key];
+		};
+
+		const frame = (dt: number) => {
+			t += dt;
+			const yc = rodY(t);
+			// the piece: stays while the pull is weaker than its weight, then flies up and sticks to the rod
+			const F = forces(yc, lift);
+			const sum = F.near - F.far;
+			if (state === 'table' && sum > 1) state = 'fly';
+			if (state === 'fly') {
+				v += G_PX * (sum - 1) * dt;
+				lift += v * dt;
+				if (TOP - lift <= yc + ROD_R) {
+					state = 'stuck';
+					stuckAt = t;
+				}
+			}
+			if (state === 'stuck') lift = TOP - yc - ROD_R;
+			gRod.setAttribute('transform', `translate(0 ${yc.toFixed(1)})`);
+			gPaper.setAttribute('transform', `translate(0 ${(-lift).toFixed(1)})`);
+
+			// molecules: the «+» of each turns and shifts along the field (up to a negative rod, down from a positive one)
+			const up = kind === 'ebonite' ? -Math.PI / 2 : Math.PI / 2;
+			const p = F.p;
+			const half = MR * (0.85 + 0.5 * p);
+			mols.forEach((m, k) => {
+				const a = up + (1 - p) * ((MOL_TURN[k] * Math.PI) / 180);
+				const ux = Math.cos(a) * half;
+				const uy = Math.sin(a) * half;
+				const x = MOL_X[k];
+				m.p.setAttribute('transform', `translate(${(x + ux).toFixed(2)} ${(MID + uy).toFixed(2)})`);
+				m.n.setAttribute('transform', `translate(${(x - ux).toFixed(2)} ${(MID - uy).toFixed(2)})`);
+				m.oval.setAttribute('rx', (half + MR + 3).toFixed(2));
+				m.oval.setAttribute('ry', (MR + 4).toFixed(2));
+				m.oval.setAttribute('transform', `translate(${x} ${MID}) rotate(${((a * 180) / Math.PI).toFixed(1)})`);
+			});
+
+			// force arrows (one scale: the weight is FW px); they fade once the piece leaves the table
+			fAlpha = state === 'table' ? 1 : Math.max(0, fAlpha - dt / 0.3);
+			gForces.setAttribute('opacity', fAlpha.toFixed(2));
+			if (fAlpha > 0) {
+				const top = TOP - lift;
+				const bot = BOT - lift;
+				const lN = FW * F.near;
+				const lF = FW * F.far;
+				const lS = FW * Math.max(0, sum);
+				arrow(arrows.near, X_PAIR, top, -lN, labels.near, X_PAIR - 9, top - lN / 2 + 5);
+				arrow(arrows.far, X_PAIR, bot, lF, labels.far, X_PAIR - 9, bot + Math.max(lF / 2, 14) + 5);
+				arrow(arrows.net, X_SUM, MID - lift, -lS, labels.net, X_SUM + 9, MID - lift - Math.max(lS / 2, 10) + 5);
+				arrow(arrows.g, X_SUM, MID - lift, FW, labels.g, X_SUM + 9, MID - lift + FW / 2 + 9);
+				cm.setAttribute('cx', String(X_SUM));
+				cm.setAttribute('cy', (MID - lift).toFixed(1));
+				tie.setAttribute('x1', String(PAPER.x + PAPER.w));
+				tie.setAttribute('x2', String(X_SUM - 4));
+				tie.setAttribute('y1', (MID - lift).toFixed(1));
+				tie.setAttribute('y2', (MID - lift).toFixed(1));
+			}
+			ratioEl.textContent = state === 'table' ? `${fmt(Math.max(0, sum), 1)} силы тяжести` : 'больше силы тяжести';
+
+			if (state !== 'table') say('jump');
+			else if (sum > 0.35) say('pull');
+			else if (p > 0.05) say('shift');
+			else say('rest');
+
+			// after a pause at the rod: fade out and start again
+			if (state === 'stuck') {
+				const k = (t - stuckAt - T_HOLD) / T_FADE;
+				gScene.setAttribute('opacity', (1 - clamp(k)).toFixed(2));
+				if (k >= 1) start();
+			} else if (t < T_FADE * 0.6) gScene.setAttribute('opacity', clamp(t / (T_FADE * 0.6)).toFixed(2));
+			else gScene.setAttribute('opacity', '1');
+		};
+		const wake = animator(root, () => true, frame);
+
+		function start() {
+			t = 0;
+			lift = 0;
+			v = 0;
+			state = 'table';
+			fAlpha = 1;
+			said = '';
+		}
+		const restart = () => {
+			start();
+			drawRod();
+			frame(0);
+			wake();
+		};
+		again.addEventListener('click', restart);
+		kindBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				kind = b.dataset.kind as Kind;
+				kindBtns.forEach((o) => {
+					o.classList.toggle('is-on', o === b);
+					o.setAttribute('aria-checked', String(o === b));
+				});
+				restart();
+			}),
+		);
+		restart();
+	}
+</script>
