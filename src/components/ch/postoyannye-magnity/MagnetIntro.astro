@@ -6,47 +6,60 @@
  *   door (drawn larger and with a long soft shadow: it is closer to us). Near the steel door the magnet leaves the
  *   fingers and snaps to the door by itself (the force grows steeply as the gap closes), the hand goes away, the
  *   note swings a little on the magnet and stays.
- * Compass: a compass on a hiking map, seen from above; the map's north arrow points up. The needle is let go
- *   askew and settles towards the north with a damped swing. Then a hand turns the compass twice; the housing with
- *   its letters turns, the needle is dragged a little by the friction at the pivot and swings back to the north.
- *   The needle obeys θ'' = −ω²·sin θ − γ·θ' + c·(φ' − θ'), φ — the angle of the housing (precomputed once).
- *   Site-wide colors: the north end of the needle blue (--ig-vx), the south end red (--ig-vy).
+ * Aurora: a winter night in the north: snowy hills, spruces, a small village with lit windows, stars. A faint
+ *   quiet arc of the northern lights grows into bright curtains that wave, fold and flicker, then fades back.
+ *   True to the look of a real aurora (NASA, NPS «The Colors of the Aurora»): the oxygen green (557,7 nm,
+ *   ~100–200 km) is the lowest and brightest part with a sharp lower edge, the oxygen red (630 nm, above ~200 km)
+ *   forms the faint upper edge, at the brightest moment the lower edge turns purple-pink (nitrogen). The curtain
+ *   is made of rays along the magnetic field lines: nearly vertical, converging slightly towards one point high in
+ *   the sky (perspective). The near end of the curtain is big and high, the far end low and small, so its folds
+ *   bunch up there; a second, distant curtain glows low over the hills. Snow reflects a little of the green.
+ *   All motion is periodic in the scene time, so the end frame equals the start frame.
  * Plays only while visible; with reduced motion shows the final state.
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
 
 const gid = `mi-${Math.random().toString(36).slice(2, 8)}`;
-// compass: centre and radii
-const CX = 196;
-const CY = 124;
-const RIM = 92;
-const DIAL = 80;
-const ticks: string[] = [];
-for (let a = 0; a < 360; a += 10) {
-	const r = (a * Math.PI) / 180;
-	const r1 = a % 90 === 0 ? DIAL - 11 : a % 30 === 0 ? DIAL - 8 : DIAL - 5;
-	ticks.push(
-		`M${(Math.sin(r) * DIAL).toFixed(1)} ${(-Math.cos(r) * DIAL).toFixed(1)} L${(Math.sin(r) * r1).toFixed(1)} ${(-Math.cos(r) * r1).toFixed(1)}`,
+// aurora scene: stars (seeded, fixed), hills, spruces, a village
+let seed = 7;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+const starList = Array.from({ length: 48 }, (_, i) => ({
+	x: (rnd() * 360).toFixed(1),
+	y: (3 + rnd() * rnd() * 150).toFixed(1),
+	r: (0.45 + rnd() * rnd() * 0.95).toFixed(2),
+	o: (0.45 + rnd() * 0.55).toFixed(2),
+	tw: i % 4 === 0,
+}));
+const RIDGE = 'M0 166 C 26 152 50 154 74 162 S 118 148 148 157 S 196 170 226 161 S 286 146 316 157 S 348 162 360 156 V240 H0 Z';
+const FIELD = 'M0 192 C 50 180 104 183 158 189 S 262 176 360 184 V240 H0 Z';
+const HILL_L = 'M0 212 C 40 197 98 199 148 212 S 206 232 224 240 H0 Z';
+const HILL_R = 'M164 240 C 196 214 248 199 300 197 S 348 199 360 201 V240 Z';
+const spruce = (x: number, b: number, h: number) => {
+	const w = h * 0.44;
+	const p = (dx: number, f: number) => `${(x + dx).toFixed(1)} ${(b - h * f).toFixed(1)}`;
+	return (
+		`M${p(0, 1)} L${p(w * 0.42, 0.62)} L${p(w * 0.2, 0.62)} L${p(w * 0.72, 0.28)} L${p(w * 0.36, 0.28)} ` +
+		`L${p(w, 0.06)} L${p(w * 0.12, 0.06)} L${p(w * 0.12, 0)} L${p(-w * 0.12, 0)} L${p(-w * 0.12, 0.06)} ` +
+		`L${p(-w, 0.06)} L${p(-w * 0.36, 0.28)} L${p(-w * 0.72, 0.28)} L${p(-w * 0.2, 0.62)} L${p(-w * 0.42, 0.62)} Z`
 	);
-}
-const LETTERS = [
-	{ t: 'С', a: 0 },
-	{ t: 'В', a: 90 },
-	{ t: 'Ю', a: 180 },
-	{ t: 'З', a: 270 },
-].map((l) => {
-	const r = (l.a * Math.PI) / 180;
-	return { ...l, x: (Math.sin(r) * (DIAL - 22)).toFixed(1), y: (-Math.cos(r) * (DIAL - 22) + 6).toFixed(1) };
-});
-// hiking map: a few contour lines and a stream
-const contours = [
-	'M -10 196 C 40 170 70 214 120 198 S 210 214 250 236',
-	'M -10 214 C 50 192 90 236 150 222',
-	'M 250 20 C 290 6 330 40 370 26',
-	'M 262 -4 C 300 30 340 8 370 50',
-	'M 300 240 C 312 200 350 196 370 170',
-];
+};
+const trees = [
+	[16, 210, 42], [38, 205, 30], [58, 207, 24], [112, 205, 20], [128, 207, 15], [92, 186, 10], [101, 185, 8],
+	[208, 216, 22], [350, 204, 20], [190, 186, 9],
+].map(([x, b, h]) => spruce(x, b, h));
+// houses: left x, base y, width, wall height, windows [x, y] relative to the left bottom corner
+const houses = [
+	{ x: 234, b: 214, w: 22, h: 13, win: [[7, -8]] },
+	{ x: 262, b: 206, w: 30, h: 17, win: [[6, -11], [19, -11]], chimney: true },
+	{ x: 300, b: 203, w: 19, h: 12, win: [] as number[][] },
+	{ x: 324, b: 204, w: 25, h: 15, win: [[5, -10], [15, -10]] },
+	{ x: 150, b: 190, w: 12, h: 7, win: [[4, -5]] },
+].map((o) => ({
+	...o,
+	roof: `M${o.x - 3} ${o.b - o.h} L${o.x + o.w / 2} ${(o.b - o.h - o.w * 0.42).toFixed(1)} L${o.x + o.w + 3} ${o.b - o.h} Z`,
+	s: o.w < 15 ? 0.6 : 1,
+}));
 ---
 
 <IntroFrame data-mintro>
@@ -107,43 +120,83 @@ const contours = [
 		</div>
 	</div>
 
-	<div class="intro__card" data-scene="compass">
-		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Компас лежит на туристической карте, вид сверху. Стрелка компаса качается и останавливается, показывая синим концом на север, как стрелка «С» на карте. Рука дважды поворачивает компас, а стрелка снова и снова возвращается и показывает на север.">
-			<rect class="mi-map" x="0" y="0" width="360" height="240"></rect>
-			{contours.map((d) => <path class="mi-contour" d={d} />)}
-			<path class="mi-stream" d="M 330 240 C 300 200 330 170 296 130 S 330 60 300 -4"></path>
-			<path class="mi-path" d="M -4 120 C 30 110 50 140 90 128"></path>
-			<!-- the map's north arrow -->
-			<g transform="translate(40 34)">
-				<path class="mi-north" d="M0 -22 L9 10 L0 4 L-9 10 Z"></path>
-				<text class="mi-northtext" x="0" y="30" text-anchor="middle">С</text>
+	<div class="intro__card" data-scene="aurora">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Зимняя ночь на севере: заснеженные холмы, ели, маленький посёлок со светящимися окнами, звёзды. Над холмами разгорается полярное сияние: зелёные занавеси с красным верхним краем колышутся, становятся всё ярче, а потом гаснут.">
+			<defs>
+				<linearGradient id={`${gid}-sky`} x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="mi-sky0"></stop>
+					<stop offset="1" class="mi-sky1"></stop>
+				</linearGradient>
+				<!-- one ray of the curtain, from its lower edge (bottom) up -->
+				<linearGradient id={`${gid}-ray`} x1="0" y1="1" x2="0" y2="0" data-ray>
+					<stop offset="0" class="mi-hem" data-hem></stop>
+					<stop offset="0.05" class="mi-g" style="stop-opacity: 1"></stop>
+					<stop offset="0.22" class="mi-g" style="stop-opacity: 0.8"></stop>
+					<stop offset="0.46" class="mi-g" style="stop-opacity: 0.28"></stop>
+					<stop offset="0.64" class="mi-r" data-red></stop>
+					<stop offset="0.82" class="mi-r" data-red2></stop>
+					<stop offset="1" class="mi-r" style="stop-opacity: 0"></stop>
+				</linearGradient>
+				<radialGradient id={`${gid}-glow`} cx="0.5" cy="0.5" r="0.5">
+					<stop offset="0" class="mi-g" style="stop-opacity: 0.3"></stop>
+					<stop offset="1" class="mi-g" style="stop-opacity: 0"></stop>
+				</radialGradient>
+				<radialGradient id={`${gid}-win`} cx="0.5" cy="0.5" r="0.5">
+					<stop offset="0" class="mi-w" style="stop-opacity: 0.5"></stop>
+					<stop offset="1" class="mi-w" style="stop-opacity: 0"></stop>
+				</radialGradient>
+				<filter id={`${gid}-soft`} filterUnits="userSpaceOnUse" x="-20" y="-20" width="400" height="280">
+					<feGaussianBlur in="SourceGraphic" stdDeviation="7" result="wide"></feGaussianBlur>
+					<feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="fine"></feGaussianBlur>
+					<feMerge>
+						<feMergeNode in="wide"></feMergeNode>
+						<feMergeNode in="fine"></feMergeNode>
+					</feMerge>
+				</filter>
+				<filter id={`${gid}-haze`} x="-1" y="-1" width="3" height="3">
+					<feGaussianBlur stdDeviation="1.6"></feGaussianBlur>
+				</filter>
+			</defs>
+			<rect x="0" y="0" width="360" height="240" fill={`url(#${gid}-sky)`}></rect>
+			<g class="mi-stars">
+				{starList.map((s) => <circle cx={s.x} cy={s.y} r={s.r} opacity={s.o} data-tw={s.tw ? s.o : undefined} />)}
 			</g>
-			<!-- the compass: shadow, the turning housing with the hand, the needle -->
-			<circle class="mi-cshadow" cx={CX + 4} cy={CY + 6} r={RIM}></circle>
-			<g data-housing transform={`translate(${CX} ${CY})`}>
-				<circle class="mi-rim" r={RIM}></circle>
-				<circle class="mi-dial" r={DIAL}></circle>
-				<path class="mi-tick" d={ticks.join(' ')}></path>
-				<path class="mi-orient" d="M0 -46 L6 -36 H-6 Z"></path>
-				{LETTERS.map((l) => <text class={`mi-letter${l.t === 'С' ? ' mi-letter--n' : ''}`} x={l.x} y={l.y} text-anchor="middle" transform={`rotate(${l.a} ${l.x} ${(+l.y - 6).toFixed(1)})`}>{l.t}</text>)}
-				<!-- the hand holds the rim at the lower right and turns with it -->
-				<g transform="rotate(135)">
-					<path class="mi-sleeve" d="M-26 -150 L26 -150 L34 -240 L-34 -240 Z"></path>
-					<rect class="mi-skin" x="-24" y="-152" width="48" height="52" rx="16"></rect>
-					<rect class="mi-skin" x="-22" y="-112" width="15" height="34" rx="7.5"></rect>
-					<rect class="mi-skin" x="-4" y="-110" width="14" height="30" rx="7"></rect>
-					<rect class="mi-skin" x="12" y="-116" width="13" height="26" rx="6.5"></rect>
+			<ellipse cx="150" cy="122" rx="230" ry="78" fill={`url(#${gid}-glow)`} data-skyglow></ellipse>
+			<!-- the curtains: rays are added by the script -->
+			<g filter={`url(#${gid}-soft)`}>
+				<g data-far></g>
+				<g data-near></g>
+			</g>
+			<!-- the land -->
+			<path class="mi-ridge" d={RIDGE}></path>
+			<path class="mi-snow1" d={FIELD}></path>
+			<path class="mi-snow2" d={HILL_L}></path>
+			<path class="mi-snow2" d={HILL_R}></path>
+			<g class="mi-snowglow" data-snowglow>
+				<path d={RIDGE}></path>
+				<path d={FIELD}></path>
+				<path d={HILL_L}></path>
+				<path d={HILL_R}></path>
+			</g>
+			{trees.map((d) => <path class="mi-tree" d={d} />)}
+			<!-- the village -->
+			{houses.map((o) => (
+				<g>
+					{o.win.map(([wx, wy]) => <circle cx={o.x + wx + 2 * o.s} cy={o.b + wy + 2 * o.s} r={12 * o.s} fill={`url(#${gid}-win)`} />)}
+					{o.chimney && <rect class="mi-hwall" x={o.x + o.w - 9} y={o.b - o.h - 14} width="4" height="10" />}
+					<rect class="mi-hwall" x={o.x} y={o.b - o.h} width={o.w} height={o.h} />
+					<path class="mi-roof" d={o.roof} />
+					{o.win.map(([wx, wy]) => <rect class="mi-window" x={o.x + wx} y={o.b + wy} width={4 * o.s} height={4 * o.s} />)}
 				</g>
+			))}
+			<g class="mi-smoke" data-smoke filter={`url(#${gid}-haze)`}>
+				<circle cx="285" cy="174" r="2"></circle>
+				<circle cx="285" cy="174" r="2"></circle>
+				<circle cx="285" cy="174" r="2"></circle>
 			</g>
-			<g data-needle transform={`translate(${CX} ${CY})`}>
-				<path class="mi-needle-n" d="M0 -50 L7 0 H-7 Z"></path>
-				<path class="mi-needle-s" d="M0 50 L7 0 H-7 Z"></path>
-				<circle class="mi-pivot" r="5"></circle>
-			</g>
-			<circle class="mi-glass" cx={CX} cy={CY} r={DIAL}></circle>
 		</svg>
 		<div class="intro__foot">
-			<p>Как ни поворачивай компас, его стрелка покачается и <More term="снова покажет на север">Стрелка компаса — маленький магнит, а Земля — огромный магнит. Магнитное поле Земли поворачивает стрелку, и её синий, северный конец показывает примерно на север. Подробнее — в разделе <a href="#магнитное-поле-земли">«Магнитное поле Земли»</a>.</More>.</p>
+			<p>Ночью на севере в небе разгорается полярное сияние: колышутся зелёные занавеси с красным верхним краем. Это <More term="светится сам воздух высоко над Землёй">От Солнца к Земле прилетают быстрые заряженные частицы. Магнитное поле Земли направляет их к полярным областям, и на высоте примерно 100–300 км частицы налетают на газы воздуха и заставляют их светиться. Кислород светится зелёным (ниже) и красным (выше), азот — синим и фиолетовым. Частицы летят вдоль магнитного поля, поэтому сияние состоит из почти вертикальных лучей. Подробнее — в разделе <a href="#магнитные-бури-и-полярные-сияния">«Магнитные бури и полярные сияния»</a>.</More>.</p>
 			<button type="button" class="intro__again" data-again>Повторить</button>
 		</div>
 	</div>
@@ -159,7 +212,6 @@ const contours = [
 		--mi-skin: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-4));
 		--mi-mag: color-mix(in oklab, var(--sl-color-green) 70%, var(--sl-color-gray-5));
 		--mi-mag-hi: color-mix(in oklab, var(--sl-color-green) 70%, var(--sl-color-white));
-		--mi-map: color-mix(in srgb, var(--ig-v) 9%, var(--sl-color-gray-6));
 		--mi-shadow: var(--sl-color-black);
 	}
 	:root[data-theme='light'] [data-mintro] {
@@ -171,7 +223,6 @@ const contours = [
 		--mi-skin: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-5));
 		--mi-mag: color-mix(in oklab, var(--sl-color-green) 85%, var(--sl-color-gray-3));
 		--mi-mag-hi: color-mix(in oklab, var(--sl-color-green) 45%, var(--sl-color-gray-7, #fff));
-		--mi-map: color-mix(in srgb, var(--ig-v) 10%, var(--sl-color-gray-7, #fff));
 		--mi-shadow: var(--sl-color-gray-3);
 	}
 	.mi-wall {
@@ -263,97 +314,89 @@ const contours = [
 		stroke: var(--sl-color-gray-3);
 		stroke-width: 1;
 	}
-	/* compass */
-	.mi-map {
-		fill: var(--mi-map);
+	/* aurora: a night inside the frame in both themes (the light theme's grays are dark from gray-1 to gray-3) */
+	[data-mintro] [data-scene='aurora'] {
+		--mn-sky0: color-mix(in srgb, var(--ig-vx) 7%, var(--sl-color-black));
+		--mn-sky1: color-mix(in srgb, var(--ig-vx) 16%, var(--sl-color-gray-6));
+		--mn-ridge: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-gray-5));
+		--mn-snow1: color-mix(in srgb, var(--ig-vx) 12%, color-mix(in srgb, var(--sl-color-gray-4) 35%, var(--sl-color-gray-5)));
+		--mn-snow2: color-mix(in srgb, var(--ig-vx) 10%, color-mix(in srgb, var(--sl-color-gray-4) 72%, var(--sl-color-gray-5)));
+		--mn-tree: color-mix(in srgb, var(--sl-color-black) 70%, var(--sl-color-gray-6));
+		--mn-wall: color-mix(in srgb, var(--ig-v) 12%, var(--sl-color-gray-6));
+		--mn-roof: color-mix(in srgb, var(--ig-vx) 10%, var(--sl-color-gray-3));
+		--mn-star: var(--sl-color-white);
+		--mn-smoke: var(--sl-color-gray-3);
+		--mn-win: var(--ig-v);
+		--mn-green: color-mix(in oklab, color-mix(in oklab, var(--sl-color-green) 82%, var(--ig-vx)) 82%, var(--sl-color-green-high));
+		--mn-red: color-mix(in oklab, var(--sl-color-red) 72%, var(--sl-color-purple));
+		--mn-hem: color-mix(in oklab, var(--sl-color-purple) 55%, var(--sl-color-red));
 	}
-	.mi-contour {
-		fill: none;
-		stroke: color-mix(in oklab, var(--ig-v) 45%, transparent);
-		stroke-width: 1.2;
+	:root[data-theme='light'] [data-mintro] [data-scene='aurora'] {
+		--mn-sky0: color-mix(in srgb, var(--ig-vx) 7%, var(--sl-color-white));
+		--mn-sky1: color-mix(in srgb, var(--ig-vx) 16%, var(--sl-color-gray-1));
+		--mn-ridge: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-gray-2));
+		--mn-snow1: color-mix(in srgb, var(--ig-vx) 12%, color-mix(in srgb, var(--sl-color-gray-3) 35%, var(--sl-color-gray-2)));
+		--mn-snow2: color-mix(in srgb, var(--ig-vx) 10%, color-mix(in srgb, var(--sl-color-gray-3) 72%, var(--sl-color-gray-2)));
+		--mn-tree: color-mix(in srgb, var(--sl-color-white) 70%, var(--sl-color-gray-1));
+		--mn-wall: color-mix(in srgb, var(--ig-v) 12%, var(--sl-color-gray-1));
+		--mn-roof: color-mix(in srgb, var(--ig-vx) 10%, var(--sl-color-gray-4));
+		--mn-star: var(--sl-color-black);
+		--mn-smoke: var(--sl-color-gray-4);
+		--mn-win: color-mix(in oklab, var(--sl-color-orange) 70%, var(--sl-color-orange-low));
+		--mn-green: color-mix(in oklab, color-mix(in oklab, var(--sl-color-green) 82%, var(--ig-vx)) 55%, var(--sl-color-green-low));
+		--mn-red: color-mix(in oklab, var(--sl-color-red) 72%, var(--sl-color-purple));
+		--mn-hem: color-mix(in oklab, var(--sl-color-purple) 55%, var(--sl-color-red));
 	}
-	.mi-stream {
-		fill: none;
-		stroke: color-mix(in srgb, var(--ig-vx) 45%, transparent);
-		stroke-width: 3;
-		stroke-linecap: round;
+	.mi-sky0 {
+		stop-color: var(--mn-sky0);
 	}
-	.mi-path {
-		fill: none;
-		stroke: var(--sl-color-gray-3);
-		stroke-width: 1.6;
-		stroke-dasharray: 5 4;
+	.mi-sky1 {
+		stop-color: var(--mn-sky1);
 	}
-	.mi-north {
-		fill: var(--sl-color-gray-2);
+	.mi-g {
+		stop-color: var(--mn-green);
 	}
-	:root[data-theme='light'] .mi-north {
-		fill: var(--sl-color-gray-3);
+	.mi-r {
+		stop-color: var(--mn-red);
 	}
-	.mi-northtext {
-		font-size: 15px;
-		font-weight: 700;
-		fill: var(--sl-color-gray-2);
+	.mi-hem {
+		stop-color: var(--mn-hem);
+		stop-opacity: 0;
 	}
-	:root[data-theme='light'] .mi-northtext {
-		fill: var(--sl-color-gray-3);
+	.mi-w {
+		stop-color: var(--mn-win);
 	}
-	.mi-cshadow {
-		fill: var(--mi-shadow);
-		opacity: 0.3;
+	.mi-stars circle {
+		fill: var(--mn-star);
 	}
-	.mi-rim {
-		fill: var(--sl-color-gray-4);
-		stroke: var(--sl-color-gray-3);
-		stroke-width: 1.5;
+	.mi-ridge {
+		fill: var(--mn-ridge);
 	}
-	.mi-dial {
-		fill: var(--sl-color-gray-6);
-		stroke: var(--sl-color-gray-3);
-		stroke-width: 1;
+	.mi-snow1 {
+		fill: var(--mn-snow1);
 	}
-	:root[data-theme='light'] .mi-rim {
-		fill: var(--sl-color-gray-5);
+	.mi-snow2 {
+		fill: var(--mn-snow2);
 	}
-	:root[data-theme='light'] .mi-dial {
-		fill: var(--sl-color-gray-7, #fff);
+	.mi-snowglow {
+		fill: var(--mn-green);
+		opacity: 0;
 	}
-	.mi-tick {
-		stroke: var(--sl-color-gray-3);
-		stroke-width: 1.3;
+	.mi-tree {
+		fill: var(--mn-tree);
 	}
-	.mi-orient {
-		fill: color-mix(in srgb, var(--sl-color-gray-3) 50%, transparent);
+	.mi-hwall {
+		fill: var(--mn-wall);
 	}
-	.mi-letter {
-		font-size: 16px;
-		font-weight: 700;
-		fill: var(--sl-color-gray-2);
+	.mi-roof {
+		fill: var(--mn-roof);
 	}
-	:root[data-theme='light'] .mi-letter {
-		fill: var(--sl-color-gray-3);
+	.mi-window {
+		fill: var(--mn-win);
 	}
-	.mi-letter--n {
-		fill: var(--ig-vx);
-	}
-	:root[data-theme='light'] .mi-letter--n {
-		fill: var(--ig-vx);
-	}
-	.mi-needle-n {
-		fill: var(--ig-vx);
-	}
-	.mi-needle-s {
-		fill: var(--ig-vy);
-	}
-	.mi-pivot {
-		fill: var(--sl-color-gray-3);
-		stroke: var(--sl-color-gray-2);
-		stroke-width: 1;
-	}
-	.mi-glass {
-		fill: none;
-		stroke: color-mix(in srgb, var(--sl-color-white) 25%, transparent);
-		stroke-width: 1;
+	.mi-smoke circle {
+		fill: var(--mn-smoke);
+		opacity: 0;
 	}
 </style>
 
@@ -413,47 +456,103 @@ const contours = [
 			});
 		}
 
-		// Compass: the needle is let go askew and settles; the hand turns the compass at 2,3 s and at 4,3 s; 7,4 s.
+		// Aurora: a faint quiet arc (start = end) brightens into waving curtains and fades back; 11 s.
 		{
-			const card = root.querySelector<HTMLElement>('[data-scene="compass"]')!;
+			const card = root.querySelector<HTMLElement>('[data-scene="aurora"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
-			const housing = $<SVGGElement>('[data-housing]');
-			const needle = $<SVGGElement>('[data-needle]');
-			const CX = Number(housing.getAttribute('transform')!.match(/translate\(([\d.]+)/)![1]);
-			const CY = Number(housing.getAttribute('transform')!.match(/translate\([\d.]+ ([\d.]+)/)![1]);
-			const RUN = 7.4;
-			const ease = (a: number, b: number, t: number) => {
-				const u = clamp((t - a) / (b - a));
-				return u * u * (3 - 2 * u);
+			const NS = 'http://www.w3.org/2000/svg';
+			const fill = `url(#${$<SVGLinearGradientElement>('[data-ray]').id})`;
+			const hem = $<SVGStopElement>('[data-hem]');
+			const red = $<SVGStopElement>('[data-red]');
+			const red2 = $<SVGStopElement>('[data-red2]');
+			const skyglow = $<SVGEllipseElement>('[data-skyglow]');
+			const snowglow = $<SVGGElement>('[data-snowglow]');
+			const smoke = [...card.querySelectorAll<SVGCircleElement>('[data-smoke] circle')];
+			const twinkle = [...card.querySelectorAll<SVGCircleElement>('[data-tw]')].map((el, i) => ({
+				el,
+				o: Number(el.dataset.tw),
+				w: 1.3 + (i % 5) * 0.45,
+				ph: i * 2.1,
+			}));
+			let seed = 11;
+			const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+			// each ray flickers with a whole number of cycles per run, so the loop has no seam
+			const rays = (g: SVGGElement, n: number) =>
+				Array.from({ length: n }, (_, i) => {
+					const el = document.createElementNS(NS, 'rect');
+					el.setAttribute('fill', fill);
+					g.appendChild(el);
+					return { el, u: clamp((i + 0.7 * (rnd() - 0.5)) / (n - 1)), f: 3 + Math.floor(rnd() * 6), ph: rnd() * 6.283, g: 2 + Math.floor(rnd() * 4), ps: rnd() * 6.283 };
+				});
+			const near = rays($<SVGGElement>('[data-near]'), 160);
+			const far = rays($<SVGGElement>('[data-far]'), 80);
+			const TAU = 2 * Math.PI;
+			const S0 = 1 - Math.exp(-1.6);
+			// a ray at (x, base): rect from the base up, leaning towards a point high above the sky (the rays are
+			// parallel to the magnetic field; in perspective they converge)
+			const put = (el: SVGRectElement, x: number, base: number, h: number, w: number, op: number) => {
+				const lean = (Math.atan((150 - x) / (base + 900)) * 180) / Math.PI;
+				el.setAttribute('transform', `translate(${f1(x)} ${f1(base)}) rotate(${f1(lean)})`);
+				el.setAttribute('x', f2(-w / 2));
+				el.setAttribute('y', f1(-h));
+				el.setAttribute('width', f2(w));
+				el.setAttribute('height', f1(h));
+				el.setAttribute('opacity', f2(op));
 			};
-			// the housing angle, degrees (clockwise): +40 → −55 → 0
-			const phi = (t: number) => 40 - 95 * ease(2.3, 3.0, t) + 55 * ease(4.4, 4.9, t);
-			// needle: θ'' = −ω²·sin θ − γ·θ' + c·(φ' − θ'); period ≈ 1,2 s, damped in a few seconds
-			const W2 = (2 * Math.PI / 1.2) ** 2;
-			const G = 0.7;
-			const C = 1.5;
-			const N = 600;
-			const theta = new Float32Array(N + 1);
-			{
-				const dt = 1 / 600;
-				let th = (75 * Math.PI) / 180;
-				let w = 0;
-				let k = 0;
-				const per = RUN / N;
-				for (let t = 0; t <= RUN + 1e-9; t += dt) {
-					while (k <= N && k * per <= t + 1e-9) theta[k++] = th;
-					const dphi = ((phi(t + dt) - phi(t)) / dt) * (Math.PI / 180);
-					const a = -W2 * Math.sin(th) - G * w + C * (dphi - w);
-					w += a * dt;
-					th += w * dt;
+			scene(card, 11, (x) => {
+				const ph = TAU * x;
+				const act = smooth(0.06, 0.42, x) * (1 - smooth(0.64, 0.96, x));
+				const peak = smooth(0.34, 0.48, x) * (1 - smooth(0.58, 0.74, x));
+				const B = 0.16 + 0.84 * act;
+				hem.style.stopOpacity = f2(0.8 * peak);
+				red.style.stopOpacity = f2(0.3 + 0.22 * act);
+				red2.style.stopOpacity = f2(0.16 + 0.16 * act);
+				skyglow.setAttribute('opacity', f2(0.08 + 0.72 * act));
+				snowglow.style.opacity = f2(0.03 + 0.13 * act);
+				// the near curtain: big and high at the left, receding to the right; folds travel along it
+				const drift = 10 * Math.sin(ph);
+				const fold = 8 + 22 * act;
+				for (const r of near) {
+					const u = r.u;
+					const p = 1 - 0.45 * u;
+					const X =
+						-40 +
+						(420 * (1 - Math.exp(-1.6 * u))) / S0 +
+						drift * p +
+						fold * p * Math.sin(TAU * 3.2 * u - ph + 0.4) +
+						0.35 * fold * p * Math.sin(TAU * 7 * u + 2 * ph);
+					// where the curtain folds away from us its lower edge sinks and the rays get shorter
+					const deep = (fold / 30) * Math.cos(TAU * 3.2 * u - ph + 0.4);
+					const base = 110 + 40 * u + 9 * p * deep + 3 * p * Math.sin(TAU * 2.3 * u - ph);
+					const h = 90 * (1 - 0.5 * u) * (1 - 0.12 * deep) * (0.55 + 0.45 * act) * (0.82 + 0.18 * Math.sin(r.g * ph + r.ps));
+					const flick = 0.5 + 0.5 * Math.sin(r.f * ph + r.ph);
+					const pulse = 0.5 + 0.5 * Math.sin(TAU * 4 * u - 2 * ph);
+					const env = smooth(0, 0.06, u) * (1 - smooth(0.9, 1, u));
+					const op = B * env * (0.35 + 0.35 * flick * (0.4 + 0.6 * act) + 0.3 * pulse * act);
+					put(r.el, X, base, h, 5.5 * (1 - 0.55 * u), op);
 				}
-				while (k <= N) theta[k++] = th;
-			}
-			scene(card, RUN, (x) => {
-				const t = x * RUN;
-				housing.setAttribute('transform', `translate(${CX} ${CY}) rotate(${f1(phi(t))})`);
-				const th = theta[Math.min(N, Math.round(x * N))];
-				needle.setAttribute('transform', `translate(${CX} ${CY}) rotate(${f1((th * 180) / Math.PI)})`);
+				// the far curtain: low over the hills, fainter, a little behind in time
+				const actF = smooth(0.18, 0.5, x) * (1 - smooth(0.7, 0.98, x));
+				for (const r of far) {
+					const u = r.u;
+					const X = -10 + 380 * u + 6 * Math.sin(TAU * 2.5 * u + ph);
+					const base = 172 + 3 * Math.sin(TAU * 1.7 * u - ph);
+					const h = 34 * (0.6 + 0.4 * actF) * (0.8 + 0.2 * Math.sin(r.g * ph + r.ps));
+					const flick = 0.5 + 0.5 * Math.sin(r.f * ph + r.ph);
+					const patch = 0.5 + 0.5 * Math.sin(TAU * 1.4 * u + ph + 1);
+					put(r.el, X, base, h, 2.6, (0.06 + 0.5 * actF) * (0.25 + 0.75 * patch) * (0.5 + 0.5 * flick));
+				}
+				// chimney smoke rises twice per run
+				smoke.forEach((c, k) => {
+					const q = (2 * x + k / 3) % 1;
+					c.setAttribute('cx', f1(285 + 7 * q + 1.5 * Math.sin(TAU * q)));
+					c.setAttribute('cy', f1(174 - 26 * q));
+					c.setAttribute('r', f1(2.5 + 6 * q));
+					c.style.opacity = f2(0.22 * Math.sin(Math.PI * q));
+				});
+				// a few stars twinkle (wall-clock time: they keep twinkling during the pause between runs)
+				const now = performance.now() / 1000;
+				for (const s of twinkle) s.el.setAttribute('opacity', f2(s.o * (0.65 + 0.35 * Math.sin(s.w * now + s.ph))));
 			});
 		}
 	}
