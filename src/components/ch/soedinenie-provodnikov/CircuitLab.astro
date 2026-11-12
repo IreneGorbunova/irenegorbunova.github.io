@@ -5,11 +5,18 @@
  * moves the lamps and rewires them. Every lamp shows its voltage and current; its glow grows with
  * the power U·I (honest: equal power, equal glow). A lamp can be unscrewed by a click.
  * Free electrons (dots) drift against the current with a speed proportional to the current in that wire.
+ * Prop `mode` fixes the connection (series | parallel | mixed): the switch is hidden, so one chapter section
+ * can have its own experiment; without it the pupil switches the connection.
  */
 import { L, lampPos } from './layout';
 
+interface Props {
+	mode?: 'series' | 'parallel' | 'mixed';
+}
+const { mode: fixedMode } = Astro.props;
+
 const uid = `spl-${Math.random().toString(36).slice(2, 8)}`;
-const pos0 = lampPos('series', 3);
+const pos0 = lampPos(fixedMode ?? 'series', 3);
 const cross = (r: number) => {
 	const c = (r * Math.SQRT1_2).toFixed(2);
 	return `M -${c} -${c} L ${c} ${c} M ${c} -${c} L -${c} ${c}`;
@@ -17,18 +24,24 @@ const cross = (r: number) => {
 const R0 = [12, 12, 12];
 ---
 
-<figure class="spl not-content" data-spl>
-	<div class="spl__bar">
-		<div class="spl__seg" role="radiogroup" aria-label="Способ соединения ламп">
-			<button type="button" role="radio" aria-checked="true" class="is-on" data-mode="series">Последовательно</button>
-			<button type="button" role="radio" aria-checked="false" data-mode="parallel">Параллельно</button>
-			<button type="button" role="radio" aria-checked="false" data-mode="mixed">Смешанно</button>
-		</div>
-		<div class="spl__seg spl__seg--n" role="radiogroup" aria-label="Число ламп">
-			<button type="button" role="radio" aria-checked="false" data-n="2">2 лампы</button>
-			<button type="button" role="radio" aria-checked="true" class="is-on" data-n="3">3 лампы</button>
-		</div>
-	</div>
+<figure class="spl not-content" data-spl data-fixed-mode={fixedMode}>
+	{
+		fixedMode !== 'mixed' && (
+			<div class="spl__bar">
+				{!fixedMode && (
+					<div class="spl__seg" role="radiogroup" aria-label="Способ соединения ламп">
+						<button type="button" role="radio" aria-checked="true" class="is-on" data-mode="series">Последовательно</button>
+						<button type="button" role="radio" aria-checked="false" data-mode="parallel">Параллельно</button>
+						<button type="button" role="radio" aria-checked="false" data-mode="mixed">Смешанно</button>
+					</div>
+				)}
+				<div class="spl__seg spl__seg--n" role="radiogroup" aria-label="Число ламп">
+					<button type="button" role="radio" aria-checked="false" data-n="2">2 лампы</button>
+					<button type="button" role="radio" aria-checked="true" class="is-on" data-n="3">3 лампы</button>
+				</div>
+			</div>
+		)
+	}
 
 	<svg
 		class="spl__circuit"
@@ -713,7 +726,8 @@ const R0 = [12, 12, 12];
 		}));
 
 		// ---------- state ----------
-		let mode: Mode = 'series';
+		const fixed = (root.dataset.fixedMode || '') as Mode | '';
+		let mode: Mode = fixed || 'series';
 		let n = 3;
 		const on = [true, true, true];
 		let rebuilding = false;
@@ -723,7 +737,7 @@ const R0 = [12, 12, 12];
 		const glow = [0, 0, 0]; // shown glow, follows the target smoothly
 
 		// lamp positions: shown (x, y, alpha) and the morph between two layouts
-		const pos = lampPos('series', 3).map((p) => ({ x: p[0], y: p[1], a: 1 }));
+		const pos = lampPos(mode, 3).map((p) => ({ x: p[0], y: p[1], a: 1 }));
 		let from = pos.map((p) => ({ ...p }));
 		let to = pos.map((p) => ({ ...p }));
 		let morphT = 1;
@@ -1119,7 +1133,9 @@ const R0 = [12, 12, 12];
 		buildRegion(false);
 		syncButtons();
 		recompute();
-		live.textContent = 'Переключайте способ соединения, меняйте напряжение и сопротивления, выкручивайте лампы.';
+		live.textContent = fixed
+			? `${modeText[mode]} Меняйте напряжение и сопротивления, выкручивайте лампы.`
+			: 'Переключайте способ соединения, меняйте напряжение и сопротивления, выкручивайте лампы.';
 		drawDots(0, 0);
 	}
 </script>
