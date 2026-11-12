@@ -52,11 +52,29 @@ export const order = (keys, states, day) => {
 };
 
 /** @returns {Record<string, { box: number, due: string }>} */
+/**
+ * Cards that moved to another chapter keep their progress: the state saved under the old key is read under the new one.
+ * 12 Nov 2026: «Электрический ток» was split, and these cards went to «Сила тока. Напряжение. Сопротивление».
+ */
+const MOVED = Object.fromEntries(
+	['sila-toka', 'ampermetr', 'napryazhenie', 'voltmetr', 'elektricheskoe-soprotivlenie', 'soprotivlenie', 'udelnoe-soprotivlenie', 'rezistor', 'reostat'].map((id) => [
+		`uchebnik/8-klass/elektricheskie-yavleniya/elektricheskiy-tok/${id}`,
+		`uchebnik/8-klass/elektricheskie-yavleniya/sila-toka-napryazhenie-soprotivlenie/${id}`,
+	]),
+);
+
 export const load = () => {
 	try {
 		const raw = localStorage.getItem(KEY);
 		const data = raw ? JSON.parse(raw) : {};
-		return data && typeof data === 'object' ? data : {};
+		if (!data || typeof data !== 'object') return {};
+		for (const [from, to] of Object.entries(MOVED)) {
+			if (from in data) {
+				if (!(to in data)) data[to] = data[from];
+				delete data[from];
+			}
+		}
+		return data;
 	} catch {
 		return {};
 	}
