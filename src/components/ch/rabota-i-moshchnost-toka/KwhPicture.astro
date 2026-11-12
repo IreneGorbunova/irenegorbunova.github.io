@@ -1,0 +1,512 @@
+---
+/**
+ * Picture to «Мощность»: what one kilowatt-hour is enough for. Five appliances with typical rounded powers
+ * (10, 100, 1000, 1500, 2000 Вт), each with its own «tank» of the same 1 кВт·ч = 3 600 000 Дж. «Пуск» runs one
+ * clock for all of them; each tank drains at the rate P (Дж each second), so it is empty after t = A/P:
+ * 100 ч, 10 ч, 1 ч, 40 мин, 30 мин. The clock is sped up in three stages, each said on screen:
+ * 1 с = 10 мин (×600) until 1 ч, 1 с = 2 ч (×7200) until 10 ч, 1 с = 20 ч (×72 000) until 100 ч — 15 s in all.
+ * Within a stage all levels fall linearly, at rates in the ratio of the powers. Before the start and at the end
+ * every column says its time. A tap on an appliance shows t = A/P for it. Runs only while on screen.
+ */
+import { ICONS, ICON_CSS } from './rm';
+
+// A one-ring electric hotplate and a canister vacuum cleaner, in the style of ICONS (viewBox 0 0 64 64).
+const PLATE = `
+	<g class="on-waves"><path d="M24 24 q-3 -4 0 -8" /><path d="M32 22 q-3 -4 0 -8" /><path d="M40 24 q-3 -4 0 -8" /></g>
+	<path class="rmi-body" d="M8 38 h48 l-3 16 h-42 z" />
+	<ellipse class="rmi-body" cx="32" cy="38" rx="24" ry="7" />
+	<ellipse class="rmi-sole" cx="32" cy="37" rx="17" ry="5" />
+	<ellipse class="kwhp-coil on-coil" cx="32" cy="37" rx="13" ry="3.6" />
+	<ellipse class="kwhp-coil on-coil" cx="32" cy="37" rx="8" ry="2.1" />
+	<path class="rmi-base" d="M12 54 h6 v4 h-6 z M46 54 h6 v4 h-6 z" />
+	<circle class="rmi-line" cx="44" cy="47" r="3" />
+	<circle class="rmi-led on-red" cx="20" cy="47" r="1.8" />`;
+const VAC = `
+	<g class="on-dust"><circle cx="28" cy="57" r="1.3" /><circle cx="33" cy="56" r="1" /><circle cx="38" cy="57.5" r="1.2" /></g>
+	<path class="rmi-line kwhp-hose" d="M34 38 q-12 -2 -14 -14 q-1 -6 4 -8" />
+	<path class="rmi-line kwhp-wand" d="M24 16 l-12 38" />
+	<path class="rmi-sole" d="M2 54 h20 v5 h-20 z" />
+	<path class="rmi-body" d="M32 42 q0 -14 14 -14 h3 q10 0 10 14 v6 a4 4 0 0 1 -4 4 h-19 a4 4 0 0 1 -4 -4 z" />
+	<circle class="rmi-base" cx="38" cy="53" r="4.5" />
+	<circle class="rmi-base" cx="54" cy="53" r="4.5" />
+	<circle class="rmi-led on-red" cx="52" cy="38" r="1.8" />`;
+
+const DEVS = [
+	{ k: 'led', name: 'Светодиодная лампа', short: 'Лампа', P: 10, icon: ICONS.led },
+	{ k: 'tv', name: 'Телевизор', short: 'Телевизор', P: 100, icon: ICONS.tv },
+	{ k: 'plate', name: 'Электроплитка', short: 'Плитка', P: 1000, icon: PLATE },
+	{ k: 'vac', name: 'Пылесос', short: 'Пылесос', P: 1500, icon: VAC },
+	{ k: 'kettle', name: 'Электрочайник', short: 'Чайник', P: 2000, icon: ICONS.kettle },
+];
+const A = 3600000; // Дж = 1 кВт·ч
+/** «30 мин», «1 ч», «2 ч 5 мин», «100 ч» */
+const dur = (s: number) => {
+	const min = Math.floor(s / 60 + 1e-6);
+	if (min < 60) return `${min} мин`;
+	const h = Math.floor(min / 60);
+	const m = min % 60;
+	return h >= 10 || m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+};
+---
+
+<figure class="kwhp not-content" data-kwhp>
+	<div class="kwhp__top">
+		<p class="kwhp__stock">У каждого прибора запас <b class="nw">1 кВт·ч</b> = <b class="nw">3 600 000 Дж</b></p>
+		<p class="kwhp__clock">
+			Прошло: <b data-clock>0 мин</b>
+			<span class="kwhp__speed" data-speed>часы стоят</span>
+		</p>
+	</div>
+
+	<div class="kwhp__grid">
+		{
+			DEVS.map((d) => (
+				<button type="button" class="kwhp__dev" data-dev={d.k} data-p={d.P} aria-pressed={d.k === 'kettle' ? 'true' : 'false'} aria-label={`${d.name}, ${d.P} Вт: запаса 1 кВт·ч хватает на ${dur(A / d.P)}`}>
+					<svg class="kwhp__tank" viewBox="0 0 40 92" aria-hidden="true">
+						<rect class="kwhp__glass" x="4" y="4" width="32" height="84" rx="7" />
+						<rect class="kwhp__liquid" x="7.5" y="7.5" width="25" height="77" rx="4" data-liquid />
+						<path class="kwhp__tick" d="M4 25.25 h6 M4 46 h8 M4 66.75 h6" />
+					</svg>
+					<span class="kwhp__wire" aria-hidden="true" />
+					<span class="kwhp__icon">
+						<svg class="rmi" viewBox="0 0 64 64" aria-hidden="true" set:html={d.icon} />
+					</span>
+					<span class="kwhp__name">
+						<span class="kwhp__full">{d.name}</span>
+						<span class="kwhp__short">{d.short}</span>
+					</span>
+					<span class="kwhp__p">{d.P} Вт</span>
+					<span class="kwhp__state" data-state>хватит на</span>
+					<b class="kwhp__t" data-t data-final={dur(A / d.P)}>{dur(A / d.P)}</b>
+				</button>
+			))
+		}
+	</div>
+
+	<div class="kwhp__buttons">
+		<button type="button" class="kwhp__btn kwhp__btn--primary" data-play>Пуск</button>
+		<button type="button" class="kwhp__btn" data-reset>Сначала</button>
+	</div>
+
+	<div class="kwhp__calc">
+		<p class="kwhp__calcp" data-calcp></p>
+		<div class="kwhp__math" data-math></div>
+	</div>
+
+	<figcaption class="kwhp__legend">
+		Запас энергии у всех одинаковый, а тратят его приборы с разной быстротой. Чайник за каждую секунду расходует
+		2000 Дж, а светодиодная лампа — только 10 Дж, поэтому её запаса хватает в 200 раз дольше. Это и есть мощность: работа
+		тока за 1 с, <i>P</i> = <i>A</i>/<i>t</i>. Мощности — типичные округлённые значения. Часы ускорены и идут
+		всё быстрее: сначала 1 с — 10 мин, потом 1 с — 2 ч, в конце 1 с — 20 ч.
+	</figcaption>
+</figure>
+
+<style is:global set:html={ICON_CSS}></style>
+
+<style is:global>
+	.kwhp {
+		--kwhp-fuel: var(--ig-v);
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-gray-3);
+		line-height: 1.5;
+	}
+	.kwhp i {
+		font-family: var(--ig-font-math);
+	}
+	.kwhp__top {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.25rem 1rem;
+		margin-bottom: 0.6rem;
+		font-size: var(--sl-text-sm);
+	}
+	.kwhp__top p {
+		margin: 0;
+	}
+	.kwhp__top b {
+		color: var(--sl-color-white);
+	}
+	.kwhp__clock b {
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-text-accent);
+	}
+	.kwhp__speed {
+		display: block;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		transition:
+			color 0.3s,
+			background-color 0.3s;
+		border-radius: 0.3rem;
+	}
+	.kwhp__speed.is-new {
+		color: var(--sl-color-white);
+		background: color-mix(in srgb, var(--sl-color-accent) 30%, transparent);
+	}
+	.kwhp__grid {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 0.4rem;
+	}
+	.kwhp__dev {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		min-width: 0;
+		margin: 0;
+		padding: 0.5rem 0.25rem 0.45rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.8rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 50%, transparent);
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		text-align: center;
+		cursor: pointer;
+		transition:
+			border-color 0.3s,
+			box-shadow 0.3s;
+	}
+	.kwhp__dev[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		box-shadow: 0 0 0 1px var(--sl-color-accent);
+	}
+	.kwhp__tank {
+		display: block;
+		width: 2.6rem;
+		height: auto;
+	}
+	.kwhp__glass {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 35%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.kwhp__liquid {
+		fill: var(--kwhp-fuel);
+	}
+	.kwhp__tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.kwhp__wire {
+		display: block;
+		width: 2px;
+		height: 0.6rem;
+		background: var(--sl-color-gray-4);
+		transition: background-color 0.3s;
+	}
+	.kwhp__dev.is-on .kwhp__wire {
+		background: var(--kwhp-fuel);
+	}
+	.kwhp__icon {
+		display: block;
+		width: 3.2rem;
+		height: 3.2rem;
+		transition: opacity 0.4s;
+	}
+	.kwhp__dev.is-empty .kwhp__icon {
+		opacity: 0.45;
+	}
+	.kwhp__name {
+		margin-top: 0.15rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.2;
+		font-weight: 600;
+		color: var(--sl-color-white);
+		overflow-wrap: anywhere;
+	}
+	.kwhp__short {
+		display: none;
+	}
+	.kwhp__p {
+		font-size: var(--sl-text-xs);
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-gray-2);
+		white-space: nowrap;
+	}
+	.kwhp__state {
+		margin-top: 0.35rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.2;
+		color: var(--sl-color-gray-3);
+	}
+	.kwhp__t {
+		font-size: var(--sl-text-sm);
+		line-height: 1.25;
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-white);
+	}
+	.kwhp__dev.is-empty .kwhp__t,
+	.kwhp__dev.is-before .kwhp__t {
+		color: var(--sl-color-text-accent);
+	}
+	/* own parts of the hotplate and the vacuum cleaner */
+	.rmi .kwhp-coil {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+		transition:
+			stroke 0.5s,
+			filter 0.5s;
+	}
+	.is-on .rmi .on-coil {
+		stroke: rgb(255, 120, 40);
+		filter: drop-shadow(0 0 1.5px rgb(255, 90, 20));
+	}
+	.rmi .kwhp-hose {
+		stroke-width: 3;
+	}
+	.rmi .kwhp-wand {
+		stroke-width: 2.4;
+	}
+	.rmi .on-dust circle {
+		fill: var(--sl-color-gray-2);
+		opacity: 0;
+	}
+	.is-on .rmi .on-dust circle {
+		animation: kwhp-dust 0.9s linear infinite;
+	}
+	.is-on .rmi .on-dust circle:nth-child(2) {
+		animation-delay: 0.3s;
+	}
+	.is-on .rmi .on-dust circle:nth-child(3) {
+		animation-delay: 0.6s;
+	}
+	@keyframes kwhp-dust {
+		0% {
+			opacity: 0;
+			transform: translateX(0);
+		}
+		25% {
+			opacity: 0.9;
+		}
+		100% {
+			opacity: 0;
+			transform: translateX(-10px);
+		}
+	}
+	.kwhp__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.kwhp__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.kwhp__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.kwhp__btn--primary {
+		min-width: 6.5rem;
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.kwhp__calc {
+		margin-top: 0.75rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.75rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 60%, transparent);
+	}
+	.kwhp__calcp {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+	}
+	.kwhp__calcp b {
+		color: var(--sl-color-white);
+	}
+	.kwhp__math {
+		overflow-x: auto;
+		font-size: 0.95em;
+	}
+	.kwhp__math .katex-display {
+		margin: 0.4rem 0 0.1rem;
+	}
+	.kwhp__legend {
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-sm);
+	}
+	@media (max-width: 40rem) {
+		.kwhp {
+			padding: 0.75rem;
+		}
+		.kwhp__grid {
+			gap: 0.25rem;
+		}
+		.kwhp__dev {
+			padding-inline: 0.1rem;
+		}
+		.kwhp__full {
+			display: none;
+		}
+		.kwhp__short {
+			display: inline;
+		}
+		.kwhp__tank {
+			width: 2.1rem;
+		}
+		.kwhp__icon {
+			width: 2.5rem;
+			height: 2.5rem;
+		}
+		.kwhp__name {
+			font-size: 0.72rem;
+		}
+		.kwhp__p,
+		.kwhp__state {
+			font-size: 0.7rem;
+		}
+		.kwhp__t {
+			font-size: 0.8rem;
+		}
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+	import { renderTex, tex } from './rm';
+
+	const A = 3600000; // Дж, 1 кВт·ч
+	const END = 360000; // с: 100 ч, the lamp's tank is empty
+	// stages of the clock: until `to` seconds of the clock, `rate` seconds of the clock per second on screen
+	const STAGES = [
+		{ to: 3600, rate: 600, say: 'часы ускорены в 600 раз: 1 с — 10 мин' },
+		{ to: 36000, rate: 7200, say: 'часы ускорены в 7200 раз: 1 с — 2 ч' },
+		{ to: END, rate: 72000, say: 'часы ускорены в 72 000 раз: 1 с — 20 ч' },
+	];
+	const LIQ_Y = 7.5;
+	const LIQ_H = 77;
+	const NAMES: Record<string, string> = {
+		led: 'Светодиодная лампа',
+		tv: 'Телевизор',
+		plate: 'Электроплитка',
+		vac: 'Пылесос',
+		kettle: 'Электрочайник',
+	};
+	const dur = (s: number) => {
+		const min = Math.floor(s / 60 + 1e-6);
+		if (min < 60) return `${min} мин`;
+		const h = Math.floor(min / 60);
+		const m = min % 60;
+		return h >= 10 || m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-kwhp]')) {
+		const devs = [...root.querySelectorAll<HTMLButtonElement>('[data-dev]')].map((el) => {
+			const P = Number(el.dataset.p);
+			return {
+				k: el.dataset.dev!,
+				el,
+				P,
+				T: A / P, // с, на сколько хватает запаса
+				liquid: el.querySelector<SVGRectElement>('[data-liquid]')!,
+				state: el.querySelector<HTMLElement>('[data-state]')!,
+				t: el.querySelector<HTMLElement>('[data-t]')!,
+			};
+		});
+		const clock = root.querySelector<HTMLElement>('[data-clock]')!;
+		const speed = root.querySelector<HTMLElement>('[data-speed]')!;
+		const play = root.querySelector<HTMLButtonElement>('[data-play]')!;
+		const calcp = root.querySelector<HTMLElement>('[data-calcp]')!;
+		const math = root.querySelector<HTMLElement>('[data-math]')!;
+
+		let s = 0; // с, время на часах
+		let running = false;
+		let stage = '';
+
+		const draw = () => {
+			const started = s > 0;
+			const done = s >= END;
+			for (const d of devs) {
+				const left = Math.max(0, 1 - s / d.T); // доля запаса
+				const h = LIQ_H * left;
+				d.liquid.setAttribute('y', (LIQ_Y + LIQ_H - h).toFixed(2));
+				d.liquid.setAttribute('height', h.toFixed(2));
+				d.el.dataset.left = left.toFixed(5);
+				const empty = left <= 0;
+				d.el.classList.toggle('is-on', running && !empty);
+				d.el.classList.toggle('is-empty', empty);
+				d.el.classList.toggle('is-before', !started);
+				d.state.textContent = !started ? 'хватит на' : empty ? 'хватило на' : 'работает';
+				d.t.textContent = dur(started ? Math.min(s, d.T) : d.T);
+			}
+			root.dataset.s = String(s);
+			clock.textContent = dur(s);
+			const k = started && !done ? STAGES.findIndex((st) => s < st.to) : -1;
+			const say = k >= 0 ? STAGES[k].say : done ? 'все запасы израсходованы' : 'часы стоят';
+			if (say !== stage) {
+				stage = say;
+				speed.textContent = say;
+				if (k > 0) {
+					speed.classList.add('is-new');
+					setTimeout(() => speed.classList.remove('is-new'), 1200);
+				}
+			}
+		};
+
+		const setPlay = () => {
+			play.textContent = running ? 'Пауза' : s > 0 && s < END ? 'Дальше' : 'Пуск';
+		};
+
+		const wake = loop(root, (dt) => {
+			if (!running) return false;
+			let rest = dt;
+			while (rest > 1e-9 && s < END) {
+				const st = STAGES.find((x) => s < x.to)!;
+				const step = Math.min(rest, (st.to - s) / st.rate);
+				s = Math.min(st.to, s + step * st.rate);
+				rest -= step;
+			}
+			if (s >= END) {
+				s = END;
+				running = false;
+				setPlay();
+			}
+			draw();
+			return running;
+		});
+
+		const select = (k: string) => {
+			const d = devs.find((x) => x.k === k)!;
+			for (const o of devs) o.el.setAttribute('aria-pressed', String(o === d));
+			calcp.innerHTML = `<b>${NAMES[k]}, ${d.P} Вт</b>: каждую секунду ток совершает в приборе работу ${d.P} Дж. Запаса 3 600 000 Дж хватает на время`;
+			const sec = d.T;
+			renderTex(
+				math,
+				`\\begin{aligned} t &= \\frac{A}{P} = \\frac{3\\,600\\,000~\\text{Дж}}{${tex(d.P, 0)}~\\text{Вт}} \\\\ &= ${tex(sec, 0)}~\\text{с} = \\text{${dur(sec)}}. \\end{aligned}`,
+			);
+		};
+
+		for (const d of devs) d.el.addEventListener('click', () => select(d.k));
+		play.addEventListener('click', () => {
+			if (s >= END) s = 0;
+			running = !running;
+			setPlay();
+			draw();
+			if (running) wake();
+		});
+		root.querySelector('[data-reset]')!.addEventListener('click', () => {
+			running = false;
+			s = 0;
+			setPlay();
+			draw();
+		});
+		select('kettle');
+		draw();
+	}
+</script>

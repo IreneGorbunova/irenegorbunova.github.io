@@ -1,0 +1,814 @@
+---
+/**
+ * «Куда уходит энергия лампы»: an incandescent lamp (60 Вт) and an LED lamp (9 Вт) that give the same light, side by
+ * side, in the style of EnergyFlow (teplovye-dvigateli). Each lamp gets 100 cells of 1 Дж from the mains: they run
+ * along the cord, turn into light or heat where the lamp makes them (the filament / the LED chips), leave through the
+ * real exits (light out of the bulb, heat through the bulb and through the base or the housing) along streams whose
+ * width is proportional to the share, and settle into two countable piles under each lamp, «Свет» and «Тепло»
+ * (rows of 10). The flow starts by itself the first time the picture is on screen, pauses while it is off screen,
+ * and runs again on «Ещё раз». Shares and their sources: lampFlow.ts.
+ */
+import { LAMPS, LAMP_IDS, BLOCK, CELL, PITCH, K, HOP, VIEW_W, VIEW_H } from './lampFlow';
+
+const ROWS = [3, 10]; // reserved rows of 10 in the light and the heat piles, the same under both lamps
+const PILE_NAMES = ['Свет', 'Тепло'];
+
+const lamps = LAMP_IDS.map((id) => {
+	const L = LAMPS[id];
+	const streams = L.segs
+		.map((g, i) => {
+			const w = Math.max(1.4, K * g.bands.reduce((a, b) => a + L.s[b], 0));
+			const k = g.bands.length > 1 ? 'e' : g.bands[0] === 0 ? '0' : '1';
+			return `<path class="le-s le-k${k}" data-seg="${i}" stroke-width="${w.toFixed(2)}" d="${g.d}"/>`;
+		})
+		.join('');
+	const tags = L.tags.map((t) => `<text class="le-tag le-minor" x="${t.x}" y="${t.y}" text-anchor="${t.a ?? 'middle'}">${t.t}</text>`).join('');
+	let cells = '';
+	for (let i = 0; i < 10; i++)
+		for (let j = 0; j < 10; j++)
+			cells += `<rect class="le-cell" x="${BLOCK[0] + j * PITCH}" y="${BLOCK[1] + i * PITCH}" width="${CELL}" height="${CELL}" rx="1.5"/>`;
+	const svg =
+		`<g class="le-m">${L.art}<path class="le-hop" data-hop d="${HOP}"/>${streams}${L.top}${tags}</g>` +
+		`<g class="le-blk"><text class="le-blab" x="${BLOCK[0]}" y="14">из сети</text>` +
+		`<text class="le-bval" x="${BLOCK[0]}" y="31">100 Дж</text>${cells}</g>`;
+	const counts = [L.s[0], L.s[1] + L.s[2]];
+	const piles = counts.map((n, p) =>
+		Array.from({ length: n }, (_, k) => {
+			const r = Math.floor(k / 10); // from the bottom
+			const c = k % 10;
+			// an empty thin column after five cells and an empty thin row between the lower and the upper fifty
+			const row = ROWS[p] - r + (ROWS[p] > 5 && r < 5 ? 1 : 0);
+			return { cls: 'le__cell', style: `grid-row:${row};grid-column:${c + 1 + (c >= 5 ? 1 : 0)}` };
+		}),
+	);
+	return { id, L, svg, piles, counts };
+});
+---
+
+<figure class="le not-content" data-le>
+	<p class="le__title">Куда уходит энергия лампы</p>
+	<div class="le__stage" data-stage>
+		<div class="le__cols">
+			{
+				lamps.map(({ id, L, svg, piles }) => (
+					<div class="le__col" data-lamp={id}>
+						<p class="le__name">
+							{L.name}, <span class="le__nw">{L.P} Вт</span>
+						</p>
+						<svg class="le__svg" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="img" aria-label={L.label} data-svg set:html={svg} />
+						{piles.map((cells, p) => (
+							<div class={`le__pile le-p${p}`} data-pile={p}>
+								<p class="le__pname">
+									{PILE_NAMES[p]} <b class="le__pval" data-val></b>
+								</p>
+								<div class="le__cells" style={ROWS[p] > 5 ? `grid-template-rows:repeat(${ROWS[p] - 5}, var(--le-cell)) 0 repeat(5, var(--le-cell))` : `grid-template-rows:repeat(${ROWS[p]}, var(--le-cell))`}>
+									{cells.map((c) => (
+										<span class={c.cls} style={c.style} data-slot></span>
+									))}
+								</div>
+							</div>
+						))}
+					</div>
+				))
+			}
+		</div>
+		<div class="le__fly" aria-hidden="true" data-fly></div>
+	</div>
+	<div class="le__ctl">
+		<button type="button" class="le__run" data-run>Включить лампы</button>
+		<span class="le__unit"><span class="le__unit-cell" aria-hidden="true"></span>одна клетка&nbsp;— 1&nbsp;Дж</span>
+	</div>
+	<div class="le__text">
+		<p>
+			Из каждых 100&nbsp;Дж электрической энергии лампа накаливания превращает в&nbsp;свет примерно <b>5&nbsp;Дж</b>, а светодиодная&nbsp;—
+			примерно <b>30&nbsp;Дж</b>. Остальное становится теплом.
+		</p>
+		<p>
+			Светят обе лампы одинаково: каждую секунду каждая излучает около 3&nbsp;Дж света (5&nbsp;% от 60&nbsp;Дж и 30&nbsp;% от 9&nbsp;Дж). Но
+			лампе накаливания для этого нужна мощность <b>60&nbsp;Вт</b>, а светодиодной&nbsp;— <b>9&nbsp;Вт</b>, почти в&nbsp;7&nbsp;раз меньше. Во
+			столько же раз меньше она расходует электроэнергии: за 1000&nbsp;часов работы&nbsp;— 9&nbsp;кВт·ч вместо 60&nbsp;кВт·ч.
+		</p>
+	</div>
+	<figcaption class="le__cap">
+		Доли примерные. Светом здесь считается только видимое излучение. У&nbsp;лампы накаливания тепло уходит в&nbsp;основном через колбу:
+		невидимым тепловым излучением и с&nbsp;нагретым газом. У&nbsp;светодиодной&nbsp;— через корпус между цоколем и&nbsp;колпаком, поэтому он
+		заметно нагревается.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.le {
+		--le-el: var(--ig-vx);
+		--le-light: var(--ig-v);
+		--le-heat: var(--ig-vy);
+		--le-cell: 12px;
+		--le-gap: 3px;
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.le__title {
+		margin: 0 0 0.5rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.le__stage {
+		position: relative;
+		overflow-x: clip;
+	}
+	.le__cols {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+	.le__col {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		min-width: 0;
+	}
+	.le__name {
+		align-self: stretch;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		line-height: 1.3;
+		text-align: center;
+		color: var(--sl-color-white);
+	}
+	.le__nw {
+		white-space: nowrap;
+	}
+	.le__svg {
+		display: block;
+		width: 100%;
+		max-width: 270px;
+		height: auto;
+		overflow: visible;
+	}
+	.le__svg text {
+		font-family: var(--__sl-font);
+		font-size: var(--le-fs, 12px);
+		fill: var(--sl-color-gray-2);
+	}
+	.le__svg .le-bval {
+		fill: var(--le-el);
+		font-weight: 700;
+	}
+	.le__svg .le-tag {
+		fill: var(--sl-color-gray-2);
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+	}
+	.le.is-narrow .le-minor {
+		display: none;
+	}
+	.le-cell {
+		fill: color-mix(in srgb, var(--le-el) 70%, var(--ig-surface));
+		transition: opacity 0.25s;
+	}
+	.le-cell.is-gone {
+		opacity: 0.13;
+	}
+	.le-s {
+		fill: none;
+		stroke: var(--le-col);
+		stroke-opacity: 0.38;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.le-hop {
+		fill: none;
+		stroke: none;
+	}
+	.le-ke {
+		--le-col: var(--le-el);
+	}
+	.le-k0 {
+		--le-col: var(--le-light);
+	}
+	.le-k1 {
+		--le-col: var(--le-heat);
+	}
+	.le-ke.le-s {
+		stroke-opacity: 0.3;
+	}
+
+	/* the lamps */
+	.le-cord {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.le-socket {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.le-socket-line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.le-base {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.le-thread {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.le-glass {
+		fill: color-mix(in srgb, var(--ig-vx) 8%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.le-lead {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.le-fil {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+		stroke-linejoin: round;
+		transition: stroke 0.5s;
+	}
+	.le-housing {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 60%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-linejoin: round;
+		transition: fill 1.5s;
+	}
+	.le-fins {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.le-dome {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 45%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+		transition: fill 0.5s;
+	}
+	.le-board {
+		fill: var(--sl-color-gray-3);
+	}
+	.le-chips rect {
+		fill: var(--sl-color-gray-4);
+		transition: fill 0.5s;
+	}
+	.le-halo {
+		opacity: 0;
+		filter: blur(9px);
+		transition: opacity 0.6s;
+	}
+	.le-halo--warm {
+		fill: var(--le-light);
+	}
+	.le-halo--led {
+		fill: color-mix(in srgb, var(--le-light) 45%, var(--ig-vx));
+	}
+	.le-wave {
+		fill: none;
+		stroke: var(--le-heat);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		opacity: 0;
+	}
+	.le.is-on .le-halo {
+		opacity: 0.45;
+	}
+	.le.is-on .le-fil {
+		stroke: var(--le-light);
+	}
+	.le.is-on .le-chips rect {
+		fill: var(--le-light);
+	}
+	.le.is-on .le-dome {
+		fill: color-mix(in srgb, var(--le-light) 22%, transparent);
+	}
+	.le.is-on .le-housing {
+		fill: color-mix(in srgb, var(--le-heat) 22%, var(--sl-color-gray-4));
+	}
+	.le.is-on .le-wave {
+		animation: le-rise 2.2s ease-out infinite;
+	}
+	.le:not(.is-live) .le-wave {
+		animation-play-state: paused;
+	}
+	@keyframes le-rise {
+		0% {
+			opacity: 0;
+			transform: translateY(5px);
+		}
+		35% {
+			opacity: 0.8;
+		}
+		100% {
+			opacity: 0;
+			transform: translateY(-7px);
+		}
+	}
+
+	/* piles */
+	.le__pile {
+		margin-top: 0.45rem;
+	}
+	.le__pname {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin: 0 0 0.25rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.le__pval {
+		color: var(--le-col);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.le-p0 {
+		--le-col: var(--le-light);
+	}
+	.le-p1 {
+		--le-col: var(--le-heat);
+	}
+	.le__cells {
+		display: grid;
+		grid-template-columns: repeat(5, var(--le-cell)) 0 repeat(5, var(--le-cell));
+		gap: var(--le-gap);
+		align-content: end;
+	}
+	.le__cell {
+		width: var(--le-cell);
+		height: var(--le-cell);
+		border-radius: 2px;
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sl-color-gray-4) 70%, transparent);
+	}
+	.le__cell.is-on {
+		background: var(--le-col);
+		box-shadow: none;
+	}
+	.le__fly {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+	.le__fly span {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: var(--le-cell);
+		height: var(--le-cell);
+		border-radius: 2px;
+		background: var(--le-col);
+		transition: background-color 0.15s;
+		will-change: transform;
+		visibility: hidden;
+	}
+
+	/* controls and text */
+	.le__ctl {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1rem;
+		margin-top: 0.8rem;
+	}
+	.le__run {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.le__run:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.le__unit {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.le__unit-cell {
+		width: var(--le-cell);
+		height: var(--le-cell);
+		border-radius: 2px;
+		background: color-mix(in srgb, var(--le-el) 70%, var(--ig-surface));
+	}
+	.le__text {
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.le__text p {
+		margin: 0 0 0.4rem;
+	}
+	.le__text b {
+		color: var(--sl-color-white);
+	}
+	.le__cap {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.le {
+			padding: 0.75rem;
+			--le-cell: 11px;
+			--le-gap: 2px;
+		}
+		.le__cols {
+			gap: 0.5rem;
+		}
+	}
+	@media (max-width: 380px) {
+		.le {
+			--le-cell: 10px;
+		}
+	}
+</style>
+
+<script>
+	import { LAMPS, LAMP_IDS, BLOCK, CELL, PITCH, K, VIEW_W, pileOf, type LampId } from './lampFlow';
+
+	const LEAVE = 15; // ms between two cells leaving a block
+	const FLIGHT = 2300; // ms: the longest flight
+	const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+	const easeIO = (x: number) => (x < 0.5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x));
+	const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+
+	/** Which band each cell goes to, in the order the cells leave: the streams flow at the same time. */
+	const dealBands = (s: readonly number[]) => {
+		const got = s.map(() => 0);
+		const out: number[] = [];
+		for (let k = 0; k < 100; k++) {
+			let best = -1;
+			let need = -Infinity;
+			for (let b = 0; b < s.length; b++) {
+				if (got[b] >= s[b]) continue;
+				const d = (s[b] * (k + 1)) / 100 - got[b];
+				if (d > need + 1e-9) {
+					need = d;
+					best = b;
+				}
+			}
+			got[best]++;
+			out.push(best);
+		}
+		return out;
+	};
+
+	interface Flier {
+		el: HTMLSpanElement;
+		lamp: number;
+		pile: number;
+		slot: number;
+		band: number;
+		t0: number;
+		dur: number;
+		xs: Float32Array;
+		ys: Float32Array;
+		acc: Float32Array;
+		colorAt: number;
+		growAt: number;
+		s0: number;
+		state: 0 | 1 | 2;
+		colored: boolean;
+		block: number;
+	}
+
+	interface Col {
+		id: LampId;
+		svg: SVGSVGElement;
+		frame: SVGGElement;
+		hop: SVGPathElement;
+		segs: SVGPathElement[];
+		blockCells: SVGRectElement[];
+		slots: HTMLElement[][]; // [pile][slot]
+		vals: HTMLElement[];
+		counts: number[];
+	}
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-le]')) {
+		const q = <T extends Element>(s: string, el: ParentNode = root) => el.querySelector<T>(s)!;
+		const stage = q<HTMLElement>('[data-stage]');
+		const fly = q<HTMLElement>('[data-fly]');
+		const runBtn = q<HTMLButtonElement>('[data-run]');
+
+		const cols: Col[] = LAMP_IDS.map((id) => {
+			const c = q<HTMLElement>(`[data-lamp="${id}"]`);
+			const svg = q<SVGSVGElement>('[data-svg]', c);
+			return {
+				id,
+				svg,
+				frame: q<SVGGElement>('.le-m', svg),
+				hop: q<SVGPathElement>('[data-hop]', svg),
+				segs: Array.from(svg.querySelectorAll<SVGPathElement>('[data-seg]')),
+				blockCells: Array.from(svg.querySelectorAll<SVGRectElement>('.le-cell')),
+				slots: Array.from(c.querySelectorAll<HTMLElement>('[data-pile]')).map((p) => Array.from(p.querySelectorAll<HTMLElement>('[data-slot]'))),
+				vals: Array.from(c.querySelectorAll<HTMLElement>('[data-val]')),
+				counts: [0, 0],
+			};
+		});
+		const flyEls = Array.from({ length: 100 * cols.length }, () => {
+			const e = document.createElement('span');
+			fly.append(e);
+			return e;
+		});
+
+		let fliers: Flier[] = [];
+		let raf = 0;
+		let tStart = 0;
+		let pausedAt = 0;
+		let running = false;
+		let started = false;
+		let visible = false;
+
+		const showCount = (c: Col, p: number) => {
+			const n = c.counts[p];
+			c.vals[p].textContent = n ? `${n} Дж` : '';
+		};
+		const fill = (full: boolean) => {
+			for (const c of cols) {
+				c.blockCells.forEach((b) => b.classList.toggle('is-gone', full));
+				c.slots.forEach((mine, p) => {
+					mine.forEach((s) => s.classList.toggle('is-on', full));
+					c.counts[p] = full ? mine.length : 0;
+					showCount(c, p);
+				});
+			}
+		};
+		const stop = () => {
+			if (raf) cancelAnimationFrame(raf);
+			raf = 0;
+			running = false;
+			pausedAt = 0;
+			flyEls.forEach((el) => (el.style.visibility = 'hidden'));
+			fliers = [];
+			runBtn.disabled = false;
+		};
+		const finish = () => {
+			stop();
+			fill(true);
+			runBtn.textContent = 'Ещё раз';
+			root.dataset.state = 'done';
+		};
+
+		// ---------- routes of the cells in stage pixels
+		const plan = () => {
+			const st = stage.getBoundingClientRect();
+			const out: Flier[] = [];
+			let maxL = 0;
+			cols.forEach((col, li) => {
+				const L = LAMPS[col.id];
+				const M = col.frame.getScreenCTM()!;
+				const sc = Math.hypot(M.a, M.b);
+				const toPx = (x: number, y: number): [number, number] => [M.a * x + M.c * y + M.e - st.left, M.b * x + M.d * y + M.f - st.top];
+				const cellPx = col.slots[1][0].getBoundingClientRect().width || 12;
+
+				const hopL = col.hop.getTotalLength();
+				const nh = Math.max(8, Math.ceil(hopL / 3));
+				const hop: [number, number][] = [];
+				for (let j = 0; j <= nh; j++) {
+					const p = col.hop.getPointAtLength((j / nh) * hopL);
+					hop.push(toPx(p.x, p.y));
+				}
+				const base = L.routes.map((route) => {
+					const px: number[] = [];
+					const py: number[] = [];
+					const w: number[] = [];
+					const fromSeg: number[] = [];
+					let colorIdx = 0;
+					route.forEach((si, n) => {
+						const el = col.segs[si];
+						const len = el.getTotalLength();
+						const ns = Math.max(4, Math.ceil(len / 2));
+						const wid = Math.max(1.4, K * L.segs[si].bands.reduce((a, b) => a + L.s[b], 0));
+						if (L.segs[si].bands.length === 1 && !colorIdx) colorIdx = px.length;
+						for (let j = n ? 1 : 0; j <= ns; j++) {
+							const p = el.getPointAtLength((j / ns) * len);
+							px.push(p.x);
+							py.push(p.y);
+							w.push(wid);
+							fromSeg.push((j / ns) * len);
+						}
+					});
+					const nx: number[] = [];
+					const ny: number[] = [];
+					for (let i = 0; i < px.length; i++) {
+						const a = Math.max(0, i - 1);
+						const b = Math.min(px.length - 1, i + 1);
+						const tx = px[b] - px[a];
+						const ty = py[b] - py[a];
+						const l = Math.hypot(tx, ty) || 1;
+						nx.push(-ty / l);
+						ny.push(tx / l);
+					}
+					const ws = w.slice();
+					for (let i = 1; i < w.length; i++) if (fromSeg[i] < 8 && w[i] !== w[i - 1]) ws[i] = ws[i - 1] + (w[i] - ws[i - 1]) * smooth(fromSeg[i] / 8);
+					return { px, py, nx, ny, ws, colorIdx };
+				});
+
+				// the cells leave the block nearest to the cord first
+				const [bx, by] = BLOCK;
+				const h0 = col.hop.getPointAtLength(0);
+				const dist = (k: number) => Math.hypot(bx + (k % 10) * PITCH + CELL / 2 - h0.x, by + Math.floor(k / 10) * PITCH + CELL / 2 - h0.y);
+				const order = Array.from({ length: 100 }, (_, i) => i).sort((i, j) => dist(i) - dist(j));
+				const bands = dealBands(L.s);
+				const taken = [0, 0];
+				bands.forEach((b, k) => {
+					const cell = order[k];
+					const [sx, sy] = toPx(bx + (cell % 10) * PITCH + CELL / 2, by + Math.floor(cell / 10) * PITCH + CELL / 2);
+					const xs: number[] = [];
+					const ys: number[] = [];
+					hop.forEach(([x, y], j) => {
+						const u = 1 - smooth(j / nh);
+						xs.push(x + (sx - hop[0][0]) * u);
+						ys.push(y + (sy - hop[0][1]) * u);
+					});
+					const f = (((k * 0.618034) % 1) * 2 - 1) * 0.7;
+					const r = base[b];
+					for (let i = 1; i < r.px.length; i++) {
+						const o = (f * r.ws[i]) / 2;
+						const [x, y] = toPx(r.px[i] + r.nx[i] * o, r.py[i] + r.ny[i] * o);
+						xs.push(x);
+						ys.push(y);
+					}
+					const colorPt = hop.length + Math.max(0, r.colorIdx - 1);
+					const exitPt = xs.length - 1;
+					const pile = pileOf(b);
+					const slot = taken[pile]++;
+					const tr = col.slots[pile][slot].getBoundingClientRect();
+					const tx = tr.left + tr.width / 2 - st.left;
+					const ty = tr.top + tr.height / 2 - st.top;
+					const [dx0, dy0] = L.out[b];
+					const dl = Math.hypot(dx0, dy0);
+					const P = [xs[exitPt], ys[exitPt]];
+					const reach = 40;
+					const c1 = [P[0] + (dx0 / dl) * reach, P[1] + (dy0 / dl) * reach];
+					const c2 = [tx, ty - 60];
+					for (let j = 1; j <= 36; j++) {
+						const t = j / 36;
+						const a = (1 - t) ** 3;
+						const bb = 3 * (1 - t) ** 2 * t;
+						const c = 3 * (1 - t) * t * t;
+						const d = t ** 3;
+						xs.push(a * P[0] + bb * c1[0] + c * c2[0] + d * tx);
+						ys.push(a * P[1] + bb * c1[1] + c * c2[1] + d * ty);
+					}
+					const acc = new Float32Array(xs.length);
+					for (let i = 1; i < xs.length; i++) acc[i] = acc[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
+					const len = acc[acc.length - 1];
+					maxL = Math.max(maxL, len);
+					out.push({
+						el: flyEls[li * 100 + k],
+						lamp: li,
+						pile,
+						slot,
+						band: b,
+						t0: k * LEAVE,
+						dur: len,
+						xs: Float32Array.from(xs),
+						ys: Float32Array.from(ys),
+						acc,
+						colorAt: acc[colorPt],
+						growAt: acc[exitPt],
+						s0: (CELL * sc) / cellPx,
+						state: 0,
+						colored: false,
+						block: cell,
+					});
+				});
+			});
+			const v = maxL / FLIGHT;
+			out.forEach((fl) => (fl.dur = Math.max(900, fl.dur / v)));
+			return out;
+		};
+
+		const place = (fl: Flier, d: number) => {
+			const { xs, ys, acc } = fl;
+			let lo = 0;
+			let hi = acc.length - 1;
+			while (hi - lo > 1) {
+				const mid = (lo + hi) >> 1;
+				if (acc[mid] <= d) lo = mid;
+				else hi = mid;
+			}
+			const seg = acc[hi] - acc[lo] || 1;
+			const u = clamp((d - acc[lo]) / seg, 0, 1);
+			const x = xs[lo] + (xs[hi] - xs[lo]) * u;
+			const y = ys[lo] + (ys[hi] - ys[lo]) * u;
+			const L = acc[acc.length - 1];
+			const g = smooth((d - fl.growAt) / Math.max(1, L - fl.growAt));
+			const sc = fl.s0 + (1 - fl.s0) * g;
+			const half = fl.el.offsetWidth / 2;
+			fl.el.style.transform = `translate(${(x - half).toFixed(1)}px, ${(y - half).toFixed(1)}px) scale(${sc.toFixed(3)})`;
+		};
+
+		const frame = (now: number) => {
+			raf = 0;
+			const t = now - tStart;
+			let left = 0;
+			for (const fl of fliers) {
+				if (fl.state === 2) continue;
+				left++;
+				const k = (t - fl.t0) / fl.dur;
+				if (k < 0) continue;
+				const col = cols[fl.lamp];
+				if (fl.state === 0) {
+					fl.state = 1;
+					fl.el.className = 'le-ke';
+					fl.el.style.visibility = 'visible';
+					col.blockCells[fl.block].classList.add('is-gone');
+				}
+				if (k >= 1) {
+					fl.state = 2;
+					fl.el.style.visibility = 'hidden';
+					col.slots[fl.pile][fl.slot].classList.add('is-on');
+					col.counts[fl.pile]++;
+					showCount(col, fl.pile);
+					continue;
+				}
+				const d = fl.acc[fl.acc.length - 1] * easeIO(k);
+				if (!fl.colored && d >= fl.colorAt) {
+					fl.colored = true;
+					fl.el.className = fl.band === 0 ? 'le-k0' : 'le-k1';
+				}
+				place(fl, d);
+			}
+			if (!left) return finish();
+			if (visible) raf = requestAnimationFrame(frame);
+			else pausedAt = performance.now();
+		};
+
+		const run = () => {
+			stop();
+			fill(false);
+			started = true;
+			root.classList.add('is-on');
+			root.dataset.state = 'running';
+			if (!stage.offsetWidth) return finish();
+			fliers = plan();
+			running = true;
+			runBtn.disabled = true;
+			tStart = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+		runBtn.addEventListener('click', () => {
+			if (!running) run();
+		});
+
+		// text in the drawings keeps about the same size on the screen
+		const fitText = () => {
+			const w = cols[0].svg.clientWidth || VIEW_W;
+			const k = w / VIEW_W;
+			root.style.setProperty('--le-fs', `${clamp(12 / k, 12, 20).toFixed(1)}px`);
+			root.classList.toggle('is-narrow', k < 0.8);
+		};
+
+		// the flow and the warm air move only while the picture is on screen; the first time it starts by itself
+		new IntersectionObserver(
+			(entries) => {
+				for (const e of entries) {
+					visible = e.isIntersecting;
+					root.classList.toggle('is-live', visible);
+					if (visible && !started && e.intersectionRatio >= 0.3) run();
+					else if (visible && running && pausedAt) {
+						tStart += performance.now() - pausedAt;
+						pausedAt = 0;
+						if (!raf) raf = requestAnimationFrame(frame);
+					}
+				}
+			},
+			{ threshold: [0, 0.3] },
+		).observe(root);
+
+		let lastW = stage.clientWidth;
+		new ResizeObserver(() => {
+			const w = stage.clientWidth;
+			if (Math.abs(w - lastW) < 1) return;
+			lastW = w;
+			fitText();
+			if (running) finish();
+		}).observe(stage);
+		fitText();
+		fill(false);
+	}
+</script>

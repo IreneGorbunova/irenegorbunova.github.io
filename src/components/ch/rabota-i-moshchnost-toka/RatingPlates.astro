@@ -1,0 +1,410 @@
+---
+/**
+ * «Что написано на приборе»: four appliances with their rating plates under a magnifying glass.
+ * Choosing an appliance shows it with its small plate; the lens beside it shows the same plate magnified (a clipped,
+ * scaled copy of the drawing, as in SilaTokaIntro). Below: the calculation from the plate's numbers.
+ *   электрочайник 220 В ~ 50 Гц, 2000 Вт → I = P/U = 2000/220 ≈ 9,1 А;
+ *   лампа накаливания 220 В, 60 Вт (printed on the bulb) → I ≈ 0,27 А;
+ *   фен 220 В ~ 50 Гц, 1500 Вт → I ≈ 6,8 А;
+ *   зарядка телефона, выход 5 В ⎓ 2 А → P = UI = 10 Вт (the largest power it gives the phone).
+ * «~ 50 Гц» gets a note that it means alternating current (studied later); «⎓» — direct current.
+ * The calculations are rendered with KaTeX at build time. The lens pops in when the picture first comes on screen
+ * and on every choice.
+ */
+import katex from 'katex';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const K = 3.4; // magnification of the lens
+const LC = { x: 268, y: 104, r: 72 }; // the lens
+
+type Line = { y: number; size: number; text?: string; bold?: boolean; dc?: [string, string] };
+type Dev = {
+	key: string;
+	name: string;
+	label: string;
+	art: string; // the appliance, viewBox 0 0 360 210
+	plate: { x: number; y: number; w: number; h: number; printed?: boolean };
+	lines: Line[];
+	text: string;
+	tex: string;
+	note?: string;
+};
+
+const AC = 'Знак «~» и «50 Гц» означают, что ток в сети переменный. Его изучают позже.';
+const frac = (P: number, U: number, I: string) =>
+	`I = \\frac{P}{U} = \\frac{${P}~\\text{Вт}}{${U}~\\text{В}} \\approx ${I}~\\text{А}`;
+
+const DEVICES: Dev[] = [
+	{
+		key: 'kettle',
+		name: 'Электрочайник',
+		label: 'Электрический чайник на подставке. На его корпусе табличка: 220 В, 50 Гц, 2000 Вт',
+		art: `
+			<rect class="rpl-body rpl-dark" x="34" y="172" width="116" height="14" rx="5" />
+			<path class="rpl-line rpl-thick" d="M 128 78 C 170 76 172 150 134 152" />
+			<path class="rpl-body" d="M 58 72 L 30 56 L 27 62 L 52 86 Z" />
+			<path class="rpl-body" d="M 56 64 H 128 L 139 160 Q 140 170 130 170 H 54 Q 44 170 45 160 Z" />
+			<path class="rpl-body" d="M 64 64 Q 92 46 120 64 Z" />
+			<rect class="rpl-body rpl-dark" x="86" y="48" width="12" height="6" rx="2" />
+			<rect class="rpl-water" x="60" y="86" width="9" height="70" rx="3" />`,
+		plate: { x: 80, y: 104, w: 32, h: 22 },
+		lines: [
+			{ y: 4.4, size: 2.8, text: 'ЭЛЕКТРОЧАЙНИК' },
+			{ y: 10.6, size: 3.6, text: '220 В ~ 50 Гц' },
+			{ y: 18.2, size: 4.8, text: '2000 Вт', bold: true },
+		],
+		text: 'В сети 220 В мощность тока в чайнике 2000 Вт. Сила тока в нём:',
+		tex: frac(2000, 220, '9{,}1'),
+		note: AC,
+	},
+	{
+		key: 'lamp',
+		name: 'Лампа накаливания',
+		label: 'Лампа накаливания. На верхушке колбы напечатано: 220 В, 60 Вт',
+		art: `
+			<path class="rpl-glass" d="M 80 150 C 80 128 43 118 43 80 A 52 52 0 0 1 147 80 C 147 118 110 128 110 150 Z" />
+			<path class="rpl-line" d="M 88 150 L 84 96 M 102 150 L 106 96 M 95 140 V 104" />
+			<path class="rpl-fil" d="M 84 96 l 2.7 -4 l 2.7 4 l 2.7 -4 l 2.7 4 l 2.7 -4 l 2.7 4 l 2.7 -4 l 2.7 4" />
+			<rect class="rpl-body rpl-dark" x="77" y="150" width="36" height="34" rx="3" />
+			<path class="rpl-line" d="M 77 158 L 113 162 M 77 167 L 113 171 M 77 176 L 113 180" />
+			<path class="rpl-tip" d="M 87 184 L 90 192 H 100 L 103 184 Z" />`,
+		plate: { x: 79, y: 40, w: 32, h: 22, printed: true },
+		lines: [
+			{ y: 9, size: 5, text: '220 В', bold: true },
+			{ y: 18, size: 5, text: '60 Вт', bold: true },
+		],
+		text: 'В сети 220 В мощность тока в лампе 60 Вт. Сила тока в ней:',
+		tex: frac(60, 220, '0{,}27'),
+	},
+	{
+		key: 'dryer',
+		name: 'Фен',
+		label: 'Фен для волос. На его корпусе табличка: 220 В, 50 Гц, 1500 Вт',
+		art: `
+			<path class="rpl-line" d="M 122 188 Q 128 204 172 200" />
+			<path class="rpl-body" d="M 92 100 L 104 180 Q 106 190 116 189 L 126 188 Q 134 186 132 178 L 120 100 Z" />
+			<rect class="rpl-body rpl-dark" x="111" y="122" width="7" height="14" rx="2" transform="rotate(-8 114 129)" />
+			<path class="rpl-body rpl-dark" d="M 42 64 L 18 68 V 92 L 42 96 Z" />
+			<rect class="rpl-body" x="38" y="56" width="114" height="48" rx="22" />
+			<circle class="rpl-body" cx="150" cy="80" r="26" />
+			<path class="rpl-line" d="M 136 70 H 164 M 132 80 H 168 M 136 90 H 164" />`,
+		plate: { x: 56, y: 69, w: 32, h: 22 },
+		lines: [
+			{ y: 4.4, size: 2.8, text: 'ФЕН' },
+			{ y: 10.6, size: 3.6, text: '220 В ~ 50 Гц' },
+			{ y: 18.2, size: 4.8, text: '1500 Вт', bold: true },
+		],
+		text: 'В сети 220 В мощность тока в фене 1500 Вт. Сила тока в нём:',
+		tex: frac(1500, 220, '6{,}8'),
+		note: AC,
+	},
+	{
+		key: 'charger',
+		name: 'Зарядка телефона',
+		label: 'Зарядка телефона с вилкой и проводом. На её корпусе написано: выход 5 В, 2 А, постоянный ток',
+		art: `
+			<rect class="rpl-pin" x="78" y="30" width="7" height="32" rx="3" />
+			<rect class="rpl-pin" x="105" y="30" width="7" height="32" rx="3" />
+			<path class="rpl-cable" d="M 95 166 V 174 Q 95 196 126 196 H 178" />
+			<rect class="rpl-body rpl-dark" x="89" y="156" width="12" height="12" rx="2" />
+			<rect class="rpl-body" x="58" y="58" width="74" height="100" rx="12" />`,
+		plate: { x: 79, y: 96, w: 32, h: 22, printed: true },
+		lines: [
+			{ y: 6, size: 3, text: 'ВЫХОД' },
+			{ y: 15.5, size: 5, dc: ['5 В', '2 А'] },
+		],
+		text: 'Зарядка даёт телефону напряжение 5 В и ток до 2 А. Наибольшая мощность, которую она отдаёт:',
+		tex: 'P = UI = 5~\\text{В} \\cdot 2~\\text{А} = 10~\\text{Вт}',
+		note: 'Знак из сплошной и пунктирной черты означает постоянный ток: он идёт всё время в одну сторону.',
+	},
+];
+
+/** The plate: its background (a sticker or nothing for print on glass or plastic) and its lettering. */
+const plateSvg = (d: Dev) => {
+	const { x, y, w, h, printed } = d.plate;
+	const cx = x + w / 2;
+	let s = printed ? '' : `<rect class="rpl-plate" x="${x}" y="${y}" width="${w}" height="${h}" rx="1.6" />`;
+	for (const l of d.lines) {
+		const cls = `rpl-ink${l.bold ? ' rpl-ink--bold' : ''}`;
+		if (l.dc) {
+			const by = y + l.y;
+			const half = l.size * 0.55;
+			const gap = l.size * 0.35;
+			s += `<text class="${cls} rpl-ink--bold" x="${cx - half - gap}" y="${by}" font-size="${l.size}" text-anchor="end">${l.dc[0]}</text>`;
+			s += `<line class="rpl-dc" x1="${cx - half}" y1="${by - l.size * 0.52}" x2="${cx + half}" y2="${by - l.size * 0.52}" stroke-width="${l.size * 0.12}" />`;
+			s += `<line class="rpl-dc" x1="${cx - half}" y1="${by - l.size * 0.22}" x2="${cx + half}" y2="${by - l.size * 0.22}" stroke-width="${l.size * 0.12}" stroke-dasharray="${l.size * 0.22} ${l.size * 0.14}" />`;
+			s += `<text class="${cls} rpl-ink--bold" x="${cx + half + gap}" y="${by}" font-size="${l.size}" text-anchor="start">${l.dc[1]}</text>`;
+		} else {
+			s += `<text class="${cls}" x="${cx}" y="${y + l.y}" font-size="${l.size}" text-anchor="middle">${l.text}</text>`;
+		}
+	}
+	return s;
+};
+
+/** The light cone from the plate to the lens. */
+const beam = (d: Dev) => {
+	const { x, y, w, h } = d.plate;
+	const e = x + w;
+	return `M ${e} ${y} L ${LC.x} ${LC.y - LC.r} L ${LC.x} ${LC.y + LC.r} L ${e} ${y + h} Z`;
+};
+const zoom = (d: Dev) => {
+	const cx = d.plate.x + d.plate.w / 2;
+	const cy = d.plate.y + d.plate.h / 2;
+	return `translate(${LC.x} ${LC.y}) scale(${K}) translate(${-cx} ${-cy})`;
+};
+const hx = LC.x + LC.r * Math.SQRT1_2;
+const hy = LC.y + LC.r * Math.SQRT1_2;
+
+const rendered = DEVICES.map((d) => ({
+	...d,
+	html: katex.renderToString(d.tex, { displayMode: true, throwOnError: false, strict: 'ignore' }),
+}));
+---
+
+<figure class="rpl not-content" data-rpl>
+	<div class="rpl__choice" role="group" aria-label="Выберите прибор">
+		{
+			rendered.map((d, k) => (
+				<button type="button" class="rpl__chip" data-pick={d.key} aria-pressed={k === 0 ? 'true' : 'false'}>
+					{d.name}
+				</button>
+			))
+		}
+	</div>
+
+	<div class="rpl__stage">
+		<svg class="rpl__svg" viewBox="0 0 360 210">
+			<defs>
+				<clipPath id={`rpl-lens-${uid}`}>
+					<circle cx={LC.x} cy={LC.y} r={LC.r} />
+				</clipPath>
+			</defs>
+			{
+				rendered.map((d, k) => (
+					<g data-dev={d.key} role="img" aria-label={d.label} style={k === 0 ? undefined : 'display: none'}>
+						<path class="rpl-beam" d={beam(d)} />
+						<g set:html={d.art + plateSvg(d)} />
+						<g class="rpl-lens" data-lens>
+							<g clip-path={`url(#rpl-lens-${uid})`}>
+								<circle class="rpl-lens-bg" cx={LC.x} cy={LC.y} r={LC.r} />
+								<g transform={zoom(d)} set:html={d.art + plateSvg(d)} />
+							</g>
+							<line class="rpl-handle" x1={hx + 3} y1={hy + 3} x2={hx + 28} y2={hy + 28} />
+							<circle class="rpl-rim" cx={LC.x} cy={LC.y} r={LC.r} />
+						</g>
+					</g>
+				))
+			}
+		</svg>
+	</div>
+
+	{
+		rendered.map((d, k) => (
+			<div class="rpl__calc" data-calc={d.key} hidden={k !== 0}>
+				<p>{d.text}</p>
+				<div class="rpl__tex" set:html={d.html} />
+				{d.note && <p class="rpl__note">{d.note}</p>}
+			</div>
+		))
+	}
+
+	<figcaption class="rpl__legend">
+		Числа на приборе — его <b>номинальные</b> напряжение и мощность: напряжение, на которое прибор рассчитан, и
+		мощность тока в нём при этом напряжении. Третью величину находят из <i>P</i> = <i>UI</i>. На зарядке вместо
+		мощности пишут силу тока.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rpl {
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-gray-3);
+		line-height: 1.5;
+	}
+	.rpl i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.rpl b {
+		color: var(--sl-color-white);
+	}
+	.rpl__choice {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+	}
+	.rpl__chip {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.4rem 0.95rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.rpl__chip:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.rpl__chip[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.rpl__stage {
+		padding: 0.4rem;
+		border-radius: 0.8rem;
+		background: var(--sl-color-black);
+		border: 1px solid var(--sl-color-gray-6);
+	}
+	.rpl__svg {
+		display: block;
+		width: 100%;
+		max-width: 520px;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.rpl-body {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+	.rpl-dark {
+		fill: var(--sl-color-gray-5);
+	}
+	.rpl-line {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.rpl-thick {
+		stroke-width: 8;
+	}
+	.rpl-glass {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 40%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+	}
+	.rpl-fil {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 60%, var(--sl-color-gray-3));
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.rpl-tip {
+		fill: var(--sl-color-gray-3);
+	}
+	.rpl-water {
+		fill: color-mix(in srgb, var(--ig-vx) 35%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.rpl-pin {
+		fill: var(--sl-color-gray-3);
+	}
+	.rpl-cable {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3.5;
+		stroke-linecap: round;
+	}
+	.rpl-plate {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.5;
+	}
+	.rpl-ink {
+		fill: var(--sl-color-white);
+		font-family: var(--__sl-font);
+		font-weight: 500;
+	}
+	.rpl-ink--bold {
+		font-weight: 800;
+	}
+	.rpl-dc {
+		stroke: var(--sl-color-white);
+	}
+	.rpl-beam {
+		fill: color-mix(in srgb, var(--ig-v) 12%, transparent);
+	}
+	.rpl-lens-bg {
+		fill: var(--sl-color-black);
+	}
+	.rpl-rim {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 4;
+	}
+	.rpl-handle {
+		stroke: color-mix(in srgb, var(--ig-v) 45%, var(--sl-color-gray-3));
+		stroke-width: 9;
+		stroke-linecap: round;
+	}
+	.rpl-lens {
+		transform-box: fill-box;
+		transform-origin: 30% 30%;
+	}
+	.rpl__calc {
+		margin-top: 0.75rem;
+	}
+	.rpl__calc p {
+		margin: 0;
+	}
+	.rpl__tex {
+		overflow-x: auto;
+		color: var(--sl-color-white);
+	}
+	.rpl__tex .katex-display {
+		margin: 0.4rem 0;
+	}
+	.rpl__calc .rpl__note {
+		font-size: var(--sl-text-sm);
+	}
+	.rpl__legend {
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-sm);
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rpl]')) {
+		const chips = [...root.querySelectorAll<HTMLButtonElement>('[data-pick]')];
+		const devs = [...root.querySelectorAll<SVGGElement>('[data-dev]')];
+		const calcs = [...root.querySelectorAll<HTMLElement>('[data-calc]')];
+		const popIn = (g: SVGGElement) =>
+			g.querySelector('[data-lens]')!.animate(
+				[
+					{ transform: 'scale(0.55)', opacity: 0 },
+					{ transform: 'scale(1)', opacity: 1 },
+				],
+				{ duration: 420, easing: 'cubic-bezier(.2,.8,.3,1.15)' },
+			);
+		const pick = (key: string) => {
+			chips.forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.pick === key)));
+			devs.forEach((g) => (g.style.display = g.dataset.dev === key ? '' : 'none'));
+			calcs.forEach((c) => (c.hidden = c.dataset.calc !== key));
+			popIn(devs.find((g) => g.dataset.dev === key)!);
+		};
+		chips.forEach((c) => c.addEventListener('click', () => pick(c.dataset.pick!)));
+		// the lens comes once when the picture first appears on screen
+		const io = new IntersectionObserver((entries) => {
+			if (entries.some((e) => e.isIntersecting)) {
+				io.disconnect();
+				popIn(devs.find((g) => g.style.display !== 'none')!);
+			}
+		});
+		io.observe(root);
+	}
+</script>
