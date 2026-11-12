@@ -6,8 +6,23 @@
  * a loop of sources, wires and ammeters only is a short circuit. Otherwise I = U / (sum of resistances):
  * cell 1,5 В, battery 4,5 В, lamp 12 Ом, resistor 10 Ом, bell 8 Ом, ammeter and wires ≈ 0.
  */
-import { PARTS, icon } from './symbols';
+import { PARTS, icon, type Kind } from './symbols';
 
+interface Props {
+	/** The parts in the palette (all by default). */
+	kinds?: Kind[];
+	/** The tasks under the builder, by id (all by default). */
+	tasks?: string[];
+}
+const TASKS: Record<string, string> = {
+	lamp: 'Зажгите лампу.',
+	bell: 'Заставьте звонок звенеть.',
+	amm: 'Измерьте амперметром силу тока в цепи с горящей лампой.',
+	bright: 'Сделайте так, чтобы лампа горела ярче (или тусклее).',
+	volt: 'Включите вольтметр последовательно с лампой. Что произошло?',
+};
+const { kinds, tasks = ['lamp', 'amm', 'bright', 'volt'] } = Astro.props;
+const palette = kinds ? PARTS.filter((p) => kinds.includes(p.kind)) : PARTS;
 const gid = `cb-glow-${Math.random().toString(36).slice(2, 8)}`;
 ---
 
@@ -34,7 +49,7 @@ const gid = `cb-glow-${Math.random().toString(36).slice(2, 8)}`;
 	<p class="cb__ask" data-ask>Выберите место в цепи, а потом — что туда поставить:</p>
 	<div class="cb__palette" role="group" aria-label="Детали цепи">
 		{
-			PARTS.map((p) => (
+			palette.map((p) => (
 				<button type="button" class="cb__part" data-part={p.kind} title={p.name}>
 					<Fragment set:html={icon(p.kind)} />
 					<span>{p.short}</span>
@@ -48,10 +63,7 @@ const gid = `cb-glow-${Math.random().toString(36).slice(2, 8)}`;
 	</div>
 	<p class="cb__live" data-live aria-live="polite"></p>
 	<ul class="cb__tasks" data-tasks>
-		<li data-task="lamp">Зажгите лампу.</li>
-		<li data-task="amm">Измерьте амперметром силу тока в цепи с горящей лампой.</li>
-		<li data-task="bright">Сделайте так, чтобы лампа горела ярче (или тусклее).</li>
-		<li data-task="volt">Включите вольтметр последовательно с лампой. Что произошло?</li>
+		{tasks.map((t) => <li data-task={t}>{TASKS[t]}</li>)}
 	</ul>
 </figure>
 
@@ -458,15 +470,16 @@ const gid = `cb-glow-${Math.random().toString(36).slice(2, 8)}`;
 				open: 'Ключ разомкнут — цепь разорвана, и тока нет.',
 				nosource: 'В цепи нет источника тока. Без него свободные электроны движутся только беспорядочно — тока нет.',
 				volt: `Вольтметр включён последовательно. Его сопротивление очень велико, поэтому ток почти не идёт${lamps ? ' и лампа не горит' : ''}. Вольтметр показывает напряжение источника. Чтобы измерить напряжение на лампе, вольтметр подключают параллельно ей.`,
-				short: 'Короткое замыкание! В цепи нет ни лампы, ни резистора, ни звонка, сопротивление цепи очень мало, а ток огромен. Источник нагреется и быстро испортится. Так соединять нельзя!',
+				short: 'Короткое замыкание! Полюса источника соединены проводами напрямую, без лампы или другого приёмника тока. Ток огромен, источник нагреется и быстро испортится. Так соединять нельзя!',
 				on: `Цепь замкнута: ток идёт от «+» источника к «−». Сила тока ${fixed(s.I, 2)} А${lamps ? (glow > 0.6 ? ', лампа горит ярко' : glow > 0.15 ? ', лампа горит' : ', лампа горит тускло') : ''}.`,
 			};
 			live.textContent = msg[s.mode];
-			if (on && lamps) tasks.lamp.classList.add('is-done');
-			if (on && lamps && parts.includes('ammeter')) tasks.amm.classList.add('is-done');
-			if (on && lamps && lastBright >= 0 && Math.abs(glow - lastBright) > 0.05) tasks.bright.classList.add('is-done');
+			if (on && lamps) tasks.lamp?.classList.add('is-done');
+			if (on && parts.includes('bell') && s.I >= 0.1) tasks.bell?.classList.add('is-done');
+			if (on && lamps && parts.includes('ammeter')) tasks.amm?.classList.add('is-done');
+			if (on && lamps && lastBright >= 0 && Math.abs(glow - lastBright) > 0.05) tasks.bright?.classList.add('is-done');
 			if (on && lamps) lastBright = glow;
-			if (s.mode === 'volt' && lamps) tasks.volt.classList.add('is-done');
+			if (s.mode === 'volt' && lamps) tasks.volt?.classList.add('is-done');
 			ask.textContent = `Выбрано место ${sel + 1}${parts[sel] === 'empty' ? ' (пустое)' : `: ${NAME[parts[sel]]}`}. Что туда поставить?`;
 		};
 		let lastBright = -1;
