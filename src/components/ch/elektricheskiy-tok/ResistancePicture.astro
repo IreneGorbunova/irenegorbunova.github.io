@@ -1,0 +1,505 @@
+---
+/**
+ * Picture to the definition of resistance: two wires of the same size (S = 1,1 мм², l = 1 м or 2 м) under the same
+ * voltage 1 В, «under a microscope». Copper: a regular lattice, electrons collide with ions rarely and drift easily.
+ * Nichrome: ions of two metals mixed, electrons collide often and drift slowly. Readouts are the true values
+ * R = ρl/S and I = U/R (ρ: 0,017 and 1,1 Ом·мм²/м): nichrome 1 м has R = 1 Ом and I = 1 А, copper R ≈ 0,015 Ом and
+ * I ≈ 65 А. The animation follows the simple model of collisions: the field speeds an electron up along the wire,
+ * a collision with an ion turns it in a random direction. The same field (same U and l) gives the same speeding-up,
+ * so the drift is proportional to the time between collisions; a twice longer wire halves the field and the drift.
+ * The ratio of the times between collisions is shown 7,5 instead of the true ≈ 65 (stated in the caption).
+ */
+const MATS = [
+	{ key: 'cu', name: 'медь' },
+	{ key: 'nicr', name: 'нихром' },
+];
+---
+
+<figure class="rp not-content" data-rp>
+	<div class="rp__rows">
+		{
+			MATS.map((m) => (
+				<div class={`rp__row rp__row--${m.key}`} data-row={m.key}>
+					<div class="rp__head">
+						<span class="rp__mat">{m.name}</span>
+						<span class="rp__r">
+							<i>R</i> <span data-r />
+						</span>
+					</div>
+					<canvas class="rp__canvas" data-canvas aria-label={`Проволока из вещества «${m.name}» под микроскопом: ионы решётки и свободные электроны`} />
+					<div class="rp__meter">
+						<span class="rp__meter-k">
+							сила тока <i>I</i>
+						</span>
+						<span class="rp__bar">
+							<span data-bar />
+						</span>
+						<b data-i />
+					</div>
+				</div>
+			))
+		}
+	</div>
+
+	<div class="rp__opts" role="radiogroup" aria-label="Длина проволок">
+		<span class="rp__ask">Длина проволок:</span>
+		<button type="button" class="rp__opt" role="radio" aria-checked="true" data-len="1">1 м</button>
+		<button type="button" class="rp__opt" role="radio" aria-checked="false" data-len="2">2 м</button>
+	</div>
+	<p class="rp__live" data-live aria-live="polite"></p>
+
+	<figcaption class="rp__legend">
+		Электрическое сопротивление показывает, насколько сильно проводник препятствует току. Обе проволоки одинакового
+		размера (площадь сечения 1,1 мм²) и подключены к одинаковому напряжению 1 В. В меди ионы решётки стоят ровными
+		рядами, и электроны сталкиваются с ними редко. В нихроме перемешаны ионы двух металлов: электроны то и дело
+		сталкиваются с ними (вспышки) и дрейфуют медленно. Сопротивление обозначают <i>R</i>, измеряют в омах (Ом).
+		Движение электронов показано условно: на самом деле в нихроме они сталкиваются ещё намного чаще.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rp {
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.rp i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.rp__rows {
+		display: grid;
+		gap: 0.75rem;
+	}
+	.rp__row {
+		border: 2px solid color-mix(in srgb, var(--ig-v) 55%, transparent);
+		border-radius: 0.8rem;
+		overflow: hidden;
+		background: var(--sl-color-black);
+	}
+	.rp__head,
+	.rp__meter {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem 0.9rem;
+		padding: 0.35rem 0.8rem;
+		font-size: var(--sl-text-sm);
+		background: var(--ig-surface);
+	}
+	.rp__head {
+		justify-content: space-between;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+	.rp__mat {
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.rp__r {
+		color: var(--ig-v);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.rp__canvas {
+		display: block;
+		width: 100%;
+		height: 124px;
+	}
+	.rp__meter {
+		border-top: 1px solid var(--sl-color-gray-5);
+		color: var(--sl-color-gray-2);
+	}
+	.rp__meter-k {
+		white-space: nowrap;
+	}
+	.rp__bar {
+		flex: 1;
+		min-width: 3rem;
+		height: 0.55rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+		overflow: hidden;
+	}
+	.rp__bar span {
+		display: block;
+		height: 100%;
+		min-width: 2px;
+		border-radius: 999px;
+		background: var(--ig-vx);
+		transition: width 0.5s;
+	}
+	.rp__meter b {
+		min-width: 3.4rem;
+		text-align: right;
+		color: var(--ig-vx);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.rp__opts {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		margin-top: 0.75rem;
+	}
+	.rp__ask {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rp__opt {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.25rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.rp__opt:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.rp__opt[aria-checked='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.rp__live {
+		min-height: 3em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+		color: var(--sl-color-gray-2);
+	}
+	.rp__legend {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		line-height: 1.5;
+	}
+</style>
+
+<script>
+	import { themeColours } from './et';
+
+	// True values: ρ in Ом·мм²/м, S in мм², U in В
+	const RHO = { cu: 0.017, nicr: 1.1 } as const;
+	const S = 1.1;
+	const U = 1;
+	const I_MAX = (U * S) / RHO.cu; // copper, 1 м: the full bar
+
+	// Animation (svg-free canvas units, px and s)
+	const H = 124;
+	const WT = 34; // top of the wire
+	const WB = 94; // bottom of the wire
+	const GAP = 20; // lattice spacing
+	const PAD = 26; // room for the clamps at the edges
+	const VTH = 55; // speed of the chaotic motion
+	const ACC = 30; // speeding-up by the field along a 1 м wire, px/s²; for l it is ACC / l
+	const TAU = { cu: 1.5, nicr: 0.2 } as const; // mean time between collisions (true ratio ≈ 65, shown 7,5)
+	const AREA_PER_E = 330; // px² of wire per drawn electron
+	const SPARK = 0.16; // s
+
+	/** «0,015» / «65» / «0,5»: two significant digits, Russian comma. */
+	const two = (v: number) => {
+		const d = Math.max(0, 1 - Math.floor(Math.log10(Math.abs(v))));
+		const r = Math.round(v * 10 ** d) / 10 ** d;
+		return { s: r.toLocaleString('ru-RU', { maximumFractionDigits: d, useGrouping: false }), exact: Math.abs(r - v) < 1e-9 };
+	};
+
+	type Ion = { x: number; y: number; ph: number; small: boolean; hit: number };
+	type El = { x: number; y: number; vx: number; vy: number; free: number; spark: number };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rp]')) {
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const opts = [...root.querySelectorAll<HTMLButtonElement>('[data-len]')];
+		let len = 1;
+		let col: Record<string, string> = {};
+		const readCol = () =>
+			(col = themeColours(root, ['--ig-vx', '--ig-vy', '--ig-v', '--sl-color-gray-2', '--sl-color-gray-3', '--sl-color-gray-4', '--sl-color-gray-5', '--sl-color-gray-6', '--sl-color-white', '--ig-font-math']));
+
+		const rows = (['cu', 'nicr'] as const).map((key) => {
+			const el = root.querySelector<HTMLElement>(`[data-row="${key}"]`)!;
+			const canvas = el.querySelector<HTMLCanvasElement>('[data-canvas]')!;
+			return {
+				key,
+				canvas,
+				ctx: canvas.getContext('2d')!,
+				rOut: el.querySelector<HTMLElement>('[data-r]')!,
+				iOut: el.querySelector<HTMLElement>('[data-i]')!,
+				bar: el.querySelector<HTMLElement>('[data-bar]')!,
+				W: 0,
+				x1: 0,
+				x2: 0,
+				ions: [] as Ion[],
+				els: [] as El[],
+			};
+		});
+		type Row = (typeof rows)[number];
+
+		const freeTime = (tau: number) => Math.min(3 * tau, -tau * Math.log(1 - Math.random()));
+
+		const build = (r: Row) => {
+			const full = r.W - 2 * PAD;
+			const w = (full * len) / 2;
+			r.x1 = (r.W - w) / 2;
+			r.x2 = r.x1 + w;
+			let seed = r.key === 'cu' ? 11 : 29;
+			const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+			r.ions = [];
+			const cy = (WT + WB) / 2;
+			for (let x = r.x1 + GAP / 2; x < r.x2 - 4; x += GAP)
+				for (const dy of [-GAP, 0, GAP]) {
+					const alloy = r.key === 'nicr';
+					r.ions.push({
+						x: x + (alloy ? (rnd() - 0.5) * 7 : 0),
+						y: cy + dy + (alloy ? (rnd() - 0.5) * 7 : 0),
+						ph: rnd() * 6.283,
+						small: alloy && rnd() < 0.3,
+						hit: 0,
+					});
+				}
+			const n = Math.round((w * (WB - WT)) / AREA_PER_E);
+			r.els = Array.from({ length: n }, () => {
+				const a = Math.random() * 6.283;
+				return {
+					x: r.x1 + Math.random() * w,
+					y: WT + 4 + Math.random() * (WB - WT - 8),
+					vx: VTH * Math.cos(a),
+					vy: VTH * Math.sin(a),
+					free: freeTime(TAU[r.key]),
+					spark: 0,
+				};
+			});
+		};
+
+		const resize = (r: Row) => {
+			const w = Math.round(r.canvas.clientWidth);
+			if (!w) return;
+			const dpr = Math.min(window.devicePixelRatio || 1, 2);
+			r.canvas.width = Math.round(w * dpr);
+			r.canvas.height = Math.round(H * dpr);
+			r.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			if (w !== r.W) {
+				r.W = w;
+				build(r);
+			}
+		};
+
+		const nearestIon = (r: Row, x: number, y: number) => {
+			let best: Ion | null = null;
+			let d2 = Infinity;
+			for (const ion of r.ions) {
+				const d = (ion.x - x) ** 2 + (ion.y - y) ** 2;
+				if (d < d2) (d2 = d), (best = ion);
+			}
+			return best;
+		};
+
+		const step = (r: Row, dt: number) => {
+			const acc = ACC / len;
+			const tau = TAU[r.key];
+			const w = r.x2 - r.x1;
+			for (const e of r.els) {
+				e.free -= dt;
+				if (e.free <= 0) {
+					// a collision with the nearest ion: the electron gives it energy and flies off in a random direction
+					const ion = nearestIon(r, e.x, e.y);
+					if (ion) ion.hit = 1;
+					const a = Math.random() * 6.283;
+					e.vx = VTH * Math.cos(a);
+					e.vy = VTH * Math.sin(a);
+					e.free = freeTime(tau);
+					e.spark = SPARK;
+				}
+				e.vx -= acc * dt; // the field pushes the electrons towards «+» (to the left)
+				e.x += e.vx * dt;
+				e.y += e.vy * dt;
+				if (e.y < WT + 3) (e.y = 2 * (WT + 3) - e.y), (e.vy = Math.abs(e.vy));
+				if (e.y > WB - 3) (e.y = 2 * (WB - 3) - e.y), (e.vy = -Math.abs(e.vy));
+				// the circuit is closed through the source: what leaves at «+» comes back at «−»
+				if (e.x < r.x1) e.x += w;
+				if (e.x > r.x2) e.x -= w;
+				e.spark = Math.max(0, e.spark - dt);
+			}
+			for (const ion of r.ions) ion.hit = Math.max(0, ion.hit - dt / 0.35);
+		};
+
+		const draw = (r: Row, time: number) => {
+			const { ctx, W, x1, x2 } = r;
+			ctx.clearRect(0, 0, W, H);
+			const font = getComputedStyle(root).fontFamily;
+			// the wire
+			const g = ctx.createLinearGradient(0, WT, 0, WB);
+			g.addColorStop(0, col['--sl-color-gray-5']);
+			g.addColorStop(0.35, col['--sl-color-gray-6']);
+			g.addColorStop(1, col['--sl-color-gray-6']);
+			ctx.fillStyle = g;
+			ctx.globalAlpha = 0.9;
+			ctx.fillRect(x1, WT, x2 - x1, WB - WT);
+			ctx.globalAlpha = 1;
+			ctx.strokeStyle = col['--sl-color-gray-3'];
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			ctx.moveTo(x1, WT);
+			ctx.lineTo(x2, WT);
+			ctx.moveTo(x1, WB);
+			ctx.lineTo(x2, WB);
+			ctx.stroke();
+			// ions: vibrate about their places; a hit makes an ion shake harder for a moment
+			for (const ion of r.ions) {
+				const amp = 1.1 + 2.2 * ion.hit;
+				const x = ion.x + amp * Math.sin(time * 0.013 + ion.ph);
+				const y = ion.y + amp * Math.cos(time * 0.011 + ion.ph * 1.7);
+				const c = ion.small ? col['--ig-v'] : col['--ig-vy'];
+				const rad = ion.small ? 3.8 : 5.2;
+				ctx.beginPath();
+				ctx.arc(x, y, rad, 0, 6.283);
+				ctx.fillStyle = c;
+				ctx.globalAlpha = 0.28 + 0.5 * ion.hit;
+				ctx.fill();
+				ctx.globalAlpha = 0.8;
+				ctx.strokeStyle = c;
+				ctx.lineWidth = 1.2;
+				ctx.stroke();
+				if (!ion.small) {
+					ctx.beginPath();
+					ctx.moveTo(x - 2.4, y);
+					ctx.lineTo(x + 2.4, y);
+					ctx.moveTo(x, y - 2.4);
+					ctx.lineTo(x, y + 2.4);
+					ctx.lineWidth = 1.1;
+					ctx.stroke();
+				}
+				ctx.globalAlpha = 1;
+			}
+			// electrons, with a spark at a collision
+			for (const e of r.els) {
+				if (e.spark > 0) {
+					const f = e.spark / SPARK;
+					ctx.beginPath();
+					ctx.arc(e.x, e.y, 2.5 + 5 * (1 - f), 0, 6.283);
+					ctx.strokeStyle = col['--sl-color-white'];
+					ctx.globalAlpha = 0.85 * f;
+					ctx.lineWidth = 1.5;
+					ctx.stroke();
+					ctx.globalAlpha = 1;
+				}
+				ctx.beginPath();
+				ctx.arc(e.x, e.y, 2.3, 0, 6.283);
+				ctx.fillStyle = col['--ig-vx'];
+				ctx.fill();
+			}
+			// clamps «+» and «−»
+			ctx.fillStyle = col['--sl-color-gray-4'];
+			ctx.strokeStyle = col['--sl-color-gray-3'];
+			ctx.lineWidth = 1;
+			for (const x of [x1 - 9, x2 - 1]) {
+				ctx.beginPath();
+				ctx.roundRect(x, WT - 7, 10, WB - WT + 14, 2);
+				ctx.fill();
+				ctx.stroke();
+			}
+			ctx.font = `700 15px ${font}`;
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'alphabetic';
+			ctx.fillStyle = col['--sl-color-white'];
+			ctx.fillText('+', x1 - 4, WT - 12);
+			ctx.fillText('−', x2 + 4, WT - 12);
+			// U over the wire, l under it
+			const mid = (x1 + x2) / 2;
+			const bracket = (y: number, sym: string, rest: string, c: string, down: boolean) => {
+				const fSym = `italic 16px ${col['--ig-font-math'] || 'serif'}`;
+				const fRest = `14px ${font}`;
+				ctx.font = fSym;
+				const w1 = ctx.measureText(sym).width;
+				ctx.font = fRest;
+				const w2 = ctx.measureText(rest).width;
+				const tw = w1 + w2 + 12;
+				ctx.strokeStyle = c;
+				ctx.lineWidth = 1.2;
+				ctx.beginPath();
+				const t = down ? 4 : -4;
+				ctx.moveTo(x1 + 10, y + t);
+				ctx.lineTo(x1 + 10, y);
+				ctx.lineTo(mid - tw / 2, y);
+				ctx.moveTo(mid + tw / 2, y);
+				ctx.lineTo(x2 - 10, y);
+				ctx.lineTo(x2 - 10, y + t);
+				ctx.stroke();
+				ctx.fillStyle = c;
+				ctx.textAlign = 'left';
+				const x0 = mid - (w1 + w2) / 2;
+				ctx.font = fSym;
+				ctx.fillText(sym, x0, y + 5);
+				ctx.font = fRest;
+				ctx.fillText(rest, x0 + w1, y + 5);
+			};
+			bracket(16, 'U', '\u2009=\u20091 В', col['--ig-vy'], true);
+			bracket(H - 12, 'l', `\u2009=\u2009${len} м`, col['--sl-color-gray-2'], false);
+		};
+
+		const update = () => {
+			for (const r of rows) {
+				const R = (RHO[r.key] * len) / S;
+				const I = U / R;
+				const rs = two(R);
+				const is = two(I);
+				r.rOut.textContent = `${rs.exact ? '=' : '≈'} ${rs.s} Ом`;
+				r.iOut.textContent = `${is.exact ? '' : '≈ '}${is.s} А`;
+				r.bar.style.width = `${(100 * I) / I_MAX}%`;
+			}
+			live.textContent =
+				len === 1
+					? 'У нихромовой проволоки сопротивление 1 Ом: при напряжении 1 В сила тока в ней 1 А. У медной проволоки того же размера сопротивление в 65 раз меньше, и сила тока в 65 раз больше.'
+					: 'Проволоки стали в 2 раза длиннее: на пути электронов в 2 раза больше ионов. Сопротивление каждой проволоки выросло в 2 раза, а сила тока уменьшилась в 2 раза.';
+		};
+
+		opts.forEach((b) =>
+			b.addEventListener('click', () => {
+				len = Number(b.dataset.len);
+				opts.forEach((o) => o.setAttribute('aria-checked', String(o === b)));
+				rows.forEach(build);
+				update();
+				for (const r of rows) draw(r, performance.now());
+			}),
+		);
+
+		let visible = false;
+		let raf = 0;
+		let last = 0;
+		let frame = 0;
+		const loop = (time: number) => {
+			const dt = Math.min(0.05, last ? (time - last) / 1000 : 0.016);
+			last = time;
+			if (frame++ % 30 === 0) readCol();
+			for (const r of rows) {
+				step(r, dt);
+				draw(r, time);
+			}
+			raf = visible ? requestAnimationFrame(loop) : 0;
+		};
+		new ResizeObserver(() => {
+			readCol();
+			for (const r of rows) {
+				resize(r);
+				draw(r, performance.now());
+			}
+		}).observe(root);
+		new IntersectionObserver((entries) => {
+			visible = entries[0].isIntersecting;
+			if (visible && !raf) {
+				last = 0;
+				raf = requestAnimationFrame(loop);
+			}
+		}).observe(root);
+		readCol();
+		rows.forEach(resize);
+		update();
+	}
+</script>

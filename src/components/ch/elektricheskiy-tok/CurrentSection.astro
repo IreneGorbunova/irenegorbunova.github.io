@@ -1,0 +1,400 @@
+---
+/**
+ * «Сила тока»: charged particles drift along a wire through a highlighted cross-section; a counter counts
+ * them (each stands for 0,1 Кл) and gives q and I = q/t. The control changes how many particles are in the
+ * wire (1×, 2×, 3×) at the same drift speed, so the number crossing per second and the current change in the
+ * same proportion: 3, 6, 9 particles per second → 0,3 / 0,6 / 0,9 А.
+ * The particles stand on a regular grid along the wire, the nearest one half a step before the section,
+ * so the count after a time t is round(rate · t) and the shown q/t (0,1 А steps, t ≥ 1 с) equals the rate exactly.
+ */
+const RATES = [
+	{ rate: 3, label: 'мало частиц' },
+	{ rate: 6, label: 'в 2 раза больше' },
+	{ rate: 9, label: 'в 3 раза больше' },
+];
+---
+
+<figure class="csec not-content" data-csec>
+	<canvas class="csec__canvas" data-canvas role="img" aria-label="Заряженные частицы движутся по проводнику через выделенное поперечное сечение"></canvas>
+	<div class="csec__row">
+		<span class="csec__ask">Сколько частиц в проводнике</span>
+		<div class="csec__rates" role="radiogroup" aria-label="Сколько заряженных частиц в проводнике">
+			{
+				RATES.map((r, k) => (
+					<button type="button" class="csec__rate" role="radio" aria-checked={k === 0 ? 'true' : 'false'} data-rate={r.rate}>
+						{r.label}
+					</button>
+				))
+			}
+		</div>
+	</div>
+	<div class="csec__counter" aria-live="off">
+		<div class="csec__head">
+			<span class="csec__title">Счётчик у сечения</span>
+			<button type="button" class="csec__reset" data-reset>Сбросить</button>
+		</div>
+		<div class="csec__cnts">
+			<span class="csec__cnt"><span>время <i>t</i></span><b data-t>0,0 с</b></span>
+			<span class="csec__cnt"><span>прошло частиц</span><b data-n>0</b></span>
+			<span class="csec__cnt"><span>заряд <i>q</i></span><b class="csec__q" data-q>0,0 Кл</b></span>
+			<span class="csec__cnt"><span>сила тока <i>I</i> = <i>q</i>&thinsp;/&thinsp;<i>t</i></span><b class="csec__i" data-i>—</b></span>
+		</div>
+	</div>
+	<p class="csec__live" data-live aria-live="polite"></p>
+	<figcaption class="csec__legend">
+		Каждая частица изображает заряд 0,1 Кл. Счётчик считает частицы, прошедшие через поперечное сечение, и делит их заряд
+		на время: <i>I</i> = <i>q</i>&thinsp;/&thinsp;<i>t</i>. Скорость частиц во всех трёх случаях одинакова — меняется только их число в
+		проводнике. Чем больше частиц, тем больше их проходит через сечение за 1 с и тем больше сила тока.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.csec {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.csec i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.csec__canvas {
+		display: block;
+		width: 100%;
+		height: 182px;
+		border-radius: 0.75rem;
+		background: var(--sl-color-black);
+	}
+	.csec__row {
+		margin-top: 0.75rem;
+	}
+	.csec__ask {
+		display: block;
+		margin-bottom: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.csec__rates {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, max-content));
+		gap: 0.3rem;
+		width: fit-content;
+		max-width: 100%;
+		padding: 0.25rem;
+		border-radius: 1.1rem;
+		background: var(--sl-color-gray-6);
+	}
+	.csec__rate {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		line-height: 1.25;
+		padding: 0.35rem 0.85rem;
+		border-radius: 0.9rem;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.csec__rate[aria-checked='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.csec__counter {
+		margin-top: 0.75rem;
+		padding: 0.5rem 0.8rem 0.6rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.csec__head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+	.csec__title {
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.csec__reset {
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.2rem 0.75rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.csec__reset:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.csec__cnts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1.25rem;
+		margin-top: 0.3rem;
+	}
+	.csec__cnt {
+		display: inline-flex;
+		gap: 0.4rem;
+		align-items: baseline;
+		white-space: nowrap;
+	}
+	.csec__cnt b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.csec__cnt b.csec__q {
+		color: var(--sl-color-green-high);
+	}
+	.csec__cnt b.csec__i {
+		color: var(--ig-vx);
+	}
+	@media (max-width: 40rem) {
+		.csec__rates {
+			grid-template-columns: repeat(3, 1fr);
+			width: 100%;
+		}
+		.csec__rate {
+			padding-inline: 0.4rem;
+		}
+		.csec__cnts {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 0.25rem 0.75rem;
+		}
+		.csec__cnt:last-child {
+			grid-column: 1 / -1;
+		}
+	}
+	.csec__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.csec__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.55;
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.csec {
+			padding: 0.75rem;
+		}
+		.csec__live {
+			min-height: 3em;
+		}
+	}
+</style>
+
+<script>
+	import { fixed } from './et';
+	import { colours, drawArrow, drawCharge, fitCanvas, rng, runWhileVisible, type Colours } from './tokParticles';
+
+	const H = 182; // canvas height, CSS px
+	const TOP = 40; // the wire: from TOP to BOT
+	const BOT = 144;
+	const R = 5.5; // particle radius
+	const V = 54; // drift speed, px/s — the same for every choice
+	const Q0 = 0.1; // charge of one particle, Кл
+	const AMP = 4; // small chaotic jiggle about the drifting place, px
+	const VTH = 30;
+	const LIVE: Record<number, string> = {
+		3: 'Частиц в проводнике мало — за 1 с через сечение их проходит немного: ток слабый.',
+		6: 'Частиц в 2 раза больше — за 1 с через сечение их проходит в 2 раза больше: сила тока в 2 раза больше.',
+		9: 'Частиц в 3 раза больше — за 1 с через сечение их проходит в 3 раза больше: сила тока в 3 раза больше.',
+	};
+
+	type P = { gx: number; fy: number; ox: number; oy: number; vx: number; vy: number; next: number; flash: number };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-csec]')) {
+		const canvas = root.querySelector<HTMLCanvasElement>('[data-canvas]')!;
+		const ctx = canvas.getContext('2d')!;
+		const rateBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-rate]')];
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const out = {
+			t: root.querySelector<HTMLElement>('[data-t]')!,
+			n: root.querySelector<HTMLElement>('[data-n]')!,
+			q: root.querySelector<HTMLElement>('[data-q]')!,
+			i: root.querySelector<HTMLElement>('[data-i]')!,
+		};
+
+		let W = 0;
+		let rate = 3; // particles through the section per second
+		let ps: P[] = [];
+		let span = 0;
+		let count = 0;
+		let tRun = 0;
+		let shown = '';
+		let col: Colours = {};
+		let frameNo = 0;
+
+		const build = () => {
+			const rand = rng(3 + rate);
+			const d = V / rate; // distance between neighbours along the wire, px
+			const xs = W / 2;
+			// the lattice of places: xs − d/2 − k·d, … covering [−20, W + 20)
+			const first = xs - d / 2 - Math.floor((xs - d / 2 + 20) / d) * d;
+			const n = Math.ceil((W + 40) / d);
+			span = n * d;
+			ps = Array.from({ length: n }, (_, k) => {
+				const a = rand() * 2 * Math.PI;
+				return {
+					gx: first + k * d,
+					fy: rand() * 2 - 1,
+					ox: (rand() * 2 - 1) * AMP,
+					oy: (rand() * 2 - 1) * AMP,
+					vx: VTH * Math.cos(a),
+					vy: VTH * Math.sin(a),
+					next: rand() * 0.3,
+					flash: 0,
+				};
+			});
+			count = 0;
+			tRun = 0;
+			showCounter();
+		};
+
+		const showCounter = () => {
+			const s = `${fixed(tRun, 1)}|${count}`;
+			if (s === shown) return;
+			shown = s;
+			out.t.textContent = `${fixed(tRun, 1)} с`;
+			out.n.textContent = String(count);
+			out.q.textContent = `${fixed(count * Q0, 1)} Кл`;
+			out.i.textContent = tRun >= 1 ? `≈ ${fixed((count * Q0) / tRun, 1)} А` : '—';
+		};
+
+		const choose = (r: number) => {
+			rate = r;
+			rateBtns.forEach((b) => b.setAttribute('aria-checked', String(Number(b.dataset.rate) === r)));
+			live.textContent = LIVE[r];
+			build();
+		};
+		rateBtns.forEach((b) => b.addEventListener('click', () => choose(Number(b.dataset.rate))));
+		root.querySelector('[data-reset]')!.addEventListener('click', () => build());
+
+		const resize = () => {
+			const w = fitCanvas(canvas, ctx, H);
+			if (w !== W) {
+				W = w;
+				build();
+			}
+		};
+
+		const step = (dt: number) => {
+			const xs = W / 2;
+			for (const p of ps) {
+				const before = p.gx;
+				p.gx += V * dt;
+				if (before < xs && p.gx >= xs) {
+					count += 1;
+					p.flash = 0.45;
+				}
+				if (p.gx >= W + 20) p.gx -= span;
+				p.flash = Math.max(0, p.flash - dt);
+				p.next -= dt;
+				if (p.next <= 0) {
+					const a = Math.random() * 2 * Math.PI;
+					p.vx = VTH * Math.cos(a);
+					p.vy = VTH * Math.sin(a);
+					p.next = 0.1 + 0.3 * Math.random();
+				}
+				p.ox += p.vx * dt;
+				p.oy += p.vy * dt;
+				if (Math.abs(p.ox) > AMP) (p.ox = Math.sign(p.ox) * AMP), (p.vx = -p.vx);
+				if (Math.abs(p.oy) > AMP) (p.oy = Math.sign(p.oy) * AMP), (p.vy = -p.vy);
+			}
+			tRun += dt;
+			if (tRun >= 600) build(); // start again after 10 minutes
+			showCounter();
+		};
+
+		const draw = () => {
+			if (frameNo++ % 20 === 0) col = colours(root);
+			ctx.clearRect(0, 0, W, H);
+			const cy = (TOP + BOT) / 2;
+			const h = BOT - TOP;
+			const g = ctx.createLinearGradient(0, TOP, 0, BOT);
+			g.addColorStop(0, col['--sl-color-gray-5']);
+			g.addColorStop(0.35, col['--sl-color-gray-6']);
+			g.addColorStop(1, col['--sl-color-gray-6']);
+			ctx.fillStyle = g;
+			ctx.fillRect(-2, TOP, W + 4, h);
+			ctx.strokeStyle = col['--sl-color-gray-3'];
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			ctx.moveTo(0, TOP);
+			ctx.lineTo(W, TOP);
+			ctx.moveTo(0, BOT);
+			ctx.lineTo(W, BOT);
+			ctx.stroke();
+			// the cross-section
+			const xs = W / 2;
+			const green = col['--sl-color-green-high'];
+			ctx.beginPath();
+			ctx.ellipse(xs, cy, 15, h / 2 + 5, 0, 0, 2 * Math.PI);
+			ctx.fillStyle = green;
+			ctx.globalAlpha = 0.14;
+			ctx.fill();
+			ctx.globalAlpha = 0.9;
+			ctx.strokeStyle = green;
+			ctx.lineWidth = 2;
+			ctx.setLineDash([5, 4]);
+			ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.globalAlpha = 1;
+			ctx.font = `600 14px ${getComputedStyle(root).fontFamily}`;
+			ctx.textBaseline = 'middle';
+			ctx.textAlign = 'center';
+			ctx.fillStyle = green;
+			ctx.fillText('поперечное сечение', xs, 16);
+			// particles
+			const lo = TOP + R + 2;
+			const hi = BOT - R - 2;
+			for (const p of ps) {
+				const x = p.gx + p.ox;
+				let y = cy + p.fy * (h / 2 - R - 2 - AMP) + p.oy;
+				y = Math.min(Math.max(y, lo), hi);
+				if (p.flash > 0) {
+					ctx.beginPath();
+					ctx.arc(x, y, R + 2 + 8 * p.flash, 0, 2 * Math.PI);
+					ctx.strokeStyle = green;
+					ctx.lineWidth = 2;
+					ctx.globalAlpha = Math.min(1, 2.2 * p.flash);
+					ctx.stroke();
+					ctx.globalAlpha = 1;
+				}
+				drawCharge(ctx, col, x, y, R, 1);
+			}
+			// direction of motion
+			ctx.font = `14px ${getComputedStyle(root).fontFamily}`;
+			const text = 'движение частиц';
+			const tw = ctx.measureText(text).width;
+			const x0 = W - 14 - tw - 62;
+			ctx.textAlign = 'left';
+			ctx.fillStyle = col['--ig-vy'];
+			ctx.fillText(text, x0, BOT + 20);
+			drawArrow(ctx, x0 + tw + 8, x0 + tw + 62, BOT + 20, col['--ig-vy'], 2.5);
+		};
+
+		runWhileVisible(
+			root,
+			canvas,
+			(dt) => {
+				step(dt);
+				draw();
+			},
+			resize,
+		);
+		resize();
+		choose(3);
+	}
+</script>

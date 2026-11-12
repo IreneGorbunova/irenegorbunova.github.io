@@ -1,0 +1,545 @@
+---
+/**
+ * Picture to the definition of voltage, U = A / q.
+ * Two parts of circuits side by side with the same current: a flashlight bulb (3,5 В) and a mains lamp (220 В).
+ * Charge is drawn as beads of 1 Кл moving along the wires and through the filaments in lockstep, so the same
+ * charge passes both lamps in the same time. Each time 1 Кл passes a filament, the field does the work U · 1 Кл
+ * there: 3,5 Дж in the small bulb, 220 Дж in the big lamp. The counters show q, A = Uq and U = A / q live.
+ * The beads look the same before and after a lamp: the charge is not used up, the energy goes to the lamp.
+ */
+type Pt = [number, number];
+type Lamp = {
+	key: 'small' | 'big';
+	title: string;
+	U: number;
+	cx: number;
+	cy: number;
+	r: number;
+	bx1: number;
+	bx2: number;
+	by1: number;
+	by2: number;
+	fil: { x1: number; x2: number; y: number; teeth: number };
+	route: Pt[];
+	glowR: number;
+};
+const LAMPS: Lamp[] = [
+	{
+		key: 'small',
+		title: 'Лампочка карманного фонаря',
+		U: 3.5,
+		cx: 150,
+		cy: 100,
+		r: 28,
+		bx1: 140,
+		bx2: 160,
+		by1: 136,
+		by2: 164,
+		fil: { x1: 141, x2: 159, y: 100, teeth: 4 },
+		route: [[-20, 204], [150, 204], [150, 168], [146, 136], [141, 100], [159, 100], [154, 136], [160, 150], [186, 150], [186, 204], [320, 204]],
+		glowR: 44,
+	},
+	{
+		key: 'big',
+		title: 'Лампа для домашней сети',
+		U: 220,
+		cx: 150,
+		cy: 72,
+		r: 54,
+		bx1: 130,
+		bx2: 170,
+		by1: 140,
+		by2: 176,
+		fil: { x1: 124, x2: 176, y: 70, teeth: 9 },
+		route: [[-20, 204], [150, 204], [150, 181], [144, 140], [124, 70], [176, 70], [156, 140], [170, 158], [200, 158], [200, 204], [320, 204]],
+		glowR: 118,
+	},
+];
+
+const poly = (pts: Pt[]) => pts.map((p, k) => `${k ? 'L' : 'M'} ${p[0]} ${p[1]}`).join(' ');
+/** The glass: a circle that narrows into the neck over the base. */
+const glass = (l: Lamp) => {
+	const th = (35 * Math.PI) / 180;
+	const lx = l.cx - l.r * Math.sin(th);
+	const rx = l.cx + l.r * Math.sin(th);
+	const y = l.cy + l.r * Math.cos(th);
+	return `M ${l.bx1} ${l.by1} L ${lx.toFixed(1)} ${y.toFixed(1)} A ${l.r} ${l.r} 0 1 1 ${rx.toFixed(1)} ${y.toFixed(1)} L ${l.bx2} ${l.by1} Z`;
+};
+/** A coiled filament between the tops of the two supports. */
+const coil = (l: Lamp) => {
+	const { x1, x2, y, teeth } = l.fil;
+	const n = teeth * 2;
+	const pts: string[] = [`M ${x1} ${y}`];
+	for (let k = 1; k < n; k++) pts.push(`L ${(x1 + ((x2 - x1) * k) / n).toFixed(1)} ${y + (k % 2 ? -3.2 : 3.2)}`);
+	pts.push(`L ${x2} ${y}`);
+	return pts.join(' ');
+};
+/** Screw thread of the base. */
+const thread = (l: Lamp) => {
+	const lines: string[] = [];
+	const step = (l.by2 - l.by1) / 5;
+	for (let k = 1; k < 5; k++) lines.push(`M ${l.bx1} ${l.by1 + k * step + 2} L ${l.bx2} ${l.by1 + k * step - 2}`);
+	return lines.join(' ');
+};
+/** Visible wires outside the lamp: from the left edge to the tip, and from the thread to the right edge. */
+const wires = (l: Lamp) => {
+	const r = l.route;
+	return { left: poly([[0, r[0][1]], r[1], r[2]]), right: poly([r[7], r[8], r[9], [300, r[10][1]]]) };
+};
+const uid = Math.random().toString(36).slice(2, 8);
+const data = LAMPS.map((l) => ({ key: l.key, U: l.U, route: l.route, fil: l.fil }));
+---
+
+<figure class="vp not-content" data-vp data-lamps={JSON.stringify(data)}>
+	<div class="vp__panels">
+		{
+			LAMPS.map((l) => {
+				const w = wires(l);
+				const gid = `vp-glow-${l.key}-${uid}`;
+				return (
+					<div class={`vp__panel vp__panel--${l.key}`} data-panel={l.key}>
+						<p class="vp__title">{l.title}</p>
+						<svg class="vp__svg" viewBox="0 0 300 220" role="img" aria-label={`${l.title}: через неё проходят порции заряда по 1 Кл, и на каждый кулон ток совершает работу ${l.U === 220 ? '220' : '3,5'} Дж`}>
+							<defs>
+								<radialGradient id={gid}>
+									<stop offset="0" stop-color="var(--ig-v)" stop-opacity="0.85" />
+									<stop offset="0.35" stop-color="var(--ig-v)" stop-opacity="0.35" />
+									<stop offset="1" stop-color="var(--ig-v)" stop-opacity="0" />
+								</radialGradient>
+							</defs>
+							<circle class="vp__glow" cx={l.cx} cy={l.fil.y} r={l.glowR} fill={`url(#${gid})`} />
+							<path class="vp__wire" d={w.left} />
+							<path class="vp__wire" d={w.right} />
+							<path class="vp__glass" d={glass(l)} />
+							<path class="vp__support" d={poly([l.route[3], l.route[4]])} />
+							<path class="vp__support" d={poly([l.route[5], l.route[6]])} />
+							<path class="vp__fil" d={coil(l)} />
+							<g data-beads />
+							<rect class="vp__base" x={l.bx1} y={l.by1} width={l.bx2 - l.bx1} height={l.by2 - l.by1} rx="2" />
+							<path class="vp__thread" d={thread(l)} />
+							<path class="vp__tip" d={`M ${l.cx - 6} ${l.by2} L ${l.cx - 4} ${l.by2 + 5} L ${l.cx + 4} ${l.by2 + 5} L ${l.cx + 6} ${l.by2} Z`} />
+							<g data-pops />
+						</svg>
+						<dl class="vp__cnt">
+							<div>
+								<dt>прошёл заряд <i>q</i></dt>
+								<dd class="vp__q" data-q>0 Кл</dd>
+							</div>
+							<div>
+								<dt>работа тока <i>A</i></dt>
+								<dd class="vp__a" data-a>0 Дж</dd>
+							</div>
+						</dl>
+						<div class="vp__formula" data-formula />
+					</div>
+				);
+			})
+		}
+	</div>
+
+	<div class="vp__buttons">
+		<button type="button" class="vp__btn vp__btn--primary" data-pause>Пауза</button>
+		<button type="button" class="vp__btn vp__btn--quiet" data-reset>Сбросить счётчики</button>
+		<span class="vp__key"><span class="vp__bead" aria-hidden="true"></span> — заряд 1 Кл</span>
+	</div>
+
+	<figcaption class="vp__legend">
+		Ток в обеих лампах одинаковый: за одно и то же время через них проходит одинаковый заряд. Когда заряд 1 Кл
+		проходит по нити маленькой лампочки, электрическое поле совершает работу 3,5 Дж, а в большой лампе — 220 Дж. Это и
+		есть напряжение на лампах: 3,5 В и 220 В. Поэтому большая лампа светит и греет гораздо сильнее. Заряд при этом
+		не расходуется: сколько его вошло в лампу, столько и вышло.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.vp {
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.vp i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.vp__panels {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1rem;
+	}
+	@media (max-width: 40rem) {
+		.vp__panels {
+			grid-template-columns: 1fr;
+		}
+	}
+	.vp__panel {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		padding: 0.6rem 0.6rem 0.4rem;
+		border-radius: 0.8rem;
+		background: var(--sl-color-black);
+		border: 1px solid var(--sl-color-gray-6);
+	}
+	.vp__title {
+		margin: 0;
+		text-align: center;
+		font-weight: 600;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.vp__svg {
+		display: block;
+		width: 100%;
+		max-width: 340px;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.vp__wire {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.vp__glass {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+	}
+	.vp__panel--small .vp__glass {
+		fill: color-mix(in srgb, var(--ig-v) 8%, transparent);
+	}
+	.vp__panel--big .vp__glass {
+		fill: color-mix(in srgb, var(--ig-v) 30%, transparent);
+	}
+	.vp__panel--small .vp__glow {
+		opacity: 0.4;
+	}
+	.vp__support {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.vp__fil {
+		fill: none;
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.vp__panel--small .vp__fil {
+		stroke: color-mix(in srgb, var(--ig-v) 70%, var(--sl-color-gray-3));
+	}
+	.vp__panel--big .vp__fil {
+		stroke: color-mix(in srgb, var(--ig-v) 45%, var(--sl-color-white));
+		stroke-width: 2.4;
+	}
+	.vp__base {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.vp__thread {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.vp__tip {
+		fill: var(--sl-color-gray-2);
+	}
+	.vp__b {
+		fill: var(--ig-vx);
+		stroke: color-mix(in srgb, var(--ig-vx) 50%, var(--sl-color-white));
+		stroke-width: 1.2;
+	}
+	.vp__pop {
+		fill: var(--ig-v);
+		font-family: var(--__sl-font);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		paint-order: stroke;
+		stroke: var(--sl-color-black);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.vp__panel--small .vp__pop {
+		font-size: 15px;
+	}
+	.vp__panel--big .vp__pop {
+		font-size: 21px;
+	}
+	.vp__cnt {
+		display: grid;
+		gap: 0.15rem;
+		margin: 0.2rem 0 0;
+		font-size: var(--sl-text-sm);
+	}
+	.vp__cnt div {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+	.vp__cnt dt {
+		color: var(--sl-color-gray-2);
+	}
+	.vp__cnt dd {
+		margin: 0;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.vp__q {
+		color: var(--sl-color-green-high);
+	}
+	.vp__a {
+		color: var(--ig-v);
+	}
+	.vp__formula {
+		min-height: 3.6rem;
+		margin-top: 0.4rem;
+		padding: 0 0.3rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		display: grid;
+		place-items: center;
+		overflow-x: auto;
+	}
+	.vp__formula .katex-display {
+		margin: 0.3rem 0;
+	}
+	.vp__formula .vp-u {
+		color: var(--ig-vy);
+	}
+	.vp__formula .vp-a {
+		color: var(--ig-v);
+	}
+	.vp__formula .vp-q {
+		color: var(--sl-color-green-high);
+	}
+	.vp__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin-top: 0.75rem;
+	}
+	.vp__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.vp__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.vp__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.vp__btn--quiet {
+		color: var(--sl-color-gray-2);
+		border-color: var(--sl-color-gray-5);
+	}
+	.vp__key {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		white-space: nowrap;
+	}
+	.vp__bead {
+		display: inline-block;
+		width: 0.8rem;
+		height: 0.8rem;
+		border-radius: 50%;
+		background: var(--ig-vx);
+		border: 1px solid color-mix(in srgb, var(--ig-vx) 50%, var(--sl-color-white));
+	}
+	.vp__legend {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		line-height: 1.5;
+	}
+</style>
+
+<script>
+	import { renderTex } from './et';
+
+	type Pt = [number, number];
+	type LampData = { key: string; U: number; route: Pt[]; fil: { x1: number; x2: number; y: number } };
+	const NS = 'http://www.w3.org/2000/svg';
+	const D = 34; // distance between beads of 1 Кл along the wire, svg units
+	const V = 20; // speed of the beads, svg units per second: one coulomb passes a lamp every D / V = 1,7 s
+	const R_BEAD = 5.5;
+	const POP_LIFE = 1.6; // s
+
+	/** Numbers in Russian: 10.5 → «10,5», 21780 → «21 780» (thin no-break space between thousands). */
+	const num = (v: number) => {
+		const s = (Math.round(v * 10) / 10).toLocaleString('ru-RU', { maximumFractionDigits: 1, useGrouping: false });
+		const [int, frac] = s.split(',');
+		const g = int.length > 4 ? int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : int;
+		return frac ? `${g},${frac}` : g;
+	};
+	const tex = (v: number) => num(v).replace(',', '{,}').replace(/ /g, '\\,');
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vp]')) {
+		const lamps: LampData[] = JSON.parse(root.dataset.lamps!);
+		const pauseBtn = root.querySelector<HTMLButtonElement>('[data-pause]')!;
+		const resetBtn = root.querySelector<HTMLButtonElement>('[data-reset]')!;
+
+		const panels = lamps.map((l) => {
+			const el = root.querySelector<HTMLElement>(`[data-panel="${l.key}"]`)!;
+			// the route as a polyline with cumulative lengths
+			const cum = [0];
+			for (let k = 1; k < l.route.length; k++) cum.push(cum[k - 1] + Math.hypot(l.route[k][0] - l.route[k - 1][0], l.route[k][1] - l.route[k - 1][1]));
+			const L = cum[cum.length - 1];
+			// the middle of the filament: segment 4 → 5 of the route
+			const sFil = cum[4] + (cum[5] - cum[4]) / 2;
+			const N = Math.ceil(L / D) + 1;
+			const at = (s: number): Pt => {
+				let k = 1;
+				while (k < cum.length - 1 && cum[k] < s) k++;
+				const f = (s - cum[k - 1]) / (cum[k] - cum[k - 1] || 1);
+				const a = l.route[k - 1];
+				const b = l.route[k];
+				return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])];
+			};
+			const gBeads = el.querySelector<SVGGElement>('[data-beads]')!;
+			const beads = Array.from({ length: N }, () => {
+				const c = document.createElementNS(NS, 'circle');
+				c.setAttribute('r', String(R_BEAD));
+				c.setAttribute('class', 'vp__b');
+				gBeads.appendChild(c);
+				return c;
+			});
+			return {
+				l,
+				L,
+				N,
+				sFil,
+				at,
+				beads,
+				gPops: el.querySelector<SVGGElement>('[data-pops]')!,
+				pops: [] as { el: SVGTextElement; age: number }[],
+				qOut: el.querySelector<HTMLElement>('[data-q]')!,
+				aOut: el.querySelector<HTMLElement>('[data-a]')!,
+				formula: el.querySelector<HTMLElement>('[data-formula]')!,
+			};
+		});
+
+		// Shared clock: the distance every bead has moved. A bead reaches the middle of a filament exactly when
+		// travel is a multiple of D — in both lamps at the same moment, because the current is the same.
+		let travel = D - 0.9 * V; // the first coulomb reaches the filaments 0,9 s after the start
+		let base = Math.floor(travel / D); // crossings before the counters were reset
+		let q = 0;
+		let running = true;
+
+		const showCounters = () => {
+			for (const p of panels) {
+				const A = p.l.U * q;
+				p.qOut.textContent = `${q} Кл`;
+				p.aOut.textContent = `${num(A)} Дж`;
+				const U = '\\htmlClass{vp-u}{U}';
+				const Af = '\\htmlClass{vp-a}{A}';
+				const qf = '\\htmlClass{vp-q}{q}';
+				const src = q
+					? `${U} = \\frac{${Af}}{${qf}} = \\frac{${tex(A)}~\\text{Дж}}{${q}~\\text{Кл}} = ${tex(p.l.U)}~\\text{В}`
+					: `${U} = \\frac{${Af}}{${qf}}`;
+				renderTex(p.formula, src);
+			}
+		};
+
+		const pop = (p: (typeof panels)[number]) => {
+			const t = document.createElementNS(NS, 'text');
+			t.setAttribute('class', 'vp__pop');
+			t.setAttribute('text-anchor', 'middle');
+			t.textContent = `+${num(p.l.U)} Дж`;
+			p.gPops.appendChild(t);
+			p.pops.push({ el: t, age: 0 });
+		};
+
+		const draw = () => {
+			for (const p of panels) {
+				const span = p.N * D;
+				p.beads.forEach((b, k) => {
+					// bead k sits at sFil + travel + k·D (mod span); the shift by sFil puts a bead on the filament at travel ≡ 0 (mod D)
+					const s = (((p.sFil + travel + k * D) % span) + span) % span;
+					if (s > p.L) {
+						b.setAttribute('visibility', 'hidden');
+						return;
+					}
+					const [x, y] = p.at(s);
+					b.setAttribute('visibility', 'visible');
+					b.setAttribute('cx', x.toFixed(2));
+					b.setAttribute('cy', y.toFixed(2));
+				});
+				const [px, py] = [p.l.key === 'big' ? 250 : 212, p.l.fil.y];
+				for (const o of p.pops) {
+					const f = o.age / POP_LIFE;
+					o.el.setAttribute('x', String(px));
+					o.el.setAttribute('y', (py - 4 - 46 * f).toFixed(1));
+					o.el.setAttribute('opacity', (f < 0.15 ? f / 0.15 : 1 - (f - 0.15) / 0.85).toFixed(2));
+				}
+			}
+		};
+
+		const step = (dt: number) => {
+			travel += V * dt;
+			const crossed = Math.floor(travel / D) - base;
+			if (crossed > q) {
+				q = crossed;
+				showCounters();
+				panels.forEach(pop);
+			}
+			for (const p of panels) {
+				for (const o of p.pops) o.age += dt;
+				while (p.pops.length && p.pops[0].age > POP_LIFE) p.pops.shift()!.el.remove();
+			}
+		};
+
+		let visible = false;
+		let raf = 0;
+		let last = 0;
+		const loop = (time: number) => {
+			const dt = Math.min(0.05, last ? (time - last) / 1000 : 0.016);
+			last = time;
+			step(dt);
+			draw();
+			raf = visible && running ? requestAnimationFrame(loop) : 0;
+		};
+		const kick = () => {
+			if (!raf && visible && running) {
+				last = 0;
+				raf = requestAnimationFrame(loop);
+			}
+		};
+
+		pauseBtn.addEventListener('click', () => {
+			running = !running;
+			pauseBtn.textContent = running ? 'Пауза' : 'Дальше';
+			kick();
+		});
+		resetBtn.addEventListener('click', () => {
+			base = Math.floor(travel / D);
+			q = 0;
+			showCounters();
+		});
+
+		new IntersectionObserver((entries) => {
+			visible = entries[0].isIntersecting;
+			kick();
+		}).observe(root);
+		showCounters();
+		draw();
+	}
+</script>

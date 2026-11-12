@@ -1,0 +1,378 @@
+---
+/**
+ * «Электрический ток — упорядоченное движение заряженных частиц»: a piece of a conductor with free charged
+ * particles. Without a field every particle only jiggles about its place (no net motion, no current). With
+ * the field on, all of them keep jiggling and also drift together: positive particles along the field,
+ * negative ones against it. One particle is ringed and leaves a short trail.
+ */
+---
+
+<figure class="omo not-content" data-omo>
+	<canvas class="omo__canvas" data-canvas role="img" aria-label="Кусочек проводника со свободными заряженными частицами"></canvas>
+	<div class="omo__row">
+		<button type="button" class="omo__btn" data-field aria-pressed="false">Включить поле</button>
+		<div class="omo__signs" role="radiogroup" aria-label="Какие частицы">
+			<button type="button" class="omo__sign" role="radio" aria-checked="true" data-sign="1"><span class="omo__sym omo__sym--p">+</span> положительные</button>
+			<button type="button" class="omo__sign" role="radio" aria-checked="false" data-sign="-1"><span class="omo__sym omo__sym--n">−</span> отрицательные</button>
+		</div>
+	</div>
+	<p class="omo__live" data-live aria-live="polite">Поля нет — частицы движутся беспорядочно, тока нет.</p>
+	<figcaption class="omo__legend">
+		Кусочек проводника «под микроскопом». Кружки — свободные заряженные частицы; одна из них обведена, и за ней тянется след.
+		Без поля каждая частица мечется туда-сюда, но никуда не уходит. Электрическое поле толкает все частицы в одну сторону:
+		положительные — по направлению поля, отрицательные — против. Скорости показаны условно.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.omo {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.omo__canvas {
+		display: block;
+		width: 100%;
+		height: 184px;
+		border-radius: 0.75rem;
+		background: var(--sl-color-black);
+	}
+	.omo__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin-top: 0.75rem;
+	}
+	.omo__btn {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		cursor: pointer;
+	}
+	.omo__btn[aria-pressed='true'] {
+		background: transparent;
+		color: var(--sl-color-white);
+	}
+	.omo__signs {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.omo__sign {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.8rem 0.3rem 0.4rem;
+		border-radius: 999px;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.omo__sign[aria-checked='true'] {
+		background: var(--sl-color-gray-5);
+		color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.omo__sym {
+		display: inline-grid;
+		place-items: center;
+		width: 1.15rem;
+		height: 1.15rem;
+		border-radius: 50%;
+		color: var(--sl-color-black);
+		font-weight: 700;
+		line-height: 1;
+	}
+	.omo__sym--p {
+		background: var(--ig-vy);
+	}
+	.omo__sym--n {
+		background: var(--ig-vx);
+	}
+	.omo__live {
+		min-height: 1.5em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.omo__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.55;
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.omo {
+			padding: 0.75rem;
+		}
+		.omo__live {
+			min-height: 3em;
+		}
+	}
+</style>
+
+<script>
+	import { colours, drawArrow, drawCharge, fitCanvas, rng, runWhileVisible, type Colours } from './tokParticles';
+
+	const H = 184; // canvas height, CSS px
+	const TOP = 36; // the conductor: from TOP to BOT
+	const BOT = 148;
+	const R = 7.5; // particle radius
+	const AMP = 11; // how far a particle wanders from its place
+	const VTH = 75; // speed of the chaotic motion, px/s (slowed down on purpose)
+	const VD = 42; // drift speed with the field on, px/s (in reality far smaller than the chaotic speed)
+	const AREA = 1500; // px² of conductor per particle
+	const ROWS = 3;
+	const TRAIL = 1.6; // s
+
+	type P = { hx: number; hy: number; ox: number; oy: number; vx: number; vy: number; next: number };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-omo]')) {
+		const canvas = root.querySelector<HTMLCanvasElement>('[data-canvas]')!;
+		const ctx = canvas.getContext('2d')!;
+		const fieldBtn = root.querySelector<HTMLButtonElement>('[data-field]')!;
+		const live = root.querySelector<HTMLElement>('[data-live]')!;
+		const signBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-sign]')];
+
+		let W = 0;
+		let on = false;
+		let sign: 1 | -1 = 1;
+		let e = 0; // field strength shown, eases 0 ↔ 1
+		let ps: P[] = [];
+		let tracer = 0;
+		let trail: { x: number; y: number; t: number }[] = [];
+		let clock = 0;
+		let col: Colours = {};
+		let frameNo = 0;
+		const rand = rng(11);
+
+		const build = () => {
+			const span = W + 40;
+			const n = Math.max(ROWS * 4, Math.round((span * (BOT - TOP - 2 * R)) / AREA));
+			const cols = Math.ceil(n / ROWS);
+			const sx = span / cols;
+			const sy = (BOT - TOP) / ROWS;
+			ps = [];
+			for (let c = 0; c < cols; c++)
+				for (let r = 0; r < ROWS; r++) {
+					const a = rand() * 2 * Math.PI;
+					ps.push({
+						hx: -20 + (c + 0.2 + 0.6 * rand()) * sx + (r % 2) * 0.5 * sx,
+						hy: TOP + (r + 0.5) * sy + (rand() - 0.5) * 0.35 * sy,
+						ox: (rand() * 2 - 1) * AMP,
+						oy: (rand() * 2 - 1) * AMP,
+						vx: VTH * Math.cos(a),
+						vy: VTH * Math.sin(a),
+						next: rand() * 0.3,
+					});
+				}
+			for (const p of ps) if (p.hx >= W + 20) p.hx -= span;
+			// the ringed particle: the one in the middle row nearest to the centre
+			let best = Infinity;
+			ps.forEach((p, k) => {
+				const d = Math.abs(p.hx - W / 2) + 3 * Math.abs(p.hy - (TOP + BOT) / 2);
+				if (d < best) (best = d), (tracer = k);
+			});
+			trail = [];
+		};
+
+		const resize = () => {
+			const w = fitCanvas(canvas, ctx, H);
+			if (w !== W) {
+				W = w;
+				build();
+			}
+		};
+
+		const where = (p: P) => {
+			const x = p.hx + p.ox;
+			let y = p.hy + p.oy;
+			const lo = TOP + R + 1;
+			const hi = BOT - R - 1;
+			if (y < lo) y = 2 * lo - y;
+			if (y > hi) y = 2 * hi - y;
+			return { x, y: Math.min(Math.max(y, lo), hi) };
+		};
+
+		const showState = () => {
+			fieldBtn.textContent = on ? 'Выключить поле' : 'Включить поле';
+			fieldBtn.setAttribute('aria-pressed', String(on));
+			signBtns.forEach((b) => b.setAttribute('aria-checked', String(Number(b.dataset.sign) === sign)));
+			if (!on) live.textContent = 'Поля нет — частицы движутся беспорядочно, тока нет.';
+			else
+				live.textContent =
+					sign > 0
+						? 'Поле есть — частицы движутся упорядоченно: идёт ток. Положительные частицы смещаются по направлению поля.'
+						: 'Поле есть — частицы движутся упорядоченно: идёт ток. Отрицательные частицы смещаются против поля.';
+		};
+
+		fieldBtn.addEventListener('click', () => {
+			on = !on;
+			showState();
+		});
+		signBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				sign = Number(b.dataset.sign) as 1 | -1;
+				trail = [];
+				showState();
+			}),
+		);
+
+		const step = (dt: number) => {
+			e += ((on ? 1 : 0) - e) * Math.min(1, dt / 0.35);
+			if (Math.abs(e - (on ? 1 : 0)) < 1e-3) e = on ? 1 : 0;
+			clock += dt;
+			const span = W + 40;
+			ps.forEach((p, k) => {
+				p.hx += sign * e * VD * dt;
+				let wrapped = false;
+				if (p.hx >= W + 20) (p.hx -= span), (wrapped = true);
+				if (p.hx < -20) (p.hx += span), (wrapped = true);
+				if (wrapped && k === tracer) trail = [];
+				p.next -= dt;
+				if (p.next <= 0) {
+					const a = Math.random() * 2 * Math.PI;
+					p.vx = VTH * Math.cos(a);
+					p.vy = VTH * Math.sin(a);
+					p.next = 0.08 + 0.27 * Math.random();
+				}
+				p.ox += p.vx * dt;
+				p.oy += p.vy * dt;
+				if (Math.abs(p.ox) > AMP) (p.ox = Math.sign(p.ox) * AMP), (p.vx = -p.vx);
+				if (Math.abs(p.oy) > AMP) (p.oy = Math.sign(p.oy) * AMP), (p.vy = -p.vy);
+			});
+			if (dt > 0) {
+				trail.push({ ...where(ps[tracer]), t: clock });
+				while (trail.length && clock - trail[0].t > TRAIL) trail.shift();
+			}
+		};
+
+		const label = (text: string, x: number, y: number, align: CanvasTextAlign, colour: string, alpha: number) => {
+			ctx.globalAlpha = alpha;
+			ctx.fillStyle = colour;
+			ctx.textAlign = align;
+			ctx.fillText(text, x, y);
+			ctx.globalAlpha = 1;
+		};
+
+		const draw = () => {
+			if (frameNo++ % 20 === 0) col = colours(root);
+			ctx.clearRect(0, 0, W, H);
+			// the conductor
+			const g = ctx.createLinearGradient(0, TOP, 0, BOT);
+			g.addColorStop(0, col['--sl-color-gray-5']);
+			g.addColorStop(0.35, col['--sl-color-gray-6']);
+			g.addColorStop(1, col['--sl-color-gray-6']);
+			ctx.fillStyle = g;
+			ctx.fillRect(-2, TOP, W + 4, BOT - TOP);
+			ctx.strokeStyle = col['--sl-color-gray-3'];
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			ctx.moveTo(0, TOP);
+			ctx.lineTo(W, TOP);
+			ctx.moveTo(0, BOT);
+			ctx.lineTo(W, BOT);
+			ctx.stroke();
+			ctx.font = `14px ${getComputedStyle(root).fontFamily}`;
+			ctx.textBaseline = 'middle';
+			// the field: faint lines inside the conductor and an arrow above it
+			if (e > 0.01) {
+				ctx.globalAlpha = 0.45 * e;
+				for (const y of [TOP + (BOT - TOP) / 6, (TOP + BOT) / 2, BOT - (BOT - TOP) / 6]) {
+					ctx.setLineDash([]);
+					ctx.strokeStyle = col['--ig-v'];
+					ctx.lineWidth = 1.2;
+					ctx.beginPath();
+					ctx.moveTo(0, y);
+					ctx.lineTo(W, y);
+					ctx.stroke();
+					ctx.fillStyle = col['--ig-v'];
+					for (let x = 70; x < W; x += 130) {
+						ctx.beginPath();
+						ctx.moveTo(x + 4, y);
+						ctx.lineTo(x - 5, y - 4);
+						ctx.lineTo(x - 5, y + 4);
+						ctx.fill();
+					}
+				}
+				ctx.globalAlpha = 1;
+				const text = 'электрическое поле';
+				const tw = ctx.measureText(text).width;
+				const x0 = (W - tw - 66) / 2;
+				label(text, x0, 18, 'left', col['--ig-v'], e);
+				ctx.globalAlpha = e;
+				drawArrow(ctx, x0 + tw + 10, x0 + tw + 66, 18, col['--ig-v'], 2.5);
+				ctx.globalAlpha = 1;
+			}
+			// trail of the ringed particle
+			if (trail.length > 1) {
+				ctx.lineWidth = 1.6;
+				ctx.lineJoin = 'round';
+				ctx.strokeStyle = col['--sl-color-gray-2'];
+				for (let k = 1; k < trail.length; k++) {
+					ctx.globalAlpha = 0.75 * (1 - (clock - trail[k].t) / TRAIL);
+					ctx.beginPath();
+					ctx.moveTo(trail[k - 1].x, trail[k - 1].y);
+					ctx.lineTo(trail[k].x, trail[k].y);
+					ctx.stroke();
+				}
+				ctx.globalAlpha = 1;
+			}
+			// particles
+			for (const p of ps) {
+				const { x, y } = where(p);
+				drawCharge(ctx, col, x, y, R, sign);
+			}
+			const t = where(ps[tracer]);
+			ctx.beginPath();
+			ctx.arc(t.x, t.y, R + 4, 0, 2 * Math.PI);
+			ctx.strokeStyle = col['--sl-color-white'];
+			ctx.lineWidth = 1.8;
+			ctx.stroke();
+			// direction of the particles' drift, below the conductor
+			if (e > 0.01) {
+				const text = 'движение частиц';
+				const tw = ctx.measureText(text).width;
+				const x0 = (W - tw - 66) / 2;
+				const pc = sign > 0 ? col['--ig-vy'] : col['--ig-vx'];
+				const y = BOT + 18;
+				ctx.globalAlpha = e;
+				if (sign > 0) {
+					label(text, x0, y, 'left', pc, e);
+					ctx.globalAlpha = e;
+					drawArrow(ctx, x0 + tw + 10, x0 + tw + 66, y, pc, 2.5);
+				} else {
+					drawArrow(ctx, x0 + 56, x0, y, pc, 2.5);
+					label(text, x0 + 66, y, 'left', pc, e);
+				}
+				ctx.globalAlpha = 1;
+			}
+		};
+
+		runWhileVisible(
+			root,
+			canvas,
+			(dt) => {
+				step(dt);
+				draw();
+			},
+			resize,
+		);
+		resize();
+		showState();
+	}
+</script>
