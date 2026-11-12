@@ -1,0 +1,467 @@
+---
+/**
+ * Picture to «Вокруг неподвижных зарядов магнитного поля нет»: a vertical tube with electrons pierces a horizontal
+ * sheet of cardboard; small compass needles stand on the sheet. Oblique view: a point of the sheet (n — north,
+ * w — west, z — up; a right-handed triple) is drawn at (CX + n, CY − K·w − z): north is to the right, west is away
+ * from us (up the picture), the sheet is foreshortened by K.
+ * At rest: the electrons stand still; the charged tube has an electric field (radial, drawn faintly), but there is no
+ * magnetic field: every needle points north (the Earth's field).
+ * Moving: the electrons flow down, so the current flows up. The field of the current, B ∝ I/r, goes along circles
+ * round the tube, counter-clockwise seen from above (right-hand rule: thumb up, fingers curl counter-clockwise; the
+ * chapter's rule «ток к нам — против часовой стрелки»). At the needles B_tube = 8·B_Earth (at r = 66); each needle turns along
+ * the sum of the two fields as a damped pendulum (stiffness ∝ |B|). The electric field stays: the charges are still
+ * there.
+ */
+const W = 360;
+const H = 250;
+const CX = 180;
+const CY = 130;
+const K = 0.45; // foreshortening of the sheet
+const SN = 160; // half-length of the sheet (north–south)
+const SW = 125; // half-depth of the sheet (west–east)
+const TUBE = 9; // radius of the tube
+const RL = [34, 66, 100]; // radii of the magnetic lines
+const RN = 66; // the needles stand on the middle line
+const uid = `chf-${Math.random().toString(36).slice(2, 8)}`;
+const f1 = (v: number) => v.toFixed(1);
+// a point of the sheet on the screen
+const P = (n: number, w: number) => [CX + n, CY - K * w];
+// an arrowhead on the line of radius r at the angle th (from the north towards the west), counter-clockwise
+const arrow = (r: number, th: number) => {
+	const [x, y] = P(r * Math.cos(th), r * Math.sin(th));
+	const dx = -Math.sin(th);
+	const dy = -K * Math.cos(th);
+	const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+	return `translate(${f1(x)} ${f1(y)}) rotate(${f1(deg)})`;
+};
+const D = Math.PI / 180;
+const ARROWS = [
+	[RL[0], 270 * D],
+	[RL[1], 270 * D],
+	[RL[2], 270 * D],
+	[RL[2], 150 * D],
+	[RL[0], 150 * D],
+];
+const NEEDLES = [0, 60, 120, 180, 240, 300].map((a) => a * D);
+const EH = [14, 38, 62]; // heights (screen y) of the electric field lines above the sheet
+const front = CY + K * SW; // the front edge of the sheet
+---
+
+<figure class="chf not-content" data-chf data-k={K} data-cx={CX} data-cy={CY} data-rn={RN}>
+	<div class="chf__modes" role="radiogroup" aria-label="Что делают заряды">
+		<button type="button" class="chf__mode is-on" role="radio" aria-checked="true" data-mode="rest">Заряды покоятся</button>
+		<button type="button" class="chf__mode" role="radio" aria-checked="false" data-mode="move">Заряды движутся</button>
+	</div>
+	<div class="chf__stage">
+		<svg class="chf__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Сквозь лист картона проходит трубка с электронами, на листе стоят магнитные стрелки. Пока электроны покоятся, вокруг трубки есть только электрическое поле и все стрелки показывают на север. Когда электроны движутся, появляется магнитное поле: его линии — окружности вокруг трубки, и стрелки поворачиваются вдоль них.">
+			<defs>
+				<clipPath id={`${uid}-up`}><rect x="0" y="-20" width={W} height={CY + 20}></rect></clipPath>
+				<clipPath id={`${uid}-down`}><rect x="0" y={CY} width={W} height={H - CY + 20}></rect></clipPath>
+			</defs>
+			<!-- the tube under the sheet, with its electrons -->
+			<rect class="chf__tube" x={CX - TUBE} y={CY} width={2 * TUBE} height={H - CY + 10}></rect>
+			<g clip-path={`url(#${uid}-down)`} data-e-down></g>
+			<!-- the sheet of cardboard -->
+			<rect class="chf__edge" x={CX - SN} y={front - 1} width={2 * SN} height="5" rx="1.5"></rect>
+			<rect class="chf__sheet" x={CX - SN} y={CY - K * SW} width={2 * SN} height={2 * K * SW} rx="3"></rect>
+			<ellipse class="chf__hole" cx={CX} cy={CY} rx={TUBE + 1.5} ry={K * (TUBE + 1.5)}></ellipse>
+			<!-- north -->
+			<path class="chf__north" d={`M 262 ${front - 10} H 300 M 293 ${front - 14.5} L 301 ${front - 10} L 293 ${front - 5.5}`}></path>
+			<text class="chf__lbl chf__lbl--quiet" x="305" y={front - 6}>север</text>
+			<!-- the magnetic lines on the sheet -->
+			<g class="chf__lines" data-lines>
+				{RL.map((r) => <ellipse cx={CX} cy={CY} rx={r} ry={K * r}></ellipse>)}
+				{ARROWS.map(([r, th]) => <path class="chf__arrow" transform={arrow(r, th)} d="M -6 -4.5 L 6 0 L -6 4.5 Z"></path>)}
+				<text class="chf__lbl chf__lbl--line" x={CX - SN + 7} y={front - 8}>магнитные линии</text>
+			</g>
+			<!-- the compasses -->
+			{
+				NEEDLES.map((th) => {
+					const [x, y] = P(RN * Math.cos(th), RN * Math.sin(th));
+					return (
+						<g data-cmp data-th={th}>
+							<ellipse class="chf__case" cx={x} cy={y} rx="15" ry={15 * K}></ellipse>
+							<polygon class="chf__n" points="" data-n></polygon>
+							<polygon class="chf__s" points="" data-s></polygon>
+							<circle class="chf__pin" cx={x} cy={y} r="1.6"></circle>
+						</g>
+					);
+				})
+			}
+			<!-- the tube over the sheet, with its electrons -->
+			<rect class="chf__tube" x={CX - TUBE} y="-10" width={2 * TUBE} height={CY + 10}></rect>
+			<g clip-path={`url(#${uid}-up)`} data-e-up></g>
+			<!-- the electric field: perpendicular to the tube -->
+			<g class="chf__efield">
+				{EH.map((y) => <path d={`M ${CX - TUBE - 4} ${y} H ${CX - TUBE - 30} M ${CX + TUBE + 4} ${y} H ${CX + TUBE + 30}`}></path>)}
+			</g>
+			<text class="chf__lbl" x={CX + TUBE + 36} y={EH[1] + 4}>электрическое поле</text>
+			<!-- what the field is -->
+			<text class="chf__state" x="12" y="24" data-state>
+				<tspan x="12" dy="0" data-state1>магнитного</tspan>
+				<tspan x="12" dy="17" data-state2>поля нет</tspan>
+			</text>
+			<!-- under the sheet: the electrons and the current -->
+			<path class="chf__emove" d={`M ${CX - TUBE - 14} ${front + 14} V ${front + 50} M ${CX - TUBE - 18.5} ${front + 43} L ${CX - TUBE - 14} ${front + 51} L ${CX - TUBE - 9.5} ${front + 43}`} data-emove></path>
+			<text class="chf__lbl" x={CX - TUBE - 24} y={front + 36} text-anchor="end">электроны</text>
+			<path class="chf__cur" d={`M ${CX + TUBE + 14} ${front + 50} V ${front + 14} M ${CX + TUBE + 9.5} ${front + 21} L ${CX + TUBE + 14} ${front + 13} L ${CX + TUBE + 18.5} ${front + 21}`} data-cur></path>
+			<text class="chf__lbl chf__lbl--cur" x={CX + TUBE + 24} y={front + 36} data-cur-lbl>тока нет</text>
+		</svg>
+	</div>
+	<p class="chf__status" data-status aria-live="polite"></p>
+	<figcaption class="chf__legend">
+		Сквозь лист картона проходит трубка с электронами <span class="chf__sym">−</span>, на листе стоят магнитные стрелки:{' '}
+		<span class="chf__key chf__key--n"></span>северный конец, <span class="chf__key chf__key--s"></span>южный.
+		Электрическое поле вокруг зарядов есть всегда, а магнитное — только когда заряды движутся.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.chf {
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-gray-3);
+		line-height: 1.5;
+	}
+	.chf__modes {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		padding: 0.25rem;
+		margin-bottom: 0.6rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-6);
+	}
+	.chf__mode {
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.95rem;
+		border-radius: 999px;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.chf__mode.is-on {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.chf__stage {
+		padding: 0.4rem;
+		border-radius: 0.8rem;
+		background: var(--sl-color-black);
+		border: 1px solid var(--sl-color-gray-6);
+	}
+	.chf__svg {
+		display: block;
+		width: 100%;
+		max-width: 480px;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.chf__sheet {
+		fill: color-mix(in srgb, var(--ig-v) 10%, var(--sl-color-gray-6));
+	}
+	.chf__edge {
+		fill: color-mix(in srgb, var(--ig-v) 14%, var(--sl-color-gray-5));
+	}
+	.chf__hole {
+		fill: var(--sl-color-black);
+	}
+	:root[data-theme='light'] .chf__hole {
+		fill: var(--sl-color-gray-4);
+	}
+	.chf__tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 22%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.chf__e circle {
+		fill: var(--ig-vx);
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, var(--sl-color-white));
+		stroke-width: 1;
+	}
+	.chf__e line {
+		stroke: var(--sl-color-black);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.chf__north {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.chf__lines {
+		opacity: 0;
+	}
+	.chf__lines ellipse {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.chf__lines .chf__arrow {
+		fill: var(--sl-color-gray-2);
+	}
+	.chf__case {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 80%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.chf__n {
+		fill: var(--ig-vx);
+	}
+	.chf__s {
+		fill: var(--ig-vy);
+	}
+	.chf__pin {
+		fill: var(--sl-color-gray-2);
+	}
+	.chf__efield path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+		stroke-dasharray: 3 3;
+		stroke-linecap: round;
+		opacity: 0.8;
+	}
+	.chf__emove {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0;
+	}
+	.chf__cur {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0;
+	}
+	.chf__lbl {
+		font-size: 13px;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+	}
+	.chf__lbl--quiet {
+		fill: var(--sl-color-gray-3);
+	}
+	.chf__lbl--cur.is-on {
+		fill: var(--ig-v);
+		font-weight: 600;
+	}
+	.chf__state {
+		font-size: 14px;
+		font-weight: 600;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+	}
+	.chf__status {
+		margin: 0.7rem 0 0;
+		min-height: 3em;
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-sm);
+	}
+	.chf__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+	}
+	.chf__sym {
+		display: inline-grid;
+		place-items: center;
+		width: 1.05rem;
+		height: 1.05rem;
+		border-radius: 50%;
+		background: var(--ig-vx);
+		color: var(--sl-color-black);
+		font-weight: 700;
+		line-height: 1;
+	}
+	.chf__key {
+		display: inline-block;
+		width: 0.9em;
+		height: 0.45em;
+		margin-inline: 0.1em 0.35em;
+		border-radius: 0.2em;
+		vertical-align: 0.1em;
+	}
+	.chf__key--n {
+		background: var(--ig-vx);
+	}
+	.chf__key--s {
+		background: var(--ig-vy);
+	}
+	@media (max-width: 40rem) {
+		.chf {
+			padding: 0.75rem;
+		}
+		.chf__status {
+			min-height: 4.5em;
+		}
+		.chf__lbl {
+			font-size: 14px;
+		}
+		.chf__state {
+			font-size: 15px;
+		}
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const H = 250;
+	const TUBE_SPACE = 20; // px between neighbouring electrons
+	const RE = 5.5; // radius of an electron
+	const V = 42; // px/s: the speed of the electrons
+	const RAMP = 0.7; // s to start or stop the flow
+	const KB = 8; // the field of the tube at the needles / the Earth's field
+	const OMEGA = (2 * Math.PI) / 1.6; // the needle in the Earth's field alone
+	const GAMMA = 3.5; // damping, 1/s
+	const L = 12; // half-length of a needle
+	const HW = 3.2; // half-width
+	const AUTO = { rest: 5, move: 7 }; // s in each state while nobody has pressed a button
+	const SAY = {
+		rest: '<b>Заряды покоятся.</b> Вокруг них есть электрическое поле, а магнитного поля нет: все стрелки, как компас, показывают на север.',
+		move: '<b>Заряды движутся</b> — появилось магнитное поле. Стрелки повернулись вдоль магнитных линий — окружностей вокруг трубки. Электроны идут вниз, значит, ток направлен вверх.',
+	};
+	const f1 = (v: number) => v.toFixed(1);
+	type Mode = 'rest' | 'move';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-chf]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const K = Number(root.dataset.k);
+		const CX = Number(root.dataset.cx);
+		const CY = Number(root.dataset.cy);
+		const lines = $<SVGGElement>('[data-lines]');
+		const emove = $<SVGPathElement>('[data-emove]');
+		const cur = $<SVGPathElement>('[data-cur]');
+		const curLbl = $<SVGTextElement>('[data-cur-lbl]');
+		const state1 = $<SVGTSpanElement>('[data-state1]');
+		const state2 = $<SVGTSpanElement>('[data-state2]');
+		const status = $<HTMLElement>('[data-status]');
+		const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-mode]')];
+
+		// the electrons: one set under the sheet, one over it (each clipped to its half)
+		const N = Math.ceil((H + 2 * TUBE_SPACE) / TUBE_SPACE);
+		const electron = (parent: Element) => {
+			const g = document.createElementNS(NS, 'g');
+			g.setAttribute('class', 'chf__e');
+			const c = document.createElementNS(NS, 'circle');
+			c.setAttribute('r', String(RE));
+			const l = document.createElementNS(NS, 'line');
+			l.setAttribute('x1', f1(-RE * 0.55));
+			l.setAttribute('x2', f1(RE * 0.55));
+			g.append(c, l);
+			parent.append(g);
+			return g;
+		};
+		const eUp = $<SVGGElement>('[data-e-up]');
+		const eDown = $<SVGGElement>('[data-e-down]');
+		const pairs = Array.from({ length: N }, () => [electron(eUp), electron(eDown)]);
+
+		// the compasses: the point of the sheet (n, w) on the screen
+		const needles = [...root.querySelectorAll<SVGGElement>('[data-cmp]')].map((g) => {
+			const th = Number(g.dataset.th);
+			const rn = Number(root.dataset.rn);
+			return {
+				n0: rn * Math.cos(th),
+				w0: rn * Math.sin(th),
+				tn: -Math.sin(th), // the field of the tube: counter-clockwise from above
+				tw: Math.cos(th),
+				nEl: g.querySelector<SVGPolygonElement>('[data-n]')!,
+				sEl: g.querySelector<SVGPolygonElement>('[data-s]')!,
+				a: 0, // the angle from the north towards the west
+				w: 0,
+			};
+		});
+		const P = (n: number, w: number) => `${f1(CX + n)},${f1(CY - K * w)}`;
+
+		let mode: Mode = 'rest';
+		let auto = true;
+		let tMode = 0; // s in the current mode
+		let ramp = 0; // 0 — at rest, 1 — full flow
+		let y0 = 0; // shift of the electrons
+
+		const setMode = (m: Mode) => {
+			mode = m;
+			tMode = 0;
+			buttons.forEach((b) => {
+				const on = b.dataset.mode === m;
+				b.classList.toggle('is-on', on);
+				b.setAttribute('aria-checked', String(on));
+			});
+			status.innerHTML = SAY[m];
+			state1.textContent = m === 'rest' ? 'магнитного' : 'появилось';
+			state2.textContent = m === 'rest' ? 'поля нет' : 'магнитное поле';
+			curLbl.textContent = m === 'rest' ? 'тока нет' : 'ток';
+			curLbl.classList.toggle('is-on', m === 'move');
+		};
+
+		const draw = () => {
+			const s = ramp * ramp * (3 - 2 * ramp); // the current, 0…1
+			pairs.forEach(([up, down], k) => {
+				const y = (((k * TUBE_SPACE + y0) % (N * TUBE_SPACE)) + N * TUBE_SPACE) % (N * TUBE_SPACE) - TUBE_SPACE;
+				const tr = `translate(${CX} ${f1(y)})`;
+				up.setAttribute('transform', tr);
+				down.setAttribute('transform', tr);
+			});
+			lines.style.opacity = f1(s);
+			emove.style.opacity = f1(s);
+			cur.style.opacity = f1(s);
+			for (const nd of needles) {
+				const dn = Math.cos(nd.a);
+				const dw = Math.sin(nd.a);
+				const tip = (k: number) => P(nd.n0 + k * L * dn, nd.w0 + k * L * dw);
+				const side = (k: number) => P(nd.n0 - k * HW * dw, nd.w0 + k * HW * dn);
+				nd.nEl.setAttribute('points', [tip(1), side(1), side(-1)].join(' '));
+				nd.sEl.setAttribute('points', [tip(-1), side(1), side(-1)].join(' '));
+			}
+		};
+
+		const step = (dt: number) => {
+			tMode += dt;
+			if (auto && tMode >= AUTO[mode]) setMode(mode === 'rest' ? 'move' : 'rest');
+			ramp = Math.min(1, Math.max(0, ramp + (mode === 'move' ? dt : -dt) / RAMP));
+			const s = ramp * ramp * (3 - 2 * ramp);
+			y0 += V * s * dt; // the electrons go down
+			// the needles: damped pendulums in the sum of the Earth's field (to the north) and the field of the tube
+			const h = dt / 8;
+			for (const nd of needles) {
+				const bn = 1 + KB * s * nd.tn;
+				const bw = KB * s * nd.tw;
+				const b = Math.hypot(bn, bw);
+				const target = Math.atan2(bw, bn);
+				for (let j = 0; j < 8; j++) {
+					nd.w += (-OMEGA * OMEGA * b * Math.sin(nd.a - target) - GAMMA * nd.w) * h;
+					nd.a += nd.w * h;
+				}
+			}
+			draw();
+			return true;
+		};
+
+		buttons.forEach((b) =>
+			b.addEventListener('click', () => {
+				auto = false;
+				const m = b.dataset.mode as Mode;
+				if (m !== mode) setMode(m);
+				wake();
+			}),
+		);
+		setMode('rest');
+		draw();
+		const wake = loop(root, step);
+	}
+</script>
