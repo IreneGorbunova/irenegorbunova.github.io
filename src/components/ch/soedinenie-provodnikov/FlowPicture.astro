@@ -1,0 +1,276 @@
+---
+/**
+ * The picture for a definition: how the current goes through two or three lamps connected
+ * in series (`kind="series"`: two equal lamps), in parallel (`kind="parallel"`: R2 = 2R1, so I1 = 2/3 I, I2 = 1/3 I)
+ * or mixed (`kind="mixed"`: lamp 1, then equal lamps 2 and 3 in parallel, I2 = I3 = I/2).
+ * A battery on the left gives the current; red arrows show the direction of current with its label, the blue dots are
+ * free electrons drifting AGAINST the current, with a speed proportional to the current in that wire (the same wire
+ * everywhere, so the same number of electrons per unit length). A lamp's glow grows with its power, relative to the
+ * brightest lamp of the picture. Plays only while visible.
+ */
+import { flowGeometry, type FlowKind } from './flow';
+
+interface Props {
+	kind: FlowKind;
+}
+const { kind } = Astro.props;
+const g = flowGeometry(kind);
+const uid = `fp-${Math.random().toString(36).slice(2, 8)}`;
+const f1 = (v: number) => v.toFixed(1);
+const cross = (x: number, y: number, r: number) => {
+	const c = r * Math.SQRT1_2;
+	return `M ${f1(x - c)} ${f1(y - c)} L ${f1(x + c)} ${f1(y + c)} M ${f1(x + c)} ${f1(y - c)} L ${f1(x - c)} ${f1(y + c)}`;
+};
+const ARROW = 28;
+const arrowPath = (a: { x: number; y: number; dir: 'r' | 'l' | 'u' | 'd' }) => {
+	const h = ARROW / 2;
+	const [dx, dy] = { r: [1, 0], l: [-1, 0], u: [0, -1], d: [0, 1] }[a.dir];
+	return `M ${f1(a.x - dx * h)} ${f1(a.y - dy * h)} L ${f1(a.x + dx * h)} ${f1(a.y + dy * h)}`;
+};
+const NAMES: Record<FlowKind, string> = {
+	series: 'Две одинаковые лампы соединены последовательно с батареей: у тока один путь',
+	parallel: 'Две лампы соединены параллельно: в узле ток разветвляется на две ветви',
+	mixed: 'Лампа 1 соединена последовательно с парой ламп 2 и 3, соединённых параллельно',
+};
+const sub = (s: string) => s.replace(/_(\d+)/, '<tspan class="fp__sub" dy="4">$1</tspan>');
+---
+
+<figure class="fp not-content" data-fp data-kind={kind}>
+	<svg class="fp__svg" viewBox={`0 0 ${g.W} ${g.H}`} role="img" aria-label={NAMES[kind]}>
+		<defs>
+			<radialGradient id={`${uid}-glow`}>
+				<stop offset="0" stop-color="var(--ig-v)" stop-opacity="0.9"></stop>
+				<stop offset="0.4" stop-color="var(--ig-v)" stop-opacity="0.35"></stop>
+				<stop offset="1" stop-color="var(--ig-v)" stop-opacity="0"></stop>
+			</radialGradient>
+			<marker id={`${uid}-tip`} viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+				<path class="fp__tip" d="M0,0 L10,5 L0,10 z"></path>
+			</marker>
+		</defs>
+		{g.paths.map((p) => <polyline class="fp__w" points={p.pts.map(([x, y]) => `${x},${y}`).join(' ')} />)}
+		<!-- the battery: «+» (long thin plate) on top -->
+		<rect class="fp__bg" x={g.bat.x - 20} y={g.bat.y1 + 2} width="40" height={g.bat.y2 - g.bat.y1 - 4}></rect>
+		<line class="fp__plate" x1={g.bat.x - 17} y1={g.bat.y1} x2={g.bat.x + 17} y2={g.bat.y1}></line>
+		<line class="fp__plate fp__plate--minus" x1={g.bat.x - 8} y1={g.bat.y2} x2={g.bat.x + 8} y2={g.bat.y2}></line>
+		<text class="fp__pm" x={g.bat.x - 28} y={g.bat.y1 - 4} text-anchor="middle">+</text>
+		<text class="fp__pm" x={g.bat.x - 28} y={g.bat.y2 + 14} text-anchor="middle">−</text>
+		<g data-dots></g>
+		{
+			g.lamps.map((l) => (
+				<g>
+					<circle cx={l.x} cy={l.y} r={14 + 34 * Math.sqrt(l.p)} fill={`url(#${uid}-glow)`} opacity={(0.25 + 0.75 * l.p).toFixed(2)} />
+					<circle class="fp__lamp" cx={l.x} cy={l.y} r={g.RL} />
+					<path class="fp__x" d={cross(l.x, l.y, g.RL)} />
+					<text class="fp__math" x={l.lx} y={l.ly} text-anchor="middle" set:html={sub(l.label)} />
+				</g>
+			))
+		}
+		{g.nodes.map(([x, y]) => <circle class="fp__node" cx={x} cy={y} r="4.5" />)}
+		{g.notes.map((n) => <text class="fp__note" x={n.x} y={n.y} text-anchor="middle">{n.t}</text>)}
+		{
+			g.arrows.map((a) => (
+				<g>
+					<path class="fp__arrow" d={arrowPath(a)} marker-end={`url(#${uid}-tip)`} />
+					<text class="fp__math fp__math--i" x={a.lx} y={a.ly} text-anchor="middle" set:html={sub(a.label)} />
+				</g>
+			))
+		}
+	</svg>
+	<p class="fp__legend">
+		<span class="fp__key"><span class="fp__dot"></span>свободные электроны</span>
+		<span class="fp__key"><span class="fp__arr" aria-hidden="true"></span>направление тока</span>
+	</p>
+	<figcaption class="fp__cap"><slot /></figcaption>
+	<script type="application/json" data-geo set:html={JSON.stringify(g.paths)} />
+	<script type="application/json" data-skip set:html={JSON.stringify([...g.lamps.map((l) => [l.x, l.y]), [g.bat.x, (g.bat.y1 + g.bat.y2) / 2]])} />
+</figure>
+
+<style is:global>
+	.fp {
+		margin-block: 1.25rem 1.75rem;
+		padding: 0.9rem 1rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.fp__svg {
+		display: block;
+		width: 100%;
+		max-width: 520px;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.fp__w {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.fp__bg {
+		fill: var(--ig-surface);
+	}
+	.fp__plate {
+		stroke: var(--sl-color-white);
+		stroke-width: 2.2;
+	}
+	.fp__plate--minus {
+		stroke-width: 5;
+	}
+	.fp__pm {
+		fill: var(--sl-color-white);
+		font-size: 18px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+	}
+	.fp__lamp {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-white);
+		stroke-width: 2.2;
+	}
+	.fp__x {
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.fp__node {
+		fill: var(--sl-color-white);
+	}
+	.fp__e {
+		fill: var(--ig-vx);
+	}
+	.fp__arrow {
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		fill: none;
+	}
+	.fp__tip {
+		fill: var(--ig-vy);
+	}
+	.fp__math {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 19px;
+		fill: var(--sl-color-white);
+	}
+	.fp__math--i {
+		fill: var(--ig-vy);
+	}
+	.fp__sub {
+		font-family: var(--__sl-font);
+		font-size: 13px;
+		font-style: normal;
+	}
+	.fp__note {
+		font-family: var(--__sl-font);
+		font-size: 14px;
+		fill: var(--sl-color-gray-2);
+	}
+	.fp__legend {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.3rem 1.2rem;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.fp__key {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.fp__dot {
+		width: 0.55rem;
+		height: 0.55rem;
+		border-radius: 50%;
+		background: var(--ig-vx);
+	}
+	.fp__arr {
+		position: relative;
+		width: 1.4rem;
+		height: 2px;
+		background: var(--ig-vy);
+	}
+	.fp__arr::after {
+		content: '';
+		position: absolute;
+		right: -2px;
+		top: -4px;
+		border: 5px solid transparent;
+		border-left: 7px solid var(--ig-vy);
+		border-right: 0;
+	}
+	.fp__cap {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+		color: var(--sl-color-gray-2);
+		text-align: center;
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+
+	type Path = { pts: [number, number][]; f: number };
+	const SPACING = 20; // the same wire everywhere: the same number of electrons per unit length
+	const SPEED = 26; // drift in the wire with the whole current, SVG units per second (shown slowed down, not to scale)
+	const NS = 'http://www.w3.org/2000/svg';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fp]')) {
+		const paths: Path[] = JSON.parse(root.querySelector('[data-geo]')!.textContent!);
+		const skip: [number, number][] = JSON.parse(root.querySelector('[data-skip]')!.textContent!);
+		const layer = root.querySelector<SVGGElement>('[data-dots]')!;
+		const runs = paths.map((p) => {
+			const seg = p.pts.slice(1).map((b, k) => {
+				const a = p.pts[k];
+				return { a, b, len: Math.hypot(b[0] - a[0], b[1] - a[1]) };
+			});
+			const len = seg.reduce((s, x) => s + x.len, 0);
+			const n = Math.floor(len / SPACING) + 1;
+			const dots = Array.from({ length: n }, () => {
+				const c = document.createElementNS(NS, 'circle');
+				c.setAttribute('r', '3.2');
+				c.setAttribute('class', 'fp__e');
+				layer.appendChild(c);
+				return c;
+			});
+			return { f: p.f, seg, len, dots, phase: 0 };
+		});
+		const at = (r: (typeof runs)[number], s: number): [number, number] => {
+			for (const g of r.seg) {
+				if (s <= g.len) {
+					const t = g.len ? s / g.len : 0;
+					return [g.a[0] + (g.b[0] - g.a[0]) * t, g.a[1] + (g.b[1] - g.a[1]) * t];
+				}
+				s -= g.len;
+			}
+			const last = r.seg[r.seg.length - 1].b;
+			return [last[0], last[1]];
+		};
+		const draw = () => {
+			for (const r of runs) {
+				r.dots.forEach((c, k) => {
+					const s = r.phase + k * SPACING;
+					if (s > r.len) {
+						c.style.display = 'none';
+						return;
+					}
+					const [x, y] = at(r, s);
+					const hide = skip.some(([lx, ly]) => Math.hypot(x - lx, y - ly) < 19);
+					c.style.display = hide ? 'none' : '';
+					c.setAttribute('cx', x.toFixed(1));
+					c.setAttribute('cy', y.toFixed(1));
+				});
+			}
+		};
+		draw();
+		loop(root, (dt) => {
+			// electrons drift against the current: backwards along the paths, which are drawn along the current
+			for (const r of runs) r.phase = (((r.phase - SPEED * r.f * dt) % SPACING) + SPACING) % SPACING;
+			draw();
+			return true;
+		});
+	}
+</script>
