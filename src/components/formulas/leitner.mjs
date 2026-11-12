@@ -51,18 +51,29 @@ export const order = (keys, states, day) => {
 		.map((x) => x.k);
 };
 
-/** @returns {Record<string, { box: number, due: string }>} */
 /**
  * Cards that moved to another chapter keep their progress: the state saved under the old key is read under the new one.
- * 12 Nov 2026: «Электрический ток» was split, and these cards went to «Сила тока. Напряжение. Сопротивление».
+ * Each move: the old chapter, the new chapter and the ids of the cards that went there.
  */
-const MOVED = Object.fromEntries(
-	['sila-toka', 'ampermetr', 'napryazhenie', 'voltmetr', 'elektricheskoe-soprotivlenie', 'soprotivlenie', 'udelnoe-soprotivlenie', 'rezistor', 'reostat'].map((id) => [
-		`uchebnik/8-klass/elektricheskie-yavleniya/elektricheskiy-tok/${id}`,
-		`uchebnik/8-klass/elektricheskie-yavleniya/sila-toka-napryazhenie-soprotivlenie/${id}`,
-	]),
-);
+const MOVES = [
+	// 12 Nov 2026: «Электрический ток» was split, and these cards went to «Сила тока. Напряжение. Сопротивление».
+	{
+		from: 'uchebnik/8-klass/elektricheskie-yavleniya/elektricheskiy-tok',
+		to: 'uchebnik/8-klass/elektricheskie-yavleniya/sila-toka-napryazhenie-soprotivlenie',
+		ids: ['sila-toka', 'ampermetr', 'napryazhenie', 'voltmetr', 'elektricheskoe-soprotivlenie', 'soprotivlenie', 'udelnoe-soprotivlenie', 'rezistor', 'reostat'],
+	},
+	// 12 Nov 2026: «Магнитное поле тока. Электромагниты» was split, and these cards went to «Электромагниты и их применение».
+	{
+		from: 'uchebnik/8-klass/elektromagnitnye-yavleniya/magnitnoe-pole-toka',
+		to: 'uchebnik/8-klass/elektromagnitnye-yavleniya/elektromagnity',
+		ids: ['elektromagnit', 'podyomnyy-elektromagnit', 'rele', 'zvonok'],
+	},
+];
 
+/** Old card key → new card key. */
+export const MOVED = Object.fromEntries(MOVES.flatMap(({ from, to, ids }) => ids.map((id) => [`${from}/${id}`, `${to}/${id}`])));
+
+/** @returns {Record<string, { box: number, due: string }>} */
 export const load = () => {
 	try {
 		const raw = localStorage.getItem(KEY);
