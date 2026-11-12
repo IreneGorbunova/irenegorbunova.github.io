@@ -1,0 +1,372 @@
+---
+/**
+ * Picture to the definition of the magnetic poles, two panels that play together.
+ * Left: a bar magnet is lowered into a heap of iron filings and lifted out: the filings hang in tufts at its two
+ *   ends and the middle stays almost clean. The tufts are chains of filings along the field near a pole (roughly
+ *   radial from the end), longer below (they hang).
+ * Right: the same magnet hangs on a thread and is let go askew; it swings round a vertical axis and comes to rest
+ *   with its N end (blue) to the north. The bar is drawn in a true orthographic side view (its visible side and end
+ *   faces), the swing obeys θ'' = −ω²·sin θ − b·θ' (period about 2,4 s, as for a small magnet in the Earth's field).
+ * Plays while visible, «Повторить» restarts; with reduced motion shows the final frame.
+ */
+const rng = (seed: number) => () => {
+	seed = (seed * 1664525 + 1013904223) % 4294967296;
+	return seed / 4294967296;
+};
+const rand = rng(11);
+const f1 = (v: number) => v.toFixed(1);
+// left panel: the heap of filings (inside the mound y > top(x))
+const HX0 = 62;
+const HX1 = 258;
+const FLOOR = 204;
+const top = (x: number) => FLOOR - 30 * Math.sin((Math.PI * (x - HX0)) / (HX1 - HX0)) ** 0.8;
+const heap: string[] = [];
+while (heap.length < 260) {
+	const x = HX0 + rand() * (HX1 - HX0);
+	const y = FLOOR - rand() * 30;
+	if (y < top(x) + 2) continue;
+	const a = rand() * Math.PI;
+	const l = 2.5 + rand() * 2;
+	heap.push(`M${f1(x - l * Math.cos(a))} ${f1(y - l * Math.sin(a))}L${f1(x + l * Math.cos(a))} ${f1(y + l * Math.sin(a))}`);
+}
+const mound = `M${HX0 - 6} ${FLOOR} ` + Array.from({ length: 41 }, (_, i) => {
+	const x = HX0 + ((HX1 - HX0) * i) / 40;
+	return `L${f1(x)} ${f1(top(x) - 1)}`;
+}).join(' ') + ` L${HX1 + 6} ${FLOOR} Z`;
+// the magnet: half-length 84, half-height 13 (in its own coordinates, centre at 0,0)
+const ML = 84;
+const MH = 13;
+// tufts: chains of filings from the end faces and the corners, outwards; longer downwards (they hang)
+const tufts: string[] = [];
+for (const sx of [-1, 1])
+	for (let k = 0; k < 26; k++) {
+		const t = -1.6 + (3.2 * k) / 25 + (rand() - 0.5) * 0.06; // angle from the axis, rad
+		const dir = { x: sx * Math.cos(t), y: Math.sin(t) };
+		// start on the surface of the end: on the end face for small angles, on the side near the corner otherwise
+		let x0 = sx * ML;
+		let y0 = Math.max(-MH, Math.min(MH, Math.tan(t) * 18));
+		if (Math.abs(t) > 0.95) {
+			x0 = sx * (ML - (Math.abs(t) - 0.95) * 30);
+			y0 = Math.sign(t) * MH;
+		}
+		const n = Math.max(1, Math.round((3.4 - Math.abs(t) * 1.3 + (t > 0 ? 1.1 * t : 0)) * (0.8 + 0.4 * rand())));
+		let x = x0;
+		let y = y0;
+		for (let j = 0; j < n; j++) {
+			const wob = (rand() - 0.5) * 0.35;
+			const dx = dir.x * Math.cos(wob) - dir.y * Math.sin(wob);
+			const dy = dir.x * Math.sin(wob) + dir.y * Math.cos(wob) + 0.08 * j; // the chain bends down
+			const l = 4.2 + rand() * 1.6;
+			const m = Math.hypot(dx, dy);
+			const x2 = x + (dx / m) * l;
+			const y2 = y + (dy / m) * l;
+			tufts.push(`M${f1(x)} ${f1(y)}L${f1(x2)} ${f1(y2)}`);
+			x = x2 + (dx / m) * 0.8;
+			y = y2 + (dy / m) * 0.8;
+		}
+	}
+---
+
+<figure class="pp not-content" data-pp>
+	<div class="pp__grid">
+		<div class="pp__panel">
+			<svg class="pp__svg" viewBox="0 0 320 230" role="img" aria-label="Полосовой магнит опускают в кучку железных опилок и поднимают. Опилки облепили оба конца магнита, а середина осталась почти чистой.">
+				<text class="pp__title" x="160" y="22" text-anchor="middle">Магнит в железных опилках</text>
+				<rect class="pp__table" x="0" y={FLOOR} width="320" height={230 - FLOOR}></rect>
+				<g data-mag>
+					<path class="pp__tuft" d={tufts.join('')} data-tufts></path>
+					<rect class="pp__s" x={-ML} y={-MH} width={ML} height={2 * MH} rx="3"></rect>
+					<rect class="pp__n" x="0" y={-MH} width={ML} height={2 * MH} rx="3"></rect>
+					<text class="pp__lt" x={-ML + 16} y="5.5" text-anchor="middle">S</text>
+					<text class="pp__lt" x={ML - 16} y="5.5" text-anchor="middle">N</text>
+					<!-- the hand holds the magnet by its middle, from the right -->
+					<path class="pp__sleeve" d="M30 -40 L170 -52 V-4 L30 -12 Z"></path>
+					<rect class="pp__skin" x="2" y="-44" width="42" height="36" rx="13"></rect>
+					<rect class="pp__skin" x="-16" y="-20" width="11" height="30" rx="5.5"></rect>
+					<rect class="pp__skin" x="-5" y="-20" width="11" height="32" rx="5.5"></rect>
+					<rect class="pp__skin" x="6" y="-20" width="11" height="30" rx="5.5"></rect>
+					<rect class="pp__skin" x="17" y="-18" width="10" height="25" rx="5"></rect>
+				</g>
+				<path class="pp__mound" d={mound}></path>
+				<path class="pp__fil" d={heap.join('')}></path>
+			</svg>
+		</div>
+		<div class="pp__panel">
+			<svg class="pp__svg" viewBox="0 0 320 230" role="img" aria-label="Тот же магнит подвешен на нити. Он поворачивается, качается и останавливается северным полюсом N к северу.">
+				<text class="pp__title" x="160" y="22" text-anchor="middle">Магнит на нити</text>
+				<rect class="pp__beam" x="96" y="34" width="128" height="7" rx="3"></rect>
+				<line class="pp__thread" x1="160" y1="41" x2="160" y2="96"></line>
+				<ellipse class="pp__shade" cx="160" cy="190" rx="90" ry="7" data-shade></ellipse>
+				<g data-bar></g>
+				<line class="pp__floor" x1="10" y1="200" x2="310" y2="200"></line>
+				<path class="pp__dir" d="M40 216 H10 M18 211 L10 216 L18 221 M280 216 H310 M302 211 L310 216 L302 221"></path>
+				<text class="pp__dirt" x="46" y="220.5">юг</text>
+				<text class="pp__dirt pp__dirt--n" x="274" y="220.5" text-anchor="end">север</text>
+			</svg>
+		</div>
+	</div>
+	<div class="pp__foot">
+		<figcaption>Опилки держатся у концов магнита — у его полюсов, а середина почти чистая. Подвешенный на нити магнит покачался и остановился северным полюсом <span class="pp__nn">N</span> к северу.</figcaption>
+		<button type="button" class="intro__again pp__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.pp {
+		margin-block: 1.5rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.pp__grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+	.pp__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: var(--sl-color-bg);
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.pp text {
+		font-family: var(--__sl-font);
+	}
+	.pp__foot {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin-top: 0.6rem;
+	}
+	.pp__foot figcaption {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.4;
+		color: var(--sl-color-gray-2);
+	}
+	.pp__again {
+		flex: none;
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.pp__again:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.pp__nn {
+		color: var(--ig-vx);
+		font-weight: 700;
+	}
+	.pp__title {
+		font-size: 15px;
+		font-weight: 600;
+		fill: var(--sl-color-gray-2);
+	}
+	.pp__table {
+		fill: color-mix(in srgb, var(--ig-v) 18%, var(--sl-color-gray-5));
+	}
+	.pp__mound {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 70%, var(--sl-color-bg));
+	}
+	.pp__fil,
+	.pp__tuft {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+	.pp__fil {
+		opacity: 0.75;
+	}
+	.pp__tuft {
+		opacity: 0;
+	}
+	.pp__n {
+		fill: var(--ig-vx);
+	}
+	.pp__s {
+		fill: var(--ig-vy);
+	}
+	.pp__lt {
+		font-size: 15px;
+		font-weight: 700;
+		fill: var(--sl-color-black);
+	}
+	:root[data-theme='light'] .pp__lt {
+		fill: #fff;
+	}
+	.pp__skin {
+		fill: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	:root[data-theme='light'] .pp__skin {
+		fill: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-3);
+	}
+	.pp__sleeve {
+		fill: color-mix(in srgb, var(--ig-vx) 40%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.pp__beam {
+		fill: var(--sl-color-gray-4);
+	}
+	.pp__thread {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.pp__shade {
+		fill: var(--sl-color-gray-5);
+		opacity: 0.8;
+	}
+	.pp__floor {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.pp__dir {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.pp__dirt {
+		font-size: 14px;
+		fill: var(--sl-color-gray-2);
+	}
+	.pp__dirt--n {
+		fill: var(--ig-vx);
+		font-weight: 700;
+	}
+	@media (max-width: 40rem) {
+		.pp__grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { scene, clamp } from '@components/intro/scene';
+
+	const smooth = (a: number, b: number, x: number) => {
+		const t = clamp((x - a) / (b - a));
+		return t * t * (3 - 2 * t);
+	};
+	const f1 = (v: number) => v.toFixed(1);
+	const f2 = (v: number) => v.toFixed(2);
+	const SVGNS = 'http://www.w3.org/2000/svg';
+	const RUN = 7;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pp]')) {
+		const mag = root.querySelector<SVGGElement>('[data-mag]')!;
+		const tufts = root.querySelector<SVGPathElement>('[data-tufts]')!;
+		const barG = root.querySelector<SVGGElement>('[data-bar]')!;
+		const shade = root.querySelector<SVGEllipseElement>('[data-shade]')!;
+
+		// the hanging bar: half-length 84, half-thickness 11 (square section), centre (160, 107)
+		const L = 84;
+		const W = 11;
+		const BX = 160;
+		const BY = 107;
+		const H = 11; // half-height of the side faces on screen
+		const faces = Array.from({ length: 6 }, () => {
+			const p = document.createElementNS(SVGNS, 'polygon');
+			barG.appendChild(p);
+			return p;
+		});
+		const labels = ['N', 'S'].map((t) => {
+			const e = document.createElementNS(SVGNS, 'text');
+			e.textContent = t;
+			e.setAttribute('class', 'pp__lt');
+			e.setAttribute('text-anchor', 'middle');
+			barG.appendChild(e);
+			return e;
+		});
+		// swing: θ'' = −ω²·sin θ − b·θ', θ = 0: N end to the north (right). Precomputed for the run.
+		const NS = 700;
+		const theta = new Float32Array(NS + 1);
+		{
+			const W2 = ((2 * Math.PI) / 2.4) ** 2;
+			const B = 1.0;
+			let th = 2.35;
+			let w = 0;
+			const dt = 1 / 1000;
+			let k = 0;
+			for (let t = 0; k <= NS; t += dt) {
+				while (k <= NS && (k * RUN) / NS <= t + 1e-9) theta[k++] = th;
+				const a = -W2 * Math.sin(th) - B * w;
+				w += a * dt;
+				th += w * dt;
+			}
+		}
+		const drawBar = (th: number) => {
+			const c = Math.cos(th);
+			const s = Math.sin(th); // s > 0: the N end turned towards us
+			// a face: x-span on screen, its normal's z (towards us); visible if nz > 0
+			type F = { x0: number; x1: number; nz: number; cls: string };
+			const list: F[] = [];
+			// side faces with normals ±(−s, c): their centre is shifted by ±W·(−s) in x; split at the middle
+			for (const sg of [1, -1]) {
+				const nz = sg * c;
+				const off = sg * -s * W;
+				list.push({ x0: off, x1: off + L * c, nz, cls: 'n' });
+				list.push({ x0: off, x1: off - L * c, nz, cls: 's' });
+			}
+			// end faces: N end at +L·u, normal u (z = s); S end at −L·u, normal −u
+			for (const sg of [1, -1]) {
+				const nz = sg * s;
+				const cx = sg * L * c;
+				list.push({ x0: cx - W * -s, x1: cx + W * -s, nz, cls: sg > 0 ? 'n' : 's' });
+			}
+			list.forEach((f, i) => {
+				const p = faces[i];
+				if (f.nz <= 0.001) {
+					p.setAttribute('points', '');
+					return;
+				}
+				const a = BX + Math.min(f.x0, f.x1);
+				const b = BX + Math.max(f.x0, f.x1);
+				p.setAttribute('points', `${f1(a)},${BY - H} ${f1(b)},${BY - H} ${f1(b)},${BY + H} ${f1(a)},${BY + H}`);
+				const isEnd = i >= 4;
+				p.style.fill = `color-mix(in srgb, var(--ig-v${f.cls === 'n' ? 'x' : 'y'}) ${Math.round(isEnd ? 55 + 25 * f.nz : 75 + 25 * f.nz)}%, var(--sl-color-black))`;
+				p.style.stroke = 'var(--sl-color-gray-4)';
+				p.style.strokeWidth = '0.6';
+			});
+			// letters on the visible side face, when it is wide enough
+			const show = Math.abs(c) > 0.45;
+			const sideOff = (c >= 0 ? 1 : -1) * -s * W; // the visible side face
+			labels[0].setAttribute('x', f1(BX + sideOff + (L - 16) * c));
+			labels[1].setAttribute('x', f1(BX + sideOff - (L - 16) * c));
+			for (const e of labels) {
+				e.setAttribute('y', f1(BY + 5.5));
+				e.style.opacity = show ? f2(clamp((Math.abs(c) - 0.45) / 0.2)) : '0';
+			}
+			shade.setAttribute('rx', f1(L * Math.abs(c) + W * Math.abs(s) + 6));
+		};
+
+		scene(root, RUN, (x) => {
+			// left: down into the heap, a pause, up with the tufts
+			const down = smooth(0.03, 0.2, x);
+			const up = smooth(0.3, 0.5, x);
+			const y = 74 + 112 * down - 104 * up;
+			mag.setAttribute('transform', `translate(160 ${f1(y)})`);
+			tufts.style.opacity = x > 0.28 ? '1' : '0';
+			// right: the swing
+			drawBar(theta[Math.min(NS, Math.round(x * NS))]);
+		});
+	}
+</script>
