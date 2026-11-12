@@ -8,6 +8,7 @@
  * Wire lines are circles at radii with equal magnetic flux between them, so their density shows the
  * field strength and grows with the current. Coil lines are traced at build time from the exact field.
  * Iron filings (canvas) align only where the field of the current is strong and only when the sheet is tapped.
+ * `mode` fixes the model to one case and hides the tabs (one experiment per section of the chapter).
  */
 import { SHEET, COIL, WIRE_R, coilTurnsX, coilLines, coilField, wireField, crossings } from './field';
 
@@ -41,28 +42,37 @@ const xsCols = Array.from({ length: 10 }, (_, i) => -14.4 + 3.2 * i);
 const posWire = xsCols.flatMap((x) => [-9.6, -6.4, -3.2, 0, 3.2, 6.4, 9.6].map((y) => [x, y]));
 const posCoil = xsCols.flatMap((x) => [-10.6, -7.4, -4.2, 0, 4.2, 7.4, 10.6].map((y) => [x, y]));
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
+interface Props {
+	mode?: 'wire' | 'coil';
+}
+const { mode } = Astro.props;
+const clipId = `mpt-clip-${Math.random().toString(36).slice(2, 8)}`;
 const data = {
 	wire: posWire.map(([x, y]) => [x, y, ...wireField(x, y).map(r3)]),
 	coil: posCoil.map(([x, y]) => [x, y, ...coilField(x, y).map(r3)]),
 };
 ---
 
-<figure class="mpt not-content" data-mpt data-fields={JSON.stringify(data)}>
+<figure class="mpt not-content" data-mpt data-fields={JSON.stringify(data)} data-fixed={mode}>
 	<div class="mpt__head">
-		<div class="mpt__tabs" role="tablist" aria-label="Что стоит на листе">
-			<button type="button" role="tab" class="mpt__tab is-active" aria-selected="true" data-mode="wire">Прямой провод</button>
-			<button type="button" role="tab" class="mpt__tab" aria-selected="false" data-mode="coil">Катушка</button>
-		</div>
+		{
+			!mode && (
+				<div class="mpt__tabs" role="tablist" aria-label="Что стоит на листе">
+					<button type="button" role="tab" class="mpt__tab is-active" aria-selected="true" data-mode="wire">Прямой провод</button>
+					<button type="button" role="tab" class="mpt__tab" aria-selected="false" data-mode="coil">Катушка</button>
+				</div>
+			)
+		}
 		<p class="mpt__north" aria-label="Верх листа направлен на север"><span aria-hidden="true">↑</span> север</p>
 		<div class="mpt__setup" aria-hidden="true">
 			<svg viewBox="0 0 170 100">
 				<path class="mpt__sk-sheet" d="M 12 76 L 118 76 L 158 44 L 52 44 Z"></path>
-				<g class="mpt__sk-wire" data-sk="wire">
+				<g class="mpt__sk-wire" data-sk="wire" opacity={mode === 'coil' ? '0' : '1'}>
 					<line class="mpt__sk-hidden" x1="85" y1="60" x2="85" y2="96"></line>
 					<line x1="85" y1="6" x2="85" y2="60"></line>
 					<path class="mpt__sk-arrow" d="M 79 30 L 85 18 L 91 30 Z" data-sk-arrow></path>
 				</g>
-				<g class="mpt__sk-coil" data-sk="coil" opacity="0">
+				<g class="mpt__sk-coil" data-sk="coil" opacity={mode === 'coil' ? '1' : '0'}>
 					{[0, 1, 2, 3, 4, 5, 6].map((k) => (
 						<g transform={`translate(${58 + k * 9} 60)`}>
 							<path d="M 0 -15 A 5 15 0 0 1 0 15" />
@@ -84,11 +94,11 @@ const data = {
 			aria-label="Лист картона с магнитными стрелками, вид сверху. Сквозь лист проходит провод с током или катушка с током."
 		>
 			<defs>
-				<clipPath id="mpt-clip">
+				<clipPath id={clipId}>
 					<rect x="0" y="0" width={W} height={H} rx="14"></rect>
 				</clipPath>
 			</defs>
-			<g clip-path="url(#mpt-clip)">
+			<g clip-path={`url(#${clipId})`}>
 				<!-- field lines of the wire -->
 				<g class="mpt__lines mpt__lines--wire" data-wire-lines></g>
 
@@ -566,11 +576,11 @@ const data = {
 		const skCoil = root.querySelector<SVGGElement>('[data-sk="coil"]')!;
 		const skArrow = root.querySelector<SVGPathElement>('[data-sk-arrow]')!;
 
-		let mode: Mode = 'wire';
+		let mode: Mode = (root.dataset.fixed as Mode | undefined) ?? 'wire';
 		let on = false;
 		let dir = 1; // +1: towards the viewer (wire) / north pole on the right (coil)
 		let cur = 0; // the current as drawn, A, with sign; follows the goal smoothly
-		let modeMix = 0; // 0 — wire, 1 — coil
+		let modeMix = mode === 'coil' ? 1 : 0; // 0 — wire, 1 — coil
 		let earth = true;
 		let filings: Filing[] = [];
 		let tapStart = -1;
@@ -891,6 +901,9 @@ const data = {
 						n.a = target;
 						n.w = 0;
 					} else {
+						// a needle pointing exactly against the field is in an unstable balance: a real one is never
+						// exactly there, so a tiny push lets it turn round (one way or the other)
+						if (Math.abs(wrapPi(n.a - target)) > Math.PI - 0.003 && Math.abs(n.w) < 0.05) n.a += k % 2 ? 0.01 : -0.01;
 						const ratio = Math.min(b / B_EARTH, 25);
 						const om = OMEGA0 * Math.sqrt(ratio);
 						const gamma = 1.6 + 0.32 * om;
