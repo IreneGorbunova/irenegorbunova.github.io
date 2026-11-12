@@ -1,0 +1,487 @@
+---
+/**
+ * Two short looping opening scenes of «Сила тока. Напряжение. Сопротивление». No numbers in the pictures except the
+ * real label of a charger; the captions' popovers explain.
+ * Bird: a power line between two towers, seen from the side. A sparrow flies in, brakes with spread wings and lands
+ *   on the upper wire (a sparrow is far too light to bend the heavy wire visibly); it looks around and turns. Another sparrow sits
+ *   on the lower wire all the time. Both feet stand on the same wire a few centimetres apart: the piece of wire
+ *   between them has a tiny resistance, so the voltage across the bird is thousandths of a volt.
+ * Charger: a phone charger in a wall socket, its cable to a phone on the table. The cable's plug goes into the phone,
+ *   the screen lights up and the battery fills; a magnifying glass slides over the charger and shows its real label
+ *   «OUTPUT 5V ⎓ 2A» (the lens shows the scene under it magnified, it is not a separate picture).
+ * Plays only while visible; with reduced motion shows the final state.
+ */
+import IntroFrame from '@components/intro/IntroFrame.astro';
+import More from '@components/More.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const cid = `st-lens-${uid}`;
+
+// The power line: wires hang between insulators at x = 26 and x = 334 as quadratic curves (sag at the middle).
+const X0 = 26;
+const X1 = 334;
+const WIRES = [
+	{ y: 64, c: 118 },
+	{ y: 94, c: 148 },
+];
+const wire = (w: { y: number; c: number }) => `M ${X0} ${w.y} Q 180 ${w.c} ${X1} ${w.y}`;
+/** Height of a wire at x. */
+const wy = (w: { y: number; c: number }, x: number) => {
+	const t = (x - X0) / (X1 - X0);
+	return w.y + 2 * t * (1 - t) * (w.c - w.y);
+};
+const SIT2 = { x: 112, y: wy(WIRES[1], 112) };
+/** Tilt of a wire at x, degrees (the sitting bird follows it). */
+const tilt = (w: { y: number; c: number }, x: number) => {
+	const t = (x - X0) / (X1 - X0);
+	return (Math.atan((2 * (w.c - w.y) * (1 - 2 * t)) / (X1 - X0)) * 180) / Math.PI;
+};
+// A lattice tower: two legs, cross braces, two cross-arms with hanging insulators.
+const tower = (cx: number) => {
+	const legs = `M ${cx - 13} 204 L ${cx - 5} 30 M ${cx + 13} 204 L ${cx + 5} 30 M ${cx - 5} 30 L ${cx} 20 L ${cx + 5} 30`;
+	const lv = [204, 168, 132, 100, 74, 50, 30];
+	const half = (y: number) => 5 + ((y - 30) / 174) * 8;
+	let braces = '';
+	for (let k = 0; k < lv.length - 1; k++) {
+		const a = lv[k];
+		const b = lv[k + 1];
+		braces += ` M ${cx - half(a)} ${a} L ${cx + half(b)} ${b} M ${cx + half(a)} ${a} L ${cx - half(b)} ${b}`;
+	}
+	const arms = `M ${cx - 20} 50 H ${cx + 20} M ${cx - 20} 80 H ${cx + 20}`;
+	return { legs, braces, arms };
+};
+const TOWERS = [tower(X0), tower(X1)];
+// The charger's label, drawn twice: on the charger and magnified in the lens.
+const LX = 82;
+---
+
+<IntroFrame data-stintro>
+	<div class="intro__card" data-scene="bird">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Линия электропередачи между двумя опорами. Воробей подлетает и садится на верхний провод. Птица спокойно сидит, оглядывается и поворачивается. На нижнем проводе всё время сидит второй воробей">
+			<rect class="st-sky" x="0" y="0" width="360" height="240"></rect>
+			<path class="st-hills" d="M 0 196 Q 60 176 120 190 T 240 186 T 360 192 V 240 H 0 Z"></path>
+			<rect class="st-ground" x="0" y="204" width="360" height="36"></rect>
+			{
+				TOWERS.map((t) => (
+					<g class="st-tower">
+						<path class="st-tower__legs" d={t.legs} />
+						<path class="st-tower__brace" d={t.braces} />
+						<path class="st-tower__arm" d={t.arms} />
+					</g>
+				))
+			}
+			{
+				[X0, X1].map((x) =>
+					WIRES.map((w) => (
+						<g class="st-insulator">
+							<line x1={x} y1={w.y - 14} x2={x} y2={w.y} />
+							{[0.25, 0.5, 0.75].map((f) => <ellipse cx={x} cy={w.y - 14 + 14 * f} rx="3.2" ry="1.3" />)}
+						</g>
+					)),
+				)
+			}
+			<path class="st-wire" d={wire(WIRES[1])}></path>
+			<path class="st-wire" d={wire(WIRES[0])}></path>
+			<!-- the sparrow that sits on the lower wire all the time -->
+			<g transform={`translate(${SIT2.x} ${SIT2.y.toFixed(1)}) rotate(${tilt(WIRES[1], SIT2.x).toFixed(1)})`}>
+				<g class="st-bird" data-sitter>
+					<path class="st-bird__tail" d="M 6 -7 L 19 -3 L 18 0 L 5 -4 Z" data-tail></path>
+					<ellipse class="st-bird__body" cx="0" cy="-9" rx="10" ry="6.5"></ellipse>
+					<ellipse class="st-bird__belly" cx="-2.5" cy="-6.5" rx="6" ry="3.2"></ellipse>
+					<path class="st-bird__wing" d="M -5 -12 Q 4 -15.5 13 -7 Q 4 -7.5 -3 -8.5 Z"></path>
+					<circle class="st-bird__body" cx="-9" cy="-16" r="5"></circle>
+					<path class="st-bird__beak" d="M -13.5 -17.2 L -18.5 -15.6 L -13.6 -14.4 Z"></path>
+					<circle class="st-bird__eye" cx="-10.6" cy="-17" r="1"></circle>
+					<path class="st-bird__leg" d="M -2 -3 L -3 0 M 2 -3 L 1 0"></path>
+				</g>
+			</g>
+			<!-- the sparrow that flies in: feet at (0, 0), facing left -->
+			<g data-bird>
+				<g class="st-bird" data-flip>
+					<path class="st-bird__tail" d="M 6 -7 L 19 -3 L 18 0 L 5 -4 Z"></path>
+					<ellipse class="st-bird__body" cx="0" cy="-9" rx="10" ry="6.5"></ellipse>
+					<ellipse class="st-bird__belly" cx="-2.5" cy="-6.5" rx="6" ry="3.2"></ellipse>
+					<path class="st-bird__wing" d="M -5 -12 Q 4 -15.5 13 -7 Q 4 -7.5 -3 -8.5 Z" data-folded></path>
+					<g data-head>
+						<circle class="st-bird__body" cx="-9" cy="-16" r="5"></circle>
+						<path class="st-bird__beak" d="M -13.5 -17.2 L -18.5 -15.6 L -13.6 -14.4 Z"></path>
+						<circle class="st-bird__eye" cx="-10.6" cy="-17" r="1"></circle>
+					</g>
+					<path class="st-bird__leg" d="M -2 -3 L -3 0 M 2 -3 L 1 0" data-legs></path>
+					<path class="st-bird__wing st-bird__wing--open" d="M -4 -12 L 9 -12 L 3 -36 Z" data-open></path>
+				</g>
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>Птица спокойно сидит на голом проводе линии электропередачи, и <More term="ток через неё почти не идёт">По проводу идёт сильный ток. Но обе лапки птицы стоят на одном и том же проводе, в нескольких сантиметрах друг от друга. Такой короткий кусочек толстого провода почти не мешает току, поэтому <b>напряжение</b> между лапками — всего тысячные доли вольта, и через тело птицы ток почти не проходит. Опасно, когда большая птица крыльями касается сразу двух проводов или провода и опоры. Людям нельзя даже приближаться к высоковольтным проводам: ток может пройти к человеку искрой по воздуху. Подробнее — в разделах <a href="#напряжение">«Напряжение»</a> и <a href="#сопротивление">«Сопротивление»</a>.</More>, хотя по проводу течёт сильный ток.</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+
+	<div class="intro__card" data-scene="charger">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Зарядка телефона в розетке, от неё провод к телефону на столе. Штекер входит в телефон, экран загорается, батарея заряжается. Лупа проплывает над зарядкой и показывает мелкую надпись на ней: OUTPUT 5V 2A">
+			<defs>
+				<clipPath id={cid}>
+					<circle cx="214" cy="40" r="38" data-clip></circle>
+				</clipPath>
+			</defs>
+			<!-- the scene; the lens below shows the same charger magnified -->
+			<g>
+				<rect class="st-wall" x="-40" y="-40" width="440" height="320"></rect>
+				<rect class="st-table" x="-40" y="180" width="440" height="100"></rect>
+				<line class="st-table-edge" x1="-40" y1="180" x2="400" y2="180"></line>
+				<rect class="st-socket" x="58" y="68" width="48" height="48" rx="8"></rect>
+				<circle class="st-socket-ring" cx="82" cy="92" r="17"></circle>
+				<rect class="st-charger" x="64" y="76" width="36" height="46" rx="6"></rect>
+				<text class="st-label st-label--small" x={LX} y="93" text-anchor="middle">OUTPUT</text>
+				<text class="st-label" x={LX - 4.2} y="102" text-anchor="end">5V</text>
+				<line class="st-dc" x1={LX - 3} y1="98.6" x2={LX + 3} y2="98.6"></line>
+				<line class="st-dc st-dc--dash" x1={LX - 3} y1="100.6" x2={LX + 3} y2="100.6"></line>
+				<text class="st-label" x={LX + 4.2} y="102" text-anchor="start">2A</text>
+				<!-- the cable: from the charger down to the table and along it up to the plug under the phone -->
+				<path class="st-cable" d="M 82 122 C 82 170 120 188 170 188 C 230 188 263 196 263 186" data-cable></path>
+				<!-- the cable's plug: goes up into the phone's port (its tip hides behind the phone) -->
+				<g data-plug>
+					<rect class="st-plug-tip" x="260" y="162" width="6" height="4" rx="0.8"></rect>
+					<rect class="st-plug" x="258" y="166" width="10" height="10" rx="2"></rect>
+				</g>
+				<!-- the phone in a holder that keeps it above the table -->
+				<rect class="st-phone" x="238" y="76" width="50" height="90" rx="8"></rect>
+				<rect class="st-screen" x="242" y="84" width="42" height="74" rx="4" data-screen></rect>
+				<g data-battery>
+					<rect class="st-batt" x="252" y="116" width="20" height="10" rx="2"></rect>
+					<rect class="st-batt-tip" x="272" y="119" width="2.5" height="4" rx="0.8"></rect>
+					<rect class="st-batt-fill" x="254" y="118" width="3" height="6" rx="1" data-fill></rect>
+					<path class="st-bolt" d="M 264 105 L 259 111 H 263 L 261 115 L 267 108 H 263 Z"></path>
+				</g>
+				<path class="st-holder" d="M 234 180 V 158 H 246 V 168 H 240 V 180 Z M 292 180 V 158 H 280 V 168 H 286 V 180 Z"></path>
+			</g>
+			<g clip-path={`url(#${cid})`}>
+				<g data-zoom>
+					<rect class="st-wall" x="-40" y="-40" width="440" height="320"></rect>
+					<rect class="st-table" x="-40" y="180" width="440" height="100"></rect>
+					<line class="st-table-edge" x1="-40" y1="180" x2="400" y2="180"></line>
+					<rect class="st-socket" x="58" y="68" width="48" height="48" rx="8"></rect>
+					<circle class="st-socket-ring" cx="82" cy="92" r="17"></circle>
+					<rect class="st-charger" x="64" y="76" width="36" height="46" rx="6"></rect>
+					<text class="st-label st-label--small" x={LX} y="93" text-anchor="middle">OUTPUT</text>
+					<text class="st-label" x={LX - 4.2} y="102" text-anchor="end">5V</text>
+					<line class="st-dc" x1={LX - 3} y1="98.6" x2={LX + 3} y2="98.6"></line>
+					<line class="st-dc st-dc--dash" x1={LX - 3} y1="100.6" x2={LX + 3} y2="100.6"></line>
+					<text class="st-label" x={LX + 4.2} y="102" text-anchor="start">2A</text>
+					<path class="st-cable" d="M 82 122 C 82 170 120 188 170 188"></path>
+				</g>
+			</g>
+			<!-- the magnifying glass -->
+			<g data-lens>
+				<line class="st-lens-handle" x1="27" y1="27" x2="52" y2="52"></line>
+				<circle class="st-lens-glass" cx="0" cy="0" r="38"></circle>
+				<circle class="st-lens-rim" cx="0" cy="0" r="38"></circle>
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>На зарядке телефона мелко написано «5V 2A», на батарейке — «1,5V». <More term="По этим числам источник тока подбирают к прибору">V — вольт, единица <b>напряжения</b>: зарядка держит на своём разъёме напряжение 5 В. A — ампер, единица <b>силы тока</b>: зарядка может давать ток до 2 А, а телефон берёт столько, сколько ему нужно, но не больше. Значок из сплошной и пунктирной черты между ними означает постоянный ток — он идёт всё время в одну сторону. На батарейке пишут её напряжение: 1,5 В. Подробнее — в разделах <a href="#сила-тока">«Сила тока»</a> и <a href="#напряжение">«Напряжение»</a>.</More>.</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+</IntroFrame>
+
+<style is:global>
+	[data-stintro] {
+		--st-sky: color-mix(in srgb, var(--ig-vx) 16%, var(--sl-color-gray-5));
+		--st-wall: color-mix(in srgb, var(--ig-v) 10%, var(--sl-color-gray-5));
+		--st-bird: color-mix(in oklab, var(--ig-v) 40%, var(--sl-color-gray-3));
+		--st-belly: color-mix(in oklab, var(--ig-v) 20%, var(--sl-color-gray-2));
+		--st-plastic: var(--sl-color-gray-1);
+		--st-ink: var(--sl-color-gray-5);
+		--st-screen-off: var(--sl-color-black);
+		--st-screen-on: color-mix(in srgb, var(--ig-vx) 30%, var(--sl-color-gray-5));
+	}
+	:root[data-theme='light'] [data-stintro] {
+		--st-sky: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-gray-7, #fff));
+		--st-wall: color-mix(in srgb, var(--ig-v) 8%, var(--sl-color-gray-6));
+		--st-bird: color-mix(in oklab, var(--ig-v) 45%, var(--sl-color-gray-3));
+		--st-belly: color-mix(in oklab, var(--ig-v) 15%, var(--sl-color-gray-6));
+		--st-plastic: var(--sl-color-gray-7, #fff);
+		--st-ink: var(--sl-color-gray-2);
+		--st-screen-off: var(--sl-color-gray-2);
+		--st-screen-on: color-mix(in srgb, var(--ig-vx) 18%, var(--sl-color-gray-7, #fff));
+	}
+	/* the power line */
+	.st-sky {
+		fill: var(--st-sky);
+	}
+	.st-hills {
+		fill: color-mix(in srgb, var(--ig-vx) 10%, var(--sl-color-gray-4));
+		opacity: 0.6;
+	}
+	.st-ground {
+		fill: color-mix(in srgb, var(--ig-v) 22%, var(--sl-color-gray-5));
+	}
+	.st-tower__legs,
+	.st-tower__arm {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.st-tower__brace {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.st-insulator line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.st-insulator ellipse {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.6;
+	}
+	.st-wire {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.8;
+	}
+	.st-bird__body,
+	.st-bird__tail {
+		fill: var(--st-bird);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	.st-bird__belly {
+		fill: var(--st-belly);
+	}
+	.st-bird__wing {
+		fill: color-mix(in oklab, var(--st-bird) 70%, var(--sl-color-gray-1));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	.st-bird__beak {
+		fill: var(--ig-v);
+	}
+	.st-bird__eye {
+		fill: var(--sl-color-white);
+	}
+	.st-bird__leg {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.1;
+		stroke-linecap: round;
+	}
+	/* the charger */
+	.st-wall {
+		fill: var(--st-wall);
+	}
+	.st-table {
+		fill: color-mix(in srgb, var(--ig-v) 25%, var(--sl-color-gray-5));
+	}
+	.st-table-edge {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.st-socket {
+		fill: var(--st-plastic);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.st-socket-ring {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.st-charger {
+		fill: var(--st-plastic);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.st-charger-port {
+		fill: var(--sl-color-gray-3);
+	}
+	.st-label {
+		font-size: 6.4px;
+		font-weight: 700;
+		fill: var(--st-ink);
+	}
+	.st-label--small {
+		font-size: 4.2px;
+		font-weight: 600;
+		letter-spacing: 0.2px;
+	}
+	.st-dc {
+		stroke: var(--st-ink);
+		stroke-width: 0.8;
+	}
+	.st-dc--dash {
+		stroke-dasharray: 1.4 0.9;
+	}
+	.st-cable {
+		fill: none;
+		stroke: var(--st-plastic);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.st-holder {
+		fill: color-mix(in srgb, var(--ig-vx) 30%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.st-phone {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.st-screen {
+		fill: var(--st-screen-off);
+	}
+	.st-batt {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.st-batt-tip {
+		fill: var(--sl-color-gray-2);
+	}
+	.st-batt-fill {
+		fill: var(--sl-color-green, #3fb950);
+	}
+	.st-bolt {
+		fill: var(--ig-v);
+	}
+	.st-plug {
+		fill: var(--st-plastic);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.st-plug-tip {
+		fill: var(--sl-color-gray-3);
+	}
+	.st-lens-glass {
+		fill: none;
+	}
+	.st-lens-rim {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3.5;
+	}
+	.st-lens-handle {
+		stroke: color-mix(in srgb, var(--ig-v) 45%, var(--sl-color-gray-3));
+		stroke-width: 7;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { scene, clamp } from '@components/intro/scene';
+
+	const smooth = (a: number, b: number, x: number) => {
+		const t = clamp((x - a) / (b - a));
+		return t * t * (3 - 2 * t);
+	};
+	const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+	const f1 = (v: number) => v.toFixed(1);
+	const f2 = (v: number) => v.toFixed(2);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-stintro]')) {
+		// Bird: flies in (→ 0,42), lands on the upper wire, looks around, turns round with a hop at 0,8; 6 s
+		{
+			const RUN = 6;
+			const X0 = 26;
+			const X1 = 334;
+			const Y = 64;
+			const C = 118;
+			const SIT = 196;
+			const LAND = 0.42;
+			const card = root.querySelector<HTMLElement>('[data-scene="bird"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const bird = $<SVGGElement>('[data-bird]');
+			const flip = $<SVGGElement>('[data-flip]');
+			const head = $<SVGGElement>('[data-head]');
+			const open = $<SVGPathElement>('[data-open]');
+			const folded = $<SVGPathElement>('[data-folded]');
+			const legs = $<SVGPathElement>('[data-legs]');
+			const tail = $<SVGPathElement>('[data-tail]');
+			const at = (x: number, c: number) => {
+				const t = (x - X0) / (X1 - X0);
+				return { y: Y + 2 * t * (1 - t) * (c - Y), slope: (2 * (c - Y) * (1 - 2 * t)) / (X1 - X0) };
+			};
+			scene(card, RUN, (x) => {
+				const c = C; // a sparrow is far too light to bend a heavy wire visibly
+				const w = at(SIT, c);
+				let bx: number;
+				let by: number;
+				let rot: number;
+				if (x < LAND) {
+					// glide in from the upper right, slowing down near the wire
+					const u = clamp(x / LAND);
+					const e = 1 - (1 - u) ** 2;
+					bx = lerp(392, SIT, e);
+					by = lerp(14, w.y, e) - 26 * Math.sin(Math.PI * e) * (1 - e);
+					rot = lerp(-14, 0, e);
+				} else {
+					bx = SIT;
+					by = w.y;
+					rot = (Math.atan(w.slope) * 180) / Math.PI;
+				}
+				// a little hop when turning round at 0,8
+				const hop = Math.sin(Math.PI * clamp((x - 0.78) / 0.05));
+				bird.setAttribute('transform', `translate(${f1(bx)} ${f1(by - 6 * hop)}) rotate(${f1(rot)})`);
+				const turned = x >= 0.805;
+				flip.setAttribute('transform', turned ? 'scale(-1 1)' : '');
+				// wings: flapping in flight, spread to brake before landing, folded when sitting
+				const flying = x < LAND;
+				const brake = x > LAND * 0.8;
+				const flap = brake ? 0.95 : Math.cos(2 * Math.PI * 7 * x * RUN);
+				open.style.display = flying ? '' : 'none';
+				open.setAttribute('transform', `translate(0 -12) scale(1 ${f2(flap)}) translate(0 12)`);
+				folded.style.display = flying ? 'none' : '';
+				legs.style.display = x > LAND * 0.85 ? '' : 'none';
+				// the head: looks up a little, then down at the ground, then straight
+				const look = -14 * smooth(0.56, 0.6, x) * (1 - smooth(0.66, 0.7, x)) + 16 * smooth(0.88, 0.92, x) * (1 - smooth(0.96, 1, x));
+				head.setAttribute('transform', `rotate(${f1(look)} -7 -12)`);
+				// the other sparrow flicks its tail now and then
+				const flick = 10 * Math.sin(Math.PI * clamp((x - 0.3) / 0.04)) + 10 * Math.sin(Math.PI * clamp((x - 0.7) / 0.04));
+				tail.setAttribute('transform', `rotate(${f1(-flick)} 6 -6)`);
+			});
+		}
+
+		// Charger: the plug goes in (→ 0,12), the screen lights up, the battery fills; the lens comes (0,3 → 0,55); 6 s
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="charger"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const plug = $<SVGGElement>('[data-plug]');
+			const cable = $<SVGPathElement>('[data-cable]');
+			const screen = $<SVGRectElement>('[data-screen]');
+			const battery = $<SVGGElement>('[data-battery]');
+			const fill = $<SVGRectElement>('[data-fill]');
+			const lens = $<SVGGElement>('[data-lens]');
+			const clip = $<SVGCircleElement>('[data-clip]');
+			const zoom = $<SVGGElement>('[data-zoom]');
+			const K = 2.4; // the lens magnifies 2,4 times
+			const LX = 82;
+			const LY = 98;
+			scene(card, 6, (x) => {
+				const inn = smooth(0.02, 0.12, x);
+				const d = 12 * (1 - inn); // the plug rises by 12 into the phone's port
+				plug.setAttribute('transform', `translate(0 ${f1(d)})`);
+				cable.setAttribute('d', `M 82 122 C 82 170 120 188 170 188 C 230 188 263 ${f1(196 + d)} 263 ${f1(176 + d)}`);
+				const on = x >= 0.12;
+				screen.style.fill = on ? 'var(--st-screen-on)' : '';
+				battery.style.opacity = on ? '1' : '0';
+				fill.setAttribute('width', f1(on ? lerp(3, 16, smooth(0.12, 1, x)) : 3));
+				// the lens: from the upper right to over the charger's label
+				const m = smooth(0.3, 0.55, x);
+				const cx = lerp(214, LX, m);
+				const cy = lerp(40, LY, m);
+				lens.setAttribute('transform', `translate(${f1(cx)} ${f1(cy)})`);
+				clip.setAttribute('cx', f1(cx));
+				clip.setAttribute('cy', f1(cy));
+				zoom.setAttribute('transform', `translate(${f1(cx)} ${f1(cy)}) scale(${K}) translate(${f1(-cx)} ${f1(-cy)})`);
+			});
+		}
+	}
+</script>

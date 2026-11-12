@@ -66,7 +66,7 @@ export default defineConfig({
 						'agregatnye-sostoyaniya/isparenie-i-kipenie',
 						'agregatnye-sostoyaniya/teplovye-dvigateli',
 					]),
-					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['elektrizaciya', 'elektricheskiy-tok', 'zakon-oma', 'soedinenie-provodnikov', 'rabota-i-moshchnost-toka']),
+					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['elektrizaciya', 'elektricheskiy-tok', 'sila-toka-napryazhenie-soprotivlenie', 'zakon-oma', 'soedinenie-provodnikov', 'rabota-i-moshchnost-toka']),
 					section('Электромагнитные явления', '8-klass/elektromagnitnye-yavleniya', ['magnitnoe-pole-toka', 'postoyannye-magnity', 'elektrodvigatel']),
 					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'otrazhenie-i-prelomlenie', 'linzy']),
 				]),
