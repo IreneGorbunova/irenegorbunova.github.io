@@ -1,0 +1,291 @@
+---
+/**
+ * The three kinds of permanent magnets a school uses: a bar magnet, a horseshoe magnet and a magnetic needle on its
+ * pivot, seen from above, with their poles (N blue, S red) and their magnetic lines. The lines are the true lines of
+ * uniformly magnetised magnets (charged pole faces, kinds.ts), traced at build time. Chips choose whose lines are
+ * shown (a tap on a magnet does the same); a line is drawn from the N pole to the S pole.
+ */
+import PmStyles from './PmStyles.astro';
+import { lines, arcSeeds, type Q } from './kinds';
+
+// ---- bar: 300 × 210, centre (150, 105), 150 × 30, N to the right
+const BAR = { cx: 150, cy: 105, hl: 75, hw: 15 };
+const barQ: Q[] = [-12, -6, 0, 6, 12].flatMap((dy) => [
+	{ x: BAR.cx + BAR.hl - 3, y: BAR.cy + dy, q: 0.2 },
+	{ x: BAR.cx - BAR.hl + 3, y: BAR.cy + dy, q: -0.2 },
+]);
+const inBar = (x: number, y: number) => Math.abs(x - BAR.cx) < BAR.hl && Math.abs(y - BAR.cy) < BAR.hw;
+const barLines = lines(barQ, arcSeeds(BAR.cx + BAR.hl - 10, BAR.cy, 20, -1.95, 1.95, 13), inBar, { w: 300, h: 210 }, BAR.cx);
+
+// ---- horseshoe: 220 × 210, opening up; N arm on the left, S arm on the right
+const HS = { cx: 110, tip: 58, base: 126, rin: 17, rout: 43 };
+const armL = [HS.cx - HS.rout, HS.cx - HS.rin];
+const armR = [HS.cx + HS.rin, HS.cx + HS.rout];
+const hsQ: Q[] = [0.125, 0.375, 0.625, 0.875].flatMap((t) => [
+	{ x: armL[0] + 3 + (armL[1] - armL[0] - 6) * t, y: HS.tip + 3, q: 0.25 },
+	{ x: armR[0] + 3 + (armR[1] - armR[0] - 6) * t, y: HS.tip + 3, q: -0.25 },
+]);
+const inHorse = (x: number, y: number) => {
+	if (y < HS.tip) return false;
+	if (y <= HS.base) return (x > armL[0] && x < armL[1]) || (x > armR[0] && x < armR[1]);
+	const r = Math.hypot(x - HS.cx, y - HS.base);
+	return r > HS.rin && r < HS.rout;
+};
+const nTip = { x: (armL[0] + armL[1]) / 2, y: HS.tip + 3 };
+const hsLines = lines(hsQ, arcSeeds(nTip.x, nTip.y, 16, -Math.PI / 2 - 1.75, -Math.PI / 2 + 1.75, 11), inHorse, { w: 220, h: 210 }, HS.cx);
+const bendOuter = `M${armL[0]} ${HS.tip} V${HS.base} A${HS.rout} ${HS.rout} 0 0 0 ${armR[1]} ${HS.base} V${HS.tip} H${armR[0]} V${HS.base} A${HS.rin} ${HS.rin} 0 0 1 ${armL[1]} ${HS.base} V${HS.tip} Z`;
+
+// ---- needle: 220 × 210, centre (110, 100), a thin rhombus 124 × 20, N to the right
+const ND = { cx: 110, cy: 100, hl: 62, hw: 10 };
+const ndQ: Q[] = [
+	{ x: ND.cx + 52, y: ND.cy, q: 0.6 },
+	{ x: ND.cx + 40, y: ND.cy, q: 0.4 },
+	{ x: ND.cx - 52, y: ND.cy, q: -0.6 },
+	{ x: ND.cx - 40, y: ND.cy, q: -0.4 },
+];
+const inNeedle = (x: number, y: number) => Math.abs(x - ND.cx) / ND.hl + Math.abs(y - ND.cy) / ND.hw < 1;
+const ndLines = lines(ndQ, arcSeeds(ND.cx + 50, ND.cy, 14, -2.1, 2.1, 11), inNeedle, { w: 220, h: 210 }, ND.cx);
+
+const panels = [
+	{ id: 'bar', w: 300, lines: barLines, label: 'Полосовой магнит' },
+	{ id: 'horse', w: 220, lines: hsLines, label: 'Дугообразный магнит' },
+	{ id: 'needle', w: 220, lines: ndLines, label: 'Магнитная стрелка' },
+];
+const AR = 'M4.5 0L-3.5 -3.6L-3.5 3.6Z';
+---
+
+<PmStyles />
+<figure class="pm-box kp not-content" data-kp>
+	<div class="pm-row kp__chips" role="group" aria-label="Чьи магнитные линии показать" style="margin-top: 0">
+		<span class="kp__lead">Магнитные линии:</span>
+		<button type="button" class="pm-chip" data-show="all" aria-pressed="true">все</button>
+		<button type="button" class="pm-chip" data-show="bar" aria-pressed="false">полосового</button>
+		<button type="button" class="pm-chip" data-show="horse" aria-pressed="false">дугообразного</button>
+		<button type="button" class="pm-chip" data-show="needle" aria-pressed="false">стрелки</button>
+		<button type="button" class="pm-chip" data-show="none" aria-pressed="false">нет</button>
+	</div>
+	<div class="kp__grid">
+		{
+			panels.map((p) => (
+				<div class={`kp__panel kp__panel--${p.id}`} data-panel={p.id}>
+					<svg class="pm-svg kp__svg" viewBox={`0 0 ${p.w} 210`} role="img" aria-label={`${p.label}, вид сверху, и его магнитные линии`}>
+						{p.id === 'needle' && <circle class="kp__stand" cx={ND.cx} cy={ND.cy} r="21" />}
+						<g class="kp__lines" data-lines>
+							{p.lines.map((l) => (
+								<path class="kp__ln" d={l.d} pathLength="1" />
+							))}
+							{p.lines.flatMap((l) => l.arrows.map((a) => <path class="kp__ar" d={AR} transform={`translate(${a.x.toFixed(1)} ${a.y.toFixed(1)}) rotate(${a.a.toFixed(0)})`} />))}
+						</g>
+						{p.id === 'bar' && (
+							<g class="kp__mag">
+								<rect class="kp__s" x={BAR.cx - BAR.hl} y={BAR.cy - BAR.hw} width={BAR.hl} height={2 * BAR.hw} rx="3" />
+								<rect class="kp__n" x={BAR.cx} y={BAR.cy - BAR.hw} width={BAR.hl} height={2 * BAR.hw} rx="3" />
+								<text class="kp__lt" x={BAR.cx - BAR.hl + 17} y={BAR.cy + 5.5}>S</text>
+								<text class="kp__lt" x={BAR.cx + BAR.hl - 17} y={BAR.cy + 5.5}>N</text>
+							</g>
+						)}
+						{p.id === 'horse' && (
+							<g class="kp__mag">
+								<path class="kp__metal" d={bendOuter} />
+								<rect class="kp__n" x={armL[0]} y={HS.tip} width={armL[1] - armL[0]} height={HS.base - HS.tip} />
+								<rect class="kp__s" x={armR[0]} y={HS.tip} width={armR[1] - armR[0]} height={HS.base - HS.tip} />
+								<rect class="kp__face" x={armL[0]} y={HS.tip} width={armL[1] - armL[0]} height="5" />
+								<rect class="kp__face" x={armR[0]} y={HS.tip} width={armR[1] - armR[0]} height="5" />
+								<text class="kp__lt" x={nTip.x} y={HS.tip + 30}>N</text>
+								<text class="kp__lt" x={(armR[0] + armR[1]) / 2} y={HS.tip + 30}>S</text>
+							</g>
+						)}
+						{p.id === 'needle' && (
+							<g class="kp__mag">
+								<path class="kp__s" d={`M${ND.cx - ND.hl} ${ND.cy}L${ND.cx} ${ND.cy - ND.hw}V${ND.cy + ND.hw}Z`} />
+								<path class="kp__n" d={`M${ND.cx + ND.hl} ${ND.cy}L${ND.cx} ${ND.cy - ND.hw}V${ND.cy + ND.hw}Z`} />
+								<circle class="kp__cap" cx={ND.cx} cy={ND.cy} r="4.5" />
+								<text class="kp__lt kp__lt--out kp__lt--n" x={ND.cx + ND.hl - 8} y={ND.cy - 15}>N</text>
+								<text class="kp__lt kp__lt--out kp__lt--s" x={ND.cx - ND.hl + 8} y={ND.cy - 15}>S</text>
+								<path class="kp__lead-ln" d={`M${ND.cx + 3} ${ND.cy + 6}L${ND.cx + 20} ${ND.cy + 42}`} />
+								<text class="kp__note" x={ND.cx + 14} y={ND.cy + 56}>острие</text>
+							</g>
+						)}
+					</svg>
+					<div class="kp__name">{p.label}</div>
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="pm-cap">
+		Магниты лежат на столе, мы смотрим на них сверху. Северный полюс <span class="pm-n">N</span> синий, южный <span class="pm-s">S</span> — красный. Нажмите на магнит или на кнопку, чтобы показать его магнитные линии.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.kp__lead {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.kp__grid {
+		display: grid;
+		grid-template-columns: 300fr 220fr 220fr;
+		gap: 0.6rem;
+		margin-top: 0.75rem;
+	}
+	.kp__panel {
+		min-width: 0;
+		cursor: pointer;
+	}
+	.kp__svg {
+		border-radius: 0.6rem;
+		background: var(--sl-color-bg);
+		outline: 2px solid transparent;
+		outline-offset: -2px;
+		transition: outline-color 0.25s;
+	}
+	.kp__panel.is-sel .kp__svg {
+		outline-color: var(--sl-color-accent);
+	}
+	.kp__name {
+		margin-top: 0.35rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.3;
+		text-align: center;
+		color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.kp text {
+		font-family: var(--__sl-font);
+	}
+	.kp__ln {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-dasharray: 1 1;
+		stroke-dashoffset: 1;
+		opacity: 0.85;
+		transition: stroke-dashoffset 0.25s ease-in;
+	}
+	.kp__ar {
+		fill: var(--sl-color-gray-2);
+		opacity: 0;
+		transition: opacity 0.2s;
+	}
+	.kp__lines.is-on .kp__ln {
+		stroke-dashoffset: 0;
+		transition: stroke-dashoffset 1.6s ease-out;
+	}
+	.kp__lines.is-reset .kp__ln,
+	.kp__lines.is-reset .kp__ar {
+		transition: none;
+	}
+	.kp__lines.is-on .kp__ar {
+		opacity: 0.95;
+		transition: opacity 0.4s 1.1s;
+	}
+	.kp__n {
+		fill: var(--ig-vx);
+	}
+	.kp__s {
+		fill: var(--ig-vy);
+	}
+	.kp__metal {
+		fill: var(--sl-color-gray-3);
+	}
+	.kp__face {
+		fill: var(--sl-color-gray-3);
+		opacity: 0.9;
+	}
+	.kp__stand {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+	}
+	.kp__cap {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.2;
+	}
+	.kp__lt {
+		font-size: 15px;
+		font-weight: 700;
+		text-anchor: middle;
+		fill: var(--sl-color-black);
+	}
+	:root[data-theme='light'] .kp__lt {
+		fill: #fff;
+	}
+	.kp .kp__lt--out {
+		stroke: var(--sl-color-bg);
+		stroke-width: 4;
+		paint-order: stroke;
+	}
+	.kp .kp__lt--n {
+		fill: var(--ig-vx);
+	}
+	.kp .kp__lt--s {
+		fill: var(--ig-vy);
+	}
+	.kp__note {
+		font-size: 15px;
+		fill: var(--sl-color-white);
+		stroke: var(--sl-color-bg);
+		stroke-width: 4;
+		paint-order: stroke;
+	}
+	.kp__lead-ln {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+		fill: none;
+	}
+	@media (max-width: 40rem) {
+		.kp__grid {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		}
+		.kp__panel--bar {
+			grid-column: 1 / -1;
+		}
+		.kp__panel--bar .kp__svg {
+			max-width: 26rem;
+			margin-inline: auto;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-kp]')) {
+		const chips = [...root.querySelectorAll<HTMLButtonElement>('[data-show]')];
+		const panels = [...root.querySelectorAll<HTMLElement>('[data-panel]')];
+		let mode = 'all';
+		let seen = false;
+		/** Draws the lines of a group anew, from the N pole. */
+		const redraw = (g: Element) => {
+			g.classList.remove('is-on');
+			g.classList.add('is-reset');
+			void (g as SVGGElement).getBoundingClientRect();
+			g.classList.remove('is-reset');
+			g.classList.add('is-on');
+		};
+		const set = (m: string) => {
+			mode = m;
+			chips.forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.show === mode)));
+			for (const p of panels) {
+				const g = p.querySelector('[data-lines]')!;
+				p.classList.toggle('is-sel', mode === p.dataset.panel);
+				if (seen && (mode === 'all' || mode === p.dataset.panel)) redraw(g);
+				else g.classList.remove('is-on');
+			}
+		};
+		chips.forEach((c) => c.addEventListener('click', () => set(c.dataset.show!)));
+		panels.forEach((p) => p.addEventListener('click', () => set(p.dataset.panel!)));
+		new IntersectionObserver(
+			(entries, obs) => {
+				if (entries.some((e) => e.isIntersecting)) {
+					seen = true;
+					set(mode);
+					obs.disconnect();
+				}
+			},
+			{ threshold: 0.3 },
+		).observe(root);
+		set(mode);
+	}
+</script>
