@@ -68,6 +68,12 @@ const MOVES = [
 		to: 'uchebnik/8-klass/elektromagnitnye-yavleniya/elektromagnity',
 		ids: ['elektromagnit', 'podyomnyy-elektromagnit', 'rele', 'zvonok'],
 	},
+	// 13 Nov 2026: «Постоянные магниты. Магнитное поле Земли» was split, and this card went to «Магнитное поле Земли».
+	{
+		from: 'uchebnik/8-klass/elektromagnitnye-yavleniya/postoyannye-magnity',
+		to: 'uchebnik/8-klass/elektromagnitnye-yavleniya/magnitnoe-pole-zemli',
+		ids: ['pole-zemli'],
+	},
 ];
 
 /** Old card key → new card key. */

@@ -26,7 +26,11 @@ const tok = 'uchebnik/8-klass/elektricheskie-yavleniya/elektricheskiy-tok';
 const sila = 'uchebnik/8-klass/elektricheskie-yavleniya/sila-toka-napryazhenie-soprotivlenie';
 const pole = 'uchebnik/8-klass/elektromagnitnye-yavleniya/magnitnoe-pole-toka';
 const em = 'uchebnik/8-klass/elektromagnitnye-yavleniya/elektromagnity';
-assert.equal(Object.keys(MOVED).length, 13);
+const pm = 'uchebnik/8-klass/elektromagnitnye-yavleniya/postoyannye-magnity';
+const zem = 'uchebnik/8-klass/elektromagnitnye-yavleniya/magnitnoe-pole-zemli';
+assert.equal(Object.keys(MOVED).length, 14);
+assert.equal(MOVED[`${pm}/pole-zemli`], `${zem}/pole-zemli`);
+assert.equal(MOVED[`${pm}/polyusy`], undefined);
 assert.equal(MOVED[`${tok}/reostat`], `${sila}/reostat`);
 assert.equal(MOVED[`${pole}/rele`], `${em}/rele`);
 assert.equal(MOVED[`${pole}/katushka`], undefined);
@@ -38,12 +42,16 @@ store[KEY] = JSON.stringify({
 	[`${pole}/elektromagnit`]: { box: 4, due: '2026-11-20' },
 	[`${em}/elektromagnit`]: { box: 1, due: '2026-11-08' },
 	[`${pole}/katushka`]: { box: 5, due: '2026-11-30' },
+	[`${pm}/pole-zemli`]: { box: 2, due: '2026-11-12' },
+	[`${pm}/polyusy`]: { box: 3, due: '2026-11-15' },
 });
 assert.deepEqual(load(), {
 	[`${sila}/sila-toka`]: { box: 3, due: '2026-11-10' },
 	[`${em}/zvonok`]: { box: 2, due: '2026-11-09' },
 	[`${em}/elektromagnit`]: { box: 1, due: '2026-11-08' }, // a state already saved under the new key wins
 	[`${pole}/katushka`]: { box: 5, due: '2026-11-30' },
+	[`${zem}/pole-zemli`]: { box: 2, due: '2026-11-12' },
+	[`${pm}/polyusy`]: { box: 3, due: '2026-11-15' },
 });
 
 console.log('leitner: all checks passed');
