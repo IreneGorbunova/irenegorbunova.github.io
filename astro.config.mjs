@@ -86,7 +86,6 @@ export default defineConfig({
 				]),
 				{ label: 'Формулы', slug: 'uchebnik/formuly' },
 				{ label: 'Моё небо', slug: 'uchebnik/nebo' },
-				{ label: 'Источники иллюстраций', slug: 'uchebnik/istochniki' },
 			],
 		}),
 	],
