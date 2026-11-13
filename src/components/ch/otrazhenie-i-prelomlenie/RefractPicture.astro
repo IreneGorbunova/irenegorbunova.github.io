@@ -1,0 +1,212 @@
+---
+/**
+ * Pictures to the definitions of refraction (n = 1,33, air — water).
+ * kind="refract": a laser pointer in air swings from 15° to 70° and back; the refracted ray in water follows the law
+ *   of refraction sin α / sin γ = 1,33 (live values), a faint reflected ray shows that part of the light is always
+ *   reflected. Pulses run with the speed of light in each medium: in water 1,33 times slower and closer together.
+ * kind="total": a lamp under water sends three rays at 30°, at the critical angle 48,8° and at 65°: the first goes
+ *   out into air at 41,7°, the second goes along the surface, the third is reflected back entirely.
+ */
+import PicStyles from './PicStyles.astro';
+
+interface Props {
+	kind: 'refract' | 'total';
+}
+const { kind } = Astro.props;
+
+const N = 1.33;
+const RAD = Math.PI / 180;
+const DEG = 180 / Math.PI;
+const f1 = (v: number) => v.toFixed(1);
+// total reflection: the surface at y = 95, the lamp under water
+const Y = 95;
+const LAMP = { x: 30, y: 190 };
+const A0 = Math.asin(1 / N) * DEG; // 48,75°
+const rays = [30, A0, 65].map((a) => {
+	const hx = LAMP.x + (LAMP.y - Y) * Math.tan(a * RAD);
+	const s = N * Math.sin(a * RAD);
+	const out = s < 1 ? Math.asin(s) * DEG : null;
+	return { a, hit: { x: hx, y: Y }, out };
+});
+const r1 = rays[0];
+const r2 = rays[1];
+const r3 = rays[2];
+const L1 = 95;
+const out1 = { x: r1.hit.x + L1 * Math.sin(r1.out! * RAD), y: Y - L1 * Math.cos(r1.out! * RAD) };
+const back = (r: (typeof rays)[number], len: number) => ({ x: r.hit.x + len * Math.sin(r.a * RAD), y: Y + len * Math.cos(r.a * RAD) });
+const refl1 = back(r1, 55);
+const refl2 = back(r2, 60);
+const refl3 = back(r3, Math.min(120, (320 - r3.hit.x) / Math.sin(r3.a * RAD)));
+const seg = (p: { x: number; y: number }, q: { x: number; y: number }) => `M ${f1(p.x)} ${f1(p.y)} L ${f1(q.x)} ${f1(q.y)}`;
+const arcBelow = (h: { x: number; y: number }, a: number, r: number) => {
+	// from the downward perpendicular to the incoming ray (which comes from the lower left)
+	const p = `${f1(h.x)} ${f1(h.y + r)}`;
+	const q = `${f1(h.x - r * Math.sin(a * RAD))} ${f1(h.y + r * Math.cos(a * RAD))}`;
+	return `M ${p} A ${r} ${r} 0 0 1 ${q}`;
+};
+---
+
+<PicStyles />
+{
+	kind === 'refract' && (
+		<figure class="op-pic op-pic--one not-content" data-op-refract>
+			<div class="op-pic__grid">
+				<svg class="op-pic__svg" viewBox="0 0 320 230" role="img" aria-label="Луч указки переходит из воздуха в воду и на границе меняет направление: в воде он идёт ближе к перпендикуляру, угол преломления гамма меньше угла падения альфа. Часть света отражается">
+					<rect class="op-water" x="0" y="115" width="320" height="115" />
+					<line class="op-edge" x1="0" y1="115" x2="320" y2="115" />
+					<line class="op-normal" x1="160" y1="22" x2="160" y2="212" />
+					<path class="op-arc op-arc--a" d="" data-arc-a />
+					<path class="op-arc op-arc--g" d="" data-arc-g />
+					<g class="op-ray op-ray--faint">
+						<path class="op-ray__core" d="" data-refl />
+						<path class="op-ray__flow" d="" data-refl />
+					</g>
+					<g class="op-ray">
+						<path class="op-ray__glow" d="" data-in />
+						<path class="op-ray__core" d="" data-in />
+						<path class="op-ray__flow" d="" data-in />
+					</g>
+					<g class="op-ray op-ray--water">
+						<path class="op-ray__glow" d="" data-out />
+						<path class="op-ray__core" d="" data-out />
+						<path class="op-ray__flow" d="" data-out />
+					</g>
+					<g data-laser>
+						<rect class="op-laser" x="-46" y="-6" width="44" height="12" rx="4" />
+					</g>
+					<circle class="op-dot" cx="160" cy="115" r="3.5" />
+					<text class="op-math op-ta" text-anchor="middle" data-la>α</text>
+					<text class="op-math op-tg" text-anchor="middle" data-lg>γ</text>
+					<text x="8" y="106">воздух</text>
+					<text x="8" y="134">вода</text>
+					<text x="166" y="18">перпендикуляр</text>
+					<text class="op-tr" text-anchor="middle" data-tin>падающий луч</text>
+					<text class="op-tr" text-anchor="middle" data-tout>преломлённый луч</text>
+					<text class="op-ta" x="8" y="222" data-va />
+					<text class="op-tg" x="312" y="222" text-anchor="end" data-vg />
+				</svg>
+			</div>
+			<div class="op-pic__foot">
+				<figcaption>Переходя из воздуха в воду, луч приближается к перпендикуляру: угол преломления <i>γ</i> меньше угла падения <i>α</i>. Слабый луч вверху — отражённый: часть света отражается от воды. В воде огоньки бегут медленнее — свет идёт в ней медленнее, чем в воздухе.</figcaption>
+				<button type="button" class="op-pic__again" data-again>Повторить</button>
+			</div>
+		</figure>
+	)
+}
+{
+	kind === 'total' && (
+		<figure class="op-pic op-pic--one not-content">
+			<div class="op-pic__grid">
+				<svg class="op-pic__svg" viewBox="0 0 320 230" role="img" aria-label="Фонарик под водой посылает три луча к поверхности. Первый, под небольшим углом, выходит в воздух. Второй, под предельным углом, идёт вдоль поверхности. Третий, под большим углом, весь отражается обратно в воду">
+					<rect class="op-water" x="0" y={Y} width="320" height={230 - Y} />
+					<line class="op-edge" x1="0" y1={Y} x2="320" y2={Y} />
+					{rays.map((r) => <line class="op-normal" x1={f1(r.hit.x)} y1={Y - 34} x2={f1(r.hit.x)} y2={Y + 40} />)}
+					{rays.map((r) => <path class="op-arc op-arc--a" d={arcBelow(r.hit, r.a, 24)} />)}
+					<g class="op-ray op-ray--faint op-ray--water">
+						<path class="op-ray__core" d={`${seg(r1.hit, refl1)} ${seg(r2.hit, refl2)}`} />
+					</g>
+					<g class="op-ray op-ray--water">
+						<path class="op-ray__glow" d={`${seg(LAMP, r1.hit)} ${seg(LAMP, r2.hit)} ${seg(LAMP, r3.hit)} ${seg(r3.hit, refl3)}`} />
+						<path class="op-ray__core" d={`${seg(LAMP, r1.hit)} ${seg(LAMP, r2.hit)} ${seg(LAMP, r3.hit)} ${seg(r3.hit, refl3)}`} />
+						<path class="op-ray__flow" d={`${seg(LAMP, r1.hit)} ${seg(LAMP, r2.hit)} M ${f1(LAMP.x)} ${f1(LAMP.y)} L ${f1(r3.hit.x)} ${Y} L ${f1(refl3.x)} ${f1(refl3.y)}`} />
+					</g>
+					<g class="op-ray">
+						<path class="op-ray__glow" d={`${seg(r1.hit, out1)} M ${f1(r2.hit.x)} ${Y - 2} L 316 ${Y - 2}`} />
+						<path class="op-ray__core" d={`${seg(r1.hit, out1)} M ${f1(r2.hit.x)} ${Y - 2} L 316 ${Y - 2}`} />
+						<path class="op-ray__flow" d={`${seg(r1.hit, out1)} M ${f1(r2.hit.x)} ${Y - 2} L 316 ${Y - 2}`} />
+					</g>
+					<circle class="op-lamp" cx={LAMP.x} cy={LAMP.y} r="6" />
+					<text x="8" y="20">воздух</text>
+					<text x="8" y="222">вода</text>
+					<text class="op-math op-ta" x={f1(r1.hit.x - 6)} y={Y - 24} text-anchor="end">α &lt; α<tspan baseline-shift="sub" font-size="12">0</tspan></text>
+					<text class="op-math op-ta" x={f1(r2.hit.x + 4)} y={Y - 24}>α = α<tspan baseline-shift="sub" font-size="12">0</tspan></text>
+					<text class="op-math op-ta" x={f1(r3.hit.x + 4)} y={Y - 24}>α &gt; α<tspan baseline-shift="sub" font-size="12">0</tspan></text>
+					<text x="316" y={Y - 52} text-anchor="end">полное отражение</text>
+				</svg>
+			</div>
+			<div class="op-pic__foot">
+				<figcaption>Луч из воды выходит в воздух, пока угол падения меньше предельного <i>α</i>₀ (для воды около 49°). При <i>α</i> = <i>α</i>₀ преломлённый луч идёт вдоль поверхности, а при бо́льших углах весь свет отражается обратно в воду.</figcaption>
+			</div>
+		</figure>
+	)
+}
+
+<style is:global>
+	.op-laser {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.op-lamp {
+		fill: var(--op-ray);
+		filter: drop-shadow(0 0 5px var(--op-ray));
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+
+	const RAD = Math.PI / 180;
+	const DEG = 180 / Math.PI;
+	const N = 1.33;
+	const f1 = (v: number) => v.toFixed(1);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-op-refract]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const $$ = <T extends Element>(s: string) => [...root.querySelectorAll<T>(s)];
+		const O = { x: 160, y: 115 };
+		const L = 112; // 4 pulse periods in air
+		const LW = 100;
+		const at = (r: number, t: number) => ({ x: O.x + r * Math.sin(t * RAD), y: O.y - r * Math.cos(t * RAD) }); // up, t from the perpendicular
+		const below = (r: number, t: number) => ({ x: O.x + r * Math.sin(t * RAD), y: O.y + r * Math.cos(t * RAD) });
+		const pin = $$<SVGPathElement>('[data-in]');
+		const pout = $$<SVGPathElement>('[data-out]');
+		const prefl = $$<SVGPathElement>('[data-refl]');
+		const arcA = $<SVGPathElement>('[data-arc-a]');
+		const arcG = $<SVGPathElement>('[data-arc-g]');
+		const laser = $<SVGGElement>('[data-laser]');
+		const la = $<SVGTextElement>('[data-la]');
+		const lg = $<SVGTextElement>('[data-lg]');
+		const tin = $<SVGTextElement>('[data-tin]');
+		const tout = $<SVGTextElement>('[data-tout]');
+		const va = $<SVGTextElement>('[data-va]');
+		const vg = $<SVGTextElement>('[data-vg]');
+		const M = (p: { x: number; y: number }) => `${f1(p.x)} ${f1(p.y)}`;
+		scene(root, 9, (x) => {
+			const a = 42.5 - 27.5 * Math.cos(2 * Math.PI * x);
+			const g = Math.asin(Math.sin(a * RAD) / N) * DEG;
+			const s = at(L, -a);
+			const e = below(LW, g);
+			const r = at(90, a);
+			pin.forEach((p) => p.setAttribute('d', `M ${M(s)} L ${M(O)}`));
+			pout.forEach((p) => p.setAttribute('d', `M ${M(O)} L ${M(e)}`));
+			prefl.forEach((p) => p.setAttribute('d', `M ${M(O)} L ${M(r)}`));
+			const p0 = at(42, 0);
+			const p1 = at(42, -a);
+			arcA.setAttribute('d', `M ${M(p0)} A 42 42 0 0 0 ${M(p1)}`);
+			const q0 = below(48, 0);
+			const q1 = below(48, g);
+			arcG.setAttribute('d', `M ${M(q0)} A 48 48 0 0 0 ${M(q1)}`);
+			const pa = at(60, -a / 2);
+			const pg = below(66, g / 2);
+			la.setAttribute('x', f1(pa.x));
+			la.setAttribute('y', f1(pa.y + 6));
+			lg.setAttribute('x', f1(pg.x));
+			lg.setAttribute('y', f1(pg.y + 6));
+			laser.setAttribute('transform', `translate(${M(s)}) rotate(${f1(90 - a)})`);
+			// ray labels along the rays, outside the angles
+			const ti = at(L * 0.55, -a);
+			const ai = 90 - a;
+			tin.setAttribute('x', f1(ti.x - 20 * Math.cos(a * RAD)));
+			tin.setAttribute('y', f1(ti.y + 20 * Math.sin(a * RAD)));
+			tin.setAttribute('transform', `rotate(${f1(ai)} ${tin.getAttribute('x')} ${tin.getAttribute('y')})`);
+			const to = below(LW * 0.6, g);
+			const ao = 90 - g;
+			tout.setAttribute('x', f1(to.x + 16 * Math.cos(g * RAD)));
+			tout.setAttribute('y', f1(to.y - 16 * Math.sin(g * RAD)));
+			tout.setAttribute('transform', `rotate(${f1(ao)} ${tout.getAttribute('x')} ${tout.getAttribute('y')})`);
+			va.textContent = `α = ${Math.round(a)}°`;
+			vg.textContent = `γ = ${Math.round(g)}°`;
+		});
+	}
+</script>
