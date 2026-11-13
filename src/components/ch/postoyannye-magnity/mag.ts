@@ -1,4 +1,4 @@
-/** Helpers shared by the models of the chapter «Постоянные магниты. Магнитное поле Земли». */
+/** Helpers shared by the models of the chapters «Постоянные магниты» and «Магнитное поле Земли». */
 
 export type RGB = [number, number, number];
 
