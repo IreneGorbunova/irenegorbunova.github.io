@@ -1,0 +1,680 @@
+---
+/**
+ * What the frame (mode="frame") and the commutator (mode="comm") really look like, and how they turn into the
+ * pictures of FramePic.astro: the scene is drawn in 3D (parallel projection, ./look3d.ts), then the point of view
+ * turns smoothly until we look along the axle, holds, and turns back; «Повторить» starts again.
+ * World and colours as in FramePic: N on the left (blue), S on the right (red), the field along +x, the axle along z
+ * (towards the viewer); the frame is 132 × 184 (sides at x = ±66, z from −92 to 92); in the end view every size
+ * coincides with FramePic (viewBox 300 × 226 plus a strip for the label).
+ * mode="frame": the frame lies along the magnetic lines (φ = 0), as FramePic mode="stop" starts; a snapshot of the
+ *   moment the current is switched on: in the right side the current goes away from us (⊗), in the left towards us
+ *   (⊙), the field pushes the right side down and the left one up (F, as in FramePic). The ends of the frame go along
+ *   the axle to the source.
+ * mode="comm": a close-up of the commutator: two copper half-rings on an insulating sleeve on the shaft (gaps ±8°
+ *   as in FramePic), each joined to the long side in its own direction; two graphite brushes pressed by springs
+ *   from the left and the right, «+» on the right. The frame turns clockwise (seen from the front) at 0,25 об/с.
+ *   The half-ring under the «+» brush is lit: it always belongs to the side on the right; the half-rings swap under
+ *   the brushes when the frame is vertical (perpendicular to the lines), and then there is no current. The camera
+ *   then pulls back to the view along the axle: FramePic mode="comm" (the springs, wires and the sleeve fade there).
+ */
+interface Props {
+	mode: 'frame' | 'comm';
+	caption: string;
+}
+const { mode, caption } = Astro.props;
+const uid = `flk-${Math.random().toString(36).slice(2, 8)}`;
+const aria =
+	mode === 'frame'
+		? 'Рамка с током на оси между полюсами магнита; вид поворачивается, пока мы не смотрим вдоль оси, и рамка становится отрезком'
+		: 'Коллектор: два полукольца на оси и две щётки, прижатые пружинами; вид поворачивается вдоль оси';
+---
+
+<figure class="flk not-content" data-flk={mode}>
+	<div class="flk__stage">
+		<svg class="flk__svg" viewBox="0 0 300 250" role="img" aria-label={aria}>
+			<defs>
+				<marker id={`${uid}-f`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+					<path class="flk__hf" d="M0,0 L10,5 L0,10 z"></path>
+				</marker>
+				<marker id={`${uid}-b`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+					<path class="flk__hb" d="M0,0 L10,5 L0,10 z"></path>
+				</marker>
+				<marker id={`${uid}-i`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">
+					<path class="flk__hi" d="M0,0 L10,5 L0,10 z"></path>
+				</marker>
+			</defs>
+			<g data-dyn></g>
+		</svg>
+	</div>
+	<div class="flk__foot">
+		<figcaption class="flk__cap">
+			{caption}
+			<span class="flk__keys">
+				<span class="flk__key flk__key--i"></span>направление тока; <span class="flk__key flk__key--f"></span><i>F</i> — сила, с которой поле действует на сторону рамки; ⊗ — ток уходит от нас, ⊙ — идёт к нам.
+			</span>
+		</figcaption>
+		<button type="button" class="flk__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.flk {
+		--flk-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		--flk-live: color-mix(in srgb, var(--ig-v) 85%, var(--sl-color-white));
+		--flk-i: var(--sl-color-green);
+		margin-block: 1.25rem 1.75rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-gray-3);
+	}
+	.flk i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.flk__stage {
+		border-radius: 0.8rem;
+		background: var(--sl-color-black);
+		border: 1px solid var(--sl-color-gray-6);
+		padding: 0.4rem;
+	}
+	.flk__svg {
+		display: block;
+		width: 100%;
+		max-width: 24rem;
+		height: auto;
+		margin-inline: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.flk__foot {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.6rem;
+		margin-top: 0.6rem;
+	}
+	.flk__cap {
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+	}
+	.flk__keys {
+		display: block;
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.flk__key {
+		display: inline-block;
+		width: 1.1em;
+		height: 3px;
+		margin-right: 0.3em;
+		vertical-align: 0.25em;
+		border-radius: 2px;
+	}
+	.flk__key--f {
+		background: var(--ig-v);
+	}
+	.flk__key--i {
+		background: var(--flk-i);
+	}
+	.flk__again {
+		flex: none;
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.flk__again:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.flk text {
+		font-family: var(--__sl-font);
+	}
+	.flk__pole {
+		stroke: color-mix(in srgb, var(--sl-color-black) 35%, transparent);
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	.flk__pole--n-front {
+		fill: color-mix(in srgb, var(--ig-vx) 78%, var(--ig-surface));
+	}
+	.flk__pole--n-top {
+		fill: color-mix(in srgb, var(--ig-vx) 92%, white);
+	}
+	.flk__pole--n-side {
+		fill: color-mix(in srgb, var(--ig-vx) 55%, var(--sl-color-black));
+	}
+	.flk__pole--s-front {
+		fill: color-mix(in srgb, var(--ig-vy) 78%, var(--ig-surface));
+	}
+	.flk__pole--s-top {
+		fill: color-mix(in srgb, var(--ig-vy) 88%, white);
+	}
+	.flk__pole--s-side {
+		fill: color-mix(in srgb, var(--ig-vy) 55%, var(--sl-color-black));
+	}
+	.flk .flk__pl {
+		fill: white;
+		font-size: 17px;
+		font-weight: 700;
+	}
+	.flk .flk__sign {
+		fill: var(--sl-color-white);
+		font-size: 17px;
+		font-weight: 700;
+	}
+	.flk__b {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.1;
+		stroke-dasharray: 4 4;
+	}
+	.flk__b--tip {
+		stroke-dasharray: none;
+	}
+	.flk__hb {
+		fill: var(--sl-color-gray-3);
+	}
+	.flk__hf {
+		fill: var(--ig-v);
+	}
+	.flk__hi {
+		fill: var(--flk-i);
+	}
+	.flk__wire {
+		stroke: var(--flk-cu);
+		stroke-linecap: round;
+		fill: none;
+	}
+	.flk__axle {
+		stroke: var(--sl-color-gray-2);
+		stroke-linecap: round;
+	}
+	.flk__side {
+		fill: var(--sl-color-black);
+		stroke: var(--flk-cu);
+		stroke-width: 2.5;
+	}
+	.flk__m {
+		stroke: var(--flk-i);
+		fill: var(--flk-i);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.flk__i {
+		stroke: var(--flk-i);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	.flk__f {
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.flk__line {
+		stroke: var(--ig-v);
+		stroke-width: 1;
+		stroke-dasharray: 2 4;
+	}
+	.flk .flk__lbl {
+		fill: var(--sl-color-gray-2);
+		font-size: 16px;
+		font-style: italic;
+		font-family: var(--ig-font-math);
+	}
+	.flk .flk__lbl--f {
+		fill: var(--ig-v);
+	}
+	.flk__ring {
+		fill: var(--flk-cu);
+		stroke: color-mix(in srgb, var(--flk-cu) 70%, var(--sl-color-black));
+		stroke-width: 0.6;
+		stroke-linejoin: round;
+	}
+	.flk__ring--out {
+		fill: color-mix(in srgb, var(--flk-cu) 78%, var(--sl-color-black));
+	}
+	.flk__ring--cut {
+		fill: color-mix(in srgb, var(--flk-cu) 55%, var(--sl-color-black));
+	}
+	.flk__ring.is-live {
+		fill: var(--flk-live);
+	}
+	.flk__ring--out.is-live {
+		fill: color-mix(in srgb, var(--flk-live) 85%, var(--sl-color-black));
+	}
+	.flk__ring--cut.is-live {
+		fill: color-mix(in srgb, var(--flk-live) 65%, var(--sl-color-black));
+	}
+	.flk__hub {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, var(--sl-color-black));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.5;
+	}
+	.flk__brush {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	.flk__brush--front {
+		fill: var(--sl-color-gray-3);
+	}
+	.flk__brush--top {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 60%, var(--sl-color-white));
+	}
+	.flk__brush--side {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 60%, var(--sl-color-black));
+	}
+	.flk__holder {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	.flk__spring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+		stroke-linejoin: round;
+	}
+	.flk__lead {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.flk__term {
+		fill: var(--sl-color-gray-2);
+	}
+	.flk__name line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.9;
+	}
+	.flk .flk__name text,
+	.flk .flk__tag {
+		fill: var(--sl-color-gray-1);
+		font-size: 13px;
+		paint-order: stroke;
+		stroke: var(--sl-color-black);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.flk .flk__tag--i {
+		fill: var(--flk-i);
+	}
+	.flk .flk__title {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+	import { camera, boxFaces, smooth, clamp01, type V3, type Camera } from './look3d';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const DEG = Math.PI / 180;
+	// sizes in the units of FramePic's view along the axis
+	const R = 66; // the long sides of the frame are at x = ±R …
+	const L = 92; // … from z = −L to z = L
+	const RP = 114; // inner faces of the poles
+	const PW = 26;
+	const PH = 94;
+	const D = 64; // half-depth of the poles along the axle
+	const FIELD = [72, 28, -28, -72];
+	const FL = 34; // force arrow
+	const RO = 21.5; // half-rings: outer and inner radius, half-length, middle
+	const RI = 14.5;
+	const RM = 18;
+	const HW = 13;
+	const ZC = 134;
+	const GAP = 8 * DEG;
+	const N = 0.25; // rev/s of the frame in mode «comm» (clockwise seen from the front)
+	const END = { cx: 150, cy: 112 };
+
+	type Item = { d: number; f: () => void };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-flk]')) {
+		const comm = root.dataset.flk === 'comm';
+		const g = root.querySelector<SVGGElement>('[data-dyn]')!;
+		const mk = (k: string) => `url(#${root.querySelector<SVGMarkerElement>(`marker[id$="-${k}"]`)!.id})`;
+		const MF = mk('f');
+		const MB = mk('b');
+		const MI = mk('i');
+
+		// timeline: 3D view, turn to the view along the axle, hold, turn back
+		const T = comm ? { a: 6, b: 4, c: 6 } : { a: 3, b: 3.5, c: 4 };
+		const CYCLE = T.a + 2 * T.b + T.c; // «comm»: 20 s = 5 turns, so the loop is seamless
+		const V0 = comm
+			? { a: -18 * DEG, b: 34 * DEG, s: 1.7, f: [0, -6, ZC - 34] as V3, cx: 150, cy: 108 }
+			: { a: -24 * DEG, b: 42 * DEG, s: 0.8, f: [0, 0, 8] as V3, cx: 150, cy: 112 };
+
+		const el = (tag: string, attrs: Record<string, string | number>, parent: Element = g) => {
+			const e = document.createElementNS(NS, tag);
+			for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+			parent.append(e);
+			return e;
+		};
+		const pts = (cam: Camera, ps: V3[]) =>
+			ps.map((p) => {
+				const q = cam.P(p);
+				return `${q.x.toFixed(2)},${q.y.toFixed(2)}`;
+			}).join(' ');
+		const text = (x: number, y: number, s: string, cls: string, extra: Record<string, string | number> = {}) => {
+			const t = el('text', { class: cls, x: x.toFixed(1), y: y.toFixed(1), 'text-anchor': 'middle', ...extra });
+			t.textContent = s;
+			return t;
+		};
+
+		const draw = (t: number) => {
+			const u = t < T.a ? 0 : t < T.a + T.b ? (t - T.a) / T.b : t < T.a + T.b + T.c ? 1 : 1 - (t - T.a - T.b - T.c) / T.b;
+			const e = smooth(u);
+			const cam = camera({
+				a: V0.a * (1 - e),
+				b: V0.b * (1 - e),
+				s: V0.s + (1 - V0.s) * e,
+				f: [V0.f[0] * (1 - e), V0.f[1] * (1 - e), V0.f[2] * (1 - e)],
+				cx: V0.cx + (END.cx - V0.cx) * e,
+				cy: V0.cy + (END.cy - V0.cy) * e,
+			});
+			const P = cam.P;
+			const lab3 = 1 - smooth(u / 0.3); // names of the parts in 3D
+			const endW = smooth((u - 0.75) / 0.25); // what belongs to the view along the axle
+			const thick = 1 + (cam.s - 1) * 0.5; // a nearer wire looks thicker
+
+			const phi = comm ? -2 * Math.PI * N * t : 0;
+			const onGap = comm && Math.abs(Math.cos(phi)) < Math.sin(GAP);
+			const awayA = onGap ? 0 : !comm || Math.cos(phi) >= 0 ? 1 : -1; // +1: current in side A goes away from us
+			const sides = [1, -1].map((k) => {
+				const th = k > 0 ? phi : phi + Math.PI;
+				return { th, c: Math.cos(th), s: Math.sin(th), away: k * awayA };
+			});
+
+			g.replaceChildren();
+
+			// ---------- the magnet ----------
+			for (const [x0, x1, n, lbl] of [
+				[-RP - PW, -RP, 'n', 'N'],
+				[RP, RP + PW, 's', 'S'],
+			] as const) {
+				for (const fc of boxFaces(x0, x1, -PH, PH, -D, D)) {
+					if (cam.facing(fc.n) > 1e-3) el('polygon', { class: `flk__pole flk__pole--${n}-${fc.shade}`, points: pts(cam, fc.p) });
+				}
+				const q = P([(x0 + x1) / 2, 0, D]);
+				text(q.x, q.y + 6, lbl, 'flk__pl');
+			}
+
+			// ---------- everything between the poles, back to front ----------
+			const items: Item[] = [];
+			const seg = (a: V3, b: V3, cls: string, w: number, bias = 0, extra: Record<string, string | number> = {}) => {
+				const pa = P(a);
+				const pb = P(b);
+				items.push({
+					d: (pa.d + pb.d) / 2 + bias,
+					f: () => el('line', { class: cls, x1: pa.x.toFixed(2), y1: pa.y.toFixed(2), x2: pb.x.toFixed(2), y2: pb.y.toFixed(2), 'stroke-width': w, ...extra }),
+				});
+			};
+			const chain = (a: V3, b: V3, n: number, cls: string, w: number) => {
+				for (let k = 0; k < n; k++) {
+					const p = (j: number): V3 => [a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n, a[2] + ((b[2] - a[2]) * j) / n];
+					seg(p(k), p(k + 1), cls, w);
+				}
+			};
+			/** A current arrow from a to b; it fades as it turns end-on. */
+			const arrowI = (a: V3, b: V3, k = 1) => {
+				const pa = P(a);
+				const pb = P(b);
+				const op = k * clamp01((Math.hypot(pb.x - pa.x, pb.y - pa.y) - 3) / 6);
+				if (op > 0.01) seg(a, b, 'flk__i', 2.4, 2, { 'marker-end': MI, opacity: op.toFixed(2) });
+			};
+
+			// the field: dashed lines in the middle plane z = 0, arrows near S
+			for (const y of FIELD) {
+				for (let k = 0; k < 8; k++) seg([-RP + (2 * RP * k) / 8, y, 0], [-RP + (2 * RP * (k + 1)) / 8, y, 0], 'flk__b', 1.1, -0.5);
+				seg([82, y, 0], [90, y, 0], 'flk__b flk__b--tip', 1.1, -0.4, { 'marker-end': MB });
+			}
+			// the axle (in «comm» its front stub, in front of the commutator, is drawn later)
+			chain([0, 0, -L - 22], [0, 0, comm ? ZC - HW : L + 62], 12, 'flk__axle', 6 * thick);
+			// the frame: long sides, back short side, the ends along the axle
+			const rIn = comm ? RM : 9;
+			const zEnd = comm ? ZC - HW : L + 50;
+			for (const sd of sides) {
+				chain([R * sd.c, R * sd.s, -L], [R * sd.c, R * sd.s, L], 8, 'flk__wire', 4 * thick);
+				chain([R * sd.c, R * sd.s, L], [rIn * sd.c, rIn * sd.s, L], 3, 'flk__wire', 4 * thick);
+				chain([rIn * sd.c, rIn * sd.s, L], [rIn * sd.c, rIn * sd.s, zEnd], 3, 'flk__wire', 4 * thick);
+			}
+			chain([R * sides[0].c, R * sides[0].s, -L], [R * sides[1].c, R * sides[1].s, -L], 6, 'flk__wire', 4 * thick);
+			// the current and the forces
+			for (const [k, sd] of sides.entries()) {
+				if (sd.away === 0) continue;
+				const x = R * sd.c;
+				const y = R * sd.s;
+				const zA = comm ? 60 : 50;
+				arrowI([x, y, zA + 12 * sd.away], [x, y, zA - 12 * sd.away]);
+				const zl = (L + zEnd) / 2;
+				if (comm) arrowI([rIn * sd.c, rIn * sd.s, zl + 9 * sd.away], [rIn * sd.c, rIn * sd.s, zl - 9 * sd.away]);
+				if (k === 0) {
+					// back short side: from the side where the current goes away from us to the other
+					const s = sd.away;
+					if (endW < 0.99) arrowI([s * 0.32 * R * sd.c, s * 0.32 * R * sd.s, -L], [-s * 0.02 * R * sd.c, -s * 0.02 * R * sd.s, -L], 1 - endW);
+				}
+				const p0 = P([x, y, 0]);
+				const p1 = P([x, y - sd.away * FL, 0]);
+				items.push({
+					d: p0.d + 3,
+					f: () => {
+						el('line', { class: 'flk__f', x1: p0.x, y1: p0.y, x2: p1.x, y2: p1.y, 'marker-end': MF });
+						text(p1.x + 8, sd.away > 0 ? p1.y : p1.y + 10, 'F', 'flk__lbl flk__lbl--f', { 'text-anchor': 'start' });
+					},
+				});
+				// lines of the forces, as in FramePic
+				if (endW > 0.01) {
+					items.push({ d: -1e9, f: () => el('line', { class: 'flk__line', x1: p0.x, y1: p0.y - 100, x2: p0.x, y2: p0.y + 100, opacity: (0.7 * endW).toFixed(2) }) });
+				}
+			}
+			items.sort((a, b) => a.d - b.d).forEach((it) => it.f());
+
+			// the long sides seen end-on: circles with ⊗ / ⊙ (FramePic)
+			for (const sd of sides) {
+				const a = P([R * sd.c, R * sd.s, -L]);
+				const b = P([R * sd.c, R * sd.s, L]);
+				const op = clamp01((40 - Math.hypot(b.x - a.x, b.y - a.y)) / 34);
+				if (op < 0.01) continue;
+				const q = P([R * sd.c, R * sd.s, 0]);
+				const og = el('g', { opacity: op.toFixed(2) });
+				el('circle', { class: 'flk__side', cx: q.x, cy: q.y, r: 9 }, og);
+				if (sd.away > 0) el('path', { class: 'flk__m', d: `M ${q.x - 4.5} ${q.y - 4.5} L ${q.x + 4.5} ${q.y + 4.5} M ${q.x + 4.5} ${q.y - 4.5} L ${q.x - 4.5} ${q.y + 4.5}` }, og);
+				else if (sd.away < 0) el('circle', { class: 'flk__m', cx: q.x, cy: q.y, r: 2.4 }, og);
+			}
+
+			if (comm) drawComm(cam, phi, awayA, thick, endW, lab3);
+			else drawFrameNames(cam, sides, lab3, e);
+
+			// the strip under the picture: what we see
+			const t3 = el('g', { opacity: lab3.toFixed(2) });
+			t3.append(text(150, 241, comm ? 'коллектор и щётки вблизи' : 'рамка с током на оси между полюсами', 'flk__title'));
+			const te = el('g', { opacity: endW.toFixed(2) });
+			te.append(text(150, 241, comm ? 'вид вдоль оси: так коллектор рисуют на схеме' : 'вид вдоль оси: рамка кажется отрезком', 'flk__title'));
+		};
+
+		/** Names of the parts and of the sides in mode «frame». */
+		const drawFrameNames = (cam: Camera, sides: { c: number; s: number; away: number }[], lab3: number, e: number) => {
+			const P = cam.P;
+			// the sides keep their names in every view
+			for (const sd of sides) {
+				// beside the side in 3D, above ⊗ and under ⊙ in the view along the axle
+				const q = P([R * sd.c, R * sd.s, 10]);
+				const [dx, dy] = sd.away > 0 ? [34 * (1 - e), -15 + 5 * (1 - e)] : [8 * (1 - e), 24 - 2 * (1 - e)];
+				text(q.x + dx, q.y + dy, sd.away > 0 ? 'ток от нас' : 'ток к нам', 'flk__tag flk__tag--i');
+			}
+			if (lab3 < 0.01) return;
+			const ng = el('g', { class: 'flk__name', opacity: lab3.toFixed(2) });
+			const name = (anchor: V3, dx: number, dy: number, s: string) => {
+				const a = P(anchor);
+				el('line', { x1: a.x, y1: a.y, x2: a.x + dx * 0.8, y2: a.y + dy * 0.8 }, ng);
+				ng.append(text(a.x + dx, a.y + dy + (dy < 0 ? -2 : 10), s, ''));
+			};
+			name([-R * 0.45, 0, -L], -18, -26, 'рамка');
+			name([0, 0, -L - 20], 18, -18, 'ось');
+			// ends of the frame to the source
+			const pp = P([9, 0, L + 50]);
+			const pm = P([-9, 0, L + 50]);
+			ng.append(text(pp.x + 14, pp.y + 2, '+', 'flk__sign'));
+			ng.append(text(pm.x - 12, pm.y + 2, '−', 'flk__sign'));
+			ng.append(text((pp.x + pm.x) / 2, (pp.y + pm.y) / 2 + 24, 'к источнику тока', ''));
+		};
+
+		/** The commutator, the brushes and the front stub of the shaft (mode «comm»). */
+		const drawComm = (cam: Camera, phi: number, awayA: number, thick: number, endW: number, lab3: number) => {
+			const P = cam.P;
+			const fade = (1 - endW).toFixed(2);
+			const u = (a: number, r: number, z: number): V3 => [r * Math.cos(a), r * Math.sin(a), z];
+			const z0 = ZC - HW;
+			const z1 = ZC + HW;
+			const poly = (ps: V3[], cls: string, parent: Element = g) => el('polygon', { class: cls, points: pts(cam, ps) }, parent);
+
+			const brush = (sg: 1 | -1) => {
+				const parts: Item[] = [];
+				const box = (xa: number, xb: number, h: number, w: number, cls: string, op: string) => {
+					const x0 = Math.min(sg * xa, sg * xb);
+					const x1 = Math.max(sg * xa, sg * xb);
+					parts.push({
+						d: P([(x0 + x1) / 2, 0, ZC]).d,
+						f: () => {
+							const bg = el('g', { opacity: op });
+							for (const fc of boxFaces(x0, x1, -h, h, ZC - w, ZC + w)) {
+								if (cam.facing(fc.n) > 1e-3) poly(fc.p, cls === 'brush' ? `flk__brush flk__brush--${fc.shade}` : 'flk__holder', bg);
+							}
+						},
+					});
+				};
+				box(RO, RO + 12, 6, 7, 'brush', '1');
+				box(RO + 27, RO + 30, 10, 9, 'holder', fade);
+				// the spring between the brush and the holder
+				const zig: V3[] = [[sg * (RO + 12), 0, ZC]];
+				for (let k = 1; k < 8; k++) zig.push([sg * (RO + 12 + (15 * k) / 8), k % 2 ? 4 : -4, ZC]);
+				zig.push([sg * (RO + 27), 0, ZC]);
+				parts.push({ d: P([sg * (RO + 19), 0, ZC]).d, f: () => el('polyline', { class: 'flk__spring', points: pts(cam, zig), opacity: fade }) });
+				// the wire to the source
+				const w: V3[] = [[sg * (RO + 30), 0, ZC], [sg * (RO + 40), 0, ZC], [sg * (RO + 40), -46, ZC]];
+				parts.push({
+					d: P([sg * (RO + 36), 0, ZC]).d,
+					f: () => {
+						const wg = el('g', { opacity: fade });
+						el('polyline', { class: 'flk__lead', points: pts(cam, w) }, wg);
+						const q = P(w[2]);
+						el('circle', { class: 'flk__term', cx: q.x, cy: q.y, r: 2.6 * thick }, wg);
+						if (awayA !== 0) {
+							// the current comes from «+» up to the right brush and goes from the left brush down to «−»
+							const a = P([sg * (RO + 40), sg > 0 ? -38 : -14, ZC]);
+							const b = P([sg * (RO + 40), sg > 0 ? -14 : -38, ZC]);
+							el('line', { class: 'flk__i', x1: a.x, y1: a.y, x2: b.x, y2: b.y, 'marker-end': MI }, wg);
+						}
+					},
+				});
+				parts.sort((a, b) => a.d - b.d).forEach((it) => it.f());
+			};
+
+			// the half-ring under the «+» brush (angle 0) is lit
+			const shell = (k: 1 | -1) => {
+				const mid = k > 0 ? phi : phi + Math.PI;
+				const a0 = mid - Math.PI / 2 + GAP;
+				const a1 = mid + Math.PI / 2 - GAP;
+				const dd = Math.atan2(Math.sin(-mid), Math.cos(-mid));
+				const live = awayA !== 0 && Math.abs(dd) < Math.PI / 2 - GAP ? ' is-live' : '';
+				return {
+					d: P(u(mid, RM, ZC)).d,
+					f: () => {
+						const n = 16;
+						for (let j = 0; j < n; j++) {
+							const b0 = a0 + ((a1 - a0) * j) / n;
+							const b1 = a0 + ((a1 - a0) * (j + 1)) / n;
+							const m = (b0 + b1) / 2;
+							if (cam.facing([Math.cos(m), Math.sin(m), 0]) > 1e-3) poly([u(b0, RO, z0), u(b1, RO, z0), u(b1, RO, z1), u(b0, RO, z1)], `flk__ring flk__ring--out${live}`);
+						}
+						for (const [a, nrm] of [
+							[a0, [Math.sin(a0), -Math.cos(a0), 0]],
+							[a1, [-Math.sin(a1), Math.cos(a1), 0]],
+						] as [number, V3][]) {
+							if (cam.facing(nrm) > 1e-3) poly([u(a, RI, z0), u(a, RO, z0), u(a, RO, z1), u(a, RI, z1)], `flk__ring flk__ring--cut${live}`);
+						}
+						const face: V3[] = [];
+						for (let j = 0; j <= n; j++) face.push(u(a0 + ((a1 - a0) * j) / n, RO, z1));
+						for (let j = n; j >= 0; j--) face.push(u(a0 + ((a1 - a0) * j) / n, RI, z1));
+						poly(face, `flk__ring${live}`);
+					},
+				};
+			};
+
+			// behind the commutator: the left brush (the viewer is on the right)
+			brush(-1);
+			// the insulating sleeve, seen through the gaps; it fades in the scheme
+			const hub = el('g', { opacity: fade });
+			const nh = 24;
+			for (let j = 0; j < nh; j++) {
+				const b0 = (2 * Math.PI * j) / nh;
+				const b1 = (2 * Math.PI * (j + 1)) / nh;
+				const m = (b0 + b1) / 2;
+				if (cam.facing([Math.cos(m), Math.sin(m), 0]) > 1e-3) poly([u(b0, RI, z0), u(b1, RI, z0), u(b1, RI, z1), u(b0, RI, z1)], 'flk__hub', hub);
+			}
+			poly(Array.from({ length: nh }, (_, j) => u((2 * Math.PI * j) / nh, RI, z1)), 'flk__hub', hub);
+			// the two half-rings, the farther one first
+			[shell(1), shell(-1)].sort((a, b) => a.d - b.d).forEach((it) => it.f());
+			brush(1);
+			// the shaft sticks out in front
+			const s0 = P([0, 0, z1]);
+			const s1 = P([0, 0, z1 + 12]);
+			el('line', { class: 'flk__axle', x1: s0.x, y1: s0.y, x2: s1.x, y2: s1.y, 'stroke-width': 6 * thick });
+			// «+» and «−» where FramePic has them
+			for (const [x, s] of [
+				[38, '+'],
+				[-38, '−'],
+			] as const) {
+				const q = P([x, -28, ZC]);
+				text(q.x, q.y, s, 'flk__sign');
+			}
+
+			if (lab3 < 0.01) return;
+			const ng = el('g', { class: 'flk__name', opacity: lab3.toFixed(2) });
+			const leader = (a: { x: number; y: number }, b: { x: number; y: number }) => el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y }, ng);
+			// «полукольца»: up-left of the commutator, to both half-rings' front faces
+			const top = P(u(118 * DEG, (RO + RI) / 2, z1));
+			const tl = { x: top.x - 52, y: top.y - 38 };
+			leader({ x: tl.x + 8, y: tl.y + 4 }, top);
+			const low = P(u(-62 * DEG, (RO + RI) / 2, z1));
+			leader({ x: tl.x + 8, y: tl.y + 4 }, low);
+			ng.append(text(tl.x, tl.y, 'полукольца', ''));
+			// «щётки»: below, to both brushes
+			const br = P([RO + 6, -6, ZC + 7]);
+			const bl = P([-RO - 6, -6, ZC + 7]);
+			const tb = { x: (br.x + bl.x) / 2, y: P([0, -RO, z1]).y + 18 };
+			leader({ x: tb.x - 10, y: tb.y - 11 }, bl);
+			leader({ x: tb.x + 10, y: tb.y - 11 }, br);
+			ng.append(text(tb.x, tb.y, 'щётки', ''));
+			// «к источнику тока»: under the ends of the wires
+			const wr = P([RO + 40, -46, ZC]);
+			const wl = P([-RO - 40, -46, ZC]);
+			ng.append(text((wr.x + wl.x) / 2, Math.max(wr.y, wl.y) + 4, 'к источнику тока', ''));
+		};
+
+		let t = 0;
+		draw(0);
+		const wake = loop(root, (dt) => {
+			t = (t + dt) % CYCLE;
+			draw(t);
+			return true;
+		});
+		root.querySelector('[data-again]')!.addEventListener('click', () => {
+			t = 0;
+			draw(0);
+			wake();
+		});
+	}
+</script>
