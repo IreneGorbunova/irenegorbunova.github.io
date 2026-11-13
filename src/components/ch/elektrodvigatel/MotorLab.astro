@@ -3,7 +3,8 @@
  * Main model of the chapter: a DC motor with one frame (armature), a commutator and brushes.
  * Left: the motor in an oblique projection (the frame turns in its true shape). Right: the view along
  * the axis with the forces, the arm and the turning direction. Physics and geometry: ./motor.ts.
- * The frame can be grabbed and turned by hand at any time; «Пауза» freezes the motion.
+ * The frame can be grabbed and turned by hand at any time; «Пауза» freezes the motion; «Медленно» runs the whole
+ * model (the frame, the readouts' time and the electrons) 5 times slower, as a slow-motion film.
  */
 import { M, P } from './motor';
 
@@ -131,6 +132,7 @@ const eField = [-62, -24, 24, 62];
 			<button type="button" class="mot__btn mot__btn--primary" data-key>Замкнуть ключ</button>
 			<button type="button" class="mot__btn" data-flip>Поменять полюсы батареи</button>
 			<button type="button" class="mot__btn" data-pause>Пауза</button>
+			<button type="button" class="mot__btn mot__btn--toggle" data-slow aria-pressed="false">Медленно</button>
 		</div>
 	</div>
 
@@ -493,6 +495,11 @@ const eField = [-62, -24, 24, 62];
 	.mot__btn:hover {
 		border-color: var(--sl-color-accent);
 	}
+	.mot__btn--toggle[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+		box-shadow: inset 0 0 0 1px var(--sl-color-accent);
+	}
 	.mot__btn--primary {
 		border-color: var(--sl-color-accent);
 		background: var(--sl-color-accent);
@@ -609,6 +616,7 @@ const eField = [-62, -24, 24, 62];
 	const SVG_NS = 'http://www.w3.org/2000/svg';
 	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 	const DT = 1 / 600;
+	const SLOW = 5; // «Медленно»: the model runs this many times slower
 	const FK = 20; // force arrow, px per ampere
 	const FLOW = 55; // speed of the electrons (dots), px/s per ampere; they move against the current
 	const E = { C: 130, r: 66 };
@@ -647,6 +655,7 @@ const eField = [-62, -24, 24, 62];
 		const keyBtn = q<HTMLButtonElement>('[data-key]');
 		const flipBtn = q<HTMLButtonElement>('[data-flip]');
 		const pauseBtn = q<HTMLButtonElement>('[data-pause]');
+		const slowBtn = q<HTMLButtonElement>('[data-slow]');
 		const modeBtns = root.querySelectorAll<HTMLButtonElement>('[data-mode]');
 		const outI = q<HTMLElement>('[data-i]');
 		const outN = q<HTMLElement>('[data-n]');
@@ -662,6 +671,8 @@ const eField = [-62, -24, 24, 62];
 		let pol = 1; // +1: «+» of the battery on the right
 		let comm = true;
 		let paused = false;
+		let slow = false;
+		let acc = 0; // model time not yet stepped, s
 		let dragging = false;
 		let dashOff = 0;
 		let last = 0;
@@ -902,10 +913,12 @@ const eField = [-62, -24, 24, 62];
 		};
 
 		const frame = (now: number) => {
-			const dt = Math.min((now - last) / 1000, 0.05);
+			// model time: in slow motion it runs SLOW times slower than the clock
+			const dt = Math.min((now - last) / 1000, 0.05) / (slow ? SLOW : 1);
 			last = now;
 			if (!paused && !dragging) {
-				for (let k = 0; k < Math.round(dt / DT); k++) step(st, DT, V(), comm, on);
+				acc += dt;
+				for (; acc >= DT; acc -= DT) step(st, DT, V(), comm, on);
 				wAvg += (st.w - wAvg) * Math.min(dt * 2.5, 1);
 			} else {
 				st.i = current(st.phi, st.w, V(), comm, on);
@@ -939,6 +952,11 @@ const eField = [-62, -24, 24, 62];
 		pauseBtn.addEventListener('click', () => {
 			paused = !paused;
 			pauseBtn.textContent = paused ? 'Продолжить' : 'Пауза';
+			kick();
+		});
+		slowBtn.addEventListener('click', () => {
+			slow = !slow;
+			slowBtn.setAttribute('aria-pressed', String(slow));
 			kick();
 		});
 		uIn.addEventListener('input', () => {
