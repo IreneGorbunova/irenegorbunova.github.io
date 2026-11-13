@@ -1,0 +1,1236 @@
+---
+/**
+ * Two short looping opening scenes of «Магнитное поле Земли». No numbers: the scenes show only what one sees; the
+ * captions' popovers explain.
+ * Aurora: a winter night in the north: snowy hills, spruces, a small village with lit windows, stars. A faint
+ *   quiet arc of the northern lights grows into bright curtains that wave, fold and flicker, then fades back.
+ *   True to the look of a real aurora (NASA, NPS «The Colors of the Aurora»): the oxygen green (557,7 nm,
+ *   ~100–200 km) is the lowest and brightest part with a sharp lower edge, the oxygen red (630 nm, above ~200 km)
+ *   forms the faint upper edge, at the brightest moment the lower edge turns purple-pink (nitrogen). The curtain
+ *   is made of rays along the magnetic field lines: nearly vertical, converging slightly towards one point high in
+ *   the sky (perspective). The near end of the curtain is big and high, the far end low and small, so its folds
+ *   bunch up there; a second, distant curtain glows low over the hills. Snow reflects a little of the green.
+ *   All motion is periodic in the scene time, so the end frame equals the start frame.
+ * Turtles: loggerhead sea turtles (Caretta caretta) on a moonlit beach, seen from the side with the sand and the
+ *   sea cut open. The camera starts close to a nest: a flask-shaped chamber about half a metre under the sand,
+ *   full of eggs. The eggs crack, the hatchlings dig up through the sand, come out at night and crawl down the beach
+ *   (alternating flippers, as loggerheads crawl), the camera pulls back and follows them through the surf into the
+ *   open ocean, where they swim off near the surface past floating sargassum. A small globe appears in the sky: the
+ *   North Atlantic with faint gray field lines of the Earth (a dipole, schematic), and a dot that goes from the
+ *   Florida coast round the North Atlantic gyre and back (the loggerheads' route, Lohmann et al. 2001): the years
+ *   pass. A big adult female swims back (synchronous strokes of the front flippers), comes ashore on the same beach,
+ *   crawls up to the place of her own nest, digs a chamber with her hind flippers and lays her eggs into it, so the
+ *   end frame is the start frame of the next generation. One world scale (about 60 px per metre at zoom 1:
+ *   carapace 0,85 m, chamber top ~0,3 m and centre ~0,45 m deep); hatchlings are drawn ~1,9 times and eggs ~1,3 times too big
+ *   to be seen, and the beach and the time are shortened.
+ * Plays only while visible; with reduced motion shows the final state.
+ */
+import IntroFrame from '@components/intro/IntroFrame.astro';
+import More from '@components/More.astro';
+import { LAND } from '@components/ch/zemlya/origin/land';
+
+const gid = `ei-${Math.random().toString(36).slice(2, 8)}`;
+// aurora scene: stars (seeded, fixed), hills, spruces, a village
+let seed = 7;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+const starList = Array.from({ length: 48 }, (_, i) => ({
+	x: (rnd() * 360).toFixed(1),
+	y: (3 + rnd() * rnd() * 150).toFixed(1),
+	r: (0.45 + rnd() * rnd() * 0.95).toFixed(2),
+	o: (0.45 + rnd() * 0.55).toFixed(2),
+	tw: i % 4 === 0,
+}));
+const RIDGE = 'M0 166 C 26 152 50 154 74 162 S 118 148 148 157 S 196 170 226 161 S 286 146 316 157 S 348 162 360 156 V240 H0 Z';
+const FIELD = 'M0 192 C 50 180 104 183 158 189 S 262 176 360 184 V240 H0 Z';
+const HILL_L = 'M0 212 C 40 197 98 199 148 212 S 206 232 224 240 H0 Z';
+const HILL_R = 'M164 240 C 196 214 248 199 300 197 S 348 199 360 201 V240 Z';
+const spruce = (x: number, b: number, h: number) => {
+	const w = h * 0.44;
+	const p = (dx: number, f: number) => `${(x + dx).toFixed(1)} ${(b - h * f).toFixed(1)}`;
+	return (
+		`M${p(0, 1)} L${p(w * 0.42, 0.62)} L${p(w * 0.2, 0.62)} L${p(w * 0.72, 0.28)} L${p(w * 0.36, 0.28)} ` +
+		`L${p(w, 0.06)} L${p(w * 0.12, 0.06)} L${p(w * 0.12, 0)} L${p(-w * 0.12, 0)} L${p(-w * 0.12, 0.06)} ` +
+		`L${p(-w, 0.06)} L${p(-w * 0.36, 0.28)} L${p(-w * 0.72, 0.28)} L${p(-w * 0.2, 0.62)} L${p(-w * 0.42, 0.62)} Z`
+	);
+};
+const trees = [
+	[16, 210, 42], [38, 205, 30], [58, 207, 24], [112, 205, 20], [128, 207, 15], [92, 186, 10], [101, 185, 8],
+	[208, 216, 22], [350, 204, 20], [190, 186, 9],
+].map(([x, b, h]) => spruce(x, b, h));
+// houses: left x, base y, width, wall height, windows [x, y] relative to the left bottom corner
+const houses = [
+	{ x: 234, b: 214, w: 22, h: 13, win: [[7, -8]] },
+	{ x: 262, b: 206, w: 30, h: 17, win: [[6, -11], [19, -11]], chimney: true },
+	{ x: 300, b: 203, w: 19, h: 12, win: [] as number[][] },
+	{ x: 324, b: 204, w: 25, h: 15, win: [[5, -10], [15, -10]] },
+	{ x: 150, b: 190, w: 12, h: 7, win: [[4, -5]] },
+].map((o) => ({
+	...o,
+	roof: `M${o.x - 3} ${o.b - o.h} L${o.x + o.w / 2} ${(o.b - o.h - o.w * 0.42).toFixed(1)} L${o.x + o.w + 3} ${o.b - o.h} Z`,
+	s: o.w < 15 ? 0.6 : 1,
+}));
+
+// ---------- turtles ----------
+// the profile of the beach and the sea floor: [x, y] in world units (y down, the sea surface at y = 150)
+const PROF = [
+	[-260, 100], [-80, 100], [-40, 103], [0, 109], [40, 118], [80, 126], [120, 131], [170, 138], [205, 145], [232, 150],
+	[290, 162], [380, 186], [480, 208], [600, 226], [760, 234], [1400, 236],
+];
+// monotone cubic through PROF (the same function is in the script)
+const sandAt = (() => {
+	const n = PROF.length;
+	const d = PROF.slice(0, -1).map((p, i) => (PROF[i + 1][1] - p[1]) / (PROF[i + 1][0] - p[0]));
+	const m = PROF.map((_, i) => (i === 0 ? d[0] : i === n - 1 ? d[n - 2] : d[i - 1] * d[i] <= 0 ? 0 : (2 * d[i - 1] * d[i]) / (d[i - 1] + d[i])));
+	return (x: number) => {
+		let i = 0;
+		while (i < n - 2 && x > PROF[i + 1][0]) i++;
+		const [x0, y0] = PROF[i];
+		const [x1, y1] = PROF[i + 1];
+		const h = x1 - x0;
+		const t = Math.min(1, Math.max(0, (x - x0) / h));
+		const t2 = t * t;
+		const t3 = t2 * t;
+		return (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * h * m[i + 1];
+	};
+})();
+const r1 = (v: number) => Math.round(v * 10) / 10;
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const sandTop: string[] = [];
+for (let x = -300; x <= 1500; x += 4) sandTop.push(`${x} ${r1(sandAt(x))}`);
+const SAND = `M${sandTop.join(' L')} L1500 420 L-300 420 Z`;
+// the dry, lighter top layer of the beach (a thin band along the surface above the water line)
+const dryTop: string[] = [];
+for (let x = -300; x <= 236; x += 4) dryTop.push(`${x} ${r1(sandAt(x))}`);
+const dryBot: string[] = [];
+for (let x = 236; x >= -300; x -= 4) dryBot.push(`${x} ${r1(sandAt(x) + 3 + 1.2 * Math.sin(x * 0.11))}`);
+const DRY = `M${dryTop.join(' L')} L${dryBot.join(' L')} Z`;
+// the nest: x = 80, the sand surface there, the chamber (centre ~0,45 m deep) and its neck
+const NX = 80;
+const NS = sandAt(NX);
+const CH = { x: NX + 1, y: NS + 28, rx: 8.5, ry: 8 };
+const CHAMBER = `M${CH.x - 3} ${r1(CH.y - CH.ry - 6)} C${CH.x - 3} ${r1(CH.y - CH.ry - 1)} ${CH.x - CH.rx - 1} ${r1(CH.y - CH.ry + 1)} ${CH.x - CH.rx} ${CH.y} C${CH.x - CH.rx} ${r1(CH.y + CH.ry * 1.1)} ${CH.x + CH.rx} ${r1(CH.y + CH.ry * 1.1)} ${CH.x + CH.rx} ${CH.y} C${CH.x + CH.rx + 1} ${r1(CH.y - CH.ry + 1)} ${CH.x + 3} ${r1(CH.y - CH.ry - 1)} ${CH.x + 3} ${r1(CH.y - CH.ry - 6)} Z`;
+// the column of loosened sand the hatchlings dig up through
+const shaftL: string[] = [];
+const shaftR: string[] = [];
+for (let i = 0; i <= 8; i++) {
+	const y = lerp(NS - 0.6, CH.y - CH.ry + 1, i / 8);
+	shaftL.push(`${r1(CH.x - 2.6 - 0.6 * Math.sin(i * 1.9))} ${r1(y)}`);
+	shaftR.unshift(`${r1(CH.x + 2.5 + 0.6 * Math.sin(i * 2.7 + 1))} ${r1(y)}`);
+}
+const SHAFT = `M${shaftL.join(' L')} L${shaftR.join(' L')} Z`;
+const NECK = `M${CH.x - 3} ${r1(NS - 0.5)} L${CH.x - 3} ${r1(CH.y - CH.ry - 5)} L${CH.x + 3} ${r1(CH.y - CH.ry - 5)} L${CH.x + 3} ${r1(NS - 0.5)} Z`;
+// the eggs (diameter ~4 cm, drawn ~1,3 times bigger), packed in the chamber from the bottom up
+const ER = 1.55;
+const eggs: { x: number; y: number; a: number }[] = [];
+let eggSeed = 3;
+const eggRnd = () => ((eggSeed = (eggSeed * 16807) % 2147483647) - 1) / 2147483646;
+for (let row = 0; row < 7; row++)
+	for (let k = -4; k <= 4; k++) {
+		const x = CH.x + k * 2 * ER + (row % 2 ? ER : 0);
+		const y = CH.y + CH.ry - ER - 0.3 - row * ER * 1.75;
+		if (((x - CH.x) / (CH.rx - ER)) ** 2 + ((y - CH.y) / (CH.ry - ER + 0.6)) ** 2 <= 1) eggs.push({ x: r1(x), y: r1(y), a: Math.round(-50 + 100 * eggRnd()) });
+	}
+// dune grass (sea oats): tufts of blades
+const grass: string[] = [];
+{
+	let s = 5;
+	const rr = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+	for (const gx of [-150, -124, -98, -74, -52, -30, -10, 10, 28, 46]) {
+		const base = sandAt(gx);
+		for (let b = 0; b < 5; b++) {
+			const x0 = gx + (rr() - 0.5) * 6;
+			const h = 9 + rr() * 10;
+			const lean = (rr() - 0.3) * 7;
+			grass.push(`M${r1(x0)} ${r1(base + 0.5)} Q${r1(x0 + lean * 0.3)} ${r1(base - h * 0.6)} ${r1(x0 + lean)} ${r1(base - h)}`);
+		}
+	}
+}
+const GRASS = grass.join(' ');
+// seed heads of the sea oats
+const OATS = [[-122, 0], [-52, 0], [10, 0]].map(([x]) => ({ x, y: r1(sandAt(x) - 19) }));
+// floating sargassum in the open ocean
+const SARG = [
+	{ x: 640, w: 26 },
+	{ x: 790, w: 34 },
+	{ x: 905, w: 22 },
+];
+// stars of the turtles' sky (seeded)
+const tStars = (() => {
+	let s = 19;
+	const rr = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+	return Array.from({ length: 40 }, () => ({ x: r1(rr() * 360), y: r1(3 + rr() * rr() * 120), r: (0.4 + rr() * rr() * 0.9).toFixed(2), o: (0.4 + rr() * 0.5).toFixed(2) }));
+})();
+
+// the globe: orthographic view of the North Atlantic, land from the Natural Earth 1:110m mask of the «Земля» chapter
+const GR = 24;
+const LAT0 = (27 * Math.PI) / 180;
+const LON0 = (-48 * Math.PI) / 180;
+const mask = new Uint8Array(256 * 128);
+{
+	const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+	let k = 0;
+	let on = 0;
+	for (let i = 0; i < LAND.length; i += 2) {
+		const n = A.indexOf(LAND[i]) * 64 + A.indexOf(LAND[i + 1]);
+		if (on) mask.fill(1, k, k + n);
+		k += n;
+		on ^= 1;
+	}
+}
+const landAt = (u: number, v: number) => {
+	const z = Math.sqrt(Math.max(0, 1 - u * u - v * v));
+	const lat = Math.asin(v * Math.cos(LAT0) + z * Math.sin(LAT0));
+	const lon = LON0 + Math.atan2(u, z * Math.cos(LAT0) - v * Math.sin(LAT0));
+	const c = ((Math.floor(((lon / Math.PI + 1) / 2) * 256) % 256) + 256) % 256;
+	const r = Math.min(127, Math.floor((0.5 - lat / Math.PI) * 128));
+	return mask[r * 256 + c] === 1;
+};
+const GSTEP = 0.5;
+let GLAND = '';
+for (let y = -GR; y < GR; y += GSTEP) {
+	let x0: number | null = null;
+	for (let x = -GR; x <= GR; x += GSTEP) {
+		const u = (x + GSTEP / 2) / GR;
+		const v = -(y + GSTEP / 2) / GR;
+		const on = x < GR && u * u + v * v < 1 && landAt(u, v);
+		if (on && x0 === null) x0 = x;
+		if (!on && x0 !== null) {
+			GLAND += `M${x0} ${y}h${x - x0}v${GSTEP}h${x0 - x}z`;
+			x0 = null;
+		}
+	}
+}
+const ortho = (lat: number, lon: number) => {
+	const p = (lat * Math.PI) / 180;
+	const l = (lon * Math.PI) / 180 - LON0;
+	return [GR * Math.cos(p) * Math.sin(l), -GR * (Math.cos(LAT0) * Math.sin(p) - Math.sin(LAT0) * Math.cos(p) * Math.cos(l))];
+};
+// the loggerheads' loop round the North Atlantic gyre: from the Florida coast with the Gulf Stream to the north-east,
+// past the Azores, south along Africa with the Canary Current, west with the North Equatorial Current, home
+const ROUTE = [
+	[28.2, -80.4], [30.5, -79.6], [33, -77.5], [35.5, -73.5], [38.2, -66], [40, -56], [40.5, -46], [39.2, -36], [36.8, -27],
+	[32.5, -20.5], [27.5, -18.5], [22, -22], [17.5, -30], [15, -40], [14.5, -50], [16, -59], [18.5, -66], [21.8, -72],
+	[25, -76.5], [27, -79.6], [28.2, -80.4],
+];
+const routePts: number[][] = [];
+for (let i = 0; i < ROUTE.length - 1; i++) {
+	const p0 = ROUTE[Math.max(0, i - 1)];
+	const p1 = ROUTE[i];
+	const p2 = ROUTE[i + 1];
+	const p3 = ROUTE[Math.min(ROUTE.length - 1, i + 2)];
+	for (let k = 0; k < 6; k++) {
+		const t = k / 6;
+		const cr = (a: number, b: number, c: number, d: number) =>
+			0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+		routePts.push(ortho(cr(p0[0], p1[0], p2[0], p3[0]), cr(p0[1], p1[1], p2[1], p3[1])));
+	}
+}
+routePts.push(ortho(ROUTE[0][0], ROUTE[0][1]));
+const GROUTE = 'M' + routePts.map(([x, y]) => `${r1(x)} ${r1(y)}`).join(' L');
+const HOME = ortho(ROUTE[0][0], ROUTE[0][1]).map(r1);
+// field lines of a dipole round the globe (in the picture plane, schematic): r = L·R·sin²ψ
+const GFIELD: string[] = [];
+for (const L of [1.4, 1.95, 2.75])
+	for (const s of [-1, 1]) {
+		const psi0 = Math.asin(Math.sqrt(1 / L));
+		const pts: string[] = [];
+		for (let i = 0; i <= 48; i++) {
+			const psi = psi0 + ((Math.PI - 2 * psi0) * i) / 48;
+			const r = L * GR * Math.sin(psi) ** 2;
+			pts.push(`${r1(s * r * Math.sin(psi))} ${r1(-r * Math.cos(psi))}`);
+		}
+		GFIELD.push('M' + pts.join(' L'));
+	}
+const NPOLE = ortho(90, 0).map(r1);
+---
+
+<IntroFrame data-eintro>
+	<div class="intro__card" data-scene="aurora">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Зимняя ночь на севере: заснеженные холмы, ели, маленький посёлок со светящимися окнами, звёзды. Над холмами разгорается полярное сияние: зелёные занавеси с красным верхним краем колышутся, становятся всё ярче, а потом гаснут.">
+			<defs>
+				<linearGradient id={`${gid}-sky`} x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="ea-sky0"></stop>
+					<stop offset="1" class="ea-sky1"></stop>
+				</linearGradient>
+				<!-- one ray of the curtain, from its lower edge (bottom) up -->
+				<linearGradient id={`${gid}-ray`} x1="0" y1="1" x2="0" y2="0" data-ray>
+					<stop offset="0" class="ea-hem" data-hem></stop>
+					<stop offset="0.05" class="ea-g" style="stop-opacity: 1"></stop>
+					<stop offset="0.22" class="ea-g" style="stop-opacity: 0.8"></stop>
+					<stop offset="0.46" class="ea-g" style="stop-opacity: 0.28"></stop>
+					<stop offset="0.64" class="ea-r" data-red></stop>
+					<stop offset="0.82" class="ea-r" data-red2></stop>
+					<stop offset="1" class="ea-r" style="stop-opacity: 0"></stop>
+				</linearGradient>
+				<radialGradient id={`${gid}-glow`} cx="0.5" cy="0.5" r="0.5">
+					<stop offset="0" class="ea-g" style="stop-opacity: 0.3"></stop>
+					<stop offset="1" class="ea-g" style="stop-opacity: 0"></stop>
+				</radialGradient>
+				<radialGradient id={`${gid}-win`} cx="0.5" cy="0.5" r="0.5">
+					<stop offset="0" class="ea-w" style="stop-opacity: 0.5"></stop>
+					<stop offset="1" class="ea-w" style="stop-opacity: 0"></stop>
+				</radialGradient>
+				<filter id={`${gid}-soft`} filterUnits="userSpaceOnUse" x="-20" y="-20" width="400" height="280">
+					<feGaussianBlur in="SourceGraphic" stdDeviation="7" result="wide"></feGaussianBlur>
+					<feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="fine"></feGaussianBlur>
+					<feMerge>
+						<feMergeNode in="wide"></feMergeNode>
+						<feMergeNode in="fine"></feMergeNode>
+					</feMerge>
+				</filter>
+				<filter id={`${gid}-haze`} x="-1" y="-1" width="3" height="3">
+					<feGaussianBlur stdDeviation="1.6"></feGaussianBlur>
+				</filter>
+			</defs>
+			<rect x="0" y="0" width="360" height="240" fill={`url(#${gid}-sky)`}></rect>
+			<g class="ea-stars">
+				{starList.map((s) => <circle cx={s.x} cy={s.y} r={s.r} opacity={s.o} data-tw={s.tw ? s.o : undefined} />)}
+			</g>
+			<ellipse cx="150" cy="122" rx="230" ry="78" fill={`url(#${gid}-glow)`} data-skyglow></ellipse>
+			<!-- the curtains: rays are added by the script -->
+			<g filter={`url(#${gid}-soft)`}>
+				<g data-far></g>
+				<g data-near></g>
+			</g>
+			<!-- the land -->
+			<path class="ea-ridge" d={RIDGE}></path>
+			<path class="ea-snow1" d={FIELD}></path>
+			<path class="ea-snow2" d={HILL_L}></path>
+			<path class="ea-snow2" d={HILL_R}></path>
+			<g class="ea-snowglow" data-snowglow>
+				<path d={RIDGE}></path>
+				<path d={FIELD}></path>
+				<path d={HILL_L}></path>
+				<path d={HILL_R}></path>
+			</g>
+			{trees.map((d) => <path class="ea-tree" d={d} />)}
+			<!-- the village -->
+			{houses.map((o) => (
+				<g>
+					{o.win.map(([wx, wy]) => <circle cx={o.x + wx + 2 * o.s} cy={o.b + wy + 2 * o.s} r={12 * o.s} fill={`url(#${gid}-win)`} />)}
+					{o.chimney && <rect class="ea-hwall" x={o.x + o.w - 9} y={o.b - o.h - 14} width="4" height="10" />}
+					<rect class="ea-hwall" x={o.x} y={o.b - o.h} width={o.w} height={o.h} />
+					<path class="ea-roof" d={o.roof} />
+					{o.win.map(([wx, wy]) => <rect class="ea-window" x={o.x + wx} y={o.b + wy} width={4 * o.s} height={4 * o.s} />)}
+				</g>
+			))}
+			<g class="ea-smoke" data-smoke filter={`url(#${gid}-haze)`}>
+				<circle cx="285" cy="174" r="2"></circle>
+				<circle cx="285" cy="174" r="2"></circle>
+				<circle cx="285" cy="174" r="2"></circle>
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>Ночью на севере в небе разгорается полярное сияние: колышутся зелёные занавеси с красным верхним краем. Это <More term="светится сам воздух высоко над Землёй">От Солнца к Земле прилетают быстрые заряженные частицы. Магнитное поле Земли направляет их к полярным областям, и на высоте примерно 100–300 км частицы налетают на газы воздуха и заставляют их светиться. Кислород светится зелёным (ниже) и красным (выше), азот — синим и фиолетовым. Частицы летят вдоль магнитного поля, поэтому сияние состоит из почти вертикальных лучей. Подробнее — в разделе <a href="#магнитные-бури-и-полярные-сияния">«Магнитные бури и полярные сияния»</a>.</More>.</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+
+	<div class="intro__card" data-scene="turtles" data-prof={JSON.stringify(PROF)} data-nest={JSON.stringify({ x: NX, s: r1(NS), cx: CH.x, cy: CH.y, top: r1(CH.y - CH.ry) })}>
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Ночной пляж, песок и море показаны в разрезе. В песке гнездо с яйцами. Черепашата вылупляются, выкапываются из песка, ползут к морю и уплывают в открытый океан. На маленьком глобусе с магнитными линиями Земли точка проходит круг по Атлантическому океану и возвращается. Через много лет большая черепаха приплывает к тому же пляжу, выползает на берег, роет ямку и откладывает в неё яйца.">
+			<defs>
+				<linearGradient id={`${gid}-tsky`} x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="et-sky0"></stop>
+					<stop offset="1" class="et-sky1"></stop>
+				</linearGradient>
+				<linearGradient id={`${gid}-sea`} gradientUnits="userSpaceOnUse" x1="0" y1="150" x2="0" y2="250">
+					<stop offset="0" class="et-sea0"></stop>
+					<stop offset="1" class="et-sea1"></stop>
+				</linearGradient>
+				<linearGradient id={`${gid}-shell`} x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="et-shellhi"></stop>
+					<stop offset="0.75" class="et-shell"></stop>
+				</linearGradient>
+				<radialGradient id={`${gid}-moon`} cx="0.5" cy="0.5" r="0.5">
+					<stop offset="0" class="et-moonglow" style="stop-opacity: 0.35"></stop>
+					<stop offset="1" class="et-moonglow" style="stop-opacity: 0"></stop>
+				</radialGradient>
+				<linearGradient id={`${gid}-sand`} gradientUnits="userSpaceOnUse" x1="0" y1="100" x2="0" y2="250">
+					<stop offset="0" class="et-sand0"></stop>
+					<stop offset="1" class="et-sand1"></stop>
+				</linearGradient>
+				<radialGradient id={`${gid}-egg`} cx="0.36" cy="0.32" r="0.75">
+					<stop offset="0" class="et-egghi"></stop>
+					<stop offset="1" class="et-egg"></stop>
+				</radialGradient>
+				<pattern id={`${gid}-grain`} patternUnits="userSpaceOnUse" width="9" height="7">
+					<circle class="et-speck" cx="1.5" cy="1.2" r="0.35"></circle>
+					<circle class="et-speck et-speck--hi" cx="6.2" cy="3.1" r="0.3"></circle>
+					<circle class="et-speck" cx="3.6" cy="5.6" r="0.28"></circle>
+					<circle class="et-speck et-speck--hi" cx="8.1" cy="6.3" r="0.25"></circle>
+				</pattern>
+				<clipPath id={`${gid}-globe`}>
+					<circle r={GR}></circle>
+				</clipPath>
+			</defs>
+			<rect x="0" y="0" width="360" height="240" fill={`url(#${gid}-tsky)`}></rect>
+			<g class="et-stars">
+				{tStars.map((s) => <circle cx={s.x} cy={s.y} r={s.r} opacity={s.o} />)}
+			</g>
+			<circle cx="312" cy="34" r="34" fill={`url(#${gid}-moon)`}></circle>
+			<circle class="et-moon" cx="312" cy="34" r="10"></circle>
+			<!-- the world: moved and scaled by the camera -->
+			<g data-world>
+				<path class="et-water" fill={`url(#${gid}-sea)`} data-water></path>
+				<g class="et-sarg" data-sarg>
+					{SARG.map((s) => (
+						<g transform={`translate(${s.x} 151)`}>
+							<path d={`M${-s.w / 2} 0 Q${-s.w / 4} -2.2 0 -0.6 T${s.w / 2} 0 Q${s.w / 4} 2.6 0 1.8 T${-s.w / 2} 0 Z`}></path>
+							<path class="et-sarg2" d={`M${-s.w / 3} 1 l-2 5 M${-s.w / 8} 1.5 l1 7 M${s.w / 6} 1.4 l-1.5 5.5 M${s.w / 2.6} 0.8 l2 4`}></path>
+						</g>
+					))}
+				</g>
+				<path d={SAND} fill={`url(#${gid}-sand)`}></path>
+				<path d={SAND} fill={`url(#${gid}-grain)`} class="et-specks"></path>
+				<path class="et-dry" d={DRY}></path>
+				<path class="et-grass" d={GRASS}></path>
+				{OATS.map((o) => <ellipse class="et-oat" cx={o.x + 1.5} cy={o.y} rx="1.2" ry="3" transform={`rotate(14 ${o.x + 1.5} ${o.y})`} />)}
+				<path class="et-wet" data-wet></path>
+				<path class="et-swash" data-swash></path>
+				<path class="et-surf" data-surf></path>
+				<!-- the nest -->
+				<path class="et-loose" d={SHAFT} data-shaft></path>
+				<path class="et-cav" d={CHAMBER} data-chamber></path>
+				<path class="et-cav" d={NECK} data-neck></path>
+				<g data-eggs>
+					{eggs.map((e) => (
+						<g data-egg data-x={e.x} data-y={e.y}>
+							<ellipse class="et-egg" cx={e.x} cy={e.y} rx={ER} ry={ER * 0.96} fill={`url(#${gid}-egg)`} data-whole></ellipse>
+							<path class="et-eggshell" transform={`rotate(${e.a} ${e.x} ${e.y}) translate(${e.x} ${r1(e.y + 0.5)}) scale(0.95 0.7)`} d={`M${-ER} -0.3 A${ER} ${ER} 0 0 0 ${ER} -0.3 l-0.5 -0.8 l-0.5 0.5 l-0.6 -0.9 l-0.5 0.7 l-0.4 -0.5 l-0.5 0.8 l-0.6 -0.7 Z`} data-broken></path>
+						</g>
+					))}
+				</g>
+				<g class="et-grains" data-grains>
+					{Array.from({ length: 10 }, () => <circle r="0.7"></circle>)}
+				</g>
+				<g data-babies></g>
+				<!-- the turtle, facing +x; local units: the carapace is 100 long, the belly touches y = 0 -->
+				<g class="et-turtle" data-adult>
+					<g data-hf2 transform="translate(-38 -8) rotate(160)"><path class="et-limb2" d="M0 -3 C8 -5 18 -4 24 -0.5 C26 1.5 25 4 22 4 C14 5 6 5 0 3 Z"></path></g>
+					<g data-ff2 transform="translate(36 -12) rotate(100)"><path class="et-limb2" d="M0 -4.5 C10 -7.5 24 -8.5 36 -6.5 C44 -5 50 -2.5 55 1 C49 3 41 5.5 31 7 C19 8.5 8 7.5 0 4.5 Z"></path></g>
+					<path class="et-skin" d="M-50 -10 L-59 -7 L-50 -5 Z"></path>
+					<g data-head>
+						<path class="et-skin" d="M36 -21 C44 -25 50 -27 56 -27 L59 -10 C52 -9 45 -8 38 -7 Z"></path>
+						<path class="et-skin" d="M51 -26 C57 -34 72 -35 80 -27 C84 -23 85 -18 83 -14.5 L79 -11.5 C71 -8.5 59 -8.5 52 -10.5 Z"></path>
+						<path class="et-jaw" d="M57 -10 C64 -8.6 72 -9 79 -11.5 L82.5 -14 C74 -13.2 65 -13.4 57 -14.2 Z"></path>
+						<path class="et-scale" d="M58 -29.5 L64 -25.5 L72 -30 M64 -25.5 L63 -18.5 M72 -30 L78 -25.5 M70 -21 L64 -18"></path>
+						<path class="et-beak" d="M80 -27 C84 -23 85 -18 83 -14.5 L80 -13 C82 -17 82 -22 79.5 -26 Z"></path>
+						<circle class="et-eye" cx="72.5" cy="-21.5" r="2.3"></circle>
+						<circle class="et-glint" cx="73.3" cy="-22.3" r="0.7"></circle>
+					</g>
+					<path class="et-plastron" d="M-44 -9.5 C-24 -2.5 22 -2.5 44 -11 L45 -9 C24 -0.5 -24 -0.5 -42 -7 Z"></path>
+					<path class="et-carapace" fill={`url(#${gid}-shell)`} d="M-52 -9 C-49 -26 -27 -38.5 0 -38.5 C22 -38.5 39 -31 47 -16 L46 -11 C30 -9 -30 -8 -52 -9 Z"></path>
+					<path class="et-seam" d="M-46 -12 C-30 -11 30 -12 45 -13.5 M-30 -31 Q-23 -21 -29 -11.5 M-9 -38 Q-3 -24 -9 -11 M14 -37.5 Q20 -25 15 -11.6 M33 -31 Q37 -21 33 -12.5 M-41 -12 l1 -3 M-33 -11.5 l0.5 -3 M-24 -11.2 l0.3 -3 M-15 -11.1 v-3 M-5 -11 v-3 M5 -11 v-3 M15 -11.4 v-3 M24 -11.8 l-0.3 -3 M33 -12.4 l-0.5 -3 M40 -13 l-1 -3"></path>
+					<g data-hf transform="translate(-40 -7) rotate(160)"><path class="et-limb" d="M0 -3 C8 -5 18 -4 24 -0.5 C26 1.5 25 4 22 4 C14 5 6 5 0 3 Z"></path></g>
+					<g data-ff transform="translate(34 -11) rotate(100)"><path class="et-limb" d="M0 -4.5 C10 -7.5 24 -8.5 36 -6.5 C44 -5 50 -2.5 55 1 C49 3 41 5.5 31 7 C19 8.5 8 7.5 0 4.5 Z"></path><path class="et-limbedge" d="M3 -4.6 C14 -7.6 28 -8.2 40 -5.6"></path><path class="et-claw" d="M15 -7.6 l2.2 -1.6 l0.4 1.5 Z"></path></g>
+				</g>
+			</g>
+			<!-- the globe in the sky: the North Atlantic, the field of the Earth, the route -->
+			<g transform="translate(76 58)" class="et-globe" data-globe>
+				<g class="et-field">
+					{GFIELD.map((d) => <path d={d} />)}
+				</g>
+				<circle class="et-gsea" r={GR}></circle>
+				<path class="et-gland" d={GLAND} clip-path={`url(#${gid}-globe)`}></path>
+				<circle class="et-grim" r={GR}></circle>
+				<circle class="et-gpole" cx={NPOLE[0]} cy={NPOLE[1]} r="0.9"></circle>
+				<path class="et-route" d={GROUTE} data-route></path>
+				<circle class="et-home" cx={HOME[0]} cy={HOME[1]} r="2.2"></circle>
+				<circle class="et-dot" r="1.9" data-dot></circle>
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>Черепашата уплывают в открытый океан, а через много лет взрослая черепаха приплывает откладывать яйца на тот же самый пляж. Дорогу ей показывает <More term="магнитное поле Земли">Морские черепахи чувствуют магнитное поле Земли. В каждом месте океана у поля своя сила и свой наклон магнитных линий к земле — свой «магнитный адрес». Группа американского биолога Кеннета Ломанна показала в опытах, что черепашата головастой черепахи (логгерхеда) различают и силу, и наклон поля и по ним выбирают, куда плыть. К морю они ползут на светлый край неба над водой, а в океане держат курс по полю. Взрослая самка возвращается к тому берегу, где вылупилась, по-видимому, по его «магнитному адресу»: поле медленно меняется, и за 19 лет наблюдений во Флориде расположение гнёзд менялось вслед за ним. Перелётные птицы тоже находят дорогу по магнитному полю. Подробнее — в разделе <a href="#магнитное-поле-земли">«Магнитное поле Земли»</a>.</More>.</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+</IntroFrame>
+
+<style is:global>
+	/* aurora: a night inside the frame in both themes (the light theme's grays are dark from gray-1 to gray-3) */
+	[data-eintro] [data-scene='aurora'] {
+		--ea-sky0: color-mix(in srgb, var(--ig-vx) 7%, var(--sl-color-black));
+		--ea-sky1: color-mix(in srgb, var(--ig-vx) 16%, var(--sl-color-gray-6));
+		--ea-ridge: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-gray-5));
+		--ea-snow1: color-mix(in srgb, var(--ig-vx) 12%, color-mix(in srgb, var(--sl-color-gray-4) 35%, var(--sl-color-gray-5)));
+		--ea-snow2: color-mix(in srgb, var(--ig-vx) 10%, color-mix(in srgb, var(--sl-color-gray-4) 72%, var(--sl-color-gray-5)));
+		--ea-tree: color-mix(in srgb, var(--sl-color-black) 70%, var(--sl-color-gray-6));
+		--ea-wall: color-mix(in srgb, var(--ig-v) 12%, var(--sl-color-gray-6));
+		--ea-roof: color-mix(in srgb, var(--ig-vx) 10%, var(--sl-color-gray-3));
+		--ea-star: var(--sl-color-white);
+		--ea-smoke: var(--sl-color-gray-3);
+		--ea-win: var(--ig-v);
+		--ea-green: color-mix(in oklab, color-mix(in oklab, var(--sl-color-green) 82%, var(--ig-vx)) 82%, var(--sl-color-green-high));
+		--ea-red: color-mix(in oklab, var(--sl-color-red) 72%, var(--sl-color-purple));
+		--ea-hem: color-mix(in oklab, var(--sl-color-purple) 55%, var(--sl-color-red));
+	}
+	:root[data-theme='light'] [data-eintro] [data-scene='aurora'] {
+		--ea-sky0: color-mix(in srgb, var(--ig-vx) 7%, var(--sl-color-white));
+		--ea-sky1: color-mix(in srgb, var(--ig-vx) 16%, var(--sl-color-gray-1));
+		--ea-ridge: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-gray-2));
+		--ea-snow1: color-mix(in srgb, var(--ig-vx) 12%, color-mix(in srgb, var(--sl-color-gray-3) 35%, var(--sl-color-gray-2)));
+		--ea-snow2: color-mix(in srgb, var(--ig-vx) 10%, color-mix(in srgb, var(--sl-color-gray-3) 72%, var(--sl-color-gray-2)));
+		--ea-tree: color-mix(in srgb, var(--sl-color-white) 70%, var(--sl-color-gray-1));
+		--ea-wall: color-mix(in srgb, var(--ig-v) 12%, var(--sl-color-gray-1));
+		--ea-roof: color-mix(in srgb, var(--ig-vx) 10%, var(--sl-color-gray-4));
+		--ea-star: var(--sl-color-black);
+		--ea-smoke: var(--sl-color-gray-4);
+		--ea-win: color-mix(in oklab, var(--sl-color-orange) 70%, var(--sl-color-orange-low));
+		--ea-green: color-mix(in oklab, color-mix(in oklab, var(--sl-color-green) 82%, var(--ig-vx)) 55%, var(--sl-color-green-low));
+		--ea-red: color-mix(in oklab, var(--sl-color-red) 72%, var(--sl-color-purple));
+		--ea-hem: color-mix(in oklab, var(--sl-color-purple) 55%, var(--sl-color-red));
+	}
+	.ea-sky0 {
+		stop-color: var(--ea-sky0);
+	}
+	.ea-sky1 {
+		stop-color: var(--ea-sky1);
+	}
+	.ea-g {
+		stop-color: var(--ea-green);
+	}
+	.ea-r {
+		stop-color: var(--ea-red);
+	}
+	.ea-hem {
+		stop-color: var(--ea-hem);
+		stop-opacity: 0;
+	}
+	.ea-w {
+		stop-color: var(--ea-win);
+	}
+	.ea-stars circle {
+		fill: var(--ea-star);
+	}
+	.ea-ridge {
+		fill: var(--ea-ridge);
+	}
+	.ea-snow1 {
+		fill: var(--ea-snow1);
+	}
+	.ea-snow2 {
+		fill: var(--ea-snow2);
+	}
+	.ea-snowglow {
+		fill: var(--ea-green);
+		opacity: 0;
+	}
+	.ea-tree {
+		fill: var(--ea-tree);
+	}
+	.ea-hwall {
+		fill: var(--ea-wall);
+	}
+	.ea-roof {
+		fill: var(--ea-roof);
+	}
+	.ea-window {
+		fill: var(--ea-win);
+	}
+	.ea-smoke circle {
+		fill: var(--ea-smoke);
+		opacity: 0;
+	}
+	/* turtles: a moonlit night inside the frame in both themes (the light theme's grays run the other way) */
+	[data-eintro] [data-scene='turtles'] {
+		--et-sky0: color-mix(in srgb, var(--ig-vx) 8%, var(--sl-color-black));
+		--et-sky1: color-mix(in srgb, var(--ig-vx) 22%, var(--sl-color-gray-6));
+		--et-star: var(--sl-color-white);
+		--et-moon: color-mix(in srgb, var(--sl-color-orange) 10%, var(--sl-color-gray-1));
+		--et-sea0: color-mix(in srgb, var(--ig-vx) 34%, var(--sl-color-gray-5));
+		--et-sea1: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-black));
+		--et-surf: color-mix(in srgb, var(--ig-vx) 30%, var(--sl-color-gray-2));
+		--et-foam: var(--sl-color-gray-2);
+		--et-sand: color-mix(in oklab, var(--sl-color-orange) 24%, color-mix(in srgb, var(--sl-color-gray-3) 45%, var(--sl-color-gray-4)));
+		--et-sand1: color-mix(in oklab, var(--sl-color-orange) 14%, color-mix(in srgb, var(--sl-color-gray-4) 35%, var(--sl-color-gray-5)));
+		--et-dry: color-mix(in oklab, var(--sl-color-orange) 26%, color-mix(in srgb, var(--sl-color-gray-2) 40%, var(--sl-color-gray-3)));
+		--et-wet: var(--sl-color-gray-6);
+		--et-cav: color-mix(in oklab, var(--sl-color-orange) 10%, var(--sl-color-gray-6));
+		--et-grass: color-mix(in oklab, var(--sl-color-green) 22%, var(--sl-color-gray-4));
+		--et-sarg: color-mix(in oklab, var(--sl-color-orange) 45%, color-mix(in oklab, var(--sl-color-green) 35%, var(--sl-color-gray-5)));
+		--et-egg: color-mix(in oklab, var(--sl-color-orange) 10%, var(--sl-color-gray-3));
+		--et-egghi: color-mix(in oklab, var(--sl-color-orange) 6%, var(--sl-color-gray-1));
+		--et-shell: color-mix(in oklab, color-mix(in oklab, var(--sl-color-orange) 62%, var(--sl-color-red)) 58%, var(--sl-color-gray-6));
+		--et-shellhi: color-mix(in oklab, color-mix(in oklab, var(--sl-color-orange) 70%, var(--sl-color-red)) 72%, var(--sl-color-gray-3));
+		--et-seam: color-mix(in oklab, var(--sl-color-orange) 25%, var(--sl-color-black));
+		--et-skin: color-mix(in oklab, var(--sl-color-orange) 48%, var(--sl-color-gray-4));
+		--et-skin2: color-mix(in oklab, var(--sl-color-orange) 34%, var(--sl-color-gray-5));
+		--et-cream: color-mix(in oklab, var(--sl-color-orange) 34%, var(--sl-color-gray-2));
+		--et-dark: var(--sl-color-black);
+		--et-baby: color-mix(in oklab, var(--sl-color-orange) 22%, color-mix(in srgb, var(--sl-color-gray-6) 60%, var(--sl-color-gray-5)));
+		--et-babyedge: color-mix(in oklab, var(--sl-color-orange) 20%, var(--sl-color-gray-3));
+		--et-gsea: color-mix(in srgb, var(--ig-vx) 40%, var(--sl-color-gray-5));
+		--et-gland: color-mix(in oklab, var(--sl-color-green) 25%, var(--sl-color-gray-3));
+		--et-field: var(--sl-color-gray-3);
+		--et-route: var(--sl-color-orange);
+	}
+	:root[data-theme='light'] [data-eintro] [data-scene='turtles'] {
+		--et-sky0: color-mix(in srgb, var(--ig-vx) 8%, var(--sl-color-white));
+		--et-sky1: color-mix(in srgb, var(--ig-vx) 22%, var(--sl-color-gray-1));
+		--et-star: var(--sl-color-black);
+		--et-moon: color-mix(in srgb, var(--sl-color-orange) 10%, var(--sl-color-gray-6));
+		--et-sea0: color-mix(in srgb, var(--ig-vx) 34%, var(--sl-color-gray-2));
+		--et-sea1: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-white));
+		--et-surf: color-mix(in srgb, var(--ig-vx) 30%, var(--sl-color-gray-5));
+		--et-foam: var(--sl-color-gray-5);
+		--et-sand: color-mix(in oklab, var(--sl-color-orange) 24%, color-mix(in srgb, var(--sl-color-gray-4) 45%, var(--sl-color-gray-3)));
+		--et-sand1: color-mix(in oklab, var(--sl-color-orange) 14%, color-mix(in srgb, var(--sl-color-gray-3) 35%, var(--sl-color-gray-2)));
+		--et-dry: color-mix(in oklab, var(--sl-color-orange) 26%, color-mix(in srgb, var(--sl-color-gray-5) 40%, var(--sl-color-gray-4)));
+		--et-wet: var(--sl-color-gray-1);
+		--et-cav: color-mix(in oklab, var(--sl-color-orange) 10%, var(--sl-color-gray-1));
+		--et-grass: color-mix(in oklab, var(--sl-color-green) 22%, var(--sl-color-gray-3));
+		--et-sarg: color-mix(in oklab, var(--sl-color-orange) 45%, color-mix(in oklab, var(--sl-color-green) 35%, var(--sl-color-gray-2)));
+		--et-egg: color-mix(in oklab, var(--sl-color-orange) 10%, var(--sl-color-gray-4));
+		--et-egghi: color-mix(in oklab, var(--sl-color-orange) 6%, var(--sl-color-gray-6));
+		--et-shell: color-mix(in oklab, color-mix(in oklab, var(--sl-color-orange) 62%, var(--sl-color-red)) 58%, var(--sl-color-gray-1));
+		--et-shellhi: color-mix(in oklab, color-mix(in oklab, var(--sl-color-orange) 70%, var(--sl-color-red)) 72%, var(--sl-color-gray-4));
+		--et-seam: color-mix(in oklab, var(--sl-color-orange) 25%, var(--sl-color-white));
+		--et-skin: color-mix(in oklab, var(--sl-color-orange) 48%, var(--sl-color-gray-3));
+		--et-skin2: color-mix(in oklab, var(--sl-color-orange) 34%, var(--sl-color-gray-2));
+		--et-cream: color-mix(in oklab, var(--sl-color-orange) 34%, var(--sl-color-gray-5));
+		--et-dark: var(--sl-color-white);
+		--et-baby: color-mix(in oklab, var(--sl-color-orange) 22%, color-mix(in srgb, var(--sl-color-gray-1) 60%, var(--sl-color-gray-2)));
+		--et-babyedge: color-mix(in oklab, var(--sl-color-orange) 20%, var(--sl-color-gray-4));
+		--et-gsea: color-mix(in srgb, var(--ig-vx) 40%, var(--sl-color-gray-2));
+		--et-gland: color-mix(in oklab, var(--sl-color-green) 25%, var(--sl-color-gray-4));
+		--et-field: var(--sl-color-gray-4);
+		--et-route: var(--sl-color-orange);
+	}
+	.et-sky0 {
+		stop-color: var(--et-sky0);
+	}
+	.et-sky1 {
+		stop-color: var(--et-sky1);
+	}
+	.et-sea0 {
+		stop-color: var(--et-sea0);
+	}
+	.et-sea1 {
+		stop-color: var(--et-sea1);
+	}
+	.et-shell {
+		stop-color: var(--et-shell);
+	}
+	.et-shellhi {
+		stop-color: var(--et-shellhi);
+	}
+	.et-moonglow {
+		stop-color: var(--et-moon);
+	}
+	.et-stars circle {
+		fill: var(--et-star);
+	}
+	.et-moon {
+		fill: var(--et-moon);
+	}
+	.et-surf {
+		fill: none;
+		stroke: var(--et-surf);
+		stroke-width: 0.9;
+		stroke-linecap: round;
+	}
+	.et-swash {
+		fill: var(--et-foam);
+		opacity: 0.55;
+	}
+	.et-wet {
+		fill: var(--et-wet);
+		opacity: 0.35;
+	}
+	.et-sand0 {
+		stop-color: var(--et-sand);
+	}
+	.et-sand1 {
+		stop-color: var(--et-sand1);
+	}
+	.et-specks {
+		opacity: 0.5;
+	}
+	.et-speck {
+		fill: var(--et-cav);
+	}
+	.et-speck--hi {
+		fill: var(--et-dry);
+	}
+	.et-egghi {
+		stop-color: var(--et-egghi);
+	}
+	.et-dry {
+		fill: var(--et-dry);
+	}
+	.et-grass {
+		fill: none;
+		stroke: var(--et-grass);
+		stroke-width: 1;
+		stroke-linecap: round;
+	}
+	.et-oat {
+		fill: var(--et-grass);
+	}
+	.et-sarg path {
+		fill: var(--et-sarg);
+	}
+	.et-sarg .et-sarg2 {
+		fill: none;
+		stroke: var(--et-sarg);
+		stroke-width: 0.8;
+		stroke-linecap: round;
+	}
+	.et-cav {
+		fill: var(--et-cav);
+	}
+	.et-loose {
+		fill: var(--et-cav);
+		opacity: 0;
+	}
+	.et-egg {
+		stop-color: var(--et-egg);
+	}
+	ellipse.et-egg {
+		stroke: var(--et-cav);
+		stroke-width: 0.25;
+	}
+	.et-eggshell {
+		fill: var(--et-egg);
+		stroke: var(--et-cav);
+		stroke-width: 0.2;
+		opacity: 0;
+	}
+	.et-grains circle {
+		fill: var(--et-dry);
+		opacity: 0;
+	}
+	.et-turtle path {
+		stroke-linejoin: round;
+	}
+	.et-carapace {
+		stroke: var(--et-seam);
+		stroke-width: 0.9;
+	}
+	.et-seam {
+		fill: none;
+		stroke: var(--et-seam);
+		stroke-width: 0.8;
+		stroke-linecap: round;
+		opacity: 0.75;
+	}
+	.et-plastron,
+	.et-jaw {
+		fill: var(--et-cream);
+	}
+	.et-skin,
+	.et-limb {
+		fill: var(--et-skin);
+		stroke: var(--et-seam);
+		stroke-width: 0.8;
+	}
+	.et-limb2 {
+		fill: var(--et-skin2);
+		stroke: var(--et-seam);
+		stroke-width: 0.8;
+	}
+	.et-limbedge {
+		fill: none;
+		stroke: var(--et-cream);
+		stroke-width: 1;
+		stroke-linecap: round;
+		opacity: 0.7;
+	}
+	.et-claw {
+		fill: var(--et-seam);
+	}
+	.et-scale {
+		fill: none;
+		stroke: var(--et-seam);
+		stroke-width: 0.7;
+		opacity: 0.6;
+	}
+	.et-beak {
+		fill: var(--et-seam);
+		opacity: 0.55;
+	}
+	.et-eye {
+		fill: var(--et-dark);
+	}
+	.et-glint {
+		fill: var(--et-cream);
+	}
+	/* hatchlings: the same turtle, dark gray-brown all over */
+	.et-baby path,
+	.et-baby circle {
+		fill: var(--et-baby);
+		stroke: var(--et-babyedge);
+		stroke-width: 0;
+	}
+	.et-baby .et-carapace {
+		stroke-width: 6;
+		paint-order: stroke;
+	}
+	.et-baby .et-seam,
+	.et-baby .et-scale,
+	.et-baby .et-limbedge,
+	.et-baby .et-claw,
+	.et-baby .et-glint {
+		display: none;
+	}
+	.et-baby .et-eye {
+		fill: var(--et-dark);
+	}
+	.et-globe {
+		opacity: 0;
+	}
+	.et-field path {
+		fill: none;
+		stroke: var(--et-field);
+		stroke-width: 0.6;
+		opacity: 0.7;
+	}
+	.et-gsea {
+		fill: var(--et-gsea);
+	}
+	.et-gland {
+		fill: var(--et-gland);
+	}
+	.et-grim {
+		fill: none;
+		stroke: var(--et-field);
+		stroke-width: 0.6;
+	}
+	.et-gpole {
+		fill: var(--et-field);
+	}
+	.et-route {
+		fill: none;
+		stroke: var(--et-route);
+		stroke-width: 1;
+		stroke-linecap: round;
+		opacity: 0.85;
+	}
+	.et-home {
+		fill: none;
+		stroke: var(--et-route);
+		stroke-width: 0.8;
+	}
+	.et-dot {
+		fill: var(--et-route);
+	}
+</style>
+
+<script>
+	import { scene, clamp } from '@components/intro/scene';
+
+	const smooth = (a: number, b: number, x: number) => {
+		const t = clamp((x - a) / (b - a));
+		return t * t * (3 - 2 * t);
+	};
+	const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+	const f1 = (v: number) => v.toFixed(1);
+	const f2 = (v: number) => v.toFixed(2);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-eintro]')) {
+		// Aurora: a faint quiet arc (start = end) brightens into waving curtains and fades back; 11 s.
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="aurora"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const NS = 'http://www.w3.org/2000/svg';
+			const fill = `url(#${$<SVGLinearGradientElement>('[data-ray]').id})`;
+			const hem = $<SVGStopElement>('[data-hem]');
+			const red = $<SVGStopElement>('[data-red]');
+			const red2 = $<SVGStopElement>('[data-red2]');
+			const skyglow = $<SVGEllipseElement>('[data-skyglow]');
+			const snowglow = $<SVGGElement>('[data-snowglow]');
+			const smoke = [...card.querySelectorAll<SVGCircleElement>('[data-smoke] circle')];
+			const twinkle = [...card.querySelectorAll<SVGCircleElement>('[data-tw]')].map((el, i) => ({
+				el,
+				o: Number(el.dataset.tw),
+				w: 1.3 + (i % 5) * 0.45,
+				ph: i * 2.1,
+			}));
+			let seed = 11;
+			const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+			// each ray flickers with a whole number of cycles per run, so the loop has no seam
+			const rays = (g: SVGGElement, n: number) =>
+				Array.from({ length: n }, (_, i) => {
+					const el = document.createElementNS(NS, 'rect');
+					el.setAttribute('fill', fill);
+					g.appendChild(el);
+					return { el, u: clamp((i + 0.7 * (rnd() - 0.5)) / (n - 1)), f: 3 + Math.floor(rnd() * 6), ph: rnd() * 6.283, g: 2 + Math.floor(rnd() * 4), ps: rnd() * 6.283 };
+				});
+			const near = rays($<SVGGElement>('[data-near]'), 160);
+			const far = rays($<SVGGElement>('[data-far]'), 80);
+			const TAU = 2 * Math.PI;
+			const S0 = 1 - Math.exp(-1.6);
+			// a ray at (x, base): rect from the base up, leaning towards a point high above the sky (the rays are
+			// parallel to the magnetic field; in perspective they converge)
+			const put = (el: SVGRectElement, x: number, base: number, h: number, w: number, op: number) => {
+				const lean = (Math.atan((150 - x) / (base + 900)) * 180) / Math.PI;
+				el.setAttribute('transform', `translate(${f1(x)} ${f1(base)}) rotate(${f1(lean)})`);
+				el.setAttribute('x', f2(-w / 2));
+				el.setAttribute('y', f1(-h));
+				el.setAttribute('width', f2(w));
+				el.setAttribute('height', f1(h));
+				el.setAttribute('opacity', f2(op));
+			};
+			scene(card, 11, (x) => {
+				const ph = TAU * x;
+				const act = smooth(0.06, 0.42, x) * (1 - smooth(0.64, 0.96, x));
+				const peak = smooth(0.34, 0.48, x) * (1 - smooth(0.58, 0.74, x));
+				const B = 0.16 + 0.84 * act;
+				hem.style.stopOpacity = f2(0.8 * peak);
+				red.style.stopOpacity = f2(0.3 + 0.22 * act);
+				red2.style.stopOpacity = f2(0.16 + 0.16 * act);
+				skyglow.setAttribute('opacity', f2(0.08 + 0.72 * act));
+				snowglow.style.opacity = f2(0.03 + 0.13 * act);
+				// the near curtain: big and high at the left, receding to the right; folds travel along it
+				const drift = 10 * Math.sin(ph);
+				const fold = 8 + 22 * act;
+				for (const r of near) {
+					const u = r.u;
+					const p = 1 - 0.45 * u;
+					const X =
+						-40 +
+						(420 * (1 - Math.exp(-1.6 * u))) / S0 +
+						drift * p +
+						fold * p * Math.sin(TAU * 3.2 * u - ph + 0.4) +
+						0.35 * fold * p * Math.sin(TAU * 7 * u + 2 * ph);
+					// where the curtain folds away from us its lower edge sinks and the rays get shorter
+					const deep = (fold / 30) * Math.cos(TAU * 3.2 * u - ph + 0.4);
+					const base = 110 + 40 * u + 9 * p * deep + 3 * p * Math.sin(TAU * 2.3 * u - ph);
+					const h = 90 * (1 - 0.5 * u) * (1 - 0.12 * deep) * (0.55 + 0.45 * act) * (0.82 + 0.18 * Math.sin(r.g * ph + r.ps));
+					const flick = 0.5 + 0.5 * Math.sin(r.f * ph + r.ph);
+					const pulse = 0.5 + 0.5 * Math.sin(TAU * 4 * u - 2 * ph);
+					const env = smooth(0, 0.06, u) * (1 - smooth(0.9, 1, u));
+					const op = B * env * (0.35 + 0.35 * flick * (0.4 + 0.6 * act) + 0.3 * pulse * act);
+					put(r.el, X, base, h, 5.5 * (1 - 0.55 * u), op);
+				}
+				// the far curtain: low over the hills, fainter, a little behind in time
+				const actF = smooth(0.18, 0.5, x) * (1 - smooth(0.7, 0.98, x));
+				for (const r of far) {
+					const u = r.u;
+					const X = -10 + 380 * u + 6 * Math.sin(TAU * 2.5 * u + ph);
+					const base = 172 + 3 * Math.sin(TAU * 1.7 * u - ph);
+					const h = 34 * (0.6 + 0.4 * actF) * (0.8 + 0.2 * Math.sin(r.g * ph + r.ps));
+					const flick = 0.5 + 0.5 * Math.sin(r.f * ph + r.ph);
+					const patch = 0.5 + 0.5 * Math.sin(TAU * 1.4 * u + ph + 1);
+					put(r.el, X, base, h, 2.6, (0.06 + 0.5 * actF) * (0.25 + 0.75 * patch) * (0.5 + 0.5 * flick));
+				}
+				// chimney smoke rises twice per run
+				smoke.forEach((c, k) => {
+					const q = (2 * x + k / 3) % 1;
+					c.setAttribute('cx', f1(285 + 7 * q + 1.5 * Math.sin(TAU * q)));
+					c.setAttribute('cy', f1(174 - 26 * q));
+					c.setAttribute('r', f1(2.5 + 6 * q));
+					c.style.opacity = f2(0.22 * Math.sin(Math.PI * q));
+				});
+				// a few stars twinkle (wall-clock time: they keep twinkling during the pause between runs)
+				const now = performance.now() / 1000;
+				for (const s of twinkle) s.el.setAttribute('opacity', f2(s.o * (0.65 + 0.35 * Math.sin(s.w * now + s.ph))));
+			});
+		}
+
+		// Turtles: the eggs hatch and the hatchlings swim off (→ 0,5), the globe shows the years in the ocean
+		// (0,42 → 0,76), the grown female swims back, comes ashore and lays her eggs in the same place (0,55 → 0,99); 20 s.
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="turtles"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const TAU = 2 * Math.PI;
+			const RUN = 20;
+			const PROF: number[][] = JSON.parse(card.dataset.prof!);
+			const NEST: { x: number; s: number; cy: number; top: number; cx: number } = JSON.parse(card.dataset.nest!);
+			// the beach profile: the same monotone cubic as in the frontmatter
+			const S = (() => {
+				const n = PROF.length;
+				const d = PROF.slice(0, -1).map((p, i) => (PROF[i + 1][1] - p[1]) / (PROF[i + 1][0] - p[0]));
+				const m = PROF.map((_, i) => (i === 0 ? d[0] : i === n - 1 ? d[n - 2] : d[i - 1] * d[i] <= 0 ? 0 : (2 * d[i - 1] * d[i]) / (d[i - 1] + d[i])));
+				return (x: number) => {
+					let i = 0;
+					while (i < n - 2 && x > PROF[i + 1][0]) i++;
+					const [x0, y0] = PROF[i];
+					const [x1, y1] = PROF[i + 1];
+					const h = x1 - x0;
+					const t = clamp((x - x0) / h);
+					const t2 = t * t;
+					const t3 = t2 * t;
+					return (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * h * m[i + 1];
+				};
+			})();
+			const slope = (x: number) => (Math.atan((S(x + 1.5) - S(x - 1.5)) / 3) * 180) / Math.PI;
+			const SEA = 150; // the sea level
+			const SHORE = 232; // where the sea meets the sand
+			const world = $<SVGGElement>('[data-world]');
+			const water = $<SVGPathElement>('[data-water]');
+			const surf = $<SVGPathElement>('[data-surf]');
+			const swash = $<SVGPathElement>('[data-swash]');
+			const shaft = $<SVGPathElement>('[data-shaft]');
+			const neck = $<SVGPathElement>('[data-neck]');
+			const chamber = $<SVGPathElement>('[data-chamber]');
+			const grains = [...card.querySelectorAll<SVGCircleElement>('[data-grains] circle')];
+			const globe = $<SVGGElement>('[data-globe]');
+			const route = $<SVGPathElement>('[data-route]');
+			const dot = $<SVGCircleElement>('[data-dot]');
+			const RL = route.getTotalLength();
+			route.style.strokeDasharray = `${f1(RL + 1)} ${f1(RL + 1)}`;
+			// wet sand: a dark band along the surface where the waves run up
+			{
+				const top: string[] = [];
+				const bot: string[] = [];
+				for (let x = 206; x <= SHORE + 6; x += 2) {
+					top.push(`${x} ${f2(S(x) - 0.1)}`);
+					bot.unshift(`${x} ${f2(S(x) + 2.2 * smooth(206, 222, x))}`);
+				}
+				$<SVGPathElement>('[data-wet]').setAttribute('d', `M${top.join(' L')} L${bot.join(' L')} Z`);
+			}
+			const eggs = [...card.querySelectorAll<SVGGElement>('[data-egg]')].map((g) => ({
+				x: Number(g.dataset.x),
+				y: Number(g.dataset.y),
+				whole: g.querySelector<SVGElement>('[data-whole]')!,
+				broken: g.querySelector<SVGElement>('[data-broken]')!,
+			}));
+			const NE = eggs.length;
+			// the turtles: the adult in the markup, the hatchlings are its copies
+			type T = { g: SVGGElement; ff: SVGGElement; ff2: SVGGElement; hf: SVGGElement; hf2: SVGGElement; head: SVGGElement };
+			const parts = (g: SVGGElement): T => ({
+				g,
+				ff: g.querySelector('[data-ff]')!,
+				ff2: g.querySelector('[data-ff2]')!,
+				hf: g.querySelector('[data-hf]')!,
+				hf2: g.querySelector('[data-hf2]')!,
+				head: g.querySelector('[data-head]')!,
+			});
+			const adultG = $<SVGGElement>('[data-adult]');
+			const adult = parts(adultG);
+			const babies = Array.from({ length: 6 }, () => {
+				const g = adultG.cloneNode(true) as SVGGElement;
+				g.removeAttribute('data-adult');
+				g.classList.add('et-baby');
+				$<SVGGElement>('[data-babies]').appendChild(g);
+				return parts(g);
+			});
+			// flipper angles in degrees (0 = along the body forwards, 90 = down, 180 = backwards); k shortens a flipper
+			// that points towards us (on land the front flippers stand out sideways)
+			type Pose = { ff: number; ff2: number; hf: number; hf2: number; kf: number; kh: number; head: number };
+			// on land loggerheads crawl with alternating flippers
+			const crawl = (ph: number): Pose => ({
+				ff: 90 + 36 * Math.sin(ph),
+				ff2: 90 - 36 * Math.sin(ph),
+				hf: 150 - 14 * Math.sin(ph),
+				hf2: 150 + 14 * Math.sin(ph),
+				kf: 0.38,
+				kh: 0.62,
+				head: 5 + 2 * Math.sin(2 * ph),
+			});
+			// in water both front flippers beat together, like wings
+			const swim = (ph: number): Pose => ({
+				ff: 172 + 30 * Math.sin(ph),
+				ff2: 166 + 30 * Math.sin(ph),
+				hf: 168 + 7 * Math.sin(ph),
+				hf2: 172 + 7 * Math.sin(ph),
+				kf: 1,
+				kh: 0.9,
+				head: 3,
+			});
+			const mixPose = (a: Pose, b: Pose, t: number): Pose => ({
+				ff: lerp(a.ff, b.ff, t),
+				ff2: lerp(a.ff2, b.ff2, t),
+				hf: lerp(a.hf, b.hf, t),
+				hf2: lerp(a.hf2, b.hf2, t),
+				kf: lerp(a.kf, b.kf, t),
+				kh: lerp(a.kh, b.kh, t),
+				head: lerp(a.head, b.head, t),
+			});
+			const limb = (el: SVGGElement, px: number, py: number, a: number, k: number) =>
+				el.setAttribute('transform', `translate(${px} ${py}) rotate(${f1(a)}) scale(${f2(k)} 1)`);
+			const place = (t: T, x: number, y: number, ang: number, s: number, face: number, p: Pose, op: number) => {
+				t.g.style.opacity = f2(op);
+				if (op <= 0) return;
+				t.g.setAttribute('transform', `translate(${f2(x)} ${f2(y)}) rotate(${f1(ang)}) scale(${(face * s).toFixed(4)} ${s.toFixed(4)})`);
+				limb(t.ff, 34, -11, p.ff, p.kf);
+				limb(t.ff2, 36, -12, p.ff2, p.kf);
+				limb(t.hf, -40, -7, p.hf, p.kh);
+				limb(t.hf2, -38, -8, p.hf2, p.kh);
+				t.head.setAttribute('transform', `rotate(${f1(p.head)} 40 -16)`);
+			};
+			const AS = 0.51; // the adult: carapace 0,85 m at 60 px/m
+			const BS = 0.05; // a hatchling: carapace ~4,5 cm, drawn ~1,9 times bigger
+			// the hatchlings' schedule: egg cracks, out of the sand, at the water
+			const hatch = babies.map((b, i) => {
+				const egg = eggs[NE - 1 - ((i * 3) % NE)];
+				const tc = 0.035 + 0.01 * i;
+				const te = 0.09 + 0.017 * i;
+				const tw = te + 0.01 + 0.085 + 0.012 * ((i * 7) % 3);
+				return { b, egg, tc, te, tw, ts: tw + 0.2, f: 1.1 + 0.15 * (i % 3), dy: 0.6 * (i % 2) };
+			});
+			const crackAt = eggs.map((_, k) => {
+				const h = hatch.find((o) => o.egg === eggs[k]);
+				return h ? h.tc : 0.04 + ((k * 37) % 23) * 0.003;
+			});
+			const layAt = eggs.map((_, k) => 0.915 + (0.07 * k) / NE);
+			// the camera: the world point at the centre of the frame and the zoom
+			type Cam = [number, number, number];
+			const C0: Cam = [NEST.x, 146, 3.2];
+			const C1: Cam = [156, 136, 2];
+			const C2: Cam = [760, 162, 1.3];
+			const C3: Cam = [70, 140, 2.2];
+			const blend = (a: Cam, b: Cam, t: number): Cam => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), a[2] * Math.pow(b[2] / a[2], t)];
+			const camera = (x: number): Cam => {
+				if (x < 0.27) return blend(C0, C1, smooth(0.08, 0.24, x));
+				if (x < 0.58) return blend(C1, C2, smooth(0.27, 0.45, x));
+				const k = smooth(0.62, 0.78, x);
+				const F: Cam = [lerp(760, 160, smooth(0.58, 0.78, x)), lerp(162, 140, k), lerp(1.3, 1.4, k)];
+				return blend(F, C3, smooth(0.8, 0.92, x));
+			};
+			// the adult's way: in deep water she swims at one depth, in the shallows she follows the bottom
+			const swimY = (x: number, u: number) => Math.min(S(x), 186 + 3 * Math.sin(TAU * 2 * u));
+			const AX = NEST.x - 22; // she stops with her tail over the nest
+			const grain = (c: SVGCircleElement, x0: number, y0: number, vx: number, vy: number, tau: number, op: number) => {
+				c.setAttribute('cx', f2(x0 + vx * tau));
+				c.setAttribute('cy', f2(y0 - vy * tau + 0.5 * 588 * tau * tau)); // g = 9,8 m/s² at 60 px/m
+				c.style.opacity = f2(op);
+			};
+
+			scene(card, RUN, (x) => {
+				const sec = x * RUN;
+				const [cx, cy, z] = camera(x);
+				world.setAttribute('transform', `translate(${f2(180 - cx * z)} ${f2(120 - cy * z)}) scale(${z.toFixed(4)})`);
+				// the sea: a gentle swell on the surface and waves that run up the sand (10 per run)
+				const pts: string[] = [];
+				for (let wx = SHORE - 14; wx <= 1500; wx += 6)
+					pts.push(`${wx} ${f2(SEA + 0.7 * Math.sin(0.09 * wx + TAU * 6 * x) + 0.35 * Math.sin(0.23 * wx - TAU * 9 * x))}`);
+				water.setAttribute('d', `M${pts.join(' L')} L1500 420 L${SHORE - 14} 420 Z`);
+				surf.setAttribute('d', `M${pts.join(' L')}`);
+				const wave = 0.5 - 0.5 * Math.cos(TAU * 10 * x);
+				const xr = SHORE + 2 - 22 * wave;
+				const top: string[] = [];
+				const bot: string[] = [];
+				for (let i = 0; i <= 12; i++) {
+					const wx = lerp(xr, SHORE + 1, i / 12);
+					const th = Math.sqrt(i / 12) * (1 - (i / 12) ** 6);
+					top.push(`${f2(wx)} ${f2(S(wx) - 1.3 * th * (0.4 + 0.6 * wave))}`);
+					bot.unshift(`${f2(wx)} ${f2(S(wx) + 0.2)}`);
+				}
+				swash.setAttribute('d', `M${top.join(' L')} L${bot.join(' L')} Z`);
+				swash.style.opacity = f2(0.25 + 0.4 * wave);
+
+				// the nest: the old chamber is there at the start, a new one is dug at the end
+				const dig = smooth(0.875, 0.905, x);
+				chamber.style.opacity = f2(Math.max(1 - smooth(0.45, 0.47, x), smooth(0.885, 0.915, x)));
+				neck.style.opacity = f2(dig);
+				shaft.style.opacity = f2(0.75 * smooth(0.05, 0.08, x) * (1 - smooth(0.2, 0.3, x)));
+				eggs.forEach((e, k) => {
+					const laid = x >= layAt[k];
+					const hatched = x >= crackAt[k] && x < 0.45;
+					e.broken.style.opacity = hatched ? '0.75' : '0';
+					let op = laid || x < crackAt[k] ? 1 : 0;
+					let tr = '';
+					if (laid) {
+						// a new egg falls down the neck into the chamber
+						const q = clamp((x - layAt[k]) / 0.006);
+						const fy = NEST.s + 1;
+						const p = q < 0.6 ? q / 0.6 : 1;
+						const yy = q < 0.6 ? lerp(fy, NEST.top, p * p) : lerp(NEST.top, e.y, (q - 0.6) / 0.4);
+						const xx = q < 0.6 ? NEST.cx : lerp(NEST.cx, e.x, (q - 0.6) / 0.4);
+						tr = `translate(${f2(xx - e.x)} ${f2(yy - e.y)})`;
+					}
+					e.whole.style.opacity = String(op);
+					e.whole.setAttribute('transform', tr);
+				});
+
+				// the hatchlings
+				for (const h of hatch) {
+					const ex = h.egg.x;
+					const ey = h.egg.y;
+					let op = x < h.tc || x > h.ts ? 0 : smooth(h.tc, h.tc + 0.006, x);
+					let px = ex;
+					let py = ey;
+					let ang = -75;
+					let p = crawl(TAU * 2.6 * h.f * sec);
+					if (x < h.te) {
+						// out of the egg and up through the sand, wriggling
+						const q = clamp((x - h.tc - 0.004) / (h.te - h.tc - 0.004));
+						if (q < 0.3) {
+							px = lerp(ex, NEST.cx, q / 0.3);
+							py = lerp(ey, NEST.top + 1, q / 0.3);
+						} else {
+							px = NEST.cx + 0.6 * Math.sin(TAU * 3 * q);
+							py = lerp(NEST.top + 1, NEST.s, (q - 0.3) / 0.7);
+						}
+						ang = -75 + 14 * Math.sin(TAU * 2.2 * h.f * sec) * (1 - smooth(h.te - 0.012, h.te, x));
+					} else if (x < h.tw) {
+						// out on the sand: a short rest, then down the beach to the sea
+						const q = clamp((x - h.te - 0.01) / (h.tw - h.te - 0.01));
+						const st = TAU * 9 * q;
+						px = lerp(NEST.cx, SHORE + 2, q) + 0.5 * Math.sin(st);
+						py = S(px);
+						ang = lerp(-75, slope(px), smooth(h.te, h.te + 0.01, x));
+						p = crawl(st);
+					} else {
+						// in the sea: just under the surface, off to the open ocean
+						const q = clamp((x - h.tw) / (h.ts - h.tw));
+						px = SHORE + 2 + 790 * q;
+						const depth = SEA + 3.2 + h.dy + 0.6 * Math.sin(TAU * 0.6 * sec + h.f);
+						py = Math.min(S(px) - 0.2, depth);
+						ang = lerp(slope(px), 2 * Math.sin(TAU * 1.5 * sec), smooth(0, 0.05, q));
+						p = mixPose(crawl(TAU * 9 * 1), swim(TAU * 3.2 * h.f * sec), smooth(0, 0.03, q));
+					}
+					place(h.b, px, py, ang, BS, 1, p, op);
+				}
+				// grains of sand: a little puff where each hatchling comes out, then the female's digging
+				grains.forEach((c, k) => {
+					if (x < 0.5) {
+						const h = hatch[k % 6];
+						const tau = (x - h.te + (k >= 6 ? -0.004 : 0)) * RUN;
+						if (tau > 0 && tau < 0.25) grain(c, NEST.x, NEST.s - 0.5, (k % 2 ? 9 : -7) + k, 28 + 2 * k, tau, 1 - tau / 0.25);
+						else c.style.opacity = '0';
+					} else {
+						const tau = (((sec - 0.875 * RUN) / 0.32 + k / grains.length) % 1) * 0.32;
+						const on = x > 0.875 && x < 0.93;
+						if (on) grain(c, NEST.x + 4, NEST.s - 2.5, 40 + 5 * (k % 4), 55 + 7 * (k % 3), tau, 0.9 * (1 - tau / 0.32));
+						else c.style.opacity = '0';
+					}
+				});
+
+				// the grown female: back across the sea (0,55 → 0,76), up the beach (→ 0,88), digs and lays (→ 0,985)
+				{
+					let ax: number;
+					let ay: number;
+					let ang: number;
+					let p: Pose;
+					if (x < 0.76) {
+						const u = smooth(0.55, 0.76, x);
+						ax = lerp(960, SHORE + 4, u);
+						ay = swimY(ax, x);
+						ang = (Math.atan((swimY(ax + 2, x) - swimY(ax - 2, x)) / 4) * 180) / Math.PI;
+						const land = 1 - smooth(SHORE + 4, 330, ax);
+						p = mixPose(swim(TAU * sec / 1.7), crawl(TAU * sec / 0.9), land);
+					} else if (x < 0.88) {
+						// heavy lurching steps: the body moves when the front flippers pull
+						const q = clamp((x - 0.76) / 0.12);
+						const ph = TAU * sec / 0.9;
+						ax = lerp(SHORE + 4, AX, q) - 1.2 * Math.sin(ph) * smooth(0.76, 0.78, x) * (1 - smooth(0.85, 0.88, x));
+						ay = S(ax);
+						ang = slope(ax);
+						p = crawl(ph);
+					} else {
+						// at the nest: the hind flippers dig the chamber in turn, then she lays the eggs
+						ax = AX;
+						ay = S(ax) + 1.2 * smooth(0.87, 0.9, x);
+						ang = slope(ax) - 1.5;
+						const q = Math.sin(TAU * sec / 0.64) * (1 - smooth(0.93, 0.95, x));
+						const nest: Pose = { ...crawl(0), ff: 110, ff2: 70, hf: 140 + 30 * q, hf2: 140 - 30 * q, kh: 0.85, head: 4 + Math.sin(TAU * sec / 3) };
+						p = mixPose(crawl(TAU * sec / 0.9), nest, smooth(0.88, 0.895, x));
+					}
+					place(adult, ax, ay, ang, AS, -1, p, smooth(0.55, 0.56, x));
+				}
+
+				// the globe: the years in the ocean; the dot goes round the gyre and comes home
+				globe.style.opacity = f2(smooth(0.42, 0.46, x) * (1 - smooth(0.74, 0.78, x)));
+				const g = smooth(0.46, 0.7, x);
+				const pt = route.getPointAtLength(g * RL);
+				dot.setAttribute('cx', f2(pt.x));
+				dot.setAttribute('cy', f2(pt.y));
+				dot.setAttribute('r', f2(1.2 + 1 * g));
+				route.style.strokeDashoffset = f1(RL + 1 - g * RL);
+			});
+		}
+	}
+</script>
