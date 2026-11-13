@@ -1,0 +1,209 @@
+---
+/**
+ * Picture to the definitions of the light ray and of the law of straight-line propagation (after Перышкин's
+ * screen with a hole). A small lamp sends light in all directions: lights run along straight lines. An opaque screen
+ * stops it, except in its hole: behind the hole a straight narrow beam goes on to the wall. The hole closes
+ * (0,15 → 0,6) and the beam gets narrower; at the end the line along which it goes is drawn as an arrow, the light
+ * ray. Geometry is exact: every line starts at the lamp, the beam's edges pass the edges of the hole.
+ * Plays while visible, «Повторить» restarts.
+ */
+import PicFrame from './PicFrame.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const SRC = { x: 44, y: 120 };
+const SCR = 160; // the screen with the hole
+const WALL = 384;
+---
+
+<PicFrame cols={1} data-raypic>
+	<div class="svp__panel">
+		<svg class="svp__svg" viewBox="0 0 400 230" role="img" aria-label="Лампочка светит во все стороны. Непрозрачный экран задерживает свет, а через отверстие в нём проходит прямой узкий пучок. Отверстие сужается, и пучок становится тонким, как линия, — это световой луч">
+			<defs>
+				<radialGradient id={`rp-glow-${uid}`}>
+					<stop offset="0" stop-color="var(--ig-v)" stop-opacity="0.8"></stop>
+					<stop offset="1" stop-color="var(--ig-v)" stop-opacity="0"></stop>
+				</radialGradient>
+				<marker id={`rp-arr-${uid}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+					<path d="M0,0 L10,5 L0,10 Z" class="rp-head"></path>
+				</marker>
+			</defs>
+			<g class="rp-lines" data-lines></g>
+			<polygon class="rp-beam" points="" data-beam></polygon>
+			<g class="rp-dots" data-dots></g>
+			<!-- the wall and the spot on it -->
+			<rect class="rp-wall" x={WALL} y="14" width="12" height="202"></rect>
+			<line class="rp-spot" x1={WALL} x2={WALL} y1="110" y2="130" data-spot></line>
+			<!-- the screen: two halves, the hole between them -->
+			<rect class="rp-screen" x={SCR - 3} y="14" width="6" height="90" data-top></rect>
+			<rect class="rp-screen" x={SCR - 3} y="136" width="6" height="80" data-bot></rect>
+			<!-- the lamp -->
+			<circle cx={SRC.x} cy={SRC.y} r="26" fill={`url(#rp-glow-${uid})`}></circle>
+			<circle class="rp-lamp" cx={SRC.x} cy={SRC.y} r="5"></circle>
+			<!-- the ray -->
+			<line class="rp-ray" x1={SRC.x + 8} y1={SRC.y} x2={WALL - 4} y2={SRC.y} marker-end={`url(#rp-arr-${uid})`} data-ray></line>
+			<text class="svp-t" x={SRC.x} y="164" text-anchor="middle">лампочка</text>
+			<text class="svp-t" x={SCR + 8} y="208">экран</text>
+			<text class="svp-t" x={SCR + 8} y="224">с отверстием</text>
+			<text class="svp-t" x={WALL - 6} y="30" text-anchor="end">стена</text>
+			<text class="svp-t svp-t--hl" x="272" y="96" text-anchor="middle" data-lbeam>узкий пучок света</text>
+			<text class="svp-t svp-t--hl" x="272" y="108" text-anchor="middle" data-lray>световой луч</text>
+		</svg>
+	</div>
+	<Fragment slot="cap">Через отверстие в экране проходит прямой узкий пучок света. Чем меньше отверстие, тем уже пучок; линию, вдоль которой идёт свет, называют световым лучом.</Fragment>
+</PicFrame>
+
+<style is:global>
+	.rp-lines line {
+		stroke: var(--ig-v);
+		stroke-width: 0.8;
+		opacity: 0.35;
+	}
+	.rp-dots circle {
+		fill: var(--ig-v);
+	}
+	.rp-beam {
+		fill: color-mix(in srgb, var(--ig-v) 30%, transparent);
+	}
+	.rp-wall {
+		fill: var(--sl-color-gray-4);
+	}
+	.rp-spot {
+		stroke: var(--ig-v);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.rp-screen {
+		fill: var(--sl-color-gray-2);
+	}
+	.rp-lamp {
+		fill: color-mix(in srgb, var(--ig-v) 40%, white);
+		stroke: var(--ig-v);
+		stroke-width: 1.5;
+	}
+	.rp-ray {
+		stroke: var(--sl-color-accent-high);
+		stroke-width: 2.6;
+		opacity: 0;
+	}
+	.rp-head {
+		fill: var(--sl-color-accent-high);
+	}
+</style>
+
+<script>
+	import { scene, clamp } from '@components/intro/scene';
+
+	const smooth = (a: number, b: number, x: number) => {
+		const t = clamp((x - a) / (b - a));
+		return t * t * (3 - 2 * t);
+	};
+	const f1 = (v: number) => v.toFixed(1);
+	const f2 = (v: number) => v.toFixed(2);
+	const NS = 'http://www.w3.org/2000/svg';
+	const SX = 44;
+	const SY = 120;
+	const SCR = 160;
+	const WALL = 384;
+	const RUN = 7;
+	const V = 70; // px/s of the running lights
+	const GAP = 30; // px between them
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-raypic]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const lines = $<SVGGElement>('[data-lines]');
+		const dotsG = $<SVGGElement>('[data-dots]');
+		const beam = $<SVGPolygonElement>('[data-beam]');
+		const spot = $<SVGLineElement>('[data-spot]');
+		const top = $<SVGRectElement>('[data-top]');
+		const bot = $<SVGRectElement>('[data-bot]');
+		const ray = $<SVGLineElement>('[data-ray]');
+		const lBeam = $<SVGTextElement>('[data-lbeam]');
+		const lRay = $<SVGTextElement>('[data-lray]');
+		// lines from the lamp in all directions (to the edge of the picture or to the screen)
+		const rays: { c: number; s: number; full: number; line: SVGLineElement; dots: SVGCircleElement[] }[] = [];
+		const N = 24;
+		for (let k = 0; k < N; k++) {
+			const a = ((k + 0.5) * 2 * Math.PI) / N;
+			const c = Math.cos(a);
+			const s = Math.sin(a);
+			// length to the frame (0..400 × 0..230) or to the wall
+			const tx = c > 0 ? (WALL - SX) / c : c < 0 ? -SX / c : Infinity;
+			const ty = s > 0 ? (230 - SY) / s : s < 0 ? -SY / s : Infinity;
+			const full = Math.min(tx, ty);
+			const line = document.createElementNS(NS, 'line');
+			line.setAttribute('x1', String(SX));
+			line.setAttribute('y1', String(SY));
+			lines.appendChild(line);
+			const dots = Array.from({ length: Math.ceil(full / GAP) + 1 }, () => {
+				const d = document.createElementNS(NS, 'circle');
+				d.setAttribute('r', '1.5');
+				dotsG.appendChild(d);
+				return d;
+			});
+			rays.push({ c, s, full, line, dots });
+		}
+		// the beam through the hole: a few more lines inside it
+		const inner: typeof rays = [];
+		for (let k = 0; k < 7; k++) {
+			const line = document.createElementNS(NS, 'line');
+			line.setAttribute('x1', String(SX));
+			line.setAttribute('y1', String(SY));
+			lines.appendChild(line);
+			const dots = Array.from({ length: Math.ceil((WALL - SX) / GAP) + 1 }, () => {
+				const d = document.createElementNS(NS, 'circle');
+				d.setAttribute('r', '1.5');
+				dotsG.appendChild(d);
+				return d;
+			});
+			inner.push({ c: 1, s: 0, full: WALL - SX, line, dots });
+		}
+		scene(root, RUN, (x) => {
+			const time = performance.now() / 1000; // the lights run on in the pauses too
+			const hh = 26 - 23.5 * smooth(0.12, 0.6, x); // half-height of the hole
+			top.setAttribute('height', f1(SY - hh - 14));
+			bot.setAttribute('y', f1(SY + hh));
+			bot.setAttribute('height', f1(216 - SY - hh));
+			const k = (WALL - SX) / (SCR - SX); // the beam widens in proportion to the distance from the lamp
+			beam.setAttribute('points', `${SCR},${f1(SY - hh)} ${WALL},${f1(SY - hh * k)} ${WALL},${f1(SY + hh * k)} ${SCR},${f1(SY + hh)}`);
+			spot.setAttribute('y1', f1(SY - hh * k));
+			spot.setAttribute('y2', f1(SY + hh * k));
+			const run = (r: (typeof rays)[number], len: number) => {
+				r.line.setAttribute('x2', f1(SX + r.c * len));
+				r.line.setAttribute('y2', f1(SY + r.s * len));
+				r.dots.forEach((d, i) => {
+					const p = (time * V + i * GAP) % (r.dots.length * GAP);
+					const on = p > 14 && p < len;
+					d.style.opacity = on ? '0.95' : '0';
+					if (on) {
+						d.setAttribute('cx', f1(SX + r.c * p));
+						d.setAttribute('cy', f1(SY + r.s * p));
+					}
+				});
+			};
+			for (const r of rays) {
+				// a line to the right stops at the screen unless it passes through the hole
+				let len = r.full;
+				if (r.c > 0) {
+					const t = (SCR - 3 - SX) / r.c;
+					const y = SY + r.s * t;
+					if (t < len && Math.abs(y - SY) > hh) len = t;
+				}
+				run(r, len);
+			}
+			// the lines inside the beam: evenly across the hole
+			inner.forEach((r, i) => {
+				const yh = SY + hh * ((2 * i) / (inner.length - 1) - 1) * 0.9;
+				const len = Math.hypot(SCR - SX, yh - SY) * k;
+				r.c = (SCR - SX) / Math.hypot(SCR - SX, yh - SY);
+				r.s = (yh - SY) / Math.hypot(SCR - SX, yh - SY);
+				run(r, len);
+			});
+			const showRay = smooth(0.66, 0.78, x);
+			ray.style.opacity = f2(showRay);
+			lBeam.style.opacity = f2(1 - showRay);
+			lRay.style.opacity = f2(showRay);
+			lBeam.setAttribute('y', f1(SY - hh * 2.1 - 10));
+			lRay.setAttribute('y', f1(SY - 12));
+		});
+	}
+</script>

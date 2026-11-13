@@ -1,0 +1,205 @@
+---
+/**
+ * Picture to the definitions of the point source, the shadow and the penumbra: two panels, side view in one scale.
+ * Left: a point source, a card and a screen. Lights run along straight lines; those that meet the card stop there.
+ *   Behind the card no light comes: the shadow, with a sharp edge. Under the side view: the screen seen from the
+ *   front, a black disc.
+ * Right: a large source (a glowing disc seen edge-on) at the same place. Lights run from its top and bottom edges.
+ *   The lines «top edge — top of the card» and «bottom — bottom» bound the shadow (no point of the source is seen from
+ *   it); the crossed lines bound the penumbra (part of the source is seen). Front view: a black core with a grey ring
+ *   that brightens outwards.
+ * Numbers (px): source at x = 30, card (44 high) at x = 130, screen at x = 270. Point source: shadow 44·240/100 =
+ * 105,6. Source 52 high: shadow 105,6 − 52·140/100 = 32,8, penumbra out to 105,6 + 72,8 = 178,4.
+ * The lights run while the picture is visible.
+ */
+import PicFrame from './PicFrame.astro';
+
+const Y = 110;
+const XS = 30;
+const XC = 130;
+const XE = 270;
+const HC = 22; // half of the card
+const HS = 26; // half of the large source
+type Seg = [number, number, number, number];
+const r1 = (v: number) => Math.round(v * 10) / 10;
+/** A line from (x0, y0) aimed at the point yt on the screen: it stops at the card if it meets it. */
+const line = (x0: number, y0: number, yt: number): Seg => {
+	const yc = y0 + ((yt - y0) * (XC - x0)) / (XE - x0);
+	return Math.abs(yc - Y) < HC ? [x0, y0, XC - 2, r1(yc)] : [x0, y0, XE - 3, yt];
+};
+const targets = (n: number, a: number, b: number) => Array.from({ length: n }, (_, i) => r1(a + ((b - a) * i) / (n - 1)));
+const pointRays = targets(13, 22, 198).map((t) => line(XS, Y, t));
+const bigRays = [...targets(8, 18, 202).map((t) => line(XS, Y - HS + 2, t)), ...targets(8, 18, 202).map((t) => line(XS, Y + HS - 2, t))];
+// shadow edges on the screen
+const k = (XE - XS) / (XC - XS); // 2,4
+const D0 = HC * k; // point source: half of the shadow, 52,8
+const U = HC * k - HS * (k - 1); // large source: half of the shadow, 16,4
+const P = HC * k + HS * (k - 1); // half of the penumbra, 89,2
+// the front view of the screen: centre (270, 262), 0,36 of the side-view scale
+const FS = 0.36;
+const FY = 266;
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<PicFrame again={false} data-shadowpic>
+	<div class="svp__panel">
+		<svg class="svp__svg" viewBox="0 0 330 310" role="img" aria-label="Точечный источник, непрозрачный кружок и экран, вид сбоку. Лучи, попавшие на кружок, дальше не идут. За кружком тень с резким краем. Экран спереди: чёрный круг">
+			<text class="svp-t svp-t--title" x="12" y="22">Точечный источник</text>
+			<polygon class="shp-lit" points={`${XS},${Y} ${XE},16 ${XE},204`}></polygon>
+			<polygon class="shp-umb" points={`${XC},${Y - HC} ${XE},${r1(Y - D0)} ${XE},${r1(Y + D0)} ${XC},${Y + HC}`}></polygon>
+			<g class="shp-lines">{pointRays.map(([a, b, c, d]) => <line x1={a} y1={b} x2={c} y2={d} />)}</g>
+			<line class="shp-edge" x1={XS} y1={Y} x2={XE} y2={r1(Y - D0)}></line>
+			<line class="shp-edge" x1={XS} y1={Y} x2={XE} y2={r1(Y + D0)}></line>
+			<g class="shp-dots" data-segs={JSON.stringify(pointRays)}></g>
+			<line class="shp-card" x1={XC} y1={Y - HC} x2={XC} y2={Y + HC}></line>
+			<line class="shp-screen" x1={XE + 2} y1="14" x2={XE + 2} y2="206"></line>
+			<circle class="shp-src" cx={XS} cy={Y} r="4.5"></circle>
+			<text class="svp-t" x={XE - 8} y={Y + 5} text-anchor="end">тень</text>
+			<text class="svp-t svp-t--small" x={XC} y={Y + HC + 18} text-anchor="middle">кружок</text>
+			<text class="svp-t svp-t--small" x={XE + 2} y="222" text-anchor="middle">экран</text>
+			<text class="svp-t svp-t--small" x="18" y="268">экран</text>
+			<text class="svp-t svp-t--small" x="18" y="284">спереди</text>
+			<rect class="shp-face" x={XE - 100 * FS} y={FY - 100 * FS} width={200 * FS} height={200 * FS} rx="4"></rect>
+			<circle class="shp-core" cx={XE} cy={FY} r={r1(D0 * FS)}></circle>
+		</svg>
+	</div>
+	<div class="svp__panel">
+		<svg class="svp__svg" viewBox="0 0 330 310" role="img" aria-label="Большой источник на том же месте. За кружком тень, вокруг неё полутень: туда попадает свет только от части источника. Экран спереди: чёрный круг в сером кольце, которое светлеет к краю">
+			<defs>
+				<radialGradient id={`shp-pen-${uid}`} cx={XE} cy={FY} r={r1(P * FS)} gradientUnits="userSpaceOnUse">
+					<stop offset={(U / P).toFixed(3)} class="shp-stop-dark"></stop>
+					<stop offset={((U + 0.5 * (P - U)) / P).toFixed(3)} class="shp-stop-mid"></stop>
+					<stop offset="1" class="shp-stop-lit"></stop>
+				</radialGradient>
+			</defs>
+			<text class="svp-t svp-t--title" x="12" y="22">Большой источник</text>
+			<polygon class="shp-lit" points={`${XS},${Y - HS} ${XE},16 ${XE},204 ${XS},${Y + HS}`}></polygon>
+			<polygon class="shp-pen" points={`${XC},${Y - HC} ${XE},${r1(Y - P)} ${XE},${r1(Y + P)} ${XC},${Y + HC}`}></polygon>
+			<polygon class="shp-umb" points={`${XC},${Y - HC} ${XE},${r1(Y - U)} ${XE},${r1(Y + U)} ${XC},${Y + HC}`}></polygon>
+			<g class="shp-lines">{bigRays.map(([a, b, c, d]) => <line x1={a} y1={b} x2={c} y2={d} />)}</g>
+			<line class="shp-edge" x1={XS} y1={Y - HS} x2={XE} y2={r1(Y - U)}></line>
+			<line class="shp-edge" x1={XS} y1={Y + HS} x2={XE} y2={r1(Y + U)}></line>
+			<line class="shp-edge shp-edge--pen" x1={XS} y1={Y + HS} x2={XE} y2={r1(Y - P)}></line>
+			<line class="shp-edge shp-edge--pen" x1={XS} y1={Y - HS} x2={XE} y2={r1(Y + P)}></line>
+			<g class="shp-dots" data-segs={JSON.stringify(bigRays)}></g>
+			<line class="shp-card" x1={XC} y1={Y - HC} x2={XC} y2={Y + HC}></line>
+			<line class="shp-screen" x1={XE + 2} y1="14" x2={XE + 2} y2="206"></line>
+			<rect class="shp-src" x={XS - 5} y={Y - HS} width="10" height={2 * HS} rx="5"></rect>
+			<text class="svp-t" x={XE - 8} y={Y + 5} text-anchor="end">тень</text>
+			<text class="svp-t" x={XE - 8} y={Y - 44} text-anchor="end">полутень</text>
+			<text class="svp-t" x={XE - 8} y={Y + 54} text-anchor="end">полутень</text>
+			<text class="svp-t svp-t--small" x={XC} y={Y + HC + 18} text-anchor="middle">кружок</text>
+			<text class="svp-t svp-t--small" x={XE + 2} y="222" text-anchor="middle">экран</text>
+			<text class="svp-t svp-t--small" x="18" y="268">экран</text>
+			<text class="svp-t svp-t--small" x="18" y="284">спереди</text>
+			<rect class="shp-face" x={XE - 100 * FS} y={FY - 100 * FS} width={200 * FS} height={200 * FS} rx="4"></rect>
+			<circle cx={XE} cy={FY} r={r1(P * FS)} fill={`url(#shp-pen-${uid})`}></circle>
+		</svg>
+	</div>
+	<Fragment slot="cap">От точечного источника за кружком только тень, и край у неё резкий. От большого источника вокруг тени появляется полутень: из неё видна часть источника. Чем ближе к внешнему краю полутени, тем больше источника видно и тем светлее.</Fragment>
+</PicFrame>
+
+<style is:global>
+	[data-shadowpic] {
+		--shp-lit: color-mix(in srgb, var(--ig-v) 55%, var(--sl-color-white));
+		--shp-dark: var(--sl-color-black);
+	}
+	:root[data-theme='light'] [data-shadowpic] {
+		--shp-lit: color-mix(in srgb, var(--ig-v) 22%, var(--sl-color-black));
+		--shp-dark: var(--sl-color-gray-2);
+	}
+	.shp-lit {
+		fill: color-mix(in srgb, var(--ig-v) 14%, transparent);
+	}
+	.shp-umb {
+		fill: color-mix(in srgb, var(--shp-dark) 85%, transparent);
+	}
+	.shp-pen {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 45%, transparent);
+	}
+	.shp-lines line {
+		stroke: var(--ig-v);
+		stroke-width: 0.7;
+		opacity: 0.4;
+	}
+	.shp-edge {
+		stroke: var(--ig-v);
+		stroke-width: 1.6;
+	}
+	.shp-edge--pen {
+		stroke: var(--ig-vx);
+		stroke-dasharray: 6 4;
+	}
+	.shp-dots circle {
+		fill: var(--ig-v);
+	}
+	.shp-card {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.shp-screen {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 4;
+	}
+	.shp-src {
+		fill: color-mix(in srgb, var(--ig-v) 50%, white);
+		stroke: var(--ig-v);
+		stroke-width: 1.5;
+	}
+	.shp-face {
+		fill: var(--shp-lit);
+	}
+	.shp-core {
+		fill: var(--shp-dark);
+	}
+	.shp-stop-dark {
+		stop-color: var(--shp-dark);
+	}
+	.shp-stop-mid {
+		stop-color: color-mix(in srgb, var(--shp-dark) 50%, var(--shp-lit));
+	}
+	.shp-stop-lit {
+		stop-color: var(--shp-lit);
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const V = 60; // px/s
+	const GAP = 22;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-shadowpic]')) {
+		const groups = [...root.querySelectorAll<SVGGElement>('[data-segs]')].map((g) => {
+			const segs = JSON.parse(g.dataset.segs!) as [number, number, number, number][];
+			return segs.map(([x0, y0, x1, y1]) => {
+				const len = Math.hypot(x1 - x0, y1 - y0);
+				const n = Math.ceil(300 / GAP);
+				const dots = Array.from({ length: n }, () => {
+					const d = document.createElementNS(NS, 'circle');
+					d.setAttribute('r', '1.6');
+					g.appendChild(d);
+					return d;
+				});
+				return { x0, y0, c: (x1 - x0) / len, s: (y1 - y0) / len, len, dots };
+			});
+		});
+		let t = 0;
+		loop(root, (dt) => {
+			t += dt;
+			for (const segs of groups)
+				for (const r of segs)
+					r.dots.forEach((d, i) => {
+						const p = (t * V + i * GAP) % (r.dots.length * GAP);
+						const on = p > 6 && p < r.len;
+						d.style.opacity = on ? '0.95' : '0';
+						if (on) {
+							d.setAttribute('cx', (r.x0 + r.c * p).toFixed(1));
+							d.setAttribute('cy', (r.y0 + r.s * p).toFixed(1));
+						}
+					});
+			return true;
+		})();
+	}
+</script>
