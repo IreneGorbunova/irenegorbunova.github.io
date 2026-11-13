@@ -11,8 +11,13 @@ export type Step = (typeof STEPS)[number];
 export const LABEL: Record<Step, string> = { m: 'модель', d: 'вывод', q: 'вопрос', t: 'задачи' };
 export const TRAINER_GOAL = 3;
 
-/** Steps a chapter has: every chapter has a model, a derivation and questions; «задачи» only with a trainer. */
-export const needOf = (hasTrainer: boolean): Step[] => (hasTrainer ? ['m', 'd', 'q', 't'] : ['m', 'd', 'q']);
+/** Steps a chapter has: always a model; a derivation and questions where the page has them (steps.ts); «задачи» only with a trainer. */
+export const needOf = (hasTrainer: boolean, hasDerivation = true, hasQuiz = true): Step[] => [
+	'm',
+	...(hasDerivation ? (['d'] as const) : []),
+	...(hasQuiz ? (['q'] as const) : []),
+	...(hasTrainer ? (['t'] as const) : []),
+];
 
 export const load = (): Record<string, string> => {
 	try {

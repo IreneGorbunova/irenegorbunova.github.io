@@ -1,6 +1,5 @@
 /** Sections of the sidebar and their chapters, for the constellations (constellations.ts). */
-import { PROBLEMS } from '../../data/problems/index.mjs';
-import { needOf } from './progress';
+import { stepsOf } from './steps';
 import { SECTION_SKY, RESERVE } from './constellations';
 
 type Route = App.Locals['starlightRoute'];
@@ -43,7 +42,7 @@ export const skySections = (route: Route): SkySection[] => {
 			const chapters = linksOf(s.entries)
 				.map((l) => ({ id: idOf(l.href), href: l.href, label: l.label }))
 				.filter((c) => isChapter(c.id))
-				.map((c) => ({ ...c, need: needOf(c.id.split('/').pop()! in PROBLEMS).join('') }));
+				.map((c) => ({ ...c, need: stepsOf(c.id).join('') }));
 			if (!chapters.length) continue;
 			const name = `${g.label}/${s.label}`;
 			let key = SECTION_SKY[name];
