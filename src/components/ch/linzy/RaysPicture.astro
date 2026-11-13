@@ -1,0 +1,266 @@
+---
+/**
+ * The three convenient rays, drawn one after another in a loop (10 s), as in a notebook. Equal scales, 10 px per cm.
+ * Left: converging lens, F = 6 cm, object h = 3 cm at d = 10 cm: the rays meet at f = 15 cm, H = −4,5 cm.
+ * Right: diverging lens, F = −6 cm, object h = 3 cm at d = 9 cm: the rays spread out; their dashed extensions meet at
+ *   f = −3,6 cm, H = 1,2 cm (virtual, upright, smaller image).
+ * Ray 1 is parallel to the axis, ray 2 goes through the optical centre, ray 3 through (or towards) a focus.
+ */
+import LzStyles from './LzStyles.astro';
+import { makeView, X, Y, pathD, traceScene, lensOutline, closedPath, type P } from './optics';
+
+const build = (
+	F: number,
+	d: number,
+	h: number,
+	view: [number, number, number, number],
+	half: number,
+	at: number[],
+) => {
+	const V = makeView(view[0], view[1], view[2], view[3], 10);
+	const sc = traceScene(V, d, h, F, half);
+	const rays = sc.rays.map((r, i) =>
+		r
+			? {
+					n: i + 1,
+					real: pathD(V, r.real),
+					virt: r.virt.length ? pathD(V, r.virt) : '',
+					guide: r.guide.length ? pathD(V, r.guide) : '',
+					// the number of the ray sits on its first stretch (object → lens), at the fraction at[i] of it
+					label: ((t: number) => [X(V, -d * (1 - t)), Y(V, h + (r.real[1][1] - h) * t)])(at[i]) as [
+						number,
+						number,
+					],
+				}
+			: null,
+	);
+	const arrow = (x: number, y: number) => {
+		const p0 = Y(V, 0);
+		const p1 = Y(V, y);
+		const dir = p1 < p0 ? 1 : -1;
+		const hl = Math.min(9, Math.abs(p1 - p0) * 0.45);
+		const hw = hl * 0.6;
+		const xx = X(V, x);
+		return {
+			line: { x1: xx, y1: p0, x2: xx, y2: p1 + dir * hl * 0.7 },
+			head: `${xx},${p1} ${xx - hw},${p1 + dir * hl} ${xx + hw},${p1 + dir * hl}`,
+		};
+	};
+	const tip = sc.tip as P;
+	return {
+		V,
+		rays,
+		lens: closedPath(V, lensOutline(half, F, { maxSag: 0.8, edge: 0.3 })),
+		obj: arrow(-d, h),
+		img: arrow(tip[0], tip[1]),
+		real: sc.img.real,
+		foci: [-Math.abs(F), Math.abs(F)].map((x) => X(V, x)),
+		y0: Y(V, 0),
+	};
+};
+const panels = [
+	{ ...build(6, 10, 3, [-12.5, 21, -5.4, 4.4], 4.9, [0.3, 0.55, 0.8]), title: 'Собирающая линза' },
+	{ ...build(-6, 9, 3, [-12.5, 21, -5.4, 4.4], 4.9, [0.75, 0.2, 0.45]), title: 'Рассеивающая линза' },
+];
+---
+
+<LzStyles />
+<figure class="lz lzd lzr not-content">
+	<div class="lzd__grid">
+		{
+			panels.map((p) => (
+				<div class="lzd__panel">
+					<svg class="lzd__svg" viewBox={`0 0 ${p.V.w} ${p.V.h}`} role="img" aria-label={`${p.title}: построение изображения верхней точки предмета тремя лучами — параллельным оси, через оптический центр и через фокус`}>
+						<line class="lz-axis" x1="0" y1={p.y0} x2={p.V.w} y2={p.y0} />
+						{p.rays.map(
+							(r) =>
+								r && (
+									<g class={`lz-ray lz-ray--${r.n} lzr__ray lzr__ray--${r.n}`}>
+										{r.guide && <path class="lz-guide" d={r.guide} pathLength="1" />}
+										{r.virt && <path class="lz-virt lzr__virt" d={r.virt} />}
+										<path class="lz-base lzr__draw" d={r.real} pathLength="1" />
+										<g class="lzr__num">
+											<circle cx={r.label[0]} cy={r.label[1]} r="8" />
+											<text x={r.label[0]} y={r.label[1] + 4} text-anchor="middle">
+												{r.n}
+											</text>
+										</g>
+									</g>
+								),
+						)}
+						<path class="lz-lens" d={p.lens} />
+						{p.foci.map((x) => (
+							<circle class="lz-focus" cx={x} cy={p.y0} r="4" />
+						))}
+						{p.foci.map((x) => (
+							<text class="lzd-t lzd-t--math" x={x} y={p.y0 + 16} text-anchor="middle">
+								F
+							</text>
+						))}
+						<g class="lz-arrow lz-arrow--object lzd-arrow">
+							<line {...p.obj.line} />
+							<polygon points={p.obj.head} />
+						</g>
+						<g class={`lz-arrow lz-arrow--image lzd-arrow lzr__img ${p.real ? 'is-real' : 'is-virtual'}`}>
+							<line {...p.img.line} />
+							<polygon points={p.img.head} />
+						</g>
+					</svg>
+					<p class="lzd__label">
+						<b>{p.title}.</b>
+						{p.real
+							? ' Лучи сходятся за линзой: изображение действительное, перевёрнутое.'
+							: ' Лучи расходятся, сходятся их продолжения (пунктир): изображение мнимое, прямое.'}
+					</p>
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="lz-legend lzd__cap">
+		Лучи появляются по очереди, в том порядке, в каком их чертят в тетради. 1 — луч, параллельный главной оптической
+		оси; 2 — луч через оптический центр; 3 — луч через фокус (у рассеивающей линзы — направленный в фокус за ней).
+	</figcaption>
+</figure>
+
+<style is:global>
+	.lzr__draw {
+		stroke-dasharray: 1 1;
+		animation: lzr-1 10s linear infinite both;
+	}
+	.lzr__ray--2 .lzr__draw {
+		animation-name: lzr-2;
+	}
+	.lzr__ray--3 .lzr__draw {
+		animation-name: lzr-3;
+	}
+	.lzr__num {
+		animation: lzr-n1 10s linear infinite both;
+	}
+	.lzr__ray--2 .lzr__num {
+		animation-name: lzr-n2;
+	}
+	.lzr__ray--3 .lzr__num {
+		animation-name: lzr-n3;
+	}
+	.lzr__ray .lz-guide {
+		animation: lzr-n3 10s linear infinite both;
+	}
+	.lzr__virt,
+	.lzr__img {
+		animation: lzr-img 10s linear infinite both;
+	}
+	.lzr__num circle {
+		fill: var(--ig-surface);
+		stroke: var(--c);
+		stroke-width: 1.6;
+	}
+	.lzr__num text {
+		fill: var(--sl-color-white);
+		font-size: 11px;
+		font-weight: 700;
+	}
+	@keyframes lzr-1 {
+		0% {
+			stroke-dashoffset: 1;
+			opacity: 1;
+		}
+		14% {
+			stroke-dashoffset: 0;
+		}
+		92% {
+			stroke-dashoffset: 0;
+			opacity: 1;
+		}
+		100% {
+			stroke-dashoffset: 0;
+			opacity: 0;
+		}
+	}
+	@keyframes lzr-2 {
+		0%,
+		20% {
+			stroke-dashoffset: 1;
+			opacity: 1;
+		}
+		34% {
+			stroke-dashoffset: 0;
+		}
+		92% {
+			stroke-dashoffset: 0;
+			opacity: 1;
+		}
+		100% {
+			stroke-dashoffset: 0;
+			opacity: 0;
+		}
+	}
+	@keyframes lzr-3 {
+		0%,
+		40% {
+			stroke-dashoffset: 1;
+			opacity: 1;
+		}
+		54% {
+			stroke-dashoffset: 0;
+		}
+		92% {
+			stroke-dashoffset: 0;
+			opacity: 1;
+		}
+		100% {
+			stroke-dashoffset: 0;
+			opacity: 0;
+		}
+	}
+	@keyframes lzr-n1 {
+		0% {
+			opacity: 0;
+		}
+		3%,
+		92% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+	@keyframes lzr-n2 {
+		0%,
+		20% {
+			opacity: 0;
+		}
+		23%,
+		92% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+	@keyframes lzr-n3 {
+		0%,
+		40% {
+			opacity: 0;
+		}
+		43%,
+		92% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+	@keyframes lzr-img {
+		0%,
+		58% {
+			opacity: 0;
+		}
+		64%,
+		92% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+</style>

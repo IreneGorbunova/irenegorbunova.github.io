@@ -1,0 +1,139 @@
+---
+/**
+ * Labelled scheme: real and virtual images. Equal scales, 10 px per cm, thin converging lens F = 6 cm.
+ * Left (real): object h = 3,5 cm at d = 15 cm (2,5F). Three rays from its tip meet behind the lens at f = 10 cm,
+ *   H = −2,33 cm; a screen stands there and shows the inverted image.
+ * Right (virtual): object h = 2 cm at d = 3,6 cm (0,6F). The image is at f = −9 cm (in front of the lens), H = 5 cm.
+ *   Two rays from the tip that pass through the lens at 2,07 cm and 2,67 cm go, after it, straight into the eye
+ *   (at x = 15 cm, between y = −2,8 and −1,2 cm): they diverge, and only their dashed backward extensions meet,
+ *   at the tip of the virtual image.
+ * Light pulses run along the rays.
+ */
+import LzStyles from './LzStyles.astro';
+import { makeView, X, Y, pathD, lensOutline, closedPath, type P } from './optics';
+
+const F = 6;
+const arrow = (V: ReturnType<typeof makeView>, x: number, y: number) => {
+	const p0 = Y(V, 0);
+	const p1 = Y(V, y);
+	const dir = p1 < p0 ? 1 : -1;
+	const hl = Math.min(9, Math.abs(p1 - p0) * 0.45);
+	const hw = hl * 0.6;
+	const xx = X(V, x);
+	return {
+		line: { x1: xx, y1: p0, x2: xx, y2: p1 + dir * hl * 0.7 },
+		head: `${xx},${p1} ${xx - hw},${p1 + dir * hl} ${xx + hw},${p1 + dir * hl}`,
+	};
+};
+
+// real image
+const VR = makeView(-18.5, 13, -5, 6, 10);
+const dR = 15;
+const hR = 3.5;
+const fR = (dR * F) / (dR - F); // 10
+const HR = (-fR / dR) * hR; // −2,33
+const tipR: P = [fR, HR];
+const AR: P = [-dR, hR];
+const yc3 = (-hR * F) / (dR - F); // ray through the front focus meets the lens here
+const realRays = [
+	[AR, [0, hR], tipR],
+	[AR, [0, 0], tipR],
+	[AR, [0, yc3], tipR],
+].map((pts) => pathD(VR, pts as P[]));
+const lensR = closedPath(VR, lensOutline(4.6, F, { maxSag: 0.8, edge: 0.3 }));
+
+// virtual image
+const VV = makeView(-11, 18.8, -4.6, 7.2, 10);
+const dV = 3.6;
+const hV = 2;
+const fV = (dV * F) / (dV - F); // −9
+const HV = (-fV / dV) * hV; // 5
+const AV: P = [-dV, hV];
+const tipV: P = [fV, HV];
+const EYE: P = [15, -2];
+const virtRays = [2.07, 2.67].map((y) => {
+	const at: P = [0, y];
+	// after the lens the ray goes along the line from the virtual image tip through `at`
+	const k = (y - tipV[1]) / (0 - tipV[0]);
+	const end: P = [EYE[0] - 0.6, y + k * (EYE[0] - 0.6)];
+	return { real: pathD(VV, [AV, at, end]), virt: pathD(VV, [at, tipV]) };
+});
+const lensV = closedPath(VV, lensOutline(3.6, F, { maxSag: 0.8, edge: 0.3 }));
+const ex = X(VV, EYE[0]);
+const ey = Y(VV, EYE[1]);
+---
+
+<LzStyles />
+<figure class="lz lzd not-content">
+	<div class="lzd__grid">
+		<div class="lzd__panel">
+			<svg class="lzd__svg" viewBox={`0 0 ${VR.w} ${VR.h}`} role="img" aria-label="Действительное изображение: три луча из верхней точки предмета после собирающей линзы сходятся в одной точке за линзой. Там стоит экран, и на нём видно перевёрнутое уменьшенное изображение предмета">
+				<line class="lz-axis" x1="0" y1={Y(VR, 0)} x2={VR.w} y2={Y(VR, 0)}></line>
+				<rect class="lzd-screen" x={X(VR, fR) + 1} y={Y(VR, 4.6)} width="6" height={9.2 * 10}></rect>
+				<text class="lzd-t lzd-t--small" x={X(VR, fR) + 4} y={Y(VR, 4.6) - 5} text-anchor="middle">экран</text>
+				{
+					realRays.map((d, i) => (
+						<g class={`lz-ray lz-ray--${i + 1}`}>
+							<path class="lz-base" d={d} />
+							<path class="lz-flow" d={d} />
+						</g>
+					))
+				}
+				<path class="lz-lens" d={lensR}></path>
+				{[-F, F].map((x) => <circle class="lz-focus" cx={X(VR, x)} cy={Y(VR, 0)} r="4" />)}
+				<text class="lzd-t lzd-t--math" x={X(VR, -F)} y={Y(VR, 0) + 16} text-anchor="middle">F</text>
+				<text class="lzd-t lzd-t--math" x={X(VR, F)} y={Y(VR, 0) - 8} text-anchor="middle">F</text>
+				<g class="lz-arrow lz-arrow--object lzd-arrow">
+					<line {...arrow(VR, -dR, hR).line}></line>
+					<polygon points={arrow(VR, -dR, hR).head}></polygon>
+				</g>
+				<g class="lz-arrow lz-arrow--image is-real lzd-arrow">
+					<line {...arrow(VR, fR, HR).line}></line>
+					<polygon points={arrow(VR, fR, HR).head}></polygon>
+				</g>
+				<text class="lzd-t lzd-t--small" x={X(VR, -dR)} y={Y(VR, -0.6) + 6} text-anchor="middle">предмет</text>
+				<text class="lzd-t lzd-t--small" x={X(VR, fR) - 5} y={Y(VR, HR) + 13} text-anchor="end">изображение</text>
+			</svg>
+			<p class="lzd__label"><b>Действительное изображение.</b> Лучи после линзы сами сходятся в одной точке: изображение можно получить на экране.</p>
+		</div>
+		<div class="lzd__panel">
+			<svg class="lzd__svg" viewBox={`0 0 ${VV.w} ${VV.h}`} role="img" aria-label="Мнимое изображение: предмет стоит между собирающей линзой и её фокусом. Лучи из верхней точки предмета после линзы расходятся и попадают в глаз. Сходятся только их продолжения назад, перед линзой: там глаз и видит увеличенное прямое изображение">
+				<line class="lz-axis" x1="0" y1={Y(VV, 0)} x2={VV.w} y2={Y(VV, 0)}></line>
+				{
+					virtRays.map((r) => (
+						<g class="lz-ray lz-ray--1">
+							<path class="lz-virt" d={r.virt} />
+							<path class="lz-base" d={r.real} />
+							<path class="lz-flow" d={r.real} />
+						</g>
+					))
+				}
+				<path class="lz-lens" d={lensV}></path>
+				{[-F, F].map((x) => <circle class="lz-focus" cx={X(VV, x)} cy={Y(VV, 0)} r="4" />)}
+				<text class="lzd-t lzd-t--math" x={X(VV, -F)} y={Y(VV, 0) - 8} text-anchor="middle">F</text>
+				<text class="lzd-t lzd-t--math" x={X(VV, F)} y={Y(VV, 0) + 16} text-anchor="middle">F</text>
+				<g class="lz-arrow lz-arrow--image is-virtual lzd-arrow">
+					<line {...arrow(VV, fV, HV).line}></line>
+					<polygon points={arrow(VV, fV, HV).head}></polygon>
+				</g>
+				<g class="lz-arrow lz-arrow--object lzd-arrow">
+					<line {...arrow(VV, -dV, hV).line}></line>
+					<polygon points={arrow(VV, -dV, hV).head}></polygon>
+				</g>
+				<text class="lzd-t lzd-t--small" x={X(VV, -dV)} y={Y(VV, 0) + 13} text-anchor="middle">предмет</text>
+				<text class="lzd-t lzd-t--small" x={X(VV, fV) - 6} y={Y(VV, HV) - 6}>изображение</text>
+				<!-- the eye, looking to the left into the lens -->
+				<g class="lzd-eye" transform={`translate(${ex} ${ey})`}>
+					<path d="M -9 0 Q 6 -14 16 -2 Q 6 12 -9 0 Z"></path>
+					<circle class="lzd-eye__iris" cx="-2" cy="0" r="5"></circle>
+					<circle class="lzd-eye__pupil" cx="-4" cy="0" r="2.4"></circle>
+				</g>
+				<text class="lzd-t lzd-t--small" x={ex + 4} y={ey + 22} text-anchor="middle">глаз</text>
+			</svg>
+			<p class="lzd__label"><b>Мнимое изображение.</b> Лучи после линзы расходятся, сходятся только их продолжения (пунктир). Изображение видно, если смотреть сквозь линзу.</p>
+		</div>
+	</div>
+	<figcaption class="lz-legend lzd__cap">
+		Пунктирная стрелка — мнимое изображение. Масштаб одинаковый по обеим осям.
+	</figcaption>
+</figure>
