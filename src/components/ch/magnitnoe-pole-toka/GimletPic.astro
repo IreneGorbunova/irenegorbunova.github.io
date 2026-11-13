@@ -1,0 +1,670 @@
+---
+/**
+ * Two rules that tell the direction of the magnetic lines of a straight current, side by side (stacked on a phone),
+ * with a toggle «Ток вверх» / «Ток вниз».
+ * Axes: x to the right, y up the page, z towards the viewer; we look a little from above, so a point (x, y, z) is
+ * drawn at (C + x, C − y + K·z) and a horizontal circle is an ellipse with its front half (z > 0) the lower one.
+ * The lines of a current along â go round it in the right-handed sense: B ∝ â × r̂ (up: in front of the wire they go
+ * to the right, down: to the left).
+ * «Правило буравчика»: a right-handed gimlet coaxial with the wire, its tip towards the wire end, is screwed in along
+ * the current. In the frame (e1, e2, â) with e1 × e2 = â a point of the thread is r(cos ψ e1 + sin ψ e2) + s â with
+ * s = hψ/2π + const: a right-handed helix. The handle turns by α in the right-handed sense about â and the gimlet
+ * advances by hα/2π along â; the thread therefore stays in place in space (it rides in its own groove), only the
+ * tip, the shaft and the handle move. The arrow round the handle and the arrows on the lines turn the same way.
+ * «Правило правой руки»: a right hand grips the wire, the thumb along the current. For the current up the palm faces
+ * the wire from its left, the knuckles are on the left in front, the four fingers come round the front of the wire
+ * from left to right (= B in front of the wire) and tuck in behind it on the right; the back of the hand and the
+ * forearm go off to the left. For the current down the whole hand is turned by 180° about the line of sight (a
+ * rotation, not a mirror image: it stays a right hand); the fingers' arcs are recomputed so that their fronts still
+ * sag downwards (we still look from above).
+ */
+const VB = 240; // viewBox width of a panel
+const HB = 300; // viewBox height
+const DIRS = [
+	{ d: 'up', t: 'Ток вверх' },
+	{ d: 'down', t: 'Ток вниз' },
+];
+---
+
+<figure class="gmp not-content" data-gmp>
+	<div class="gmp__dirs" role="radiogroup" aria-label="Куда идёт ток">
+		{
+			DIRS.map(({ d, t }, k) => (
+				<button type="button" class:list={['gmp__dir', { 'is-on': k === 0 }]} role="radio" aria-checked={k === 0 ? 'true' : 'false'} data-dir={d}>
+					<svg class="gmp__ico" viewBox="0 0 16 16" aria-hidden="true">
+						{d === 'up' ? <path d="M 8 14.5 V 2.5 M 3.8 6.6 L 8 2.2 L 12.2 6.6" /> : <path d="M 8 1.5 V 13.5 M 3.8 9.4 L 8 13.8 L 12.2 9.4" />}
+					</svg>
+					{t}
+				</button>
+			))
+		}
+	</div>
+	<div class="gmp__grid">
+		<div class="gmp__cell">
+			<div class="gmp__stage">
+				<svg class="gmp__svg" viewBox={`0 0 ${VB} ${HB}`} role="img" aria-label="" data-gim>
+					<g data-g-back></g>
+					<g data-g-wire></g>
+					<g data-g-front></g>
+					<g data-g-tool></g>
+					<g data-g-lbl></g>
+				</svg>
+			</div>
+			<p class="gmp__title">Правило буравчика</p>
+		</div>
+		<div class="gmp__cell">
+			<div class="gmp__stage">
+				<svg class="gmp__svg" viewBox={`0 0 ${VB} ${HB}`} role="img" aria-label="" data-hand>
+					<g data-h-back></g>
+					<g data-h-wire></g>
+					<g data-h-front></g>
+					<g data-h-hand></g>
+					<g data-h-lbl></g>
+				</svg>
+			</div>
+			<p class="gmp__title">Правило правой руки</p>
+		</div>
+	</div>
+	<figcaption class="gmp__legend">
+		<p>
+			<b>Правило буравчика:</b> если буравчик ввинчивать по направлению тока, то направление вращения его ручки
+			совпадает с направлением магнитных линий.
+		</p>
+		<p>
+			<b>Правило правой руки:</b> если обхватить проводник правой рукой так, чтобы отогнутый большой палец показывал
+			направление тока, то четыре согнутых пальца покажут направление магнитных линий.
+		</p>
+	</figcaption>
+</figure>
+
+<style is:global>
+	.gmp {
+		--gp-skin: color-mix(in oklab, var(--ig-v) 34%, var(--sl-color-gray-3));
+		--gp-line: color-mix(in oklab, var(--gp-skin) 45%, var(--sl-color-black));
+		--gp-nail: color-mix(in oklab, var(--gp-skin) 55%, var(--sl-color-white));
+		--gp-sleeve: color-mix(in oklab, var(--ig-vx) 28%, var(--sl-color-gray-5));
+		--gp-wood: color-mix(in oklab, var(--ig-vy) 25%, color-mix(in oklab, var(--ig-v) 55%, var(--sl-color-gray-4)));
+		--gp-steel: var(--sl-color-gray-3);
+		--gp-steel-hi: var(--sl-color-gray-2);
+		--gp-steel-lo: var(--sl-color-gray-4);
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-gray-3);
+		line-height: 1.5;
+	}
+	:root[data-theme='light'] .gmp {
+		--gp-skin: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-5));
+		--gp-line: color-mix(in oklab, var(--gp-skin) 40%, var(--sl-color-white));
+		--gp-nail: color-mix(in oklab, var(--gp-skin) 50%, var(--sl-color-black));
+		--gp-sleeve: color-mix(in oklab, var(--ig-vx) 25%, var(--sl-color-gray-5));
+		--gp-wood: color-mix(in oklab, var(--ig-vy) 20%, color-mix(in oklab, var(--ig-v) 60%, var(--sl-color-gray-4)));
+		--gp-steel: var(--sl-color-gray-4);
+		--gp-steel-hi: var(--sl-color-gray-5);
+		--gp-steel-lo: var(--sl-color-gray-3);
+	}
+	.gmp__dirs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.gmp__dir {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		line-height: 1.2;
+		padding: 0.3rem 0.8rem 0.3rem 0.6rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-5);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.gmp__dir.is-on {
+		background: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+	}
+	.gmp__ico {
+		width: 1em;
+		height: 1em;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.gmp__grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+	.gmp__stage {
+		padding: 0.3rem;
+		border-radius: 0.8rem;
+		background: var(--sl-color-black);
+		border: 1px solid var(--sl-color-gray-6);
+	}
+	.gmp__svg {
+		display: block;
+		width: 100%;
+		max-width: 300px;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.gmp__title {
+		margin: 0.3rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.gmp__legend {
+		margin-top: 0.7rem;
+		font-size: var(--sl-text-xs);
+	}
+	.gmp__legend p {
+		margin: 0.3rem 0 0;
+	}
+	.gmp__legend b {
+		color: var(--sl-color-white);
+	}
+	/* the drawing */
+	.gmp__ring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.7;
+	}
+	.gmp__ring--back {
+		stroke-width: 1.3;
+		stroke-dasharray: 4 4;
+		opacity: 0.5;
+	}
+	.gmp__arrow {
+		fill: var(--sl-color-gray-2);
+	}
+	.gmp__arrow.is-back {
+		opacity: 0.45;
+	}
+	.gmp__wire {
+		fill: var(--ig-surface);
+		stroke: var(--ig-v);
+		stroke-width: 1.6;
+	}
+	.gmp__chev {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.gmp__cur {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.gmp__lbl {
+		font-size: 12px;
+		fill: var(--sl-color-gray-3);
+		font-family: var(--__sl-font);
+	}
+	.gmp__lbl--line {
+		fill: var(--sl-color-gray-2);
+	}
+	.gmp__lbl--cur {
+		fill: var(--ig-v);
+		font-weight: 600;
+	}
+	.gmp__lbl--turn {
+		fill: var(--sl-color-white);
+	}
+	.gmp__core {
+		fill: var(--gp-steel);
+		stroke: var(--gp-steel-lo);
+		stroke-width: 1;
+	}
+	.gmp__thread {
+		fill: none;
+		stroke: var(--gp-steel-hi);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.gmp__shaft {
+		fill: var(--gp-steel);
+		stroke: var(--gp-steel-lo);
+		stroke-width: 1;
+	}
+	.gmp__bar-o {
+		fill: none;
+		stroke: var(--gp-line);
+		stroke-width: 13;
+		stroke-linecap: round;
+	}
+	.gmp__bar {
+		fill: none;
+		stroke: var(--gp-wood);
+		stroke-width: 10.5;
+		stroke-linecap: round;
+	}
+	.gmp__eye {
+		fill: var(--gp-steel);
+		stroke: var(--gp-steel-lo);
+		stroke-width: 1;
+	}
+	.gmp__turn {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.gmp__turn--back {
+		stroke-dasharray: 3 4;
+		opacity: 0.4;
+	}
+	.gmp__turn-head {
+		fill: var(--sl-color-white);
+	}
+	.gmp__skin-o {
+		fill: none;
+		stroke: var(--gp-line);
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.gmp__skin {
+		fill: none;
+		stroke: var(--gp-skin);
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.gmp__palm {
+		fill: var(--gp-skin);
+		stroke: var(--gp-line);
+		stroke-width: 1.3;
+		stroke-linejoin: round;
+	}
+	.gmp__sleeve {
+		fill: var(--gp-sleeve);
+		stroke: var(--gp-line);
+		stroke-width: 1.3;
+	}
+	.gmp__crease {
+		fill: none;
+		stroke: var(--gp-line);
+		stroke-width: 1.1;
+		stroke-linecap: round;
+		opacity: 0.55;
+	}
+	.gmp__nail {
+		fill: var(--gp-nail);
+		stroke: var(--gp-line);
+		stroke-width: 1;
+	}
+	@media (max-width: 40rem) {
+		.gmp {
+			padding: 0.75rem;
+		}
+		.gmp__grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.gmp__svg {
+			max-width: 250px;
+		}
+		.gmp__lbl {
+			font-size: 13px;
+		}
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const C = 120; // the panel's axis x
+	const MID = 150; // the panel's middle height
+	const K = 0.4; // foreshortening of horizontal circles
+	const f1 = (v: number) => v.toFixed(1);
+	const clamp = (v: number) => Math.min(1, Math.max(0, v));
+	const smooth = (a: number, b: number, x: number) => {
+		const t = clamp((x - a) / (b - a));
+		return t * t * (3 - 2 * t);
+	};
+	type Dir = 'up' | 'down';
+	type V3 = [number, number, number];
+	/** A point (x, y, z) on the screen. */
+	const P = (p: V3): [number, number] => [C + p[0], MID - p[1] + K * p[2]];
+	/** The right-handed frame about the current: e1 × e2 = â (â = ±y). */
+	const frame = (a: number): [V3, V3] => (a > 0 ? [[0, 0, 1], [1, 0, 0]] : [[1, 0, 0], [0, 0, 1]]);
+	/** A point at the angle ψ (right-handed about â), radius r, height y. */
+	const ring = (a: number, r: number, psi: number, y: number): V3 => {
+		const [e1, e2] = frame(a);
+		const c = r * Math.cos(psi);
+		const s = r * Math.sin(psi);
+		return [c * e1[0] + s * e2[0], y, c * e1[2] + s * e2[2]];
+	};
+	const ARIA = {
+		gim: {
+			up: 'Ток в проводе идёт вверх. Снизу к проводу по направлению тока ввинчивают буравчик; его ручка вращается против часовой стрелки, если смотреть сверху, — так же, как направлены магнитные линии вокруг провода.',
+			down: 'Ток в проводе идёт вниз. Сверху к проводу по направлению тока ввинчивают буравчик; его ручка вращается по часовой стрелке, если смотреть сверху, — так же, как направлены магнитные линии вокруг провода.',
+		},
+		hand: {
+			up: 'Правая рука обхватывает провод, большой палец направлен вверх, по току. Четыре согнутых пальца проходят перед проводом слева направо — туда же направлены магнитные линии.',
+			down: 'Правая рука обхватывает провод, большой палец направлен вниз, по току. Четыре согнутых пальца проходят перед проводом справа налево — туда же направлены магнитные линии.',
+		},
+	};
+
+	const el = (tag: string, attrs: Record<string, string | number>, parent?: Element) => {
+		const e = document.createElementNS(NS, tag) as SVGElement;
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		parent?.append(e);
+		return e;
+	};
+	const pts = (list: [number, number][]) => list.map(([x, y]) => `${f1(x)},${f1(y)}`).join(' ');
+	const ARROW = 'M -6.5 -5 L 6.5 0 L -6.5 5 Z';
+
+	/** A magnetic line round the axis at height y: back half (dashed) and front half; returns a function that places moving arrows. */
+	const line = (a: number, r: number, y: number, back: Element, front: Element) => {
+		const b: [number, number][] = [];
+		const f: [number, number][] = [];
+		for (let k = 0; k <= 96; k++) {
+			const p = ring(a, r, (k / 96) * 2 * Math.PI, y);
+			(p[2] < 0 ? b : f).push(P(p));
+		}
+		// sort each half along x so the polylines do not jump across the ellipse
+		const byX = (l: [number, number][]) => l.sort((u, v) => u[0] - v[0]);
+		el('polyline', { class: 'gmp__ring gmp__ring--back', points: pts(byX(b)) }, back);
+		el('polyline', { class: 'gmp__ring', points: pts(byX(f)) }, front);
+		const arrows = [0, 1, 2].map(() => el('path', { class: 'gmp__arrow', d: ARROW }, front));
+		return (phase: number) => {
+			arrows.forEach((e, k) => {
+				const psi = phase + (k * 2 * Math.PI) / 3;
+				const p = ring(a, r, psi, y);
+				const q = ring(a, r, psi + 0.01, y);
+				const [x0, y0] = P(p);
+				const [x1, y1] = P(q);
+				const deg = (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI;
+				e.setAttribute('transform', `translate(${f1(x0)} ${f1(y0)}) rotate(${f1(deg)})`);
+				const isBack = p[2] < 0;
+				const parent = isBack ? back : front;
+				if (e.parentNode !== parent) parent.append(e);
+				e.classList.toggle('is-back', isBack);
+			});
+		};
+	};
+
+	/** The wire: a vertical bar from y1 to y2 with chevrons moving along the current. */
+	const wire = (a: number, r: number, y1: number, y2: number, parent: Element) => {
+		const top = Math.max(y1, y2);
+		const bot = Math.min(y1, y2);
+		el('rect', { class: 'gmp__wire', x: C - r, y: MID - top, width: 2 * r, height: top - bot, rx: 2 }, parent);
+		const gap = 22;
+		const n = Math.floor((top - bot) / gap);
+		const chevs = Array.from({ length: n }, () => el('path', { class: 'gmp__chev', d: a > 0 ? 'M -3 2 L 0 -1.5 L 3 2' : 'M -3 -2 L 0 1.5 L 3 -2' }, parent));
+		return (t: number) => {
+			const off = (((t * 20 * a) % gap) + gap) % gap;
+			chevs.forEach((c, k) => {
+				const y = bot + 8 + ((k * gap + off) % (n * gap));
+				const inside = y < top - 5 && y > bot + 5;
+				c.setAttribute('transform', `translate(${C} ${f1(MID - y)})`);
+				c.style.opacity = inside ? '1' : '0';
+			});
+		};
+	};
+
+	/** The current arrow (screen coordinates, from y0 to y1) and its label. */
+	const current = (x: number, y0: number, y1: number, lx: number, ly: number, anchor: string, parent: Element) => {
+		const d = Math.sign(y1 - y0);
+		el('path', { class: 'gmp__cur', d: `M ${x} ${y0} V ${y1} M ${x - 4.5} ${y1 - 6.5 * d} L ${x} ${y1 + 0.5 * d} L ${x + 4.5} ${y1 - 6.5 * d}` }, parent);
+		const t = el('text', { class: 'gmp__lbl gmp__lbl--cur', x: lx, y: ly, 'text-anchor': anchor }, parent);
+		t.textContent = 'ток';
+	};
+	const text = (parent: Element, x: number, y: number, s: string, cls: string, anchor = 'start') => {
+		const t = el('text', { class: `gmp__lbl ${cls}`, x, y, 'text-anchor': anchor }, parent);
+		t.textContent = s;
+	};
+
+	/* ---------- the gimlet ---------- */
+	const PITCH = 9; // px per turn
+	const RT = 9; // thread radius
+	const RC = 4.3; // core radius
+	const THREAD = 58; // length of the threaded part
+	const TAPER = 13; // the point
+	const SHAFT = 32; // plain shaft between the thread and the eye
+	const HALF = 46; // half-length of the handle
+	const TURNS = 1.25; // turns per cycle
+	const GCYCLE = 6.2; // s
+
+	const buildGimlet = (svg: SVGSVGElement, a: number) => {
+		const q = <T extends Element>(s: string) => svg.querySelector<T>(s)!;
+		const back = q<SVGGElement>('[data-g-back]');
+		const wireG = q<SVGGElement>('[data-g-wire]');
+		const front = q<SVGGElement>('[data-g-front]');
+		const tool = q<SVGGElement>('[data-g-tool]');
+		const lbl = q<SVGGElement>('[data-g-lbl]');
+		for (const g of [back, wireG, front, tool, lbl]) g.replaceChildren();
+		// layout along the current: Y = a·y (the same numbers for both directions)
+		const y = (Y: number) => a * Y;
+		const runWire = wire(a, 5, y(20), y(175), wireG);
+		const lines = [100, 46].map((Y) => line(a, 34, y(Y), back, front));
+		if (a > 0) current(C + 20, 33, 8, C + 29, 25, 'start', lbl);
+		else current(C + 20, 267, 292, C + 29, 285, 'start', lbl);
+		const yl = MID - y(73);
+		text(lbl, C + 42, yl - 2, 'магнитные', 'gmp__lbl--line');
+		text(lbl, C + 42, yl + 13, 'линии', 'gmp__lbl--line');
+		// the gimlet's parts, rebuilt every frame
+		const bar2 = [el('line', { class: 'gmp__bar-o' }, tool), el('line', { class: 'gmp__bar' }, tool)];
+		const turnBack = el('polyline', { class: 'gmp__turn gmp__turn--back', points: '' }, tool);
+		const shaft = el('polygon', { class: 'gmp__shaft', points: '' }, tool);
+		const eye = el('ellipse', { class: 'gmp__eye', rx: 7, ry: 7 }, tool);
+		const core = el('polygon', { class: 'gmp__core', points: '' }, tool);
+		const tFront = el('g', {}, tool);
+		const bar1 = [el('line', { class: 'gmp__bar-o' }, tool), el('line', { class: 'gmp__bar' }, tool)];
+		const turnFront = el('polyline', { class: 'gmp__turn', points: '' }, tool);
+		const turnHead = el('path', { class: 'gmp__turn-head', d: 'M -7 -5 L 6 0 L -7 5 Z' }, tool);
+		const turnLbl = el('text', { class: 'gmp__lbl gmp__lbl--turn', 'text-anchor': 'middle' }, tool);
+		turnLbl.textContent = 'вращение ручки';
+		const S0 = 0.3; // phase of the thread in space
+
+		return (t: number) => {
+			runWire(t);
+			const phase = 1.1 * t; // the arrows on the lines turn steadily, the same way as the handle
+			lines.forEach((f) => f(phase));
+			const x = (t % GCYCLE) / GCYCLE;
+			const turn = smooth(0.06, 0.88, x) * TURNS; // turns done
+			const alpha = 2 * Math.PI * turn;
+			const fade = smooth(0, 0.05, x) * (1 - smooth(0.94, 1, x));
+			tool.style.opacity = f1(fade);
+			const tip = 2 + PITCH * turn; // Y of the tip: it advances one pitch per turn
+			const sEnd = tip - THREAD; // the thread ends here
+			const hub = sEnd - SHAFT; // the eye of the handle
+			// the thread: world-fixed right-handed helix s = hψ/2π + S0, between sEnd and the tip
+			const fr: [number, number][][] = [];
+			let cur: [number, number][] | null = null;
+			for (let s = sEnd; s <= tip; s += 0.3) {
+				const psi = (2 * Math.PI * (s - S0)) / PITCH;
+				// full height along the rod, running out at its start and tapering to the point
+				const r = (RC + (RT - RC) * clamp((s - sEnd) / 3)) * Math.min(1, (tip - s) / TAPER) + 0.4;
+				const p = ring(a, r, psi, y(s));
+				const sp = P(p);
+				if (p[2] >= 0) {
+					if (!cur) fr.push((cur = []));
+					cur.push(sp);
+				} else cur = null; // the back of the thread is hidden by the core
+			}
+			tFront.replaceChildren(...fr.map((seg) => el('polyline', { class: 'gmp__thread', points: pts(seg) })));
+			// the core: a rod with a point
+			const sy = (Y: number) => MID - y(Y);
+			core.setAttribute('points', pts([[C - RC, sy(sEnd)], [C - RC, sy(tip - TAPER)], [C, sy(tip)], [C + RC, sy(tip - TAPER)], [C + RC, sy(sEnd)]]));
+			shaft.setAttribute('points', pts([[C - 3.3, sy(hub)], [C - 3.3, sy(sEnd + 1)], [C + 3.3, sy(sEnd + 1)], [C + 3.3, sy(hub)]]));
+			eye.setAttribute('cx', String(C));
+			eye.setAttribute('cy', f1(sy(hub)));
+			eye.setAttribute('ry', f1(7));
+			// the handle: a bar through the eye, along the angle α (right-handed about the current)
+			const end1 = ring(a, HALF, alpha, y(hub));
+			const end2 = ring(a, HALF, alpha + Math.PI, y(hub));
+			const hubP = P([0, y(hub), 0]);
+			const setBar = (bar: SVGElement[], end: V3) => {
+				const [ex, ey] = P(end);
+				for (const b of bar) {
+					b.setAttribute('x1', f1(hubP[0]));
+					b.setAttribute('y1', f1(hubP[1]));
+					b.setAttribute('x2', f1(ex));
+					b.setAttribute('y2', f1(ey));
+				}
+			};
+			// the half nearer to us is drawn over the shaft
+			const [nearE, farE] = end1[2] >= end2[2] ? [end1, end2] : [end2, end1];
+			setBar(bar1, nearE);
+			setBar(bar2, farE);
+			// the arrow round the handle: the way it turns
+			const RA = 58;
+			const c0 = a > 0 ? 0 : Math.PI / 2; // ψ of the point straight in front
+			const arcPts = (from: number, to: number) => {
+				const l: [number, number][] = [];
+				for (let k = 0; k <= 40; k++) l.push(P(ring(a, RA, from + ((to - from) * k) / 40, y(hub))));
+				return l;
+			};
+			turnFront.setAttribute('points', pts(arcPts(c0 - 1.25, c0 + 1.2)));
+			turnBack.setAttribute('points', pts(arcPts(c0 + Math.PI - 1.1, c0 + Math.PI + 1.1)));
+			const [hx, hy] = P(ring(a, RA, c0 + 1.25, y(hub)));
+			const [gx, gy] = P(ring(a, RA, c0 + 1.15, y(hub)));
+			turnHead.setAttribute('transform', `translate(${f1(hx)} ${f1(hy)}) rotate(${f1((Math.atan2(hy - gy, hx - gx) * 180) / Math.PI)})`);
+			turnLbl.setAttribute('x', String(C));
+			turnLbl.setAttribute('y', f1(a > 0 ? sy(hub) + K * RA + 22 : sy(hub) - K * RA - 12));
+		};
+	};
+
+	/* ---------- the right hand ---------- */
+	const RW = 11; // wire radius in this panel
+	const RHO = 19; // radius of the fingers' middle lines round the wire
+	const HC = 150; // the fist's middle on the screen
+	// fingers of the hand for the current up: offset of the middle line (screen, down), thickness, end angle
+	const FINGERS = [
+		{ dy: -21, w: 15, end: -30 },
+		{ dy: -6.5, w: 15.5, end: -36 },
+		{ dy: 8, w: 14.5, end: -30 },
+		{ dy: 21, w: 12.5, end: -18 },
+	];
+	const D2R = Math.PI / 180;
+	const HCYCLE = 5.6; // s
+
+	const buildHand = (svg: SVGSVGElement, a: number) => {
+		const q = <T extends Element>(s: string) => svg.querySelector<T>(s)!;
+		const back = q<SVGGElement>('[data-h-back]');
+		const wireG = q<SVGGElement>('[data-h-wire]');
+		const front = q<SVGGElement>('[data-h-front]');
+		const handG = q<SVGGElement>('[data-h-hand]');
+		const lbl = q<SVGGElement>('[data-h-lbl]');
+		for (const g of [back, wireG, front, handG, lbl]) g.replaceChildren();
+		const runWire = wire(a, RW, 160, -160, wireG);
+		const lines = [112, -112].map((Y) => line(a, 44, Y, back, front));
+		// the hand drawn for the current up and turned by 180° about the line of sight for the current down:
+		// a screen offset (dx, dy) from (C, HC) goes to (a·dx, a·dy); `sag` (the depth, always down) is added after
+		const S = (dx: number, dy: number, sag = 0): [number, number] => [C + a * dx, HC + a * dy + sag];
+		if (a > 0) current(C + 26, 112, 70, C + 33, 96, 'start', lbl);
+		else current(C - 26, 188, 230, C - 33, 212, 'end', lbl);
+		const ly = a > 0 ? 226 : 72;
+		text(lbl, 2 * C - 5, ly, 'магнитные', 'gmp__lbl--line', 'end');
+		text(lbl, 2 * C - 5, ly + 15, 'линии', 'gmp__lbl--line', 'end');
+
+		// sleeve, forearm and the back of the hand (to the left of the wire for the current up)
+		const path = (cmds: (string | [number, number])[]) => cmds.map((c) => (typeof c === 'string' ? c : `${f1(c[0])} ${f1(c[1])}`)).join(' ');
+		el('path', { class: 'gmp__palm', d: path(['M', S(-130, -20), 'L', S(-80, -22), 'C', S(-62, -24), S(-48, -33), S(-36, -31), 'L', S(-34, 30), 'C', S(-50, 31), S(-64, 28), S(-80, 26), 'L', S(-130, 25), 'Z']) }, handG);
+		el('path', { class: 'gmp__sleeve', d: path(['M', S(-130, -27), 'L', S(-96, -27), 'C', S(-92, -10), S(-92, 14), S(-96, 32), 'L', S(-130, 32), 'Z']) }, handG);
+		// a fold line of the wrist
+		el('path', { class: 'gmp__crease', d: path(['M', S(-74, -19), 'C', S(-71, -6), S(-71, 9), S(-74, 22)]) }, handG);
+
+		// the fingers: bottom first, the upper ones overlap them (we look from above)
+		const order = FINGERS.map((f, i) => ({ ...f, i })).sort((u, v) => a * v.dy - a * u.dy);
+		const fingers = order.map((f) => {
+			const o = el('polyline', { class: 'gmp__skin-o', 'stroke-width': f.w + 2.6, points: '' }, handG);
+			const s = el('polyline', { class: 'gmp__skin', 'stroke-width': f.w, points: '' }, handG);
+			const c1 = el('path', { class: 'gmp__crease' }, handG);
+			const c2 = el('path', { class: 'gmp__crease' }, handG);
+			return { ...f, o, s, c1, c2 };
+		});
+		// a point of a finger's middle line at the angle φ round the wire (φ = 90° in front)
+		const fp = (dy: number, phi: number) => S(RHO * Math.cos(phi * D2R), dy, K * RHO * Math.sin(phi * D2R));
+		const crease = (e: SVGElement, dy: number, phi: number, w: number) => {
+			const [x0, y0] = fp(dy, phi);
+			const [x1, y1] = fp(dy, phi - 2);
+			const nx = -(y1 - y0);
+			const ny = x1 - x0;
+			const n = Math.hypot(nx, ny) || 1;
+			const h = 0.32 * w;
+			e.setAttribute('d', `M ${f1(x0 + (h * nx) / n)} ${f1(y0 + (h * ny) / n)} L ${f1(x0 - (h * nx) / n)} ${f1(y0 - (h * ny) / n)}`);
+		};
+
+		// the thumb, along the wire, pointing along the current
+		el('polyline', { class: 'gmp__skin-o', 'stroke-width': 18.6, points: pts([S(-35, -22), S(-24, -50), S(-19, -76)]) }, handG);
+		el('polyline', { class: 'gmp__skin', 'stroke-width': 16, points: pts([S(-35, -22), S(-24, -50), S(-19, -76)]) }, handG);
+		const [nx, ny] = S(-21.5, -73);
+		el('ellipse', { class: 'gmp__nail', cx: f1(nx), cy: f1(ny), rx: 4.4, ry: 6.6, transform: `rotate(${f1(10)} ${f1(nx)} ${f1(ny)})` }, handG);
+		el('path', { class: 'gmp__crease', d: path(['M', S(-31.5, -50), 'L', S(-23, -47)]) }, handG);
+
+		return (t: number) => {
+			runWire(t);
+			lines.forEach((f) => f(1.1 * t));
+			const x = (t % HCYCLE) / HCYCLE;
+			fingers.forEach((f) => {
+				// closing: the fingers come round the wire, the index first
+				const k = f.i * 0.025;
+				const close = smooth(0.04 + k, 0.24 + k, x) * (1 - smooth(0.82 + k / 2, 0.95, x));
+				const end = 112 + (f.end - 112) * close;
+				const line: [number, number][] = [S(-42, f.dy + 2)];
+				for (let phi = 165; phi >= end; phi -= 3) line.push(fp(f.dy, phi));
+				line.push(fp(f.dy, end));
+				const p = pts(line);
+				f.o.setAttribute('points', p);
+				f.s.setAttribute('points', p);
+				crease(f.c1, f.dy, 140, f.w);
+				crease(f.c2, f.dy, 66, f.w);
+				f.c2.style.opacity = end < 60 ? '' : '0';
+			});
+		};
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-gmp]')) {
+		const gim = root.querySelector<SVGSVGElement>('[data-gim]')!;
+		const hand = root.querySelector<SVGSVGElement>('[data-hand]')!;
+		const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-dir]')];
+		let draws: ((t: number) => void)[] = [];
+		const set = (d: Dir) => {
+			const a = d === 'up' ? 1 : -1;
+			draws = [buildGimlet(gim, a), buildHand(hand, a)];
+			gim.setAttribute('aria-label', ARIA.gim[d]);
+			hand.setAttribute('aria-label', ARIA.hand[d]);
+			buttons.forEach((b) => {
+				const on = b.dataset.dir === d;
+				b.classList.toggle('is-on', on);
+				b.setAttribute('aria-checked', String(on));
+			});
+		};
+		let t = 0;
+		const draw = () => draws.forEach((f) => f(t));
+		buttons.forEach((b) =>
+			b.addEventListener('click', () => {
+				set(b.dataset.dir as Dir);
+				t = 0;
+				draw();
+				wake();
+			}),
+		);
+		set('up');
+		draw();
+		const wake = loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+	}
+</script>
