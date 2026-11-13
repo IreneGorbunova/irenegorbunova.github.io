@@ -37,6 +37,8 @@ const DEG = /^(\{\}\s*)?\^\s*(\\circ|\{\\circ\})\s*\\text\s*\{C\}/;
  * @param {string} tex
  * @param {Map<string, number>} gloss symbol key → index in the glossary
  */
+const SIZED = new Set(['hspace', 'vspace', 'rule', 'raisebox', 'kern', 'mkern', 'hskip', 'mskip', 'mspace']);
+
 export const annotate = (tex, gloss) => {
 	let out = '';
 	let i = 0;
@@ -71,6 +73,27 @@ export const annotate = (tex, gloss) => {
 		if (c === '\\') {
 			const m = /^\\([A-Za-z]+|.)/.exec(rest);
 			const name = m ? m[1] : '';
+			// sizes are not symbols: \\[4pt], \hspace{4pt}, \rule{1pt}{2em}, \kern 4pt (the «t» of «pt» is not a time)
+			if (name === '\\' && tex[i + 2] === '[') {
+				const end = tex.indexOf(']', i + 2);
+				if (end > 0) {
+					out += tex.slice(i, end + 1);
+					i = end + 1;
+					continue;
+				}
+			}
+			if (SIZED.has(name)) {
+				let k = i + 1 + name.length;
+				while (tex[k] === ' ') k++;
+				if (tex[k] === '{') while (tex[k] === '{') k = closing(tex, k) + 1;
+				else {
+					const dim = /^-?[\d.,]+\s*[a-z]{2}/.exec(tex.slice(k));
+					if (dim) k += dim[0].length;
+				}
+				out += tex.slice(i, k);
+				i = k;
+				continue;
+			}
 			if (TEXTISH.has(name)) {
 				let k = i + 1 + name.length;
 				while (tex[k] === ' ') k++;
