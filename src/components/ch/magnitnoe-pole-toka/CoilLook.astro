@@ -1,0 +1,714 @@
+---
+/**
+ * Picture to the definition of a coil: what a school coil looks like, with no field lines.
+ * A plastic former (a tube with two flanges) turns on a rod with a crank, and an enamelled copper wire from a reel
+ * is laid on it turn by turn, the turns side by side. The wire is cut, the rod is taken out, the coil is put on a
+ * stand, its two ends (the leads) go to two terminals; a source and a key are connected; the key closes and the
+ * current goes along the wire, through all the turns one after another. An inset shows three neighbouring turns in
+ * section: a copper core under a thin layer of varnish (the insulation), so the turns touch but do not conduct to
+ * each other.
+ * Geometry: the coil axis is horizontal; we look from the left and a little from the front (yaw, sin ψ = S), so a
+ * circle of radius r in the plane X = x is drawn as an ellipse with half-axes r·S and r. A point of the wire at the
+ * wire coordinate u (in turns, from 0 at the start to N at the end) lies at X = XA + D/2 + D·u and at the angle
+ * θ = 2π(Φ − u) from the top towards us, where Φ is the number of turns the former has made; it is visible when
+ * 0 ≤ θ mod 2π ≤ π (the front half). The pitch equals the wire diameter D, so the turns lie close.
+ */
+const W = 360;
+const H = 222;
+const CY = 88; // the coil axis
+const R = 22; // outer radius of the tube
+const D = 8; // diameter of the wire (and the pitch)
+const RW = R + D / 2; // radius of the wire centre line
+const S = 0.25; // sin of the yaw: circles are drawn as ellipses r·S × r
+const N = 23; // turns
+const XA = 84; // inner face of the left flange
+const XB = XA + D * (N + 1); // inner face of the right flange
+const TF = 6; // thickness of a flange
+const RF = 36; // radius of a flange
+const XL = XA - TF; // outer face of the left flange
+const BOARD = CY + RF; // top of the stand
+const TL = 46; // the terminals
+const TR = 314;
+const CLAMP = 112.5; // height of the clamp
+const BY = 192; // the bottom wires
+const uid = `clk-${Math.random().toString(36).slice(2, 8)}`;
+const f1 = (v: number) => +v.toFixed(1);
+const xTop = (j: number) => XA + D / 2 + D * (j + 0.5); // top of the j-th front half-turn in the final frame
+const MX = 322; // the inset
+const MY = 32;
+const MR = 25;
+---
+
+<figure class="clk not-content" data-clk>
+	<div class="clk__stage">
+		<svg class="clk__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Как выглядит катушка. Пластмассовую трубку с бортиками — каркас — вращают, и медный провод с мотка ложится на неё витками вплотную друг к другу. Провод покрыт лаком — изоляцией. Концы провода — выводы катушки — закреплены на двух клеммах, к ним подключены источник тока и ключ. Когда ключ замыкают, ток идёт по проводу через все витки по очереди.">
+			<defs>
+				<linearGradient id={`${uid}-cu`} gradientUnits="userSpaceOnUse" x1="0" y1={CY - RW - D / 2} x2="0" y2={CY + RW + D / 2}>
+					<stop offset="0" class="clk__cu-hi"></stop>
+					<stop offset="0.3" class="clk__cu-mid"></stop>
+					<stop offset="1" class="clk__cu-lo"></stop>
+				</linearGradient>
+				<linearGradient id={`${uid}-tube`} gradientUnits="userSpaceOnUse" x1="0" y1={CY - R} x2="0" y2={CY + R}>
+					<stop offset="0" class="clk__pl-hi"></stop>
+					<stop offset="0.35" class="clk__pl-mid"></stop>
+					<stop offset="1" class="clk__pl-lo"></stop>
+				</linearGradient>
+				<clipPath id={`${uid}-mag`}><circle cx={MX} cy={MY} r={MR - 1}></circle></clipPath>
+			</defs>
+
+			<!-- the stand and the terminals (after the winding) -->
+			<g data-stand>
+				<rect class="clk__board" x="28" y={BOARD} width="304" height="12" rx="3"></rect>
+				<rect class="clk__post" x={TL - 3.5} y={CLAMP - 4} width="7" height={BOARD - CLAMP + 4}></rect>
+				<rect class="clk__post" x={TR - 3.5} y={CLAMP - 4} width="7" height={BOARD - CLAMP + 4}></rect>
+			</g>
+
+			<!-- the right flange: its rim and its inner face -->
+			<path class="clk__rim" d={`M ${XB} ${CY - RF} H ${XB + TF} A ${RF * S} ${RF} 0 0 1 ${XB + TF} ${CY + RF} H ${XB} Z`}></path>
+			<ellipse class="clk__face" cx={XB} cy={CY} rx={RF * S} ry={RF}></ellipse>
+			<!-- the tube -->
+			<path class="clk__tube" fill={`url(#${uid}-tube)`} d={`M ${XA - 2} ${CY - R} H ${XB} A ${R * S} ${R} 0 0 1 ${XB} ${CY + R} H ${XA - 2} Z`}></path>
+			<!-- the turns (front halves), filled in by the script -->
+			<g data-arcs></g>
+			<!-- the wire from the reel to the former -->
+			<g data-feed>
+				<path class="clk__w-o" d=""></path>
+				<path class="clk__w-b" stroke={`url(#${uid}-cu)`} d=""></path>
+				<path class="clk__w-g" d=""></path>
+			</g>
+			<!-- the left flange: rim, outer face, the opening of the tube -->
+			<path class="clk__rim" d={`M ${XL} ${CY - RF} H ${XA} A ${RF * S} ${RF} 0 0 1 ${XA} ${CY + RF} H ${XL} Z`}></path>
+			<ellipse class="clk__face" cx={XL} cy={CY} rx={RF * S} ry={RF}></ellipse>
+			<ellipse class="clk__hole" cx={XL} cy={CY} rx={(R - 2) * S} ry={R - 2}></ellipse>
+			<!-- the rod the former turns on, with a crank -->
+			<g data-rod>
+				<line class="clk__rod" x1="38" y1={CY} x2={XL} y2={CY}></line>
+				<line class="clk__crank" x1="38" y1={CY} x2="38" y2={CY - 16} data-crank></line>
+				<circle class="clk__knob" cx="38" cy={CY - 16} r="3.2" data-knob></circle>
+			</g>
+			<!-- the start of the wire comes out through a small hole in the left flange -->
+			<g data-stub>
+				<path class="clk__w-o clk__w-o--thin" d=""></path>
+				<path class="clk__w-b clk__w-b--thin" d=""></path>
+			</g>
+			<!-- the leads: from the hole to the left terminal, from the last turn to the right terminal -->
+			<g data-lead>
+				<path class="clk__w-o clk__w-o--thin" pathLength="1" d={`M 82.3 111.5 C 66 112, 58 114, ${TL} ${CLAMP}`} data-lead-s></path>
+				<path class="clk__w-b clk__w-b--thin" pathLength="1" d={`M 82.3 111.5 C 66 112, 58 114, ${TL} ${CLAMP}`}></path>
+				<path class="clk__w-o clk__w-o--thin" pathLength="1" d={`M ${XA + D / 2 + D * N} ${CY + RW} C 286 121, 300 119, ${TR} ${CLAMP}`} data-lead-e></path>
+				<path class="clk__w-b clk__w-b--thin" pathLength="1" d={`M ${XA + D / 2 + D * N} ${CY + RW} C 286 121, 300 119, ${TR} ${CLAMP}`}></path>
+			</g>
+
+			<!-- the circuit: a source and a key -->
+			<g data-circuit>
+				<path class="clk__lead" d={`M 95 ${BY} H 16 V ${CLAMP} H ${TL - 4}`} data-wire="1"></path>
+				<path class="clk__lead" d={`M ${TR + 4} ${CLAMP} H 344 V ${BY} H 245`} data-wire="1"></path>
+				<path class="clk__lead" d={`M 205 ${BY} H 155`} data-wire="1"></path>
+				<g data-live>
+					<path class="clk__lead clk__lead--live" d={`M 95 ${BY} H 16 V ${CLAMP} H ${TL - 4}`}></path>
+					<path class="clk__lead clk__lead--live" d={`M ${TR + 4} ${CLAMP} H 344 V ${BY} H 245`}></path>
+					<path class="clk__lead clk__lead--live" d={`M 205 ${BY} H 155`}></path>
+				</g>
+				<g transform={`translate(125 ${BY})`}>
+					<rect class="clk__cell" x="-30" y="-10" width="60" height="20" rx="4"></rect>
+					<rect class="clk__nub" x="-35" y="-4" width="5" height="8" rx="1.5"></rect>
+					<text class="clk__sign" x="-21" y="5" text-anchor="middle">+</text>
+					<text class="clk__sign" x="21" y="5" text-anchor="middle">−</text>
+				</g>
+				<circle class="clk__contact" cx="205" cy={BY} r="3"></circle>
+				<circle class="clk__contact" cx="245" cy={BY} r="3"></circle>
+				<line class="clk__lever" x1="205" y1={BY} x2="245" y2={BY} data-lever></line>
+				<text class="clk__lbl" x="125" y={BY + 23} text-anchor="middle">источник тока</text>
+				<text class="clk__lbl" x="225" y={BY + 23} text-anchor="middle">ключ</text>
+			</g>
+			<!-- the nuts of the terminals hold the wires -->
+			<g data-stand>
+				<rect class="clk__nut" x={TL - 6.5} y={CLAMP - 6} width="13" height="5.5" rx="1.5"></rect>
+				<rect class="clk__nut" x={TR - 6.5} y={CLAMP - 6} width="13" height="5.5" rx="1.5"></rect>
+			</g>
+			<!-- the current -->
+			<g data-chev>
+				<path class="clk__chev-halo" d=""></path>
+				<path class="clk__chev" d=""></path>
+			</g>
+
+			<!-- the reel of wire -->
+			<g data-reel transform="translate(318 26)">
+				<circle class="clk__reel" r="18"></circle>
+				<circle class="clk__reel-ring" r="14.5"></circle>
+				<circle class="clk__reel-ring" r="11"></circle>
+				<g data-reel-hub>
+					<circle class="clk__face" r="7.5"></circle>
+					<circle class="clk__hub-hole" r="2.4"></circle>
+					<circle class="clk__hub-dot" cx="4.6" r="1.2"></circle>
+					<circle class="clk__hub-dot" cx="-4.6" r="1.2"></circle>
+				</g>
+			</g>
+
+			<!-- the inset: three neighbouring turns in section -->
+			<g data-mag>
+				<line class="clk__leader" x1={MX - MR * 0.7} y1={MY + MR * 0.7} x2={xTop(21) + 2} y2={CY - RW - D / 2 - 1}></line>
+				<circle class="clk__mag" cx={MX} cy={MY} r={MR}></circle>
+				<g clip-path={`url(#${uid}-mag)`}>
+					<rect class="clk__former" x={MX - MR} y={MY + 8.5} width={2 * MR} height={MR}></rect>
+					{
+						[-17, 0, 17].map((dx) => (
+							<g>
+								<circle class="clk__varnish" cx={MX + dx} cy={MY} r="8.5"></circle>
+								<circle class="clk__core" cx={MX + dx} cy={MY} r="6.4"></circle>
+								<path class="clk__shine" d={`M ${MX + dx - 4.2} ${MY - 1.5} A 4.5 4.5 0 0 1 ${MX + dx - 0.8} ${MY - 4.4}`}></path>
+							</g>
+						))
+					}
+				</g>
+				<circle class="clk__mag-rim" cx={MX} cy={MY} r={MR}></circle>
+				<line class="clk__leader" x1="290" y1="14" x2={MX - 17 - 1.5} y2={MY - 3}></line>
+				<line class="clk__leader" x1="290" y1="38" x2={f1(MX - 17 - 8.5 * 0.8)} y2={f1(MY + 8.5 * 0.6)}></line>
+				<text class="clk__lbl" x="287" y="18" text-anchor="end">медь</text>
+				<text class="clk__lbl" x="287" y="42" text-anchor="end">лак (изоляция)</text>
+			</g>
+
+			<!-- labels -->
+			<g data-l="frame">
+				<line class="clk__leader" x1="44" y1="27" x2={XL - 1} y2={CY - 12}></line>
+				<circle class="clk__dot" cx={XL - 1} cy={CY - 12} r="1.8"></circle>
+				<text class="clk__lbl" x="6" y="22">каркас (трубка)</text>
+			</g>
+			<g data-l="turns">
+				{[5, 7, 9].map((j) => <line class="clk__leader" x1="148" y1="35" x2={xTop(j)} y2={CY - RW - D / 2 - 2}></line>)}
+				<text class="clk__lbl" x="148" y="30" text-anchor="middle">витки</text>
+			</g>
+			<g data-l="reel">
+				<text class="clk__lbl" x="294" y="14" text-anchor="end">моток провода</text>
+			</g>
+			<g data-l="ends">
+				<line class="clk__leader" x1="132" y1="148" x2="65" y2="116"></line>
+				<line class="clk__leader" x1="228" y1="148" x2="291" y2="121"></line>
+				<text class="clk__lbl" x="180" y="153" text-anchor="middle">выводы катушки</text>
+			</g>
+		</svg>
+	</div>
+	<div class="clk__bar">
+		<p class="clk__status" data-status aria-live="polite"></p>
+		<button type="button" class="clk__again" data-again hidden>Повторить</button>
+	</div>
+	<figcaption class="clk__legend">
+		Катушка — провод, намотанный витками на трубку (каркас). Провод покрыт изоляцией — тонким слоем лака, поэтому
+		витки, хоть и касаются друг друга, ток из витка в виток не пропускают: ток идёт по всему проводу, виток за витком.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.clk {
+		--clk-ink: var(--sl-color-black);
+		--clk-paper: var(--sl-color-white);
+		--clk-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		--clk-pl: color-mix(in srgb, var(--ig-vx) 45%, var(--sl-color-gray-5));
+		margin-block: 1.5rem 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-gray-3);
+		line-height: 1.5;
+	}
+	:root[data-theme='light'] .clk {
+		--clk-ink: var(--sl-color-white);
+		--clk-paper: var(--sl-color-black);
+		--clk-pl: color-mix(in srgb, var(--ig-vx) 45%, var(--sl-color-gray-4));
+	}
+	.clk__stage {
+		padding: 0.4rem;
+		border-radius: 0.8rem;
+		background: var(--sl-color-black);
+		border: 1px solid var(--sl-color-gray-6);
+	}
+	.clk__svg {
+		display: block;
+		width: 100%;
+		max-width: 520px;
+		margin-inline: auto;
+		height: auto;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.clk__cu-hi {
+		stop-color: color-mix(in srgb, var(--clk-cu) 62%, var(--clk-paper));
+	}
+	.clk__cu-mid {
+		stop-color: var(--clk-cu);
+	}
+	.clk__cu-lo {
+		stop-color: color-mix(in srgb, var(--clk-cu) 58%, var(--clk-ink));
+	}
+	.clk__pl-hi {
+		stop-color: color-mix(in srgb, var(--clk-pl) 70%, var(--clk-paper));
+	}
+	.clk__pl-mid {
+		stop-color: var(--clk-pl);
+	}
+	.clk__pl-lo {
+		stop-color: color-mix(in srgb, var(--clk-pl) 55%, var(--clk-ink));
+	}
+	.clk__board {
+		fill: color-mix(in srgb, var(--ig-v) 14%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.clk__post {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.clk__nut {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	.clk__rod {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.clk__crank {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.clk__knob {
+		fill: var(--sl-color-gray-2);
+	}
+	.clk__rim {
+		fill: color-mix(in srgb, var(--clk-pl) 70%, var(--clk-ink));
+		stroke: color-mix(in srgb, var(--clk-pl) 45%, var(--clk-ink));
+		stroke-width: 0.8;
+	}
+	.clk__face {
+		fill: color-mix(in srgb, var(--clk-pl) 85%, var(--clk-paper));
+		stroke: color-mix(in srgb, var(--clk-pl) 45%, var(--clk-ink));
+		stroke-width: 0.8;
+	}
+	.clk__hole {
+		fill: color-mix(in srgb, var(--clk-pl) 30%, var(--clk-ink));
+	}
+	.clk__tube {
+		stroke: color-mix(in srgb, var(--clk-pl) 45%, var(--clk-ink));
+		stroke-width: 0.8;
+	}
+	/* the wire: a dark edge, the copper body under the varnish, a glossy streak */
+	.clk__w-o,
+	.clk__w-b,
+	.clk__w-g {
+		fill: none;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.clk__w-o {
+		stroke: color-mix(in srgb, var(--clk-cu) 45%, var(--clk-ink));
+		stroke-width: 8.6;
+	}
+	.clk__w-b {
+		stroke-width: 6.8;
+	}
+	.clk__w-g {
+		stroke: color-mix(in srgb, var(--clk-cu) 35%, var(--clk-paper));
+		stroke-width: 1.4;
+		opacity: 0.75;
+	}
+	.clk__w-o--thin {
+		stroke-width: 6;
+	}
+	.clk__w-b--thin {
+		stroke: var(--clk-cu);
+		stroke-width: 4.2;
+	}
+	.clk__lead {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.clk__lead--live {
+		stroke: var(--ig-v);
+		stroke-width: 2.4;
+	}
+	.clk__cell {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.clk__nub {
+		fill: var(--sl-color-gray-3);
+	}
+	.clk__sign {
+		font-size: 15px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+	.clk__contact {
+		fill: var(--sl-color-gray-2);
+	}
+	.clk__lever {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.clk__chev,
+	.clk__chev-halo {
+		fill: none;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.clk__chev {
+		stroke: var(--ig-v);
+		stroke-width: 1.8;
+	}
+	.clk__chev-halo {
+		stroke: var(--clk-ink);
+		stroke-width: 3.8;
+		opacity: 0.7;
+	}
+	.clk__reel {
+		fill: var(--clk-cu);
+		stroke: color-mix(in srgb, var(--clk-cu) 45%, var(--clk-ink));
+		stroke-width: 1;
+	}
+	.clk__reel-ring {
+		fill: none;
+		stroke: color-mix(in srgb, var(--clk-cu) 60%, var(--clk-ink));
+		stroke-width: 0.7;
+	}
+	.clk__hub-hole {
+		fill: var(--clk-ink);
+	}
+	.clk__hub-dot {
+		fill: color-mix(in srgb, var(--clk-pl) 45%, var(--clk-ink));
+	}
+	.clk__mag {
+		fill: var(--sl-color-black);
+	}
+	.clk__mag-rim {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.clk__former {
+		fill: var(--clk-pl);
+	}
+	.clk__varnish {
+		fill: color-mix(in srgb, var(--ig-vy) 70%, var(--clk-ink));
+	}
+	.clk__core {
+		fill: var(--clk-cu);
+	}
+	.clk__shine {
+		fill: none;
+		stroke: color-mix(in srgb, var(--clk-cu) 35%, var(--clk-paper));
+		stroke-width: 1.3;
+		stroke-linecap: round;
+	}
+	.clk__leader {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.clk__dot {
+		fill: var(--sl-color-gray-2);
+	}
+	.clk__lbl {
+		font-size: 13px;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+	}
+	.clk__bar {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+		margin-top: 0.7rem;
+	}
+	.clk__status {
+		flex: 1;
+		margin: 0;
+		min-height: 3em;
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-sm);
+	}
+	.clk__again {
+		flex: none;
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.clk__again:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.clk__again[hidden] {
+		display: none;
+	}
+	.clk__legend {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+	}
+	@media (max-width: 40rem) {
+		.clk {
+			padding: 0.75rem;
+		}
+		.clk__stage {
+			padding: 0.2rem;
+		}
+		.clk__status {
+			min-height: 6em;
+		}
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const CY = 88;
+	const R = 22;
+	const D = 8;
+	const RW = R + D / 2;
+	const S = 0.25;
+	const N = 23;
+	const XA = 84;
+	const XL = XA - 6;
+	const RH = 29; // radius of the hole for the start of the wire on the left flange
+	const PHI_END = N + 0.5; // the former stops when the end of the wire is at the bottom, in front
+	const REEL = { x: 318, y: 26, r: 18 };
+	// the timeline, s
+	const PRE = 0.8;
+	const TW = 8.6; // winding
+	const T_OFF = PRE + TW; // the rod is taken out, the stand appears
+	const T_LEAD = [9.8, 11.0];
+	const T_MAG = [10.8, 11.4];
+	const T_CIRC = [11.8, 12.6];
+	const T_KEY = [13.4, 13.8];
+	const T_END = 14.6;
+
+	const clamp = (v: number) => Math.min(1, Math.max(0, v));
+	const smooth = (a: number, b: number, x: number) => {
+		const t = clamp((x - a) / (b - a));
+		return t * t * (3 - 2 * t);
+	};
+	const f1 = (v: number) => v.toFixed(1);
+	const TAU = 2 * Math.PI;
+
+	// the number of turns made by the former: slow at first, faster, slow again at the end
+	const DT = 1 / 240;
+	const PHI: number[] = [0];
+	{
+		const v = (t: number) => (0.1 + 0.9 * smooth(0.6, 2.6, t)) * (1 - 0.9 * smooth(TW - 1.8, TW, t));
+		let s = 0;
+		for (let i = 1; i <= TW / DT; i++) {
+			s += v((i - 0.5) * DT) * DT;
+			PHI.push(s);
+		}
+		const k = PHI_END / s;
+		for (let i = 0; i < PHI.length; i++) PHI[i] *= k;
+	}
+	const phiAt = (t: number) => {
+		if (t <= 0) return 0;
+		const i = t / DT;
+		const j = Math.floor(i);
+		if (j >= PHI.length - 1) return PHI_END;
+		return PHI[j] + (PHI[j + 1] - PHI[j]) * (i - j);
+	};
+	// a point of the wire on the screen
+	const X = (u: number) => XA + D / 2 + D * u;
+	const pt = (u: number, phi: number) => {
+		const th = TAU * (phi - u);
+		return [X(u) + RW * S * Math.sin(th), CY - RW * Math.cos(th)];
+	};
+	const arcD = (u0: number, u1: number, phi: number) => {
+		const n = Math.max(3, Math.ceil(((u1 - u0) / 0.5) * 18));
+		let s = '';
+		for (let i = 0; i <= n; i++) {
+			const [x, y] = pt(u0 + ((u1 - u0) * i) / n, phi);
+			s += `${i ? 'L' : 'M'} ${f1(x)} ${f1(y)} `;
+		}
+		return s;
+	};
+	const chevron = (x: number, y: number, tx: number, ty: number) => {
+		const nx = -ty;
+		const ny = tx;
+		return `M ${f1(x - 2.6 * tx + 3.4 * nx)} ${f1(y - 2.6 * ty + 3.4 * ny)} L ${f1(x + 2.2 * tx)} ${f1(y + 2.2 * ty)} L ${f1(x - 2.6 * tx - 3.4 * nx)} ${f1(y - 2.6 * ty - 3.4 * ny)} `;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-clk]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const $$ = <T extends Element>(s: string) => [...root.querySelectorAll<T>(s)];
+		const arcsG = $<SVGGElement>('[data-arcs]');
+		const grad = root.querySelector('linearGradient')!.id;
+		// a pool of front half-turns: the rightmost first, so the nearer (left) turns lie on top
+		const pool: SVGPathElement[][] = [];
+		for (let k = 0; k < N + 3; k++) {
+			const g = document.createElementNS(NS, 'g');
+			const ps = ['clk__w-o', 'clk__w-b', 'clk__w-g'].map((c) => {
+				const p = document.createElementNS(NS, 'path');
+				p.setAttribute('class', c);
+				if (c === 'clk__w-b') p.setAttribute('stroke', `url(#${grad})`);
+				if (c === 'clk__w-g') p.setAttribute('transform', 'translate(-1.3 0)');
+				g.append(p);
+				return p;
+			});
+			arcsG.append(g);
+			pool.push(ps);
+		}
+		const feed = $$<SVGPathElement>('[data-feed] path');
+		const feedG = $<SVGGElement>('[data-feed]');
+		const stub = $$<SVGPathElement>('[data-stub] path');
+		const leads = $$<SVGPathElement>('[data-lead] path');
+		const leadS = $<SVGPathElement>('[data-lead-s]');
+		const leadE = $<SVGPathElement>('[data-lead-e]');
+		const rods = $$<SVGGElement>('[data-rod]');
+		const crank = $<SVGLineElement>('[data-crank]');
+		const knob = $<SVGCircleElement>('[data-knob]');
+		const stands = $$<SVGGElement>('[data-stand]');
+		const reel = $<SVGGElement>('[data-reel]');
+		const hub = $<SVGGElement>('[data-reel-hub]');
+		const mag = $<SVGGElement>('[data-mag]');
+		const circuit = $<SVGGElement>('[data-circuit]');
+		const live = $<SVGGElement>('[data-live]');
+		const wires = $$<SVGPathElement>('[data-wire]');
+		const lever = $<SVGLineElement>('[data-lever]');
+		const chevs = $$<SVGPathElement>('[data-chev] path');
+		const lbl = (k: string) => $<SVGGElement>(`[data-l="${k}"]`);
+		const lReel = lbl('reel');
+		const lTurns = lbl('turns');
+		const lEnds = lbl('ends');
+		const status = $<HTMLElement>('[data-status]');
+		const again = $<HTMLButtonElement>('[data-again]');
+		const op = (el: Element, v: number) => ((el as SVGElement).style.opacity = v.toFixed(3));
+		let said = '';
+		const say = (s: string) => {
+			if (s !== said) status.innerHTML = said = s;
+		};
+		// the current along a drawn path: chevrons every 28 px, moving at 20 px/s (dir −1: against the drawing)
+		const along = (p: SVGPathElement, dir: number, tc: number) => {
+			const L = p.getTotalLength();
+			let s = '';
+			for (let l0 = 0; l0 < L; l0 += 28) {
+				const l = (((l0 + 20 * tc * dir) % L) + L) % L;
+				if (l < 5 || l > L - 5) continue;
+				const a = p.getPointAtLength(l - 0.5);
+				const b = p.getPointAtLength(l + 0.5);
+				const h = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+				s += chevron((a.x + b.x) / 2, (a.y + b.y) / 2, (dir * (b.x - a.x)) / h, (dir * (b.y - a.y)) / h);
+			}
+			return s;
+		};
+
+		const draw = (t: number) => {
+			const phi = phiAt(t - PRE);
+			const laid = Math.min(phi, N);
+			// the front halves of the turns
+			for (let k = 0; k < pool.length; k++) {
+				const u0 = Math.max(0, phi - k - 0.5);
+				const u1 = Math.min(laid, phi - k);
+				const d = u1 - u0 > 0.004 ? arcD(u0, u1, phi) : '';
+				for (const p of pool[k]) p.setAttribute('d', d);
+			}
+			// the wire from the reel touches the former at the top
+			const cut = phi >= N;
+			if (!cut) {
+				const cx = X(phi);
+				const cy = CY - RW;
+				const dx = cx - REEL.x;
+				const dy = cy - REEL.y;
+				const dist = Math.hypot(dx, dy);
+				const a = Math.atan2(dy, dx) + Math.acos(REEL.r / dist);
+				const b = Math.atan2(dy, dx) - Math.acos(REEL.r / dist);
+				const ta = Math.sin(a) > Math.sin(b) ? a : b; // the lower tangent point: the reel turns clockwise
+				const dd = `M ${f1(REEL.x + REEL.r * Math.cos(ta))} ${f1(REEL.y + REEL.r * Math.sin(ta))} L ${f1(cx)} ${f1(cy)}`;
+				for (const p of feed) p.setAttribute('d', dd);
+			}
+			op(feedG, cut ? 0 : 1);
+			// the former, the rod, the crank and the hole turn together
+			const th = TAU * phi;
+			const off = smooth(T_OFF, T_OFF + 0.4, t);
+			for (const r of rods) op(r, 1 - off);
+			const kx = 38 + 16 * S * Math.sin(th);
+			const ky = CY - 16 * Math.cos(th);
+			crank.setAttribute('x2', f1(kx));
+			crank.setAttribute('y2', f1(ky));
+			knob.setAttribute('cx', f1(kx));
+			knob.setAttribute('cy', f1(ky));
+			const hth = th - 0.2 * Math.PI;
+			const hx = XL + RH * S * Math.sin(hth);
+			const hy = CY - RH * Math.cos(hth);
+			const sd = `M ${f1(hx)} ${f1(hy)} L ${f1(hx - 9)} ${f1(hy + 1.5)}`;
+			for (const p of stub) p.setAttribute('d', sd);
+			const g = smooth(T_LEAD[0], T_LEAD[1], t);
+			op($('[data-stub]'), g > 0.02 ? 0 : 1);
+			for (const p of leads) {
+				p.style.strokeDasharray = `${g.toFixed(4)} 2`;
+				p.style.opacity = g > 0.001 ? '1' : '0';
+			}
+			// the reel turns while the wire runs off it
+			op(reel, 1 - smooth(T_OFF, T_OFF + 0.5, t));
+			op(lReel, 1 - smooth(T_OFF, T_OFF + 0.5, t));
+			hub.setAttribute('transform', `rotate(${f1(((360 * laid * RW) / REEL.r) % 360)})`);
+			for (const s of stands) op(s, smooth(T_OFF, T_OFF + 0.5, t));
+			op(lTurns, smooth(PRE + 3.2, PRE + 3.8, t));
+			op(mag, smooth(T_MAG[0], T_MAG[1], t));
+			op(lEnds, smooth(T_MAG[0], T_MAG[1], t));
+			op(circuit, smooth(T_CIRC[0], T_CIRC[1], t));
+			// the key
+			const down = smooth(T_KEY[0], T_KEY[1], t);
+			const ang = ((1 - down) * 30 * Math.PI) / 180;
+			lever.setAttribute('x2', f1(205 + 40 * Math.cos(ang)));
+			lever.setAttribute('y2', f1(192 - 40 * Math.sin(ang)));
+			// the current
+			const on = t >= T_KEY[1];
+			op(live, on ? 0.9 : 0);
+			if (on) {
+				const tc = t - T_KEY[1];
+				let s = '';
+				// along the turns: a chevron every 0.8 turn of the wire; on the front halves the wire goes up
+				const SP = 0.8;
+				const w0 = (tc * 0.3) % SP;
+				for (let k = 1; k <= N; k++) {
+					const u0 = PHI_END - k - 0.5;
+					for (let u = w0 + Math.ceil((u0 + 0.07 - w0) / SP) * SP; u < u0 + 0.43; u += SP) {
+						const th2 = TAU * (PHI_END - u);
+						const tx = D - TAU * RW * S * Math.cos(th2);
+						const ty = -TAU * RW * Math.sin(th2);
+						const h = Math.hypot(tx, ty);
+						const [x, y] = pt(u, PHI_END);
+						s += chevron(x, y, tx / h, ty / h);
+					}
+				}
+				s += along(wires[0], 1, tc) + along(leadS, -1, tc) + along(leadE, 1, tc) + along(wires[1], 1, tc) + along(wires[2], 1, tc);
+				for (const c of chevs) c.setAttribute('d', s);
+			} else for (const c of chevs) c.setAttribute('d', '');
+			// what is going on
+			if (on) say('Ключ замкнули: ток идёт по проводу от одного вывода к другому, по всем виткам по очереди.');
+			else if (t >= T_CIRC[0]) say('К клеммам подключают источник тока и ключ. Ключ разомкнут — тока нет.');
+			else if (t >= T_MAG[0]) say('Провод покрыт тонким слоем <b>лака</b> — это изоляция. Соседние витки касаются друг друга лаком, а не медью.');
+			else if (cut) say('Провод отрезали, катушку поставили на подставку. Концы провода — <b>выводы катушки</b> — закрепляют на клеммах.');
+			else say('Каркас — трубку с бортиками — вращают, и медный провод с мотка ложится на неё <b>витками</b>, виток к витку.');
+			again.hidden = t < T_END;
+		};
+
+		let t = 0;
+		draw(0);
+		const wake = loop(root, (dt) => {
+			t += dt;
+			draw(t);
+			return true;
+		});
+		again.addEventListener('click', () => {
+			t = 0;
+			draw(0);
+			wake();
+		});
+	}
+</script>
