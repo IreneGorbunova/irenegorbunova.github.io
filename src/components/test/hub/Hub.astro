@@ -1,0 +1,582 @@
+---
+/**
+ * The first page of the textbook (test mode), instead of five plain link cards:
+ *  - a hero with a pendulum wave: fifteen pendulums whose lengths are chosen so that in one minute they make 51, 52,
+ *    … 65 swings (T = 2π√(l/g), l from 34 cm to 21 cm); they drift apart into waves and swing together again
+ *    exactly once a minute. Drawn as seen along the row, in real time (./hub.ts);
+ *  - «Сегодня»: where the reader stopped, the cards due, what is next (only for a reader with progress);
+ *  - the five grades as tiles with pictures of their chapters, what is written and the reader's stars;
+ *  - the other places of the textbook: the map of discoveries, the telescope, «Моё небо», the formulas;
+ *  - «Новое в учебнике», as before.
+ * The component is the last thing in the page's source and hidden without test mode; in test mode it replaces the
+ * rest of the page.
+ */
+import { getCollection } from 'astro:content';
+import { skySections } from '../../sky/sections';
+import { CONSTELLATIONS, blocks } from '../../sky/constellations';
+import NovoeList from '../../NovoeList.astro';
+import { DISCOVERIES } from '../../map/discoveries';
+import { COMPLETE_GRADES } from '../map/chapters';
+import { plural } from '../map/words';
+
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const thumbs = import.meta.glob<{ default: ImageMetadata }>('../map/thumbs/*-dark.webp', { eager: true });
+const thumbOf = (slug: string) => thumbs[`../map/thumbs/${slug}-dark.webp`]?.default;
+const entries = new Map((await getCollection('docs')).map((e) => [e.id, e]));
+
+const secs = skySections(Astro.locals.starlightRoute);
+const gradeNames = [...new Set(secs.map((s) => s.grade))];
+const chapters = secs.flatMap((s) => {
+	const own = blocks(CONSTELLATIONS[s.key].stars.length, Math.max(1, s.chapters.length));
+	return s.chapters.map((c, i) => {
+		const e = entries.get(c.id);
+		return {
+			id: c.id,
+			href: c.href,
+			title: e?.data.title ?? c.label,
+			need: c.need,
+			size: own[i].length,
+			grade: s.grade,
+			keys: (e?.data.formulas ?? []).map((f) => `${c.id}/${f.id}`),
+			thumb: thumbOf(c.id.split('/').pop()!),
+		};
+	});
+});
+const grades = gradeNames.map((g) => {
+	const own = chapters.filter((c) => c.grade === g);
+	const n = Number.parseInt(g, 10);
+	return {
+		name: g,
+		n,
+		href: `${base}uchebnik/${n}-klass/`,
+		sections: secs.filter((s) => s.grade === g).map((s) => s.section),
+		chapters: own,
+		pics: own.filter((c) => c.thumb).slice(0, 3),
+		complete: COMPLETE_GRADES.has(g),
+		stars: own.reduce((a, c) => a + c.size, 0),
+	};
+});
+const cards = chapters.reduce((a, c) => a + c.keys.length, 0);
+const json = JSON.stringify(chapters.map(({ thumb, ...c }) => ({ ...c, thumb: thumb?.src ?? '' })));
+const stats = [
+	[String(chapters.length), plural(chapters.length, 'глава', 'главы', 'глав').replace(/^\d+\s/, '') + ' с живыми моделями'],
+	[String(cards), plural(cards, 'карточка', 'карточки', 'карточек').replace(/^\d+\s/, '') + ' с формулами и определениями'],
+	[String(secs.length), plural(secs.length, 'созвездие', 'созвездия', 'созвездий').replace(/^\d+\s/, '') + ' на «Моём небе»'],
+	[String(DISCOVERIES.length), plural(DISCOVERIES.length, 'открытие', 'открытия', 'открытий').replace(/^\d+\s/, '') + ' на карте мира'],
+];
+---
+
+<div class="hub not-content" data-hub data-chapters={json} data-formuly={`${base}uchebnik/formuly/`} data-ig-test data-pagefind-ignore>
+	<section class="hub-hero" aria-label="Учебник физики">
+		<canvas class="hub-hero__wave" data-hub-wave aria-hidden="true"></canvas>
+		<div class="hub-hero__text">
+			<p class="hub-hero__kicker">7–11 класс</p>
+			<p class="hub-hero__title">Физика, которую можно потрогать</p>
+			<p class="hub-hero__lead">Теория простыми словами, модели, которые можно двигать, и формулы, которые выводятся по шагам.</p>
+			<p class="hub-hero__go">
+				<a class="hub-btn hub-btn--primary" href="#hub-grades" data-hub-cta>Выбрать класс</a>
+				<a class="hub-btn" href={`${base}uchebnik/nebo/`}>Моё небо</a>
+			</p>
+		</div>
+		<p class="hub-hero__cap">
+			Маятниковая волна: 15 маятников разной длины. Раз в минуту они снова качаются вместе.
+			<a href={`${base}uchebnik/9-klass/kolebaniya-i-volny/mayatnik/`}>Почему период зависит от длины</a>
+			<button type="button" class="hub-hero__pause" data-hub-pause aria-pressed="false">Пауза</button>
+		</p>
+	</section>
+
+	<ul class="hub-stats">
+		{stats.map(([n, t]) => (
+			<li>
+				<strong>{n}</strong>
+				<span>{t}</span>
+			</li>
+		))}
+	</ul>
+
+	<section class="hub-today" data-hub-today hidden aria-labelledby="hub-today-h">
+		<h2 class="hub-h" id="hub-today-h">Сегодня</h2>
+		<div class="hub-today__rows">
+			<a class="hub-row" data-row="continue" hidden>
+				<span class="hub-row__pic" data-pic></span>
+				<span class="hub-row__text"><span class="hub-kicker">Продолжить</span><span class="hub-row__title" data-title></span><span class="hub-row__sub" data-sub></span></span>
+			</a>
+			<a class="hub-row" data-row="due" href={`${base}uchebnik/formuly/`} hidden>
+				<span class="hub-row__pic hub-row__pic--n" data-n></span>
+				<span class="hub-row__text"><span class="hub-kicker">Повторить карточки</span><span class="hub-row__sub">Формулы и определения, которые пора вспомнить сегодня.</span></span>
+			</a>
+			<a class="hub-row" data-row="next" hidden>
+				<span class="hub-row__pic" data-pic></span>
+				<span class="hub-row__text"><span class="hub-kicker">Дальше</span><span class="hub-row__title" data-title></span><span class="hub-row__sub" data-sub></span></span>
+			</a>
+		</div>
+	</section>
+
+	<section aria-labelledby="hub-grades">
+		<h2 class="hub-h" id="hub-grades">Классы</h2>
+		<ul class="hub-grades">
+			{
+				grades.map((g) => (
+					<li>
+						<a class="hub-grade" href={g.href} data-grade={g.name}>
+							<span class="hub-grade__pics" aria-hidden="true">
+								{g.pics.map((c) => (
+									<img src={c.thumb!.src} width={c.thumb!.width} height={c.thumb!.height} alt="" loading="lazy" decoding="async" />
+								))}
+							</span>
+							<span class="hub-grade__n">
+								{g.n}
+								<small>класс</small>
+							</span>
+							<span class="hub-grade__secs">{g.sections.join(' · ')}</span>
+							<span class="hub-grade__meta">
+								{plural(g.chapters.length, 'глава', 'главы', 'глав')}
+								{g.complete ? ' · полный курс' : ' · курс пишется'}
+							</span>
+							<span class="hub-grade__bar" aria-hidden="true">
+								<span data-bar />
+							</span>
+							<span class="hub-grade__stars" data-stars>{`Звёзды: 0 из ${g.stars}`}</span>
+						</a>
+					</li>
+				))
+			}
+		</ul>
+	</section>
+
+	<section aria-labelledby="hub-more">
+		<h2 class="hub-h" id="hub-more">Не только главы</h2>
+		<ul class="hub-more">
+			<li>
+				<a class="hub-card" href={`${base}uchebnik/otkrytiya/`}>
+					<svg class="hub-card__icon" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="19" /><path d="M5 24h38M24 5c7 6 7 32 0 38M24 5c-7 6-7 32 0 38" /><circle class="f" cx="31" cy="17" r="3.2" /></svg>
+					<span class="hub-card__title">Карта открытий</span>
+					<span class="hub-card__text">Где и когда сделаны открытия из учебника — от Сиракуз Архимеда до наших дней.</span>
+				</a>
+			</li>
+			<li>
+				<a class="hub-card" href={`${base}uchebnik/teleskop/`}>
+					<svg class="hub-card__icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 27l25-11 4 9-25 11zM31 16l6-3 5 11-7 3M20 33l-6 10M20 33l7 10M20 33v-4" /><circle class="f" cx="40" cy="7" r="2.2" /></svg>
+					<span class="hub-card__title">Посмотри в телескоп</span>
+					<span class="hub-card__text">Луна, Юпитер и галактики в трубу Галилея, в телескоп Ньютона и в «Хаббл».</span>
+				</a>
+			</li>
+			<li>
+				<a class="hub-card" href={`${base}uchebnik/nebo/`}>
+					<svg class="hub-card__icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 34l10-14 9 6 13-16" /><circle class="f" cx="8" cy="34" r="3" /><circle class="f" cx="18" cy="20" r="2.4" /><circle class="f" cx="27" cy="26" r="2.8" /><circle class="f" cx="40" cy="10" r="3.4" /></svg>
+					<span class="hub-card__title">Моё небо</span>
+					<span class="hub-card__text">Каждый раздел — настоящее созвездие. Его звёзды загораются, когда вы работаете с главами.</span>
+				</a>
+			</li>
+			<li>
+				<a class="hub-card" href={`${base}uchebnik/formuly/`}>
+					<svg class="hub-card__icon" viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="12" width="26" height="30" rx="3" /><path d="M14 8h24a3 3 0 0 1 3 3v26M14 23h12M14 30h8" /></svg>
+					<span class="hub-card__title">Формулы</span>
+					<span class="hub-card__text">Все формулы и определения учебника на карточках: учите и повторяйте по расписанию.</span>
+				</a>
+			</li>
+		</ul>
+	</section>
+
+	<section aria-labelledby="hub-new">
+		<h2 class="hub-h" id="hub-new">Новое в учебнике</h2>
+		<NovoeList tone="book" n={3} />
+	</section>
+</div>
+
+<script>
+	import './hub';
+</script>
+
+<style is:global>
+	/* test mode: this block replaces the rest of the page, which stands without its table of contents */
+	:root[data-ig-testmode] .sl-markdown-content:has(> [data-hub]) > :not([data-hub]) {
+		display: none;
+	}
+	:root[data-ig-testmode]:has([data-hub]) :is(.right-sidebar-container, mobile-starlight-toc) {
+		display: none;
+	}
+	@media (min-width: 72rem) {
+		:root[data-ig-testmode]:has([data-hub]) {
+			--sl-content-width: 62rem;
+		}
+		:root[data-ig-testmode]:has([data-hub]) .main-pane {
+			width: 100%;
+		}
+	}
+	.hub {
+		display: grid;
+		gap: 2.25rem;
+		color: var(--sl-color-white);
+	}
+	.hub a {
+		text-decoration: none;
+	}
+	.hub :focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 3px;
+	}
+	.hub-h {
+		margin: 0 0 0.8rem;
+		font-family: var(--ig-font-display);
+		font-size: 2.4rem;
+		font-weight: 400;
+		line-height: 1.1;
+		color: var(--sl-color-white);
+	}
+	.hub-kicker {
+		display: block;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-text-accent);
+	}
+
+	/* the hero: a night panel in both themes */
+	.hub-hero {
+		position: relative;
+		display: grid;
+		align-content: space-between;
+		min-height: clamp(21rem, 52vw, 29rem);
+		overflow: hidden;
+		border-radius: 1.4rem;
+		background:
+			radial-gradient(circle at 12% 18%, hsl(45 100% 85% / 0.9) 0 1.2px, transparent 1.9px),
+			radial-gradient(circle at 27% 71%, hsl(220 60% 85% / 0.6) 0 1px, transparent 1.7px),
+			radial-gradient(circle at 44% 12%, hsl(220 60% 85% / 0.7) 0 1px, transparent 1.7px),
+			radial-gradient(circle at 91% 16%, hsl(45 100% 85% / 0.8) 0 1.3px, transparent 2px),
+			radial-gradient(circle at 96% 78%, hsl(220 60% 85% / 0.6) 0 1px, transparent 1.7px),
+			radial-gradient(circle at 6% 88%, hsl(220 60% 85% / 0.5) 0 1px, transparent 1.7px),
+			radial-gradient(ellipse at 72% 40%, hsl(42 80% 45% / 0.16), transparent 60%),
+			radial-gradient(ellipse at 20% 20%, hsl(232, 58%, 20%), hsl(232, 55%, 7%) 78%);
+		color: hsl(40, 30%, 94%);
+	}
+	.hub-hero__wave {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+	.hub-hero__text {
+		position: relative;
+		max-width: 30rem;
+		padding: clamp(1.2rem, 3.5vw, 2.4rem) clamp(1.2rem, 3.5vw, 2.4rem) 0;
+		pointer-events: none;
+	}
+	.hub-hero__text a {
+		pointer-events: auto;
+	}
+	.hub-hero p {
+		margin: 0;
+	}
+	.hub-hero__kicker {
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: hsl(42, 80%, 70%);
+	}
+	.hub-hero__title {
+		margin-top: 0.3rem !important;
+		font-family: var(--ig-font-display);
+		font-size: clamp(2.5rem, 6.4vw, 4.1rem);
+		line-height: 1.02;
+		color: #fff;
+		text-shadow: 0 2px 18px hsl(232 60% 5% / 0.8);
+	}
+	.hub-hero__lead {
+		margin-top: 0.7rem !important;
+		font-size: clamp(1rem, 1.6vw, 1.15rem);
+		line-height: 1.45;
+		color: hsl(230, 30%, 86%);
+		text-shadow: 0 1px 10px hsl(232 60% 5% / 0.9);
+	}
+	.hub-hero__go {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		margin-top: 1.1rem !important;
+	}
+	.hub-btn {
+		display: inline-flex;
+		align-items: center;
+		min-height: 46px;
+		padding: 0 1.3rem;
+		font-weight: 600;
+		border-radius: 999px;
+		border: 1px solid hsl(230 30% 70% / 0.55);
+		color: #fff;
+		background: hsl(232 50% 10% / 0.5);
+	}
+	.hub-btn:hover {
+		border-color: hsl(42, 90%, 62%);
+		color: #fff;
+	}
+	.hub-btn--primary {
+		border-color: hsl(42, 90%, 62%);
+		background: hsl(42, 90%, 62%);
+		color: hsl(232, 50%, 10%);
+	}
+	.hub-btn--primary:hover {
+		color: hsl(232, 50%, 10%);
+	}
+	.hub-hero__cap {
+		position: relative;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.2rem 0.8rem;
+		padding: 0.8rem clamp(1.2rem, 3.5vw, 2.4rem) 0.9rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.4;
+		color: hsl(230, 25%, 74%);
+	}
+	.hub-hero__cap a {
+		color: hsl(42, 80%, 72%);
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+	}
+	.hub-hero__pause {
+		margin-left: auto;
+		min-height: 30px;
+		padding: 0 0.7rem;
+		font: inherit;
+		color: inherit;
+		background: transparent;
+		border: 1px solid hsl(230 30% 60% / 0.5);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+
+	/* a phone: the wave swings in the room kept under the text */
+	@media (max-width: 640px) {
+		.hub-hero__text {
+			padding-bottom: 13.5rem;
+		}
+	}
+
+	/* numbers */
+	.hub-stats {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+		gap: 0.5rem 1.5rem;
+		margin: -0.75rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.hub-stats li {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+	}
+	.hub-stats strong {
+		font-family: var(--ig-font-display);
+		font-size: 2.3rem;
+		font-weight: 400;
+		line-height: 1;
+		color: var(--sl-color-text-accent);
+	}
+	.hub-stats span {
+		font-size: var(--sl-text-sm);
+		line-height: 1.3;
+		color: var(--sl-color-gray-2);
+	}
+
+	/* «Сегодня» */
+	.hub-today[hidden],
+	.hub-row[hidden] {
+		display: none;
+	}
+	.hub-today__rows {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+		gap: 0.75rem;
+	}
+	.hub-row {
+		display: grid;
+		grid-template-columns: 6.5rem 1fr;
+		align-items: center;
+		gap: 0.85rem;
+		padding: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-white);
+	}
+	.hub-row:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.hub-row__pic {
+		display: block;
+		aspect-ratio: 3 / 2;
+		overflow: hidden;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.hub-row__pic img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.hub-row__pic--n {
+		display: grid;
+		place-items: center;
+		font-family: var(--ig-font-display);
+		font-size: 2.6rem;
+		color: var(--sl-color-text-accent);
+	}
+	.hub-row__text {
+		display: grid;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+	.hub-row__title {
+		font-weight: 700;
+		line-height: 1.25;
+	}
+	.hub-row__sub {
+		font-size: var(--sl-text-sm);
+		line-height: 1.3;
+		color: var(--sl-color-gray-2);
+	}
+
+	/* the grades */
+	.hub-grades {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+		gap: 0.85rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	@media (min-width: 72rem) {
+		.hub-grades {
+			grid-template-columns: repeat(5, minmax(0, 1fr));
+		}
+	}
+	.hub-grade {
+		position: relative;
+		display: grid;
+		gap: 0.35rem;
+		height: 100%;
+		padding: 0.75rem 0.9rem 0.9rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1.1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-white);
+		transition:
+			transform 0.2s,
+			border-color 0.2s;
+	}
+	.hub-grade:hover {
+		transform: translateY(-3px);
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.hub-grade__pics {
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: 1fr;
+		gap: 3px;
+		aspect-ratio: 3 / 1.25;
+		overflow: hidden;
+		border-radius: 0.7rem;
+		background: var(--sl-color-gray-6);
+	}
+	.hub-grade__pics img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.hub-grade__n {
+		margin-top: 0.3rem;
+		font-family: var(--ig-font-display);
+		font-size: 3.4rem;
+		line-height: 0.95;
+		color: var(--sl-color-text-accent);
+	}
+	.hub-grade__n small {
+		margin-left: 0.4rem;
+		font-size: 1.9rem;
+		color: var(--sl-color-white);
+	}
+	.hub-grade__secs {
+		font-size: var(--sl-text-sm);
+		line-height: 1.35;
+		color: var(--sl-color-gray-2);
+	}
+	.hub-grade__meta {
+		align-self: end;
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+	}
+	.hub-grade__bar {
+		display: block;
+		height: 5px;
+		overflow: hidden;
+		border-radius: 3px;
+		background: var(--sl-color-gray-5);
+	}
+	.hub-grade__bar span {
+		display: block;
+		width: 0;
+		height: 100%;
+		border-radius: 3px;
+		background: var(--sl-color-accent);
+		transition: width 0.6s;
+	}
+	.hub-grade__stars {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+
+	/* the other places */
+	.hub-more {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+		gap: 0.85rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.hub-card {
+		display: grid;
+		gap: 0.3rem;
+		height: 100%;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1.1rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-white);
+	}
+	.hub-card:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.hub-card__icon {
+		width: 2.6rem;
+		height: 2.6rem;
+		fill: none;
+		stroke: var(--sl-color-text-accent);
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.hub-card__icon .f {
+		fill: var(--sl-color-text-accent);
+		stroke: none;
+	}
+	.hub-card__title {
+		font-family: var(--ig-font-display);
+		font-size: 1.8rem;
+		line-height: 1.1;
+	}
+	.hub-card__text {
+		font-size: var(--sl-text-sm);
+		line-height: 1.4;
+		color: var(--sl-color-gray-2);
+	}
+</style>
