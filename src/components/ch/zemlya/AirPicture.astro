@@ -1,0 +1,241 @@
+---
+/**
+ * Two panels for «Атмосфера и магнитный щит».
+ * Left: the greenhouse effect. Sunlight (yellow) passes the air and warms the ground; part of it is reflected back
+ *   to space by a cloud (the albedo). The warm ground emits infrared rays (red, wavy): part leaves to space, part is
+ *   absorbed by molecules of water vapour and carbon dioxide and emitted again, also down to the ground.
+ * Right: the magnetosphere. The solar wind (dots) flows from the Sun and goes round the magnetosphere, whose boundary
+ *   on the Sun's side lies about 10 Earth radii from the centre (the Earth and the magnetosphere to one scale, 7 px =
+ *   1 Earth radius; the Sun and its distance not to scale). Field lines: a dipole on the day side, stretched into the
+ *   tail on the night side. Aurora glows around both poles.
+ */
+import PicStyles from './PicStyles.astro';
+
+const f = (x: number) => x.toFixed(1);
+// greenhouse paths
+const SUN_IN = ['M10 6 L96 206', 'M40 6 L166 206', 'M70 6 L236 206'];
+const SUN_OUT = 'M100 6 L262 96 L352 6';
+const wavy = (pts: [number, number][]) => {
+	// a zigzag-wave along a polyline
+	let d = `M${pts[0][0]} ${pts[0][1]}`;
+	for (let i = 1; i < pts.length; i++) {
+		const [x0, y0] = pts[i - 1];
+		const [x1, y1] = pts[i];
+		const L = Math.hypot(x1 - x0, y1 - y0);
+		const n = Math.max(2, Math.round(L / 12));
+		const ux = (x1 - x0) / L;
+		const uy = (y1 - y0) / L;
+		for (let k = 1; k <= n; k++) {
+			const s = (k - 0.5) / n;
+			const amp = k % 2 ? 4 : -4;
+			d += ` Q${f(x0 + (x1 - x0) * s - uy * amp)} ${f(y0 + (y1 - y0) * s + ux * amp)} ${f(x0 + ((x1 - x0) * k) / n)} ${f(y0 + ((y1 - y0) * k) / n)}`;
+		}
+	}
+	return d;
+};
+const IR = [wavy([[120, 206], [140, 6]]), wavy([[200, 206], [214, 124]]), wavy([[214, 124], [232, 206]]), wavy([[290, 206], [276, 120]]), wavy([[276, 120], [252, 206]])];
+// magnetosphere
+const E = { x: 236, y: 132 };
+const RE = 7;
+const XN = E.x - 10 * RE;
+const PP = 52;
+const mp = Array.from({ length: 41 }, (_, i) => {
+	const y = -150 + (300 * i) / 40;
+	return `${i ? 'L' : 'M'}${f(XN + (y * y) / (2 * PP))} ${f(E.y + y)}`;
+}).join(' ');
+// side −1: the day side (towards the Sun), +1: the night side
+const dipole = (L: number, side: number) => {
+	const pts: string[] = [];
+	for (let a = -80; a <= 80; a += 4) {
+		const lam = (a * Math.PI) / 180;
+		const r = L * RE * Math.cos(lam) ** 2;
+		if (r < RE) continue;
+		pts.push(`${pts.length ? 'L' : 'M'}${f(E.x + side * r * Math.cos(lam))} ${f(E.y - r * Math.sin(lam))}`);
+	}
+	return pts.join(' ');
+};
+const tail = (s: number, yEnd: number, lat: number) => {
+	const lam = (lat * Math.PI) / 180;
+	const x0 = E.x + RE * Math.cos(lam);
+	const y0 = E.y + s * RE * Math.sin(lam);
+	return `M${f(x0)} ${f(y0)} C${f(x0 + 6)} ${f(y0 + s * 26)} ${f(x0 + 40)} ${f(E.y + s * yEnd)} 360 ${f(E.y + s * yEnd)}`;
+};
+const nightL = [2, 3.4];
+---
+
+<PicStyles />
+<figure class="zp zair not-content" data-zair>
+	<div class="zp__grid">
+		<div>
+			<svg class="zp__svg" viewBox="0 0 360 260" role="img" aria-label="Парниковый эффект. Солнечный свет проходит сквозь воздух и нагревает землю, часть света отражают облака. Нагретая земля излучает инфракрасные лучи. Часть из них уходит в космос, а часть поглощают молекулы водяного пара и углекислого газа и излучают обратно, в том числе к земле">
+				<rect class="zair-air" x="0" y="60" width="360" height="146"></rect>
+				<rect class="zair-ground" x="0" y="206" width="360" height="54"></rect>
+				<path class="zair-cloud" d="M236 100 q0 -14 16 -14 q6 -12 20 -8 q14 -4 18 8 q14 0 14 14 z"></path>
+				{SUN_IN.map((d) => <path class="zair-sun" d={d} data-path="sun" />)}
+				<path class="zair-sun zair-sun--back" d={SUN_OUT} data-path="sun"></path>
+				{IR.map((d, i) => <path class="zair-ir" d={d} data-path={i === 0 || i === 1 || i === 3 ? 'ir' : 'ir2'} />)}
+				<circle class="zair-mol" cx="214" cy="124" r="5"></circle>
+				<circle class="zair-mol" cx="276" cy="120" r="5"></circle>
+				<g data-photons></g>
+				<text x="8" y="44" class="zp-t-small">свет Солнца</text>
+				<text x="352" y="44" class="zp-t-small" text-anchor="end">отражается</text>
+				<text x="146" y="44" class="zp-t-small zair-t-ir">уходит в космос</text>
+				<text x="352" y="150" class="zp-t-small" text-anchor="end">газы</text>
+				<text x="352" y="165" class="zp-t-small" text-anchor="end">атмосферы</text>
+				<text x="8" y="80" class="zp-t-small">воздух</text>
+				<text x="180" y="236" text-anchor="middle" class="zp-t-small zair-t-ir">тёплая земля излучает инфракрасные лучи</text>
+			</svg>
+			<p class="zp__label"><b>Парниковый эффект.</b> Газы возвращают к земле часть её инфракрасного излучения.</p>
+		</div>
+		<div>
+			<svg class="zp__svg" viewBox="0 0 360 260" role="img" aria-label="Магнитосфера. Солнечный ветер летит от Солнца и обтекает магнитосферу Земли. Со стороны Солнца её граница примерно в 10 радиусах Земли, с ночной стороны магнитосфера вытянута в длинный хвост. У полюсов светятся полярные сияния">
+				<circle class="zair-sunball" cx="-36" cy={E.y} r="56"></circle>
+				<path class="zair-mp" d={`${mp} L360 ${E.y + 150} L360 ${E.y - 150} Z`}></path>
+				<path class="zair-mp-line" d={mp}></path>
+				{[2, 3.4, 5].map((L) => <path class="zair-field" d={dipole(L, -1)} />)}
+				{nightL.map((L) => <path class="zair-field" d={dipole(L, 1)} />)}
+				{[1, -1].flatMap((s) => [tail(s, 34, 62), tail(s, 52, 70), tail(s, 18, 54)].map((d) => <path class="zair-field" d={d} />))}
+				<path class="zair-night" d={`M${E.x} ${E.y - RE} A${RE} ${RE} 0 0 1 ${E.x} ${E.y + RE} Z`}></path>
+				<circle class="zair-earth" cx={E.x} cy={E.y} r={RE}></circle>
+				<path class="zair-night" d={`M${E.x} ${E.y - RE} A${RE} ${RE} 0 0 1 ${E.x} ${E.y + RE} Z`}></path>
+				<ellipse class="zair-aur" cx={E.x} cy={E.y - RE + 0.5} rx="3.6" ry="1.6"></ellipse>
+				<ellipse class="zair-aur" cx={E.x} cy={E.y + RE - 0.5} rx="3.6" ry="1.6"></ellipse>
+				<g data-wind></g>
+				<g class="zair-dim">
+					<line x1={XN} y1={E.y + 18} x2={E.x} y2={E.y + 18}></line>
+					<line x1={XN} y1={E.y + 13} x2={XN} y2={E.y + 23}></line>
+					<line x1={E.x} y1={E.y + 13} x2={E.x} y2={E.y + 23}></line>
+				</g>
+				<text x={(XN + E.x) / 2} y={E.y + 36} text-anchor="middle" class="zp-t-small">10 радиусов Земли</text>
+				<text x="8" y="20" class="zp-t-small">солнечный ветер</text>
+				<text x="352" y="20" text-anchor="end" class="zp-t-hl">магнитосфера</text>
+				<text x="352" y={E.y + 4} text-anchor="end" class="zp-t-small">хвост →</text>
+				<text x={E.x - 10} y={E.y - 64} class="zp-t-small" text-anchor="end">Земля</text>
+				<line class="zp-line" x1={E.x - 8} y1={E.y - 66} x2={E.x - 2} y2={E.y - 10}></line>
+			</svg>
+			<p class="zp__label"><b>Магнитосфера</b> отклоняет солнечный ветер. Земля и магнитосфера — в одном масштабе.</p>
+		</div>
+	</div>
+</figure>
+
+<style is:global>
+	.zair-air {
+		fill: color-mix(in srgb, var(--ig-vx) 12%, transparent);
+	}
+	.zair-ground {
+		fill: color-mix(in srgb, var(--sl-color-green) 22%, var(--sl-color-gray-5));
+	}
+	.zair-cloud {
+		fill: color-mix(in srgb, var(--sl-color-gray-2) 55%, transparent);
+	}
+	.zair-sun {
+		fill: none;
+		stroke: color-mix(in srgb, var(--zp-sun) 55%, transparent);
+		stroke-width: 1.6;
+		stroke-dasharray: 2 4;
+	}
+	.zair-ir {
+		fill: none;
+		stroke: color-mix(in srgb, var(--zp-ir) 55%, transparent);
+		stroke-width: 1.4;
+	}
+	.zair-mol {
+		fill: var(--ig-vx);
+	}
+	.zp .zair-t-ir {
+		fill: var(--zp-ir);
+	}
+	.zair-ph--sun {
+		fill: var(--zp-sun);
+	}
+	.zair-ph--ir {
+		fill: var(--zp-ir);
+	}
+	.zair-sunball {
+		fill: var(--zp-sun);
+	}
+	.zair-mp {
+		fill: color-mix(in srgb, var(--ig-vx) 10%, transparent);
+	}
+	.zair-mp-line {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 1.6;
+	}
+	.zair-field {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.zair-earth {
+		fill: var(--zp-earth);
+	}
+	.zair-night {
+		fill: var(--zp-night);
+	}
+	.zair-aur {
+		fill: var(--sl-color-green);
+	}
+	.zair-wind {
+		fill: var(--zp-sun);
+	}
+	.zair-dim line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	for (const root of document.querySelectorAll<HTMLElement>('[data-zair]')) {
+		// ---------- photons along the greenhouse paths ----------
+		const phG = root.querySelector<SVGGElement>('[data-photons]')!;
+		const paths = Array.from(root.querySelectorAll<SVGPathElement>('[data-path]'));
+		const photons = paths.map((p, i) => {
+			const c = document.createElementNS(NS, 'circle');
+			c.setAttribute('r', '3.4');
+			c.setAttribute('class', p.dataset.path === 'sun' ? 'zair-ph--sun' : 'zair-ph--ir');
+			phG.append(c);
+			// infrared re-emitted by a molecule leaves after the photon that reached it
+			const delay = p.dataset.path === 'ir2' ? 0.5 : p.dataset.path === 'ir' ? 0 : (i % 3) * 0.33;
+			return { p, c, len: p.getTotalLength(), delay };
+		});
+		// ---------- the solar wind ----------
+		const windG = root.querySelector<SVGGElement>('[data-wind]')!;
+		const E = { x: 236, y: 132 };
+		const XN = E.x - 70;
+		const PP = 52;
+		const wind = Array.from({ length: 26 }, (_, i) => {
+			const b = 6 + ((i * 53) % 122); // impact height, px
+			const s = i % 2 ? 1 : -1;
+			const d = 8 + 0.3 * b; // the streamline: a parabola d px outside the boundary
+			const p = PP + 2 * d;
+			const xHit = XN - d + (b * b) / (2 * p);
+			const c = document.createElementNS(NS, 'circle');
+			c.setAttribute('r', '2');
+			c.setAttribute('class', 'zair-wind');
+			windG.append(c);
+			return { b, s, d, p, xHit, c, x0: (i * 61) % 380 };
+		});
+		let t = 0;
+		loop(root, (dt) => {
+			t += dt;
+			for (const ph of photons) {
+				const u = ((t / 2.4 + ph.delay) % 1 + 1) % 1;
+				const pt = ph.p.getPointAtLength(u * ph.len);
+				ph.c.setAttribute('cx', pt.x.toFixed(1));
+				ph.c.setAttribute('cy', pt.y.toFixed(1));
+			}
+			for (const w of wind) {
+				const x = (w.x0 + t * 60) % 380 - 10;
+				const y = x < w.xHit ? w.b : Math.sqrt(2 * w.p * (x - XN + w.d));
+				w.c.setAttribute('cx', x.toFixed(1));
+				w.c.setAttribute('cy', (E.y + w.s * y).toFixed(1));
+				w.c.style.opacity = y > 128 ? '0' : '1';
+			}
+			return true;
+		});
+	}
+</script>
