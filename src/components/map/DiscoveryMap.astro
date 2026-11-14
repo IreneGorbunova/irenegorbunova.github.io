@@ -1,0 +1,695 @@
+---
+/**
+ * «Карта открытий»: a map of the world with a star at every place where a discovery of the textbook was made
+ * (./discoveries.ts). The map is dragged and zoomed like a street map (./map.ts); a star opens a card with the
+ * discovery, the scientist's portrait, a few lines and a link to the chapter. Below: the same discoveries as a list
+ * in the order of time, which also works without the map. The land is Natural Earth (public domain), drawn in the
+ * site's own colors for both themes.
+ */
+import { getCollection } from 'astro:content';
+import { DISCOVERIES, TOPICS, ERAS } from './discoveries';
+import { plural } from '../test/map/words';
+
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const entries = await getCollection('docs');
+const chapterOf = (slug?: string) => (slug ? entries.find((e) => /^uchebnik\/\d+-klass\//.test(e.id) && e.id.endsWith(`/${slug}`)) : undefined);
+const items = DISCOVERIES.map((d) => {
+	const ch = chapterOf(d.ch);
+	if (d.ch && !ch) throw new Error(`Карта открытий: нет главы «${d.ch}» (${d.id})`);
+	return {
+		id: d.id,
+		year: d.year,
+		when: d.when,
+		place: d.place,
+		lat: d.lat,
+		lon: d.lon,
+		who: d.who,
+		portrait: d.portrait ? `${base}portraits/${d.portrait}.jpg` : '',
+		title: d.title,
+		text: d.text,
+		topic: d.topic,
+		topicLabel: TOPICS[d.topic],
+		href: ch ? `${base}${ch.id}/#кто-это-открыл` : '',
+		chapter: ch?.data.title ?? '',
+	};
+});
+const places = new Set(items.map((d) => `${d.lat},${d.lon}`)).size;
+---
+
+<div class="dmap not-content" data-dmap>
+	<div class="dmap__filters">
+		<div class="dm-chips" role="group" aria-label="Время">
+			<button type="button" class="dm-chip" data-era="all" aria-pressed="true">Все времена</button>
+			{ERAS.map((e) => <button type="button" class="dm-chip" data-era={e.key} aria-pressed="false">{e.label}</button>)}
+		</div>
+		<div class="dm-chips" role="group" aria-label="Раздел физики">
+			{
+				Object.entries(TOPICS).map(([k, label]) => (
+					<button type="button" class="dm-chip dm-chip--topic" data-topic-filter={k} aria-pressed="false">
+						<span class="dm-dot" data-topic={k} />
+						{label}
+					</button>
+				))
+			}
+		</div>
+	</div>
+
+	<div class="dmap__main">
+		<div class="dmap__view" data-dmap-view tabindex="0" role="application" aria-label="Карта мира с местами открытий. Стрелки двигают карту, плюс и минус меняют масштаб">
+			<canvas></canvas>
+			<div class="dmap__pins" data-dmap-pins></div>
+			<div class="dm-tools">
+				<div class="dm-tools__zoom">
+					<button type="button" class="dm-tool" data-act="full" aria-pressed="false" aria-label="На весь экран">
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+					</button>
+					<button type="button" class="dm-tool" data-act="in" aria-label="Ближе">+</button>
+					<button type="button" class="dm-tool" data-act="out" aria-label="Дальше">−</button>
+				</div>
+				<div class="dm-tools__go">
+					<button type="button" class="dm-tool dm-tool--text" data-act="world">Мир</button>
+					<button type="button" class="dm-tool dm-tool--text" data-act="europe">Европа</button>
+					<button type="button" class="dm-tool dm-tool--text" data-act="russia">Россия</button>
+				</div>
+			</div>
+			<p class="dm-hint" data-dmap-hint hidden>Чтобы изменить масштаб, прокручивайте с клавишей Ctrl</p>
+		</div>
+
+		<aside class="dmap__card" data-dmap-card aria-live="polite">
+			<div class="dm-intro" data-dmap-intro>
+				<p class="dm-intro__n">
+					<strong>{items.length}</strong>
+					{plural(items.length, 'открытие', 'открытия', 'открытий').replace(/^\d+\s/, '')} · <strong>{places}</strong>{' '}
+					{plural(places, 'место', 'места', 'мест').replace(/^\d+\s/, '')}
+				</p>
+				<p>
+					Каждая звезда на карте — место, где сделано открытие. Двигайте карту, приближайте её и нажимайте на звёзды. Круг с числом — несколько открытий рядом: нажмите, и карта подойдёт ближе.
+				</p>
+				<button type="button" class="dm-btn dm-btn--primary" data-go={items[0].id}>Начать с самого древнего</button>
+			</div>
+			<div class="dm-card" data-dmap-body hidden></div>
+		</aside>
+	</div>
+
+	<details class="dmap__list" data-dmap-list>
+		<summary>Все открытия по порядку: <span data-dmap-count>{items.length}</span></summary>
+		<ol>
+			{
+				items.map((d) => (
+					<li data-id={d.id}>
+						<button type="button" class="dm-row">
+							<span class="dm-dot" data-topic={d.topic} />
+							<span class="dm-row__when">{d.when}</span>
+							<span class="dm-row__title">{d.title}</span>
+							<span class="dm-row__who">
+								{d.who}, {d.place}
+							</span>
+						</button>
+					</li>
+				))
+			}
+		</ol>
+	</details>
+	<p class="dmap__credit">Контуры суши: Natural Earth, общественное достояние. Границы стран не показаны: за две с лишним тысячи лет они много раз менялись.</p>
+	<script type="application/json" data-dmap-data set:html={JSON.stringify(items)} />
+</div>
+
+<script>
+	import './map';
+</script>
+
+<style is:global>
+	@media (min-width: 72rem) {
+		:root:has([data-dmap]) {
+			--sl-content-width: 62rem;
+		}
+	}
+	html.dm-lock {
+		overflow: hidden;
+	}
+	.dmap {
+		--dm-sea: hsl(228, 48%, 8%);
+		--dm-land: hsl(229, 30%, 21%);
+		--dm-coast: hsl(42 60% 60% / 0.5);
+		--dm-grid: hsl(230 40% 70% / 0.1);
+		--dm-mech: hsl(28, 92%, 64%);
+		--dm-heat: var(--ig-vy);
+		--dm-elec: var(--ig-vx);
+		--dm-light: var(--ig-v);
+		--dm-atom: hsl(265, 85%, 78%);
+		--dm-space: hsl(168, 62%, 56%);
+		color: var(--sl-color-white);
+	}
+	:root[data-theme='light'] .dmap {
+		--dm-sea: hsl(212, 48%, 88%);
+		--dm-land: hsl(42, 38%, 96%);
+		--dm-coast: hsl(215 35% 40% / 0.65);
+		--dm-grid: hsl(215 40% 35% / 0.13);
+		--dm-mech: hsl(24, 85%, 44%);
+		--dm-atom: hsl(265, 50%, 48%);
+		--dm-space: hsl(170, 70%, 30%);
+	}
+	.dmap [data-topic='mech'] {
+		--dm-c: var(--dm-mech);
+	}
+	.dmap [data-topic='heat'] {
+		--dm-c: var(--dm-heat);
+	}
+	.dmap [data-topic='elec'] {
+		--dm-c: var(--dm-elec);
+	}
+	.dmap [data-topic='light'] {
+		--dm-c: var(--dm-light);
+	}
+	.dmap [data-topic='atom'] {
+		--dm-c: var(--dm-atom);
+	}
+	.dmap [data-topic='space'] {
+		--dm-c: var(--dm-space);
+	}
+	.dmap button {
+		font: inherit;
+		cursor: pointer;
+	}
+	.dmap :focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.dm-dot {
+		flex: none;
+		display: inline-block;
+		width: 0.62em;
+		height: 0.62em;
+		margin-right: 0.45em;
+		border-radius: 50%;
+		background: var(--dm-c);
+	}
+
+	/* filters */
+	.dmap__filters {
+		display: grid;
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+	}
+	.dm-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.dm-chip {
+		display: inline-flex;
+		align-items: center;
+		min-height: 36px;
+		padding: 0 0.85rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 999px;
+	}
+	.dm-chip:hover {
+		border-color: var(--sl-color-gray-3);
+	}
+	.dm-chip[aria-pressed='true'] {
+		color: var(--sl-color-black);
+		background: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+		font-weight: 600;
+	}
+	.dm-chip--topic[aria-pressed='true'] {
+		color: var(--sl-color-white);
+		background: var(--ig-surface);
+		border-color: var(--sl-color-accent);
+	}
+
+	/* the map and the card */
+	.dmap__main {
+		position: relative;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		overflow: hidden;
+		background: var(--ig-surface);
+	}
+	.dmap__view {
+		position: relative;
+		height: min(74vh, 36rem);
+		min-height: 22rem;
+		overflow: hidden;
+		background: var(--dm-sea);
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+		cursor: grab;
+	}
+	.dmap__view.is-drag {
+		cursor: grabbing;
+	}
+	.dmap__view canvas {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+	.dmap__pins {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+	/* a star: a bright core in the color of its part of physics, with a glow; the button around it is 36 px */
+	.dm-pin {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 36px;
+		height: 36px;
+		margin: -18px 0 0 -18px;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: none;
+		pointer-events: auto;
+		color: var(--sl-color-white);
+	}
+	.dm-pin[hidden] {
+		display: none;
+	}
+	.dm-pin__star {
+		position: absolute;
+		left: 11px;
+		top: 11px;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: radial-gradient(circle, #fff 0 22%, var(--dm-c) 55%);
+		box-shadow:
+			0 0 0 2px hsl(230 45% 8% / 0.55),
+			0 0 10px 3px color-mix(in srgb, var(--dm-c) 70%, transparent);
+		transition: transform 0.15s;
+	}
+	.dm-pin:hover .dm-pin__star,
+	.dm-pin.is-sel .dm-pin__star {
+		transform: scale(1.45);
+	}
+	.dm-pin.is-sel .dm-pin__star {
+		box-shadow:
+			0 0 0 3px var(--sl-color-white),
+			0 0 16px 6px color-mix(in srgb, var(--dm-c) 80%, transparent);
+	}
+	.dm-pin__label {
+		position: absolute;
+		left: 30px;
+		top: calc(50% - 0.75em);
+		display: none;
+		padding: 0 0.3rem;
+		font-size: 0.78rem;
+		line-height: 1.5;
+		white-space: nowrap;
+		border-radius: 0.3rem;
+		background: color-mix(in srgb, var(--dm-sea) 78%, transparent);
+		color: var(--sl-color-white);
+		pointer-events: none;
+	}
+	.show-labels .dm-pin__label,
+	.dm-pin.is-sel .dm-pin__label {
+		display: block;
+	}
+	.dm-pin--many {
+		width: 32px;
+		height: 32px;
+		margin: -16px 0 0 -16px;
+		font-size: 0.85rem;
+		font-weight: 700;
+		color: hsl(230, 45%, 10%);
+		background: radial-gradient(circle at 35% 30%, hsl(45, 100%, 88%), hsl(42, 90%, 62%));
+		box-shadow:
+			0 0 0 3px hsl(42 90% 62% / 0.3),
+			0 0 14px 2px hsl(42 90% 62% / 0.45);
+	}
+	.dm-pin--many.is-sel {
+		box-shadow:
+			0 0 0 3px var(--sl-color-white),
+			0 0 16px 4px hsl(42 90% 62% / 0.6);
+	}
+	.dm-tools {
+		position: absolute;
+		inset: 0.6rem;
+		display: grid;
+		grid-template: 'go' auto 'zoom' 1fr / 1fr;
+		gap: 0.5rem;
+		align-items: end;
+		justify-items: start;
+		pointer-events: none;
+	}
+	.dm-tools > * {
+		pointer-events: auto;
+	}
+	.dm-tools__go {
+		grid-area: go;
+		align-self: start;
+		justify-self: start;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.dm-tools__zoom {
+		grid-area: zoom;
+		display: grid;
+		gap: 0.35rem;
+	}
+	.dm-tool {
+		display: grid;
+		place-items: center;
+		width: 40px;
+		height: 40px;
+		padding: 0;
+		font-size: 1.35rem;
+		line-height: 1;
+		color: var(--sl-color-white);
+		background: color-mix(in srgb, var(--sl-color-bg-nav) 88%, transparent);
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.7rem;
+		backdrop-filter: blur(6px);
+	}
+	.dm-tool:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.dm-tool--text {
+		width: auto;
+		height: 34px;
+		padding: 0 0.7rem;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		border-radius: 999px;
+	}
+	.dm-tool svg {
+		width: 1.25rem;
+		height: 1.25rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.dm-tool[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.dm-hint {
+		position: absolute;
+		left: 50%;
+		bottom: 1rem;
+		transform: translateX(-50%);
+		margin: 0;
+		padding: 0.4rem 0.9rem;
+		font-size: var(--sl-text-sm);
+		white-space: nowrap;
+		border-radius: 999px;
+		background: hsl(230 45% 8% / 0.85);
+		color: #fff;
+		pointer-events: none;
+	}
+	.dm-hint[hidden] {
+		display: none;
+	}
+	/* on a wide screen the card floats over the east of the map, where no discovery of the textbook was made */
+	.dmap__card {
+		position: absolute;
+		top: 0.6rem;
+		right: 0.6rem;
+		width: 20.5rem;
+		max-height: calc(100% - 1.2rem);
+		overflow: auto;
+		overscroll-behavior: contain;
+		padding: 1rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.9rem;
+		background: color-mix(in srgb, var(--ig-surface) 93%, transparent);
+		backdrop-filter: blur(8px);
+		font-size: var(--sl-text-base);
+		line-height: 1.5;
+	}
+	.dmap__card p {
+		margin: 0 0 0.7rem;
+	}
+	.dm-intro__n {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.dm-intro__n strong {
+		font-family: var(--ig-font-display);
+		font-size: 2.2rem;
+		font-weight: 400;
+		line-height: 1;
+		color: var(--sl-color-text-accent);
+	}
+	.dm-btn {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		min-height: 42px;
+		padding: 0.3rem 0.9rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		line-height: 1.2;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.8rem;
+	}
+	.dm-btn span {
+		font-size: var(--sl-text-xs);
+		font-weight: 400;
+		color: var(--sl-color-gray-3);
+	}
+	.dm-btn:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+	}
+	.dm-btn:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	.dm-btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		border-radius: 999px;
+	}
+	.dm-card[hidden],
+	.dm-intro[hidden] {
+		display: none;
+	}
+	.dm-card__close {
+		position: absolute;
+		top: 0.5rem;
+		right: 0.5rem;
+		width: 36px;
+		height: 36px;
+		font-size: 1.4rem;
+		line-height: 1;
+		color: var(--sl-color-gray-2);
+		background: transparent;
+		border: 0;
+		border-radius: 50%;
+	}
+	.dm-card__when {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		padding-right: 2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.dm-card__title {
+		margin: 0 0 0.8rem;
+		font-family: var(--ig-font-display);
+		font-size: 2.1rem;
+		font-weight: 400;
+		line-height: 1.1;
+		color: var(--sl-color-white);
+	}
+	.dm-card__who {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin-bottom: 0.8rem;
+	}
+	.dm-card__portrait {
+		flex: none;
+		width: 72px;
+		height: 72px;
+		border-radius: 50%;
+		object-fit: cover;
+		border: 2px solid var(--sl-color-gray-5);
+	}
+	.dm-card__portrait--none {
+		display: grid;
+		place-items: center;
+		background: radial-gradient(circle at 50% 45%, hsl(45 100% 85%) 0 6%, hsl(42 90% 62% / 0.35) 7% 16%, transparent 17%), var(--dm-sea);
+	}
+	.dm-card__name {
+		display: block;
+		font-weight: 700;
+	}
+	.dm-card__topic {
+		display: block;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.dm-card__link {
+		display: inline-block;
+		margin-bottom: 0.9rem;
+		color: var(--sl-color-text-accent);
+		font-weight: 600;
+	}
+	.dm-card__soon {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.dm-card__nav {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+	}
+	.dm-card__list,
+	.dmap__list ol {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.dm-row {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		align-items: baseline;
+		gap: 0 0.1rem;
+		width: 100%;
+		padding: 0.45rem 0.25rem;
+		text-align: left;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 0;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.dm-row:hover .dm-row__title {
+		color: var(--sl-color-text-accent);
+	}
+	.dm-row__when {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.dm-row__title {
+		grid-column: 2;
+		font-weight: 600;
+	}
+	.dm-row__who {
+		grid-column: 2;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+
+	/* the list under the map */
+	.dmap__list {
+		margin-top: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		padding: 0.6rem 1rem;
+	}
+	.dmap__list summary {
+		cursor: pointer;
+		font-weight: 600;
+		padding: 0.25rem 0;
+	}
+	.dmap__list ol {
+		margin-top: 0.5rem;
+		columns: 2 22rem;
+		column-gap: 2rem;
+	}
+	.dmap__list li {
+		break-inside: avoid;
+	}
+	.dmap__list li[hidden] {
+		display: none;
+	}
+	.dmap__list li.is-sel .dm-row__title {
+		color: var(--sl-color-text-accent);
+	}
+	.dmap__credit {
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+
+	/* a phone: the card under the map */
+	@media (max-width: 50rem) {
+		.dmap__main {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.dmap__view {
+			height: 62vh;
+			min-height: 20rem;
+		}
+		.dmap__card {
+			position: relative;
+			top: auto;
+			right: auto;
+			width: auto;
+			max-height: none;
+			border: 0;
+			border-top: 1px solid var(--sl-color-gray-5);
+			border-radius: 0;
+			background: var(--ig-surface);
+			backdrop-filter: none;
+		}
+		.dm-tool--text {
+			padding: 0 0.55rem;
+		}
+	}
+
+	/* the whole screen */
+	.dmap.is-full {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+		display: flex;
+		flex-direction: column;
+		background: var(--sl-color-bg);
+	}
+	.dmap.is-full .dmap__filters {
+		margin: 0;
+		padding: 0.5rem 0.6rem;
+	}
+	.dmap.is-full .dmap__main {
+		flex: 1;
+		min-height: 0;
+		border: 0;
+		border-radius: 0;
+	}
+	.dmap.is-full .dmap__view {
+		height: auto;
+		min-height: 0;
+	}
+	.dmap.is-full .dmap__list,
+	.dmap.is-full .dmap__credit {
+		display: none;
+	}
+	@media (max-width: 50rem) {
+		.dmap.is-full .dmap__main {
+			grid-template-rows: minmax(0, 1fr) auto;
+		}
+		.dmap.is-full .dmap__card {
+			max-height: 45vh;
+		}
+		.dmap.is-full:not(.has-card) .dmap__card {
+			display: none;
+		}
+		.dmap.is-full .dm-chips {
+			flex-wrap: nowrap;
+			overflow-x: auto;
+		}
+		.dmap.is-full .dm-chip {
+			flex: none;
+		}
+	}
+</style>

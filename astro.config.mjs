@@ -94,6 +94,8 @@ export default defineConfig({
 				]),
 				{ label: 'Формулы', slug: 'uchebnik/formuly' },
 				{ label: 'Моё небо', slug: 'uchebnik/nebo' },
+				// test mode only (data-ig-test hides the links from everybody else; src/styles/textbook.css)
+				{ label: 'Карта открытий', slug: 'uchebnik/otkrytiya', attrs: { 'data-ig-test': '' } },
 			],
 		}),
 	],
