@@ -42,6 +42,15 @@ if (root) {
 	let py = 0;
 	let sw = 0;
 	let sh = 0;
+	// «Как в жизни»: the air above a telescope on the ground makes the picture tremble and swim, and a telescope
+	// without a clock drive lets the sky drift through its field of view
+	let real = false;
+	let blurBoost = 1; // the blur breathes with the air
+	let shakeX = 0; // the picture's jitter, arc seconds
+	let shakeY = 0;
+	let drift = 0; // how far the sky has drifted in the eyepiece, arc seconds
+	const onGround = () => !['hubble', 'webb'].includes(scope.id);
+	const noDrive = () => ['galileo', 'newton', 'herschel', 'rosse'].includes(scope.id);
 
 	// ---------- numbers in words ----------
 	const num = (x: number, digits = 0) => x.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
@@ -92,10 +101,13 @@ if (root) {
 		// first what is too faint goes (out = (in − t) / (1 − t)), then the telescope blurs what is left
 		const f = [];
 		if (t > 0.005) f.push(`brightness(${(1 / (1 + t)).toFixed(3)})`, `contrast(${((1 + t) / (1 - t)).toFixed(3)})`);
-		if (sigma > 0.15) f.push(`blur(${sigma.toFixed(2)}px)`);
+		// (a blur wider than the whole frame is not drawn: paint() shows that the disc is not resolved)
+		const shown = Math.min(sigma * blurBoost, 90 / scale);
+		if (shown > 0.15) f.push(`blur(${shown.toFixed(2)}px)`);
 		if (sat !== 1) f.push(`saturate(${sat})`);
 		if (gain !== 1) f.push(`brightness(${gain.toFixed(2)})`);
-		return { filter: f.join(' ') || 'none', sigma, visible };
+		const color = mono ? 'plate' : sat < 1 ? 'eye' : 'full';
+		return { filter: f.join(' ') || 'none', sigma, visible, color, fwhm };
 	};
 
 	// ---------- the frame ----------
@@ -114,19 +126,30 @@ if (root) {
 		clampPan();
 		const s = fitScale() * zoom;
 		const arcsecPerPx = target.width / target.w / s; // per screen pixel
-		const tf = (k = 1) => `translate(-50%, -50%) scale(${(s * k).toFixed(5)}) translate(${(-px).toFixed(2)}px, ${(-py).toFixed(2)}px)`;
+		const tf = (k = 1, jx = 0, jy = 0) =>
+			`translate(-50%, -50%) translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px) scale(${(s * k).toFixed(5)}) translate(${(-px).toFixed(2)}px, ${(-py).toFixed(2)}px)`;
 		refImg.style.transform = tf();
 		const look = looks(arcsecPerPx, s);
 		const chroma = Boolean(scope.chroma);
 		telView.classList.toggle('is-chroma', chroma);
+		const jx = shakeX / arcsecPerPx;
+		const jy = shakeY / arcsecPerPx;
 		telImgs.forEach((img, i) => {
 			// a single lens: the red image is a little larger than the green one, the blue one smaller and softer
 			const k = chroma ? [1.012, 1, 0.986][i] : 1;
-			img.style.transform = tf(k);
+			img.style.transform = tf(k, jx, jy);
 			img.style.filter = chroma && i === 2 ? `${look.filter === 'none' ? '' : look.filter} blur(${(look.sigma * 0.9 + 1.2 / s).toFixed(2)}px)` : look.filter;
 		});
-		telView.classList.toggle('is-nothing', !look.visible);
-		nothing.hidden = look.visible;
+		// a blur wider than the frame: the telescope shows no disc at all, the planet is a point of light
+		const point = look.visible && target.kind === 'bright' && look.fwhm > Math.min(sw, sh) * 0.9;
+		telView.classList.toggle('is-nothing', !look.visible || point);
+		telView.classList.toggle('is-point', point);
+		nothing.hidden = look.visible && !point;
+		nothing.textContent = point
+			? `${scope.id === 'eye' ? 'Глаз' : 'Этот телескоп'} не различает диска: планета видна как звезда. Так она выглядит в окне внизу`
+			: scope.id === 'eye'
+				? 'Глазом здесь ничего не видно'
+				: 'В этот телескоп здесь ничего не видно';
 		telView.style.clipPath = `inset(0 ${((1 - cut) * 100).toFixed(2)}% 0 0)`;
 		split.style.left = `${(cut * 100).toFixed(2)}%`;
 		split.setAttribute('aria-valuenow', String(Math.round(cut * 100)));
@@ -137,11 +160,15 @@ if (root) {
 		const es = ((target.width / scope.fov) * EYE_PX) / target.w; // screen pixels per pixel of the picture
 		const size = (target.width / scope.fov) * EYE_PX; // the picture's width in the window
 		const el = looks(scope.fov / EYE_PX, es);
-		const point = size < 5;
-		eyeImg.hidden = point || !el.visible;
-		eyeImg.style.transform = `translate(-50%, -50%) scale(${es.toFixed(6)})`;
+		const dot = size < 5;
+		// without a clock drive the sky drifts west through the field; the observer brings the object back
+		const dx = (drift / scope.fov) * EYE_PX;
+		eyeImg.hidden = dot || !el.visible;
+		eyeImg.style.transform = `translate(-50%, -50%) translate(${dx.toFixed(1)}px, 0) scale(${es.toFixed(6)})`;
 		eyeImg.style.filter = el.filter;
-		eyeDot.hidden = !(point && target.kind === 'bright');
+		eyeDot.hidden = !(dot && target.kind === 'bright');
+		eyeDot.style.transform = `translate(${dx.toFixed(1)}px, 0)`;
+		eyeMoons.style.transform = `translate(${dx.toFixed(1)}px, 0)`;
 		// Jupiter's four moons: seen by every telescope, lost to the eye in the planet's glare
 		const moons = target.id === 'jupiter' && scope.id !== 'eye';
 		eyeMoons.replaceChildren(
@@ -174,6 +201,28 @@ if (root) {
 		stat('theta', angle(scope.theta), target.km ? `${target.where} — от ${length(scope.theta * target.km)}` : '');
 		stat('mlim', `${num(scope.mlim, 1)}ᵐ`, scope.id === 'eye' ? 'звёздная величина' : `${times(Math.pow(10, 0.4 * (scope.mlim - 6)))} слабее, чем видит глаз`);
 		stat('how', data.how[scope.how]);
+		// why the picture on the left may have no color
+		const c = looks(1, 1).color;
+		stat(
+			'color',
+			c === 'full' ? 'видны' : 'не видны',
+			c === 'plate'
+				? 'фотопластинки того времени были чёрно-белыми'
+				: c === 'eye'
+					? 'при слабом свете глаз различает только яркость, поэтому туманности и галактики в окуляре серые'
+					: scope.how === 'eye' || scope.how === 'visual'
+						? 'Луна и планеты яркие, их цвет глаз различает'
+						: '',
+		);
+		$('[data-ts-real-note]').textContent = !real
+			? ''
+			: onGround()
+				? noDrive()
+					? 'Воздух над телескопом дрожит, и изображение «кипит». Часового привода нет: небо уплывает из поля зрения, и трубу приходится подправлять.'
+					: scope.id === 'eye'
+						? 'Воздух дрожит, но при таком малом увеличении этого почти не заметно: звёзды только мерцают.'
+						: 'Воздух над телескопом дрожит, и изображение «кипит». Телескоп сам поворачивается вслед за небом.'
+				: 'Над телескопом нет воздуха: изображение неподвижно.';
 		const note = target.notes[scope.id];
 		$('[data-ts-note]').textContent = note ?? '';
 		$('[data-ts-note]').hidden = !note;
@@ -181,7 +230,6 @@ if (root) {
 		$('[data-ts-tag-r]').textContent = target.ref;
 		$('[data-ts-about]').textContent = `${target.about} ${target.size}.`;
 		$('[data-ts-credit]').innerHTML = `Снимок: ${target.credit}, общественное достояние. <a href="${target.source}">Wikimedia Commons</a>`;
-		nothing.textContent = scope.id === 'eye' ? 'Глазом здесь ничего не видно' : 'В этот телескоп здесь ничего не видно';
 		for (const b of root.querySelectorAll<HTMLElement>('[data-scope]')) b.setAttribute('aria-pressed', String(b.dataset.scope === scope.id));
 		for (const b of root.querySelectorAll<HTMLElement>('[data-target]')) b.setAttribute('aria-pressed', String(b.dataset.target === target.id));
 	};
@@ -229,6 +277,43 @@ if (root) {
 	$('[data-ts-full]').addEventListener('click', () => setFull(!root.classList.contains('is-full')));
 	document.addEventListener('keydown', (e) => {
 		if (e.key === 'Escape' && root.classList.contains('is-full')) setFull(false);
+	});
+
+	// ---------- «Как в жизни» ----------
+	// The seeing: the picture wanders by about half an arc second and its sharpness breathes (three slow sines stand
+	// for the turbulent air). The drift: 15″ of sky per second, as the Earth turns; when the object nears the edge of
+	// the field, the observer brings it back.
+	const realBtn = $('[data-ts-real]');
+	let rafReal = 0;
+	let t0 = 0;
+	const wave = (t: number, a: number, b: number, c: number) => (Math.sin(a * t) + Math.sin(b * t + 1.3) + Math.sin(c * t + 2.1)) / 3;
+	const tick = (now: number) => {
+		if (!real) return;
+		const t = (now - t0) / 1000;
+		if (onGround()) {
+			shakeX = 0.55 * wave(t, 5.1, 8.3, 13.7);
+			shakeY = 0.55 * wave(t, 4.3, 9.1, 12.2);
+			blurBoost = 1 + 0.35 * (0.5 + 0.5 * wave(t, 2.2, 3.9, 6.1));
+		} else shakeX = shakeY = 0;
+		if (noDrive()) {
+			const span = scope.fov * 0.62; // from the east side of the field to the west side, then back
+			drift = span / 2 - ((t * 15) % span);
+		} else drift = 0;
+		paint();
+		rafReal = requestAnimationFrame(tick);
+	};
+	realBtn.addEventListener('click', () => {
+		real = !real;
+		realBtn.setAttribute('aria-pressed', String(real));
+		cancelAnimationFrame(rafReal);
+		shakeX = shakeY = drift = 0;
+		blurBoost = 1;
+		if (real) {
+			t0 = performance.now();
+			rafReal = requestAnimationFrame(tick);
+		}
+		describe();
+		paint();
 	});
 
 	// ---------- choosing ----------
