@@ -1,7 +1,7 @@
-// Reads the chapter page for the teacher's kit: a model's «Что попробовать» tasks and «Что должно было получиться»
-// answers, and the «Проверьте себя» questions. Nothing on the page is changed; copies are made for the views.
+// Reads the chapter page for «Полный экран»: a model's «Что попробовать» tasks and «Что должно было получиться»
+// answers. Nothing on the page is changed; copies are made for the view.
 
-const SKIP = 'script, style, template, link, [data-igk]';
+const SKIP = 'script, style, template, link, [data-igf]';
 
 /** The ancestor of `el` that is a direct child of the chapter's text. */
 const topOf = (el: Element): Element | null => {
@@ -56,35 +56,4 @@ export const bodyOf = (d: HTMLDetailsElement): DocumentFragment => {
 	const f = document.createDocumentFragment();
 	for (const ch of d.children) if (ch.tagName !== 'SUMMARY') f.append(copyOf(ch));
 	return f;
-};
-
-export type Question =
-	| { kind: 'choice'; question: Element; options: Element[]; answer: number; explain: HTMLDetailsElement | null }
-	| { kind: 'open'; question: Element; explain: HTMLDetailsElement };
-
-/** The «Проверьте себя» questions: a choice with buttons (QuizChoice) or a question in a <details>. */
-export const checkQuestions = (): Question[] => {
-	const h = document.getElementById('проверьте-себя');
-	const start = h ? topOf(h) : null;
-	const out: Question[] = [];
-	if (!start) return out;
-	for (let e = start.nextElementSibling; e; e = e.nextElementSibling) {
-		if (e.matches(SKIP)) continue;
-		if (isHeading(e)) break;
-		const opts = [...e.querySelectorAll('[role="group"] button')];
-		const q = e.querySelector(':scope > p');
-		if (opts.length && q && e instanceof HTMLElement) {
-			out.push({
-				kind: 'choice',
-				question: q,
-				options: opts.map((b) => b.querySelector('span:not([aria-hidden])') ?? b),
-				answer: Number(e.dataset.answer ?? -1),
-				explain: e.querySelector('details'),
-			});
-		} else if (e.tagName === 'DETAILS') {
-			const s = e.querySelector('summary');
-			if (s) out.push({ kind: 'open', question: s, explain: e as HTMLDetailsElement });
-		}
-	}
-	return out;
 };
