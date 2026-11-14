@@ -1,0 +1,122 @@
+---
+/**
+ * Picture to «Два движения сразу»: a ball thrown at 52,6° with υ0x = 6 m/s and υ0y = 7,84 m/s (υ0 = 9,87 m/s,
+ * g = 9,8 m/s²: flight 1,6 s, top 3,14 m at 0,8 s, range 9,6 m), 28 px per m on both axes. The ball runs along its
+ * parabola with its projections: a blue point on Ox with the arrow υx (constant) and a red point on Oy with the arrow
+ * υy (shrinks, vanishes at the top, grows downwards); 4 px per m/s. Every 0,2 s a ghost of the ball and a tick on each
+ * axis stay: equal steps on Ox, steps on Oy that shrink to the top and grow after it. Slowed down 2,5 times.
+ */
+import BpPicStyles from './BpPicStyles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const OX = 40;
+const OY = 196;
+const K = 28;
+const VX = 6;
+const VY = 7.84;
+const G = 9.8;
+const T = (2 * VY) / G;
+const pts = Array.from({ length: 41 }, (_, i) => {
+	const t = (T * i) / 40;
+	return `${(OX + VX * t * K).toFixed(1)} ${(OY - (VY * t - (G * t * t) / 2) * K).toFixed(1)}`;
+});
+const GHOSTS = Array.from({ length: 9 }, (_, k) => {
+	const t = 0.2 * k;
+	return { x: OX + VX * t * K, y: OY - (VY * t - (G * t * t) / 2) * K };
+});
+---
+
+<BpPicStyles />
+<figure class="bp-pic not-content" data-bptwo>
+	<svg class="bp-pic__svg" viewBox="0 0 360 230" role="img" aria-label="Мяч летит по параболе. Его проекция на горизонтальную ось движется равномерно: отметки через каждые 0,2 секунды идут на равных расстояниях. Его проекция на вертикальную ось сначала поднимается всё медленнее, потом опускается всё быстрее">
+		<defs>
+			{
+				['x', 'y', 'axis'].map((k) => (
+					<marker id={`${uid}-${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth={k === 'axis' ? 7 : 5} markerHeight={k === 'axis' ? 7 : 5} orient="auto">
+						<path class={`bp-head--${k}`} d="M0,0 L10,5 L0,10 z" />
+					</marker>
+				))
+			}
+		</defs>
+		<path class="bp-dash" d={`M ${pts.join(' L ')}`}></path>
+		<line class="bp-axis" x1={OX} y1={OY} x2="348" y2={OY} marker-end={`url(#${uid}-axis)`}></line>
+		<line class="bp-axis" x1={OX} y1={OY} x2={OX} y2="22" marker-end={`url(#${uid}-axis)`}></line>
+		<text class="bp-math" x="340" y={OY + 20}>x</text>
+		<text class="bp-math" x={OX + 8} y="30">y</text>
+		<text class="bp-math" x={OX - 16} y={OY + 18}>O</text>
+		<g data-ghosts>
+			{
+				GHOSTS.map((p) => (
+					<g>
+						<circle class="bp-ghost" cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="5" />
+						<rect class="bp-tick--x" x={(p.x - 1).toFixed(1)} y={OY - 5} width="2" height="10" />
+						<rect class="bp-tick--y" x={OX - 5} y={(p.y - 1).toFixed(1)} width="10" height="2" />
+					</g>
+				))
+			}
+		</g>
+		<line class="bp-dash" data-gx></line>
+		<line class="bp-dash" data-gy></line>
+		<line class="bp-vec bp-vec--x" marker-end={`url(#${uid}-x)`} data-ax></line>
+		<line class="bp-vec bp-vec--y" marker-end={`url(#${uid}-y)`} data-ay></line>
+		<circle class="bp-tick--x" r="4.5" data-px></circle>
+		<circle class="bp-tick--y" r="4.5" data-py></circle>
+		<circle class="bp-ball" r="6" data-ball></circle>
+		<text class="bp-math bp-cx" data-lx>υ<tspan class="bp-sub" dy="4">x</tspan></text>
+		<text class="bp-math bp-cy" data-ly text-anchor="end">υ<tspan class="bp-sub" dy="4">y</tspan></text>
+	</svg>
+	<div class="bp-pic__foot">
+		<figcaption>Мяч и его проекции на оси, отметки — через каждые 0,2&nbsp;с (замедлено в 2,5 раза). По оси <i>Ox</i> проекция за равные промежутки времени проходит равные расстояния. По оси <i>Oy</i> она движется как тело, брошенное вверх: поднимается всё медленнее, а потом опускается всё быстрее.</figcaption>
+		<button type="button" class="bp-pic__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<script>
+	import { scene } from '@components/intro/scene';
+
+	const f1 = (v: number) => v.toFixed(1);
+	const OX = 40;
+	const OY = 196;
+	const K = 28;
+	const VX = 6;
+	const VY = 7.84;
+	const G = 9.8;
+	const T = (2 * VY) / G;
+	const A = 4; // arrow length, px per m/s
+	const SLOW = 2.5;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bptwo]')) {
+		const $ = <E extends Element>(s: string) => root.querySelector<E>(s)!;
+		const ball = $<SVGCircleElement>('[data-ball]');
+		const px = $<SVGCircleElement>('[data-px]');
+		const py = $<SVGCircleElement>('[data-py]');
+		const gx = $<SVGLineElement>('[data-gx]');
+		const gy = $<SVGLineElement>('[data-gy]');
+		const ax = $<SVGLineElement>('[data-ax]');
+		const ay = $<SVGLineElement>('[data-ay]');
+		const lx = $<SVGTextElement>('[data-lx]');
+		const ly = $<SVGTextElement>('[data-ly]');
+		const ghosts = [...root.querySelectorAll<SVGGElement>('[data-ghosts] > g')];
+		const set = (el: Element, a: Record<string, string | number>) => {
+			for (const [k, v] of Object.entries(a)) el.setAttribute(k, typeof v === 'number' ? f1(v) : v);
+		};
+		scene(root, T * SLOW, (s) => {
+			const t = s * T;
+			const x = OX + VX * t * K;
+			const vy = VY - G * t;
+			const y = OY - (VY * t - (G * t * t) / 2) * K;
+			set(ball, { cx: x, cy: y });
+			set(px, { cx: x, cy: OY });
+			set(py, { cx: OX, cy: y });
+			set(gx, { x1: x, y1: y, x2: x, y2: OY });
+			set(gy, { x1: x, y1: y, x2: OX, y2: y });
+			set(ax, { x1: x, y1: OY, x2: x + VX * A, y2: OY });
+			set(lx, { x: x + VX * A - 6, y: OY + 22 });
+			const show = Math.abs(vy) * A > 4;
+			ay.style.opacity = show ? '1' : '0';
+			set(ay, { x1: OX, y1: y, x2: OX, y2: y - vy * A });
+			set(ly, { x: OX - 9, y: y - (vy * A) / 2 + 5 });
+			ghosts.forEach((g, k) => (g.style.opacity = t >= 0.2 * k - 1e-6 ? '1' : '0'));
+		});
+	}
+</script>

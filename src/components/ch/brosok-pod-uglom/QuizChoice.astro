@@ -1,0 +1,201 @@
+---
+/**
+ * A question with instant feedback. `options` and `hints` may contain $…$ math.
+ * A wrong choice shows its hint; the right one opens the explanation (the slot).
+ * Without JavaScript the explanation stays available under «Ответ».
+ */
+import katex from 'katex';
+
+interface Props {
+	question: string;
+	options: string[];
+	answer: number;
+	hints?: string[];
+}
+const { question, options, answer, hints = [] } = Astro.props;
+
+const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const md = (s: string) =>
+	s
+		.split(/(\$[^$]+\$)/g)
+		.map((part) =>
+			part.startsWith('$') && part.endsWith('$') && part.length > 2
+				? katex.renderToString(part.slice(1, -1), { throwOnError: false, strict: 'ignore' })
+				: escape(part),
+		)
+		.join('');
+---
+
+<div class="bpquiz" data-bpquiz data-answer={answer}>
+	<p class="bpquiz__q" set:html={md(question)} />
+	<div class="bpquiz__opts not-content" role="group" aria-label="Варианты ответа">
+		{
+			options.map((o, i) => (
+				<button type="button" class="bpquiz__opt" data-i={i} data-hint={hints[i] ? md(hints[i]) : ''}>
+					<span class="bpquiz__mark" aria-hidden="true" />
+					<span set:html={md(o)} />
+				</button>
+			))
+		}
+	</div>
+	<p class="bpquiz__fb not-content" data-fb aria-live="polite"></p>
+	<details class="bpquiz__explain" data-explain>
+		<summary>Ответ</summary>
+		<slot />
+	</details>
+</div>
+
+<style is:global>
+	.bpquiz {
+		margin-block: 1rem;
+		padding: 0.9rem 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.9rem;
+		background: var(--ig-surface);
+	}
+	.bpquiz__q {
+		margin: 0 0 0.6rem;
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.bpquiz__opts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.bpquiz__opt {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.45rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		transition:
+			background 0.25s,
+			border-color 0.25s;
+	}
+	.bpquiz__opt:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.bpquiz__mark {
+		width: 0.95rem;
+		height: 0.95rem;
+		border-radius: 50%;
+		border: 1.5px solid var(--sl-color-gray-3);
+		flex: none;
+		display: grid;
+		place-items: center;
+		font-size: 0.7rem;
+		line-height: 1;
+	}
+	.bpquiz__opt.is-right {
+		border-color: var(--sl-color-green);
+		background: color-mix(in srgb, var(--sl-color-green) 22%, transparent);
+	}
+	.bpquiz__opt.is-right .bpquiz__mark {
+		border-color: var(--sl-color-green);
+		background: var(--sl-color-green);
+	}
+	.bpquiz__opt.is-right .bpquiz__mark::after {
+		content: '✓';
+		color: var(--sl-color-black);
+		font-weight: 700;
+	}
+	.bpquiz__opt.is-wrong {
+		border-color: var(--sl-color-red);
+		background: color-mix(in srgb, var(--sl-color-red) 16%, transparent);
+		animation: bpquiz-shake 0.4s;
+	}
+	.bpquiz__opt.is-wrong .bpquiz__mark {
+		border-color: var(--sl-color-red);
+	}
+	.bpquiz__opt.is-wrong .bpquiz__mark::after {
+		content: '×';
+		color: var(--sl-color-red);
+		font-weight: 700;
+	}
+	@keyframes bpquiz-shake {
+		25% {
+			transform: translateX(-4px);
+		}
+		75% {
+			transform: translateX(4px);
+		}
+	}
+	.bpquiz__fb {
+		min-height: 0;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.bpquiz__fb:empty {
+		display: none;
+	}
+	.bpquiz__explain {
+		margin-top: 0.6rem;
+	}
+	.bpquiz__explain > summary {
+		cursor: pointer;
+		color: var(--sl-color-text-accent);
+		font-size: var(--sl-text-sm);
+	}
+	.bpquiz.is-interactive .bpquiz__explain:not([open]) {
+		display: none;
+	}
+	.bpquiz.is-interactive .bpquiz__explain > summary {
+		display: none;
+	}
+	.bpquiz.is-interactive .bpquiz__explain[open] {
+		animation: bpquiz-in 0.45s ease-out;
+	}
+	@keyframes bpquiz-in {
+		from {
+			opacity: 0;
+			transform: translateY(0.4rem);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.bpquiz__opt.is-wrong,
+		.bpquiz.is-interactive .bpquiz__explain[open] {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bpquiz]')) {
+		const answer = Number(root.dataset.answer);
+		const fb = root.querySelector<HTMLElement>('[data-fb]')!;
+		const explain = root.querySelector<HTMLDetailsElement>('[data-explain]')!;
+		const opts = root.querySelectorAll<HTMLButtonElement>('.bpquiz__opt');
+		root.classList.add('is-interactive');
+		explain.open = false;
+		let wrong = 0;
+		opts.forEach((b) =>
+			b.addEventListener('click', () => {
+				const i = Number(b.dataset.i);
+				opts.forEach((o) => o.classList.remove('is-wrong'));
+				void b.offsetWidth;
+				if (i === answer) {
+					b.classList.add('is-right');
+					fb.innerHTML = '<b>Верно!</b>';
+					explain.open = true;
+				} else {
+					b.classList.add('is-wrong');
+					wrong += 1;
+					fb.innerHTML = b.dataset.hint || 'Пока нет — подумайте ещё.';
+					if (wrong >= 2) {
+						fb.innerHTML += ' Посмотрите объяснение ниже.';
+						explain.open = true;
+					}
+				}
+			}),
+		);
+	}
+</script>
