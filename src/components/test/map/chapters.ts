@@ -1,5 +1,5 @@
 /**
- * The course map (test mode pilot): per chapter, one line on what the chapter gives (at most 90 characters; the
+ * The course map (test mode): per chapter, one line on what the chapter gives (at most 90 characters; the
  * chapters' own descriptions are longer, so every line here is written for the map, for Irina to review) and the
  * number of the paragraph in Перышкин's textbook, left empty until the edition is chosen. Keyed by the chapter's slug.
  * The chapters themselves, their order and sections come from the sidebar (astro.config.mjs) at build time.
@@ -40,4 +40,21 @@ export const MAP_CHAPTERS: Record<string, MapChapter> = {
 	'prelomlenie-sveta': { line: 'Закон преломления, показатель преломления, «сломанная» ложка и полное отражение.', peryshkin: '' },
 	'linzy': { line: 'Собирающая и рассеивающая линзы, фокус, оптическая сила и построение изображений.', peryshkin: '' },
 	'glaz-i-zrenie': { line: 'Как глаз видит близкое и далёкое, близорукость, дальнозоркость и очки.', peryshkin: '' },
+	// 7 класс
+	'atmosfernoe-davlenie': { line: 'Почему воздух давит, опыт Торричелли, барометры и давление в горах.', peryshkin: '' },
+	'arhimedova-sila': { line: 'Почему в воде тела легче, закон Архимеда и когда тело тонет, а когда плавает.', peryshkin: '' },
+	// 9 класс
+	'zakony-nyutona': { line: 'Инерция, связь силы с ускорением и почему силы всегда возникают парами.', peryshkin: '' },
+	'zakon-vsemirnogo-tyagoteniya': { line: 'Как притягиваются все тела, проверка закона по Луне и ускорение свободного падения.', peryshkin: '' },
+	'mayatnik': { line: 'Колебания, период и частота; от чего зависит период нитяного и пружинного маятников.', peryshkin: '' },
+	// 10 класс
+	'brosok-pod-uglom': { line: 'Почему мяч летит по параболе; время полёта, наибольшая высота и дальность.', peryshkin: '' },
+	'impuls': { line: 'Импульс тела и силы, закон сохранения импульса, столкновения и полёт ракеты.', peryshkin: '' },
+	'gazovye-zakony': { line: 'Как давление, объём и температура газа связаны одним уравнением; три изопроцесса.', peryshkin: '' },
+	// 11 класс
+	'elektromagnitnaya-indukciya': { line: 'Как меняющийся магнитный поток рождает ток; правило Ленца и ЭДС индукции.', peryshkin: '' },
+	'fotoeffekt': { line: 'Как свет выбивает электроны из металла и как Эйнштейн объяснил это квантами.', peryshkin: '' },
+	'zemlya': { line: 'Как измерили Землю, почему бывают лето и зима и что у планеты внутри.', peryshkin: '' },
+	'luna': { line: 'Месяцы, приливы, одна сторона Луны, её рождение и исследование.', peryshkin: '' },
+	'vselennaya': { line: 'От Солнечной системы и законов Кеплера до жизни звёзд и разбегания галактик.', peryshkin: '' },
 };

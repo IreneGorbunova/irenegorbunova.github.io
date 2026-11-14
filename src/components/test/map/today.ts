@@ -122,7 +122,7 @@ if (root && document.documentElement.dataset.igTestmode === '1') {
 			label.textContent = label.textContent!.replace(/\d+ из/, `${lit} из`);
 			el.classList.toggle('is-done', own.every((c) => info.get(c.id)!.state === 'done'));
 			el.classList.toggle('is-current', next?.sec === i);
-			if (firstPaint) el.querySelector('details')!.open = next?.sec === i || (lastSec !== undefined && lastSec === i);
+			if (firstPaint && !('openAll' in root.dataset)) el.querySelector('details')!.open = next?.sec === i || (lastSec !== undefined && lastSec === i);
 		});
 		firstPaint = false;
 

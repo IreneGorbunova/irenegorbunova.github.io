@@ -1,6 +1,9 @@
 ---
 /**
- * A grade's contents as a course map (test mode pilot, /uchebnik/test/karta-8/).
+ * A grade's contents as a course map (test mode), on the grade's «Содержание» page. The component is the LAST thing
+ * in the page's source (hidden, it then changes nothing for a visitor without test mode); in test mode it is shown
+ * first; where the grade is complete (`replace`) the plain list of links below it is hidden, otherwise the list stays
+ * under the heading «Вся программа класса» (it names the chapters still to be written).
  *  - A status line computed from the sidebar: «8 класс — полный курс: 24 главы, 4 раздела».
  *  - «Сегодня», filled in the browser from localStorage (./today.ts): where the pupil stopped (ig:last, written by
  *    ../global/LastVisit.astro), the formula cards due today (ig:cards, formulas/leitner.mjs) and the first chapter in
@@ -22,8 +25,10 @@ import { plural, ofStars } from './words';
 interface Props {
 	/** the grade's label in the sidebar, e.g. «8 класс» */
 	grade: string;
+	/** the grade is complete: the map replaces the page's list of links */
+	replace?: boolean;
 }
-const { grade } = Astro.props;
+const { grade, replace = false } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const deckId = 'deck-kmap';
 
@@ -61,9 +66,11 @@ const sections = skySections(Astro.locals.starlightRoute)
 		return { name: s.section, sky: sky.name, nStars: sky.stars.length, chapters };
 	});
 const chapters = sections.flatMap((s) => s.chapters);
+// a grade with a few chapters shows all of them at once; a long one opens only the section being read
+const openAll = chapters.length <= 8;
 const allCards = chapters.flatMap((c) => c.cards);
 const first = chapters[0];
-const status = `${grade}${COMPLETE_GRADES.has(grade) ? ' — полный курс' : ''}: ${plural(chapters.length, 'глава', 'главы', 'глав')}, ${plural(sections.length, 'раздел', 'раздела', 'разделов')}`;
+const status = `${grade}${COMPLETE_GRADES.has(grade) ? ' — полный курс' : ''}: ${plural(chapters.length, 'глава', 'главы', 'глав')}, ${plural(sections.length, 'раздел', 'раздела', 'разделов')}${COMPLETE_GRADES.has(grade) ? '' : '. Остальные главы появляются по мере написания.'}`;
 // what the script needs, per chapter
 const json = JSON.stringify(
 	chapters.map((c) => ({
@@ -81,11 +88,7 @@ const json = JSON.stringify(
 const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.25-6.54L2.55 9.43l6.6-.8z';
 ---
 
-<p class="kmap-off" data-ig-test-hide>
-	Эта страница — пробная: она работает только в тестовом режиме. <a href="?test=1">Включить тестовый режим</a>.
-</p>
-
-<div class="kmap not-content" data-kmap data-chapters={json} data-nebo={`${base}uchebnik/nebo/`} data-ig-test data-pagefind-ignore>
+<div class="kmap not-content" data-kmap data-kmap-replace={replace ? '' : undefined} data-open-all={openAll ? '' : undefined} data-chapters={json} data-nebo={`${base}uchebnik/nebo/`} data-ig-test data-pagefind-ignore>
 	<p class="kmap-status">{status}</p>
 
 	<section class="kmap-today" aria-labelledby="kmap-today-h">
@@ -159,7 +162,7 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 		{
 			sections.map((s, si) => (
 				<li class="ksec" data-sec={si}>
-					<details class="ksec__box" open={si === 0}>
+					<details class="ksec__box" open={si === 0 || openAll}>
 						<summary class="ksec__sum">
 							<span class="ksec__node" aria-hidden="true">
 								<span class="ksec__num">{si + 1}</span>
@@ -170,13 +173,14 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 							<span class="ksec__head">
 								<h2 class="ksec__title">{s.name}</h2>
 								<span class="ksec__meta">
-									{plural(s.chapters.length, 'глава', 'главы', 'глав')} ·{' '}
-									{plural(
-										s.chapters.reduce((a, c) => a + c.cards.length, 0),
-										'карточка',
-										'карточки',
-										'карточек',
-									)}
+									{plural(s.chapters.length, 'глава', 'главы', 'глав')}
+									{s.chapters.some((c) => c.cards.length > 0) &&
+										` · ${plural(
+											s.chapters.reduce((a, c) => a + c.cards.length, 0),
+											'карточка',
+											'карточки',
+											'карточек',
+										)}`}
 									<span class="ksec__stars" data-sec-stars>{`${s.sky.replace(/ /g, '\u00a0')}: 0 из ${s.nStars} ${ofStars(s.nStars)}`}</span>
 								</span>
 							</span>
@@ -203,7 +207,7 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 													</svg>
 												))}
 											</span>
-											<span>{plural(c.cards.length, 'карточка', 'карточки', 'карточек')}</span>
+											{c.cards.length > 0 && <span>{plural(c.cards.length, 'карточка', 'карточки', 'карточек')}</span>}
 										</p>
 									</div>
 								</li>
@@ -216,6 +220,8 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 	</ol>
 
 	<CardDeck id={deckId} cards={allCards} />
+
+	{!replace && <h2 class="kmap-h kmap-plan">Вся программа класса</h2>}
 </div>
 
 <script>
@@ -223,14 +229,33 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 </script>
 
 <style is:global>
-	/* the map uses the width of a desktop screen (only on this page and only in test mode) */
+	/* the map uses the width of a desktop screen and stands without the page's table of contents (test mode only) */
 	@media (min-width: 72rem) {
 		:root[data-ig-testmode]:has([data-kmap]) {
 			--sl-content-width: 55rem;
 		}
+		:root[data-ig-testmode]:has([data-kmap]) .main-pane {
+			width: 100%;
+		}
 	}
-	.kmap-off a {
-		color: var(--sl-color-text-accent);
+	:root[data-ig-testmode]:has([data-kmap]) :is(.right-sidebar-container, mobile-starlight-toc) {
+		display: none;
+	}
+	/* the map is last in the source and first on the screen */
+	:root[data-ig-testmode] .sl-markdown-content:has(> [data-kmap]) {
+		display: flex;
+		flex-direction: column;
+	}
+	:root[data-ig-testmode] .sl-markdown-content > [data-kmap] {
+		order: -1;
+	}
+	/* a complete grade: the map replaces the list of links */
+	:root[data-ig-testmode] .sl-markdown-content:has(> [data-kmap-replace]) > :not([data-kmap]) {
+		display: none;
+	}
+	.kmap .kmap-plan {
+		margin: 2.75rem 0 0;
+		font-size: 2rem;
 	}
 	.kmap {
 		--kmap-r: 1rem;
