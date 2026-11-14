@@ -1,0 +1,137 @@
+---
+/**
+ * Picture to the definitions of the Galaxy, its disk, bulge and halo. Both panels to one scale: 1,92 px per
+ * 1000 св. лет (the disk is 100 000 св. лет across = 192 px).
+ * Left, from above (a reconstruction, nobody has seen it so): a barred spiral, two main arms from the ends of the
+ *   bar (half-length about 16 000 св. лет) and two weaker ones, logarithmic spirals with a pitch of 12°; the Sun at
+ *   26 000 св. лет from the centre.
+ * Right, edge-on: the thin disk (about 2000 св. лет thick, 4 px), the bulge, the spherical halo with globular
+ *   clusters; from the Sun inside the disk we look along it and see the band of the Milky Way.
+ */
+import VsPicStyles from './VsPicStyles.astro';
+
+let seed = 31;
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-9)) * Math.cos(2 * Math.PI * rnd());
+const PX = 1.92; // px per 1000 св. лет
+const R = 50 * PX;
+const O = { x: 160, y: 112 };
+const SUNR = 26 * PX;
+const BAR = 16 * PX;
+const BAR_ANGLE = (28 * Math.PI) / 180;
+const pitch = Math.tan((12 * Math.PI) / 180);
+const r2 = (v: number) => Math.round(v * 10) / 10;
+// arms: r = r0·e^{k(θ − θ0)}, starting at the bar's ends (main) or between them (weak)
+const armDots: [number, number, number][] = [];
+const arms = [
+	{ th0: BAR_ANGLE, w: 1 },
+	{ th0: BAR_ANGLE + Math.PI, w: 1 },
+	{ th0: BAR_ANGLE + Math.PI / 2, w: 0.55 },
+	{ th0: BAR_ANGLE + (3 * Math.PI) / 2, w: 0.55 },
+];
+for (const arm of arms) {
+	const n = Math.round(330 * arm.w);
+	for (let i = 0; i < n; i++) {
+		const u = rnd() * 2.6 * Math.PI;
+		const r = BAR * Math.exp(pitch * u);
+		if (r > R) continue;
+		const th = arm.th0 + u;
+		const s = 1.6 + r * 0.035;
+		const x = O.x + r * Math.cos(th) + gauss() * s;
+		const y = O.y - r * Math.sin(th) + gauss() * s;
+		armDots.push([r2(x), r2(y), rnd() < 0.15 ? 1.3 : 0.8]);
+	}
+}
+const barDots = Array.from({ length: 70 }, () => {
+	const t = (rnd() * 2 - 1) * BAR;
+	const w = gauss() * 4;
+	return [r2(O.x + t * Math.cos(BAR_ANGLE) - w * Math.sin(BAR_ANGLE)), r2(O.y - t * Math.sin(BAR_ANGLE) - w * Math.cos(BAR_ANGLE))];
+});
+const sunTh = BAR_ANGLE + Math.PI * 0.62;
+const sun = { x: r2(O.x + SUNR * Math.cos(sunTh)), y: r2(O.y - SUNR * Math.sin(sunTh)) };
+// edge-on
+const E = { x: 160, y: 118 };
+const HALO = 102;
+const globs = Array.from({ length: 40 }, () => {
+	const rr = HALO * Math.pow(rnd(), 1.6);
+	const a = rnd() * Math.PI * 2;
+	return [r2(E.x + rr * Math.cos(a)), r2(E.y + rr * Math.sin(a))];
+}).filter(([, y]) => Math.abs(y - E.y) > 6);
+// the globular cluster nearest to the label's corner gets the leader line
+const near = globs.reduce((b, g) => (Math.hypot(g[0] - 70, g[1] - 200) < Math.hypot(b[0] - 70, b[1] - 200) ? g : b), globs[0]);
+const sunE = { x: E.x - SUNR, y: E.y };
+---
+
+<VsPicStyles />
+<figure class="vs-pic not-content">
+	<div class="vs-pic__grid">
+		<svg class="vs-pic__svg" viewBox="0 0 320 240" role="img" aria-label="Наша Галактика сверху: спиральные рукава вокруг перемычки в центре. Солнце в одном из рукавов, примерно на полпути от центра к краю. Диаметр диска около 100 тысяч световых лет">
+			<text class="vs-title" x="8" y="20">Вид сверху</text>
+			<circle class="vgp-diskfill" cx={O.x} cy={O.y} r={R}></circle>
+			{armDots.map(([x, y, r]) => <circle class="vgp-star" cx={x} cy={y} r={r} />)}
+			{barDots.map(([x, y]) => <circle class="vgp-star vgp-star--bar" cx={x} cy={y} r="1" />)}
+			<circle class="vgp-core" cx={O.x} cy={O.y} r="9"></circle>
+			<circle class="vs-sun" cx={sun.x} cy={sun.y} r="3.6"></circle>
+			<circle class="vgp-ring" cx={sun.x} cy={sun.y} r="7"></circle>
+			<text class="vs-t-sun" x={sun.x - 10} y={sun.y - 8} text-anchor="end">Солнце</text>
+			<line class="vs-dim" x1={O.x - R} y1={O.y + R + 10} x2={O.x + R} y2={O.y + R + 10}></line>
+			<line class="vs-dim" x1={O.x - R} y1={O.y + R + 5} x2={O.x - R} y2={O.y + R + 15}></line>
+			<line class="vs-dim" x1={O.x + R} y1={O.y + R + 5} x2={O.x + R} y2={O.y + R + 15}></line>
+			<text x={O.x} y={O.y + R + 26} text-anchor="middle">100 000 св. лет</text>
+		</svg>
+		<svg class="vs-pic__svg" viewBox="0 0 320 240" role="img" aria-label="Наша Галактика с ребра: тонкий диск, утолщение в центре — балдж, вокруг — сферическое гало с шаровыми скоплениями. Солнце внутри диска: мы смотрим вдоль диска и видим полосу Млечного Пути">
+			<text class="vs-title" x="8" y="20">Вид с ребра</text>
+			<circle class="vgp-halo" cx={E.x} cy={E.y} r={HALO}></circle>
+			{globs.map(([x, y]) => <circle class="vgp-glob" cx={x} cy={y} r="1.8" />)}
+			<ellipse class="vgp-disk" cx={E.x} cy={E.y} rx={R} ry="2"></ellipse>
+			<ellipse class="vgp-bulge" cx={E.x} cy={E.y} rx="14" ry="8"></ellipse>
+			<circle class="vs-sun" cx={sunE.x} cy={sunE.y} r="3.2"></circle>
+			<text class="vs-t-sun" x={sunE.x} y={sunE.y + 18} text-anchor="middle">Солнце</text>
+			<text x={E.x + 64} y={E.y + 16} text-anchor="middle">диск</text>
+			<text x={E.x} y={E.y - 18} text-anchor="middle">балдж</text>
+			<text x={E.x + 74} y={E.y - 70} text-anchor="start">гало</text>
+			<text x="8" y="226">шаровые скопления</text>
+			<line class="vs-line" x1="66" y1="214" x2={near[0]} y2={near[1] + 2}></line>
+		</svg>
+	</div>
+	<div class="vs-pic__foot">
+		<figcaption>
+			Обе схемы в одном масштабе. Сверху на Галактику никто не смотрел: её форму восстановили по движениям звёзд и газа. Из диска мы видим звёзды Галактики вдоль диска&nbsp;— полосой Млечного Пути.
+		</figcaption>
+	</div>
+</figure>
+
+<style is:global>
+	.vgp-diskfill {
+		fill: color-mix(in srgb, var(--ig-vx) 7%, transparent);
+	}
+	.vgp-star {
+		fill: color-mix(in srgb, var(--ig-vx) 60%, var(--sl-color-gray-2));
+	}
+	.vgp-star--bar {
+		fill: color-mix(in srgb, var(--ig-v) 60%, var(--sl-color-gray-2));
+	}
+	.vgp-core {
+		fill: color-mix(in srgb, var(--ig-v) 45%, transparent);
+	}
+	.vgp-ring {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 1.2;
+	}
+	.vgp-halo {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 18%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 4 4;
+	}
+	.vgp-glob {
+		fill: var(--sl-color-gray-2);
+	}
+	.vgp-disk {
+		fill: color-mix(in srgb, var(--ig-vx) 70%, var(--sl-color-gray-2));
+	}
+	.vgp-bulge {
+		fill: color-mix(in srgb, var(--ig-v) 60%, var(--sl-color-gray-2));
+	}
+</style>
