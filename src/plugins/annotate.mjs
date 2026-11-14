@@ -12,7 +12,7 @@ export const symKey = (/** @type {string} */ s) =>
 
 const GREEK = new Set([
 	'alpha', 'beta', 'gamma', 'delta', 'varepsilon', 'epsilon', 'eta', 'theta', 'lambda', 'mu', 'nu', 'rho', 'sigma', 'tau',
-	'varphi', 'phi', 'omega', 'upsilon', 'Delta', 'Phi', 'Omega',
+	'varphi', 'phi', 'omega', 'upsilon', 'Delta', 'Gamma', 'Phi', 'Omega',
 ]);
 // Commands whose braced argument is not math: copied as is (a \text{…} that is a unit gets marked).
 const TEXTISH = new Set(['text', 'mathrm', 'operatorname', 'begin', 'end', 'textit', 'mathit', 'textbf', 'htmlData', 'htmlClass']);
