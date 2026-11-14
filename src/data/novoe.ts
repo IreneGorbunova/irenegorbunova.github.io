@@ -5,6 +5,8 @@
  * its models (src/components/ch/<slug>/). A commit touching SWEEP or more chapters at once is a change across the
  * site (links, a new section in every chapter) and does not count as news. A chapter is «новая» while its last
  * change falls on the day of its first commit or at most NEW_DAYS later (Moscow dates); after that it is «обновлена».
+ * A commit whose message starts with «Test mode» adds a pilot feature that only a visitor in test mode sees
+ * (src/plugins/testmode.mjs): it is not news either.
  */
 import { execFileSync } from 'node:child_process';
 import { getCollection } from 'astro:content';
@@ -31,7 +33,7 @@ const history = () => {
 	if (cache !== undefined) return cache;
 	let log: string;
 	try {
-		log = execFileSync('git', ['log', '--format=%x01%cI', '--name-status', '-M', '--', 'src/content/docs/uchebnik', 'src/components/ch'], {
+		log = execFileSync('git', ['log', '--format=%x01%cI%x02%s', '--name-status', '-M', '--', 'src/content/docs/uchebnik', 'src/components/ch'], {
 			encoding: 'utf8',
 			maxBuffer: 64 << 20,
 		});
@@ -43,7 +45,9 @@ const history = () => {
 	// newest commit first: the first time a slug is seen is its last change, the last time is its first commit
 	for (const block of log.split('\x01').slice(1)) {
 		const [head, ...rows] = block.trim().split('\n');
-		const t = Date.parse(head);
+		const [date, subject = ''] = head.split('\x02');
+		if (/^Test mode\b/.test(subject)) continue;
+		const t = Date.parse(date);
 		const pages = new Set<string>();
 		const touched = new Set<string>();
 		for (const row of rows) {
