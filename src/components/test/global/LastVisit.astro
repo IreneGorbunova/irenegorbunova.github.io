@@ -1,0 +1,66 @@
+---
+/**
+ * Test mode pilot (the course map, ../map/): on a chapter page, remembers that this chapter was opened last and which
+ * of its sections («## …») the reader has reached, for «Продолжить» on /uchebnik/test/karta-8/.
+ * localStorage['ig:last'] = { id, title, href, h: heading id, ht: heading text, t: time }. Only in test mode; on other
+ * pages it renders nothing. The marker below is hidden and holds no text, so the page looks exactly as before.
+ */
+const entry = Astro.locals.starlightRoute?.entry;
+const id = entry?.id ?? '';
+const isChapter = /^uchebnik\/\d+-klass\/[^/]+\/[^/]+$/.test(id);
+---
+
+{isChapter && <span hidden data-ig-test data-ig-last={id} data-ig-last-title={entry!.data.title} />}
+
+<script>
+	const mark = document.querySelector<HTMLElement>('[data-ig-last]');
+	if (mark && document.documentElement.dataset.igTestmode === '1') {
+		const heads = [...document.querySelectorAll<HTMLElement>('.sl-markdown-content h2[id]')];
+		let cur: HTMLElement | null | undefined;
+		const save = () => {
+			try {
+				localStorage.setItem(
+					'ig:last',
+					JSON.stringify({
+						id: mark.dataset.igLast,
+						title: mark.dataset.igLastTitle,
+						href: location.pathname,
+						h: cur?.id ?? '',
+						ht: cur?.textContent?.trim() ?? '',
+						t: Date.now(),
+					}),
+				);
+			} catch {
+				/* storage off: nothing is remembered */
+			}
+		};
+		// the section reached: the last «## …» whose heading has passed the upper third of the screen
+		const pick = () => {
+			const line = innerHeight / 3;
+			let c: HTMLElement | null = null;
+			for (const h of heads) {
+				if (h.getBoundingClientRect().top <= line) c = h;
+				else break;
+			}
+			if (c !== cur) {
+				cur = c;
+				save();
+			}
+		};
+		let raf = 0;
+		addEventListener(
+			'scroll',
+			() => {
+				if (!raf)
+					raf = requestAnimationFrame(() => {
+						raf = 0;
+						pick();
+					});
+			},
+			{ passive: true },
+		);
+		pick();
+		// back from another page: this chapter is the last one again
+		addEventListener('pageshow', (e) => e.persisted && save());
+	}
+</script>

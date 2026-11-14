@@ -1,0 +1,661 @@
+---
+/**
+ * A grade's contents as a course map (test mode pilot, /uchebnik/test/karta-8/).
+ *  - A status line computed from the sidebar: «8 класс — полный курс: 24 главы, 4 раздела».
+ *  - «Сегодня», filled in the browser from localStorage (./today.ts): where the pupil stopped (ig:last, written by
+ *    ../global/LastVisit.astro), the formula cards due today (ig:cards, formulas/leitner.mjs) and the first chapter in
+ *    course order whose stars are not all lit (ig:sky, sky/progress.ts). The server renders the first visit (empty
+ *    storage), so the most common case needs no script and never flashes.
+ *  - The map: the grade's sections as a path, a tile per chapter with its thumbnail, title, line (./chapters.ts),
+ *    stars lit exactly as «Моё небо» counts them, number of cards and state. The current section is open.
+ * The sky and Leitner modules are only read. Without test mode the whole map stays hidden.
+ */
+import { getCollection } from 'astro:content';
+import { skySections } from '../../sky/sections';
+import { CONSTELLATIONS, blocks } from '../../sky/constellations';
+import { cardParts, chapterLabel } from '../../formulas/render';
+import CardDeck from '../../formulas/CardDeck.astro';
+import Thumb from './Thumb.astro';
+import { MAP_CHAPTERS, COMPLETE_GRADES } from './chapters';
+import { plural, ofStars } from './words';
+
+interface Props {
+	/** the grade's label in the sidebar, e.g. «8 класс» */
+	grade: string;
+}
+const { grade } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const deckId = 'deck-kmap';
+
+const thumbs = import.meta.glob<{ default: ImageMetadata }>('./thumbs/*.webp', { eager: true });
+const thumbOf = (slug: string, theme: 'dark' | 'light') => thumbs[`./thumbs/${slug}-${theme}.webp`]?.default;
+
+const entries = new Map((await getCollection('docs')).map((e) => [e.id, e]));
+let n = 0;
+const sections = skySections(Astro.locals.starlightRoute)
+	.filter((s) => s.grade === grade)
+	.map((s, si) => {
+		const sky = CONSTELLATIONS[s.key];
+		const own = blocks(sky.stars.length, Math.max(1, s.chapters.length));
+		const chapters = s.chapters.map((c, ci) => {
+			const entry = entries.get(c.id);
+			const slug = c.id.split('/').pop()!;
+			const data = MAP_CHAPTERS[slug];
+			if (!data) console.warn(`[map] глава ${slug} без строки в src/components/test/map/chapters.ts`);
+			const formulas = entry?.data.formulas ?? [];
+			return {
+				id: c.id,
+				slug,
+				n: ++n,
+				sec: si,
+				href: c.href,
+				title: entry?.data.title ?? c.label,
+				line: data?.line ?? '',
+				need: c.need,
+				size: own[ci].length,
+				dark: thumbOf(slug, 'dark'),
+				light: thumbOf(slug, 'light'),
+				cards: entry ? formulas.map((f) => cardParts(entry.id, chapterLabel(entry), `${base}${entry.id}/`, f)) : [],
+			};
+		});
+		return { name: s.section, sky: sky.name, nStars: sky.stars.length, chapters };
+	});
+const chapters = sections.flatMap((s) => s.chapters);
+const allCards = chapters.flatMap((c) => c.cards);
+const first = chapters[0];
+const status = `${grade}${COMPLETE_GRADES.has(grade) ? ' — полный курс' : ''}: ${plural(chapters.length, 'глава', 'главы', 'глав')}, ${plural(sections.length, 'раздел', 'раздела', 'разделов')}`;
+// what the script needs, per chapter
+const json = JSON.stringify(
+	chapters.map((c) => ({
+		id: c.id,
+		href: c.href,
+		title: c.title,
+		need: c.need,
+		size: c.size,
+		sec: c.sec,
+		keys: c.cards.map((k) => k.key),
+		dark: c.dark?.src ?? '',
+		light: c.light?.src ?? '',
+	})),
+);
+const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.25-6.54L2.55 9.43l6.6-.8z';
+---
+
+<p class="kmap-off" data-ig-test-hide>
+	Эта страница — пробная: она работает только в тестовом режиме. <a href="?test=1">Включить тестовый режим</a>.
+</p>
+
+<div class="kmap not-content" data-kmap data-chapters={json} data-nebo={`${base}uchebnik/nebo/`} data-ig-test data-pagefind-ignore>
+	<p class="kmap-status">{status}</p>
+
+	<section class="kmap-today" aria-labelledby="kmap-today-h">
+		<h2 class="kmap-h" id="kmap-today-h">Сегодня</h2>
+
+		<div class="kmap-first" data-first>
+			<a class="kmap-first__card" href={first.href}>
+				<Thumb dark={first.dark} light={first.light} />
+				<span class="kmap-first__text">
+					<span class="kmap-kicker">Начните с первой главы</span>
+					<span class="kmap-first__title">{first.title}</span>
+					<span class="kmap-first__line">{first.line}</span>
+					<span class="kmap-btn">Открыть главу</span>
+				</span>
+			</a>
+			<p class="kmap-hint">
+				Звёзды глав загораются, когда вы двигаете модели, проходите выводы до конца и отвечаете на вопросы. Карта запомнит, где вы остановились, и подскажет, что читать дальше.
+			</p>
+		</div>
+
+		<div class="kmap-rows" data-back hidden>
+			<a class="kmap-row" data-row="finished" href={`${base}uchebnik/nebo/`} hidden>
+				<span class="kmap-row__pic kmap-row__pic--cards" aria-hidden="true"><span class="kmap-cards">★</span></span>
+				<span class="kmap-row__text">
+					<span class="kmap-kicker">Курс пройден</span>
+					<span class="kmap-row__title">{`Все звёзды ${grade}а горят`}</span>
+					<span class="kmap-row__sub">Посмотрите на собранные созвездия в «Моём небе».</span>
+				</span>
+			</a>
+			<a class="kmap-row" data-row="continue" href={first.href} hidden>
+				<span class="kmap-row__pic" data-pic></span>
+				<span class="kmap-row__text">
+					<span class="kmap-kicker">Продолжить</span>
+					<span class="kmap-row__title" data-title></span>
+					<span class="kmap-row__sub" data-sub></span>
+				</span>
+			</a>
+			<button class="kmap-row" type="button" data-row="due" data-deck-open={deckId} data-deck-due hidden>
+				<span class="kmap-row__pic kmap-row__pic--cards" aria-hidden="true"><span class="kmap-cards" data-due-n></span></span>
+				<span class="kmap-row__text">
+					<span class="kmap-kicker" data-title></span>
+					<span class="kmap-row__sub">Формулы и определения, которые пора вспомнить сегодня.</span>
+				</span>
+			</button>
+			<button class="kmap-row" type="button" data-row="learn" data-deck-open={deckId} data-deck-keys="" hidden>
+				<span class="kmap-row__pic kmap-row__pic--cards" aria-hidden="true"><span class="kmap-cards">+</span></span>
+				<span class="kmap-row__text">
+					<span class="kmap-kicker">Учить карточки</span>
+					<span class="kmap-row__sub" data-sub></span>
+				</span>
+			</button>
+			<div class="kmap-row kmap-row--quiet" data-row="rested" hidden>
+				<span class="kmap-row__pic kmap-row__pic--cards" aria-hidden="true"><span class="kmap-cards">✓</span></span>
+				<span class="kmap-row__text">
+					<span class="kmap-kicker">Карточки на сегодня повторены</span>
+					<span class="kmap-row__sub" data-sub></span>
+				</span>
+			</div>
+			<a class="kmap-row" data-row="next" href={first.href} hidden>
+				<span class="kmap-row__pic" data-pic></span>
+				<span class="kmap-row__text">
+					<span class="kmap-kicker">Дальше</span>
+					<span class="kmap-row__title" data-title></span>
+					<span class="kmap-row__sub" data-sub></span>
+				</span>
+			</a>
+		</div>
+	</section>
+
+	<ol class="kmap-path">
+		{
+			sections.map((s, si) => (
+				<li class="ksec" data-sec={si}>
+					<details class="ksec__box" open={si === 0}>
+						<summary class="ksec__sum">
+							<span class="ksec__node" aria-hidden="true">
+								<span class="ksec__num">{si + 1}</span>
+								<svg class="ksec__check" viewBox="0 0 24 24">
+									<path d="M5 12.5l4.5 4.5L19 7.5" />
+								</svg>
+							</span>
+							<span class="ksec__head">
+								<h2 class="ksec__title">{s.name}</h2>
+								<span class="ksec__meta">
+									{plural(s.chapters.length, 'глава', 'главы', 'глав')} ·{' '}
+									{plural(
+										s.chapters.reduce((a, c) => a + c.cards.length, 0),
+										'карточка',
+										'карточки',
+										'карточек',
+									)}
+									<span class="ksec__stars" data-sec-stars>{`${s.sky.replace(/ /g, '\u00a0')}: 0 из ${s.nStars} ${ofStars(s.nStars)}`}</span>
+								</span>
+							</span>
+						</summary>
+						<ol class="ktiles">
+							{s.chapters.map((c) => (
+								<li class="ktile" data-ch={c.id} data-state="new">
+									<Thumb dark={c.dark} light={c.light} />
+									<span class="ktile__state" data-state-label>
+										не начата
+									</span>
+									<div class="ktile__body">
+										<h3 class="ktile__title">
+											<a class="ktile__link" href={c.href}>
+												{c.title}
+											</a>
+										</h3>
+										<p class="ktile__line">{c.line}</p>
+										<p class="ktile__meta">
+											<span class="kstars" role="img" aria-label={`Звёзды главы: 0 из ${c.size}`} data-stars>
+												{Array.from({ length: c.size }, () => (
+													<svg class="kstar" viewBox="0 0 24 24" aria-hidden="true">
+														<path d={STAR} />
+													</svg>
+												))}
+											</span>
+											<span>{plural(c.cards.length, 'карточка', 'карточки', 'карточек')}</span>
+										</p>
+									</div>
+								</li>
+							))}
+						</ol>
+					</details>
+				</li>
+			))
+		}
+	</ol>
+
+	<CardDeck id={deckId} cards={allCards} />
+</div>
+
+<script>
+	import './today';
+</script>
+
+<style is:global>
+	/* the map uses the width of a desktop screen (only on this page and only in test mode) */
+	@media (min-width: 72rem) {
+		:root[data-ig-testmode]:has([data-kmap]) {
+			--sl-content-width: 55rem;
+		}
+	}
+	.kmap-off a {
+		color: var(--sl-color-text-accent);
+	}
+	.kmap {
+		--kmap-r: 1rem;
+		--kmap-line: var(--sl-color-gray-5);
+	}
+	.kmap a {
+		color: inherit;
+		text-decoration: none;
+	}
+	.kmap :focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 3px;
+	}
+	.kmap-status {
+		margin: 0 0 1.25rem;
+		color: var(--sl-color-gray-2);
+	}
+	.kmap-h,
+	.ksec__title {
+		margin: 0;
+		font-family: var(--ig-font-display);
+		font-weight: 400;
+		line-height: 1.15;
+		color: var(--sl-color-white);
+	}
+	.kmap-h {
+		font-size: 2.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.kmap-kicker {
+		display: block;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-text-accent);
+	}
+
+	/* thumbnails: the scene of the current theme; a night sky where a chapter has no scene */
+	.kthumb {
+		display: block;
+		position: relative;
+		aspect-ratio: 3 / 2;
+		overflow: hidden;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.kthumb__img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	:root[data-theme='light'] .kthumb__img--dark,
+	:root:not([data-theme='light']) .kthumb__img--light {
+		display: none;
+	}
+	.kthumb__none {
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(circle at 22% 30%, var(--sl-color-gray-3) 0 1.5px, transparent 2px),
+			radial-gradient(circle at 64% 22%, var(--sl-color-gray-3) 0 1px, transparent 1.5px),
+			radial-gradient(circle at 78% 58%, var(--sl-color-text-accent) 0 2px, transparent 2.5px),
+			radial-gradient(circle at 40% 70%, var(--sl-color-gray-3) 0 1px, transparent 1.5px),
+			radial-gradient(circle at 12% 78%, var(--sl-color-gray-4) 0 1px, transparent 1.5px),
+			radial-gradient(ellipse at 50% 40%, var(--sl-color-accent-low), transparent 75%), var(--ig-surface);
+	}
+
+	/* «Сегодня» */
+	.kmap-today {
+		margin-bottom: 2rem;
+	}
+	.kmap-first__card {
+		display: grid;
+		gap: 0.9rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-accent);
+		border-radius: var(--kmap-r);
+		background: var(--ig-surface);
+	}
+	.kmap-first__text {
+		display: grid;
+		gap: 0.3rem;
+		align-content: center;
+		padding: 0 0.25rem 0.25rem;
+	}
+	.kmap-first__title {
+		font-family: var(--ig-font-display);
+		font-size: 2rem;
+		line-height: 1.15;
+		color: var(--sl-color-white);
+	}
+	.kmap-first__line {
+		color: var(--sl-color-gray-2);
+	}
+	.kmap-btn {
+		justify-self: start;
+		margin-top: 0.5rem;
+		padding: 0.65rem 1.3rem;
+		min-height: 2.75rem;
+		border-radius: 999px;
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 600;
+		font-size: var(--sl-text-sm);
+		line-height: 1.5;
+	}
+	.kmap-first__card:hover .kmap-btn {
+		filter: brightness(1.08);
+	}
+	.kmap-hint {
+		margin: 0.75rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	@media (min-width: 40rem) {
+		.kmap-first__card {
+			grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+			gap: 1.25rem;
+		}
+	}
+
+	.kmap-rows {
+		display: grid;
+		gap: 0.6rem;
+	}
+	.kmap-rows[hidden],
+	.kmap-row[hidden],
+	.kmap-first[hidden] {
+		display: none;
+	}
+	.kmap-row {
+		display: grid;
+		grid-template-columns: 6rem minmax(0, 1fr);
+		gap: 0.85rem;
+		align-items: center;
+		min-height: 4.5rem;
+		margin: 0;
+		padding: 0.6rem;
+		border: 1px solid var(--kmap-line);
+		border-radius: var(--kmap-r);
+		background: var(--ig-surface);
+		font: inherit;
+		text-align: left;
+		color: inherit;
+		cursor: pointer;
+		transition: border-color 0.2s;
+	}
+	.kmap-row:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.kmap-row--quiet {
+		cursor: default;
+	}
+	.kmap-row--quiet:hover {
+		border-color: var(--kmap-line);
+	}
+	.kmap-row__text {
+		display: grid;
+		gap: 0.1rem;
+	}
+	.kmap-row__title {
+		font-weight: 600;
+		line-height: 1.3;
+		color: var(--sl-color-white);
+	}
+	.kmap-row__sub {
+		font-size: var(--sl-text-sm);
+		line-height: 1.35;
+		color: var(--sl-color-gray-3);
+	}
+	.kmap-row__pic--cards {
+		display: grid;
+		place-items: center;
+		aspect-ratio: 3 / 2;
+		border-radius: 0.6rem;
+		background: var(--sl-color-accent-low);
+	}
+	.kmap-cards {
+		font-size: 1.6rem;
+		font-weight: 600;
+		line-height: 1;
+		color: var(--sl-color-text-accent);
+		font-variant-numeric: tabular-nums;
+	}
+	@media (min-width: 50rem) {
+		.kmap-rows {
+			grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+		}
+	}
+
+	/* the path of sections */
+	.kmap-path {
+		display: grid;
+		gap: 1.1rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.ksec {
+		position: relative;
+		margin: 0;
+	}
+	/* the path between two sections: a dashed line from node to node */
+	.ksec + .ksec::before {
+		content: '';
+		position: absolute;
+		left: calc(1rem + 1.1rem - 1px);
+		top: -1.1rem;
+		height: 1.1rem;
+		border-left: 2px dashed var(--sl-color-gray-4);
+	}
+	.ksec__box {
+		border: 1px solid var(--kmap-line);
+		border-radius: var(--kmap-r);
+		background: var(--ig-surface);
+		transition: border-color 0.2s;
+	}
+	.ksec__box:hover,
+	.ksec__box[open] {
+		border-color: var(--sl-color-accent);
+	}
+	.ksec__sum {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.8rem;
+		align-items: center;
+		position: relative;
+		padding: 0.85rem 3rem 0.85rem 1rem;
+		list-style: none;
+		cursor: pointer;
+	}
+	.ksec__sum::-webkit-details-marker {
+		display: none;
+	}
+	.ksec__sum::after {
+		content: '';
+		position: absolute;
+		right: 1.25rem;
+		top: calc(50% - 0.45rem);
+		width: 0.6rem;
+		height: 0.6rem;
+		border-right: 2px solid var(--sl-color-gray-3);
+		border-bottom: 2px solid var(--sl-color-gray-3);
+		transform: rotate(45deg);
+		transition: transform 0.2s;
+	}
+	.ksec__box[open] > .ksec__sum::after {
+		transform: translateY(0.3rem) rotate(225deg);
+	}
+	.ksec__node {
+		display: grid;
+		place-items: center;
+		width: 2.2rem;
+		height: 2.2rem;
+		border-radius: 50%;
+		border: 2px solid var(--sl-color-gray-4);
+		color: var(--sl-color-gray-2);
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+	.ksec__check {
+		display: none;
+		width: 1.2rem;
+		height: 1.2rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 3;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.ksec.is-current .ksec__node {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-text-accent);
+	}
+	.ksec.is-done .ksec__node {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ksec.is-done .ksec__num {
+		display: none;
+	}
+	.ksec.is-done .ksec__check {
+		display: block;
+	}
+	.ksec__head {
+		display: grid;
+		gap: 0.15rem;
+	}
+	.ksec__title {
+		font-size: 1.9rem;
+	}
+	.ksec__meta {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.ksec__stars {
+		display: block;
+	}
+
+	/* chapter tiles: a row with a small picture on a phone, a grid of cards on a wide screen */
+	.ktiles {
+		display: grid;
+		gap: 0.6rem;
+		margin: 0;
+		padding: 0 0.75rem 0.75rem;
+		list-style: none;
+	}
+	.ktile {
+		position: relative;
+		display: grid;
+		grid-template-columns: 7rem minmax(0, 1fr);
+		grid-template-rows: auto 1fr;
+		grid-template-areas: 'thumb body' 'state body';
+		gap: 0.5rem 0.75rem;
+		align-items: start;
+		margin: 0;
+		padding: 0.6rem;
+		border: 1px solid var(--kmap-line);
+		border-radius: 0.8rem;
+		background: var(--sl-color-bg);
+		transition: border-color 0.2s;
+	}
+	.ktile:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.ktile.is-next {
+		border-color: var(--sl-color-accent);
+		box-shadow: 0 0 0 1px var(--sl-color-accent);
+	}
+	.ktile > .kthumb {
+		grid-area: thumb;
+	}
+	.ktile__body {
+		grid-area: body;
+		display: grid;
+		gap: 0.2rem;
+		min-width: 0;
+	}
+	.ktile__title {
+		margin: 0;
+		font-size: var(--sl-text-base);
+		font-weight: 600;
+		line-height: 1.3;
+		color: var(--sl-color-white);
+	}
+	/* the whole tile is the link */
+	.ktile__link::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+	}
+	.ktile__line {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.35;
+		color: var(--sl-color-gray-2);
+	}
+	.ktile__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.2rem 0.7rem;
+		margin: 0.2rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.kstars {
+		display: inline-flex;
+		gap: 0.1rem;
+	}
+	.kstar {
+		width: 0.95rem;
+		height: 0.95rem;
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+	.kstar.is-lit {
+		fill: var(--sl-color-text-accent);
+		stroke: var(--sl-color-text-accent);
+	}
+	.ktile__state {
+		grid-area: state;
+		justify-self: start;
+		align-self: start;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		background: var(--sl-color-bg);
+		padding: 0 0.5rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 999px;
+		line-height: 1.5;
+	}
+	.ktile[data-state='started'] .ktile__state {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-text-accent);
+	}
+	.ktile[data-state='done'] .ktile__state {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	@media (min-width: 50rem) {
+		.ktiles {
+			grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+			gap: 0.8rem;
+			padding: 0 1rem 1rem;
+		}
+		.ktile {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-rows: auto 1fr;
+			grid-template-areas: 'thumb' 'body';
+		}
+		/* on a card the state sits on the picture's corner */
+		.ktile__state {
+			position: absolute;
+			top: 1rem;
+			right: 1rem;
+		}
+		.ktile__body {
+			grid-template-rows: auto 1fr auto;
+			padding: 0 0.15rem 0.1rem;
+		}
+	}
+</style>
