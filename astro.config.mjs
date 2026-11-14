@@ -4,6 +4,7 @@ import starlight from '@astrojs/starlight';
 import { satteri } from '@astrojs/markdown-satteri';
 import { katexPlugin } from './src/plugins/katex.mjs';
 import { motionCss, MOTION_SCRIPT } from './src/plugins/motion.mjs';
+import { TEST_SCRIPT } from './src/plugins/testmode.mjs';
 
 const GOATCOUNTER = 'https://irenegorbunova.goatcounter.com/count';
 
@@ -39,6 +40,8 @@ export default defineConfig({
 			disable404Route: true,
 			head: [
 				{ tag: 'script', content: MOTION_SCRIPT },
+				// pilot features are hidden unless the visitor switched test mode on (/uchebnik/test/)
+				{ tag: 'script', content: TEST_SCRIPT },
 				// visit counter, no cookies: https://irenegorbunova.goatcounter.com
 				{ tag: 'script', attrs: { 'data-goatcounter': GOATCOUNTER, async: true, src: '//gc.zgo.at/count.js' } },
 			],
