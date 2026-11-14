@@ -1,0 +1,103 @@
+---
+/**
+ * The image on the retina. Left, to scale (1,6 px per mm): an arrow 8 cm tall stands 20 cm from the eye. Right, the
+ * same eye 9 px per mm: the ray from the tip of the arrow through the optical centre goes on without turning and meets
+ * the retina 6,7 mm below the axis (H = h·L/d = 80 · 16,7 / 200); the rays from the foot of the arrow meet on the
+ * retina on the axis (the lens has accommodated by 5 дптр). The image is real, smaller and upside down.
+ */
+import GzStyles from './GzStyles.astro';
+import EyeView from './EyeView.astro';
+import { makeView, X, Y, pathD, eyeParts, traceAxis, hitRetina, globe, EYE_L } from './eye';
+
+const L = EYE_L.normal;
+const d = 200;
+const h = 80;
+const a = 5;
+const VA = makeView(-214, 30, -20, 90, 1.6);
+const eA = eyeParts(VA, L, a);
+const base = traceAxis(d, 0, L, a, -d, 3).rays.map((r) => pathD(VA, r));
+const s = -h / d; // slope of the ray through the centre
+const tip = pathD(VA, [[-d, h], [0, 0], hitRetina(globe(L), [0, 0], s)]);
+const zoom = { x: X(VA, -14), y: Y(VA, 12.5), w: 38 * VA.S, h: 25 * VA.S };
+const ax = X(VA, -d);
+const y0 = Y(VA, 0);
+const yt = Y(VA, h);
+const ZV: [number, number, number, number] = [-14, 24, -12.5, 12.5];
+---
+
+<GzStyles />
+<figure class="lz lzd gz not-content">
+	<div class="lzd__grid gz-retina-grid">
+		<div class="lzd__panel">
+			<svg class="lzd__svg gz-mini" viewBox={`0 0 ${VA.w.toFixed(1)} ${VA.h.toFixed(1)}`} role="img" aria-label="В масштабе: стрелка высотой 8 сантиметров стоит в 20 сантиметрах от глаза. Луч от её верхушки проходит через оптический центр глаза и попадает на сетчатку ниже оси">
+				<line class="lz-axis" x1="0" y1={y0} x2={VA.w} y2={y0}></line>
+				<path class="gz-nerve" d={eA.nerve}></path>
+				<path class="gz-globe" d={eA.globe}></path>
+				<path class="gz-retina" d={eA.retina}></path>
+				<path class="gz-sclera" d={eA.sclera}></path>
+				{
+					base.map((r) => (
+						<g class="lz-ray">
+							<path class="lz-base" d={r} />
+						</g>
+					))
+				}
+				<g class="lz-ray lz-ray--2">
+					<path class="lz-base" d={tip} />
+					<path class="lz-flow" d={tip} />
+				</g>
+				<path class="gz-lens" d={eA.lens}></path>
+				<g class="gz-object">
+					<line x1={ax} y1={y0} x2={ax} y2={yt + 7}></line>
+					<polygon points={`${ax},${yt} ${ax - 5},${yt + 9} ${ax + 5},${yt + 9}`}></polygon>
+				</g>
+				<rect class="gz-zoom" x={zoom.x} y={zoom.y} width={zoom.w} height={zoom.h} rx="3"></rect>
+				<text class="lzd-t" x={ax + 7} y={(y0 + yt) / 2}>предмет</text>
+				<path class="gz-lead" d={`M${ax} ${y0 + 9} V${y0 + 17} M${ax} ${y0 + 13} H${X(VA, 0)} M${X(VA, 0)} ${y0 + 9} V${y0 + 17}`}></path>
+				<text class="lzd-t" x={(ax + X(VA, 0)) / 2} y={y0 + 28} text-anchor="middle">20 см</text>
+				<text class="lzd-t" x={zoom.x + zoom.w / 2} y={zoom.y - 6} text-anchor="middle">глаз</text>
+			</svg>
+			<p class="lzd__label"><b>В масштабе.</b> Стрелка высотой 8&nbsp;см в 20&nbsp;см от глаза.</p>
+		</div>
+		<div class="lzd__panel">
+			<EyeView L={L} a={a} d={d} n={3} chief={{ h }} view={ZV} S={9} muscles={false} label="Тот же глаз крупно. Лучи от основания стрелки собираются на сетчатке на оси, луч от верхушки проходит через оптический центр и попадает на сетчатку ниже оси. Изображение на сетчатке перевёрнутое и маленькое">
+				<text class="lzd-t" x={X(makeView(...ZV, 9), 17.5)} y={Y(makeView(...ZV, 9), -9.6)} text-anchor="end">изображение</text>
+			</EyeView>
+			<p class="lzd__label"><b>Глаз крупнее в 5,6 раза.</b> Изображение стрелки на сетчатке — 6,7&nbsp;мм, вверх ногами.</p>
+		</div>
+	</div>
+	<figcaption class="lz-legend lzd__cap">
+		Луч от верхушки стрелки (голубой) проходит через оптический центр глаза не преломляясь. Лучи от основания
+		стрелки (жёлтые) собираются на сетчатке на оси. Масштаб в каждой половине рисунка одинаковый по обеим осям.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.gz-mini .gz-sclera {
+		stroke-width: 2;
+	}
+	.gz-mini .gz-retina {
+		stroke-width: 1.5;
+	}
+	.gz-mini .lz-ray .lz-base {
+		stroke-width: 1.4;
+	}
+	.gz-mini .lz-ray .lz-flow {
+		stroke-width: 2.4;
+	}
+	.gz-mini .gz-lens {
+		stroke-width: 1;
+	}
+	@media (min-width: 40rem) {
+		.gz-retina-grid {
+			grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+			align-items: end;
+		}
+	}
+	.gz-zoom {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+</style>

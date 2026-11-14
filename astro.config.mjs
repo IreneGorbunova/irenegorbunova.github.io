@@ -72,7 +72,7 @@ export default defineConfig({
 					]),
 					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['elektrizaciya', 'elektricheskiy-tok', 'sila-toka-napryazhenie-soprotivlenie', 'zakon-oma', 'soedinenie-provodnikov', 'rabota-i-moshchnost-toka']),
 					section('Электромагнитные явления', '8-klass/elektromagnitnye-yavleniya', ['magnitnoe-pole-toka', 'elektromagnity', 'postoyannye-magnity', 'magnitnoe-pole-zemli', 'elektrodvigatel']),
-					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'otrazhenie-sveta', 'prelomlenie-sveta', 'linzy']),
+					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'otrazhenie-sveta', 'prelomlenie-sveta', 'linzy', 'glaz-i-zrenie']),
 				]),
 				grade(9, [
 					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['zakony-nyutona', 'zakon-vsemirnogo-tyagoteniya']),

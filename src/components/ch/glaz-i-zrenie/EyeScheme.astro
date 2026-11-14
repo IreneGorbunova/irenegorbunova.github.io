@@ -1,0 +1,108 @@
+---
+/**
+ * Labelled scheme of the eye, a horizontal section seen from above (the nose is below), real proportions:
+ * the eyeball about 24 mm long, the cornea 11,6 mm across, the pupil 4 mm, the lens 9,6 mm across and 3,6 mm thick.
+ * Rays from a far point on the axis enter the pupil and meet on the retina (a normal eye, the lens relaxed). All the
+ * bending is drawn at the lens, as in the chapter «Линзы»: there the cornea and the lens act as one converging lens.
+ * 9 px per millimetre on both axes. Light pulses run along the rays.
+ */
+import GzStyles from './GzStyles.astro';
+import { makeView, X, Y, pathD, eyeParts, traceAxis, EYE_L } from './eye';
+
+const V = makeView(-21, 29, -14, 13.5, 9);
+const L = EYE_L.normal;
+const e = eyeParts(V, L, 0);
+const rays = traceAxis(Infinity, 0, L, 0, V.xmin, 3).rays.map((r) => pathD(V, r));
+const px = (x: number, y: number) => `${X(V, x).toFixed(1)} ${Y(V, y).toFixed(1)}`;
+const g = e.g;
+const onSclera = (deg: number) => [g.cx + g.ax * Math.cos((deg * Math.PI) / 180), g.ay * Math.sin((deg * Math.PI) / 180)] as const;
+const onRetina = (deg: number) => [g.cx + g.rx * Math.cos((deg * Math.PI) / 180), g.ry * Math.sin((deg * Math.PI) / 180)] as const;
+const sc = onSclera(105);
+const rt = onRetina(42);
+// labels: [text lines, label x, y (px), anchor, the point the leader goes to (mm)]
+const labels: { t: string[]; x: number; y: number; a: string; to?: readonly [number, number] }[] = [
+	{ t: ['роговица'], x: 8, y: 84, a: 'start', to: [-4.9, 3] },
+	{ t: ['зрачок'], x: 8, y: 178, a: 'start', to: [-2.05, -1.2] },
+	{ t: ['радужная', 'оболочка'], x: 72, y: 14, a: 'middle', to: [-2.3, 4.6] },
+	{ t: ['склера'], x: 210, y: 12, a: 'middle', to: [sc[0], sc[1] - 0.4] },
+	{ t: ['хрусталик'], x: 190, y: 240, a: 'middle', to: [0.4, -3.4] },
+	{ t: ['ресничная', 'мышца'], x: 70, y: 222, a: 'middle', to: [0.4, -6.4] },
+	{ t: ['сетчатка'], x: 444, y: 34, a: 'end', to: [rt[0], rt[1]] },
+	{ t: ['зрительный', 'нерв'], x: 444, y: 206, a: 'end', to: [21, -5.2] },
+];
+const LH = 15;
+---
+
+<GzStyles />
+<figure class="lz lzd gz not-content">
+	<svg class="lzd__svg gz-scheme" viewBox={`0 0 ${V.w} ${V.h}`} role="img" aria-label="Схема глаза в разрезе, вид сверху. Свет проходит через прозрачную роговицу, отверстие в радужной оболочке — зрачок, хрусталик и стекловидное тело и собирается на сетчатке на задней стенке глаза. От сетчатки к мозгу идёт зрительный нерв. Хрусталик держится на тонких волокнах, идущих от ресничной мышцы">
+		<path class="gz-nerve" d={e.nerve}></path>
+		<path class="gz-globe" d={e.globe}></path>
+		<path class="gz-chamber" d={e.chamber}></path>
+		<path class="gz-retina" d={e.retina}></path>
+		<path class="gz-sclera" d={e.sclera}></path>
+		<path class="gz-cornea" d={e.cornea}></path>
+		{e.zonules.map((d) => <path class="gz-zonule" d={d} />)}
+		{e.ciliary.map((c) => <ellipse class="gz-ciliary" {...c} />)}
+		{
+			rays.map((d) => (
+				<g class="lz-ray">
+					<path class="lz-base" d={d} />
+					<path class="lz-flow" d={d} />
+				</g>
+			))
+		}
+		<path class="gz-lens" d={e.lens}></path>
+		{e.iris.map((d) => <path class="gz-iris" d={d} />)}
+		{
+			labels.map((l) => {
+				const ty = l.y + (l.t.length - 1) * LH;
+				const toPx = l.to ? [X(V, l.to[0]), Y(V, l.to[1])] : null;
+				// the leader starts at the side of the label that faces its point
+				const fromY = toPx && toPx[1] > ty ? ty + 4 : l.y - 13;
+				const fromX = l.a === 'start' ? l.x + 4 : l.a === 'end' ? l.x - 4 : l.x;
+				return (
+					<g>
+						{toPx && <path class="gz-lead" d={`M${fromX.toFixed(1)} ${fromY.toFixed(1)} L${px(l.to![0], l.to![1])}`} />}
+						{toPx && <circle class="gz-dot" cx={toPx[0].toFixed(1)} cy={toPx[1].toFixed(1)} r="2" />}
+						<text class="gz-lab" x={l.x} y={l.y} text-anchor={l.a}>
+							{l.t.map((s, i) => (
+								<tspan x={l.x} dy={i ? LH : 0}>
+									{s}
+								</tspan>
+							))}
+						</text>
+					</g>
+				);
+			})
+		}
+		<text class="gz-lab gz-lab--in" x={X(V, 9.6)} y={Y(V, 5.6)} text-anchor="middle"><tspan x={X(V, 9.6)}>стекловидное</tspan><tspan x={X(V, 9.6)} dy={LH}>тело</tspan></text>
+	</svg>
+	<figcaption class="lz-legend lzd__cap">
+		Горизонтальный разрез глаза, вид сверху; размеры настоящие, глазное яблоко — около 2,5&nbsp;см. Лучи от далёкой
+		точки собираются на сетчатке. На рисунке лучи преломляются только в хрусталике: роговица и хрусталик вместе
+		работают как одна собирающая линза.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.gz-scheme {
+		max-width: 34rem !important;
+	}
+	.gz-lab {
+		fill: var(--sl-color-gray-1);
+		font-family: var(--__sl-font);
+		font-size: 13px;
+		paint-order: stroke fill;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+	}
+	.gz-lab--in {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--gz-inside);
+	}
+	.gz-dot {
+		fill: var(--sl-color-gray-2);
+	}
+</style>

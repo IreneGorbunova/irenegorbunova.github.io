@@ -1,0 +1,144 @@
+---
+/**
+ * One enlarged eye (equal scales, S px per millimetre) with rays from a point of the axis at distance d (mm; Infinity
+ * = a far point, parallel rays), optional glasses of power Pg (дптр) and accommodation a (дптр). The rays end on the
+ * retina; when they would meet behind it, dashed lines show where. A dot marks the point where they meet.
+ * `ghost` draws the relaxed lens dashed for comparison; `chief` adds the ray from the tip of an object of height
+ * chief.h (mm) through the optical centre and the image arrow on the retina. Used by the pictures of the chapter.
+ */
+import { makeView, X, Y, pathD, closed, eyeParts, traceAxis, lensShape, glassesPts, imageHeight, hitRetina, globe } from './eye';
+
+interface Props {
+	L: number;
+	a?: number;
+	d?: number;
+	Pg?: number;
+	view?: [number, number, number, number];
+	S?: number;
+	n?: number;
+	ghost?: boolean;
+	focusDot?: boolean;
+	chief?: { h: number };
+	muscles?: boolean;
+	label: string;
+	class?: string;
+}
+const {
+	L,
+	a = 0,
+	d = Infinity,
+	Pg = 0,
+	view = [-20, 21, -9.5, 9.5],
+	S = 12,
+	n = 5,
+	ghost = false,
+	focusDot = true,
+	chief,
+	muscles = true,
+	label,
+	class: cls = '',
+} = Astro.props;
+
+const V = makeView(view[0], view[1], view[2], view[3], S);
+const e = eyeParts(V, L, a);
+const tr = traceAxis(d, Pg, L, a, V.xmin, n);
+const rays = tr.rays.map((r) => pathD(V, r));
+// where the rays meet: in front of the retina (seen as a crossing) or behind it (dashed extensions)
+const f = tr.focus;
+const behind = f !== null && f > L + 0.05;
+const virt = behind
+	? tr.rays.map((r) => {
+			const p = r[r.length - 1];
+			return pathD(V, [p, [f!, 0]]);
+		})
+	: [];
+const dot = f !== null && f < V.xmax - 0.5 ? { cx: X(V, f), cy: Y(V, 0) } : null;
+const ghostD = ghost ? closed(V, lensShape(0).pts) : '';
+const glasses = Pg ? closed(V, glassesPts(Pg)) : '';
+
+let chiefD = '';
+let img: { line: { x1: number; y1: number; x2: number; y2: number }; head: string } | null = null;
+if (chief) {
+	const H = imageHeight(d, chief.h, Pg, L);
+	const s = H / L; // the ray through the centre goes to (L, H)
+	const yStart = s * V.xmin; // y = s·x
+	const hit = hitRetina(globe(L), [0, 0], s);
+	chiefD = pathD(V, [[V.xmin, yStart], [0, 0], hit]);
+	const x0 = X(V, L);
+	const y0 = Y(V, 0);
+	const x1 = X(V, hit[0]);
+	const y1 = Y(V, hit[1]);
+	const len = Math.hypot(x1 - x0, y1 - y0);
+	const ux = (x1 - x0) / len;
+	const uy = (y1 - y0) / len;
+	const hl = Math.min(8, len * 0.45);
+	const hw = hl * 0.6;
+	const bx = x1 - ux * hl;
+	const by = y1 - uy * hl;
+	img = {
+		line: { x1: x0, y1: y0, x2: bx + ux * hl * 0.3, y2: by + uy * hl * 0.3 },
+		head: `${x1.toFixed(1)},${y1.toFixed(1)} ${(bx - uy * hw).toFixed(1)},${(by + ux * hw).toFixed(1)} ${(bx + uy * hw).toFixed(1)},${(by - ux * hw).toFixed(1)}`,
+	};
+}
+---
+
+<svg class={`lzd__svg gz-view ${cls}`} viewBox={`0 0 ${V.w.toFixed(1)} ${V.h.toFixed(1)}`} role="img" aria-label={label}>
+	<line class="lz-axis gz-axis" x1="0" y1={Y(V, 0)} x2={V.w} y2={Y(V, 0)}></line>
+	<path class="gz-nerve" d={e.nerve}></path>
+	<path class="gz-globe" d={e.globe}></path>
+	<path class="gz-chamber" d={e.chamber}></path>
+	<path class="gz-retina" d={e.retina}></path>
+	<path class="gz-sclera" d={e.sclera}></path>
+	<path class="gz-cornea" d={e.cornea}></path>
+	{muscles && e.zonules.map((z) => <path class="gz-zonule" d={z} />)}
+	{muscles && e.ciliary.map((c) => <ellipse class="gz-ciliary" {...c} />)}
+	{glasses && <path class="gz-glasses" d={glasses} />}
+	{
+		rays.map((r, i) => (
+			<g class="lz-ray">
+				{virt[i] && <path class="lz-virt" d={virt[i]} />}
+				<path class="lz-base" d={r} />
+				<path class="lz-flow" d={r} />
+			</g>
+		))
+	}
+	{
+		chiefD && (
+			<g class="lz-ray lz-ray--2">
+				<path class="lz-base" d={chiefD} />
+				<path class="lz-flow" d={chiefD} />
+			</g>
+		)
+	}
+	{ghost && <path class="gz-ghost" d={ghostD} />}
+	<path class="gz-lens" d={e.lens}></path>
+	{e.iris.map((ir) => <path class="gz-iris" d={ir} />)}
+	{
+		img && (
+			<g class="gz-image">
+				<line {...img.line} />
+				<polygon points={img.head} />
+			</g>
+		)
+	}
+	{focusDot && dot && <circle class="gz-focus" cx={dot.cx.toFixed(1)} cy={dot.cy.toFixed(1)} r="4" />}
+	<slot />
+</svg>
+
+<style is:global>
+	.gz-view {
+		max-width: 30rem;
+	}
+	.gz-view .gz-sclera {
+		stroke-width: 4;
+	}
+	.gz-view .gz-retina {
+		stroke-width: 2;
+	}
+	.gz-ghost {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-dasharray: 3 3;
+	}
+</style>
