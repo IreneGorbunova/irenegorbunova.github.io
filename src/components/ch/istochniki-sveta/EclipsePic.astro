@@ -4,10 +4,12 @@
  * distances would not fit). In both the Moon crosses the line Sun — Earth from top to bottom.
  * Left, solar eclipse: Sun — Moon — Earth. The Moon's shadow is the cone bounded by the outer common tangents of the
  *   Sun and the Moon (its tip just pierces the Earth's surface: a small dark spot), the penumbra lies between the
- *   inner tangents. While the Moon passes, its shadow and penumbra sweep across the Earth.
+ *   inner tangents and widens from the Moon on. While the Moon passes, its shadow and penumbra sweep across the Earth.
  * Right, lunar eclipse: Sun — Earth — Moon. The Earth's shadow cone (the Moon's place in it is 2,8 Moon diameters
  *   wide here, 2,6 in reality) and penumbra are fixed; the Moon passes through them and darkens to a dull red in the
  *   shadow, slightly in the penumbra.
+ * Both panels draw the extreme rays from the edges of the Sun as dashed lines, as on a school scheme (Irina, 14 Nov
+ * 2026): the outer common tangents (--ig-v) bound the shadow, the inner ones (--ig-vx) bound the penumbra.
  * Plays while visible, «Повторить» restarts.
  */
 import PicFrame from './PicFrame.astro';
@@ -32,6 +34,7 @@ const id = (n: string) => `ep-${n}-${uid}`;
 				<polygon class="ep-umb ep-on" points="" data-umb2></polygon>
 			</g>
 			<circle class="ep-moon" cx="230" cy="110" r="9" data-moon></circle>
+			<g data-edges><line class="ep-edge"></line><line class="ep-edge"></line><line class="ep-edge ep-edge--pen"></line><line class="ep-edge ep-edge--pen"></line></g>
 			<text class="svp-t svp-t--small" x="8" y="168">Солнце</text>
 			<text class="svp-t svp-t--small" x="230" y="110" text-anchor="middle" data-lmoon>Луна</text>
 			<text class="svp-t svp-t--small" x="322" y="204" text-anchor="end">Земля</text>
@@ -42,10 +45,11 @@ const id = (n: string) => `ep-${n}-${uid}`;
 		<svg class="svp__svg" viewBox="0 0 330 220" role="img" aria-label="Лунное затмение: Земля между Солнцем и Луной. Луна проходит сквозь тень Земли и становится тёмно-красной. Рисунок не в масштабе" data-lunar>
 			<text class="svp-t svp-t--title" x="10" y="20">Лунное затмение</text>
 			<circle class="ep-sun" cx="20" cy="110" r="40"></circle>
-			<polygon class="ep-pen" points="165,84 330,8.9 330,211.1 165,136"></polygon>
-			<polygon class="ep-umb" points="165,84 330,99.9 330,120.1 165,136"></polygon>
+			<polygon class="ep-pen" points="165,84 330,8.9 330,211.1 165,136" data-pen></polygon>
+			<polygon class="ep-umb" points="165,84 330,99.9 330,120.1 165,136" data-umb></polygon>
 			<circle class="ep-earth" cx="165" cy="110" r="26"></circle>
 			<circle class="ep-moon" cx="290" cy="110" r="5" data-moon></circle>
+			<g data-edges><line class="ep-edge"></line><line class="ep-edge"></line><line class="ep-edge ep-edge--pen"></line><line class="ep-edge ep-edge--pen"></line></g>
 			<text class="svp-t svp-t--small" x="8" y="168">Солнце</text>
 			<text class="svp-t svp-t--small" x="165" y="154" text-anchor="middle">Земля</text>
 			<text class="svp-t svp-t--small" x="290" y="110" text-anchor="middle" data-lmoon>Луна</text>
@@ -54,7 +58,7 @@ const id = (n: string) => `ep-${n}-${uid}`;
 			<text class="svp-t svp-t--small" x="10" y="212">не в масштабе</text>
 		</svg>
 	</div>
-	<Fragment slot="cap">Солнечное затмение: Луна проходит между Солнцем и Землёй, и её тень падает на Землю. Лунное затмение: Земля оказывается между Солнцем и Луной, и Луна проходит сквозь тень Земли.</Fragment>
+	<Fragment slot="cap">Солнечное затмение: Луна проходит между Солнцем и Землёй, и её тень падает на Землю. Лунное затмение: Земля оказывается между Солнцем и Луной, и Луна проходит сквозь тень Земли. Пунктиром показаны крайние лучи от краёв Солнца: <span class="ep-key"></span>ограничивают тень, <span class="ep-key ep-key--pen"></span>ограничивают полутень.</Fragment>
 </PicFrame>
 
 <style is:global>
@@ -72,6 +76,24 @@ const id = (n: string) => `ep-${n}-${uid}`;
 	}
 	.ep-moon {
 		fill: var(--sl-color-gray-2);
+	}
+	.ep-edge {
+		stroke: var(--ig-v);
+		stroke-width: 1.3;
+		stroke-dasharray: 5 4;
+	}
+	.ep-edge--pen {
+		stroke: var(--ig-vx);
+	}
+	.ep-key {
+		display: inline-block;
+		width: 1.4rem;
+		margin-right: 0.3rem;
+		vertical-align: 0.3rem;
+		border-top: 2px dashed var(--ig-v);
+	}
+	.ep-key--pen {
+		border-top-color: var(--ig-vx);
 	}
 	.ep-pen {
 		fill: color-mix(in srgb, var(--sl-color-gray-3) 22%, transparent);
@@ -102,21 +124,73 @@ const id = (n: string) => `ep-${n}-${uid}`;
 <script>
 	import { scene, clamp } from '@components/intro/scene';
 
+	type P = [number, number];
+	type C = { x: number; y: number; r: number };
 	const smooth = (a: number, b: number, x: number) => {
 		const t = clamp((x - a) / (b - a));
 		return t * t * (3 - 2 * t);
 	};
 	const f1 = (v: number) => v.toFixed(1);
-	/** Share of a disc (centre offset e from the middle of a band of half-width w, radius r) inside the band. */
-	const inBand = (e: number, r: number, w: number) => {
+	const pt = (p: P) => `${f1(p[0])},${f1(p[1])}`;
+	/** Share of a disc (centre offset e from the middle of a band from −w1 to w2, radius r) inside the band. */
+	const inBand = (e: number, r: number, w1: number, w2: number) => {
 		// area of the disc below the line y = h (h measured from the centre): segment area
 		const below = (h: number) => {
 			if (h <= -r) return 0;
 			if (h >= r) return Math.PI * r * r;
 			return r * r * Math.acos(-h / r) + h * Math.sqrt(r * r - h * h);
 		};
-		return (below(w - e) - below(-w - e)) / (Math.PI * r * r);
+		return (below(w2 - e) - below(-w1 - e)) / (Math.PI * r * r);
 	};
+	/**
+	 * Common tangents of the Sun A and a smaller body B: for each, the point on the Sun and the point on the body.
+	 * Outer ones touch both on the same side (they bound the shadow), inner ones cross between them (the penumbra).
+	 * `side` +1 is the lower one in the picture for the outer tangents and the one that leaves the body upwards for
+	 * the inner ones.
+	 */
+	const tangent = (A: C, B: C, inner: boolean, side: 1 | -1): [P, P] => {
+		const dx = B.x - A.x;
+		const dy = B.y - A.y;
+		const d = Math.hypot(dx, dy);
+		const ux = dx / d;
+		const uy = dy / d;
+		const c = (A.r + (inner ? B.r : -B.r)) / d;
+		const sn = side * Math.sqrt(1 - c * c);
+		const wx = ux * c - uy * sn;
+		const wy = uy * c + ux * sn;
+		const k = inner ? -B.r : B.r;
+		return [
+			[A.x + A.r * wx, A.y + A.r * wy],
+			[B.x + k * wx, B.y + k * wy],
+		];
+	};
+	/** The point of the line p0 → p1 (carried on past p1) at x = X. */
+	const atX = (p0: P, p1: P, X: number): P => [X, p0[1] + ((p1[1] - p0[1]) * (X - p0[0])) / (p1[0] - p0[0])];
+	/** Where the line p0 → p1, carried on past p1, first meets the circle E (or null). */
+	const hit = (p0: P, p1: P, E: C): P | null => {
+		const vx = p1[0] - p0[0];
+		const vy = p1[1] - p0[1];
+		const fx = p0[0] - E.x;
+		const fy = p0[1] - E.y;
+		const a = vx * vx + vy * vy;
+		const b = 2 * (fx * vx + fy * vy);
+		const cc = fx * fx + fy * fy - E.r * E.r;
+		const disc = b * b - 4 * a * cc;
+		if (disc < 0) return null;
+		const t = (-b - Math.sqrt(disc)) / (2 * a);
+		return t > 1 ? [p0[0] + vx * t, p0[1] + vy * t] : null;
+	};
+	const line = (el: SVGLineElement, a: P, b: P) => {
+		el.setAttribute('x1', f1(a[0]));
+		el.setAttribute('y1', f1(a[1]));
+		el.setAttribute('x2', f1(b[0]));
+		el.setAttribute('y2', f1(b[1]));
+	};
+
+	const S: C = { x: 20, y: 110, r: 40 };
+	const EARTH_S: C = { x: 352, y: 110, r: 72 }; // the Earth in the solar panel
+	const EARTH_L: C = { x: 165, y: 110, r: 26 }; // the Earth in the lunar panel
+	const FAR = 460; // polygons are carried on past the panel's edge (the svg clips them)
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-eclipsepic]')) {
 		const solar = root.querySelector<SVGSVGElement>('[data-solar]')!;
@@ -125,44 +199,61 @@ const id = (n: string) => `ep-${n}-${uid}`;
 		const sMoon = q<SVGCircleElement>(solar, '[data-moon]');
 		const sLabel = q<SVGTextElement>(solar, '[data-lmoon]');
 		const polys = ['[data-pen]', '[data-umb]', '[data-pen2]', '[data-umb2]'].map((s) => q<SVGPolygonElement>(solar, s));
+		const sEdges = [...solar.querySelectorAll<SVGLineElement>('[data-edges] line')];
 		const lMoon = q<SVGCircleElement>(lunar, '[data-moon]');
 		const lLabel = q<SVGTextElement>(lunar, '[data-lmoon]');
-		const S = { x: 20, y: 110, r: 40 };
+		const lEdges = [...lunar.querySelectorAll<SVGLineElement>('[data-edges] line')];
+
+		// Lunar eclipse: fixed shadow and penumbra of the Earth, the extreme rays to the panel's edge.
+		const [lo1, lo2] = tangent(S, EARTH_L, false, -1); // upper edge of the shadow
+		const [lo3, lo4] = tangent(S, EARTH_L, false, 1); // lower edge
+		const [li1, li2] = tangent(S, EARTH_L, true, 1); // upper edge of the penumbra
+		const [li3, li4] = tangent(S, EARTH_L, true, -1); // lower edge
+		// the tip of the Earth's shadow cone lies beyond the panel's edge, on the line of centres
+		const TL: P = [EARTH_L.x + ((EARTH_L.x - S.x) * EARTH_L.r) / (S.r - EARTH_L.r), EARTH_L.y];
+		q(lunar, '[data-umb]').setAttribute('points', `${pt(lo2)} ${pt(TL)} ${pt(lo4)}`);
+		q(lunar, '[data-pen]').setAttribute('points', `${pt(li2)} ${pt(atX(li1, li2, FAR))} ${pt(atX(li3, li4, FAR))} ${pt(li4)}`);
+		line(lEdges[0], lo1, atX(lo1, lo2, 330));
+		line(lEdges[1], lo3, atX(lo3, lo4, 330));
+		line(lEdges[2], li1, atX(li1, li2, 330));
+		line(lEdges[3], li3, atX(li3, li4, 330));
+		// The shadow and the penumbra across the Moon's path at x = 290 (from the axis up and down).
+		const MX = 290;
+		const sh = [110 - atX(lo1, lo2, MX)[1], atX(lo3, lo4, MX)[1] - 110];
+		const pe = [110 - atX(li1, li2, MX)[1], atX(li3, li4, MX)[1] - 110];
+
 		scene(root, 6, (x) => {
 			const y = 64 + 92 * smooth(0.05, 0.95, x); // the Moon from above the line to below it
-			// solar: cones from the Sun (S) and the Moon (M)
-			const M = { x: 230, y, r: 9 };
-			const dx = M.x - S.x;
-			const dy = M.y - S.y;
-			const D = Math.hypot(dx, dy);
-			const ux = dx / D;
-			const uy = dy / D;
-			const nx = -uy;
-			const ny = ux;
-			const top = [M.x + nx * M.r, M.y + ny * M.r];
-			const bot = [M.x - nx * M.r, M.y - ny * M.r];
-			const L = (D * M.r) / (S.r - M.r); // the shadow's length beyond the Moon
-			const T = [M.x + ux * L, M.y + uy * L];
-			const X = D * (S.r / (S.r + M.r)); // the inner tangents cross here (from the Sun)
-			const k = (D + 150 - X) / (D - X); // the penumbra's edges, carried on 150 px past the Moon
-			const C = [S.x + ux * X, S.y + uy * X];
-			const pt = (p: number[]) => `${f1(p[0])},${f1(p[1])}`;
-			const far = (p: number[]) => [C[0] + (p[0] - C[0]) * k, C[1] + (p[1] - C[1]) * k];
-			const umb = `${pt(top)} ${pt(T)} ${pt(bot)}`;
-			const pen = `${pt(top)} ${pt(far(bot))} ${pt(far(top))} ${pt(bot)}`;
+			// Solar eclipse: the Moon's shadow and penumbra from the common tangents of the Sun and the Moon.
+			const M: C = { x: 230, y, r: 9 };
+			const [o1, o2] = tangent(S, M, false, -1);
+			const [o3, o4] = tangent(S, M, false, 1);
+			const [i1, i2] = tangent(S, M, true, 1);
+			const [i3, i4] = tangent(S, M, true, -1);
+			// the tip of the shadow cone: on the line of centres, M.r / (S.r − M.r) of the distance past the Moon
+			const L = M.r / (S.r - M.r);
+			const T: P = [M.x + (M.x - S.x) * L, M.y + (M.y - S.y) * L];
+			const umb = `${pt(o2)} ${pt(T)} ${pt(o4)}`;
+			const pen = `${pt(i2)} ${pt(atX(i1, i2, FAR))} ${pt(atX(i3, i4, FAR))} ${pt(i4)}`;
 			polys[0].setAttribute('points', pen);
 			polys[1].setAttribute('points', umb);
 			polys[2].setAttribute('points', pen);
 			polys[3].setAttribute('points', umb);
+			// the extreme rays end where they reach the Earth (the shadow's edges at the tip of the cone)
+			const toEarth = (a: P, b: P, end: P) => hit(a, b, EARTH_S) ?? end;
+			line(sEdges[0], o1, toEarth(o1, o2, T));
+			line(sEdges[1], o3, toEarth(o3, o4, T));
+			line(sEdges[2], i1, toEarth(i1, i2, atX(i1, i2, 330)));
+			line(sEdges[3], i3, toEarth(i3, i4, atX(i3, i4, 330)));
 			sMoon.setAttribute('cy', f1(y));
 			sLabel.setAttribute('y', f1(y - 14));
-			// lunar: the Moon through the Earth's shadow (half-width 13,9 at x = 290) and penumbra (82,9)
+			// Lunar eclipse: the Moon through the Earth's shadow and penumbra.
 			const ly = 30 + 160 * smooth(0.05, 0.95, x);
 			const e = ly - 110;
-			const sh = inBand(e, 5, 13.9);
-			const pe = inBand(e, 5, 82.9) - sh;
+			const inSh = inBand(e, 5, sh[0], sh[1]);
+			const inPe = inBand(e, 5, pe[0], pe[1]) - inSh;
 			lMoon.setAttribute('cy', f1(ly));
-			lMoon.style.fill = `color-mix(in srgb, color-mix(in srgb, var(--ig-vy) 45%, var(--sl-color-gray-5)) ${Math.round(100 * sh)}%, color-mix(in srgb, var(--sl-color-gray-2) ${Math.round(100 - 25 * pe)}%, var(--sl-color-gray-4)))`;
+			lMoon.style.fill = `color-mix(in srgb, color-mix(in srgb, var(--ig-vy) 45%, var(--sl-color-gray-5)) ${Math.round(100 * inSh)}%, color-mix(in srgb, var(--sl-color-gray-2) ${Math.round(100 - 25 * inPe)}%, var(--sl-color-gray-4)))`;
 			lLabel.setAttribute('y', f1(ly - 10));
 		});
 	}
