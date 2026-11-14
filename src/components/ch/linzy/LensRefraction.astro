@@ -1,0 +1,169 @@
+---
+/**
+ * Why a lens turns a ray towards its thick part: a ray parallel to the principal axis through a thick glass lens
+ * (n = 1,5, in air), refracted by Snell's law at the entry and at the exit surface. Left: biconvex lens, right:
+ * biconcave lens, both with spherical surfaces of radius R = 9 cm and height 12 cm, 0,4 cm thick at the rim (convex)
+ * or 1 cm thick in the middle (concave); equal scales, 13 px per cm.
+ * Dashed lines: the normals (radii) at the two points of refraction; the dotted line: where the ray would go
+ * without the lens. Light pulses run along the ray.
+ */
+import LzStyles from './LzStyles.astro';
+import { makeView, X, Y, pathD, exitPoint, type P } from './optics';
+
+const N = 1.5;
+const R = 9;
+const HALF = 6;
+const SAG = R - Math.sqrt(R * R - HALF * HALF); // 2,29 cm
+const V = makeView(-8, 12, -7, 7.6, 13);
+
+/** A spherical surface: x = c + side·√(R² − y²) around the centre (c, 0). */
+type Surf = { c: number; side: 1 | -1 };
+const surfX = (s: Surf, y: number) => s.c + s.side * Math.sqrt(R * R - y * y);
+
+/** Where the ray p + s·d (s > 0) meets the surface. */
+const hit = (s: Surf, p: P, d: P): P => {
+	const ox = p[0] - s.c;
+	const oy = p[1];
+	const b = ox * d[0] + oy * d[1];
+	const cc = ox * ox + oy * oy - R * R;
+	const disc = Math.sqrt(b * b - cc);
+	const roots = [-b - disc, -b + disc].filter((t) => t > 1e-9);
+	const t = roots.find((t) => Math.sign(p[0] + t * d[0] - s.c) === s.side)!;
+	return [p[0] + t * d[0], p[1] + t * d[1]];
+};
+
+/** Snell's law in vector form: unit direction d, unit normal nrm, n1 → n2. */
+const refract = (d: P, nrm: P, n1: number, n2: number): P => {
+	let [nx, ny] = nrm;
+	let cosI = -(nx * d[0] + ny * d[1]);
+	if (cosI < 0) {
+		nx = -nx;
+		ny = -ny;
+		cosI = -cosI;
+	}
+	const eta = n1 / n2;
+	const k = 1 - eta * eta * (1 - cosI * cosI);
+	const c = eta * cosI - Math.sqrt(k);
+	return [eta * d[0] + c * nx, eta * d[1] + c * ny];
+};
+
+const panel = (converging: boolean, y0: number) => {
+	// thickness on the axis: converging 0,4 cm at the rim plus both bulges; diverging 1 cm
+	const t0 = converging ? 0.4 + 2 * SAG : 1;
+	const left: Surf = converging ? { c: -t0 / 2 + R, side: -1 } : { c: -t0 / 2 - R, side: 1 };
+	const right: Surf = converging ? { c: t0 / 2 - R, side: 1 } : { c: t0 / 2 + R, side: -1 };
+	const outline: P[] = [];
+	const steps = 40;
+	for (let i = 0; i <= steps; i++) {
+		const y = HALF - (2 * HALF * i) / steps;
+		outline.push([surfX(right, y), y]);
+	}
+	for (let i = 0; i <= steps; i++) {
+		const y = -HALF + (2 * HALF * i) / steps;
+		outline.push([surfX(left, y), y]);
+	}
+	const start: P = [V.xmin, y0];
+	const d0: P = [1, 0];
+	const p1 = hit(left, start, d0);
+	const n1: P = [(p1[0] - left.c) / R, p1[1] / R];
+	const d1 = refract(d0, n1, 1, N);
+	const p2 = hit(right, p1, d1);
+	const n2: P = [(p2[0] - right.c) / R, p2[1] / R];
+	const d2 = refract(d1, n2, N, 1);
+	const end = exitPoint(V, p2, d2);
+	const normal = (p: P, n: P, L = 2.4): P[] => [
+		[p[0] - n[0] * L, p[1] - n[1] * L],
+		[p[0] + n[0] * L, p[1] + n[1] * L],
+	];
+	const deg = (a: P, b: P) => (Math.acos(a[0] * b[0] + a[1] * b[1]) * 180) / Math.PI;
+	return {
+		lens: `${pathD(V, outline)} Z`,
+		ray: pathD(V, [start, p1, p2, end]),
+		straight: pathD(V, [p1, [V.xmax, y0]]),
+		normals: [normal(p1, n1), normal(p2, n2)].map((pts) => pathD(V, pts)),
+		points: [p1, p2].map((p) => [X(V, p[0]), Y(V, p[1])]),
+		// total turn of the ray, for the record
+		turn: deg(d0, d2),
+	};
+};
+
+const conv = { ...panel(true, 4), down: true };
+const div = { ...panel(false, 3.9), down: false };
+const y0 = Y(V, 0);
+const panels = [
+	{
+		...conv,
+		title: 'Собирающая линза',
+		text: 'Толще всего она в середине. Луч дважды отклоняется вниз, к середине линзы.',
+		aria: 'Луч, параллельный главной оптической оси, проходит сквозь выпуклую линзу. Он преломляется, когда входит в стекло и когда выходит из него, и оба раза отклоняется к середине линзы, где она толще. Штриховые линии — перпендикуляры к поверхностям в точках преломления',
+	},
+	{
+		...div,
+		title: 'Рассеивающая линза',
+		text: 'Толще всего она у краёв. Луч дважды отклоняется вверх, к краю линзы.',
+		aria: 'Луч, параллельный главной оптической оси, проходит сквозь вогнутую линзу. Он преломляется, когда входит в стекло и когда выходит из него, и оба раза отклоняется к краю линзы, где она толще. Штриховые линии — перпендикуляры к поверхностям в точках преломления',
+	},
+];
+---
+
+<LzStyles />
+<figure class="lz lzd not-content" data-turn={`${conv.turn.toFixed(1)} ${div.turn.toFixed(1)}`}>
+	<div class="lzd__grid">
+		{
+			panels.map((p) => (
+				<div class="lzd__panel">
+					<svg class="lzd__svg" viewBox={`0 0 ${V.w} ${V.h}`} role="img" aria-label={p.aria}>
+						<line class="lz-axis" x1="0" y1={y0} x2={V.w} y2={y0} />
+						<path class="lz-lens" d={p.lens} />
+						<path class="lzd-straight" d={p.straight} />
+						{p.normals.map((d) => (
+							<path class="lzd-normal" d={d} />
+						))}
+						<g class="lz-ray lz-ray--1">
+							<path class="lz-base" d={p.ray} />
+							<path class="lz-flow" d={p.ray} />
+						</g>
+						{p.points.map(([x, y]) => (
+							<circle class="lzd-hit" cx={x} cy={y} r="2.6" />
+						))}
+						<text class="lzd-t lzd-t--small" x={p.points[0][0]} y={p.points[0][1] - 9} text-anchor="middle">
+							вход
+						</text>
+						<text class="lzd-t lzd-t--small" x={p.points[1][0]} y={p.points[1][1] + (p.down ? -9 : 17)} text-anchor="middle">
+							выход
+						</text>
+					</svg>
+					<p class="lzd__label">
+						<b>{p.title}.</b> {p.text}
+					</p>
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="lz-legend lzd__cap">
+		Линзы из стекла в разрезе, луч идёт параллельно главной оптической оси. Штриховые линии — перпендикуляры к
+		поверхностям линзы в точках, где луч преломляется. Точечная линия — куда пошёл бы луч без линзы. Углы
+		преломления — как у настоящего стекла.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.lzd-normal {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.1;
+		stroke-dasharray: 4 3;
+	}
+	.lzd-straight {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 1.5 3.5;
+		stroke-linecap: round;
+	}
+	.lzd-hit {
+		fill: var(--ig-v);
+		stroke: var(--ig-surface);
+		stroke-width: 1;
+	}
+</style>

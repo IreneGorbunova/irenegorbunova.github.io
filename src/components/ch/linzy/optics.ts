@@ -229,3 +229,20 @@ export const zoneOf = (d: number, F: number): Zone => {
 	if (d > F) return 'between';
 	return 'near';
 };
+
+/**
+ * Schematic lens, as on school drawings: a segment of the lens plane (x = 0) from −half to half with an arrowhead at
+ * each end. t = 1: the heads point outwards (converging lens), t = 0: inwards (diverging lens); in between they
+ * flatten, which lets a model morph one symbol into the other. head and wing: the head's length and half width.
+ * The path is open (stroke it, no fill).
+ */
+export const lensSymbol = (v: View, half: number, t: number, head: number, wing: number) => {
+	const apex = half - head * (1 - t);
+	const barb = half - head * t;
+	const p = (x: number, y: number) => `${r1(X(v, x))} ${r1(Y(v, y))}`;
+	return [
+		`M${p(0, -apex)} L${p(0, apex)}`,
+		`M${p(-wing, barb)} L${p(0, apex)} L${p(wing, barb)}`,
+		`M${p(-wing, -barb)} L${p(0, -apex)} L${p(wing, -barb)}`,
+	].join(' ');
+};

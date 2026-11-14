@@ -50,7 +50,7 @@ const ticks = Array.from({ length: 75 }, (_, i) => i - 37);
 		</g>
 		<line class="lz-axis" x1="0" y1={y0} x2={V.w} y2={y0}></line>
 		<line class="lz-plane" x1={X(V, 0)} y1="0" x2={X(V, 0)} y2={V.h}></line>
-		<path class="lz-lens" data-lens></path>
+		<path class="lz-sym" data-lens></path>
 		<text class="lz-t lz-t--math" x={X(V, 0) + 7} y={y0 + 22} data-o>O</text>
 
 		<g clip-path={`url(#${uid}-clip)`}>
@@ -353,8 +353,7 @@ const ticks = Array.from({ length: 75 }, (_, i) => i - 37);
 		Y,
 		pathD,
 		traceScene,
-		lensOutline,
-		closedPath,
+		lensSymbol,
 		fmt,
 		fmtSmart,
 		imageKind,
@@ -365,8 +364,9 @@ const ticks = Array.from({ length: 75 }, (_, i) => i - 37);
 
 	const V = makeView(-38, 38, -20, 20, 10);
 	const LENS_HALF = 18;
-	const SAG_K = 8; // axial bulge of the drawn lens, cm·cm: 0,8 cm at F = 10, 1,6 cm at F = 5
-	const D_MIN = 3; // the drawn lens bulges at most ~1.8 cm from its plane (F = 5), so the object never stands in the glass
+	const HEAD = 1.5; // arrowheads of the schematic lens: length and half width, cm
+	const WING = 0.9;
+	const D_MIN = 3; // the object keeps clear of the lens and its arrowheads
 	const D_MAX = 37;
 	const H_MIN = 1.5;
 	const H_MAX = 9;
@@ -443,7 +443,7 @@ const ticks = Array.from({ length: 75 }, (_, i) => i - 37);
 		const st = { type: 1 as 1 | -1, Fabs: 10, d: 25, h: 5, ray3: true };
 		let crop = { xmin: V.xmin, xmax: V.xmax, ymin: V.ymin, ymax: V.ymax };
 		let dMax = D_MAX;
-		/** lens shape: +1 convex … −1 concave; differs from st.type only while morphing */
+		/** lens symbol: +1 converging … −1 diverging; differs from st.type only while morphing */
 		let shape = 1;
 		/** which parts are visible (the step-by-step construction hides and reveals them) */
 		const shown = { rays: [true, true, true], virt: [true, true, true], image: true };
@@ -473,14 +473,8 @@ const ticks = Array.from({ length: 75 }, (_, i) => i - 37);
 			);
 		};
 
-		const lensPath = () => {
-			const sag = SAG_K / st.Fabs;
-			const a = lensOutline(LENS_HALF, st.Fabs, { maxSag: sag, edge: 0.45 });
-			const b = lensOutline(LENS_HALF, -st.Fabs, { maxSag: sag, edge: 0.45 });
-			const t = (shape + 1) / 2; // 1 → convex
-			const pts: P[] = a.map(([x, y], i) => [x * t + b[i][0] * (1 - t), y]);
-			return closedPath(V, pts);
-		};
+		// the schematic lens: arrowheads outwards (converging) … inwards (diverging); they flatten while it morphs
+		const lensPath = () => lensSymbol(V, LENS_HALF, (shape + 1) / 2, HEAD, WING);
 
 		const setPath = (el: SVGPathElement, pts: P[]) => el.setAttribute('d', pathD(V, pts));
 
@@ -490,7 +484,7 @@ const ticks = Array.from({ length: 75 }, (_, i) => i - 37);
 		const render = () => {
 			const Fv = F();
 			lensEl.setAttribute('d', lensPath());
-			oLabel.setAttribute('x', String(X(V, 0.25 + Math.max(0, shape) * (SAG_K / st.Fabs)) + 5));
+			oLabel.setAttribute('x', String(X(V, 0) + 7));
 			scene = traceScene(V, st.d, st.h, Fv, LENS_HALF);
 			const fade = Math.abs(shape); // rays and image fade out while the lens changes its kind
 
