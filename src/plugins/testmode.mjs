@@ -13,6 +13,10 @@ export const TEST_SCRIPT = `(() => {
 		const q = new URLSearchParams(location.search).get('test');
 		if (q === '1') localStorage.setItem('${TEST_KEY}', '1');
 		if (q === '0') localStorage.removeItem('${TEST_KEY}');
-		if (localStorage.getItem('${TEST_KEY}') === '1') document.documentElement.dataset.igTestmode = '1';
+		if (localStorage.getItem('${TEST_KEY}') === '1') {
+			document.documentElement.dataset.igTestmode = '1';
+			// «Коротко» (the short view of a chapter, src/components/test/chapter/) applies before the page is drawn
+			if (localStorage.getItem('ig:short') === '1') document.documentElement.dataset.igShort = '1';
+		}
 	} catch {}
 })();`;

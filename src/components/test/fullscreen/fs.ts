@@ -10,7 +10,7 @@ import { present } from './view';
 const ICON =
 	'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
 
-const CONTROLS = 'button:not([data-again]), input, select, textarea, [role="slider"]';
+const CONTROLS = 'button:not([data-again]), input, select, textarea, [role="slider"], [tabindex="0"]:not(.ig-more, [data-note])';
 
 /** The models of the page, in order. */
 export const models = (): HTMLElement[] =>
@@ -29,20 +29,39 @@ const nameOf = (fig: HTMLElement): string => {
 	return name || document.querySelector('h1')?.textContent?.trim() || 'Модель';
 };
 
-export const start = () => {
-	if (document.documentElement.dataset.igTestmode !== '1') return;
-	for (const fig of models()) {
+export interface ModelBar {
+	fig: HTMLElement;
+	bar: HTMLElement;
+}
+let made: ModelBar[] | null = null;
+
+/** The bar above every model: its mark «сделать» and the button «Полный экран». Made once, whoever asks first. */
+export const modelBars = (): ModelBar[] => {
+	if (made) return made;
+	made = models().map((fig) => {
 		const bar = document.createElement('div');
 		bar.className = 'igf-bar not-content';
 		bar.dataset.igTest = '';
 		bar.dataset.pagefindIgnore = '';
 		bar.dataset.igf = '';
+		// the mark of the block: a model is something to do (the four marks: ../chapter/ChapterCard.astro)
+		const mark = document.createElement('span');
+		mark.className = 'igm';
+		mark.dataset.igm = 'do';
+		mark.textContent = 'сделать';
 		const b = document.createElement('button');
 		b.type = 'button';
 		b.className = 'igf-open';
 		b.innerHTML = `${ICON}<span>Полный экран</span>`;
 		b.addEventListener('click', () => present(fig, nameOf(fig), b));
-		bar.append(b);
+		bar.append(mark, b);
 		fig.before(bar);
-	}
+		return { fig, bar };
+	});
+	return made;
+};
+
+export const start = () => {
+	if (document.documentElement.dataset.igTestmode !== '1') return;
+	modelBars();
 };
