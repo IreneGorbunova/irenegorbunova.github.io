@@ -1,0 +1,741 @@
+---
+/**
+ * «Пар под поршнем»: 7,7 г of water vapour (no air) in a cylinder of up to 1 m³ under a piston. Cooling (ρ₀ falls)
+ * or compressing (ρ = m/V grows) makes the vapour saturated; past that point the excess condenses into drops on the
+ * walls and the bottom, and the vapour density stays ρ₀(t). Heating or expanding evaporates the drops again.
+ * Each dot is 0,1 g of vapour: a condensing dot flies into a drop, an evaporating one leaves a drop; while there is
+ * water, dots keep leaving and returning at the same rate (dynamic equilibrium). ρ₀ comes from the chapter's table
+ * (data.ts), the temperature is kept constant while the volume changes (slow compression).
+ */
+const BOT = 270; // inner bottom of the cylinder
+const thY = (t: number) => 222 - 6 * t; // thermometer scale, 0…30 °C
+---
+
+<figure class="vpis not-content" data-vpis>
+	<div class="vpis__top">
+		<svg class="vpis__scene" viewBox="0 0 300 292" aria-hidden="true" data-scene>
+			<rect class="vpis__glass" x="50" y="22" width="160" height={BOT - 22}></rect>
+			<rect class="vpis__gas" x="50" width="160" data-gas></rect>
+			<g data-drops></g>
+			<g data-mols></g>
+			<path class="vpis__wall" d={`M48,20 V${BOT + 2} H212 V20`}></path>
+			<g class="vpis__piston" data-piston>
+				<line class="vpis__rod" x1="130" x2="130" data-rod></line>
+				<rect class="vpis__handle" x="108" width="44" height="9" rx="4.5" data-handle></rect>
+				<rect class="vpis__head" x="50.5" width="159" height="12" rx="2" data-head></rect>
+				<rect class="vpis__grip" x="44" width="172" height="52" data-grip></rect>
+			</g>
+			<text class="vpis__label" x="140" data-plabel>поршень</text>
+			<g class="vpis__dim">
+				<line x1="31" x2="31" y2={BOT} data-dim></line>
+				<path data-dimhead></path>
+				<text x="19" text-anchor="middle" data-dimtext><tspan class="vpis__m">V</tspan></text>
+			</g>
+			<text class="vpis__label vpis__wlabel" x="130" y="287" text-anchor="middle" data-wlabel>капли воды</text>
+			<g class="vpis__thermo">
+				<rect class="vpis__tube" x="252" y="36" width="12" height="196" rx="6"></rect>
+				<rect class="vpis__liquid" x="255" width="6" rx="3" data-tliq></rect>
+				<circle class="vpis__bulb" cx="258" cy="240" r="10"></circle>
+				{[0, 10, 20, 30].map((t) => (
+					<g>
+						<line x1="264" x2="270" y1={thY(t)} y2={thY(t)} />
+						<text x="274" y={thY(t) + 4}>{t}</text>
+					</g>
+				))}
+				<text class="vpis__tval" x="258" y="270" text-anchor="middle" data-tval></text>
+			</g>
+		</svg>
+
+		<div class="vpis__side">
+			<div class="vpis__meter">
+				<div class="vpis__meter-head">
+					<span>Плотность пара: <i>ρ</i> = <b data-rho>—</b></span>
+					<span class="vpis__state" data-state>—</span>
+				</div>
+				<div class="vpis__bar"><span class="vpis__bar-fill" data-rho-bar></span><span class="vpis__bar-max" data-rho0-bar></span></div>
+				<div class="vpis__meter-foot">насыщенный пар при этой температуре: <span class="nw"><i>ρ</i><sub>0</sub> = <span data-rho0>—</span></span></div>
+			</div>
+			<div class="vpis__formula" data-formula></div>
+			<dl class="vpis__stats">
+				<div><dt>Температура <i>t</i></dt><dd data-s-t></dd></div>
+				<div><dt>Объём <i>V</i></dt><dd data-s-v></dd></div>
+				<div><dt>Пар <i>m</i></dt><dd data-s-m></dd></div>
+				<div><dt>Вода в каплях</dt><dd data-s-w></dd></div>
+			</dl>
+			<p class="vpis__live" data-live aria-live="polite"></p>
+		</div>
+	</div>
+
+	<div class="vpis__controls">
+		<label class="vpis__slider vpis__slider--t">
+			<span>Температура <i>t</i></span>
+			<output data-o-t></output>
+			<input type="range" min="0" max="30" step="1" value="18" data-i-t />
+		</label>
+		<label class="vpis__slider vpis__slider--v">
+			<span>Объём <i>V</i></span>
+			<output data-o-v></output>
+			<input type="range" min="0.2" max="1" step="0.05" value="1" data-i-v />
+		</label>
+		<div class="vpis__buttons">
+			<button type="button" class="vpis__btn" data-reset>Сначала</button>
+		</div>
+	</div>
+
+	<figcaption class="vpis__caption">
+		<span class="vpis__key vpis__key--mol"></span>0,1 г водяного пара
+		<span class="vpis__key vpis__key--drop"></span>капли воды (нарисованы крупнее, чем на самом деле). В цилиндре 7,7&nbsp;г воды и пара вместе, воздуха нет. Поршень двигают медленно, и температура пара не меняется: её задаёт ползунок. Значения <i>ρ</i><sub>0</sub> взяты из таблицы.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.vpis {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.vpis i {
+		font-family: var(--ig-font-math);
+	}
+	.vpis__top {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 1rem 1.25rem;
+		align-items: center;
+	}
+	.vpis__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.vpis svg text {
+		font-family: var(--__sl-font);
+	}
+	.vpis__glass {
+		fill: color-mix(in srgb, var(--sl-color-gray-2) 5%, transparent);
+	}
+	.vpis__gas {
+		fill: color-mix(in srgb, var(--ig-vx) 7%, transparent);
+	}
+	.vpis__wall {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	.vpis__mol {
+		fill: var(--ig-vx);
+	}
+	.vpis__drop {
+		fill: color-mix(in srgb, var(--ig-vx) 45%, transparent);
+		stroke: var(--ig-vx);
+		stroke-width: 1;
+	}
+	.vpis__piston {
+		cursor: ns-resize;
+	}
+	.vpis__head {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 55%, var(--ig-surface));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.vpis__rod {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.vpis__handle {
+		fill: var(--sl-color-accent);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.vpis__piston:hover .vpis__handle,
+	.vpis__piston.is-drag .vpis__handle {
+		fill: var(--sl-color-accent-high);
+	}
+	.vpis__grip {
+		fill: transparent;
+	}
+	.vpis__label {
+		fill: var(--sl-color-gray-2);
+		font-size: 12.5px;
+	}
+	.vpis__wlabel {
+		fill: var(--ig-vx);
+		transition: opacity 0.4s;
+	}
+	.vpis__dim line,
+	.vpis__dim path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+	}
+	.vpis__dim text {
+		fill: var(--sl-color-gray-2);
+		font-size: 17px;
+	}
+	.vpis__m {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.vpis__tube {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.vpis__liquid,
+	.vpis__bulb {
+		fill: var(--ig-vy);
+	}
+	.vpis__thermo line {
+		stroke: var(--sl-color-gray-3);
+	}
+	.vpis__thermo text {
+		fill: var(--sl-color-gray-3);
+		font-size: 12px;
+	}
+	.vpis__thermo .vpis__tval {
+		fill: var(--ig-vy);
+		font-size: 14px;
+		font-weight: 700;
+	}
+
+	.vpis__side {
+		display: grid;
+		gap: 0.7rem;
+		align-content: center;
+	}
+	.vpis__meter {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vpis__meter-head {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: 0.2rem 0.8rem;
+	}
+	.vpis__meter-head b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vpis__state {
+		font-weight: 700;
+		color: var(--sl-color-gray-2);
+	}
+	.vpis__state.is-sat {
+		color: var(--sl-color-text-accent);
+	}
+	.vpis__bar {
+		position: relative;
+		height: 0.7rem;
+		margin: 0.35rem 0 0.25rem;
+		border-radius: 999px;
+		background: var(--sl-color-gray-5);
+		overflow: hidden;
+	}
+	.vpis__bar-fill {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 0;
+		border-radius: 999px;
+		background: var(--ig-vx);
+		transition: width 0.25s ease-out;
+	}
+	.vpis__bar-max {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 3px;
+		left: 0;
+		background: var(--sl-color-white);
+		transition: left 0.25s ease-out;
+	}
+	.vpis__meter-foot {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vpis__meter-foot .nw {
+		white-space: nowrap;
+	}
+	.vpis__formula {
+		min-height: 3.6rem;
+		padding: 0.1rem 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+	}
+	.vpis__formula .katex {
+		font-size: 1.1em;
+	}
+	.vpis__stats {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.5rem;
+		margin: 0;
+	}
+	.vpis__stats div {
+		margin: 0;
+		padding: 0.4rem 0.6rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+	}
+	.vpis__stats dt {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vpis__stats dd {
+		margin: 0;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.vpis__live {
+		min-height: 4.5em;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.vpis__controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr auto;
+		gap: 0.75rem 1.25rem;
+		margin-top: 0.9rem;
+		align-items: end;
+	}
+	.vpis__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.25rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vpis__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.vpis__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+	}
+	.vpis__slider--t input {
+		accent-color: var(--ig-vy);
+	}
+	.vpis__slider--v input {
+		accent-color: var(--sl-color-accent);
+	}
+	.vpis__buttons {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.vpis__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.5rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.vpis__btn:hover {
+		border-color: var(--sl-color-accent);
+	}
+	.vpis__caption {
+		margin-top: 0.75rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.vpis__key {
+		display: inline-block;
+		width: 0.6rem;
+		height: 0.6rem;
+		margin: 0 0.3rem 0 0.6rem;
+		border-radius: 50%;
+		vertical-align: -0.02rem;
+	}
+	.vpis__key:first-child {
+		margin-left: 0;
+	}
+	.vpis__key--mol {
+		background: var(--ig-vx);
+	}
+	.vpis__key--drop {
+		width: 0.8rem;
+		height: 0.5rem;
+		border-radius: 0.5rem 0.5rem 0 0;
+		background: color-mix(in srgb, var(--ig-vx) 45%, transparent);
+		border: 1px solid var(--ig-vx);
+	}
+	@media (max-width: 50rem) {
+		.vpis__top {
+			grid-template-columns: 1fr;
+		}
+		.vpis__scene {
+			max-width: 21rem;
+			margin-inline: auto;
+		}
+		.vpis__controls {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (max-width: 30rem) {
+		.vpis {
+			padding: 0.75rem;
+		}
+		.vpis__formula .katex {
+			font-size: 1em;
+		}
+	}
+</style>
+
+<script>
+	import { rho0, fixed, ru, tex, renderTex, clamp } from './vl';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const BOT = 270; // inner bottom
+	const XL = 50; // inner walls
+	const XR = 210;
+	const H = 220; // px per m³: the piston face is at BOT − H·V
+	const M = 7.7; // grams of water (vapour + drops) in the cylinder
+	const N = Math.round(M * 10); // dots, 0.1 g each
+	const T0 = 18;
+	const V0 = 1;
+	const V_MIN = 0.2;
+	const RHO_MAX = 32; // bar scale, g/m³
+	const yOf = (V: number) => BOT - H * V;
+
+	type Side = 'b' | 'l' | 'r';
+	type Site = { x: number; y: number; nx: number; ny: number; side: Side; c: number; el: SVGPathElement };
+	type Dot = {
+		el: SVGCircleElement;
+		x: number;
+		y: number;
+		vx: number;
+		vy: number;
+		st: 'gas' | 'land' | 'water';
+		age: number;
+		site: Site | null;
+	};
+
+	// A tiny deterministic random generator: the same picture on every load.
+	const rng = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vpis]')) {
+		const $ = <T extends Element>(q: string) => root.querySelector<T>(q)!;
+		const rand = rng(4242);
+		const svg = $<SVGSVGElement>('[data-scene]');
+		const iT = $<HTMLInputElement>('[data-i-t]');
+		const iV = $<HTMLInputElement>('[data-i-v]');
+		const piston = $<SVGGElement>('[data-piston]');
+		const live = $<HTMLElement>('[data-live]');
+		const formula = $<HTMLElement>('[data-formula]');
+
+		const s = { t: T0, V: V0 };
+		let pv = V0; // the drawn piston follows s.V smoothly
+
+		// Drops sit on the bottom and on the lowest part of the walls (below the lowest piston position).
+		const sites: Site[] = [];
+		const addSite = (x: number, y: number, side: Side) => {
+			const el = document.createElementNS(NS, 'path');
+			el.setAttribute('class', 'vpis__drop');
+			$('[data-drops]').append(el);
+			const [nx, ny] = side === 'b' ? [0, -1] : side === 'l' ? [1, 0] : [-1, 0];
+			sites.push({ x, y, nx, ny, side, c: 0, el });
+		};
+		for (let i = 0; i < 13; i++) addSite(58 + 12 * i + (rand() - 0.5) * 5, BOT, 'b');
+		for (const y of [243, 255, 265]) {
+			addSite(XL, y + (rand() - 0.5) * 3, 'l');
+			addSite(XR, y + (rand() - 0.5) * 3, 'r');
+		}
+		const radius = (c: number) => (c > 0 ? 2 + 2.8 * Math.sqrt(c) : 0);
+		const drawSite = (k: Site) => {
+			const r = radius(k.c);
+			if (!r) return k.el.setAttribute('d', '');
+			const f = (v: number) => v.toFixed(1);
+			k.el.setAttribute(
+				'd',
+				k.side === 'b'
+					? `M${f(k.x - r)},${BOT} A${f(r)},${f(0.8 * r)} 0 0 1 ${f(k.x + r)},${BOT} Z`
+					: `M${k.x},${f(k.y - r)} A${f(0.8 * r)},${f(r)} 0 0 ${k.side === 'l' ? 1 : 0} ${k.x},${f(k.y + r)} Z`,
+			);
+		};
+
+		const dots: Dot[] = Array.from({ length: N }, () => {
+			const el = document.createElementNS(NS, 'circle');
+			el.setAttribute('class', 'vpis__mol');
+			el.setAttribute('r', '2.3');
+			$('[data-mols]').append(el);
+			return { el, x: 0, y: 0, vx: 1, vy: 0, st: 'gas' as const, age: 9, site: null };
+		});
+		const turn = (d: Dot) => {
+			const a = rand() * 6.283;
+			d.vx = Math.cos(a);
+			d.vy = Math.sin(a);
+		};
+
+		// Equilibrium: vapour mass, its density and the water in drops.
+		const vapour = () => Math.min(M, rho0(s.t) * s.V);
+		const target = () => Math.round(vapour() * 10);
+
+		const reset = () => {
+			s.t = T0;
+			s.V = V0;
+			pv = V0;
+			for (const k of sites) {
+				k.c = 0;
+				drawSite(k);
+			}
+			for (const d of dots) {
+				d.st = 'gas';
+				d.site = null;
+				d.age = 9;
+				d.x = XL + 4 + rand() * (XR - XL - 8);
+				d.y = yOf(V0) + 4 + rand() * (H * V0 - 8);
+				turn(d);
+				d.el.setAttribute('opacity', '1');
+			}
+			drawPiston();
+			draw();
+		};
+
+		const drawPiston = () => {
+			const yp = yOf(pv);
+			$('[data-gas]').setAttribute('y', yp.toFixed(1));
+			$('[data-gas]').setAttribute('height', (BOT - yp).toFixed(1));
+			$('[data-head]').setAttribute('y', (yp - 12).toFixed(1));
+			$('[data-rod]').setAttribute('y1', (yp - 12).toFixed(1));
+			$('[data-rod]').setAttribute('y2', (yp - 38).toFixed(1));
+			$('[data-handle]').setAttribute('y', (yp - 44).toFixed(1));
+			$('[data-grip]').setAttribute('y', (yp - 48).toFixed(1));
+			$('[data-plabel]').setAttribute('y', (yp - 18).toFixed(1));
+			$('[data-dim]').setAttribute('y1', yp.toFixed(1));
+			$('[data-dimhead]').setAttribute('d', `M27,${(yp + 6).toFixed(1)} L31,${yp.toFixed(1)} L35,${(yp + 6).toFixed(1)} M27,${BOT - 6} L31,${BOT} L35,${BOT - 6}`);
+			$('[data-dimtext]').setAttribute('y', ((yp + BOT) / 2 + 6).toFixed(1));
+		};
+
+		// Numbers, meter, formula and what to notice: the equilibrium for the current t and V.
+		const draw = () => {
+			const r0 = rho0(s.t);
+			const m = vapour();
+			const m2 = Math.round(m * 100) / 100; // as shown, to 0,01 г
+			const w2 = Math.round((M - m2) * 100) / 100;
+			const rho = m2 / s.V;
+			const rho1 = Math.round(rho * 10) / 10;
+			const sat = M >= r0 * s.V - 0.004;
+			const wet = w2 > 0.004;
+
+			const th = clamp(222 - s.t * 6, 36, 240);
+			$('[data-tliq]').setAttribute('y', th.toFixed(1));
+			$('[data-tliq]').setAttribute('height', (240 - th).toFixed(1));
+			$('[data-tval]').textContent = `${ru(s.t, 0)} °C`;
+			$('[data-wlabel]').setAttribute('opacity', wet ? '1' : '0');
+
+			$('[data-rho]').textContent = `${fixed(rho1)} г/м³`;
+			$('[data-rho0]').textContent = `${fixed(r0)} г/м³`;
+			const st = $('[data-state]');
+			st.textContent = sat ? 'насыщенный' : 'ненасыщенный';
+			st.classList.toggle('is-sat', sat);
+			$<HTMLElement>('[data-rho-bar]').style.width = `${clamp((rho1 / RHO_MAX) * 100, 0, 100)}%`;
+			$<HTMLElement>('[data-rho0-bar]').style.left = `calc(${clamp((r0 / RHO_MAX) * 100, 0, 100)}% - 1.5px)`;
+
+			const exact = Math.abs(rho - rho1) < 1e-9;
+			renderTex(
+				formula,
+				`\\rho = \\dfrac{m}{V} = \\dfrac{${tex(fixed(m2, 2))}~\\text{г}}{${tex(fixed(s.V, 2))}~\\text{м}^3} ${exact ? '=' : '\\approx'} ${tex(fixed(rho1))}~\\text{г/м}^3`,
+			);
+
+			$('[data-s-t]').textContent = `${ru(s.t, 0)} °C`;
+			$('[data-s-v]').textContent = `${fixed(s.V, 2)} м³`;
+			$('[data-s-m]').textContent = `${fixed(m2, 2)} г`;
+			$('[data-s-w]').textContent = wet ? `${fixed(w2, 2)} г` : 'нет';
+			$<HTMLOutputElement>('[data-o-t]').value = `${ru(s.t, 0)} °C`;
+			$<HTMLOutputElement>('[data-o-v]').value = `${fixed(s.V, 2)} м³`;
+			iT.value = String(s.t);
+			iV.value = String(s.V);
+
+			const r0s = `${fixed(r0)}&nbsp;г/м³`;
+			live.innerHTML = wet
+				? `Пар насыщенный: плотнее ${r0s} он при ${ru(s.t, 0)}&nbsp;°C быть не может. Лишний пар&nbsp;— ${fixed(w2, 2)}&nbsp;г&nbsp;— сконденсировался в капли на стенках и дне. Из капель вылетают молекулы, и столько же молекул возвращается в них.`
+				: sat
+					? `Пар насыщенный: его плотность равна ${r0s}. Если ещё немного сжать или охладить пар, начнётся конденсация.`
+					: `Пар ненасыщенный: его плотность ${fixed(rho1)}&nbsp;г/м³ меньше, чем у насыщенного пара при ${ru(s.t, 0)}&nbsp;°C (${r0s}). Капель нет.`;
+		};
+
+		// One dot condenses: the gas dot nearest to a drop site flies there (sites with big drops count as farther,
+		// so the water spreads over many drops). Dots that have just left a drop are skipped.
+		const land = () => {
+			let best: Dot | null = null;
+			let bestSite: Site | null = null;
+			let bestScore = Infinity;
+			for (const d of dots) {
+				if (d.st !== 'gas' || d.age < 0.8) continue;
+				for (const k of sites) {
+					const score = Math.hypot(d.x - k.x, d.y - k.y) + 3 * k.c;
+					if (score < bestScore) {
+						bestScore = score;
+						best = d;
+						bestSite = k;
+					}
+				}
+			}
+			if (!best || !bestSite) return false;
+			best.st = 'land';
+			best.site = bestSite;
+			return true;
+		};
+		// One dot evaporates from the biggest drop.
+		const leave = () => {
+			let k: Site | null = null;
+			for (const q of sites) if (q.c > 0 && (!k || q.c > k.c)) k = q;
+			const d = dots.find((q) => q.st === 'water');
+			if (!k || !d) return false;
+			k.c -= 1;
+			drawSite(k);
+			const r = radius(k.c) + 3;
+			d.st = 'gas';
+			d.site = null;
+			d.age = 0;
+			d.x = clamp(k.x + k.nx * r, XL + 3, XR - 3);
+			d.y = clamp(k.y + k.ny * r, yOf(pv) + 3, BOT - 3);
+			const a = Math.atan2(k.ny, k.nx) + (rand() - 0.5) * 1.2;
+			d.vx = Math.cos(a);
+			d.vy = Math.sin(a);
+			d.el.setAttribute('opacity', '1');
+			return true;
+		};
+
+		let acc = 0; // condensation / evaporation events due
+		let swap = 0; // time to the next exchange in equilibrium
+		const step = (dt: number) => {
+			pv += (s.V - pv) * Math.min(1, dt * 9);
+			if (Math.abs(s.V - pv) < 1e-4) pv = s.V;
+			drawPiston();
+			const yp = yOf(pv);
+			const speed = 40 * Math.sqrt((s.t + 273) / 291);
+
+			for (const d of dots) {
+				if (d.st === 'water') continue;
+				d.age += dt;
+				if (d.st === 'land' && d.site) {
+					const k = d.site;
+					const dx = k.x - d.x;
+					const dy = k.y - d.y;
+					const dist = Math.hypot(dx, dy);
+					const v = 150 * dt;
+					if (dist <= v + radius(k.c) * 0.6) {
+						d.st = 'water';
+						d.el.setAttribute('opacity', '0');
+						k.c += 1;
+						drawSite(k);
+						continue;
+					}
+					d.x += (dx / dist) * v;
+					d.y = Math.max(d.y + (dy / dist) * v, yp + 3);
+				} else {
+					d.x += d.vx * speed * dt;
+					d.y += d.vy * speed * dt;
+					if (d.x < XL + 3 || d.x > XR - 3) d.vx = -d.vx;
+					if (d.y > BOT - 3) d.vy = -Math.abs(d.vy);
+					if (d.y < yp + 3) d.vy = Math.abs(d.vy);
+					d.x = clamp(d.x, XL + 3, XR - 3);
+					d.y = clamp(d.y, yp + 3, BOT - 3);
+					if (rand() < dt * 2) turn(d);
+				}
+				d.el.setAttribute('cx', d.x.toFixed(1));
+				d.el.setAttribute('cy', d.y.toFixed(1));
+			}
+
+			// Condense or evaporate dots until the gas holds the equilibrium amount of vapour.
+			let diff = dots.filter((d) => d.st === 'gas').length - target();
+			if (diff === 0) {
+				acc = 0;
+				// Dynamic equilibrium: while there is water, a dot leaves a drop and another one returns.
+				if (sites.some((k) => k.c > 0) && (swap -= dt) <= 0) {
+					swap = 0.45;
+					if (land()) leave();
+				}
+				return;
+			}
+			acc += dt * (4 + 3 * Math.abs(diff));
+			while (acc >= 1 && diff !== 0) {
+				const ok = diff > 0 ? land() : leave();
+				if (!ok) break;
+				diff += diff > 0 ? -1 : 1;
+				acc -= 1;
+			}
+			acc = Math.min(acc, 1);
+		};
+
+		let last = 0;
+		let visible = true;
+		let raf = 0;
+		const frame = (now: number) => {
+			step(Math.min(0.05, (now - last) / 1000 || 0));
+			last = now;
+			raf = visible ? requestAnimationFrame(frame) : 0;
+		};
+		new IntersectionObserver((e) => {
+			visible = e[0].isIntersecting;
+			if (visible && !raf) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		}).observe(root);
+
+		iT.addEventListener('input', () => {
+			s.t = Number(iT.value);
+			draw();
+		});
+		iV.addEventListener('input', () => {
+			s.V = Math.round(Number(iV.value) * 20) / 20;
+			draw();
+		});
+		$('[data-reset]').addEventListener('click', reset);
+
+		// Dragging the piston sets the volume (in steps of 0,05 м³, like the slider).
+		let grab: number | null = null;
+		const svgY = (e: PointerEvent) => {
+			const p = svg.createSVGPoint();
+			p.x = e.clientX;
+			p.y = e.clientY;
+			return p.matrixTransform(svg.getScreenCTM()!.inverse()).y;
+		};
+		piston.addEventListener('pointerdown', (e) => {
+			grab = svgY(e) - yOf(s.V);
+			svg.setPointerCapture(e.pointerId);
+			piston.classList.add('is-drag');
+			e.preventDefault();
+		});
+		svg.addEventListener('pointermove', (e) => {
+			if (grab === null) return;
+			const V = clamp(Math.round(((BOT - (svgY(e) - grab)) / H) * 20) / 20, V_MIN, 1);
+			if (V !== s.V) {
+				s.V = V;
+				draw();
+			}
+		});
+		const drop = () => {
+			grab = null;
+			piston.classList.remove('is-drag');
+		};
+		svg.addEventListener('pointerup', drop);
+		svg.addEventListener('pointercancel', drop);
+
+		reset();
+		for (const d of dots) {
+			d.el.setAttribute('cx', d.x.toFixed(1));
+			d.el.setAttribute('cy', d.y.toFixed(1));
+		}
+	}
+</script>
