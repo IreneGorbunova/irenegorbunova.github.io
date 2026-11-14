@@ -8,6 +8,7 @@ import { UNIT_BY_TEX } from '../data/units.mjs';
 export const symKey = (/** @type {string} */ s) =>
 	s
 		.replace(/\\(text|mathrm|textit|mathit)\s*/g, '')
+		.replace(/\\(vec|overrightarrow|overline|bar|hat)(?![A-Za-z])\s*/g, '')
 		.replace(/[{}\s]/g, '');
 
 const GREEK = new Set([
@@ -30,6 +31,12 @@ const closing = (/** @type {string} */ s, /** @type {number} */ open) => {
 	}
 	return s.length - 1;
 };
+
+// Accents take one argument, braced or not: \vec p, \vec{p}, \vec\upsilon_1. The accent with its argument and the
+// subscript is one symbol; an unbraced argument gets its braces, so that the mark around it does not break the accent.
+const ACCENTS = new Set(['vec', 'overrightarrow', 'overline', 'bar', 'hat']);
+/** A single letter or a Greek command, with nothing else: what an accent usually stands on. */
+const SIMPLE = /^(\\[A-Za-z]+|[A-Za-z])(_(\{[^{}]*\}|\\[A-Za-z]+|.))?$/;
 
 const DEG = /^(\{\}\s*)?\^\s*(\\circ|\{\\circ\})\s*\\text\s*\{C\}/;
 
@@ -58,7 +65,10 @@ export const annotate = (tex, gloss) => {
 		} else j = afterBase;
 		const token = tex.slice(start, j);
 		const id = gloss.get(symKey(token));
-		out += id === undefined ? token : `\\htmlData{g=${id}}{${token}}`;
+		// a plain power stays with its quantity (υ₀² stacks over the subscript instead of standing after it)
+		const pow = id === undefined ? null : /^\s*\^(\d|\{\d+\})/.exec(tex.slice(j));
+		if (pow) j += pow[0].length;
+		out += id === undefined ? token : `\\htmlData{g=${id}}{${token}${pow ? pow[0].trim() : ''}}`;
 		i = j;
 	};
 	while (i < tex.length) {
@@ -93,6 +103,49 @@ export const annotate = (tex, gloss) => {
 				out += tex.slice(i, k);
 				i = k;
 				continue;
+			}
+			if (ACCENTS.has(name)) {
+				let k = i + 1 + name.length;
+				while (tex[k] === ' ') k++;
+				let arg;
+				let after;
+				if (tex[k] === '{') {
+					const end = closing(tex, k);
+					arg = tex.slice(k + 1, end);
+					after = end + 1;
+				} else {
+					const m1 = /^(\\[A-Za-z]+|[A-Za-z])/.exec(tex.slice(k));
+					arg = m1 ? m1[0] : '';
+					after = k + arg.length;
+				}
+				if (arg && SIMPLE.test(arg.trim())) {
+					// the subscript after the accent belongs to the symbol: \vec p_1, \vec{F}_{тяж}
+					let j = after;
+					while (tex[j] === ' ') j++;
+					let sub = '';
+					if (tex[j] === '_' && !arg.includes('_')) {
+						let e = j + 1;
+						while (tex[e] === ' ') e++;
+						if (tex[e] === '{') e = closing(tex, e) + 1;
+						else if (tex[e] === '\\') {
+							const m2 = /^\\[A-Za-z]+/.exec(tex.slice(e));
+							e += m2 ? m2[0].length : 2;
+						} else e += 1;
+						sub = tex.slice(j, e);
+						after = e;
+					}
+					const whole = `\\${name}{${arg.trim()}}${sub}`;
+					const id = gloss.get(symKey(arg + sub));
+					out += id === undefined ? whole : `\\htmlData{g=${id}}{${whole}}`;
+					i = after;
+					continue;
+				}
+				if (arg) {
+					// something longer under the accent: its parts are marked on their own
+					out += `\\${name}{${annotate(arg, gloss)}}`;
+					i = after;
+					continue;
+				}
 			}
 			if (TEXTISH.has(name)) {
 				let k = i + 1 + name.length;
