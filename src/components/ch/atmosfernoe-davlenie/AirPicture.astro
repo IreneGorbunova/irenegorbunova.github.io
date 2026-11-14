@@ -1,0 +1,202 @@
+---
+/**
+ * Picture to the definitions of the atmosphere and of atmospheric pressure.
+ * Left (animated, as in the school experiment): a glass ball hangs on a balance in equilibrium with weights. A pump
+ *   takes the air out through a hose (the dots leave), the tap closes, the hose comes off, and the beam tips: the
+ *   ball has become lighter. The tilt is exaggerated: 1 l of air has a mass of about 1,3 g.
+ * Right (static): the air above the ground, its dots denser at the bottom (density falls with height roughly as
+ *   e^(−y/60 px)); arrows: the air presses on the ground; a soap bubble with equal arrows from all sides.
+ */
+import AtmStyles from './AtmStyles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const mA = `apa-${uid}`;
+// a fixed pseudo-random sequence for the static dots
+let seed = 5;
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const GROUND = 206;
+const BUB = { x: 236, y: 128, r: 24 };
+const air: [number, number][] = [];
+for (let i = 0; i < 900 && air.length < 150; i++) {
+	const x = 6 + rnd() * 308;
+	const y = 34 + rnd() * (GROUND - 38);
+	if (Math.exp(-(GROUND - y) / 62) < rnd()) continue;
+	if (Math.hypot(x - BUB.x, y - BUB.y) < BUB.r + 26) continue;
+	if (y < 62 && x > 70 && x < 250) continue; // keep the title free
+	if (y > 64 && y < 84 && x > 160) continue; // and the label above the bubble
+	air.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+}
+const radial = Array.from({ length: 8 }, (_, k) => {
+	const a = (k * Math.PI) / 4 + Math.PI / 8;
+	const c = Math.cos(a);
+	const s = Math.sin(a);
+	const r1 = BUB.r + 20;
+	const r2 = BUB.r + 5;
+	return [BUB.x + r1 * c, BUB.y + r1 * s, BUB.x + r2 * c, BUB.y + r2 * s].map((v) => Math.round(v * 10) / 10);
+});
+// the ball on the balance: 18 air dots inside a circle of radius 28 (local coordinates, centre 0,0)
+const ballDots = Array.from({ length: 18 }, () => {
+	const a = rnd() * Math.PI * 2;
+	const r = Math.sqrt(rnd()) * 24;
+	return [Math.round(r * Math.cos(a) * 10) / 10, Math.round(r * Math.sin(a) * 10) / 10];
+});
+---
+
+<AtmStyles />
+<figure class="ap-pic not-content" data-airpic>
+	<div class="ap-pic__grid">
+		<svg class="ap-pic__svg" viewBox="0 0 320 230" role="img" aria-label="Стеклянный шар на весах уравновешен гирями. Насос откачивает из шара воздух, кран закрывают, шланг отсоединяют — и шар поднимается: без воздуха он стал легче">
+			<defs>
+				<marker id={mA} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">
+					<path class="ap-head" d="M0 0 L10 5 L0 10 z"></path>
+				</marker>
+			</defs>
+			<text class="ap-title" x="160" y="22" text-anchor="middle">Воздух имеет вес</text>
+			<!-- the stand -->
+			<rect class="ap-metal" x="126" y="210" width="68" height="8" rx="2"></rect>
+			<line class="ap-line" x1="160" y1="210" x2="160" y2="66" style="stroke-width: 3"></line>
+			<!-- the beam (rotated by the script) -->
+			<g data-beam>
+				<line class="ap-line" x1="56" y1="64" x2="264" y2="64" style="stroke-width: 3"></line>
+				<path class="ap-metal" d="M154 64 L160 52 L166 64 Z"></path>
+			</g>
+			<circle class="ap-metal" cx="160" cy="64" r="3.5"></circle>
+			<!-- left: the glass ball with a tap (translated by the script) -->
+			<g data-ball>
+				<line class="ap-line" x1="0" y1="0" x2="0" y2="16"></line>
+				<rect class="ap-metal" x="-5" y="16" width="10" height="14" rx="1.5"></rect>
+				<line class="ap-tap" data-tap x1="-8" y1="23" x2="8" y2="23"></line>
+				<circle class="ap-glass" cx="0" cy="60" r="30"></circle>
+				<g data-bdots>
+					{ballDots.map(([x, y]) => <circle class="ap-dot" cx={x} cy={60 + y} r="1.6" />)}
+				</g>
+			</g>
+			<path class="ap-hose" data-hose></path>
+			<text x="8" y="44" data-hoselabel>к насосу</text>
+			<!-- right: the pan with weights -->
+			<g data-pan>
+				<line class="ap-line" x1="0" y1="0" x2="-24" y2="62"></line>
+				<line class="ap-line" x1="0" y1="0" x2="24" y2="62"></line>
+				<path class="ap-metal" d="M-32 62 Q0 74 32 62 Z"></path>
+				<rect class="ap-weight" x="-18" y="44" width="14" height="20" rx="2"></rect>
+				<rect class="ap-weight" x="2" y="50" width="12" height="14" rx="2"></rect>
+			</g>
+			<text x="58" y="178" text-anchor="middle">стеклянный шар</text>
+			<text x="264" y="152" text-anchor="middle">гири</text>
+		</svg>
+		<svg class="ap-pic__svg" viewBox="0 0 320 230" role="img" aria-label="Воздух над Землёй: внизу он плотнее, чем вверху, и давит на поверхность Земли. На мыльный пузырь воздух давит со всех сторон одинаково">
+			<text class="ap-title" x="160" y="22" text-anchor="middle">Атмосферное давление</text>
+			{air.map(([x, y]) => <circle class="ap-dot" cx={x} cy={y} r="1.5" />)}
+			<rect class="ap-earth" x="0" y={GROUND} width="320" height={230 - GROUND}></rect>
+			<line class="ap-earth-edge" x1="0" y1={GROUND} x2="320" y2={GROUND}></line>
+			{[34, 84, 134].map((x) => <line class="ap-arrow" x1={x} y1={GROUND - 40} x2={x} y2={GROUND - 5} marker-end={`url(#${mA})`} />)}
+			<circle class="ap-bubble" cx={BUB.x} cy={BUB.y} r={BUB.r}></circle>
+			<path class="ap-bubble-shine" d={`M${BUB.x - 14} ${BUB.y - 8} A16 16 0 0 1 ${BUB.x - 4} ${BUB.y - 16}`}></path>
+			{radial.map(([x1, y1, x2, y2]) => <line class="ap-arrow" x1={x1} y1={y1} x2={x2} y2={y2} marker-end={`url(#${mA})`} />)}
+			<text x="10" y="48">вверху воздух реже</text>
+			<text x="10" y={GROUND - 48}>внизу плотнее</text>
+			<text class="ap-t-air" x={BUB.x} y={BUB.y - BUB.r - 26} text-anchor="middle">давит со всех сторон</text>
+		</svg>
+	</div>
+	<div class="ap-pic__foot">
+		<figcaption>
+			Слева: из стеклянного шара откачали воздух, и шар стал легче — воздух имеет вес (наклон весов преувеличен: масса 1&nbsp;л воздуха — около 1,3&nbsp;г). Справа: верхние слои воздуха давят на нижние, поэтому внизу воздух плотнее. Воздух давит на Землю и на любое тело — со всех сторон.
+		</figcaption>
+		<button type="button" class="ap-pic__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.ap-tap {
+		stroke: var(--ig-vy);
+		stroke-width: 3;
+		stroke-linecap: round;
+		transform-box: fill-box;
+		transform-origin: center;
+		transition: transform 0.3s ease;
+	}
+	.ap-tap.is-closed {
+		transform: rotate(90deg);
+	}
+	.ap-hose {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.ap-weight {
+		fill: color-mix(in srgb, var(--ig-v) 55%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ap-earth-edge {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+	}
+	.ap-bubble {
+		fill: color-mix(in srgb, var(--ig-vx) 10%, transparent);
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, var(--sl-color-white));
+		stroke-width: 1.4;
+	}
+	.ap-bubble-shine {
+		fill: none;
+		stroke: color-mix(in srgb, var(--sl-color-white) 70%, transparent);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+
+	const ease = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
+	for (const root of document.querySelectorAll<HTMLElement>('[data-airpic]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const beam = $<SVGGElement>('[data-beam]');
+		const ball = $<SVGGElement>('[data-ball]');
+		const pan = $<SVGGElement>('[data-pan]');
+		const hose = $<SVGPathElement>('[data-hose]');
+		const hoseLabel = $<SVGTextElement>('[data-hoselabel]');
+		const tap = $<SVGLineElement>('[data-tap]');
+		const dots = Array.from(root.querySelectorAll<SVGCircleElement>('[data-bdots] circle'));
+		const home = dots.map((d) => [Number(d.getAttribute('cx')), Number(d.getAttribute('cy'))]);
+		const N = dots.length;
+		const KEEP = 2; // a pump never takes out all the air
+		const ARM = 104;
+		scene(root, 6, (x) => {
+			// pumping 0,08 → 0,5; tap closes at 0,52; hose off 0,52 → 0,62; the beam tips 0,62 → 0,9
+			const tilt = (-7 * Math.PI) / 180 * ease((x - 0.62) / 0.28);
+			beam.setAttribute('transform', `rotate(${((tilt * 180) / Math.PI).toFixed(2)} 160 64)`);
+			const lx = 160 - ARM * Math.cos(tilt);
+			const ly = 64 - ARM * Math.sin(tilt);
+			const rx = 160 + ARM * Math.cos(tilt);
+			const ry = 64 + ARM * Math.sin(tilt);
+			ball.setAttribute('transform', `translate(${lx.toFixed(1)} ${ly.toFixed(1)})`);
+			pan.setAttribute('transform', `translate(${rx.toFixed(1)} ${ry.toFixed(1)})`);
+			// the hose from the tap to the pump (off the picture), it slides away when detached
+			const off = ease((x - 0.52) / 0.1);
+			const tx = lx - 5 - 30 * off;
+			const ty = ly + 23 - 20 * off;
+			hose.setAttribute('d', `M${tx.toFixed(1)} ${ty.toFixed(1)} C${(tx - 30).toFixed(1)} ${(ty - 4).toFixed(1)} ${(tx - 20).toFixed(1)} 52 -6 50`);
+			hose.style.opacity = String(1 - off);
+			hoseLabel.style.opacity = String(1 - off);
+			tap.classList.toggle('is-closed', x >= 0.52);
+			dots.forEach((d, k) => {
+				if (k < KEEP) return;
+				const t0 = 0.08 + (0.4 * (k - KEEP)) / (N - KEEP);
+				const f = (x - t0) / 0.07;
+				const [hx, hy] = home[k];
+				if (f <= 0) {
+					d.setAttribute('cx', String(hx));
+					d.setAttribute('cy', String(hy));
+					d.style.opacity = '1';
+				} else {
+					const g = Math.min(1, f);
+					d.setAttribute('cx', (hx * (1 - g)).toFixed(1));
+					d.setAttribute('cy', (hy + (24 - hy) * g).toFixed(1));
+					d.style.opacity = f >= 1 ? '0' : '1';
+				}
+			});
+		});
+	}
+</script>

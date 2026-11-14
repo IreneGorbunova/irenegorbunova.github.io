@@ -1,0 +1,182 @@
+---
+/**
+ * Picture to «Давление и высота».
+ * Left: a mountain as high as Elbrus (5642 m) on a height axis to scale (25 px per km); the air around it as dots
+ *   whose number per strip follows the air density of the standard atmosphere (physics.ts), so they thin out upwards;
+ *   pills with the pressure at sea level, at 1465 m (Puy de Dôme) and at 5642 m, from the standard atmosphere.
+ * Right: an altimeter — an aneroid dial with the pressure scale (350–800 мм рт. ст.) and, inside, the scale of
+ *   heights 0–6 km made from the same standard atmosphere; the needle at 3 km (526 мм рт. ст.).
+ */
+import AtmStyles from './AtmStyles.astro';
+import { pressureAt, densityRatioAt, MMHG } from './physics';
+
+const r1 = (v: number) => Math.round(v * 10) / 10;
+// ---------- left: mountain and air ----------
+const GROUND = 206;
+const KM = 25; // px per km
+const Y = (h: number) => GROUND - (h / 1000) * KM;
+let seed = 17;
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const dots: [number, number][] = [];
+// 130 candidate dots per 1 km strip at sea-level density
+for (let k = 0; k < 1400; k++) {
+	const h = rnd() * 6400;
+	if (densityRatioAt(h) < rnd()) continue;
+	if (rnd() > 0.32) continue;
+	const x = 34 + rnd() * 280;
+	dots.push([r1(x), r1(Y(h))]);
+}
+const peak = { x: 196, h: 5642 };
+const mount = `M60 ${GROUND} L120 ${r1(Y(2400))} L140 ${r1(Y(2900))} L${peak.x} ${r1(Y(peak.h))} L240 ${r1(Y(3600))} L262 ${r1(Y(3900))} L320 ${GROUND} Z`;
+const marks = [
+	{ h: 0, x: 66, label: `${Math.round(pressureAt(0) / MMHG)} мм рт. ст.`, anchor: 'start', dx: 8 },
+	{ h: 1465, x: 92, label: `${Math.round(pressureAt(1465) / MMHG / 10) * 10} мм рт. ст.`, anchor: 'end', dx: -8 },
+	{ h: 5642, x: peak.x, label: `${Math.round(pressureAt(5642) / MMHG / 10) * 10} мм рт. ст.`, anchor: 'end', dx: -10 },
+];
+// the point of the slope at 1465 m on the left flank (60,GROUND) → (120, Y(2400))
+marks[1].x = r1(60 + ((120 - 60) * 1465) / 2400);
+const dotFree = (x: number, y: number) =>
+	!marks.some((m) => Math.abs(y - Y(m.h)) < 11 && (m.anchor === 'end' ? x < m.x + 4 && x > m.x - 120 : x > m.x - 4 && x < m.x + 120));
+const airDots = dots.filter(([x, y]) => dotFree(x, y) && !(y < 30 && x > 150));
+
+// ---------- right: the altimeter ----------
+const C = 110;
+const P_LO = 350;
+const P_HI = 800;
+const ang = (mm: number) => -135 + ((mm - P_LO) / (P_HI - P_LO)) * 270;
+const pt = (deg: number, r: number) => {
+	const a = (deg * Math.PI) / 180;
+	return [C + r * Math.sin(a), C - r * Math.cos(a)].map(r1);
+};
+const tick = (deg: number, a: number, b: number) => {
+	const [x1, y1] = pt(deg, a);
+	const [x2, y2] = pt(deg, b);
+	return `M${x1} ${y1}L${x2} ${y2}`;
+};
+let mmTicks = '';
+for (let mm = P_LO; mm <= P_HI; mm += 10) mmTicks += tick(ang(mm), 92, mm % 50 === 0 ? 80 : 86);
+const mmLabels = [400, 500, 600, 700, 800].map((mm) => {
+	const [x, y] = pt(ang(mm), 68);
+	return { mm, x, y: y + 4 };
+});
+let kmTicks = '';
+const kmLabels: { k: number; x: number; y: number }[] = [];
+for (let k = 0; k <= 6; k++) {
+	const deg = ang(pressureAt(k * 1000) / MMHG);
+	kmTicks += tick(deg, 52, 44);
+	const [x, y] = pt(deg, 35);
+	kmLabels.push({ k, x, y: y + 4 });
+}
+const kmArc = (() => {
+	const [x1, y1] = pt(ang(pressureAt(6000) / MMHG), 52);
+	const [x2, y2] = pt(ang(pressureAt(0) / MMHG), 52);
+	return `M${x1} ${y1}A52 52 0 1 1 ${x2} ${y2}`;
+})();
+const needleDeg = ang(pressureAt(3000) / MMHG);
+---
+
+<AtmStyles />
+<figure class="ap-pic not-content">
+	<div class="ap-pic__grid">
+		<svg class="ap-pic__svg" viewBox="0 0 320 230" role="img" aria-label="Гора высотой с Эльбрус. Воздух у подножия плотнее, чем на вершине. У моря давление 760 мм ртутного столба, на высоте 1465 м — около 640, на вершине Эльбруса — около 370">
+			<text class="ap-title" x="314" y="22" text-anchor="end">Чем выше, тем меньше давление</text>
+			{airDots.map(([x, y]) => <circle class="ap-dot" cx={x} cy={y} r="1.4" />)}
+			<path class="ap-mount" d={mount}></path>
+			<path class="ap-snow2" d={`M${peak.x} ${r1(Y(peak.h))} L${peak.x - 14} ${r1(Y(4900))} L${peak.x - 4} ${r1(Y(5050))} L${peak.x + 4} ${r1(Y(4850))} L${peak.x + 13} ${r1(Y(5000))} Z`}></path>
+			<rect class="ap-earth" x="0" y={GROUND} width="320" height={230 - GROUND}></rect>
+			<!-- height axis -->
+			<line class="ap-scale" x1="22" y1={GROUND} x2="22" y2={Y(6000)}></line>
+			{[0, 1, 2, 3, 4, 5, 6].map((k) => <line class="ap-scale" x1="18" x2="22" y1={Y(k * 1000)} y2={Y(k * 1000)} />)}
+			{[0, 2, 4, 6].map((k) => <text class="ap-scale-num" x="14" y={Y(k * 1000) + 4} text-anchor="end">{k}</text>)}
+			<text class="ap-scale-num" x="16" y={Y(6000) - 10} text-anchor="middle">км</text>
+			{marks.map((m) => (
+				<g>
+					<circle class="ap-mark" cx={m.x} cy={Y(m.h)} r="3.5" />
+					<text class="ap-t-hl" x={m.x + m.dx} y={Y(m.h) + 4} text-anchor={m.anchor}>{m.label}</text>
+				</g>
+			))}
+		</svg>
+		<svg class="ap-pic__svg" viewBox="0 0 320 230" role="img" aria-label="Высотомер: барометр-анероид с двумя шкалами. Внешняя шкала — давление в миллиметрах ртутного столба, внутренняя — высота над уровнем моря в километрах. Стрелка показывает 3 км">
+			<text class="ap-title" x="160" y="22" text-anchor="middle">Высотомер</text>
+			<g transform="translate(61 30) scale(0.9)">
+				<circle class="ap-bezel" cx={C} cy={C} r="104"></circle>
+				<circle class="ap-face" cx={C} cy={C} r="97"></circle>
+				<path class="ap-dial-mm" d={mmTicks}></path>
+				{mmLabels.map((l) => <text class="ap-dial-num" x={l.x} y={l.y} text-anchor="middle">{l.mm}</text>)}
+				<path class="ap-dial-km" d={kmArc + kmTicks}></path>
+				{kmLabels.map((l) => <text class="ap-dial-kmnum" x={l.x} y={l.y} text-anchor="middle">{l.k}</text>)}
+				<text class="ap-dial-unit" x={C} y="166" text-anchor="middle">мм рт. ст.</text>
+				<text class="ap-dial-unit ap-dial-unit--km" x={C} y="182" text-anchor="middle">км</text>
+				<path class="ap-needle" transform={`rotate(${r1(needleDeg)} ${C} ${C})`} d={`M${C} ${C - 86}L${C + 3.6} ${C}L${C} ${C + 20}L${C - 3.6} ${C}Z`}></path>
+				<circle class="ap-cap" cx={C} cy={C} r="6"></circle>
+			</g>
+		</svg>
+	</div>
+	<div class="ap-pic__foot">
+		<figcaption>
+			Слева: давление у моря, на высоте 1465&nbsp;м и на высоте Эльбруса (5642&nbsp;м); воздух наверху реже. Справа: высотомер — барометр-анероид, у которого рядом со шкалой давления нанесена шкала высоты. Стрелка показывает высоту 3&nbsp;км: там давление около 526&nbsp;мм рт. ст.
+		</figcaption>
+	</div>
+</figure>
+
+<style is:global>
+	.ap-mount {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.ap-snow2 {
+		fill: color-mix(in srgb, var(--sl-color-white) 80%, transparent);
+	}
+	:root[data-theme='light'] .ap-snow2 {
+		fill: var(--sl-color-black);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ap-mark {
+		fill: var(--ig-v);
+		stroke: var(--sl-color-bg);
+		stroke-width: 1.5;
+	}
+	.ap-bezel {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ap-face {
+		fill: var(--sl-color-bg);
+	}
+	.ap-dial-mm {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.ap-dial-km {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 1.4;
+	}
+	.ap-pic .ap-dial-num {
+		font-size: 13px;
+		fill: var(--sl-color-gray-1);
+		stroke: none;
+	}
+	.ap-pic .ap-dial-kmnum {
+		font-size: 12px;
+		font-weight: 700;
+		fill: var(--ig-vx);
+		stroke: none;
+	}
+	.ap-pic .ap-dial-unit {
+		font-size: 11px;
+		fill: var(--sl-color-gray-3);
+		stroke: none;
+	}
+	.ap-pic .ap-dial-unit--km {
+		fill: var(--ig-vx);
+	}
+	.ap-needle {
+		fill: var(--sl-color-red);
+	}
+	.ap-cap {
+		fill: var(--sl-color-gray-2);
+	}
+</style>
