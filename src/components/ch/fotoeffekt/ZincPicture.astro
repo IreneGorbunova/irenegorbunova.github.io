@@ -1,0 +1,171 @@
+---
+/**
+ * Picture to the definition of the photoeffect: the school experiment with a zinc plate on an electrometer.
+ * Both plates are charged negatively (8 electrons drawn on each, the needle deflected by 40°).
+ * Left: ultraviolet light from an arc lamp (short packets); each packet that reaches the plate knocks out one
+ *   electron, which flies away; the charge and the needle's deflection fall to zero.
+ * Right: twice as many packets of bright red light (long wavelength) are absorbed, no electron leaves, the needle
+ *   stays. The number of electrons is symbolic.
+ */
+import FeStyles from './FeStyles.astro';
+import { lightColor } from './physics';
+
+const N = 8; // electrons on a plate
+const plateE = Array.from({ length: N }, (_, i) => 158 + i * 12);
+const panels = [
+	{ id: 'uv', title: 'Ультрафиолет', beam: lightColor(300, 0.16), lamp: lightColor(300) },
+	{ id: 'red', title: 'Яркий красный свет', beam: lightColor(680, 0.3), lamp: lightColor(680) },
+];
+---
+
+<FeStyles />
+<figure class="fp-pic not-content" data-fe-zinc data-n={N}>
+	<div class="fp-pic__grid">
+		{
+			panels.map((p) => (
+				<svg class="fp-pic__svg" viewBox="0 0 320 236" role="img" data-panel={p.id} aria-label={p.id === 'uv' ? 'Ультрафиолетовый свет падает на отрицательно заряженную цинковую пластину на электрометре. Он выбивает из пластины электроны, и стрелка электрометра опускается' : 'Яркий красный свет падает на такую же заряженную пластину. Электроны не вылетают, стрелка электрометра стоит на месте'}>
+					<text class="fp-title" x="160" y="22" text-anchor="middle">
+						{p.title}
+					</text>
+					{/* the lamp and its beam */}
+					<path d="M64 64 L150 94 L250 94 L72 52 Z" style={`fill: ${p.beam}`} />
+					<g transform="rotate(25 50 50)">
+						<rect class="fp-metal" x="26" y="38" width="40" height="24" rx="5" />
+						<rect x="64" y="42" width="5" height="16" rx="1.5" style={`fill: ${p.lamp}`} />
+					</g>
+					<text x="44" y="94" text-anchor="middle">
+						лампа
+					</text>
+					<g data-ph />
+					{/* the zinc plate on the electrometer */}
+					<rect class="fp-zinc" x="146" y="94" width="108" height="8" rx="1.5" />
+					<line class="fp-wire" x1="200" y1="102" x2="200" y2="196" style="stroke-width: 3" />
+					<circle class="fp-case" cx="200" cy="168" r="42" />
+					<path class="fp-scale" d="M170.3 138.3 A42 42 0 0 1 229.7 138.3" />
+					<line class="fp-needle" x1="200" y1="146" x2="200" y2="190" data-needle />
+					<circle class="fp-metal" cx="200" cy="168" r="3" />
+					<line class="fp-wire" x1="176" y1="206" x2="170" y2="222" />
+					<line class="fp-wire" x1="224" y1="206" x2="230" y2="222" />
+					<text x="262" y="112">
+						цинк
+					</text>
+					<text x="154" y="226" text-anchor="end">
+						электрометр
+					</text>
+					<g data-el>
+						{plateE.map((x) => (
+							<g transform={`translate(${x} 88)`}>
+								<circle class="fp-e" r="4.2" />
+								<line class="fp-e-minus" x1="-2.2" x2="2.2" y1="0" y2="0" />
+							</g>
+						))}
+					</g>
+				</svg>
+			))
+		}
+	</div>
+	<div class="fp-pic__foot">
+		<figcaption>
+			Цинковая пластина на электрометре заряжена отрицательно. Ультрафиолет выбивает из неё электроны, и стрелка опускается. Красный свет, даже вдвое более яркий, не выбивает ни одного электрона.
+		</figcaption>
+		<button type="button" class="fp-pic__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.fp-zinc {
+		fill: color-mix(in srgb, var(--ig-vx) 20%, var(--sl-color-gray-3));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.fp-case {
+		fill: color-mix(in srgb, var(--sl-color-white) 4%, transparent);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.4;
+	}
+	.fp-scale {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 6;
+		stroke-dasharray: 1.2 5.6;
+	}
+	.fp-needle {
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+	import { packet, lerp } from './draw';
+	import { lightColor } from './physics';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const RUN = 6;
+	const MAXDEG = 40;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fe-zinc]')) {
+		const N = Number(root.dataset.n);
+		type Ph = { el: SVGPathElement; t0: number; x1: number };
+		const setup = (id: string, wl: number, nm: number, every: number) => {
+			const svg = root.querySelector<SVGSVGElement>(`[data-panel="${id}"]`)!;
+			const g = svg.querySelector('[data-ph]')!;
+			const ph: Ph[] = [];
+			for (let k = 0; k * every < RUN; k++) {
+				const el = document.createElementNS(NS, 'path');
+				el.setAttribute('class', 'fp-photon');
+				el.style.stroke = lightColor(nm);
+				g.append(el);
+				// the k-th packet lands near the k-th electron (the order is shuffled a little)
+				const i = (k * 3) % N;
+				ph.push({ el, t0: 0.15 + k * every, x1: 158 + i * 12 });
+			}
+			const els = Array.from(svg.querySelectorAll<SVGGElement>('[data-el] > g'));
+			return { svg, ph, els, wl, needle: svg.querySelector<SVGLineElement>('[data-needle]')! };
+		};
+		const uv = setup('uv', 5, 300, 0.42);
+		const red = setup('red', 13, 680, 0.21);
+		const DUR = 0.55; // flight of a packet from the lamp to the plate
+		const drawPh = (p: Ph, t: number, wl: number) => {
+			const s = (t - p.t0) / DUR;
+			if (s < 0 || s > 1) {
+				p.el.style.opacity = '0';
+				return;
+			}
+			const x0 = 70;
+			const y0 = 60;
+			const ang = Math.atan2(92 - y0, p.x1 - x0);
+			const x = lerp(x0, p.x1, s) - Math.cos(ang) * 12;
+			const y = lerp(y0, 92, s) - Math.sin(ang) * 12;
+			p.el.setAttribute('d', packet(x, y, ang, 24, wl, 3));
+			p.el.style.opacity = '1';
+		};
+		const needle = (el: SVGLineElement, q: number) => el.setAttribute('transform', `rotate(${(MAXDEG * q).toFixed(1)} 200 168)`);
+		scene(root, RUN, (x) => {
+			const t = x * RUN;
+			// ultraviolet: the k-th packet (k < N) knocks out the electron it lands on
+			let left = N;
+			uv.ph.forEach((p, k) => {
+				drawPh(p, t, uv.wl);
+				if (k >= N) return;
+				const i = (k * 3) % N;
+				const e = uv.els[i];
+				const tHit = p.t0 + DUR;
+				const s = t - tHit;
+				if (s < 0) {
+					e.setAttribute('transform', `translate(${158 + i * 12} 88)`);
+					e.style.opacity = '1';
+				} else {
+					left--;
+					const dir = i < N / 2 ? -1 : 1;
+					e.setAttribute('transform', `translate(${(158 + i * 12 + dir * 70 * s).toFixed(1)} ${(88 - 110 * s).toFixed(1)})`);
+					e.style.opacity = s < 0.7 ? '1' : '0';
+				}
+			});
+			needle(uv.needle, left / N);
+			// red: packets are absorbed, nothing leaves
+			for (const p of red.ph) drawPh(p, t, red.wl);
+			needle(red.needle, 1);
+		});
+	}
+</script>
