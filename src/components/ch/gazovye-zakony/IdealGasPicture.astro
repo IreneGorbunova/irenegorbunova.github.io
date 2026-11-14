@@ -1,0 +1,199 @@
+---
+/**
+ * Picture to the definitions of the ideal gas and of the macroscopic parameters p, V, T.
+ * Two equal vessels with the same 18 molecules (points that fly straight and bounce off the walls, no attraction,
+ * no collisions with each other). Left 300 K, right 600 K: the same start positions and directions, every speed
+ * √2 ≈ 1,41 times larger, so the molecules hit the walls 1,41 times as often and 1,41 times as hard: p is twice as
+ * large (p = nkT). Each hit flashes on the wall; the width of the flash grows with the normal speed.
+ */
+const uid = Math.random().toString(36).slice(2, 8);
+const BOX = { x0: 34, y0: 44, x1: 230, y1: 196 };
+const thY = (T: number) => 190 - (T / 700) * 140;
+const panels = [
+	{ T: 300, k: 1, title: 'Газ при 300 К', twice: false },
+	{ T: 600, k: Math.SQRT2, title: 'Тот же газ при 600 К', twice: true },
+];
+---
+
+<figure class="igp not-content" data-idealgas>
+	<div class="igp__grid">
+		{
+			panels.map((pn) => (
+				<svg class="igp__svg" viewBox="0 0 320 230" role="img" aria-label={`${pn.title}: молекулы-точки летят по прямым и ударяют о стенки сосуда`} data-k={pn.k}>
+					<text class="igp-title" x="160" y="24" text-anchor="middle">
+						{pn.title}
+					</text>
+					<rect class="igp-box" x={BOX.x0 - 4} y={BOX.y0 - 4} width={BOX.x1 - BOX.x0 + 8} height={BOX.y1 - BOX.y0 + 8} rx="3" />
+					<g data-flashes />
+					<g data-mols />
+					<text class="igp-v" x={(BOX.x0 + BOX.x1) / 2} y={BOX.y1 + 24} text-anchor="middle">
+						объём <tspan font-style="italic">V</tspan>, давление {pn.twice ? '2' : ''}<tspan font-style="italic">p</tspan>
+					</text>
+					<rect class="igp-tube" x="262" y="46" width="12" height="146" rx="6" />
+					<circle class="igp-bulb" cx="268" cy="198" r="11" />
+					<rect class="igp-col" x="265" y={thY(pn.T)} width="6" height={198 - thY(pn.T)} rx="3" />
+					{[100, 300, 500, 700].map((t) => (
+						<line class="igp-tick" x1="276" x2="282" y1={thY(t)} y2={thY(t)} />
+					))}
+					<text class="igp-t" x="286" y={thY(pn.T) + 4}>
+						<tspan font-style="italic">T</tspan>
+					</text>
+				</svg>
+			))
+		}
+	</div>
+	<figcaption class="igp__cap">
+		Молекулы идеального газа — точки: они летят по прямым, не притягиваются друг к другу и отскакивают от стенок. Каждый удар о стенку вспыхивает: удары создают давление. Справа абсолютная температура вдвое выше: молекулы летят в 1,4&nbsp;раза быстрее, ударяют о стенки чаще и сильнее, и давление вдвое больше.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.igp {
+		margin-block: 1.5rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.igp__grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+	.igp__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: var(--sl-color-bg);
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.igp text {
+		font-family: var(--__sl-font);
+	}
+	.igp tspan[font-style='italic'] {
+		font-family: var(--ig-font-math);
+	}
+	.igp-title {
+		font-size: 15px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+	.igp-box {
+		fill: color-mix(in srgb, var(--ig-vx) 6%, transparent);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.4;
+	}
+	.igp-mol {
+		fill: var(--ig-v);
+	}
+	.igp-flash {
+		stroke: var(--ig-vy);
+		stroke-linecap: round;
+	}
+	.igp-v,
+	.igp-t {
+		font-size: 14px;
+		fill: var(--sl-color-gray-2);
+	}
+	.igp-tube {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.igp-bulb,
+	.igp-col {
+		fill: var(--ig-vy);
+	}
+	.igp-tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.igp__cap {
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+		color: var(--sl-color-gray-2);
+	}
+	@media (max-width: 40rem) {
+		.igp__grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const B = { x0: 34, y0: 44, x1: 230, y1: 196 };
+	const N = 18;
+	const S = 60; // px/s, typical speed at 300 K in the picture
+	const LIFE = 0.3; // s, a flash fades
+	// the same start for both vessels: a fixed pseudo-random sequence, 2D Maxwell speeds (Rayleigh)
+	const start = (() => {
+		let seed = 9;
+		const r = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		return Array.from({ length: N }, () => {
+			const a = r() * Math.PI * 2;
+			const s = (S / Math.SQRT2) * Math.sqrt(-2 * Math.log(1 - r() * 0.98));
+			return { x: B.x0 + r() * (B.x1 - B.x0), y: B.y0 + r() * (B.y1 - B.y0), vx: s * Math.cos(a), vy: s * Math.sin(a) };
+		});
+	})();
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-idealgas]')) {
+		const vessels = Array.from(root.querySelectorAll<SVGSVGElement>('svg[data-k]')).map((svg) => {
+			const k = Number(svg.dataset.k);
+			const molsG = svg.querySelector('[data-mols]')!;
+			const flashG = svg.querySelector('[data-flashes]')!;
+			const mols = start.map((m) => {
+				const c = document.createElementNS(NS, 'circle');
+				c.setAttribute('class', 'igp-mol');
+				c.setAttribute('r', '2.6');
+				molsG.append(c);
+				return { ...m, vx: m.vx * k, vy: m.vy * k, c };
+			});
+			const flashes = Array.from({ length: 24 }, () => {
+				const l = document.createElementNS(NS, 'line');
+				l.setAttribute('class', 'igp-flash');
+				l.style.opacity = '0';
+				flashG.append(l);
+				return { l, age: LIFE };
+			});
+			let next = 0;
+			const flash = (x1: number, y1: number, x2: number, y2: number, vn: number) => {
+				const f = flashes[next];
+				next = (next + 1) % flashes.length;
+				f.age = 0;
+				f.l.setAttribute('x1', x1.toFixed(1));
+				f.l.setAttribute('y1', y1.toFixed(1));
+				f.l.setAttribute('x2', x2.toFixed(1));
+				f.l.setAttribute('y2', y2.toFixed(1));
+				f.l.style.strokeWidth = (1 + (2.2 * vn) / S).toFixed(2);
+			};
+			return { mols, flashes, flash };
+		});
+		const W = 6; // half length of a flash, px
+		loop(root, (dt) => {
+			for (const v of vessels) {
+				for (const m of v.mols) {
+					m.x += m.vx * dt;
+					m.y += m.vy * dt;
+					if (m.x < B.x0) (m.x = 2 * B.x0 - m.x), (m.vx = -m.vx), v.flash(B.x0 - 4, m.y - W, B.x0 - 4, m.y + W, Math.abs(m.vx));
+					if (m.x > B.x1) (m.x = 2 * B.x1 - m.x), (m.vx = -m.vx), v.flash(B.x1 + 4, m.y - W, B.x1 + 4, m.y + W, Math.abs(m.vx));
+					if (m.y < B.y0) (m.y = 2 * B.y0 - m.y), (m.vy = -m.vy), v.flash(m.x - W, B.y0 - 4, m.x + W, B.y0 - 4, Math.abs(m.vy));
+					if (m.y > B.y1) (m.y = 2 * B.y1 - m.y), (m.vy = -m.vy), v.flash(m.x - W, B.y1 + 4, m.x + W, B.y1 + 4, Math.abs(m.vy));
+					m.c.setAttribute('cx', m.x.toFixed(1));
+					m.c.setAttribute('cy', m.y.toFixed(1));
+				}
+				for (const f of v.flashes) {
+					if (f.age >= LIFE) continue;
+					f.age += dt;
+					f.l.style.opacity = String(Math.max(0, 1 - f.age / LIFE));
+				}
+			}
+			return true;
+		});
+	}
+</script>
