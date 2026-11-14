@@ -22,6 +22,10 @@ const section = (/** @type {string} */ label, /** @type {string} */ dir, /** @ty
 
 export default defineConfig({
 	site: 'https://irenegorbunova.github.io',
+	// «Отражение и преломление света» was split in two (14 Nov 2026): the old address leads to its first part
+	redirects: {
+		'/uchebnik/8-klass/svetovye-yavleniya/otrazhenie-i-prelomlenie': '/uchebnik/8-klass/svetovye-yavleniya/otrazhenie-sveta/',
+	},
 	// animations play whatever the system's «reduce motion» setting says (src/plugins/motion.mjs)
 	vite: { css: { postcss: { plugins: [motionCss()] } } },
 	markdown: {
@@ -68,7 +72,7 @@ export default defineConfig({
 					]),
 					section('Электрические явления', '8-klass/elektricheskie-yavleniya', ['elektrizaciya', 'elektricheskiy-tok', 'sila-toka-napryazhenie-soprotivlenie', 'zakon-oma', 'soedinenie-provodnikov', 'rabota-i-moshchnost-toka']),
 					section('Электромагнитные явления', '8-klass/elektromagnitnye-yavleniya', ['magnitnoe-pole-toka', 'elektromagnity', 'postoyannye-magnity', 'magnitnoe-pole-zemli', 'elektrodvigatel']),
-					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'otrazhenie-i-prelomlenie', 'linzy']),
+					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'otrazhenie-sveta', 'prelomlenie-sveta', 'linzy']),
 				]),
 				grade(9, [
 					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['zakony-nyutona', 'zakon-vsemirnogo-tyagoteniya']),

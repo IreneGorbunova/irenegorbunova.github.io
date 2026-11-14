@@ -1,5 +1,5 @@
 /**
- * Helpers shared by the widgets of the chapter «Отражение и преломление света».
+ * Helpers shared by the widgets of the chapters «Отражение света. Плоское зеркало» and «Преломление света».
  * SVG coordinates are screen pixels (y down); angles are in degrees unless the name says rad.
  */
 
