@@ -1,8 +1,7 @@
-// «Полный экран» (test mode): a button above every model of a chapter opens that model on the whole screen
+// «Полный экран»: a button above every model of a chapter opens that model on the whole screen
 // (./view.ts). A model is a figure of the chapter's text with real controls: a button, a slider, a field. Pictures
 // whose only button is «Повторить» and the notes of <More> do not count; opening scenes and figures inside a
-// solution (<details>) are left alone. Everything added carries data-ig-test, so it disappears with test mode; the
-// chapter's own markup is not changed.
+// solution (<details>) are left alone. The chapter's own markup is not changed.
 
 import './fs.css';
 import { present } from './view';
@@ -41,7 +40,6 @@ export const modelBars = (): ModelBar[] => {
 	made = models().map((fig) => {
 		const bar = document.createElement('div');
 		bar.className = 'igf-bar not-content';
-		bar.dataset.igTest = '';
 		bar.dataset.pagefindIgnore = '';
 		bar.dataset.igf = '';
 		const b = document.createElement('button');
@@ -57,6 +55,5 @@ export const modelBars = (): ModelBar[] => {
 };
 
 export const start = () => {
-	if (document.documentElement.dataset.igTestmode !== '1') return;
 	modelBars();
 };

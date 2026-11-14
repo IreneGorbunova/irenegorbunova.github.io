@@ -64,7 +64,6 @@ export const present = (fig: HTMLElement, name: string, trigger: HTMLElement | n
 
 	// --- the view -----------------------------------------------------------------------------------
 	const view = el('div', 'igf-view');
-	view.dataset.igTest = '';
 	view.dataset.pagefindIgnore = '';
 	view.dataset.igf = '';
 	view.setAttribute('role', 'dialog');

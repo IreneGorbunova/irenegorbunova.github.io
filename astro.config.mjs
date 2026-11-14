@@ -4,7 +4,7 @@ import starlight from '@astrojs/starlight';
 import { satteri } from '@astrojs/markdown-satteri';
 import { katexPlugin } from './src/plugins/katex.mjs';
 import { motionCss, MOTION_SCRIPT } from './src/plugins/motion.mjs';
-import { TEST_SCRIPT } from './src/plugins/testmode.mjs';
+import { TEST_SCRIPT, SHORT_SCRIPT } from './src/plugins/testmode.mjs';
 
 const GOATCOUNTER = 'https://irenegorbunova.goatcounter.com/count';
 
@@ -42,6 +42,7 @@ export default defineConfig({
 				{ tag: 'script', content: MOTION_SCRIPT },
 				// pilot features are hidden unless the visitor switched test mode on (/uchebnik/test/)
 				{ tag: 'script', content: TEST_SCRIPT },
+				{ tag: 'script', content: SHORT_SCRIPT },
 				// visit counter, no cookies: https://irenegorbunova.goatcounter.com
 				{ tag: 'script', attrs: { 'data-goatcounter': GOATCOUNTER, async: true, src: '//gc.zgo.at/count.js' } },
 			],
@@ -94,9 +95,8 @@ export default defineConfig({
 				]),
 				{ label: 'Формулы', slug: 'uchebnik/formuly' },
 				{ label: 'Моё небо', slug: 'uchebnik/nebo' },
-				// test mode only (data-ig-test hides the links from everybody else; src/styles/textbook.css)
-				{ label: 'Карта открытий', slug: 'uchebnik/otkrytiya', attrs: { 'data-ig-test': '' } },
-				{ label: 'Посмотри в телескоп', slug: 'uchebnik/teleskop', attrs: { 'data-ig-test': '' } },
+				{ label: 'Карта открытий', slug: 'uchebnik/otkrytiya' },
+				{ label: 'Посмотри в телескоп', slug: 'uchebnik/teleskop' },
 			],
 		}),
 	],

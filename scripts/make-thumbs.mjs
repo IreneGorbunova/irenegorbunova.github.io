@@ -1,4 +1,4 @@
-// Thumbnails of the chapters for the course map (src/components/test/map/): each chapter's picture
+// Thumbnails of the chapters for the course map (src/components/coursemap/): each chapter's picture
 // (scripts/scene-shot.mjs: its first opening scene, or its first model) in the dark and the light theme, saved as
 // WebP 480 px wide, each at most MAX_BYTES (quality lowered until it fits). A chapter with neither a scene nor a
 // model gets no file; the map shows a neutral fallback for it.
@@ -15,7 +15,7 @@ import { ROOT, arg, chromium, chaptersOf, themedContext, sceneShot } from './sce
 
 const BASE = arg('base', 'http://127.0.0.1:4602').replace(/\/$/, '');
 const chapters = chaptersOf(arg('grade', 'all'), arg('only', '')?.split(',').filter(Boolean) ?? []);
-const OUT = join(ROOT, 'src/components/test/map/thumbs');
+const OUT = join(ROOT, 'src/components/coursemap/thumbs');
 const WIDTH = 480;
 const HEIGHT = 320; // the scenes are 360 × 240
 const MAX_BYTES = 25 * 1024;

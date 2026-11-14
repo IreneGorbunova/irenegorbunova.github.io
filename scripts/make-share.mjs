@@ -3,7 +3,7 @@
 //     (scripts/scene-shot.mjs: its first opening scene, or its first model) on a card with the grade, the section
 //     and the title. public/og/uchebnik.jpg and public/og/home.jpg are the cards of the textbook and of the home page.
 //     src/components/Head.astro puts the matching og:image into every page.
-//  2. public/konspekt/<slug>.png — «Конспект главы» as a picture (the sheet of src/components/test/chapter/), for
+//  2. public/konspekt/<slug>.png — «Конспект главы» as a picture (the sheet of src/components/chapter/), for
 //     «Сохранить картинкой»; only chapters that have cards.
 // Run it again after a chapter's opening scene, title or cards change, then build again.
 //
@@ -125,7 +125,7 @@ if (WHAT.includes('site') && !ONLY.length) {
 	await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort());
 	await page.goto(`${BASE}/uchebnik/`, { waitUntil: 'load' });
 	const four = ['zakon-oma', 'arhimedova-sila', 'postoyannye-magnity', 'istochniki-sveta'].map((s) =>
-		dataUrl(readFileSync(join(ROOT, 'src/components/test/map/thumbs', `${s}-dark.webp`)), 'image/webp'),
+		dataUrl(readFileSync(join(ROOT, 'src/components/coursemap/thumbs', `${s}-dark.webp`)), 'image/webp'),
 	);
 	for (const [file, kicker, title] of [
 		['uchebnik', '7–11 класс', 'Физика с живыми моделями, выводами формул и задачами'],

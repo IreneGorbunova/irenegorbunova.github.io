@@ -1,6 +1,6 @@
 // The chapter page (ChapterTools.astro): «Коротко» folds the optional sections,
 // «Конспект главы» opens the chapter's cards on one sheet.
-// Nothing here runs without test mode, and the chapter's own markup is only annotated with data attributes.
+// The chapter's own markup is only annotated with data attributes.
 
 
 const SHORT_KEY = 'ig:short';
@@ -16,7 +16,7 @@ const wrapOf = (h: Element) => h.closest('.sl-heading-wrapper') ?? h;
 export const start = () => {
 	const card = document.querySelector<HTMLElement>('[data-ctools]');
 	const content = document.querySelector<HTMLElement>('.sl-markdown-content');
-	if (!card || !content || html.dataset.igTestmode !== '1') return;
+	if (!card || !content) return;
 	const heads = [...content.querySelectorAll<HTMLElement>(':scope > .sl-heading-wrapper > h2, :scope > h2')];
 
 	// --- what the short view folds ----------------------------------------------------------------
@@ -88,7 +88,6 @@ export const start = () => {
 	const dlg = card.querySelector<HTMLDialogElement>('[data-konspekt]');
 	if (dlg) {
 		// the sheet lives next to the page, not inside it: a print then shows the sheet alone
-		dlg.dataset.igTest = '';
 		document.body.append(dlg);
 		card.querySelector('[data-konspekt-open]')?.addEventListener('click', () => dlg.showModal());
 		dlg.querySelector('[data-konspekt-close]')?.addEventListener('click', () => dlg.close());

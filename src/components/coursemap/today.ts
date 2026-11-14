@@ -3,11 +3,11 @@
  *  ig:last  — the chapter opened last and the section reached (../global/LastVisit.astro);
  *  ig:sky   — the steps done per chapter, lit as «Моё небо» lights them (sky/progress.ts, litCount);
  *  ig:cards — the Leitner boxes of the formula cards (formulas/leitner.mjs).
- * Does nothing outside test mode. The server already rendered the first visit, so with empty storage nothing changes.
+ * The server already rendered the first visit, so with empty storage nothing changes.
  */
-import { load as loadSky, type Step } from '../../sky/progress';
-import { litCount } from '../../sky/constellations';
-import { load as loadCards, today, isDue, addDays } from '../../formulas/leitner.mjs';
+import { load as loadSky, type Step } from '../sky/progress';
+import { litCount } from '../sky/constellations';
+import { load as loadCards, today, isDue, addDays } from '../formulas/leitner.mjs';
 import { plural } from './words';
 
 interface Ch {
@@ -73,7 +73,7 @@ const whenDue = (day: string, now: string) => {
 	return n === 1 ? 'завтра' : n === 2 ? 'послезавтра' : `через ${plural(n, 'день', 'дня', 'дней')}`;
 };
 
-if (root && document.documentElement.dataset.igTestmode === '1') {
+if (root) {
 	const chapters = JSON.parse(root.dataset.chapters!) as Ch[];
 	const byId = new Map(chapters.map((c) => [c.id, c]));
 	const tiles = new Map([...root.querySelectorAll<HTMLElement>('[data-ch]')].map((t) => [t.dataset.ch!, t]));

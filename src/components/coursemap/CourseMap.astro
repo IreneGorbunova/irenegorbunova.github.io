@@ -1,23 +1,21 @@
 ---
 /**
- * A grade's contents as a course map (test mode), on the grade's «Содержание» page. The component is the LAST thing
- * in the page's source (hidden, it then changes nothing for a visitor without test mode); in test mode it is shown
- * first; where the grade is complete (`replace`) the plain list of links below it is hidden, otherwise the list stays
- * under the heading «Вся программа класса» (it names the chapters still to be written).
+ * A grade's contents as a course map, on the grade's «Содержание» page.
  *  - A status line computed from the sidebar: «8 класс — полный курс: 24 главы, 4 раздела».
  *  - «Сегодня», filled in the browser from localStorage (./today.ts): where the pupil stopped (ig:last, written by
- *    ../global/LastVisit.astro), the formula cards due today (ig:cards, formulas/leitner.mjs) and the first chapter in
+ *    ./LastVisit.astro), the formula cards due today (ig:cards, formulas/leitner.mjs) and the first chapter in
  *    course order whose stars are not all lit (ig:sky, sky/progress.ts). The server renders the first visit (empty
  *    storage), so the most common case needs no script and never flashes.
  *  - The map: the grade's sections as a path, a tile per chapter with its thumbnail, title, line (./chapters.ts),
- *    stars lit exactly as «Моё небо» counts them, number of cards and state. The current section is open.
- * The sky and Leitner modules are only read. Without test mode the whole map stays hidden.
+ *    stars lit exactly as «Моё небо» counts them, number of cards and state.
+ * A grade that is not complete (no `replace`) ends with the heading «Вся программа класса»: the page's own list of
+ * all the chapters, written and not, follows it. The sky and Leitner modules are only read.
  */
 import { getCollection } from 'astro:content';
-import { skySections } from '../../sky/sections';
-import { CONSTELLATIONS, blocks } from '../../sky/constellations';
-import { cardParts, chapterLabel } from '../../formulas/render';
-import CardDeck from '../../formulas/CardDeck.astro';
+import { skySections } from '../sky/sections';
+import { CONSTELLATIONS, blocks } from '../sky/constellations';
+import { cardParts, chapterLabel } from '../formulas/render';
+import CardDeck from '../formulas/CardDeck.astro';
 import Thumb from './Thumb.astro';
 import { MAP_CHAPTERS, COMPLETE_GRADES } from './chapters';
 import { plural, ofStars } from './words';
@@ -46,7 +44,7 @@ const sections = skySections(Astro.locals.starlightRoute)
 			const entry = entries.get(c.id);
 			const slug = c.id.split('/').pop()!;
 			const data = MAP_CHAPTERS[slug];
-			if (!data) console.warn(`[map] глава ${slug} без строки в src/components/test/map/chapters.ts`);
+			if (!data) console.warn(`[map] глава ${slug} без строки в src/components/coursemap/chapters.ts`);
 			const formulas = entry?.data.formulas ?? [];
 			return {
 				id: c.id,
@@ -88,7 +86,7 @@ const json = JSON.stringify(
 const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.25-6.54L2.55 9.43l6.6-.8z';
 ---
 
-<div class="kmap not-content" data-kmap data-kmap-replace={replace ? '' : undefined} data-open-all={openAll ? '' : undefined} data-chapters={json} data-nebo={`${base}uchebnik/nebo/`} data-ig-test data-pagefind-ignore>
+<div class="kmap not-content" data-kmap data-kmap-replace={replace ? '' : undefined} data-open-all={openAll ? '' : undefined} data-chapters={json} data-nebo={`${base}uchebnik/nebo/`} data-pagefind-ignore>
 	<p class="kmap-status">{status}</p>
 
 	<section class="kmap-today" aria-labelledby="kmap-today-h">
@@ -229,29 +227,11 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 </script>
 
 <style is:global>
-	/* the map uses the width of a desktop screen and stands without the page's table of contents (test mode only) */
+	/* the map uses the width of a desktop screen (the page has no table of contents) */
 	@media (min-width: 72rem) {
-		:root[data-ig-testmode]:has([data-kmap]) {
+		:root:has([data-kmap]) {
 			--sl-content-width: 55rem;
 		}
-		:root[data-ig-testmode]:has([data-kmap]) .main-pane {
-			width: 100%;
-		}
-	}
-	:root[data-ig-testmode]:has([data-kmap]) :is(.right-sidebar-container, mobile-starlight-toc) {
-		display: none;
-	}
-	/* the map is last in the source and first on the screen */
-	:root[data-ig-testmode] .sl-markdown-content:has(> [data-kmap]) {
-		display: flex;
-		flex-direction: column;
-	}
-	:root[data-ig-testmode] .sl-markdown-content > [data-kmap] {
-		order: -1;
-	}
-	/* a complete grade: the map replaces the list of links */
-	:root[data-ig-testmode] .sl-markdown-content:has(> [data-kmap-replace]) > :not([data-kmap]) {
-		display: none;
 	}
 	.kmap .kmap-plan {
 		margin: 2.75rem 0 0;

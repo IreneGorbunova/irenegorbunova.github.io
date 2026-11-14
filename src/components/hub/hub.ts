@@ -1,8 +1,8 @@
-// The first page of the textbook in test mode (Hub.astro): the pendulum wave of the hero, «Сегодня» and the stars
-// of every grade, from localStorage only (ig:last, ig:sky, ig:cards). Does nothing outside test mode.
-import { load as loadSky, type Step } from '../../sky/progress';
-import { litCount } from '../../sky/constellations';
-import { load as loadCards, today, isDue } from '../../formulas/leitner.mjs';
+// The first page of the textbook (Hub.astro): the pendulum wave of the hero, «Сегодня» and the stars
+// of every grade, from localStorage only (ig:last, ig:sky, ig:cards).
+import { load as loadSky, type Step } from '../sky/progress';
+import { litCount } from '../sky/constellations';
+import { load as loadCards, today, isDue } from '../formulas/leitner.mjs';
 
 interface Ch {
 	id: string;
@@ -16,7 +16,7 @@ interface Ch {
 }
 
 const root = document.querySelector<HTMLElement>('[data-hub]');
-if (root && document.documentElement.dataset.igTestmode === '1') {
+if (root) {
 	// ---------- the pendulum wave ----------
 	// Pendulum k makes N0 + k swings in the cycle of 60 s: T = 60 / (N0 + k), l = g (T / 2π)². Seen along the row, all
 	// the threads start from one point, and the bobs hang at their own depths.

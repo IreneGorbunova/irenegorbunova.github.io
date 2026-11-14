@@ -1,5 +1,5 @@
 /**
- * The course map (test mode): per chapter, one line on what the chapter gives (at most 90 characters; the
+ * The course map: per chapter, one line on what the chapter gives (at most 90 characters; the
  * chapters' own descriptions are longer, so every line here is written for the map, for Irina to review) and the
  * number of the paragraph in Перышкин's textbook, left empty until the edition is chosen. Keyed by the chapter's slug.
  * The chapters themselves, their order and sections come from the sidebar (astro.config.mjs) at build time.
