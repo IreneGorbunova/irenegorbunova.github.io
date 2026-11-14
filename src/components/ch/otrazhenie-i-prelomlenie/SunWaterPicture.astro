@@ -1,0 +1,140 @@
+---
+/**
+ * A sunbeam falls on a water surface: part of the light is reflected, part goes into the water and is refracted.
+ * Real angles: α = 50°, the reflected ray at β = α, the refracted ray at γ from sin α / sin γ = 1,33 (γ = 35,2°).
+ * focus="reflect" (chapter «Отражение света»): the reflected ray is bright, α and β are marked, the refracted ray faint.
+ * focus="refract" (chapter «Преломление света»): the refracted ray is bright, α and γ are marked, the reflected ray faint.
+ * Pulses run along the rays, in water 1,33 times slower and closer together (PicStyles).
+ */
+import PicStyles from './PicStyles.astro';
+
+interface Props {
+	focus: 'reflect' | 'refract';
+}
+const { focus } = Astro.props;
+const refl = focus === 'reflect';
+
+const N = 1.33;
+const RAD = Math.PI / 180;
+const DEG = 180 / Math.PI;
+const f1 = (v: number) => v.toFixed(1);
+type P = { x: number; y: number };
+const O = { x: 160, y: 128 };
+const A = 50;
+const G = Math.asin(Math.sin(A * RAD) / N) * DEG; // 35,2°
+const up = (r: number, t: number): P => ({ x: O.x + r * Math.sin(t * RAD), y: O.y - r * Math.cos(t * RAD) });
+const down = (r: number, t: number): P => ({ x: O.x + r * Math.sin(t * RAD), y: O.y + r * Math.cos(t * RAD) });
+const SUN = up(160, -A);
+const S = up(140, -A); // 5 pulse periods in air
+const R = up(140, A);
+const W = down(105.25, G); // 5 pulse periods in water (28/1,33 px each)
+const seg = (p: P, q: P) => `M ${f1(p.x)} ${f1(p.y)} L ${f1(q.x)} ${f1(q.y)}`;
+const arcUp = (r: number, a: number, b: number) => {
+	const p = up(r, a);
+	const q = up(r, b);
+	return `M ${f1(p.x)} ${f1(p.y)} A ${r} ${r} 0 0 ${b > a ? 1 : 0} ${f1(q.x)} ${f1(q.y)}`;
+};
+const arcDown = (r: number, t: number) => {
+	const p = down(r, 0);
+	const q = down(r, t);
+	return `M ${f1(p.x)} ${f1(p.y)} A ${r} ${r} 0 0 0 ${f1(q.x)} ${f1(q.y)}`;
+};
+/** a label along the ray O → p, its centre at the fraction `at` of the ray, shifted sideways by d */
+const along = (p: P, d: number, at: number) => {
+	const dx = p.x - O.x;
+	const dy = p.y - O.y;
+	const l = Math.hypot(dx, dy);
+	let rot = (Math.atan2(dy, dx) * DEG + 360) % 360;
+	if (rot > 90 && rot < 270) rot -= 180;
+	const m = { x: O.x + dx * at, y: O.y + dy * at };
+	const n = { x: -dy / l, y: dx / l };
+	return { x: m.x + n.x * d, y: m.y + n.y * d, rot };
+};
+const tIn = along(S, -12, 0.55);
+const tOut = along(R, 14, 0.62);
+const tW = along(W, -12, 0.7);
+const rays = Array.from({ length: 8 }, (_, k) => {
+	const t = (k * 45 + 22.5) * RAD;
+	return seg({ x: SUN.x + 16 * Math.cos(t), y: SUN.y + 16 * Math.sin(t) }, { x: SUN.x + 22 * Math.cos(t), y: SUN.y + 22 * Math.sin(t) });
+}).join(' ');
+const la = up(64, -A / 2);
+const lb = up(70, A / 2);
+const lg = down(70, G / 2);
+---
+
+<PicStyles />
+<figure class="op-pic op-pic--one not-content">
+	<div class="op-pic__grid">
+		<svg
+			class="op-pic__svg"
+			viewBox="0 0 320 230"
+			role="img"
+			aria-label={refl
+				? 'Солнечный луч падает на поверхность воды. Часть света отражается: угол отражения бета равен углу падения альфа. Другая часть проходит в воду и меняет направление'
+				: 'Солнечный луч падает на поверхность воды. Часть света отражается, а часть проходит в воду и преломляется: угол преломления гамма меньше угла падения альфа'}
+		>
+			<rect class="op-water" x="0" y={O.y} width="320" height={230 - O.y} />
+			<line class="op-edge" x1="0" y1={O.y} x2="320" y2={O.y} />
+			<line class="op-normal" x1={O.x} y1="24" x2={O.x} y2="222" />
+			<path class="op-arc op-arc--a" d={arcUp(46, -A, 0)} />
+			{refl && <path class="op-arc op-arc--b" d={arcUp(52, 0, A)} />}
+			{!refl && <path class="op-arc op-arc--g" d={arcDown(50, G)} />}
+			<g class={`op-ray${refl ? '' : ' op-ray--faint'}`}>
+				{refl && <path class="op-ray__glow" d={seg(O, R)} />}
+				<path class="op-ray__core" d={seg(O, R)} />
+				<path class="op-ray__flow" d={seg(O, R)} />
+			</g>
+			<g class={`op-ray op-ray--water${refl ? ' op-ray--faint' : ''}`}>
+				{!refl && <path class="op-ray__glow" d={seg(O, W)} />}
+				<path class="op-ray__core" d={seg(O, W)} />
+				<path class="op-ray__flow" d={seg(O, W)} />
+			</g>
+			<g class="op-ray">
+				<path class="op-ray__glow" d={seg(S, O)} />
+				<path class="op-ray__core" d={seg(S, O)} />
+				<path class="op-ray__flow" d={seg(S, O)} />
+			</g>
+			<circle class="op-sun" cx={f1(SUN.x)} cy={f1(SUN.y)} r="12" />
+			<path class="op-sun__rays" d={rays} />
+			<circle class="op-dot" cx={O.x} cy={O.y} r="3.5" />
+			<text class="op-math op-ta" x={f1(la.x)} y={f1(la.y + 6)} text-anchor="middle">α</text>
+			{refl && <text class="op-math op-tb" x={f1(lb.x)} y={f1(lb.y + 6)} text-anchor="middle">β</text>}
+			{!refl && <text class="op-math op-tg" x={f1(lg.x)} y={f1(lg.y + 6)} text-anchor="middle">γ</text>}
+			<text x="314" y={O.y - 8} text-anchor="end">воздух</text>
+			<text x="314" y={O.y + 20} text-anchor="end">вода</text>
+			<text x={O.x + 6} y="20">перпендикуляр</text>
+			<text class="op-tr" x={f1(tIn.x)} y={f1(tIn.y)} text-anchor="middle" transform={`rotate(${f1(tIn.rot)} ${f1(tIn.x)} ${f1(tIn.y)})`}>падающий луч</text>
+			<text class={refl ? 'op-tr' : 'op-tr op-tr--faint'} x={f1(tOut.x)} y={f1(tOut.y)} text-anchor="middle" transform={`rotate(${f1(tOut.rot)} ${f1(tOut.x)} ${f1(tOut.y)})`}>отражённый луч</text>
+			<text class={refl ? 'op-tr op-tr--faint' : 'op-tr'} x={f1(tW.x)} y={f1(tW.y)} text-anchor="middle" transform={`rotate(${f1(tW.rot)} ${f1(tW.x)} ${f1(tW.y)})`}>преломлённый луч</text>
+		</svg>
+	</div>
+	<div class="op-pic__foot">
+		{
+			refl ? (
+				<figcaption>
+					Солнечный луч падает на поверхность воды. Часть света отражается: угол отражения <i>β</i> равен углу падения <i>α</i>. Другая часть проходит в воду и меняет там направление.
+				</figcaption>
+			) : (
+				<figcaption>
+					Солнечный луч падает на поверхность воды. Часть света отражается (слабый луч вверху), а часть проходит в воду и преломляется: угол преломления <i>γ</i> меньше угла падения <i>α</i>.
+				</figcaption>
+			)
+		}
+	</div>
+</figure>
+
+<style is:global>
+	.op-sun {
+		fill: var(--op-ray);
+		filter: drop-shadow(0 0 6px var(--op-ray));
+	}
+	.op-sun__rays {
+		fill: none;
+		stroke: var(--op-ray);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	.op-pic .op-tr--faint {
+		opacity: 0.6;
+	}
+</style>
