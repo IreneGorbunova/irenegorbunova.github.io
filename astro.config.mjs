@@ -96,6 +96,7 @@ export default defineConfig({
 				{ label: 'Моё небо', slug: 'uchebnik/nebo' },
 				// test mode only (data-ig-test hides the links from everybody else; src/styles/textbook.css)
 				{ label: 'Карта открытий', slug: 'uchebnik/otkrytiya', attrs: { 'data-ig-test': '' } },
+				{ label: 'Посмотри в телескоп', slug: 'uchebnik/teleskop', attrs: { 'data-ig-test': '' } },
 			],
 		}),
 	],
