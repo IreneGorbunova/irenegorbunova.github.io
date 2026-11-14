@@ -633,6 +633,16 @@ export function mount(root: HTMLElement) {
 		messages();
 		undoBtn.disabled = hist.length === 0;
 		clearBtn.disabled = els.length === 0;
+		// non-visual hook: the parts with their voltages and currents after every change (test/Predict.astro listens)
+		root.dispatchEvent(
+			new CustomEvent('ig:model-state', {
+				detail: {
+					parts: els
+						.filter((e) => e.kind !== 'wire')
+						.map((e) => ({ kind: e.kind, v: e.v, closed: !!e.closed, broken: !!e.broken, U: sol.phi(e.a) - sol.phi(e.b), I: sol.I.get(e.id) ?? 0 })),
+				},
+			}),
+		);
 		clearTimeout(faultTimer);
 		if (overloaded(sol).length)
 			faultTimer = window.setTimeout(() => {
