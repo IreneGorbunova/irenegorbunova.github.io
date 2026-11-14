@@ -35,7 +35,7 @@ export interface ModelBar {
 }
 let made: ModelBar[] | null = null;
 
-/** The bar above every model: its mark «сделать» and the button «Полный экран». Made once, whoever asks first. */
+/** The bar above every model with the button «Полный экран». Made once, whoever asks first. */
 export const modelBars = (): ModelBar[] => {
 	if (made) return made;
 	made = models().map((fig) => {
@@ -44,17 +44,12 @@ export const modelBars = (): ModelBar[] => {
 		bar.dataset.igTest = '';
 		bar.dataset.pagefindIgnore = '';
 		bar.dataset.igf = '';
-		// the mark of the block: a model is something to do (the four marks: ../chapter/ChapterCard.astro)
-		const mark = document.createElement('span');
-		mark.className = 'igm';
-		mark.dataset.igm = 'do';
-		mark.textContent = 'сделать';
 		const b = document.createElement('button');
 		b.type = 'button';
 		b.className = 'igf-open';
 		b.innerHTML = `${ICON}<span>Полный экран</span>`;
 		b.addEventListener('click', () => present(fig, nameOf(fig), b));
-		bar.append(mark, b);
+		bar.append(b);
 		fig.before(bar);
 		return { fig, bar };
 	});

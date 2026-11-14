@@ -1,58 +1,25 @@
-// The chapter page in test mode (ChapterCard.astro): the title card comes alive, the blocks of the text get their
-// marks, «Коротко» folds the optional sections, «Конспект главы» opens the chapter's cards on one sheet.
+// The chapter page in test mode (ChapterTools.astro): «Коротко» folds the models and the optional sections,
+// «Конспект главы» opens the chapter's cards on one sheet.
 // Nothing here runs without test mode, and the chapter's own markup is only annotated with data attributes.
 
-import { load, type Step } from '../../sky/progress';
 import { modelBars } from '../fullscreen/fs';
 
 const SHORT_KEY = 'ig:short';
 const html = document.documentElement;
 
-/** Marks by the heading of a section: tasks are «решить», history and applications «интересно». */
-const SOLVE = /^(Пример задачи|Рассчитайте сами|Посчитайте сами|Решите сами|Лунная задача|Проверьте себя)/;
-const MORE = /^(Кто это открыл|Где это встречается|Для любознательных|Где работа)|( вокруг нас| в нашей жизни)$/;
 /** Sections («## …») the short view folds: history, the lunar task, derivations, applications, experiments. */
 const FOLD = /^(Кто это открыл|Лунная задача|Рассчитайте сами|Выводим формул|Откуда берётся формула|Где это встречается|Для любознательных|Где работа|Опыт[. ]|Попробуйте сами)|( вокруг нас| в нашей жизни)$/;
 /** Subsections («### …») it folds: the ones built around a model or an experiment. */
 const FOLD_SUB = /^(Проверим на|Проверьте сами|Опыт[. ]|Предскажите, потом|Измерим )|( сами)$/;
-const LABEL = { solve: 'решить', more: 'интересно' } as const;
 
 /** The element of the chapter's text that holds the heading: Starlight wraps a heading together with its anchor link. */
 const wrapOf = (h: Element) => h.closest('.sl-heading-wrapper') ?? h;
 
 export const start = () => {
-	const card = document.querySelector<HTMLElement>('[data-ccard]');
+	const card = document.querySelector<HTMLElement>('[data-ctools]');
 	const content = document.querySelector<HTMLElement>('.sl-markdown-content');
 	if (!card || !content || html.dataset.igTestmode !== '1') return;
-	const id = card.dataset.ccard!;
-
-	// --- the emblem: the live constellation of the section moves into the card ---------------------
-	const sky = document.querySelector<HTMLElement>('.csky .cs--mini');
-	if (sky) card.querySelector('[data-ccard-emblem]')?.append(sky);
-
-	// --- the goals tick themselves ------------------------------------------------------------------
-	const paintGoals = () => {
-		const done = load()[id] ?? '';
-		for (const li of card.querySelectorAll<HTMLElement>('[data-goal]')) {
-			const lit = done.includes(li.dataset.goal as Step);
-			li.classList.toggle('is-done', lit);
-			li.querySelector('[data-sr]')!.textContent = lit ? ' — сделано' : ' — ещё нет';
-		}
-	};
-	paintGoals();
-	document.addEventListener('ig:sky', paintGoals);
-
-	// --- marks at the sections ---------------------------------------------------------------------
 	const heads = [...content.querySelectorAll<HTMLElement>(':scope > .sl-heading-wrapper > :is(h2, h3), :scope > :is(h2, h3)')];
-	for (const h of heads) {
-		if (h.tagName !== 'H2') continue;
-		const t = h.textContent?.trim() ?? '';
-		const kind = SOLVE.test(t) ? 'solve' : MORE.test(t) ? 'more' : '';
-		if (!kind) continue;
-		const w = wrapOf(h) as HTMLElement;
-		w.dataset.igm = kind;
-		w.dataset.igmLabel = LABEL[kind];
-	}
 
 	// --- what the short view folds ----------------------------------------------------------------
 	// A fold is a head that stays (a heading, or the bar above a model) with a button, and the parts it hides. Folded:
@@ -113,7 +80,7 @@ export const start = () => {
 			parts.push(e);
 			if (answers) break;
 		}
-		addFold(bar, parts, ['Показать модель', 'Скрыть модель'], (b) => bar.querySelector('.igm')?.after(b));
+		addFold(bar, parts, ['Показать модель', 'Скрыть модель'], (b) => bar.prepend(b));
 	}
 	// a link to a place inside a fold opens the fold
 	const reveal = () => {

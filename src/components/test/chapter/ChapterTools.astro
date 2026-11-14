@@ -1,0 +1,388 @@
+---
+/**
+ * Under the title of a chapter, after its constellation (test mode): two things for reading the chapter.
+ *  - «Полностью / Коротко»: the short view keeps the text, the definitions and the formulas and folds the models,
+ *    the experiments, the derivations and the history, each to one row that opens by itself (./chapter.ts);
+ *  - «Конспект главы»: the chapter's cards on one sheet, with the name of the textbook and a QR code of the chapter,
+ *    to print or to save as a picture (public/konspekt/, made by scripts/make-share.mjs).
+ * Irina (14 Nov 2026): no title card and no marks in the text; the page begins with the chapter's own topic, so
+ * this row stays small. Of the card she kept one thing: the constellation is lit a little (a soft glow, the figure's
+ * lines faintly visible), weaker than it was in the card. Everything is hidden or unchanged without test mode.
+ */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import type { SkySection } from '../../sky/sections';
+import { inline, tex, symbolsHtml } from '../../formulas/render';
+import { qrSvg } from './qr';
+
+interface Props {
+	sec: SkySection;
+}
+const { sec } = Astro.props;
+const { entry } = Astro.locals.starlightRoute;
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const slug = entry.id.split('/').pop()!;
+const cards = entry.data.formulas ?? [];
+// the QR code leads to the chapter on the live site, wherever the sheet was printed or saved
+const qr = qrSvg(new URL(`${base}${entry.id}/`, Astro.site).href, 'QR-код главы');
+// the sheet as a picture, where scripts/make-share.mjs has made one
+const picture = existsSync(join(process.cwd(), 'public/konspekt', `${slug}.png`)) ? `${base}konspekt/${slug}.png` : '';
+---
+
+<div class="ctools not-content" data-ctools={entry.id} data-ig-test data-pagefind-ignore>
+	<div class="ccard__seg" role="group" aria-label="Вид главы">
+		<button type="button" class="ccard__segbtn" data-view="full" aria-pressed="true">Полностью</button>
+		<button type="button" class="ccard__segbtn" data-view="short" aria-pressed="false">Коротко</button>
+	</div>
+	{
+		cards.length > 0 && (
+			<button type="button" class="ccard__btn" data-konspekt-open>
+				Конспект главы
+			</button>
+		)
+	}
+	<p class="ccard__short" data-short-note hidden>
+		Коротко: остались текст, определения и формулы. Модели, опыты, выводы формул и история свёрнуты — любой блок можно развернуть.
+	</p>
+
+	{
+		cards.length > 0 && (
+			<dialog class="konspekt" data-konspekt aria-label="Конспект главы">
+				<div class="konspekt__bar">
+					<button type="button" class="ccard__btn ccard__btn--primary" data-konspekt-print>
+						Распечатать
+					</button>
+					{picture && (
+						<a class="ccard__btn" href={picture} download={`konspekt-${slug}.png`}>
+							Сохранить картинкой
+						</a>
+					)}
+					<button type="button" class="ccard__btn" data-konspekt-close>
+						Закрыть
+					</button>
+				</div>
+				<div class="konspekt__scroll">
+					<article class="konspekt__sheet" data-konspekt-sheet>
+						<header class="konspekt__head">
+							<p class="konspekt__kicker">{`Конспект · ${sec.grade} · ${sec.section}`}</p>
+							<h2 class="konspekt__title">{entry.data.title}</h2>
+						</header>
+						<ol class="konspekt__list">
+							{cards.map((f) => (
+								<li class="konspekt__item">
+									<p class="konspekt__name" set:html={inline(f.name)} />
+									{f.tex && <div class="konspekt__tex" set:html={tex(f.tex, true)} />}
+									{f.def && <p class="konspekt__def" set:html={inline(f.def)} />}
+									<Fragment set:html={symbolsHtml(f)} />
+									{f.note && <p class="konspekt__note" set:html={inline(f.note)} />}
+								</li>
+							))}
+						</ol>
+						<footer class="konspekt__foot">
+							<span class="konspekt__brand">Интерактивный учебник физики Ирины Горбуновой</span>
+							<span class="konspekt__qr" set:html={qr} />
+						</footer>
+					</article>
+				</div>
+			</dialog>
+		)
+	}
+</div>
+
+<script>
+	if (document.documentElement.dataset.igTestmode === '1') import('./chapter').then((m) => m.start());
+</script>
+
+<style is:global>
+	/* ---------- the constellation under the title, lit a little (Irina, 14 Nov 2026) ---------- */
+	/* a soft glow behind it, and the figure's lines show faintly before the stars are lit */
+	html[data-ig-testmode] .csky .cs--mini {
+		--cs-dim: color-mix(in srgb, var(--sl-color-gray-3) 60%, var(--sl-color-gray-4));
+		border-radius: 50%;
+		background: radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--sl-color-accent-low) 62%, transparent), transparent 70%);
+	}
+	html[data-ig-testmode] .csky .cs__lines line:not(.is-lit) {
+		opacity: 0.24;
+		stroke: var(--sl-color-gray-4);
+	}
+
+	/* ---------- the row under the title ---------- */
+	.ctools {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.6rem;
+		margin-top: 0.75rem;
+	}
+	.ccard__seg {
+		display: inline-flex;
+		padding: 2px;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+	}
+	.ccard__segbtn,
+	.ccard__btn,
+	.igs-toggle {
+		min-height: 40px;
+		margin: 0;
+		padding: 0 1rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		line-height: 1.2;
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.ccard__segbtn {
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+	}
+	.ccard__segbtn[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ccard__btn,
+	.igs-toggle {
+		display: inline-flex;
+		align-items: center;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-white);
+		text-decoration: none;
+	}
+	.ccard__btn:hover,
+	.igs-toggle:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.ccard__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.ccard__btn--primary:hover {
+		color: var(--sl-color-black);
+	}
+	.ctools :focus-visible,
+	.konspekt :focus-visible,
+	.igs-toggle:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.ctools .ccard__short {
+		flex-basis: 100%;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.ccard__short[hidden] {
+		display: none;
+	}
+
+	/* ---------- «Коротко»: the optional sections fold to their headings ---------- */
+	html[data-ig-short='1'] [data-igs-fold]:not([data-igs-open]) {
+		display: none !important;
+	}
+	.igs-toggle {
+		display: none;
+		min-height: 34px;
+		margin-left: 0.75rem;
+		padding: 0 0.8rem;
+		vertical-align: middle;
+		font-family: var(--sl-font);
+		color: var(--sl-color-gray-2);
+	}
+	html[data-ig-short='1'] .igs-toggle {
+		display: inline-flex;
+	}
+	/* a folded model: its bar keeps «Показать модель»; «Полный экран» comes back with the model */
+	.igf-bar .igs-toggle {
+		margin-left: 0;
+		margin-right: auto;
+	}
+	html[data-ig-short='1'] .igf-bar[data-igs-head]:not([data-igs-open]) .igf-open {
+		display: none;
+	}
+	html[data-ig-short='1'] .sl-markdown-content .igf-bar[data-igs-head]:not([data-igs-open]) {
+		justify-content: flex-start;
+		padding: 0.35rem 0.75rem;
+		border: 1px dashed var(--sl-color-gray-5);
+		border-radius: 0.8rem;
+	}
+	html[data-ig-short='1'] .sl-heading-wrapper[data-igs-head]:not([data-igs-open]) h3 {
+		color: var(--sl-color-gray-2);
+	}
+	html[data-ig-short='1'] .sl-markdown-content .sl-heading-wrapper[data-igs-head]:not([data-igs-open]) {
+		margin-top: 1.1rem;
+	}
+	html[data-ig-short='1'] .sl-heading-wrapper[data-igs-head]:not([data-igs-open]) h2 {
+		font-size: 1.9rem;
+		color: var(--sl-color-gray-2);
+	}
+
+	/* ---------- «Конспект главы» ---------- */
+	.konspekt {
+		width: min(100vw, 58rem);
+		max-width: 100vw;
+		height: 100dvh;
+		max-height: 100dvh;
+		margin: 0 auto;
+		padding: 0;
+		border: 0;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-white);
+	}
+	.konspekt[open] {
+		display: flex;
+		flex-direction: column;
+	}
+	.konspekt::backdrop {
+		background: hsl(230 40% 4% / 0.82);
+	}
+	.konspekt__bar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		padding: 0.6rem 0.9rem;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		background: var(--sl-color-bg-nav);
+	}
+	.konspekt__bar > :last-child {
+		margin-left: auto;
+	}
+	.konspekt__scroll {
+		flex: 1;
+		min-height: 0;
+		overflow: auto;
+		overscroll-behavior: contain;
+		padding: 1rem;
+	}
+	.konspekt__sheet {
+		max-width: 50rem;
+		margin: 0 auto;
+		padding: 1.4rem 1.6rem 1.1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+		line-height: 1.45;
+	}
+	.konspekt__sheet p {
+		margin: 0;
+	}
+	.konspekt__kicker {
+		font-size: var(--sl-text-xs);
+		font-weight: 700;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		color: var(--sl-color-text-accent);
+	}
+	.konspekt__title {
+		margin: 0.15rem 0 0.9rem;
+		font-family: var(--ig-font-display);
+		font-size: clamp(2rem, 6vw, 2.9rem);
+		font-weight: 400;
+		line-height: 1.1;
+		color: var(--sl-color-white);
+	}
+	.konspekt__list {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		columns: 2 19rem;
+		column-gap: 2rem;
+	}
+	.konspekt__item {
+		break-inside: avoid;
+		padding: 0.6rem 0 0.7rem;
+		border-top: 1px dashed var(--sl-color-gray-5);
+	}
+	.konspekt__name {
+		font-weight: 700;
+		color: var(--sl-color-text-accent);
+	}
+	.konspekt__tex {
+		margin: 0.4rem 0 0.2rem;
+		overflow-x: auto;
+	}
+	.konspekt__tex .katex-display {
+		margin: 0;
+		text-align: left;
+	}
+	.konspekt__tex .katex-display > .katex {
+		text-align: left;
+	}
+	.konspekt__sheet .konspekt__def {
+		margin-top: 0.25rem;
+	}
+	.konspekt__sheet .kf-sym {
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.konspekt__sheet .konspekt__note {
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.konspekt__foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-top: 0.4rem;
+		padding-top: 0.8rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+	.konspekt__brand {
+		font-family: var(--ig-font-display);
+		font-size: clamp(1.35rem, 3.6vw, 1.9rem);
+		line-height: 1.15;
+		color: var(--sl-color-text-accent);
+	}
+	/* the QR code is always dark on white: that is what a phone's camera reads */
+	.konspekt__qr {
+		flex: none;
+		width: 5.4rem;
+		height: 5.4rem;
+		padding: 0.3rem;
+		border-radius: 0.4rem;
+		background: #fff;
+	}
+	.konspekt__qr svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+	@media print {
+		html.ig-print-konspekt body > :not(.konspekt) {
+			display: none !important;
+		}
+		html.ig-print-konspekt,
+		html.ig-print-konspekt body {
+			background: #fff !important;
+		}
+		html.ig-print-konspekt .konspekt {
+			position: static;
+			display: block;
+			width: auto;
+			height: auto;
+			max-height: none;
+			overflow: visible;
+			background: #fff;
+		}
+		html.ig-print-konspekt .konspekt__bar {
+			display: none;
+		}
+		html.ig-print-konspekt .konspekt__scroll {
+			overflow: visible;
+			padding: 0;
+		}
+		html.ig-print-konspekt .konspekt__sheet {
+			max-width: none;
+			padding: 0;
+			border: 0;
+			background: #fff;
+		}
+	}
+</style>
