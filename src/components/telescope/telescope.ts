@@ -209,6 +209,28 @@ if (root) {
 		root.querySelector<HTMLElement>(`[data-scope="${s.id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
 	};
 
+	// ---------- the whole screen ----------
+	// The page's column is left for the time (the site's menu would lie over the view); Escape comes back.
+	const home = document.createComment('телескоп');
+	const setFull = (on: boolean) => {
+		if (on === root.classList.contains('is-full')) return;
+		if (on) {
+			root.before(home);
+			document.body.append(root);
+		} else {
+			home.after(root);
+			home.remove();
+		}
+		root.classList.toggle('is-full', on);
+		document.documentElement.classList.toggle('ts-lock', on);
+		$('[data-ts-full]').setAttribute('aria-pressed', String(on));
+		if (!on) stage.scrollIntoView({ block: 'nearest' });
+	};
+	$('[data-ts-full]').addEventListener('click', () => setFull(!root.classList.contains('is-full')));
+	document.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape' && root.classList.contains('is-full')) setFull(false);
+	});
+
 	// ---------- choosing ----------
 	let timer = 0;
 	const play = $('[data-ts-play]');

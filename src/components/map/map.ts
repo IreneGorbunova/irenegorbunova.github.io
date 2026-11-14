@@ -66,14 +66,16 @@ if (root) {
 	let cy = (Y_TOP + Y_BOTTOM) / 2;
 	let kMin = 1;
 	const K_MAX = 170;
+	// The map goes round the globe: along the horizontal it repeats every WORLD units and scrolls without an end;
+	// along the vertical it stops at the edges.
 	const clamp = () => {
 		k = Math.min(Math.max(k, kMin), K_MAX);
-		const hw = vw / 2 / k;
 		const hh = vh / 2 / k;
-		cx = hw * 2 >= WORLD ? WORLD / 2 : Math.min(Math.max(cx, hw), WORLD - hw);
 		cy = hh * 2 >= Y_BOTTOM - Y_TOP ? (Y_TOP + Y_BOTTOM) / 2 : Math.min(Math.max(cy, Y_TOP + hh), Y_BOTTOM - hh);
 	};
-	const toScreen = (x: number, y: number): [number, number] => [(x - cx) * k + vw / 2, (y - cy) * k + vh / 2];
+	/** The copy of the world point x that is nearest to the centre of the view. */
+	const near = (x: number) => x + Math.round((cx - x) / WORLD) * WORLD;
+	const toScreen = (x: number, y: number): [number, number] => [(near(x) - cx) * k + vw / 2, (y - cy) * k + vh / 2];
 
 	// ---------- the land ----------
 	let land: Path2D | null = null;
@@ -112,33 +114,38 @@ if (root) {
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.fillStyle = colors.sea;
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
-		ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (vw / 2 - cx * k), dpr * (vh / 2 - cy * k));
-		// meridians and parallels every 30°
-		ctx.lineWidth = 1 / k;
-		ctx.strokeStyle = colors.grid;
-		ctx.beginPath();
-		for (let lon = -150; lon <= 150; lon += 30) {
-			const x = project(lon, 0)[0];
-			ctx.moveTo(x, Y_TOP - 50);
-			ctx.lineTo(x, Y_BOTTOM + 50);
-		}
-		for (const lat of [-30, 0, 30, 60]) {
-			const y = project(0, lat)[1];
-			ctx.moveTo(0, y);
-			ctx.lineTo(WORLD, y);
-		}
-		ctx.stroke();
-		if (land && lakes) {
-			ctx.fillStyle = colors.land;
-			ctx.fill(land, 'evenodd');
-			ctx.lineJoin = 'round';
-			ctx.lineWidth = 1.1 / k;
-			ctx.strokeStyle = colors.coast;
-			ctx.stroke(land);
-			ctx.fillStyle = colors.sea;
-			ctx.fill(lakes, 'evenodd');
-			ctx.lineWidth = 0.8 / k;
-			ctx.stroke(lakes);
+		// every copy of the world that the view touches
+		const first = Math.floor((cx - vw / 2 / k) / WORLD);
+		const lastCopy = Math.floor((cx + vw / 2 / k) / WORLD);
+		for (let n = first; n <= lastCopy; n++) {
+			ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (vw / 2 - (cx - n * WORLD) * k), dpr * (vh / 2 - cy * k));
+			// meridians and parallels every 30°
+			ctx.lineWidth = 1 / k;
+			ctx.strokeStyle = colors.grid;
+			ctx.beginPath();
+			for (let lon = -180; lon < 180; lon += 30) {
+				const x = project(lon, 0)[0];
+				ctx.moveTo(x, Y_TOP - 50);
+				ctx.lineTo(x, Y_BOTTOM + 50);
+			}
+			for (const lat of [-30, 0, 30, 60]) {
+				const y = project(0, lat)[1];
+				ctx.moveTo(0, y);
+				ctx.lineTo(WORLD, y);
+			}
+			ctx.stroke();
+			if (land && lakes) {
+				ctx.fillStyle = colors.land;
+				ctx.fill(land, 'evenodd');
+				ctx.lineJoin = 'round';
+				ctx.lineWidth = 1.1 / k;
+				ctx.strokeStyle = colors.coast;
+				ctx.stroke(land);
+				ctx.fillStyle = colors.sea;
+				ctx.fill(lakes, 'evenodd');
+				ctx.lineWidth = 0.8 / k;
+				ctx.stroke(lakes);
+			}
 		}
 	};
 
@@ -157,10 +164,11 @@ if (root) {
 		const out: Cluster[] = [];
 		const r = CLUSTER_PX / k;
 		for (const d of shown()) {
-			const c = out.find((c) => Math.hypot(c.x - d.x, c.y - d.y) < r);
+			const dx = (a: number, b: number) => a - b - Math.round((a - b) / WORLD) * WORLD; // the short way round
+			const c = out.find((c) => Math.hypot(dx(c.x, d.x), c.y - d.y) < r);
 			if (c) {
 				c.items.push(d);
-				c.x = c.items.reduce((a, i) => a + i.x, 0) / c.items.length;
+				c.x = c.items[0].x + c.items.reduce((a, i) => a + dx(i.x, c.items[0].x), 0) / c.items.length;
 				c.y = c.items.reduce((a, i) => a + i.y, 0) / c.items.length;
 			} else out.push({ items: [d], x: d.x, y: d.y });
 		}
@@ -218,13 +226,14 @@ if (root) {
 
 	// ---------- flying ----------
 	/** On a wide screen the card covers the east of the view: the free part of the map is narrower by this much. */
-	const cardWidth = () => (getComputedStyle(card).position === 'absolute' && getComputedStyle(card).display !== 'none' ? card.offsetWidth + 12 : 0);
+	const cardWidth = () => (!card.hidden && !cardMoved && getComputedStyle(card).position === 'absolute' ? card.offsetWidth + 12 : 0);
 	let fly = 0;
 	/** Flies so that the world point (tx, ty) comes to the middle of the free part of the map. */
 	const flyTo = (tx: number, ty: number, tk: number, ms = 750, free = true) => {
 		cancelAnimationFrame(fly);
 		const [x0, y0, k0] = [cx, cy, k];
 		tk = Math.min(Math.max(tk, kMin), K_MAX);
+		tx = near(tx);
 		if (free) tx += cardWidth() / 2 / tk;
 		const t0 = performance.now();
 		const step = (t: number) => {
@@ -235,6 +244,7 @@ if (root) {
 			cy = y0 + (ty - y0) * e;
 			render();
 			if (u < 1) fly = requestAnimationFrame(step);
+			else cx = ((cx % WORLD) + WORLD) % WORLD;
 		};
 		fly = requestAnimationFrame(step);
 	};
@@ -244,6 +254,10 @@ if (root) {
 		flyTo((x0 + x1) / 2, (y0 + y1) / 2, Math.min((vw - cardWidth()) / (x1 - x0), vh / (y1 - y0)) * 0.92, ms);
 	};
 	const fitWorld = (ms?: number) => flyTo(WORLD / 2, (Y_TOP + Y_BOTTOM) / 2, kMin, ms, false);
+	/** After a drag the centre comes back into the first copy of the world (nothing moves on the screen). */
+	const settle = () => {
+		cx = ((cx % WORLD) + WORLD) % WORLD;
+	};
 
 	// ---------- the card ----------
 	const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -251,8 +265,17 @@ if (root) {
 		selected = null;
 		markSelected();
 		root.classList.remove('has-card');
+		card.hidden = false;
 		card.querySelector<HTMLElement>('[data-dmap-intro]')!.hidden = false;
 		card.querySelector<HTMLElement>('[data-dmap-body]')!.hidden = true;
+		paintList();
+	};
+	/** The card goes away altogether; the button «i» on the map brings the first one back. */
+	const closeCard = () => {
+		selected = null;
+		markSelected();
+		root.classList.remove('has-card');
+		card.hidden = true;
 		paintList();
 	};
 	const cardBody = card.querySelector<HTMLElement>('[data-dmap-body]')!;
@@ -260,6 +283,7 @@ if (root) {
 		card.querySelector<HTMLElement>('[data-dmap-intro]')!.hidden = true;
 		cardBody.hidden = false;
 		cardBody.innerHTML = html;
+		card.hidden = false;
 		root.classList.add('has-card');
 		card.scrollTop = 0;
 	};
@@ -286,12 +310,13 @@ if (root) {
 		markSelected();
 		paintList();
 		if (flyThere) flyTo(d.x, d.y, Math.max(k, Math.min(kMin * 9, 60)));
+		card.hidden = false;
 	};
 	const openCluster = (c: Cluster) => {
-		const spread = Math.max(...c.items.map((i) => Math.hypot(i.x - c.x, i.y - c.y)));
+		const spread = Math.max(...c.items.map((i) => Math.hypot(near(i.x) - near(c.x), i.y - c.y)));
 		if (spread * K_MAX > CLUSTER_PX * 1.5 && k < K_MAX * 0.7) {
 			// the stars will part when the map comes closer
-			const xs = c.items.map((i) => i.x);
+			const xs = c.items.map((i) => near(i.x));
 			const ys = c.items.map((i) => i.y);
 			const w = Math.max(...xs) - Math.min(...xs);
 			const h = Math.max(...ys) - Math.min(...ys);
@@ -312,9 +337,37 @@ if (root) {
 	card.addEventListener('click', (e) => {
 		const t = (e.target as Element).closest<HTMLElement>('[data-go], [data-close]');
 		if (!t) return;
-		if ('close' in t.dataset) showIntro();
+		if ('close' in t.dataset) closeCard();
 		else if (t.dataset.go && byId.has(t.dataset.go)) select(byId.get(t.dataset.go)!, true);
 	});
+
+	// the floating card is moved by its grip (a wide screen only: on a phone the card stands under the map)
+	let cardMoved = false;
+	const grip = card.querySelector<HTMLElement>('[data-dmap-grip]')!;
+	let g0: { x: number; y: number; tx: number; ty: number } | null = null;
+	let tx = 0;
+	let ty = 0;
+	grip.addEventListener('pointerdown', (e) => {
+		if (getComputedStyle(card).position !== 'absolute') return;
+		g0 = { x: e.clientX, y: e.clientY, tx, ty };
+		grip.setPointerCapture(e.pointerId);
+		e.preventDefault();
+	});
+	grip.addEventListener('pointermove', (e) => {
+		if (!g0) return;
+		const box = view.getBoundingClientRect();
+		const c = card.getBoundingClientRect();
+		// the card stays inside the map
+		const nx = g0.tx + e.clientX - g0.x;
+		const ny = g0.ty + e.clientY - g0.y;
+		tx = Math.min(Math.max(nx, tx + box.left - c.left + 6), tx + box.right - c.right - 6);
+		ty = Math.min(Math.max(ny, ty + box.top - c.top + 6), Math.max(ty + box.top - c.top + 6, ty + box.bottom - c.bottom - 6));
+		card.style.transform = `translate(${tx.toFixed(0)}px, ${ty.toFixed(0)}px)`;
+		cardMoved = true;
+	});
+	const drop = () => (g0 = null);
+	grip.addEventListener('pointerup', drop);
+	grip.addEventListener('pointercancel', drop);
 
 	// ---------- the filters and the list ----------
 	const listItems = [...root.querySelectorAll<HTMLElement>('[data-dmap-list] [data-id]')];
@@ -388,6 +441,7 @@ if (root) {
 		if (act === 'in') flyTo(cx, cy, k * 1.8, 250, false);
 		else if (act === 'out') flyTo(cx, cy, k / 1.8, 250, false);
 		else if (act === 'world') fitWorld();
+		else if (act === 'info') (card.hidden || !card.querySelector<HTMLElement>('[data-dmap-intro]')!.hidden ? (card.hidden ? showIntro() : closeCard()) : showIntro());
 		else if (act === 'full') setFull(!root.classList.contains('is-full'));
 		else if (REGIONS[act]) fitBox(...REGIONS[act]);
 	});
@@ -446,6 +500,7 @@ if (root) {
 		pinch = 0;
 		// the click that follows a drag is not a click on a star
 		if (dragged) setTimeout(() => (dragged = false), 0);
+		if (!pts.size) settle();
 	};
 	view.addEventListener('pointerup', up);
 	view.addEventListener('pointercancel', up);

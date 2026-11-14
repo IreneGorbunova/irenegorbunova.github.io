@@ -1,16 +1,14 @@
-// The chapter page in test mode (ChapterTools.astro): «Коротко» folds the models and the optional sections,
+// The chapter page (ChapterTools.astro): «Коротко» folds the optional sections,
 // «Конспект главы» opens the chapter's cards on one sheet.
 // Nothing here runs without test mode, and the chapter's own markup is only annotated with data attributes.
 
-import { modelBars } from '../fullscreen/fs';
 
 const SHORT_KEY = 'ig:short';
 const html = document.documentElement;
 
-/** Sections («## …») the short view folds: history, the lunar task, derivations, applications, experiments. */
-const FOLD = /^(Кто это открыл|Лунная задача|Рассчитайте сами|Выводим формул|Откуда берётся формула|Где это встречается|Для любознательных|Где работа|Опыт[. ]|Попробуйте сами)|( вокруг нас| в нашей жизни)$/;
-/** Subsections («### …») it folds: the ones built around a model or an experiment. */
-const FOLD_SUB = /^(Проверим на|Проверьте сами|Опыт[. ]|Предскажите, потом|Измерим )|( сами)$/;
+/** Sections («## …») the short view folds: history, the lunar task, derivations, applications, the optional ones.
+ *  Models and experiments stay (Irina, 14 Nov 2026). */
+const FOLD = /^(Кто это открыл|Лунная задача|Рассчитайте сами|Выводим формул|Откуда берётся формула|Где это встречается|Для любознательных|Где работа)|( вокруг нас| в нашей жизни)$/;
 
 /** The element of the chapter's text that holds the heading: Starlight wraps a heading together with its anchor link. */
 const wrapOf = (h: Element) => h.closest('.sl-heading-wrapper') ?? h;
@@ -19,69 +17,40 @@ export const start = () => {
 	const card = document.querySelector<HTMLElement>('[data-ctools]');
 	const content = document.querySelector<HTMLElement>('.sl-markdown-content');
 	if (!card || !content || html.dataset.igTestmode !== '1') return;
-	const heads = [...content.querySelectorAll<HTMLElement>(':scope > .sl-heading-wrapper > :is(h2, h3), :scope > :is(h2, h3)')];
+	const heads = [...content.querySelectorAll<HTMLElement>(':scope > .sl-heading-wrapper > h2, :scope > h2')];
 
 	// --- what the short view folds ----------------------------------------------------------------
-	// A fold is a head that stays (a heading, or the bar above a model) with a button, and the parts it hides. Folded:
-	// the optional sections, the subsections built around a model, and every other model with its tasks. The text,
-	// the definitions, the formulas and the pictures stay.
+	// A fold is a section's heading, which stays with a button, and everything up to the next «## …», which hides.
+	// The text, the definitions, the formulas, the pictures and the models stay.
 	interface Fold {
 		parts: HTMLElement[];
 		open: (on: boolean) => void;
 	}
 	const folds: Fold[] = [];
-	const taken = new Set<Element>();
-	const addFold = (head: HTMLElement, parts: HTMLElement[], words: [string, string], place: (b: HTMLElement) => void) => {
+	const isPart = (e: Element): e is HTMLElement => e instanceof HTMLElement && !e.matches('script, style, template');
+	heads.forEach((h, i) => {
+		if (!FOLD.test(h.textContent?.trim() ?? '')) return;
+		const w = wrapOf(h) as HTMLElement;
+		const end = heads[i + 1] ? wrapOf(heads[i + 1]) : null;
+		const parts: HTMLElement[] = [];
+		for (let e = w.nextElementSibling; e && e !== end; e = e.nextElementSibling) if (isPart(e)) parts.push(e);
 		if (!parts.length) return;
-		for (const p of parts) {
-			p.dataset.igsFold = '';
-			taken.add(p);
-		}
-		head.dataset.igsHead = '';
+		for (const p of parts) p.dataset.igsFold = '';
+		w.dataset.igsHead = '';
 		const b = document.createElement('button');
 		b.type = 'button';
 		b.className = 'igs-toggle';
-		b.dataset.igTest = '';
 		const open = (on: boolean) => {
-			b.textContent = on ? words[1] : words[0];
+			b.textContent = on ? 'Свернуть' : 'Развернуть';
 			b.setAttribute('aria-expanded', String(on));
-			head.toggleAttribute('data-igs-open', on);
+			w.toggleAttribute('data-igs-open', on);
 			for (const p of parts) p.toggleAttribute('data-igs-open', on);
 		};
 		open(false);
-		b.addEventListener('click', () => open(!head.hasAttribute('data-igs-open')));
-		place(b);
+		b.addEventListener('click', () => open(!w.hasAttribute('data-igs-open')));
+		w.append(b);
 		folds.push({ parts, open });
-	};
-	const isPart = (e: Element): e is HTMLElement => e instanceof HTMLElement && !e.matches('script, style, template');
-	// sections and subsections, by their headings: everything up to the next heading of the same or a higher level
-	for (const level of ['H2', 'H3']) {
-		heads.forEach((h, i) => {
-			if (h.tagName !== level) return;
-			const w = wrapOf(h) as HTMLElement;
-			if (taken.has(w) || !(level === 'H2' ? FOLD : FOLD_SUB).test(h.textContent?.trim() ?? '')) return;
-			const next = heads.slice(i + 1).find((x) => x.tagName === 'H2' || level === 'H3');
-			const end = next ? wrapOf(next) : null;
-			const parts: HTMLElement[] = [];
-			for (let e = w.nextElementSibling; e && e !== end; e = e.nextElementSibling) if (isPart(e)) parts.push(e);
-			addFold(w, parts, ['Развернуть', 'Свернуть'], (b) => w.append(b));
-		});
-	}
-	// every other model: the model, «Что попробовать» and «Что должно было получиться» after it; its bar stays
-	for (const { fig, bar } of modelBars()) {
-		if (taken.has(fig) || taken.has(bar) || fig.parentElement !== content) continue;
-		const parts = [fig];
-		for (let e = fig.nextElementSibling; e; e = e.nextElementSibling) {
-			if (!isPart(e)) continue;
-			const tasksHead = e.tagName === 'P' && e.textContent?.trim() === 'Что попробовать';
-			const tasks = e.tagName === 'OL' && parts[parts.length - 1].tagName === 'P';
-			const answers = e.tagName === 'DETAILS' && /Что должно было получиться/.test(e.querySelector('summary')?.textContent ?? '');
-			if (!tasksHead && !tasks && !answers) break;
-			parts.push(e);
-			if (answers) break;
-		}
-		addFold(bar, parts, ['Показать модель', 'Скрыть модель'], (b) => bar.prepend(b));
-	}
+	});
 	// a link to a place inside a fold opens the fold
 	const reveal = () => {
 		const target = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
