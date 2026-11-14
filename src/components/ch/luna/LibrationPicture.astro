@@ -1,0 +1,159 @@
+---
+/**
+ * Libration: the Moon as seen from the Earth during two months (one month in 8 s), north up, without the Sun's
+ * lighting. The sub-Earth point moves by up to 7,9° in longitude (period 27,55 сут, the anomalistic month: the
+ * Moon's speed on its ellipse changes, its spin does not) and up to 6,7° in latitude (period 27,21 сут: the axis is
+ * tilted to the orbit). The red dot is the middle of the near side (0° longitude, 0° latitude); the dashed cross marks
+ * the middle of the disc. Small craters near the limbs come into view and hide again. True angles, nothing enlarged.
+ */
+import { NEAR, RINGS } from './moonface';
+
+const feats = [...NEAR, ...RINGS];
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<figure class="llb not-content" data-llb data-features={JSON.stringify(feats)}>
+	<svg class="llb__svg" viewBox="0 0 360 196" role="img" aria-label="Луна, как её видно с Земли: она медленно покачивается влево-вправо и вверх-вниз, и у её краёв то появляются, то прячутся участки обратной стороны">
+		<defs>
+			<clipPath id={`llb-disc-${uid}`}><circle cx="180" cy="98" r="88"></circle></clipPath>
+			<radialGradient id={`llb-shade-${uid}`} cx="50%" cy="50%" r="50%">
+				<stop offset="0.72" stop-color="#000" stop-opacity="0"></stop>
+				<stop offset="1" stop-color="#000" stop-opacity="0.3"></stop>
+			</radialGradient>
+		</defs>
+		<circle class="llb__disc" cx="180" cy="98" r="88"></circle>
+		<g clip-path={`url(#llb-disc-${uid})`} data-globe></g>
+		<circle cx="180" cy="98" r="88" fill={`url(#llb-shade-${uid})`}></circle>
+		<line class="llb__cross" x1="172" y1="98" x2="188" y2="98"></line>
+		<line class="llb__cross" x1="180" y1="90" x2="180" y2="106"></line>
+		<path class="llb__trail" data-trail></path>
+		<circle class="llb__dot" r="3.2" data-dot></circle>
+	</svg>
+	<p class="llb__read" data-read aria-live="off"></p>
+	<figcaption class="llb__caption">
+		Луна, как её видно с Земли; месяц проходит за 8&nbsp;с, освещение Солнцем не показано. Красная точка — середина
+		видимой стороны, крестик — середина диска. Покачивания показаны в настоящую величину.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.llb {
+		max-width: 23rem;
+		margin: 1.25rem auto;
+		padding: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.llb__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: radial-gradient(circle at 50% 50%, #0b1433, #02030a 75%);
+	}
+	.llb__disc {
+		fill: #d8d6ce;
+	}
+	.llb__cross {
+		stroke: rgb(20 30 60 / 0.75);
+		stroke-width: 1.2;
+		stroke-dasharray: 2 2;
+	}
+	.llb__trail {
+		fill: none;
+		stroke: rgb(255 93 93 / 0.55);
+		stroke-width: 1.2;
+	}
+	.llb__dot {
+		fill: #ff5d5d;
+		stroke: #fff;
+		stroke-width: 0.8;
+	}
+	.llb__read {
+		margin: 0.45rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		font-variant-numeric: tabular-nums;
+	}
+	.llb__caption {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		line-height: 1.45;
+		color: var(--sl-color-gray-3);
+	}
+</style>
+
+<script>
+	import { loop, attrs } from './util';
+	import { project, type Feature } from './moonface';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const SEC_PER_MONTH = 8;
+	const ANOM = 27.5546; // anomalistic month, days
+	const DRAC = 27.2122; // draconic month, days
+	const L_AMP = 7.9; // degrees
+	const B_AMP = 6.7;
+	const R = 88;
+	const CX = 180;
+	const CY = 98;
+	const style: Record<string, Record<string, string>> = {
+		mare: { fill: '#6f6e68' },
+		bright: { fill: '#f6f5ef' },
+		ring: { fill: 'none', stroke: '#a3a198', 'stroke-width': '0.9' },
+	};
+	const fmt0 = (v: number) => String(Math.round(Math.abs(v)));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-llb]')) {
+		const feats = JSON.parse(root.dataset.features!) as Feature[];
+		const globe = root.querySelector<SVGGElement>('[data-globe]')!;
+		const dot = root.querySelector<SVGCircleElement>('[data-dot]')!;
+		const trail = root.querySelector<SVGPathElement>('[data-trail]')!;
+		const read = root.querySelector<HTMLElement>('[data-read]')!;
+		const els = feats.map(([, , , kind]) => {
+			const e = document.createElementNS(NS, 'ellipse');
+			attrs(e, style[kind]);
+			globe.append(e);
+			return e;
+		});
+		const lib = (day: number) => ({
+			l: L_AMP * Math.sin((2 * Math.PI * day) / ANOM),
+			b: B_AMP * Math.sin((2 * Math.PI * day) / DRAC + 1.3),
+		});
+		let days = 0;
+		const draw = () => {
+			const { l, b } = lib(days);
+			feats.forEach((f, i) => {
+				const p = project(f, R, l, b);
+				const e = els[i];
+				if (!p) {
+					e.setAttribute('visibility', 'hidden');
+					return;
+				}
+				const x = CX + p.cx;
+				const y = CY + p.cy;
+				attrs(e, { visibility: 'visible', cx: x.toFixed(1), cy: y.toFixed(1), rx: p.rx.toFixed(2), ry: p.ry.toFixed(2), opacity: p.op.toFixed(2), transform: `rotate(${p.rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})` });
+			});
+			const c = project([0, 0, 0, 'mare'], R, l, b)!;
+			attrs(dot, { cx: (CX + c.cx).toFixed(1), cy: (CY + c.cy).toFixed(1) });
+			// the dot's path over the last 20 days
+			let d = '';
+			for (let k = 0; k <= 40; k++) {
+				const q = lib(days - (20 * k) / 40);
+				const pc = project([0, 0, 0, 'mare'], R, q.l, q.b)!;
+				d += `${k ? ' L' : 'M'}${(CX + pc.cx).toFixed(1)} ${(CY + pc.cy).toFixed(1)}`;
+			}
+			trail.setAttribute('d', d);
+			// l > 0: we look past the limb on the right (Mare Crisium's side); b > 0: past the northern (upper) limb
+			const ew = l >= 0 ? 'правый' : 'левый';
+			const ns = b >= 0 ? 'верхний' : 'нижний';
+			read.textContent = `Заглядываем на ${fmt0(l)}° за ${ew} край и на ${fmt0(b)}° за ${ns}`;
+		};
+		loop(root, (dt) => {
+			days = (days + (dt / SEC_PER_MONTH) * ANOM) % (ANOM * DRAC);
+			draw();
+		});
+		draw();
+	}
+</script>
