@@ -1,0 +1,313 @@
+---
+/**
+ * The school experiment for Lenz's rule, looping: a light beam on a needle pivot carries a solid aluminium ring and a
+ * ring with a slit. Oblique projection (x right, z up, depth y drawn up and to the right at 30°, scaled by 0,6), so a ring
+ * facing us is drawn true to shape. A bar magnet (S red near us, N blue towards the ring) is pushed into the solid
+ * ring: the induced current (arrows, glow) runs anticlockwise as we see it, the ring is pushed away and the beam turns;
+ * the magnet is pulled out: the current reverses and the ring follows the magnet back. The same with the slit ring:
+ * no current, nothing moves. Plays only while visible.
+ */
+---
+
+<figure class="lr not-content" data-lr>
+	<svg class="lr__svg" viewBox="0 0 360 212" role="img" aria-label="Опыт с кольцами на коромысле. Магнит вносят в сплошное алюминиевое кольцо — в кольце возникает ток, кольцо отталкивается, и коромысло поворачивается. Магнит вынимают — ток идёт в обратную сторону, и кольцо тянется за магнитом. Магнит вносят в кольцо с разрезом — тока нет, кольцо стоит на месте">
+		<path class="lr__base" data-base></path>
+		<line class="lr__stand" data-stand></line>
+		<g data-mag-back></g>
+		<path class="lr__beam" data-beam></path>
+		<circle class="lr__pivot" r="3.5" data-pivot></circle>
+		<path class="lr__ring" data-ring-cut></path>
+		<path class="lr__ring" data-ring></path>
+		<path class="lr__glow" data-glow></path>
+		<g class="lr__arrows" data-arrows>
+			<path d="M -5 -4 L 3 0 L -5 4"></path>
+			<path d="M -5 -4 L 3 0 L -5 4"></path>
+		</g>
+		<g data-mag-front></g>
+		<text class="lr__label" text-anchor="middle" data-label-solid>сплошное кольцо</text>
+		<text class="lr__label" text-anchor="middle" data-label-cut>кольцо с разрезом</text>
+		<text class="lr__status" x="180" y="205" text-anchor="middle" data-status></text>
+	</svg>
+</figure>
+
+<style>
+	.lr {
+		margin: 1.25rem 0 1.5rem;
+		padding: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.lr__svg {
+		display: block;
+		width: 100%;
+		max-width: 30rem;
+		height: auto;
+		margin: 0 auto;
+	}
+	.lr__svg text {
+		font-family: var(--__sl-font);
+	}
+	.lr__base {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.lr__stand {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.lr__beam {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3.5;
+		stroke-linecap: round;
+	}
+	.lr__pivot {
+		fill: var(--sl-color-gray-2);
+	}
+	.lr__ring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 4.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.lr__glow {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 4.5;
+		stroke-linejoin: round;
+		opacity: 0;
+	}
+	.lr__arrows path {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.lr__arrows {
+		opacity: 0;
+	}
+	:global(.lr__n) {
+		fill: var(--ig-vx);
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, var(--sl-color-black));
+		stroke-width: 0.8;
+	}
+	:global(.lr__s) {
+		fill: var(--ig-vy);
+		stroke: color-mix(in srgb, var(--ig-vy) 60%, var(--sl-color-black));
+		stroke-width: 0.8;
+	}
+	:global(.lr__dark) {
+		filter: brightness(0.78);
+	}
+	:global(.lr__pole) {
+		fill: var(--sl-color-black);
+		font-size: 10px;
+		font-weight: 700;
+	}
+	.lr__label {
+		fill: var(--sl-color-gray-2);
+		font-size: 11px;
+	}
+	.lr__status {
+		fill: var(--sl-color-white);
+		font-size: 12.5px;
+		font-weight: 600;
+	}
+</style>
+
+<script>
+	import { loop, clamp } from '@components/intro/scene';
+
+	const smooth = (a: number, b: number, x: number) => {
+		const t = clamp((x - a) / (b - a));
+		return t * t * (3 - 2 * t);
+	};
+	const bump = (a: number, b: number, x: number) => (x <= a || x >= b ? 0 : Math.sin((Math.PI * (x - a)) / (b - a)));
+	const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+	const f1 = (v: number) => v.toFixed(1);
+	type V3 = [number, number, number];
+	const X0 = 180;
+	const Y0 = 72;
+	/** Oblique projection: depth y goes up and to the right at 30°, scaled by 0,6. */
+	const P = ([x, y, z]: V3): [number, number] => [X0 + x + 0.52 * y, Y0 - z - 0.3 * y];
+	const pts = (list: V3[]) => list.map((p) => P(p).map(f1).join(',')).join(' ');
+	const NS = 'http://www.w3.org/2000/svg';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-lr]')) {
+		const L = 118; // px, from the pivot to the centre of a ring
+		const R = 24; // px, radius of a ring
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const base = $<SVGPathElement>('[data-base]');
+		const stand = $<SVGLineElement>('[data-stand]');
+		const beam = $<SVGPathElement>('[data-beam]');
+		const pivot = $<SVGCircleElement>('[data-pivot]');
+		const ring = $<SVGPathElement>('[data-ring]');
+		const ringCut = $<SVGPathElement>('[data-ring-cut]');
+		const glow = $<SVGPathElement>('[data-glow]');
+		const arrows = $<SVGGElement>('[data-arrows]');
+		const heads = [...arrows.querySelectorAll<SVGPathElement>('path')];
+		const backG = $<SVGGElement>('[data-mag-back]');
+		const frontG = $<SVGGElement>('[data-mag-front]');
+		const labSolid = $<SVGTextElement>('[data-label-solid]');
+		const labCut = $<SVGTextElement>('[data-label-cut]');
+		const status = $<SVGTextElement>('[data-status]');
+
+		// the stand and its round base do not move
+		const ZB = -92;
+		base.setAttribute(
+			'd',
+			'M ' +
+				Array.from({ length: 41 }, (_, k) => {
+					const t = (2 * Math.PI * k) / 40;
+					return P([42 * Math.cos(t), 42 * Math.sin(t), ZB]).map(f1).join(' ');
+				}).join(' L ') +
+				' Z',
+		);
+		const [sx0, sy0] = P([0, 0, 0]);
+		const [sx1, sy1] = P([0, 0, ZB]);
+		stand.setAttribute('x1', f1(sx0));
+		stand.setAttribute('y1', f1(sy0));
+		stand.setAttribute('x2', f1(sx1));
+		stand.setAttribute('y2', f1(sy1));
+		pivot.setAttribute('cx', f1(sx0));
+		pivot.setAttribute('cy', f1(sy0));
+
+		// the magnet: 9 polygons in each group (two halves × top and side, the front face)
+		const mk = (g: SVGGElement) =>
+			Array.from({ length: 5 }, () => {
+				const p = document.createElementNS(NS, 'polygon');
+				g.appendChild(p);
+				return p;
+			});
+		const backP = mk(backG);
+		const frontP = mk(frontG);
+		const letters = ['S', 'N'].map((t) => {
+			const e = document.createElementNS(NS, 'text');
+			e.setAttribute('class', 'lr__pole');
+			e.setAttribute('text-anchor', 'middle');
+			e.textContent = t;
+			frontG.appendChild(e);
+			return e;
+		});
+		const H = 8; // half the thickness of the magnet
+		const ML = 84; // its length
+		/** Top and side faces of the box x ∈ mx ± H, y ∈ [a, b], with the class of its pole. */
+		const faces = (polys: SVGPolygonElement[], k: number, mx: number, a: number, b: number, cls: string) => {
+			const top = polys[k];
+			const side = polys[k + 1];
+			if (b - a < 0.5) {
+				top.setAttribute('points', '');
+				side.setAttribute('points', '');
+				return;
+			}
+			top.setAttribute('points', pts([[mx - H, a, H], [mx + H, a, H], [mx + H, b, H], [mx - H, b, H]]));
+			side.setAttribute('points', pts([[mx + H, a, -H], [mx + H, b, -H], [mx + H, b, H], [mx + H, a, H]]));
+			top.setAttribute('class', cls);
+			side.setAttribute('class', `${cls} lr__dark`);
+		};
+		const ringPath = (cx: number, cy: number, ph: number, gap: boolean) => {
+			const u: V3 = [Math.cos(ph), Math.sin(ph), 0];
+			const out: string[] = [];
+			let pen = 'M';
+			for (let k = 0; k <= 64; k++) {
+				const t = (2 * Math.PI * k) / 64;
+				const deg = (t * 180) / Math.PI;
+				if (gap && deg > 82 && deg < 98) {
+					pen = 'M';
+					continue;
+				}
+				const p: V3 = [cx + R * Math.cos(t) * u[0], cy + R * Math.cos(t) * u[1], R * Math.sin(t)];
+				out.push(`${pen} ${P(p).map(f1).join(' ')}`);
+				pen = 'L';
+			}
+			return out.join(' ');
+		};
+
+		const RUN = 12;
+		const YFAR = -170; // the magnet's near end when it is away from the rings
+		const YIN = -64; // … when it is pushed in
+		let t = 0;
+		const draw = () => {
+			const x = (t % RUN) / RUN;
+			// the magnet: its x (at a ring) and the y of its near end (the S pole)
+			let mx = L;
+			let my = YFAR;
+			if (x < 0.5) my = lerp(YFAR, YIN, smooth(0.04, 0.2, x) - smooth(0.28, 0.42, x));
+			else if (x < 0.6) mx = lerp(L, -L, smooth(0.5, 0.6, x));
+			else if (x < 0.88) {
+				mx = -L;
+				my = lerp(YFAR, YIN, smooth(0.6, 0.72, x) - smooth(0.78, 0.88, x));
+			} else mx = lerp(-L, L, smooth(0.88, 0.98, x));
+			// the beam turns only while the solid ring is pushed (anticlockwise from above) and pulled back
+			const ph = ((14 * Math.PI) / 180) * (smooth(0.1, 0.27, x) - smooth(0.32, 0.47, x));
+			const cs = Math.cos(ph);
+			const sn = Math.sin(ph);
+			const cR: V3 = [L * cs, L * sn, 0];
+			const cL: V3 = [-L * cs, -L * sn, 0];
+			beam.setAttribute('d', `M ${P([-(L - R) * cs, -(L - R) * sn, 0]).map(f1).join(' ')} L ${P([(L - R) * cs, (L - R) * sn, 0]).map(f1).join(' ')}`);
+			ring.setAttribute('d', ringPath(cR[0], cR[1], ph, false));
+			ringCut.setAttribute('d', ringPath(cL[0], cL[1], ph, true));
+			glow.setAttribute('d', ring.getAttribute('d')!);
+			const [lsx, lsy] = P([cR[0], cR[1], R + 10]);
+			labSolid.setAttribute('x', f1(lsx));
+			labSolid.setAttribute('y', f1(lsy));
+			const [lcx, lcy] = P([cL[0], cL[1], R + 10]);
+			labCut.setAttribute('x', f1(lcx));
+			labCut.setAttribute('y', f1(lcy));
+			// the induced current in the solid ring: + is anticlockwise as we see it (the magnet comes in), − when it leaves
+			const I = 0.9 * bump(0.07, 0.21, x) - 0.9 * bump(0.27, 0.41, x);
+			glow.style.opacity = (0.95 * Math.abs(I)).toFixed(2);
+			arrows.style.opacity = Math.min(1, 1.6 * Math.abs(I)).toFixed(2);
+			[Math.PI / 2, (3 * Math.PI) / 2].forEach((tt, k) => {
+				const p: V3 = [cR[0] + R * Math.cos(tt) * cs, cR[1] + R * Math.cos(tt) * sn, R * Math.sin(tt)];
+				const d: V3 = [-Math.sin(tt) * cs, -Math.sin(tt) * sn, Math.cos(tt)];
+				const [px, py] = P(p);
+				const [qx, qy] = P([p[0] + d[0] * (I >= 0 ? 1 : -1), p[1] + d[1] * (I >= 0 ? 1 : -1), p[2] + d[2] * (I >= 0 ? 1 : -1)]);
+				const ang = (Math.atan2(qy - py, qx - px) * 180) / Math.PI;
+				heads[k].setAttribute('transform', `translate(${f1(px)} ${f1(py)}) rotate(${f1(ang)})`);
+			});
+			// the magnet, split by the plane of the ring it is at: the part behind the plane is drawn before the ring
+			const c = mx > 0 ? cR : cL;
+			const yp = c[1] + Math.tan(ph) * (mx - c[0]);
+			const yMid = my + ML / 2;
+			const yEnd = my + ML;
+			const seg = (a: number, b: number, lo: number, hi: number) => [Math.max(a, lo), Math.min(b, hi)];
+			const [sbA, sbB] = seg(my, yMid, yp, 1e9); // S half behind
+			const [nbA, nbB] = seg(yMid, yEnd, yp, 1e9); // N half behind
+			const [sfA, sfB] = seg(my, yMid, -1e9, yp); // S half in front
+			const [nfA, nfB] = seg(yMid, yEnd, -1e9, yp); // N half in front
+			faces(backP, 0, mx, nbA, nbB, 'lr__n');
+			faces(backP, 2, mx, sbA, sbB, 'lr__s');
+			backP[4].setAttribute('points', '');
+			faces(frontP, 0, mx, nfA, nfB, 'lr__n');
+			faces(frontP, 2, mx, sfA, sfB, 'lr__s');
+			frontP[4].setAttribute('points', pts([[mx - H, my, -H], [mx + H, my, -H], [mx + H, my, H], [mx - H, my, H]]));
+			frontP[4].setAttribute('class', 'lr__s');
+			[my + ML / 4, my + (3 * ML) / 4].forEach((yy, k) => {
+				const [lx, ly] = P([mx, yy, H]);
+				letters[k].setAttribute('x', f1(lx));
+				letters[k].setAttribute('y', f1(ly + 3.5));
+				letters[k].style.opacity = yy < yp ? '1' : '0';
+			});
+			status.textContent =
+				x < 0.25
+					? 'Магнит вносят — кольцо отталкивается'
+					: x < 0.5
+						? 'Магнит вынимают — кольцо тянется за ним'
+						: x < 0.98 && x > 0.55
+							? 'Кольцо с разрезом: тока нет, оно стоит'
+							: '';
+		};
+		draw();
+		loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+	}
+</script>
