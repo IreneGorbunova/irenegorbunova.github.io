@@ -74,6 +74,17 @@ const MOVES = [
 		to: 'uchebnik/8-klass/elektromagnitnye-yavleniya/magnitnoe-pole-zemli',
 		ids: ['pole-zemli'],
 	},
+	// 14 Nov 2026: «Отражение и преломление света» was split into «Отражение света. Плоское зеркало» and «Преломление света».
+	{
+		from: 'uchebnik/8-klass/svetovye-yavleniya/otrazhenie-i-prelomlenie',
+		to: 'uchebnik/8-klass/svetovye-yavleniya/otrazhenie-sveta',
+		ids: ['ugol-padeniya', 'ugol-otrazheniya', 'zakon-otrazheniya', 'ploskoe-zerkalo-opredelenie', 'rasseyannoe'],
+	},
+	{
+		from: 'uchebnik/8-klass/svetovye-yavleniya/otrazhenie-i-prelomlenie',
+		to: 'uchebnik/8-klass/svetovye-yavleniya/prelomlenie-sveta',
+		ids: ['prelomlenie', 'ugol-prelomleniya', 'zakon-prelomleniya', 'pokazatel', 'polnoe-otrazhenie'],
+	},
 ];
 
 /** Old card key → new card key. */

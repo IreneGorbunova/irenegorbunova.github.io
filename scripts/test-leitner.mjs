@@ -28,7 +28,15 @@ const pole = 'uchebnik/8-klass/elektromagnitnye-yavleniya/magnitnoe-pole-toka';
 const em = 'uchebnik/8-klass/elektromagnitnye-yavleniya/elektromagnity';
 const pm = 'uchebnik/8-klass/elektromagnitnye-yavleniya/postoyannye-magnity';
 const zem = 'uchebnik/8-klass/elektromagnitnye-yavleniya/magnitnoe-pole-zemli';
-assert.equal(Object.keys(MOVED).length, 14);
+const orp = 'uchebnik/8-klass/svetovye-yavleniya/otrazhenie-i-prelomlenie';
+const otr = 'uchebnik/8-klass/svetovye-yavleniya/otrazhenie-sveta';
+const pre = 'uchebnik/8-klass/svetovye-yavleniya/prelomlenie-sveta';
+assert.equal(Object.keys(MOVED).length, 24);
+assert.equal(MOVED[`${orp}/zakon-otrazheniya`], `${otr}/zakon-otrazheniya`);
+assert.equal(MOVED[`${orp}/ugol-padeniya`], `${otr}/ugol-padeniya`);
+assert.equal(MOVED[`${orp}/zakon-prelomleniya`], `${pre}/zakon-prelomleniya`);
+assert.equal(MOVED[`${orp}/polnoe-otrazhenie`], `${pre}/polnoe-otrazhenie`);
+assert.equal(MOVED[`${orp}/obratimost`], undefined); // removed cards do not move
 assert.equal(MOVED[`${pm}/pole-zemli`], `${zem}/pole-zemli`);
 assert.equal(MOVED[`${pm}/polyusy`], undefined);
 assert.equal(MOVED[`${tok}/reostat`], `${sila}/reostat`);
@@ -44,6 +52,8 @@ store[KEY] = JSON.stringify({
 	[`${pole}/katushka`]: { box: 5, due: '2026-11-30' },
 	[`${pm}/pole-zemli`]: { box: 2, due: '2026-11-12' },
 	[`${pm}/polyusy`]: { box: 3, due: '2026-11-15' },
+	[`${orp}/rasseyannoe`]: { box: 4, due: '2026-11-18' },
+	[`${orp}/pokazatel`]: { box: 2, due: '2026-11-09' },
 });
 assert.deepEqual(load(), {
 	[`${sila}/sila-toka`]: { box: 3, due: '2026-11-10' },
@@ -52,6 +62,8 @@ assert.deepEqual(load(), {
 	[`${pole}/katushka`]: { box: 5, due: '2026-11-30' },
 	[`${zem}/pole-zemli`]: { box: 2, due: '2026-11-12' },
 	[`${pm}/polyusy`]: { box: 3, due: '2026-11-15' },
+	[`${otr}/rasseyannoe`]: { box: 4, due: '2026-11-18' },
+	[`${pre}/pokazatel`]: { box: 2, due: '2026-11-09' },
 });
 
 console.log('leitner: all checks passed');
