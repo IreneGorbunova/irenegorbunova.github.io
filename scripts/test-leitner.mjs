@@ -31,7 +31,11 @@ const zem = 'uchebnik/8-klass/elektromagnitnye-yavleniya/magnitnoe-pole-zemli';
 const orp = 'uchebnik/8-klass/svetovye-yavleniya/otrazhenie-i-prelomlenie';
 const otr = 'uchebnik/8-klass/svetovye-yavleniya/otrazhenie-sveta';
 const pre = 'uchebnik/8-klass/svetovye-yavleniya/prelomlenie-sveta';
-assert.equal(Object.keys(MOVED).length, 24);
+assert.equal(Object.keys(MOVED).length, 34);
+const vs = 'uchebnik/11-klass/stroenie-vselennoy/';
+assert.equal(MOVED[`${vs}vselennaya/kepler-3`], `${vs}solnechnaya-sistema/kepler-3`);
+assert.equal(MOVED[`${vs}vselennaya/hr`], `${vs}zvezdy/hr`);
+assert.equal(MOVED[`${vs}vselennaya/hubble`], undefined); // stays in «Галактики и Вселенная»
 assert.equal(MOVED[`${orp}/zakon-otrazheniya`], `${otr}/zakon-otrazheniya`);
 assert.equal(MOVED[`${orp}/ugol-padeniya`], `${otr}/ugol-padeniya`);
 assert.equal(MOVED[`${orp}/zakon-prelomleniya`], `${pre}/zakon-prelomleniya`);

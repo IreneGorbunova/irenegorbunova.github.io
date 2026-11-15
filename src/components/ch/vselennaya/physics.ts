@@ -1,5 +1,5 @@
 /**
- * Data shared by the models of the chapter «Солнечная система. Звёзды. Галактики».
+ * Data shared by the models of «Солнечная система», «Звёзды» and «Галактики и Вселенная» (one chapter until 15 Nov 2026).
  *
  * Constants are the school values (Мякишев, Касьянов): G = 6,67·10⁻¹¹ Н·м²/кг², c = 3·10⁸ м/с,
  * 1 а.е. = 1,496·10¹¹ м, 1 св. год = 9,46·10¹⁵ м, 1 пк = 3,09·10¹⁶ м = 3,26 св. года.

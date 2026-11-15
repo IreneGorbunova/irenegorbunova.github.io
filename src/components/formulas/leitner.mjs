@@ -56,6 +56,17 @@ export const order = (keys, states, day) => {
  * Each move: the old chapter, the new chapter and the ids of the cards that went there.
  */
 const MOVES = [
+	// 15 Nov 2026: «Солнечная система. Звёзды. Галактики» was split in three; «Галактики и Вселенная» keeps the address.
+	{
+		from: 'uchebnik/11-klass/stroenie-vselennoy/vselennaya',
+		to: 'uchebnik/11-klass/stroenie-vselennoy/solnechnaya-sistema',
+		ids: ['kepler-3', 'kepler-newton', 'orbital-speed', 'units', 'sun-energy'],
+	},
+	{
+		from: 'uchebnik/11-klass/stroenie-vselennoy/vselennaya',
+		to: 'uchebnik/11-klass/stroenie-vselennoy/zvezdy',
+		ids: ['parallax', 'luminosity', 'binary-cm', 'binary-mass', 'hr'],
+	},
 	// 12 Nov 2026: «Электрический ток» was split, and these cards went to «Сила тока. Напряжение. Сопротивление».
 	{
 		from: 'uchebnik/8-klass/elektricheskie-yavleniya/elektricheskiy-tok',
