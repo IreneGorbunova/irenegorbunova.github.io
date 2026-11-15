@@ -1,0 +1,130 @@
+---
+/**
+ * «Три состояния»: the same 122 molecules (the model of g7/md.ts, with gravity) at five temperatures. At a low
+ * temperature they stay a crystal that keeps its shape; warmer, they spread over the bottom as a liquid that keeps
+ * its volume; hot, they fly through the whole vessel as a gas. The state shown in words is found from the model
+ * itself: the mean number of neighbours of a molecule within 1,5 diameters (more than 4,4: a solid; more than 2,4:
+ * a liquid; fewer: a gas). The lid can be lowered (the volume of the vessel is made smaller), and the path of one
+ * molecule can be drawn.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 stl not-content" data-stl>
+	<div class="g7__grid">
+		<canvas class="g7__canvas" width="720" height="468" role="img" aria-label="Молекулы в закрытом сосуде при разной температуре" data-canvas></canvas>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Температура</span>
+				<output data-out></output>
+				<input type="range" min="0" max="4" step="1" value="0" data-t aria-label="Температура" />
+			</label>
+			<label class="g7__slider">
+				<span>Объём сосуда</span>
+				<output data-vout></output>
+				<input type="range" min="45" max="100" step="5" value="100" data-v aria-label="Объём сосуда, проценты" />
+			</label>
+			<label class="stl__check"><input type="checkbox" data-trace /> След одной молекулы</label>
+			<ul class="g7__read" aria-live="off">
+				<li class="is-key"><span>Состояние вещества</span><b data-state>—</b></li>
+				<li><span>Соседей у молекулы в среднем</span><b data-nb>—</b></li>
+			</ul>
+			<p class="g7__note">После смены температуры подождите несколько секунд: веществу нужно время, чтобы нагреться или остыть.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Молекулы во всех трёх состояниях одни и те же. Меняется только температура — то, как быстро они движутся.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.stl__check {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.stl__check input {
+		accent-color: var(--sl-color-accent);
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { MD, lattice, paint, themeColors } from '../g7/md';
+
+	const W = 40;
+	const H = 26;
+	const PX = 18;
+	const TEMPS = [0.15, 0.3, 0.43, 0.7, 1.3];
+	const WORDS = ['очень низкая', 'низкая', 'средняя', 'высокая', 'очень высокая'];
+	const NAMES = { mol: '--ig-vx', one: '--ig-v', trail: '--ig-vy', lid: '--sl-color-gray-3', edge: '--sl-color-gray-1' };
+	for (const root of document.querySelectorAll<HTMLElement>('[data-stl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const canvas = q<HTMLCanvasElement>('[data-canvas]');
+		const ctx = canvas.getContext('2d')!;
+		const tIn = q<HTMLInputElement>('[data-t]');
+		const vIn = q<HTMLInputElement>('[data-v]');
+		const trace = q<HTMLInputElement>('[data-trace]');
+		const md = new MD({ w: W, h: H, g: 0.06 });
+		md.set(lattice(12, H - 9, 28, H, 1.12).slice(0, 122), TEMPS[0]);
+		const ONE = 64; // the molecule whose path is drawn
+		let trail: number[] = [];
+		let colors = themeColors(root, NAMES);
+		let frame = 0;
+		let nbAvg = 5;
+		let lid = 0; // the lid moves smoothly to where the slider tells it
+
+		const label = () => {
+			q('[data-out]').textContent = WORDS[Number(tIn.value)];
+			q('[data-vout]').textContent = `${vIn.value} %`;
+			md.target = TEMPS[Number(tIn.value)];
+		};
+		loop(root, () => {
+			const want = H * (1 - Number(vIn.value) / 100);
+			lid += Math.max(-0.08, Math.min(0.08, want - lid));
+			md.top = lid;
+			md.run(10);
+			if (frame++ % 90 === 0) colors = themeColors(root, NAMES);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			if (trace.checked) {
+				if (frame % 2 === 0) {
+					trail.push(md.x[ONE], md.y[ONE]);
+					if (trail.length > 900) trail = trail.slice(2);
+				}
+				ctx.beginPath();
+				for (let i = 0; i < trail.length; i += 2) ctx[i ? 'lineTo' : 'moveTo'](trail[i] * PX, trail[i + 1] * PX);
+				ctx.strokeStyle = colors.trail;
+				ctx.lineWidth = 2;
+				ctx.lineJoin = 'round';
+				ctx.stroke();
+			}
+			paint(ctx, md, PX, (i) => (trace.checked && i === ONE ? colors.one : colors.mol));
+			if (lid > 0.01) {
+				ctx.fillStyle = colors.lid;
+				ctx.fillRect(0, 0, canvas.width, lid * PX);
+				ctx.fillStyle = colors.edge;
+				ctx.fillRect(0, lid * PX - 4, canvas.width, 4);
+			}
+			if (frame % 20 === 0) {
+				let nb = 0;
+				for (let i = 0; i < md.n; i++) for (let j = 0; j < md.n; j++) if (i !== j) {
+					const dx = md.x[i] - md.x[j];
+					const dy = md.y[i] - md.y[j];
+					if (dx * dx + dy * dy < 2.25) nb++;
+				}
+				nbAvg += (nb / md.n - nbAvg) * 0.3;
+				q('[data-nb]').textContent = nbAvg.toFixed(1).replace('.', ',');
+				q('[data-state]').textContent = nbAvg > 4.4 ? 'твёрдое тело' : nbAvg > 2.4 ? 'жидкость' : 'газ';
+			}
+			return true;
+		});
+		tIn.addEventListener('input', label);
+		vIn.addEventListener('input', label);
+		trace.addEventListener('change', () => (trail = []));
+		label();
+	}
+</script>

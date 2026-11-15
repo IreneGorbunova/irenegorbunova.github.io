@@ -36,6 +36,8 @@ export class MD {
 	extra = new Float64Array(0);
 	m = new Float64Array(0);
 	kind = new Uint8Array(0);
+	/** y of a lid that closes the box from above (0: the top of the box) */
+	top = 0;
 	/** x of a wall that particles cannot cross (null: no partition) */
 	partition: number | null = null;
 	/** the temperature the thermostat keeps; null: no thermostat */
@@ -151,8 +153,8 @@ export class MD {
 				x[i] = 2 * (w - pad) - x[i];
 				vx[i] = -Math.abs(vx[i]);
 			}
-			if (y[i] < pad) {
-				y[i] = 2 * pad - y[i];
+			if (y[i] < this.top + pad) {
+				y[i] = Math.min(h - pad, 2 * (this.top + pad) - y[i]);
 				vy[i] = Math.abs(vy[i]);
 			} else if (y[i] > h - pad) {
 				y[i] = 2 * (h - pad) - y[i];
