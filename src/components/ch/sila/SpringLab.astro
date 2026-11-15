@@ -1,0 +1,156 @@
+---
+/**
+ * «Пружина и грузы»: weights of 100 г each (the force of gravity on one is 0,98 Н) are hung on a spring; the
+ * extension is read from a ruler. Hooke's law: Δl = F/k with k = 20 Н/м (a soft spring: 4,9 см per weight) or
+ * 49 Н/м (a stiff one: 2,0 см per weight). The picture is to scale: 4 px per centimeter. Each measurement is put on
+ * the graph of the force against the extension: the points lie on a straight line through zero.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const RY = 36; // the lower end of the unloaded spring
+const CM = 4;
+---
+
+<G7Styles />
+<figure class="g7 spr not-content" data-spr>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 250" role="img" aria-label="Слева пружина с грузами и линейка, справа график зависимости силы от удлинения" data-svg>
+			<line class="spr__beam" x1="16" y1="10" x2="124" y2="10"></line>
+			<path class="spr__coil" data-coil></path>
+			<g data-loads></g>
+			<!-- the ruler: zero at the end of the free spring -->
+			<rect class="spr__ruler" x="96" y={RY + 20 - 4} width="22" height={30 * CM + 8} rx="2"></rect>
+			{Array.from({ length: 31 }, (_, i) => <line class="spr__tick" x1="96" x2={96 + (i % 5 === 0 ? 10 : 6)} y1={RY + 20 + i * CM} y2={RY + 20 + i * CM} />)}
+			{[0, 10, 20, 30].map((c) => <text class="t-small t-num" x="122" y={RY + 24 + c * CM}>{c}</text>)}
+			<text class="t-small" x="96" y={RY + 10}>см</text>
+			<path class="spr__pointer" data-pointer></path>
+			<!-- the graph -->
+			<path class="ln" d="M176 20 V206 H350"></path>
+			{[0, 10, 20, 30].map((c) => <text class="t-small t-num" x={176 + c * 5.6} y="220" text-anchor="middle">{c}</text>)}
+			{[0, 2, 4, 6].map((f) => (
+				<>
+					<path class="ln-dash" d={`M176 ${206 - f * 30} H350`} />
+					<text class="t-small t-num" x="172" y={210 - f * 30} text-anchor="end">{f}</text>
+				</>
+			))}
+			<text class="t-small" x="180" y="16">сила, Н</text>
+			<text class="t-small" x="350" y="236" text-anchor="end">удлинение, см</text>
+			<line class="spr__fit" data-fit x1="176" y1="206"></line>
+			<g data-points></g>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Пружина" data-kind>
+				<button type="button" class="g7__btn" aria-pressed="true" data-k="20">Мягкая пружина</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="49">Жёсткая пружина</button>
+			</div>
+			<label class="g7__slider">
+				<span>Грузов по 100 г на пружине</span>
+				<output data-out></output>
+				<input type="range" min="0" max="6" step="1" value="0" data-n aria-label="Число грузов" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Сила тяжести грузов</span><b data-f></b></li>
+				<li><span>Удлинение пружины Δ<i>l</i></span><b data-dl></b></li>
+				<li class="is-key"><span>Сила : удлинение</span><b data-ratio></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Груз висит неподвижно, значит, сила упругости пружины равна силе тяжести грузов. Каждое измерение отмечается точкой на графике.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.spr__beam {
+		stroke: var(--g7-ink);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.spr__coil {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+	.spr__load {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.spr__ruler {
+		fill: color-mix(in oklab, var(--ig-v) 22%, var(--sl-color-gray-6));
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.spr__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.spr__pointer {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 2;
+	}
+	.spr__fit {
+		stroke: var(--g7-blue);
+		stroke-width: 1.5;
+		stroke-dasharray: 5 4;
+	}
+	.spr__pt {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+</style>
+
+<script>
+	import { el, fmt, fmtTrim, segment } from '../g7/kit';
+
+	const RY = 36;
+	const CM = 4;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-spr]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const nIn = q<HTMLInputElement>('[data-n]');
+		const coil = q<SVGPathElement>('[data-coil]');
+		const loads = q<SVGGElement>('[data-loads]');
+		const points = q<SVGGElement>('[data-points]');
+		const fit = q<SVGLineElement>('[data-fit]');
+		let k = 20;
+		const seen = new Set<string>();
+		const draw = () => {
+			const n = Number(nIn.value);
+			const F = 0.98 * n;
+			const dl = (F / k) * 100; // см
+			const end = RY + dl * CM; // the lower end of the spring
+			let d = `M56 10 V16`;
+			const turns = 12;
+			for (let i = 0; i <= turns * 2; i++) d += ` L${i % 2 ? 68 : 44} ${(16 + ((end - 22) * i) / (turns * 2)).toFixed(1)}`;
+			d += ` L56 ${end - 4} V${end + 20}`;
+			coil.setAttribute('d', d);
+			loads.replaceChildren();
+			for (let i = 0; i < n; i++) loads.append(el('rect', { class: 'spr__load', x: 44, y: end + 20 + i * 12, width: 24, height: 11, rx: 2 }));
+			q('[data-pointer]').setAttribute('d', `M56 ${end + 20} H96`);
+			q('[data-out]').textContent = String(n);
+			q('[data-f]').textContent = `${fmtTrim(F, 2)} Н`;
+			q('[data-dl]').textContent = `${fmt(dl, 1)} см`;
+			q('[data-ratio]').textContent = n ? `${fmtTrim(F / (dl / 100), 0)} Н/м` : '—';
+			const key = `${k}-${n}`;
+			if (!seen.has(key)) {
+				seen.add(key);
+				points.append(el('circle', { class: 'spr__pt', cx: (176 + dl * 5.6).toFixed(1), cy: (206 - F * 30).toFixed(1), r: 4 }));
+			}
+			// the straight line F = k·Δl of this spring, up to 6 Н or 30 см
+			const dmax = Math.min(30, (6 / k) * 100);
+			fit.setAttribute('x2', (176 + dmax * 5.6).toFixed(1));
+			fit.setAttribute('y2', (206 - (k * dmax) / 100 * 30).toFixed(1));
+		};
+		nIn.addEventListener('input', draw);
+		segment(q('[data-kind]'), (b) => {
+			k = Number(b.dataset.k);
+			seen.clear();
+			points.replaceChildren();
+			draw();
+		});
+		draw();
+	}
+</script>

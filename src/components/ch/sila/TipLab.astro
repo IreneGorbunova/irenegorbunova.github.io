@@ -1,0 +1,143 @@
+---
+/**
+ * «Куда приложить силу»: a wardrobe 0,8 м wide and 2,0 м high (60 кг) stands on a floor; it is pushed with a
+ * horizontal force of 260 Н at a chosen height, to the right or to the left. The greatest friction of rest is
+ * 0,4·60·9,8 = 235 Н, so the push is enough to move the wardrobe. It slides if the force is applied low and tips
+ * over its far lower edge if the force is applied higher than m·g·(b/2)/F = 60·9,8·0,4/260 = 0,90 м.
+ * 70 px per metre.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<G7Styles />
+<figure class="g7 tip not-content" data-tip>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 220" role="img" aria-label="Шкаф на полу и стрелка силы, которой его толкают" data-svg>
+			<defs>
+				<marker id={`tip-${uid}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="head--red" d="M0,0 L10,5 L0,10 z"></path></marker>
+			</defs>
+			<rect class="tip__floor" x="0" y="190" width="340" height="30"></rect>
+			<g data-body>
+				<rect class="tip__box" x="-28" y="-140" width="56" height="140" rx="2"></rect>
+				<path class="tip__door" d="M0 -136 V-4 M-6 -74 v8 M6 -74 v8"></path>
+			</g>
+			<line class="arrow arrow--red" data-arrow marker-end={`url(#tip-${uid})`}></line>
+			<circle class="tip__point" data-point r="4"></circle>
+			<text class="t-i t-red t-halo" data-flabel>F</text>
+			<path class="ln-dash" data-hline></path>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Высота точки приложения силы</span>
+				<output data-out></output>
+				<input type="range" min="0.2" max="1.9" step="0.1" value="0.4" data-h aria-label="Высота точки приложения силы, метры" />
+			</label>
+			<div class="g7__seg" role="group" aria-label="Направление силы" data-dir>
+				<button type="button" class="g7__btn" aria-pressed="true" data-d="1">Толкать вправо</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-d="-1">Толкать влево</button>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Толкнуть</button>
+				<button type="button" class="g7__btn" data-reset>Поставить на место</button>
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite">Сила каждый раз одна и та же по величине. Меняются только её направление и точка приложения.</p>
+		</div>
+	</div>
+</figure>
+
+<style is:global>
+	.tip__floor {
+		fill: var(--g7-ground);
+	}
+	.tip__box {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1.5;
+	}
+	.tip__door {
+		fill: none;
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+	.tip__point {
+		fill: var(--g7-red);
+	}
+</style>
+
+<script>
+	import { ease, fmt, loop, segment } from '../g7/kit';
+
+	const M = 70;
+	const FLOOR = 190;
+	const HCRIT = 0.9;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-tip]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const hIn = q<HTMLInputElement>('[data-h]');
+		const body = q<SVGGElement>('[data-body]');
+		const arrow = q<SVGLineElement>('[data-arrow]');
+		const point = q<SVGCircleElement>('[data-point]');
+		const msg = q<HTMLElement>('[data-msg]');
+		let dir = 1;
+		let t = -1;
+		const draw = (u: number) => {
+			const h = Number(hIn.value);
+			const tips = h > HCRIT;
+			const e = ease(u);
+			let x = 170;
+			let angle = 0;
+			let pivot = 0;
+			if (u > 0) {
+				if (tips) {
+					angle = dir * 90 * e;
+					pivot = dir * 28; // it turns about its far lower edge
+				} else x = 170 + dir * 70 * e;
+			}
+			body.setAttribute('transform', `translate(${x} ${FLOOR}) rotate(${angle.toFixed(1)} ${pivot} 0)`);
+			const show = u <= 0;
+			const px = 170 - dir * 28;
+			const py = FLOOR - h * M;
+			for (const el of [arrow, point, q('[data-flabel]'), q('[data-hline]')] as SVGElement[]) el.style.visibility = show ? 'visible' : 'hidden';
+			arrow.setAttribute('x1', String(px - dir * 62));
+			arrow.setAttribute('x2', String(px - dir * 6));
+			arrow.setAttribute('y1', String(py));
+			arrow.setAttribute('y2', String(py));
+			point.setAttribute('cx', String(px));
+			point.setAttribute('cy', String(py));
+			q('[data-flabel]').setAttribute('x', String(px - dir * 40 - 4));
+			q('[data-flabel]').setAttribute('y', String(py - 8));
+			q('[data-hline]').setAttribute('d', `M${px - dir * 70} ${FLOOR} V${py}`);
+			q('[data-out]').textContent = `${fmt(h, 1)} м`;
+		};
+		const wake = loop(root, (dt) => {
+			if (t < 0) return false;
+			t += dt;
+			draw(t / 1.4);
+			if (t >= 1.4) {
+				const tips = Number(hIn.value) > HCRIT;
+				msg.textContent = tips ? `Шкаф опрокинулся ${dir > 0 ? 'вправо' : 'влево'}: сила приложена высоко.` : `Шкаф сдвинулся ${dir > 0 ? 'вправо' : 'влево'}: сила приложена низко.`;
+				t = -1;
+				return false;
+			}
+			return true;
+		});
+		const reset = () => {
+			t = -1;
+			draw(0);
+		};
+		q('[data-go]').addEventListener('click', () => {
+			draw(0);
+			t = 0;
+			wake();
+		});
+		q('[data-reset]').addEventListener('click', reset);
+		hIn.addEventListener('input', reset);
+		segment(q('[data-dir]'), (b) => {
+			dir = Number(b.dataset.d);
+			reset();
+		});
+		reset();
+	}
+</script>

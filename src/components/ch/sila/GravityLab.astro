@@ -1,0 +1,111 @@
+---
+/**
+ * «Сила тяжести на разных планетах»: a body of a chosen mass (1…100 кг) hangs on a dynamometer on the surface
+ * of the Moon or a planet. The force of gravity is F = g·m with g in Н/кг: the Moon 1,6; Mercury 3,7; Mars 3,7;
+ * Venus 8,9; the Earth 9,8; Saturn 10,4; Neptune 11,2; Jupiter 24,8 (for the giants, at the cloud tops). The bar
+ * of the dynamometer is to scale: 0…2500 Н over 200 px.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const WORLDS = [
+	{ key: 'moon', name: 'Луна', g: 1.6 },
+	{ key: 'mercury', name: 'Меркурий', g: 3.7 },
+	{ key: 'mars', name: 'Марс', g: 3.7 },
+	{ key: 'venus', name: 'Венера', g: 8.9 },
+	{ key: 'earth', name: 'Земля', g: 9.8 },
+	{ key: 'saturn', name: 'Сатурн', g: 10.4 },
+	{ key: 'neptune', name: 'Нептун', g: 11.2 },
+	{ key: 'jupiter', name: 'Юпитер', g: 24.8 },
+];
+---
+
+<G7Styles />
+<figure class="g7 grv not-content" data-grv>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 280" role="img" aria-label="Груз висит на динамометре; столбик показывает силу тяжести" data-svg>
+			<path class="grv__hook" d="M100 6 V30"></path>
+			<rect class="grv__case" x="80" y="30" width="40" height="214" rx="6"></rect>
+			<rect class="grv__bar" data-bar x="92" y="38" width="16" height="0"></rect>
+			{[0, 500, 1000, 1500, 2000, 2500].map((f) => (
+				<>
+					<line class="ln" x1="120" x2="128" y1={38 + f * 0.08} y2={38 + f * 0.08} />
+					<text class="t-small t-num" x="132" y={42 + f * 0.08}>{f}</text>
+				</>
+			))}
+			<text class="t-small" x="132" y="26">Н</text>
+			<path class="grv__hook" data-rod d="M100 244 V256"></path>
+			<rect class="grv__load" data-load x="76" y="256" width="48" height="20" rx="3"></rect>
+			<text class="t-title" x="250" y="60" text-anchor="middle" data-world></text>
+			<text class="t-strong t-num" x="250" y="96" text-anchor="middle" data-force style="font-size:20px"></text>
+			<text class="t-small" x="250" y="114" text-anchor="middle">сила тяжести</text>
+			<text class="t-strong t-num" x="250" y="160" text-anchor="middle" data-mass style="font-size:16px"></text>
+			<text class="t-small" x="250" y="178" text-anchor="middle">масса та же везде</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__select">
+				Где взвешиваем
+				<select data-w aria-label="Планета">
+					{WORLDS.map((w) => <option value={w.key} data-g={w.g} selected={w.key === 'earth'}>{`${w.name}: g = ${String(w.g).replace('.', ',')} Н/кг`}</option>)}
+				</select>
+			</label>
+			<label class="g7__slider">
+				<span>Масса тела</span>
+				<output data-out></output>
+				<input type="range" min="1" max="100" step="1" value="10" data-m aria-label="Масса тела, килограммы" />
+			</label>
+			<ol class="g7__lines" data-lines aria-live="polite"></ol>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Для планет-гигантов, у которых нет твёрдой поверхности, значение <i>g</i> дано на уровне верхней кромки облаков.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.grv__hook {
+		stroke: var(--g7-ink);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.grv__case {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--g7-line);
+		stroke-width: 1.5;
+	}
+	.grv__bar {
+		fill: var(--g7-red);
+	}
+	.grv__load {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+</style>
+
+<script>
+	import { fmt, fmtTrim, k, tex } from '../g7/kit';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-grv]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const w = q<HTMLSelectElement>('[data-w]');
+		const m = q<HTMLInputElement>('[data-m]');
+		const draw = () => {
+			const g = Number(w.selectedOptions[0].dataset.g);
+			const mass = Number(m.value);
+			const F = g * mass;
+			q('[data-bar]').setAttribute('height', (F * 0.08).toFixed(1));
+			const size = 14 + mass * 0.34;
+			const load = q<SVGRectElement>('[data-load]');
+			load.setAttribute('x', String(100 - size / 2));
+			load.setAttribute('width', String(size));
+			q('[data-world]').textContent = w.selectedOptions[0].textContent!.split(':')[0];
+			q('[data-force]').textContent = `${fmtTrim(F, 1)} Н`;
+			q('[data-mass]').textContent = `${mass} кг`;
+			q('[data-out]').textContent = `${mass} кг`;
+			q('[data-lines]').innerHTML = `<li class="is-key">${k(`F_{\\text{тяж}} = gm = ${tex(fmtTrim(g, 1))} \\cdot ${mass} = ${tex(fmtTrim(F, 1))}~\\text{Н}`)}</li><li class="is-text">На Земле это тело притягивается с силой ${fmtTrim(9.8 * mass, 1)} Н${g === 9.8 ? '' : `: ${g < 9.8 ? `в ${fmt(9.8 / g, 1)} раза больше` : `в ${fmt(g / 9.8, 1)} раза меньше`}, чем здесь`}.</li>`;
+		};
+		w.addEventListener('change', draw);
+		m.addEventListener('input', draw);
+		draw();
+	}
+</script>
