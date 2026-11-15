@@ -1,0 +1,153 @@
+---
+/**
+ * «Два подъёмника»: two hoists lift equal loads (10…200 кг) to the same height (2…20 м), each in its own time
+ * (2…60 с). The work is the same, A = g·m·h; the power is N = A/t. The platforms rise evenly; the clock of the
+ * model runs four times faster than a real one. The height axis is to scale (9 px per metre).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const B = 222;
+---
+
+<G7Styles />
+<figure class="g7 pwr not-content" data-pwr>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 250" role="img" aria-label="Два подъёмника поднимают одинаковые грузы на одну высоту за разное время" data-svg>
+			<line class="pwr__floor" x1="0" x2="320" y1={B} y2={B}></line>
+			{[0, 5, 10, 15, 20].map((m) => (
+				<>
+					<line class="ln" x1="150" x2="170" y1={B - m * 9} y2={B - m * 9} />
+					<text class="t-small t-num" x="160" y={B - m * 9 - 3} text-anchor="middle">{m} м</text>
+				</>
+			))}
+			{[{ x: 80, k: '1' }, { x: 240, k: '2' }].map((c) => (
+				<g>
+					<path class="pwr__mast" d={`M${c.x - 34} ${B} V30 M${c.x + 34} ${B} V30 M${c.x - 34} 30 H${c.x + 34}`} />
+					<line class="pwr__rope" data-rope={c.k} x1={c.x} x2={c.x} y1="30" y2={B} />
+					<g data-plat={c.k}>
+						<rect class="pwr__plat" x={c.x - 30} y="-4" width="60" height="5" />
+						<rect class="pwr__load" data-load={c.k} x={c.x - 16} y="-30" width="32" height="26" rx="2" />
+					</g>
+					<line class="pwr__goal" data-goal={c.k} x1={c.x - 40} x2={c.x + 40} />
+					<text class="t-strong t-num" x={c.x} y="20" text-anchor="middle" data-clock={c.k} />
+					<text class="t-small" x={c.x} y={B + 18} text-anchor="middle">{c.k === '1' ? 'первый' : 'второй'}</text>
+				</g>
+			))}
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Масса груза</span>
+				<output data-om></output>
+				<input type="range" min="10" max="200" step="10" value="100" data-m aria-label="Масса груза, килограммы" />
+			</label>
+			<label class="g7__slider">
+				<span>Высота подъёма</span>
+				<output data-oh></output>
+				<input type="range" min="2" max="20" step="1" value="10" data-h aria-label="Высота подъёма, метры" />
+			</label>
+			<label class="g7__slider">
+				<span>Время первого подъёмника</span>
+				<output data-o1></output>
+				<input type="range" min="2" max="60" step="2" value="10" data-t1 aria-label="Время подъёма первым подъёмником, секунды" />
+			</label>
+			<label class="g7__slider">
+				<span>Время второго подъёмника</span>
+				<output data-o2></output>
+				<input type="range" min="2" max="60" step="2" value="40" data-t2 aria-label="Время подъёма вторым подъёмником, секунды" />
+			</label>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Поднять грузы</button>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Работа каждого подъёмника</span><b data-a></b></li>
+				<li class="is-key"><span>Мощность первого</span><b data-n1></b></li>
+				<li class="is-key"><span>Мощность второго</span><b data-n2></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Часы модели идут в четыре раза быстрее настоящих. Грузы и высота у подъёмников одинаковые, разное только время.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.pwr__floor {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.pwr__mast {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 3;
+	}
+	.pwr__rope {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.pwr__plat {
+		fill: var(--g7-ink);
+	}
+	.pwr__load {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.pwr__goal {
+		stroke: var(--g7-red);
+		stroke-width: 1;
+		stroke-dasharray: 4 3;
+	}
+</style>
+
+<script>
+	import { fmt, fmtInt, loop } from '../g7/kit';
+
+	const B = 222;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pwr]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const mIn = q<HTMLInputElement>('[data-m]');
+		const hIn = q<HTMLInputElement>('[data-h]');
+		const tIn = { '1': q<HTMLInputElement>('[data-t1]'), '2': q<HTMLInputElement>('[data-t2]') };
+		let t = -1;
+		const watts = (n: number) => (n >= 1000 ? `${fmt(n / 1000, 2)} кВт` : `${fmtInt(n)} Вт`);
+		const draw = (time: number) => {
+			const m = Number(mIn.value);
+			const h = Number(hIn.value);
+			const A = 9.8 * m * h;
+			q('[data-om]').textContent = `${m} кг`;
+			q('[data-oh]').textContent = `${h} м`;
+			q('[data-a]').textContent = A >= 1000 ? `${fmt(A / 1000, 1)} кДж` : `${fmtInt(A)} Дж`;
+			for (const key of ['1', '2'] as const) {
+				const T = Number(tIn[key].value);
+				const u = time < 0 ? 0 : Math.min(1, time / T);
+				const y = B - h * 9 * u;
+				q(`[data-plat="${key}"]`).setAttribute('transform', `translate(0 ${y.toFixed(1)})`);
+				q(`[data-rope="${key}"]`).setAttribute('y2', (y - 30).toFixed(1));
+				const goal = q(`[data-goal="${key}"]`);
+				goal.setAttribute('y1', String(B - h * 9));
+				goal.setAttribute('y2', String(B - h * 9));
+				const size = 16 + m * 0.1;
+				const load = q(`[data-load="${key}"]`);
+				load.setAttribute('height', String(size));
+				load.setAttribute('y', String(-4 - size));
+				q(`[data-o${key}]`).textContent = `${T} с`;
+				q(`[data-clock="${key}"]`).textContent = time < 0 ? '' : `${fmt(Math.min(time, T), 1)} с`;
+				q(`[data-n${key}]`).textContent = watts(A / T);
+			}
+		};
+		const wake = loop(root, (dt) => {
+			if (t < 0) return false;
+			t += dt * 4;
+			draw(t);
+			return t < Math.max(Number(tIn['1'].value), Number(tIn['2'].value));
+		});
+		q('[data-go]').addEventListener('click', () => {
+			t = 0;
+			wake();
+		});
+		for (const i of [mIn, hIn, tIn['1'], tIn['2']])
+			i.addEventListener('input', () => {
+				t = -1;
+				draw(-1);
+			});
+		draw(-1);
+	}
+</script>

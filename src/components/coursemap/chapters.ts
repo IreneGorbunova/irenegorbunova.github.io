@@ -55,6 +55,7 @@ export const MAP_CHAPTERS: Record<string, MapChapter> = {
 	'davlenie-v-zhidkosti': { line: 'Давление внутри жидкости и на дно сосуда, сообщающиеся сосуды, шлюзы и водопровод.', peryshkin: '' },
 	'atmosfernoe-davlenie': { line: 'Почему воздух давит, опыт Торричелли, барометры и давление в горах.', peryshkin: '' },
 	'arhimedova-sila': { line: 'Почему в воде тела легче, закон Архимеда и когда тело тонет, а когда плавает.', peryshkin: '' },
+	'mehanicheskaya-rabota': { line: 'Работа силы и её знак, джоуль, мощность и ватт, связь мощности со скоростью.', peryshkin: '' },
 	// 9 класс
 	'zakony-nyutona': { line: 'Инерция, связь силы с ускорением и почему силы всегда возникают парами.', peryshkin: '' },
 	'zakon-vsemirnogo-tyagoteniya': { line: 'Как притягиваются все тела, проверка закона по Луне и ускорение свободного падения.', peryshkin: '' },

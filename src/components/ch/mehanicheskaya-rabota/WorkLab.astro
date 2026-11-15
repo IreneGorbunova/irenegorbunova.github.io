@@ -1,0 +1,179 @@
+---
+/**
+ * «Работа силы»: a crate is moved along a floor over a path s (0…10 м) while a force F (0…500 Н) acts on it.
+ * Four cases: the force along the motion (A = F·s), the force of friction against the motion (A = −F·s), the
+ * force of gravity at right angles to the motion (A = 0), and a push on a wall that does not move (s = 0, A = 0).
+ * The floor is to scale (30 px per metre); the arrow is 0,12 px per newton.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const X0 = 30;
+const M = 30;
+---
+
+<G7Styles />
+<figure class="g7 g7--stack wrk not-content" data-wrk>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 380 170" role="img" aria-label="Ящик движется по полу под действием силы" data-svg>
+			<defs>
+				<marker id={`wrk-${uid}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="head--red" d="M0,0 L10,5 L0,10 z"></path></marker>
+			</defs>
+			<line class="wrk__floor" x1="0" x2="380" y1="112" y2="112"></line>
+			{Array.from({ length: 11 }, (_, i) => (
+				<>
+					<line class="ln" x1={X0 + i * M} x2={X0 + i * M} y1="112" y2="118" />
+					<text class="t-small t-num" x={X0 + i * M} y="130" text-anchor="middle">{i}</text>
+				</>
+			))}
+			<text class="t-small" x="376" y="144" text-anchor="end">путь, м</text>
+			<rect class="wrk__wall" data-wall x="70" y="40" width="14" height="72"></rect>
+			<line class="wrk__path" data-path x1={X0} y1="112" y2="112"></line>
+			<g data-crate>
+				<rect class="wrk__crate" x="-20" y="-36" width="40" height="36" rx="2"></rect>
+				<path class="wrk__plank" d="M-20 -24 H20 M-20 -12 H20"></path>
+				<line class="arrow arrow--red" data-arrow marker-end={`url(#wrk-${uid})`}></line>
+				<text class="t-i t-red t-halo" data-flabel>F</text>
+			</g>
+			<text class="t-strong t-num" x="376" y="24" text-anchor="end" data-a style="font-size:15px"></text>
+		</svg>
+		<div class="g7__side wrk__side">
+			<div class="g7__seg" role="group" aria-label="Какая сила" data-case>
+				<button type="button" class="g7__btn" aria-pressed="true" data-c="pull">Сила тяги</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-c="fric">Сила трения</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-c="grav">Сила тяжести</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-c="wall">Толкаем стену</button>
+			</div>
+			<label class="g7__slider">
+				<span>Сила <i>F</i></span>
+				<output data-of></output>
+				<input type="range" min="0" max="500" step="50" value="200" data-f aria-label="Сила, ньютоны" />
+			</label>
+			<label class="g7__slider">
+				<span>Путь <i>s</i></span>
+				<output data-os></output>
+				<input type="range" min="0" max="10" step="1" value="5" data-s aria-label="Путь, метры" />
+			</label>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Пуск</button>
+			<ol class="g7__lines" data-lines aria-live="polite"></ol>
+		</div>
+	</div>
+</figure>
+
+<style is:global>
+	.wrk__side {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		align-items: end;
+	}
+	.wrk__side .g7__seg,
+	.wrk__side .g7__lines {
+		grid-column: 1 / -1;
+	}
+	.wrk__floor {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.wrk__wall {
+		fill: color-mix(in oklab, var(--ig-vy) 40%, var(--sl-color-gray-4));
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.wrk__path {
+		stroke: var(--g7-gold);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.wrk__crate {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1.5;
+	}
+	.wrk__plank {
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	@container (max-width: 30rem) {
+		.wrk__side {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { fmtInt, k, loop, segment, tex } from '../g7/kit';
+
+	const X0 = 30;
+	const M = 30;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-wrk]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const fIn = q<HTMLInputElement>('[data-f]');
+		const sIn = q<HTMLInputElement>('[data-s]');
+		const crate = q<SVGGElement>('[data-crate]');
+		const arrow = q<SVGLineElement>('[data-arrow]');
+		const label = q<SVGTextElement>('[data-flabel]');
+		let kind = 'pull';
+		let u = 0; // the share of the path already covered
+		let running = false;
+		const draw = () => {
+			const F = Number(fIn.value);
+			const wall = kind === 'wall';
+			const s = wall ? 0 : Number(sIn.value);
+			const x = X0 + s * M * u;
+			crate.setAttribute('transform', `translate(${x.toFixed(1)} 112)`);
+			q('[data-path]').setAttribute('x2', x.toFixed(1));
+			q<SVGRectElement>('[data-wall]').style.visibility = wall ? 'visible' : 'hidden';
+			sIn.disabled = wall;
+			const L = F * 0.12;
+			// the arrow: along the motion, against it, or straight down
+			const set = (x1: number, y1: number, x2: number, y2: number, lx: number, ly: number) => {
+				arrow.setAttribute('x1', String(x1));
+				arrow.setAttribute('y1', String(y1));
+				arrow.setAttribute('x2', String(x2));
+				arrow.setAttribute('y2', String(y2));
+				label.setAttribute('x', String(lx));
+				label.setAttribute('y', String(ly));
+			};
+			if (kind === 'pull' || kind === 'wall') set(20, -18, 20 + Math.max(0, L - 4), -18, 26, -24);
+			else if (kind === 'fric') set(-20, -4, -20 - Math.max(0, L - 4), -4, -40, -10);
+			else set(0, -18, 0, -18 + Math.max(0, L - 4), 6, 12);
+			arrow.style.visibility = label.style.visibility = F > 0 ? 'visible' : 'hidden';
+			q('[data-of]').textContent = `${F} Н`;
+			q('[data-os]').textContent = wall ? '0 м' : `${s} м`;
+			const A = kind === 'pull' ? F * s : kind === 'fric' ? -F * s : 0;
+			q('[data-a]').textContent = u >= 1 || wall ? `A = ${fmtInt(A)} Дж` : '';
+			const lines =
+				kind === 'pull'
+					? [`<li class="is-key">${k(`A = Fs = ${F} \\cdot ${s} = ${tex(fmtInt(F * s))}~\\text{Дж}`)}</li>`, '<li class="is-text">Сила направлена по движению: работа положительна.</li>']
+					: kind === 'fric'
+						? [`<li class="is-key">${k(`A = -F_{\\text{тр}}s = -${F} \\cdot ${s} = ${tex(fmtInt(-F * s))}~\\text{Дж}`)}</li>`, '<li class="is-text">Сила трения направлена против движения: её работа отрицательна.</li>']
+						: kind === 'grav'
+							? [`<li class="is-key">${k('A = 0')}</li>`, '<li class="is-text">Сила тяжести направлена вниз, а ящик движется по горизонтали. Сила, перпендикулярная движению, работы не совершает.</li>']
+							: [`<li class="is-key">${k(`A = Fs = ${F} \\cdot 0 = 0`)}</li>`, '<li class="is-text">Стена не сдвинулась: пути нет — и работы нет, как бы сильно ни толкали.</li>'];
+			q('[data-lines]').innerHTML = lines.join('');
+		};
+		const wake = loop(root, (dt) => {
+			if (!running) return false;
+			u = Math.min(1, u + dt / 2.2);
+			draw();
+			if (u >= 1) running = false;
+			return running;
+		});
+		const reset = () => {
+			running = false;
+			u = 0;
+			draw();
+		};
+		q('[data-go]').addEventListener('click', () => {
+			u = 0;
+			running = true;
+			wake();
+		});
+		fIn.addEventListener('input', draw);
+		sIn.addEventListener('input', reset);
+		segment(q('[data-case]'), (b) => {
+			kind = b.dataset.c!;
+			reset();
+		});
+		draw();
+	}
+</script>
