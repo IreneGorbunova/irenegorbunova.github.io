@@ -58,6 +58,7 @@ export const MAP_CHAPTERS: Record<string, MapChapter> = {
 	'mehanicheskaya-rabota': { line: 'Работа силы и её знак, джоуль, мощность и ватт, связь мощности со скоростью.', peryshkin: '' },
 	'prostye-mehanizmy': { line: 'Рычаг и правило моментов, неподвижный и подвижный блоки, «золотое правило» механики.', peryshkin: '' },
 	'kpd': { line: 'Полезная и затраченная работа, КПД, наклонная плоскость и почему КПД меньше 100 %.', peryshkin: '' },
+	'potencialnaya-i-kineticheskaya-energiya': { line: 'Энергия как способность совершить работу, потенциальная и кинетическая энергия, их превращения.', peryshkin: '' },
 	// 9 класс
 	'zakony-nyutona': { line: 'Инерция, связь силы с ускорением и почему силы всегда возникают парами.', peryshkin: '' },
 	'zakon-vsemirnogo-tyagoteniya': { line: 'Как притягиваются все тела, проверка закона по Луне и ускорение свободного падения.', peryshkin: '' },

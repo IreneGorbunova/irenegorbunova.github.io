@@ -1,0 +1,250 @@
+---
+/**
+ * «Маятник»: a ball (0,5…2 кг) on a thread 2 м long is pulled aside so that it rises by 0,1…1 м, and let go.
+ * Real dynamics: θ″ = −(g/L)·sin θ − γ·θ′ (RK4, steps of 1/480 с), γ = 0 or 0,08 1/с («С сопротивлением воздуха»).
+ * The picture is to scale, 70 px per metre, the clock is real. Readouts: the height above the lowest point, the
+ * speed, E_п = g·m·h, E_к = m·υ²/2 and their sum. Below the pendulum the three energies are drawn as curves
+ * against time (the last 12 с).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 pnd not-content" data-pnd>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 332" role="img" aria-label="Шар качается на нити; под ним — графики потенциальной энергии, кинетической энергии и их суммы" data-svg>
+			<line class="pnd__beam" x1="120" x2="220" y1="12" y2="12"></line>
+			<line class="ln-dash" data-lvl x1="16" x2="324"></line>
+			<text class="t-small t-num" x="324" text-anchor="end" data-lvltext></text>
+			<line class="ln-dash" x1="16" x2="324" y1="154" y2="154"></line>
+			<text class="t-small t-num" x="324" y="166" text-anchor="end">0 м</text>
+			<line class="pnd__thread" data-thread x1="170" y1="14"></line>
+			<circle class="pnd__ball" data-ball></circle>
+			<!-- the energies against time -->
+			<g class="pnd__legend">
+				<line class="pnd__c pnd__c--p" x1="40" x2="56" y1="186" y2="186"></line>
+				<text class="t-small" x="60" y="190">потенциальная</text>
+				<line class="pnd__c pnd__c--k" x1="148" x2="164" y1="186" y2="186"></line>
+				<text class="t-small" x="168" y="190">кинетическая</text>
+				<line class="pnd__c pnd__c--s" x1="252" x2="268" y1="186" y2="186"></line>
+				<text class="t-small" x="272" y="190">сумма</text>
+			</g>
+			<path class="ln" d="M40 198 V312 H330"></path>
+			<text class="t-small t-num" x="36" y="206" text-anchor="end" data-emax></text>
+			<text class="t-small t-num" x="36" y="316" text-anchor="end">0</text>
+			<text class="t-small" x="36" y="262" text-anchor="end">Дж</text>
+			<text class="t-small" x="330" y="326" text-anchor="end">время, последние 12 с</text>
+			<polyline class="pnd__c pnd__c--s" data-cs></polyline>
+			<polyline class="pnd__c pnd__c--p" data-cp></polyline>
+			<polyline class="pnd__c pnd__c--k" data-ck></polyline>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>На какую высоту поднят шар</span>
+				<output data-oh></output>
+				<input type="range" min="0.1" max="1" step="0.1" value="0.9" data-h aria-label="Высота, на которую поднят шар, метры" />
+			</label>
+			<label class="g7__slider">
+				<span>Масса шара</span>
+				<output data-om></output>
+				<input type="range" min="0.5" max="2" step="0.5" value="1" data-m aria-label="Масса шара, килограммы" />
+			</label>
+			<div class="g7__seg" role="group" aria-label="Сопротивление воздуха" data-air>
+				<button type="button" class="g7__btn" aria-pressed="true" data-g="0">Без сопротивления</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-g="0.08">С сопротивлением воздуха</button>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Отпустить шар</button>
+				<button type="button" class="g7__btn" data-pause disabled>Пауза</button>
+			</div>
+			<ul class="g7__read" aria-live="off">
+				<li><span>Высота над нижней точкой</span><b data-rh></b></li>
+				<li><span>Скорость</span><b data-rv></b></li>
+				<li class="is-key"><span>Потенциальная энергия</span><b data-rp></b></li>
+				<li class="pnd__k"><span>Кинетическая энергия</span><b data-rk></b></li>
+				<li class="is-warm"><span>Их сумма</span><b data-rs></b></li>
+				<li data-lostrow hidden><span>Механической энергии потеряно</span><b data-rl></b></li>
+				<li><span>Наибольшая скорость</span><b data-rvm></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Длина нити 2&nbsp;м. Высота отсчитывается от самой нижней точки, через которую проходит шар.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.pnd__beam {
+		stroke: var(--g7-ink);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.pnd__thread {
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	.pnd__ball {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	.pnd__c {
+		fill: none;
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.pnd__c--p {
+		stroke: var(--g7-blue);
+	}
+	.pnd__c--k {
+		stroke: var(--g7-red);
+	}
+	.pnd__c--s {
+		stroke: var(--g7-gold);
+	}
+	.g7__read li[hidden] {
+		display: none;
+	}
+	.g7__read li.pnd__k {
+		box-shadow: inset 3px 0 0 var(--g7-red);
+		background: color-mix(in oklab, var(--ig-vy) 14%, var(--sl-color-gray-6));
+	}
+</style>
+
+<script>
+	import { fmt, loop, segment } from '../g7/kit';
+
+	const L = 2; // м
+	const PX = 70;
+	const CX = 170;
+	const CY = 14;
+	const G = 9.8;
+	const WIN = 12; // с of the curves
+	const GX = 40;
+	const GW = 290;
+	const GB = 312; // the zero line of the curves
+	const GH = 106;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pnd]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const hIn = q<HTMLInputElement>('[data-h]');
+		const mIn = q<HTMLInputElement>('[data-m]');
+		const pause = q<HTMLButtonElement>('[data-pause]');
+		let gamma = 0;
+		let th = 0;
+		let om = 0;
+		let time = 0;
+		let running = false;
+		let paused = false;
+		let vmax = 0;
+		let buf: { t: number; ep: number; ek: number }[] = [];
+		const acc = (a: number, w: number) => -(G / L) * Math.sin(a) - gamma * w;
+		const step = (dt: number) => {
+			const k1a = om;
+			const k1w = acc(th, om);
+			const k2a = om + 0.5 * dt * k1w;
+			const k2w = acc(th + 0.5 * dt * k1a, k2a);
+			const k3a = om + 0.5 * dt * k2w;
+			const k3w = acc(th + 0.5 * dt * k2a, k3a);
+			const k4a = om + dt * k3w;
+			const k4w = acc(th + dt * k3a, k4a);
+			th += (dt / 6) * (k1a + 2 * k2a + 2 * k3a + k4a);
+			om += (dt / 6) * (k1w + 2 * k2w + 2 * k3w + k4w);
+		};
+		const draw = () => {
+			const m = Number(mIn.value);
+			const h0 = Number(hIn.value);
+			const e0 = G * m * h0;
+			const h = L * (1 - Math.cos(th));
+			const v = L * Math.abs(om);
+			const ep = G * m * h;
+			const ek = (m * v * v) / 2;
+			const bx = CX + L * PX * Math.sin(th);
+			const by = CY + L * PX * Math.cos(th);
+			q('[data-thread]').setAttribute('x2', bx.toFixed(1));
+			q('[data-thread]').setAttribute('y2', by.toFixed(1));
+			const ball = q('[data-ball]');
+			ball.setAttribute('cx', bx.toFixed(1));
+			ball.setAttribute('cy', by.toFixed(1));
+			ball.setAttribute('r', (6 + 2.5 * m).toFixed(1));
+			const y0 = CY + L * PX - h0 * PX;
+			q('[data-lvl]').setAttribute('y1', y0.toFixed(1));
+			q('[data-lvl]').setAttribute('y2', y0.toFixed(1));
+			q('[data-lvltext]').setAttribute('y', (y0 - 4).toFixed(1));
+			q('[data-lvltext]').textContent = `${fmt(h0, 1)} м`;
+			q('[data-oh]').textContent = `${fmt(h0, 1)} м`;
+			q('[data-om]').textContent = `${fmt(m, 1)} кг`;
+			q('[data-rh]').textContent = `${fmt(h, 2)} м`;
+			q('[data-rv]').textContent = `${fmt(v, 2)} м/с`;
+			q('[data-rp]').textContent = `${fmt(ep, 2)} Дж`;
+			q('[data-rk]').textContent = `${fmt(ek, 2)} Дж`;
+			q('[data-rs]').textContent = `${fmt(ep + ek, 2)} Дж`;
+			q('[data-rl]').textContent = `${fmt(e0 - ep - ek, 2)} Дж`;
+			q<HTMLElement>('[data-lostrow]').hidden = gamma === 0;
+			q('[data-rvm]').textContent = running ? `${fmt(vmax, 2)} м/с` : '—';
+			q('[data-emax]').textContent = fmt(e0, 1);
+			// the curves
+			const from = Math.max(0, time - WIN);
+			const pts = { p: '', k: '', s: '' };
+			for (const b of buf) {
+				if (b.t < from) continue;
+				const x = (GX + ((b.t - from) / WIN) * GW).toFixed(1);
+				pts.p += `${x},${(GB - (b.ep / e0) * GH).toFixed(1)} `;
+				pts.k += `${x},${(GB - (b.ek / e0) * GH).toFixed(1)} `;
+				pts.s += `${x},${(GB - ((b.ep + b.ek) / e0) * GH).toFixed(1)} `;
+			}
+			q('[data-cp]').setAttribute('points', pts.p);
+			q('[data-ck]').setAttribute('points', pts.k);
+			q('[data-cs]').setAttribute('points', pts.s);
+		};
+		const sample = () => {
+			const m = Number(mIn.value);
+			const v = L * Math.abs(om);
+			buf.push({ t: time, ep: G * m * L * (1 - Math.cos(th)), ek: (m * v * v) / 2 });
+			while (buf.length && buf[0].t < time - WIN - 0.5) buf.shift();
+			vmax = Math.max(vmax, v);
+		};
+		const reset = () => {
+			th = -Math.acos(1 - Number(hIn.value) / L);
+			om = 0;
+			time = 0;
+			running = false;
+			paused = false;
+			vmax = 0;
+			buf = [];
+			pause.disabled = true;
+			pause.textContent = 'Пауза';
+			draw();
+		};
+		const wake = loop(root, (dt) => {
+			if (!running || paused) return false;
+			let left = dt;
+			while (left > 1e-9) {
+				const d = Math.min(left, 1 / 480);
+				step(d);
+				left -= d;
+			}
+			time += dt;
+			sample();
+			draw();
+			return true;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			reset();
+			running = true;
+			pause.disabled = false;
+			sample();
+			wake();
+		});
+		pause.addEventListener('click', () => {
+			paused = !paused;
+			pause.textContent = paused ? 'Продолжить' : 'Пауза';
+			if (!paused) wake();
+		});
+		segment(q('[data-air]'), (b) => {
+			gamma = Number(b.dataset.g);
+			reset();
+		});
+		for (const i of [hIn, mIn]) i.addEventListener('input', reset);
+		reset();
+	}
+</script>
