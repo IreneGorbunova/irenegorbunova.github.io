@@ -1,0 +1,139 @@
+---
+/**
+ * «Способ рядов»: equal small bodies are put in a row along a ruler with millimeter divisions. The length of the row
+ * is read to the nearest millimeter, with an error of 0,5 мм; the size of one body is the length divided by the
+ * number of bodies, and its error is 0,5 мм divided by that number. Peas are 5,6 мм across (3 px per mm), the wire
+ * is 0,8 мм thick (6 px per mm): the reader does not see these numbers, only what the ruler gives.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 g7--stack rowl not-content" data-rowl>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 380 150" role="img" aria-label="Ряд одинаковых маленьких тел вдоль линейки с миллиметровыми делениями" data-svg></svg>
+		<div class="g7__side rowl__side">
+			<div class="g7__seg" role="group" aria-label="Что измеряем" data-kind>
+				<button type="button" class="g7__btn" aria-pressed="true" data-k="pea">Горошины</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="wire">Витки проволоки</button>
+			</div>
+			<label class="g7__slider">
+				<span data-nname>Число горошин в ряду</span>
+				<output data-out></output>
+				<input type="range" min="1" max="20" step="1" value="1" data-n aria-label="Число тел в ряду" />
+			</label>
+			<ul class="g7__read rowl__read" aria-live="polite">
+				<li><span>Длина ряда по линейке</span><b data-len></b></li>
+				<li class="is-key"><span data-one>Диаметр одной горошины</span><b data-d></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Длину ряда читают по ближайшему штриху, погрешность — половина цены деления, 0,5 мм. Размер одного тела — длина ряда, делённая на число тел; на то же число делится и погрешность.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rowl__side {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		align-items: end;
+	}
+	.rowl__read {
+		grid-column: 1 / -1;
+	}
+	.rowl__ruler {
+		fill: color-mix(in oklab, var(--ig-v) 16%, var(--sl-color-gray-6));
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.rowl__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.rowl svg .rowl__num {
+		font-size: 10px;
+		fill: var(--sl-color-gray-1);
+	}
+	.rowl__pea {
+		fill: hsl(95, 50%, 50%);
+		stroke: hsl(100, 50%, 30%);
+		stroke-width: 0.8;
+	}
+	.rowl__pencil {
+		fill: hsl(42, 85%, 58%);
+		stroke: hsl(36, 70%, 34%);
+		stroke-width: 1;
+	}
+	.rowl__turn {
+		fill: hsl(20, 70%, 52%);
+		stroke: hsl(18, 70%, 28%);
+		stroke-width: 0.7;
+	}
+	.rowl__end {
+		stroke: var(--g7-red);
+		stroke-width: 1;
+		stroke-dasharray: 4 3;
+	}
+	@container (max-width: 30rem) {
+		.rowl__side {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { el, fmt, segment } from '../g7/kit';
+
+	const KIND = {
+		pea: { d: 5.6, px: 3, max: 20, nname: 'Число горошин в ряду', one: 'Диаметр одной горошины', span: 120 },
+		wire: { d: 0.8, px: 6, max: 40, nname: 'Число витков', one: 'Диаметр проволоки', span: 60 },
+	} as const;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rowl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const n = q<HTMLInputElement>('[data-n]');
+		let kind: keyof typeof KIND = 'pea';
+		const X0 = 16;
+		const draw = () => {
+			const K = KIND[kind];
+			const N = Number(n.value);
+			q('[data-out]').textContent = String(N);
+			svg.replaceChildren();
+			const yR = 92;
+			svg.append(el('rect', { class: 'rowl__ruler', x: X0 - 8, y: yR, width: K.span * K.px + 16, height: 40, rx: 3 }));
+			for (let mm = 0; mm <= K.span; mm++) {
+				const x = X0 + mm * K.px;
+				svg.append(el('line', { class: 'rowl__tick', x1: x, x2: x, y1: yR, y2: yR + (mm % 10 === 0 ? 16 : mm % 5 === 0 ? 12 : 7) }));
+				if (mm % 10 === 0) svg.append(el('text', { class: 'rowl__num', x, y: yR + 30, 'text-anchor': 'middle' }, String(mm / 10)));
+			}
+			svg.append(el('text', { class: 't-small', x: X0 + K.span * K.px + 6, y: yR + 36, 'text-anchor': 'end' }, 'см'));
+			const L = N * K.d; // мм
+			if (kind === 'pea') {
+				const r = (K.d * K.px) / 2;
+				for (let i = 0; i < N; i++) svg.append(el('circle', { class: 'rowl__pea', cx: X0 + (i * K.d + K.d / 2) * K.px, cy: yR - r - 1, r }));
+			} else {
+				svg.append(el('rect', { class: 'rowl__pencil', x: X0 - 12, y: yR - 40, width: K.span * K.px + 20, height: 30, rx: 3 }));
+				const w = K.d * K.px;
+				for (let i = 0; i < N; i++) svg.append(el('rect', { class: 'rowl__turn', x: X0 + i * w, y: yR - 43, width: w, height: 36, rx: w / 2 }));
+			}
+			const xe = X0 + L * K.px;
+			svg.append(el('line', { class: 'rowl__end', x1: xe, x2: xe, y1: 30, y2: yR + 16 }));
+			svg.append(el('line', { class: 'rowl__end', x1: X0, x2: X0, y1: 30, y2: yR + 16 }));
+			const read = Math.round(L + 1e-9); // the nearest millimeter stroke
+			const digits = N >= 10 ? 2 : N >= 2 ? 1 : 0;
+			q('[data-len]').textContent = `${read} ± 0,5 мм`;
+			q('[data-d]').textContent = `${fmt(read / N, Math.max(digits, kind === 'wire' ? 1 : 0))} ± ${fmt(0.5 / N, 0.5 / N < 0.095 ? 2 : 1)} мм`;
+		};
+		n.addEventListener('input', draw);
+		segment(q('[data-kind]'), (b) => {
+			kind = b.dataset.k as keyof typeof KIND;
+			const K = KIND[kind];
+			n.max = String(K.max);
+			n.value = '1';
+			q('[data-nname]').textContent = K.nname;
+			q('[data-one]').textContent = K.one;
+			draw();
+		});
+		draw();
+	}
+</script>

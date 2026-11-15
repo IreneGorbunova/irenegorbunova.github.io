@@ -1,0 +1,222 @@
+---
+/**
+ * «Как смотреть на шкалу»: a pointer stands 1 см in front of a vertical scale, opposite the 12,0 см stroke. The eye is
+ * 25 см from the scale and can be moved up and down. The line of sight through the tip of the pointer meets the scale
+ * at y = y_p + (y_p − y_e)·d/(D − d), with d = 10 мм and D = 250 мм: an eye 12 см below the pointer reads 5 мм too
+ * much. Left: the side view, to scale (1 px per millimeter). Right: what the eye sees, 5 times larger.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+// side view: the scale stands at x = 270, the pointer tip at x = 260, the eye at x = 20; 12,0 см is at y = 130
+const mmY = (mm: number) => 130 - (mm - 120);
+---
+
+<G7Styles />
+<figure class="g7 g7--stack eyl not-content" data-eyl>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 460 260" role="img" aria-label="Слева вид сбоку: глаз, стрелка и шкала. Справа то, что видит глаз: стрелка на фоне шкалы" data-svg>
+			<defs>
+				<clipPath id={`eyl-${uid}`}>
+					<rect x="318" y="26" width="132" height="208" rx="8"></rect>
+				</clipPath>
+			</defs>
+			<text class="t-title" x="150" y="18" text-anchor="middle">вид сбоку</text>
+			<!-- the scale plate -->
+			<rect class="eyl__plate" x="270" y="12" width="12" height="236"></rect>
+			{
+				Array.from({ length: 23 }, (_, i) => 20 + i * 10).map((mm) => (
+					<>
+						<line class="eyl__tick" x1="270" x2={270 - (mm % 50 === 0 ? 0 : 0)} y1={mmY(mm)} y2={mmY(mm)} />
+						<line class="eyl__tick" x1="282" x2="290" y1={mmY(mm)} y2={mmY(mm)} />
+						{mm % 20 === 0 && (
+							<text class="t-small t-num" x="294" y={mmY(mm) + 4}>
+								{mm / 10}
+							</text>
+						)}
+					</>
+				))
+			}
+			<!-- the pointer: 10 мм in front of the scale -->
+			<path class="eyl__pointer" d={`M246 ${mmY(120)} h14 M246 ${mmY(120) - 12} v24`}></path>
+			<line class="eyl__true" x1="260" x2="270" y1={mmY(120)} y2={mmY(120)}></line>
+			<!-- the line of sight and the eye -->
+			<line class="eyl__sight" data-sight></line>
+			<circle class="eyl__hit" data-hit r="3"></circle>
+			<g class="drag" data-eye>
+				<rect x="-6" y="-26" width="46" height="52" fill="transparent"></rect>
+				<path class="eyl__eye" d="M0 0 Q14 -14 30 0 Q14 14 0 0 Z"></path>
+				<circle class="eyl__iris" cx="20" cy="0" r="6"></circle>
+				<circle class="eyl__pupil" cx="22" cy="0" r="2.6"></circle>
+			</g>
+			<path class="ln-dash" d="M20 130 H246"></path>
+			<text class="t-small" x="128" y="252" text-anchor="middle">от глаза до шкалы 25 см, стрелка в 1 см от шкалы</text>
+			<!-- what the eye sees -->
+			<text class="t-title" x="384" y="18" text-anchor="middle">видит глаз</text>
+			<rect class="eyl__view" x="318" y="26" width="132" height="208" rx="8"></rect>
+			<g clip-path={`url(#eyl-${uid})`}>
+				<g data-vscale></g>
+				<path class="eyl__vpointer" data-vpointer></path>
+			</g>
+		</svg>
+		<div class="g7__side eyl__side">
+			<label class="g7__slider">
+				<span>Глаз выше или ниже стрелки</span>
+				<output data-out></output>
+				<input type="range" min="-120" max="120" step="5" value="-100" data-h aria-label="Высота глаза относительно стрелки, миллиметры" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Стрелка стоит против штриха</span><b>12,0 см</b></li>
+				<li class="is-key"><span>Глаз видит её против штриха</span><b data-seen></b></li>
+				<li><span>Ошибка</span><b data-err></b></li>
+			</ul>
+			<p class="g7__msg" data-msg></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Перетаскивайте глаз вверх и вниз. Слева всё нарисовано в настоящих размерах относительно друг друга, справа участок шкалы увеличен в 5 раз.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.eyl__side {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		align-items: start;
+	}
+	.eyl__side .g7__slider,
+	.eyl__side .g7__msg {
+		grid-column: 1;
+	}
+	.eyl__side .g7__read {
+		grid-column: 2;
+		grid-row: 1 / span 2;
+	}
+	@container (max-width: 34rem) {
+		.eyl__side {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.eyl__side .g7__read {
+			grid-column: 1;
+			grid-row: auto;
+		}
+	}
+	.eyl__plate {
+		fill: color-mix(in oklab, var(--ig-v) 22%, var(--sl-color-gray-6));
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.eyl__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.eyl__pointer {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.eyl__true {
+		stroke: var(--g7-red);
+		stroke-width: 1;
+		stroke-dasharray: 2 2;
+	}
+	.eyl__sight {
+		stroke: var(--g7-blue);
+		stroke-width: 1.4;
+	}
+	.eyl__hit {
+		fill: var(--g7-blue);
+	}
+	.eyl__eye {
+		fill: var(--sl-color-white);
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	.eyl__iris {
+		fill: var(--g7-blue);
+	}
+	.eyl__pupil {
+		fill: var(--sl-color-black);
+	}
+	:root:not([data-theme='light']) .eyl__eye {
+		fill: hsl(230, 20%, 88%);
+	}
+	:root:not([data-theme='light']) .eyl__pupil {
+		fill: hsl(230, 30%, 8%);
+	}
+	.eyl__view {
+		fill: color-mix(in oklab, var(--ig-v) 14%, var(--sl-color-gray-6));
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.eyl__vtick {
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.eyl svg .eyl__vnum {
+		font-size: 12px;
+		fill: var(--sl-color-gray-1);
+	}
+	.eyl__vpointer {
+		fill: var(--g7-red);
+		opacity: 0.9;
+	}
+</style>
+
+<script>
+	import { drag, el, fmt } from '../g7/kit';
+
+	const D = 250; // мм from the eye to the scale
+	const d = 10; // мм from the pointer to the scale
+	const YP = 130; // px: the pointer (12,0 см) in the side view; 1 px per мм
+	for (const root of document.querySelectorAll<HTMLElement>('[data-eyl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const h = q<HTMLInputElement>('[data-h]');
+		const eye = q<SVGGElement>('[data-eye]');
+		const sight = q<SVGLineElement>('[data-sight]');
+		const hit = q<SVGCircleElement>('[data-hit]');
+		const vscale = q<SVGGElement>('[data-vscale]');
+		const vpointer = q<SVGPathElement>('[data-vpointer]');
+		// the magnified scale: 5 px per мм, the 12,0 см stroke in the middle (y = 130)
+		const Z = 5;
+		for (let mm = 95; mm <= 145; mm++) {
+			const y = 130 - (mm - 120) * Z;
+			vscale.append(el('line', { class: 'eyl__vtick', x1: 318, x2: 318 + (mm % 10 === 0 ? 34 : mm % 5 === 0 ? 24 : 15), y1: y, y2: y }));
+			if (mm % 10 === 0) vscale.append(el('text', { class: 'eyl__vnum', x: 358, y: y + 4 }, String(mm / 10)));
+		}
+		const draw = () => {
+			const up = Number(h.value); // мм: the eye above (+) or below (−) the pointer
+			const shift = (-up * d) / (D - d); // мм: where the line of sight meets the scale, above (+) the pointer
+			const ye = YP - up;
+			eye.setAttribute('transform', `translate(20 ${ye})`);
+			sight.setAttribute('x1', '44');
+			sight.setAttribute('y1', String(ye));
+			sight.setAttribute('x2', '270');
+			sight.setAttribute('y2', String(YP - shift));
+			hit.setAttribute('cx', '270');
+			hit.setAttribute('cy', String(YP - shift));
+			const yv = 130 - shift * Z;
+			vpointer.setAttribute('d', `M450 ${yv - 7} H372 L358 ${yv} L372 ${yv + 7} H450 Z`);
+			q('[data-out]').textContent = up === 0 ? 'напротив' : `${up > 0 ? 'выше' : 'ниже'} на ${fmt(Math.abs(up) / 10, 1)} см`;
+			const seen = 120 + shift;
+			q('[data-seen]').textContent = `${fmt(seen / 10, 2)} см`;
+			q('[data-err]').textContent = Math.abs(shift) < 0.05 ? 'нет' : `${shift > 0 ? '+' : '−'}${fmt(Math.abs(shift), 1)} мм`;
+			q('[data-msg]').textContent =
+				up === 0
+					? 'Луч зрения перпендикулярен шкале: показание верное.'
+					: up < 0
+						? 'Глаз ниже стрелки: кажется, что она стоит выше, чем на самом деле.'
+						: 'Глаз выше стрелки: кажется, что она стоит ниже, чем на самом деле.';
+		};
+		h.addEventListener('input', draw);
+		drag(eye, svg, {
+			move: (p) => {
+				const up = Math.round((YP - p.y) / 5) * 5;
+				h.value = String(Math.min(120, Math.max(-120, up)));
+				draw();
+			},
+		});
+		draw();
+	}
+</script>
