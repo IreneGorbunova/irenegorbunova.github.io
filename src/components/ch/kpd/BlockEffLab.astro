@@ -1,0 +1,156 @@
+---
+/**
+ * «КПД подвижного блока»: a load (1…20 кг) is lifted by 1 м with a movable pulley that has its own mass
+ * (0…3 кг); there is no friction. The rope is pulled with F = g·(m + m_б)/2 over 2 м. Useful work: g·m·h; work
+ * spent: F·2h; efficiency: m/(m + m_б). Below, the work spent splits into the useful work and the work of lifting
+ * the pulley itself (band widths proportional to the works). The lift is to scale: 40 px per metre.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<G7Styles />
+<figure class="g7 bef not-content" data-bef>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 320" role="img" aria-label="Груз поднимают подвижным блоком, у которого есть собственный вес; внизу показано, на что уходит затраченная работа" data-svg>
+			<defs>
+				<marker id={`bef-${uid}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="head--red" d="M0,0 L10,5 L0,10 z"></path></marker>
+			</defs>
+			<rect class="bef__ceil" x="60" y="8" width="220" height="7"></rect>
+			<path class="bef__rope" data-rope></path>
+			<line class="bef__holder" data-holder></line>
+			<circle class="bef__wheel" data-wheel></circle>
+			<circle class="bef__axle" data-axle r="2.5"></circle>
+			<rect class="bef__load" data-load rx="2"></rect>
+			<line class="arrow arrow--red" data-arrow marker-end={`url(#bef-${uid})`}></line>
+			<text class="t-i t-red t-halo" data-flabel>F</text>
+			<g data-flow></g>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Масса груза</span>
+				<output data-om></output>
+				<input type="range" min="1" max="20" step="1" value="8" data-m aria-label="Масса груза, килограммы" />
+			</label>
+			<label class="g7__slider">
+				<span>Масса блока</span>
+				<output data-ob></output>
+				<input type="range" min="0" max="3" step="0.5" value="2" data-b aria-label="Масса блока, килограммы" />
+			</label>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Поднять груз на 1 м</button>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Сила, с которой тянут верёвку</span><b data-f></b></li>
+				<li><span>Полезная работа</span><b data-ap></b></li>
+				<li><span>Затраченная работа</span><b data-az></b></li>
+				<li class="is-key"><span>КПД</span><b data-eta></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Верёвку вытягивают на 2 м, груз поднимается на 1 м. Вместе с грузом приходится поднимать и сам блок.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.bef__ceil {
+		fill: var(--g7-line);
+	}
+	.bef__rope {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+	}
+	.bef__holder {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.bef__wheel {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
+	}
+	.bef__axle {
+		fill: var(--g7-ink);
+	}
+	.bef__load {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+</style>
+
+<script>
+	import { ease, fmtTrim, loop } from '../g7/kit';
+	import { drawFlow } from '../g7/flow';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bef]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const mIn = q<HTMLInputElement>('[data-m]');
+		const bIn = q<HTMLInputElement>('[data-b]');
+		let u = 0;
+		let running = false;
+		const draw = () => {
+			const m = Number(mIn.value);
+			const mb = Number(bIn.value);
+			const F = (9.8 * (m + mb)) / 2;
+			const Ap = 9.8 * m * 1;
+			const Az = F * 2;
+			const lift = 40 * ease(u);
+			const r = 10 + mb * 3; // the heavier the pulley, the larger it is drawn
+			const py = 150 - lift; // the centre of the pulley
+			const size = 16 + m * 1.2;
+			q('[data-rope]').setAttribute('d', `M${150 - r} 15 V${py} A${r} ${r} 0 0 0 ${150 + r} ${py} V${100 - 2 * lift}`);
+			const wheel = q('[data-wheel]');
+			wheel.setAttribute('cx', '150');
+			wheel.setAttribute('cy', String(py));
+			wheel.setAttribute('r', String(r));
+			q('[data-axle]').setAttribute('cx', '150');
+			q('[data-axle]').setAttribute('cy', String(py));
+			const holder = q('[data-holder]');
+			holder.setAttribute('x1', '150');
+			holder.setAttribute('x2', '150');
+			holder.setAttribute('y1', String(py));
+			holder.setAttribute('y2', String(py + r + 10));
+			const load = q('[data-load]');
+			load.setAttribute('x', String(150 - size / 2));
+			load.setAttribute('y', String(py + r + 10));
+			load.setAttribute('width', String(size));
+			load.setAttribute('height', String(size * 0.8));
+			const hy = 100 - 2 * lift;
+			const arrow = q('[data-arrow]');
+			arrow.setAttribute('x1', String(150 + r));
+			arrow.setAttribute('x2', String(150 + r));
+			arrow.setAttribute('y1', String(hy));
+			arrow.setAttribute('y2', String(Math.max(18, hy - 10 - F * 0.2)));
+			q('[data-flabel]').setAttribute('x', String(150 + r + 8));
+			q('[data-flabel]').setAttribute('y', String(hy - 6));
+			q('[data-om]').textContent = `${m} кг`;
+			q('[data-ob]').textContent = `${fmtTrim(mb, 1)} кг`;
+			q('[data-f]').textContent = `${fmtTrim(F, 1)} Н`;
+			q('[data-ap]').textContent = `${fmtTrim(Ap, 1)} Дж`;
+			q('[data-az]').textContent = `${fmtTrim(Az, 1)} Дж`;
+			q('[data-eta]').textContent = `${Math.round((Ap / Az) * 100)} %`;
+			drawFlow(q<SVGGElement>('[data-flow]'), 20, 244, 250, 34, Ap / Az, { spent: 'затрачено', useful: 'полезная работа', lost: 'на подъём блока' });
+		};
+		const wake = loop(root, (dt) => {
+			if (!running) return false;
+			u = Math.min(1, u + dt / 2.4);
+			draw();
+			if (u >= 1) running = false;
+			return running;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			u = 0;
+			running = true;
+			wake();
+		});
+		for (const i of [mIn, bIn])
+			i.addEventListener('input', () => {
+				running = false;
+				u = 0;
+				draw();
+			});
+		draw();
+	}
+</script>

@@ -66,7 +66,7 @@ export default defineConfig({
 					section('Первоначальные сведения о строении вещества', '7-klass/stroenie-veshchestva', ['molekuly-diffuziya', 'vzaimodeystvie-molekul', 'tri-sostoyaniya-veshchestva']),
 					section('Взаимодействие тел', '7-klass/vzaimodeystvie-tel', ['mehanicheskoe-dvizhenie', 'inerciya-massa-plotnost', 'sila', 'slozhenie-sil-trenie']),
 					section('Давление твёрдых тел, жидкостей и газов', '7-klass/davlenie', ['davlenie-zakon-paskalya', 'davlenie-v-zhidkosti', 'atmosfernoe-davlenie', 'arhimedova-sila']),
-					section('Работа и мощность. Энергия', '7-klass/rabota-i-energiya', ['mehanicheskaya-rabota', 'prostye-mehanizmy']),
+					section('Работа и мощность. Энергия', '7-klass/rabota-i-energiya', ['mehanicheskaya-rabota', 'prostye-mehanizmy', 'kpd']),
 				]),
 				grade(8, [
 					section('Тепловые явления', '8-klass', [

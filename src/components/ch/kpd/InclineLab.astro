@@ -1,0 +1,154 @@
+---
+/**
+ * «Наклонная плоскость»: a block that weighs 10 Н is pulled evenly up a board 1 м long through a dynamometer.
+ * The height of the board's upper end is h (0,1…0,6 м); the board is smooth (no friction) or gives friction with
+ * the coefficient 0,2 or 0,4. The pull is F = P·h/l + μ·P·√(l² − h²)/l. Useful work: P·h; work spent: F·l;
+ * efficiency: their ratio. The drawing is to scale (220 px per metre). Below, the work spent splits into the
+ * useful work and the work against friction (the widths of the bands are proportional to the works).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<G7Styles />
+<figure class="g7 inc not-content" data-inc>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 310" role="img" aria-label="Брусок тянут вверх по наклонной доске динамометром; внизу показано, на что уходит затраченная работа" data-svg>
+			<defs>
+				<marker id={`inc-${uid}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="head--red" d="M0,0 L10,5 L0,10 z"></path></marker>
+			</defs>
+			<line class="inc__floor" x1="10" x2="330" y1="190" y2="190"></line>
+			<path class="inc__board" data-board></path>
+			<path class="ln" data-hmark></path>
+			<text class="t-i t-halo" data-ht>h</text>
+			<text class="t-i t-halo" data-lt>l</text>
+			<g data-block>
+				<rect class="inc__block" x="-20" y="-22" width="40" height="22" rx="2"></rect>
+				<line class="inc__rope" x1="20" y1="-11" x2="38" y2="-11"></line>
+				<rect class="inc__dyn" x="38" y="-17" width="40" height="12" rx="3"></rect>
+				<line class="arrow arrow--red" x1="80" y1="-11" data-arrow y2="-11" marker-end={`url(#inc-${uid})`}></line>
+			</g>
+			<g data-flow></g>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Высота наклонной плоскости <i>h</i></span>
+				<output data-oh></output>
+				<input type="range" min="0.1" max="0.6" step="0.05" value="0.3" data-h aria-label="Высота наклонной плоскости, метры" />
+			</label>
+			<div class="g7__seg" role="group" aria-label="Поверхность доски" data-surf>
+				<button type="button" class="g7__btn" aria-pressed="false" data-mu="0">Без трения</button>
+				<button type="button" class="g7__btn" aria-pressed="true" data-mu="0.2">Гладкая доска</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-mu="0.4">Шероховатая</button>
+			</div>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Втащить брусок наверх</button>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Вес бруска <i>P</i></span><b>10 Н</b></li>
+				<li><span>Динамометр показывает <i>F</i></span><b data-f></b></li>
+				<li><span>Полезная работа <i>Ph</i></span><b data-ap></b></li>
+				<li><span>Затраченная работа <i>Fl</i></span><b data-az></b></li>
+				<li class="is-key"><span>КПД</span><b data-eta></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Длина доски <i>l</i> = 1 м. Брусок движется равномерно. Ширина полос внизу показывает, какая часть затраченной работы полезна, а какая уходит на трение.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.inc__floor {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.inc__board {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.inc__block {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.inc__rope {
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
+	}
+	.inc__dyn {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+	}
+</style>
+
+<script>
+	import { ease, fmt, fmtTrim, loop, segment } from '../g7/kit';
+	import { drawFlow } from '../g7/flow';
+
+	const P = 10; // Н
+	const L = 220; // px: the board, 1 м
+	const X0 = 40;
+	const Y0 = 190;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-inc]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const hIn = q<HTMLInputElement>('[data-h]');
+		const block = q<SVGGElement>('[data-block]');
+		let mu = 0.2;
+		let u = 0;
+		let running = false;
+		const draw = () => {
+			const h = Number(hIn.value);
+			const cos = Math.sqrt(1 - h * h);
+			const F = P * h + mu * P * cos;
+			const Ap = P * h;
+			const Az = F * 1;
+			const eta = Ap / Az;
+			const a = Math.asin(h);
+			const xe = X0 + L * cos;
+			const ye = Y0 - L * h;
+			q('[data-board]').setAttribute('d', `M${X0} ${Y0} L${xe} ${ye} V${Y0} Z`);
+			q('[data-hmark]').setAttribute('d', `M${xe + 12} ${ye} V${Y0} M${xe + 8} ${ye} h8 M${xe + 8} ${Y0} h8`);
+			q('[data-ht]').setAttribute('x', String(xe + 20));
+			q('[data-ht]').setAttribute('y', String((ye + Y0) / 2 + 4));
+			q('[data-lt]').setAttribute('x', String((X0 + xe) / 2 - 16));
+			q('[data-lt]').setAttribute('y', String((Y0 + ye) / 2 - 14));
+			// the block: from 12 % to 62 % of the board (so that the dynamometer stays on it)
+			const s = (0.12 + 0.5 * ease(u)) * L;
+			block.setAttribute('transform', `translate(${(X0 + s * cos).toFixed(1)} ${(Y0 - s * h).toFixed(1)}) rotate(${((-a * 180) / Math.PI).toFixed(1)})`);
+			q('[data-arrow]').setAttribute('x2', String(80 + Math.max(6, F * 4)));
+			q('[data-oh]').textContent = `${fmt(h, 2)} м`;
+			q('[data-f]').textContent = `${fmt(F, 2)} Н`;
+			q('[data-ap]').textContent = `${fmtTrim(Ap, 2)} Дж`;
+			q('[data-az]').textContent = `${fmt(Az, 2)} Дж`;
+			q('[data-eta]').textContent = `${Math.round(eta * 100)} %`;
+			drawFlow(q<SVGGElement>('[data-flow]'), 20, 232, 250, 34, eta, { spent: 'затрачено', useful: 'полезная работа', lost: 'на трение' });
+		};
+		const wake = loop(root, (dt) => {
+			if (!running) return false;
+			u = Math.min(1, u + dt / 2.5);
+			draw();
+			if (u >= 1) running = false;
+			return running;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			u = 0;
+			running = true;
+			wake();
+		});
+		hIn.addEventListener('input', () => {
+			running = false;
+			u = 0;
+			draw();
+		});
+		segment(q('[data-surf]'), (b) => {
+			mu = Number(b.dataset.mu);
+			running = false;
+			u = 0;
+			draw();
+		});
+		draw();
+	}
+</script>
