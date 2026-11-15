@@ -51,6 +51,7 @@ export const MAP_CHAPTERS: Record<string, MapChapter> = {
 	'inerciya-massa-plotnost': { line: 'Инерция, взаимодействие тел, масса и весы, плотность, расчёт массы и объёма.', peryshkin: '' },
 	'sila': { line: 'Сила и её действие, сила тяжести, закон Гука, вес тела и динамометр.', peryshkin: '' },
 	'slozhenie-sil-trenie': { line: 'Равнодействующая двух сил, трение скольжения, качения и покоя, трение в технике.', peryshkin: '' },
+	'davlenie-zakon-paskalya': { line: 'Давление и как его менять, давление газа, закон Паскаля и гидравлический пресс.', peryshkin: '' },
 	'atmosfernoe-davlenie': { line: 'Почему воздух давит, опыт Торричелли, барометры и давление в горах.', peryshkin: '' },
 	'arhimedova-sila': { line: 'Почему в воде тела легче, закон Архимеда и когда тело тонет, а когда плавает.', peryshkin: '' },
 	// 9 класс

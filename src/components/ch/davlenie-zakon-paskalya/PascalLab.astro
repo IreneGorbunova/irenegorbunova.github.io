@@ -1,0 +1,127 @@
+---
+/**
+ * «Шар Паскаля»: a hollow ball with small holes all over it is joined to a cylinder with a piston and filled with
+ * water. When the piston is pushed, the pressure it makes is passed on to every point of the water, and equal
+ * jets come out of all the holes, whatever their direction. Each jet leaves at right angles to the wall with the
+ * speed √(2p/ρ) and then follows a parabola under gravity (drawn for the first 0,1 с of the flight; 1 px = 2 мм
+ * in the drawing of the jets). The pressure is the force on the piston divided by its area, 4 см².
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const HOLES = [-150, -110, -70, -30, 10, 50, 90, 130, 170];
+---
+
+<G7Styles />
+<figure class="g7 pas not-content" data-pas>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 280" role="img" aria-label="Шар с отверстиями, соединённый с цилиндром и поршнем; из всех отверстий бьют одинаковые струи" data-svg>
+			<g data-jets></g>
+			<rect class="pas__water" x="150" y="20" width="40" height="92"></rect>
+			<circle class="pas__water" cx="170" cy="160" r="52"></circle>
+			<path class="pas__glass" d="M150 20 V114 M190 20 V114"></path>
+			<path class="pas__ball" d="M150 112 A52 52 0 1 0 190 112"></path>
+			<g data-piston>
+				<rect class="pas__piston" x="152" y="0" width="36" height="10" rx="2"></rect>
+				<path class="pas__rod" d="M170 0 V-30 M156 -30 H184"></path>
+			</g>
+			{HOLES.map((a) => <circle class="pas__hole" cx={170 + 52 * Math.cos((a * Math.PI) / 180)} cy={160 + 52 * Math.sin((a * Math.PI) / 180)} r="2.5" />)}
+			<text class="t-strong t-num" x="332" y="24" text-anchor="end" data-p></text>
+			<text class="t-small" x="332" y="40" text-anchor="end">давление поршня на воду</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Сила, с которой давят на поршень</span>
+				<output data-out></output>
+				<input type="range" min="0" max="1" step="0.05" value="0" data-f aria-label="Сила, действующая на поршень, ньютоны" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Площадь поршня</span><b>4 см²</b></li>
+				<li class="is-key"><span>Скорость воды в каждой струе</span><b data-v></b></li>
+			</ul>
+			<p class="g7__msg" data-msg></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Поршень давит на воду только сверху вниз, а струи бьют и вниз, и в стороны, и вверх — из каждого отверстия с одной и той же скоростью.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.pas__water {
+		fill: var(--g7-water);
+	}
+	.pas__glass,
+	.pas__ball {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.5;
+	}
+	.pas__piston {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.pas__rod {
+		stroke: var(--g7-ink);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.pas__hole {
+		fill: var(--g7-paper);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.pas__jet {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const HOLES = [-150, -110, -70, -30, 10, 50, 90, 130, 170];
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pas]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const fIn = q<HTMLInputElement>('[data-f]');
+		const jets = q<SVGGElement>('[data-jets]');
+		const paths = HOLES.map(() => jets.appendChild(el('path', { class: 'pas__jet' })));
+		let phase = 0;
+		const draw = () => {
+			const F = Number(fIn.value);
+			const p = F / 0.0004; // Па
+			const v = Math.sqrt((2 * p) / 1000); // м/с
+			q('[data-piston]').setAttribute('transform', `translate(0 ${20 + F * 6})`);
+			q('[data-out]').textContent = `${fmt(F, 2)} Н`;
+			q('[data-p]').textContent = `${fmt(p / 1000, 2)} кПа`;
+			q('[data-v]').textContent = `${fmt(v, 1)} м/с`;
+			q('[data-msg]').textContent = F === 0 ? 'На поршень не давят: вода не вытекает.' : 'Давление поршня передалось во все точки воды: струи одинаковы во всех направлениях.';
+			HOLES.forEach((deg, i) => {
+				const a = (deg * Math.PI) / 180;
+				const x0 = 170 + 53 * Math.cos(a);
+				const y0 = 160 + 53 * Math.sin(a);
+				let d = '';
+				if (F > 0)
+					for (let k = 0; k <= 10; k++) {
+						const t = 0.01 * k; // с
+						// the jet leaves along the radius and falls under gravity; 0,5 px per millimeter
+						const x = x0 + v * Math.cos(a) * t * 500;
+						const y = y0 + (v * Math.sin(a) * t * 1000 + 4900 * t * t) * 0.5;
+						d += `${k ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `;
+					}
+				paths[i].setAttribute('d', d);
+				paths[i].setAttribute('stroke-dasharray', '9 5');
+				paths[i].setAttribute('stroke-dashoffset', String(-phase));
+			});
+		};
+		loop(root, (dt) => {
+			phase = (phase + dt * 60 * Math.sqrt(Number(fIn.value))) % 14;
+			draw();
+			return Number(fIn.value) > 0;
+		});
+		fIn.addEventListener('input', draw);
+		draw();
+	}
+</script>

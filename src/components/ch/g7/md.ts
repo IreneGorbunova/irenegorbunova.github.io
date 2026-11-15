@@ -38,6 +38,10 @@ export class MD {
 	kind = new Uint8Array(0);
 	/** y of a lid that closes the box from above (0: the top of the box) */
 	top = 0;
+	/** the momentum the particles have given to the lid since it was last set to zero (for the pressure of a gas) */
+	impulseTop = 0;
+	/** the same for all four walls together (the lid included) */
+	impulseWalls = 0;
 	/** x of a wall that particles cannot cross (null: no partition) */
 	partition: number | null = null;
 	/** the temperature the thermostat keeps; null: no thermostat */
@@ -148,16 +152,23 @@ export class MD {
 			const pad = 0.5 + extra[i];
 			if (x[i] < pad) {
 				x[i] = 2 * pad - x[i];
+				if (vx[i] < 0) this.impulseWalls += 2 * m[i] * -vx[i];
 				vx[i] = Math.abs(vx[i]);
 			} else if (x[i] > w - pad) {
 				x[i] = 2 * (w - pad) - x[i];
+				if (vx[i] > 0) this.impulseWalls += 2 * m[i] * vx[i];
 				vx[i] = -Math.abs(vx[i]);
 			}
 			if (y[i] < this.top + pad) {
 				y[i] = Math.min(h - pad, 2 * (this.top + pad) - y[i]);
+				if (vy[i] < 0) {
+					this.impulseTop += 2 * m[i] * -vy[i];
+					this.impulseWalls += 2 * m[i] * -vy[i];
+				}
 				vy[i] = Math.abs(vy[i]);
 			} else if (y[i] > h - pad) {
 				y[i] = 2 * (h - pad) - y[i];
+				if (vy[i] > 0) this.impulseWalls += 2 * m[i] * vy[i];
 				vy[i] = -Math.abs(vy[i]);
 			}
 			const p = this.partition;

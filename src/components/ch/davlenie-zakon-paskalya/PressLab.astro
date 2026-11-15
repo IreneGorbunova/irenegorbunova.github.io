@@ -1,0 +1,152 @@
+---
+/**
+ * «Гидравлический пресс»: two cylinders joined below and filled with oil; a small piston of area S₁ (5…20 см²) and
+ * a large one of area S₂ (50…500 см²). A force F₁ on the small piston makes the pressure p = F₁/S₁, which is
+ * passed to the large piston: F₂ = p·S₂ = F₁·S₂/S₁. The oil is not compressed, so when the small piston goes down
+ * by h₁ = 10 см, the large one rises by h₂ = h₁·S₁/S₂. The widths of the cylinders in the picture are in the
+ * ratio of the square roots of the areas (they are round), so the drawing is to scale.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<G7Styles />
+<figure class="g7 prl2 not-content" data-press>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 260" role="img" aria-label="Гидравлический пресс: малый и большой цилиндры с поршнями, соединённые трубкой" data-svg>
+			<defs>
+				{['blue', 'red'].map((c) => <marker id={`pr-${uid}-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class={`head--${c}`} d="M0,0 L10,5 L0,10 z" /></marker>)}
+			</defs>
+			<path class="prl2__oil" data-oil></path>
+			<path class="prl2__wall" data-wall></path>
+			<rect class="prl2__piston" data-p1 height="10" rx="2"></rect>
+			<rect class="prl2__piston" data-p2 height="10" rx="2"></rect>
+			<line class="arrow arrow--blue" data-a1 marker-end={`url(#pr-${uid}-blue)`}></line>
+			<line class="arrow arrow--red" data-a2 marker-end={`url(#pr-${uid}-red)`}></line>
+			<text class="t-i t-blue t-halo" data-l1>F<tspan class="prl2__sub" dy="3">1</tspan></text>
+			<text class="t-i t-red t-halo" data-l2>F<tspan class="prl2__sub" dy="3">2</tspan></text>
+			<text class="t-small" x="60" y="252" text-anchor="middle" data-s1></text>
+			<text class="t-small" x="230" y="252" text-anchor="middle" data-s2></text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Сила на малый поршень <i>F</i><sub>1</sub></span>
+				<output data-of></output>
+				<input type="range" min="0" max="500" step="50" value="200" data-f aria-label="Сила на малый поршень, ньютоны" />
+			</label>
+			<label class="g7__slider">
+				<span>Площадь малого поршня <i>S</i><sub>1</sub></span>
+				<output data-o1></output>
+				<input type="range" min="5" max="20" step="5" value="10" data-s1in aria-label="Площадь малого поршня, квадратные сантиметры" />
+			</label>
+			<label class="g7__slider">
+				<span>Площадь большого поршня <i>S</i><sub>2</sub></span>
+				<output data-o2></output>
+				<input type="range" min="50" max="500" step="50" value="200" data-s2in aria-label="Площадь большого поршня, квадратные сантиметры" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Давление в масле</span><b data-p></b></li>
+				<li class="is-key"><span>Сила на большом поршне <i>F</i><sub>2</sub></span><b data-f2></b></li>
+				<li><span>Выигрыш в силе</span><b data-gain></b></li>
+				<li><span>Малый поршень опустили на 10 см, большой поднялся на</span><b data-h2></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Давление под обоими поршнями одинаково. Сила на большом поршне во столько раз больше, во сколько раз больше его площадь.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.prl2__oil {
+		fill: color-mix(in oklab, var(--ig-v) 40%, transparent);
+	}
+	.prl2__wall {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.prl2__piston {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.prl2 svg .prl2__sub {
+		font-size: 10px;
+		font-style: normal;
+		font-family: var(--__sl-font);
+	}
+</style>
+
+<script>
+	import { fmt, fmtInt, fmtTrim } from '../g7/kit';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-press]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const fIn = q<HTMLInputElement>('[data-f]');
+		const s1In = q<HTMLInputElement>('[data-s1in]');
+		const s2In = q<HTMLInputElement>('[data-s2in]');
+		const draw = () => {
+			const F1 = Number(fIn.value);
+			const S1 = Number(s1In.value); // см²
+			const S2 = Number(s2In.value);
+			const F2 = (F1 * S2) / S1;
+			const p = F1 / (S1 / 10000); // Па
+			// the diameters: √S, 7,2 px per √см²
+			const w1 = Math.sqrt(S1) * 7.2;
+			const w2 = Math.sqrt(S2) * 7.2;
+			const x1 = 60;
+			const x2 = 230;
+			const down = F1 > 0 ? 30 : 0; // the small piston pushed down by 10 см (3 px per centimeter)
+			const up = (down * S1) / S2;
+			const y1 = 110 + down;
+			const y2 = 150 - up;
+			const B = 226; // the bottom of the vessel
+			q('[data-wall]').setAttribute('d', `M${x1 - w1 / 2} 60 V${B} H${x2 + w2 / 2} V60 M${x1 + w1 / 2} 60 V196 H${x2 - w2 / 2} V60`);
+			q('[data-oil]').setAttribute('d', `M${x1 - w1 / 2} ${y1 + 10} V${B} H${x2 + w2 / 2} V${y2 + 10} H${x2 - w2 / 2} V196 H${x1 + w1 / 2} V${y1 + 10} Z`);
+			const p1 = q<SVGRectElement>('[data-p1]');
+			p1.setAttribute('x', String(x1 - w1 / 2 + 1.5));
+			p1.setAttribute('width', String(w1 - 3));
+			p1.setAttribute('y', String(y1));
+			const p2 = q<SVGRectElement>('[data-p2]');
+			p2.setAttribute('x', String(x2 - w2 / 2 + 1.5));
+			p2.setAttribute('width', String(w2 - 3));
+			p2.setAttribute('y', String(y2));
+			// arrows: 0,09 px per newton for F1; F2 is shown with a fixed long arrow when it is off the scale
+			const a1 = q<SVGLineElement>('[data-a1]');
+			const L1 = Math.max(0, F1 * 0.09);
+			a1.setAttribute('x1', String(x1));
+			a1.setAttribute('x2', String(x1));
+			a1.setAttribute('y1', String(y1 - 6 - L1));
+			a1.setAttribute('y2', String(y1 - 6));
+			a1.style.visibility = F1 ? 'visible' : 'hidden';
+			const a2 = q<SVGLineElement>('[data-a2]');
+			const L2 = Math.min(84, F2 * 0.09);
+			a2.setAttribute('x1', String(x2));
+			a2.setAttribute('x2', String(x2));
+			a2.setAttribute('y1', String(y2 - 4));
+			a2.setAttribute('y2', String(y2 - 4 - L2));
+			a2.style.visibility = F1 ? 'visible' : 'hidden';
+			q('[data-l1]').setAttribute('x', String(x1 + 8));
+			q('[data-l1]').setAttribute('y', String(y1 - 14));
+			q('[data-l2]').setAttribute('x', String(x2 + 8));
+			q('[data-l2]').setAttribute('y', String(y2 - 30));
+			q('[data-s1]').textContent = `S₁ = ${S1} см²`;
+			q('[data-s2]').textContent = `S₂ = ${S2} см²`;
+			q('[data-of]').textContent = `${F1} Н`;
+			q('[data-o1]').textContent = `${S1} см²`;
+			q('[data-o2]').textContent = `${S2} см²`;
+			q('[data-p]').textContent = `${fmtInt(p / 1000)} кПа`;
+			q('[data-f2]').textContent = `${fmtInt(F2)} Н`;
+			const gain = S2 / S1;
+			const whole = Math.abs(gain - Math.round(gain)) < 1e-9;
+			const r = Math.round(gain);
+			q('[data-gain]').textContent = `в ${fmtTrim(gain, 1)} ${!whole || (r % 10 >= 2 && r % 10 <= 4 && (r % 100 < 12 || r % 100 > 14)) ? 'раза' : 'раз'}`;
+			q('[data-h2]').textContent = `${fmt((10 * S1) / S2, 2)} см`;
+		};
+		for (const i of [fIn, s1In, s2In]) i.addEventListener('input', draw);
+		draw();
+	}
+</script>

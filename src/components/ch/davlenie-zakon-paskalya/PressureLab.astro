@@ -1,0 +1,141 @@
+---
+/**
+ * «Человек на снегу»: a person of a chosen mass (30…100 кг) stands on loose snow in boots (two soles of 150 см²:
+ * 0,03 м²), on skis (two of 180 × 8 см: 0,29 м²), on snowshoes (two of 60 × 25 см: 0,30 м²... shown as 0,3 м²)
+ * or on skates on ice (two blades of 27 × 0,3 см: 0,0016 м²). The pressure is p = F/S with F = g·m. In the picture
+ * the feet sink into the snow by a depth that grows with the pressure (1,3 см per kPa, at most 42 см): this
+ * depth is only an illustration, real snow differs. On ice the skater does not sink; the number is what matters.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 prs not-content" data-prs>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 250" role="img" aria-label="Человек стоит на снегу; опора проваливается тем глубже, чем больше давление" data-svg>
+			<rect class="prs__sky" x="0" y="0" width="320" height="160"></rect>
+			<rect class="prs__snow" data-ground x="0" y="160" width="320" height="90"></rect>
+			<rect class="prs__hole" data-hole y="160"></rect>
+			<g data-man>
+				<circle class="prs__head" cx="0" cy="-118" r="12"></circle>
+				<path class="prs__coat" d="M-16 -104 h32 v52 h-32 Z"></path>
+				<path class="prs__leg" d="M-8 -52 V-4 M8 -52 V-4"></path>
+				<path class="prs__arm" d="M-16 -98 L-28 -62 M16 -98 L28 -62"></path>
+				<g data-foot></g>
+			</g>
+			<path class="ln-dash" data-level d="M0 160 H320"></path>
+			<text class="t-strong t-num" x="312" y="24" text-anchor="end" data-p></text>
+			<text class="t-small" x="312" y="40" text-anchor="end">давление на опору</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="На чём стоит человек" data-kind>
+				<button type="button" class="g7__btn" aria-pressed="true" data-k="boots">Ботинки</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="skis">Лыжи</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="shoes">Снегоступы</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="skates">Коньки на льду</button>
+			</div>
+			<label class="g7__slider">
+				<span>Масса человека</span>
+				<output data-out></output>
+				<input type="range" min="30" max="100" step="5" value="60" data-m aria-label="Масса человека, килограммы" />
+			</label>
+			<ol class="g7__lines" data-lines aria-live="polite"></ol>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Глубина следа на рисунке показана условно: чем больше давление, тем глубже. Настоящий снег бывает разным.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.prs__sky {
+		fill: var(--g7-sky);
+	}
+	.prs__snow {
+		fill: color-mix(in oklab, var(--sl-color-white) 86%, var(--ig-vx));
+	}
+	:root:not([data-theme='light']) .prs__snow {
+		fill: hsl(210, 30%, 84%);
+	}
+	.prs__snow.is-ice {
+		fill: hsl(200, 60%, 72%);
+	}
+	.prs__hole {
+		fill: var(--g7-sky);
+	}
+	.prs__head {
+		fill: hsl(26, 55%, 72%);
+		stroke: hsl(20, 40%, 40%);
+		stroke-width: 0.8;
+	}
+	.prs__coat {
+		fill: var(--g7-red);
+	}
+	.prs__leg,
+	.prs__arm {
+		fill: none;
+		stroke: hsl(225, 30%, 30%);
+		stroke-width: 7;
+		stroke-linecap: round;
+	}
+	.prs__arm {
+		stroke: var(--g7-red);
+		stroke-width: 6;
+	}
+	.prs__sole {
+		fill: hsl(225, 20%, 22%);
+	}
+	.prs__ski {
+		fill: var(--g7-blue);
+	}
+</style>
+
+<script>
+	import { el, fmt, fmtInt, k, segment, tex } from '../g7/kit';
+
+	const KIND: Record<string, { S: number; name: string; w: number; h: number; cls: string }> = {
+		boots: { S: 0.03, name: 'две подошвы по 150 см²', w: 30, h: 7, cls: 'prs__sole' },
+		skis: { S: 0.29, name: 'две лыжи 180 × 8 см', w: 190, h: 4, cls: 'prs__ski' },
+		shoes: { S: 0.3, name: 'два снегоступа 60 × 25 см', w: 70, h: 5, cls: 'prs__ski' },
+		skates: { S: 0.0016, name: 'два лезвия 27 × 0,3 см', w: 34, h: 3, cls: 'prs__sole' },
+	};
+	for (const root of document.querySelectorAll<HTMLElement>('[data-prs]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const mIn = q<HTMLInputElement>('[data-m]');
+		let kind = 'boots';
+		const draw = () => {
+			const K = KIND[kind];
+			const m = Number(mIn.value);
+			const F = 9.8 * m;
+			const p = F / K.S;
+			const ice = kind === 'skates';
+			const depth = ice ? 0 : Math.min(42, (p / 1000) * 1.3) * 2; // px (2 px per centimeter)
+			q('[data-ground]').classList.toggle('is-ice', ice);
+			q('[data-man]').setAttribute('transform', `translate(160 ${160 + depth})`);
+			const hole = q<SVGRectElement>('[data-hole]');
+			hole.setAttribute('x', String(160 - K.w / 2 - 3));
+			hole.setAttribute('width', String(K.w + 6));
+			hole.setAttribute('height', String(depth));
+			const foot = q<SVGGElement>('[data-foot]');
+			foot.replaceChildren();
+			if (kind === 'boots' || kind === 'skates') {
+				foot.append(el('rect', { class: 'prs__sole', x: -17, y: -8, width: 15, height: 8, rx: 2 }), el('rect', { class: 'prs__sole', x: 2, y: -8, width: 15, height: 8, rx: 2 }));
+				if (kind === 'skates') foot.append(el('rect', { class: 'prs__ski', x: -19, y: 0, width: 38, height: 2 }));
+			} else foot.append(el('rect', { class: K.cls, x: -K.w / 2, y: -K.h, width: K.w, height: K.h, rx: 2 }));
+			q('[data-out]').textContent = `${m} кг`;
+			q('[data-p]').textContent = p >= 1000 ? `${fmt(p / 1000, p >= 100000 ? 0 : 1)} кПа` : `${fmtInt(p)} Па`;
+			q('[data-lines]').innerHTML = [
+				`<li class="is-text">Опора: ${K.name}.</li>`,
+				`<li>${k(`F = gm = 9{,}8 \\cdot ${m} = ${tex(fmt(F, 0))}~\\text{Н}`)}</li>`,
+				`<li>${k(`S = ${tex(String(K.S).replace('.', ','))}~\\text{м}^2`)}</li>`,
+				`<li class="is-key">${k(`p = \\dfrac{F}{S} = \\dfrac{${tex(fmt(F, 0))}}{${tex(String(K.S).replace('.', ','))}} \\approx ${tex(fmtInt(Math.round(p / 100) * 100))}~\\text{Па}`)}</li>`,
+			].join('');
+		};
+		mIn.addEventListener('input', draw);
+		segment(q('[data-kind]'), (b) => {
+			kind = b.dataset.k!;
+			draw();
+		});
+		draw();
+	}
+</script>

@@ -1,0 +1,125 @@
+---
+/**
+ * «Давление газа»: 255 molecules (the model of g7/md.ts, without gravity) in a vessel 80 × 52 molecule diameters,
+ * closed by a lid. The pressure is measured in the model itself: the momentum the molecules give to the walls in
+ * their blows, per second and per unit of the walls' length, averaged over the last ten seconds and shown in
+ * conventional units chosen so that the gas at the full volume and the low temperature gives about 100. The gas is
+ * dilute, so halving the volume doubles the pressure within a few percent. The reader changes the volume (the lid
+ * moves) and the temperature. A flash on the lid marks every blow on it.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 gsl not-content" data-gsl>
+	<div class="g7__grid">
+		<canvas class="g7__canvas" width="720" height="468" role="img" aria-label="Молекулы газа в сосуде с подвижной крышкой ударяют о стенки" data-canvas></canvas>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Объём сосуда</span>
+				<output data-vout></output>
+				<input type="range" min="40" max="100" step="10" value="100" data-v aria-label="Объём сосуда, проценты" />
+			</label>
+			<label class="g7__slider">
+				<span>Температура</span>
+				<output data-tout></output>
+				<input type="range" min="0" max="2" step="1" value="0" data-t aria-label="Температура" />
+			</label>
+			<ul class="g7__read" aria-live="off">
+				<li><span>Ударов о стенки за секунду</span><b data-hits>—</b></li>
+				<li class="is-key"><span>Давление газа на стенки</span><b data-p>—</b></li>
+			</ul>
+			<p class="g7__note">Давление дано в условных единицах и усреднено за десять секунд: удары молекул случайны, поэтому число немного колеблется. После каждой перемены подождите, пока оно появится.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Каждая вспышка на крышке — удар молекулы. Из множества таких ударов и складывается давление газа.
+	</figcaption>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { MD, lattice, paint, themeColors } from '../g7/md';
+
+	const W = 80;
+	const H = 52;
+	const PX = 9;
+	const TEMPS = [1, 1.5, 2];
+	const WORDS = ['низкая', 'средняя', 'высокая'];
+	const NAMES = { mol: '--ig-vx', lid: '--sl-color-gray-3', edge: '--sl-color-gray-1', hit: '--ig-v' };
+	for (const root of document.querySelectorAll<HTMLElement>('[data-gsl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const canvas = q<HTMLCanvasElement>('[data-canvas]');
+		const ctx = canvas.getContext('2d')!;
+		const vIn = q<HTMLInputElement>('[data-v]');
+		const tIn = q<HTMLInputElement>('[data-t]');
+		const md = new MD({ w: W, h: H });
+		md.set(lattice(0, H * 0.5, W, H, 3.1), TEMPS[0]);
+		let colors = themeColors(root, NAMES);
+		let frame = 0;
+		let lid = 0;
+		// samples of the last seconds: [time of the model, impulse given to the lid, number of blows, real seconds]
+		let samples: [number, number, number, number][] = [];
+		let flashes: { x: number; life: number }[] = [];
+		let hitsTotal = 0;
+		let clock = 0;
+		const label = () => {
+			q('[data-vout]').textContent = `${vIn.value} %`;
+			q('[data-tout]').textContent = WORDS[Number(tIn.value)];
+			md.target = TEMPS[Number(tIn.value)];
+			samples = [];
+		};
+		loop(root, (dt) => {
+			const want = H * (1 - Number(vIn.value) / 100);
+			if (Math.abs(want - lid) > 1e-9) samples = [];
+			lid += Math.max(-0.2, Math.min(0.2, want - lid));
+			md.top = lid;
+			for (let s = 0; s < 16; s++) {
+				const before = md.impulseTop;
+				const walls = md.impulseWalls;
+				md.step(0.006);
+				if (md.impulseWalls > walls) hitsTotal++;
+				if (md.impulseTop > before) {
+					// the molecule that has just bounced off the lid is the one nearest to it and moving away
+					let best = -1;
+					for (let i = 0; i < md.n; i++) if (md.vy[i] > 0 && (best < 0 || md.y[i] < md.y[best])) best = i;
+					if (best >= 0 && flashes.length < 40) flashes.push({ x: md.x[best], life: 1 });
+				}
+			}
+			clock += dt;
+			if (frame++ % 90 === 0) colors = themeColors(root, NAMES);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			paint(ctx, md, PX, () => colors.mol);
+			ctx.fillStyle = colors.lid;
+			ctx.fillRect(0, 0, canvas.width, lid * PX);
+			ctx.fillStyle = colors.edge;
+			ctx.fillRect(0, Math.max(0, lid * PX - 4), canvas.width, 5);
+			for (const f of flashes) {
+				ctx.globalAlpha = f.life;
+				ctx.fillStyle = colors.hit;
+				ctx.fillRect(f.x * PX - 10, lid * PX + 1, 20, 6);
+				f.life -= 0.08;
+			}
+			ctx.globalAlpha = 1;
+			flashes = flashes.filter((f) => f.life > 0);
+			if (frame % 15 === 0) {
+				samples.push([md.time, md.impulseWalls, hitsTotal, clock]);
+				while (samples.length > 40) samples.shift(); // about ten seconds
+				if (samples.length >= 40 && Math.abs(want - lid) < 0.01) {
+					const [t0, i0, h0, c0] = samples[0];
+					const [t1, i1, h1, c1] = samples[samples.length - 1];
+					const p = (i1 - i0) / (t1 - t0) / (2 * (W + H - lid));
+					q('[data-p]').textContent = String(Math.round(((p * 10000) / 6) / 5) * 5);
+					q('[data-hits]').textContent = String(Math.round((h1 - h0) / (c1 - c0)));
+				} else {
+					q('[data-p]').textContent = '…';
+					q('[data-hits]').textContent = '…';
+				}
+			}
+			return true;
+		});
+		vIn.addEventListener('input', label);
+		tIn.addEventListener('input', label);
+		label();
+	}
+</script>
