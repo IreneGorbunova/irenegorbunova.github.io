@@ -1,0 +1,339 @@
+---
+/**
+ * «Цена деления»: a measuring cylinder, a thermometer or a ruler with a scale that is new each time. The reader
+ * finds the value of one division and the reading, and (with `error`) the error of the reading, taken as half a
+ * division, as in the school course. «Показать решение» explains the steps on this very scale.
+ * The scales are drawn to scale; the reading always falls on a stroke.
+ */
+import G7Styles from './G7Styles.astro';
+
+interface Props {
+	/** also ask for the error of the measurement (half a division) */
+	error?: boolean;
+	caption?: string;
+}
+const { error = false, caption } = Astro.props;
+---
+
+<G7Styles />
+<figure class="g7 scl not-content" data-scale data-error={error ? '1' : '0'}>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 330" role="img" aria-label="Измерительный прибор со шкалой" data-svg></svg>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Прибор" data-kind>
+				<button type="button" class="g7__btn" aria-pressed="true" data-k="cyl">Мензурка</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="thermo">Термометр</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="ruler">Линейка</button>
+			</div>
+			<label class="scl__field">
+				<span>Цена деления, <span data-u></span></span>
+				<input type="text" inputmode="decimal" autocomplete="off" data-in="price" aria-label="Цена деления" />
+			</label>
+			<label class="scl__field">
+				<span><span data-what>Показание</span>, <span data-u></span></span>
+				<input type="text" inputmode="decimal" autocomplete="off" data-in="value" aria-label="Показание прибора" />
+			</label>
+			{
+				error && (
+					<label class="scl__field">
+						<span>Погрешность, <span data-u /></span>
+						<input type="text" inputmode="decimal" autocomplete="off" data-in="err" aria-label="Погрешность измерения" />
+					</label>
+				)
+			}
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-check>Проверить</button>
+				<button type="button" class="g7__btn" data-solve>Показать решение</button>
+				<button type="button" class="g7__btn" data-new>Другая шкала</button>
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite">Найдите цену деления и запишите показание прибора.</p>
+			<ol class="scl__steps" data-steps hidden></ol>
+		</div>
+	</div>
+	{caption && <figcaption class="g7__caption">{caption}</figcaption>}
+</figure>
+
+<style is:global>
+	.scl__field {
+		display: grid;
+		grid-template-columns: 1fr 6.5rem;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.scl__field input {
+		font: inherit;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		width: 100%;
+		padding: 0.35rem 0.5rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+	}
+	.scl__field input.is-ok {
+		border-color: var(--g7-green);
+		box-shadow: 0 0 0 1px var(--g7-green);
+	}
+	.scl__field input.is-bad {
+		border-color: var(--ig-vy);
+		box-shadow: 0 0 0 1px var(--ig-vy);
+	}
+	.scl .g7__msg.is-right {
+		background: color-mix(in oklab, var(--g7-green) 20%, var(--sl-color-gray-6));
+	}
+	.scl__steps {
+		margin: 0;
+		padding-left: 1.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.scl__steps li {
+		margin: 0.2rem 0;
+	}
+	.scl__glass {
+		fill: color-mix(in srgb, var(--ig-vx) 6%, transparent);
+		stroke: var(--g7-glass);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.scl__liquid {
+		fill: var(--g7-water);
+	}
+	.scl__level {
+		stroke: var(--g7-water-edge);
+		stroke-width: 2;
+	}
+	.scl__mercury {
+		fill: var(--ig-vy);
+	}
+	.scl__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.scl__tick--major {
+		stroke-width: 1.6;
+	}
+	.scl__rulerbody {
+		fill: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-6));
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	.scl__pencil {
+		fill: var(--g7-blue);
+	}
+	.scl__pencil-tip {
+		fill: var(--g7-wood);
+	}
+	.scl__pencil-lead {
+		fill: var(--g7-ink);
+	}
+	.scl__guide {
+		stroke: var(--g7-red);
+		stroke-width: 1;
+		stroke-dasharray: 4 3;
+	}
+	.scl svg .scl__num {
+		font-size: 11px;
+		font-variant-numeric: tabular-nums;
+		fill: var(--sl-color-gray-1);
+	}
+</style>
+
+<script>
+	import { el, fmtTrim, segment } from './kit';
+
+	type Spec = { min: number; max: number; major: number; n: number };
+	const PRESETS: Record<string, { unit: string; what: string; specs: Spec[] }> = {
+		cyl: {
+			unit: 'мл',
+			what: 'Объём воды',
+			specs: [
+				{ min: 0, max: 50, major: 10, n: 2 },
+				{ min: 0, max: 50, major: 10, n: 5 },
+				{ min: 0, max: 100, major: 20, n: 4 },
+				{ min: 0, max: 100, major: 20, n: 10 },
+				{ min: 0, max: 250, major: 50, n: 5 },
+				{ min: 0, max: 250, major: 50, n: 10 },
+				{ min: 0, max: 500, major: 100, n: 4 },
+				{ min: 0, max: 500, major: 100, n: 5 },
+			],
+		},
+		thermo: {
+			unit: '°C',
+			what: 'Температура',
+			specs: [
+				{ min: -20, max: 50, major: 10, n: 2 },
+				{ min: -10, max: 40, major: 10, n: 5 },
+				{ min: 0, max: 40, major: 10, n: 10 },
+				{ min: -20, max: 60, major: 20, n: 4 },
+				{ min: -10, max: 30, major: 5, n: 5 },
+			],
+		},
+		ruler: {
+			unit: 'см',
+			what: 'Длина карандаша',
+			specs: [
+				{ min: 0, max: 10, major: 1, n: 2 },
+				{ min: 0, max: 10, major: 1, n: 5 },
+				{ min: 0, max: 10, major: 1, n: 10 },
+				{ min: 0, max: 16, major: 2, n: 4 },
+				{ min: 0, max: 25, major: 5, n: 5 },
+			],
+		},
+	};
+	const num = (s: string) => {
+		const v = Number(s.trim().replace(',', '.').replace('−', '-'));
+		return s.trim() === '' || Number.isNaN(v) ? null : v;
+	};
+	const ru = (v: number) => fmtTrim(v, 3);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-scale]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const msg = q<HTMLElement>('[data-msg]');
+		const steps = q<HTMLOListElement>('[data-steps]');
+		const withErr = root.dataset.error === '1';
+		const inputs = Object.fromEntries([...root.querySelectorAll<HTMLInputElement>('[data-in]')].map((i) => [i.dataset.in!, i]));
+		let kind = 'cyl';
+		let spec: Spec = PRESETS.cyl.specs[1];
+		let ticks = 0; // the reading, in divisions from the lowest stroke
+		let last = '';
+
+		const price = () => spec.major / spec.n;
+		const value = () => spec.min + ticks * price();
+
+		const draw = () => {
+			svg.replaceChildren();
+			const total = Math.round((spec.max - spec.min) / price());
+			const pos = (i: number, a: number, b: number) => a + ((b - a) * i) / total;
+			if (kind === 'ruler') {
+				const X0 = 22;
+				const X1 = 278;
+				const y = 190;
+				svg.append(el('rect', { class: 'scl__rulerbody', x: X0 - 12, y, width: X1 - X0 + 24, height: 52, rx: 4 }));
+				for (let i = 0; i <= total; i++) {
+					const major = i % spec.n === 0;
+					const x = pos(i, X0, X1);
+					svg.append(el('line', { class: `scl__tick${major ? ' scl__tick--major' : ''}`, x1: x, x2: x, y1: y, y2: y + (major ? 18 : spec.n % 2 === 0 && i % (spec.n / 2) === 0 ? 13 : 9) }));
+					if (major) svg.append(el('text', { class: 'scl__num', x, y: y + 32, 'text-anchor': 'middle' }, ru(spec.min + i * price())));
+				}
+				svg.append(el('text', { class: 't-small', x: X1 + 8, y: y + 48, 'text-anchor': 'end' }, 'см'));
+				// the pencil lies along the ruler from the zero stroke
+				const xe = pos(ticks, X0, X1);
+				svg.append(el('rect', { class: 'scl__pencil', x: X0, y: y - 30, width: Math.max(0, xe - X0 - 14), height: 14, rx: 2 }));
+				svg.append(el('path', { class: 'scl__pencil-tip', d: `M${xe - 14} ${y - 30} L${xe} ${y - 23} L${xe - 14} ${y - 16} Z` }));
+				svg.append(el('path', { class: 'scl__pencil-lead', d: `M${xe - 5} ${y - 25.5} L${xe} ${y - 23} L${xe - 5} ${y - 20.5} Z` }));
+				svg.append(el('line', { class: 'scl__guide', x1: X0, x2: X0, y1: y - 44, y2: y }));
+				svg.append(el('line', { class: 'scl__guide', x1: xe, x2: xe, y1: y - 44, y2: y }));
+				return;
+			}
+			const Y0 = 296;
+			const Y1 = 44;
+			if (kind === 'cyl') {
+				const y = pos(ticks, Y0, Y1);
+				svg.append(el('rect', { class: 'scl__liquid', x: 112, y, width: 86, height: Y0 + 8 - y }));
+				svg.append(el('path', { class: 'scl__glass', d: `M112 24 V${Y0 + 8} H198 V24 M96 ${Y0 + 16} H214 L198 ${Y0 + 8} H112 Z` }));
+				svg.append(el('line', { class: 'scl__level', x1: 112, x2: 198, y1: y, y2: y }));
+				for (let i = 0; i <= total; i++) {
+					const major = i % spec.n === 0;
+					const yy = pos(i, Y0, Y1);
+					svg.append(el('line', { class: `scl__tick${major ? ' scl__tick--major' : ''}`, x1: 112, x2: 112 + (major ? 30 : spec.n % 2 === 0 && i % (spec.n / 2) === 0 ? 22 : 15), y1: yy, y2: yy }));
+					if (major) svg.append(el('text', { class: 'scl__num', x: 104, y: yy + 4, 'text-anchor': 'end' }, ru(spec.min + i * price())));
+				}
+				svg.append(el('text', { class: 't-small', x: 104, y: 30, 'text-anchor': 'end' }, 'мл'));
+			} else {
+				const y = pos(ticks, Y0, Y1);
+				svg.append(el('path', { class: 'scl__glass', d: `M143 28 q0 -8 7 -8 q7 0 7 8 V${Y0 + 6} a14 14 0 1 1 -14 0 Z` }));
+				svg.append(el('circle', { class: 'scl__mercury', cx: 150, cy: Y0 + 18, r: 10 }));
+				svg.append(el('rect', { class: 'scl__mercury', x: 147, y, width: 6, height: Y0 + 12 - y }));
+				for (let i = 0; i <= total; i++) {
+					const major = i % spec.n === 0;
+					const yy = pos(i, Y0, Y1);
+					svg.append(el('line', { class: `scl__tick${major ? ' scl__tick--major' : ''}`, x1: 162, x2: 162 + (major ? 24 : spec.n % 2 === 0 && i % (spec.n / 2) === 0 ? 17 : 11), y1: yy, y2: yy }));
+					if (major) svg.append(el('text', { class: 'scl__num', x: 192, y: yy + 4 }, ru(spec.min + i * price())));
+				}
+				svg.append(el('text', { class: 't-small', x: 192, y: 28 }, '°C'));
+			}
+		};
+
+		const fresh = () => {
+			const p = PRESETS[kind];
+			let s: Spec;
+			let t: number;
+			do {
+				s = p.specs[Math.floor(Math.random() * p.specs.length)];
+				const total = Math.round((s.max - s.min) / (s.major / s.n));
+				t = Math.floor(total * (0.2 + 0.7 * Math.random()));
+				if (t % s.n === 0) t += 1; // not on a numbered stroke: the price of a division is needed
+			} while (`${kind}${s.major}${s.n}${t}` === last);
+			spec = s;
+			ticks = t;
+			last = `${kind}${s.major}${s.n}${t}`;
+			for (const u of root.querySelectorAll('[data-u]')) u.textContent = p.unit;
+			q('[data-what]').textContent = p.what;
+			for (const i of Object.values(inputs)) {
+				i.value = '';
+				i.classList.remove('is-ok', 'is-bad');
+			}
+			msg.classList.remove('is-right');
+			msg.textContent = 'Найдите цену деления и запишите показание прибора.';
+			steps.hidden = true;
+			draw();
+		};
+
+		const explain = () => {
+			const p = PRESETS[kind];
+			const c = price();
+			const lowIdx = Math.floor(ticks / spec.n) * spec.n;
+			const low = spec.min + lowIdx * c;
+			const high = low + spec.major;
+			const extra = ticks - lowIdx;
+			const items = [
+				`Два соседних штриха с числами: ${ru(low)} и ${ru(high)} ${p.unit}.`,
+				`Между ними ${spec.n} ${spec.n < 5 ? 'деления' : 'делений'}. Цена деления: (${ru(high)} − ${ru(low)}) : ${spec.n} = ${ru(c)} ${p.unit}.`,
+				`${p.what}: штрих ${ru(low)} и ещё ${extra} ${extra === 1 ? 'деление' : extra < 5 ? 'деления' : 'делений'}: ${ru(low)} + ${extra} · ${ru(c)} = ${ru(value())} ${p.unit}.`,
+			];
+			if (withErr) items.push(`Погрешность — половина цены деления: ${ru(c)} : 2 = ${ru(c / 2)} ${p.unit}. Результат: ${ru(value())} ± ${ru(c / 2)} ${p.unit}.`);
+			steps.innerHTML = items.map((s) => `<li>${s}</li>`).join('');
+			steps.hidden = false;
+		};
+
+		q('[data-check]').addEventListener('click', () => {
+			const want: Record<string, number> = { price: price(), value: value() };
+			if (withErr) want.err = price() / 2;
+			let ok = true;
+			let empty = false;
+			for (const [name, input] of Object.entries(inputs)) {
+				const v = num(input.value);
+				if (v === null) empty = true;
+				const good = v !== null && Math.abs(v - want[name]) < 1e-6;
+				input.classList.toggle('is-ok', good);
+				input.classList.toggle('is-bad', !good && v !== null);
+				ok &&= good;
+			}
+			msg.classList.toggle('is-right', ok);
+			if (ok) {
+				msg.textContent = 'Верно! Возьмите другую шкалу.';
+				explain();
+			} else if (empty) msg.textContent = 'Заполните все поля.';
+			else if (!inputs.price.classList.contains('is-ok')) msg.textContent = 'Цена деления найдена неверно. Возьмите два соседних штриха с числами, найдите их разность и разделите на число делений между ними.';
+			else if (!inputs.value.classList.contains('is-ok')) msg.textContent = 'Цена деления верна, а показание — нет. Сосчитайте деления от ближайшего нижнего штриха с числом.';
+			else msg.textContent = 'Погрешность измерения равна половине цены деления.';
+		});
+		q('[data-solve]').addEventListener('click', explain);
+		q('[data-new]').addEventListener('click', fresh);
+		segment(q('[data-kind]'), (b) => {
+			kind = b.dataset.k!;
+			fresh();
+		});
+		// the first scale is the same for everyone (the text of the chapter refers to it)
+		spec = PRESETS.cyl.specs[1];
+		ticks = 13;
+		for (const u of root.querySelectorAll('[data-u]')) u.textContent = 'мл';
+		q('[data-what]').textContent = PRESETS.cyl.what;
+		draw();
+	}
+</script>

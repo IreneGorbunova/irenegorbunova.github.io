@@ -1,0 +1,177 @@
+---
+/**
+ * «Измерьте своей меркой»: one board is measured with different units of length: two people's cubits (48 см and
+ * 40 см), the old Russian пядь (17,78 см) and аршин (71,12 см), the foot (30,48 см), the metre and the decimetre.
+ * The unit is laid along the board again and again; the number of units is the length divided by the unit.
+ * The drawing is to scale (130 px per metre). The results stay in a list, to be compared.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+// forms: «2 локтя» (also after a fraction: «3,75 локтя»), «5 локтей»
+const UNITS = [
+	{ key: 'cubit1', name: 'Локоть мастера', cm: 48, forms: 'локтя мастера|локтей мастера' },
+	{ key: 'cubit2', name: 'Локоть ученика', cm: 40, forms: 'локтя ученика|локтей ученика' },
+	{ key: 'span', name: 'Пядь', cm: 17.78, forms: 'пяди|пядей' },
+	{ key: 'arshin', name: 'Аршин', cm: 71.12, forms: 'аршина|аршинов' },
+	{ key: 'foot', name: 'Фут', cm: 30.48, forms: 'фута|футов' },
+	{ key: 'm', name: 'Метр', cm: 100, forms: 'метра|метров' },
+	{ key: 'dm', name: 'Дециметр', cm: 10, forms: 'дециметра|дециметров' },
+];
+---
+
+<G7Styles />
+<figure class="g7 g7--stack unl not-content" data-units>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 150" role="img" aria-label="Доска, вдоль которой раз за разом откладывают выбранную единицу длины" data-svg>
+			<text class="t-title" x="20" y="22" data-title></text>
+			<g data-segs></g>
+			<rect class="unl__board" x="20" y="92" height="26" rx="2" data-board></rect>
+			<path class="unl__grain" data-grain></path>
+			<text class="t-strong t-num" x="20" y="140" data-result></text>
+		</svg>
+		<div class="g7__side unl__side">
+			<label class="g7__select">
+				Единица длины
+				<select data-unit aria-label="Единица длины">
+					{UNITS.map((u) => <option value={u.key} data-cm={u.cm} data-forms={u.forms}>{`${u.name} (${String(u.cm).replace('.', ',')} см)`}</option>)}
+				</select>
+			</label>
+			<label class="g7__slider">
+				<span>Длина доски</span>
+				<output data-out></output>
+				<input type="range" min="0.6" max="2.4" step="0.1" value="1.8" data-len aria-label="Длина доски, метры" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Измерить</button>
+				<button type="button" class="g7__btn" data-clear>Очистить записи</button>
+			</div>
+			<ul class="g7__read" data-log aria-live="polite"></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Выберите единицу и нажмите «Измерить»: единицу откладывают вдоль доски, пока доска не кончится. Последний, неполный отрезок заштрихован. Результаты записываются в список.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.unl__side {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		align-items: end;
+	}
+	.unl__side .g7__read {
+		grid-column: 1 / -1;
+	}
+	.unl__board {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1.2;
+	}
+	.unl__grain {
+		fill: none;
+		stroke: var(--g7-wood-dark);
+		stroke-width: 0.8;
+		opacity: 0.6;
+	}
+	.unl__seg {
+		fill: color-mix(in oklab, var(--ig-vx) 30%, var(--sl-color-gray-6));
+		stroke: var(--g7-blue);
+		stroke-width: 1.2;
+	}
+	.unl__seg--odd {
+		fill: color-mix(in oklab, var(--ig-v) 34%, var(--sl-color-gray-6));
+		stroke: var(--g7-gold);
+	}
+	.unl__seg--part {
+		fill: color-mix(in oklab, var(--ig-vy) 22%, var(--sl-color-gray-6));
+		stroke: var(--g7-red);
+		stroke-dasharray: 3 2;
+	}
+	.unl svg .unl__n {
+		font-size: 11px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+	@container (max-width: 30rem) {
+		.unl__side {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { el, fmt, fmtTrim } from '../g7/kit';
+
+	const S = 130; // px per metre
+	const X0 = 20;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-units]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const unit = q<HTMLSelectElement>('[data-unit]');
+		const len = q<HTMLInputElement>('[data-len]');
+		const out = q<HTMLOutputElement>('[data-out]');
+		const board = q<SVGRectElement>('[data-board]');
+		const grain = q<SVGPathElement>('[data-grain]');
+		const segs = q<SVGGElement>('[data-segs]');
+		const title = q<SVGTextElement>('[data-title]');
+		const result = q<SVGTextElement>('[data-result]');
+		const log = q<HTMLUListElement>('[data-log]');
+		let timer = 0;
+
+		const info = () => {
+			const o = unit.selectedOptions[0];
+			return { name: o.textContent!.replace(/\s*\(.*/, ''), m: Number(o.dataset.cm) / 100, forms: o.dataset.forms!.split('|') };
+		};
+		const layout = () => {
+			clearInterval(timer);
+			const L = Number(len.value);
+			out.value = `${fmt(L, 1)} м`;
+			board.setAttribute('width', String(L * S));
+			grain.setAttribute('d', `M${X0 + 6} 100 H${X0 + L * S - 8} M${X0 + 14} 108 H${X0 + L * S - 20}`);
+			segs.replaceChildren();
+			title.textContent = `Единица: ${info().name.toLowerCase()}`;
+			result.textContent = '';
+		};
+		const measure = () => {
+			layout();
+			const L = Number(len.value);
+			const { name, m, forms } = info();
+			const n = L / m;
+			const whole = Math.floor(n + 1e-9);
+			const part = n - whole;
+			const count = whole + (part > 1e-6 ? 1 : 0);
+			let i = 0;
+			const add = () => {
+				if (i >= count) {
+					clearInterval(timer);
+					const text = `${fmtTrim(n, 2)}`;
+					// «3,75 локтя», «2 метра», «18 дециметров», «1 метр»
+					const whole = Math.abs(n - Math.round(n)) < 1e-9;
+					const r = Math.round(n);
+					const word = !whole ? forms[0] : r % 10 === 1 && r % 100 !== 11 ? name.toLowerCase() : r % 10 >= 2 && r % 10 <= 4 && (r % 100 < 12 || r % 100 > 14) ? forms[0] : forms[1];
+					result.textContent = `Длина доски: ${text} ${word}`;
+					const key = `${unit.value}-${len.value}`;
+					if (!log.querySelector(`[data-key="${key}"]`)) {
+						const li = document.createElement('li');
+						li.dataset.key = key;
+						li.innerHTML = `<span>${name}, доска ${fmt(L, 1)} м</span><b>${text}</b>`;
+						log.prepend(li);
+						while (log.children.length > 7) log.lastElementChild!.remove();
+					}
+					return;
+				}
+				const isPart = i === whole;
+				const w = (isPart ? part : 1) * m * S;
+				const x = X0 + i * m * S;
+				segs.append(el('rect', { class: `unl__seg${i % 2 ? ' unl__seg--odd' : ''}${isPart ? ' unl__seg--part' : ''}`, x, y: 54, width: w, height: 26, rx: 2 }));
+				if (!isPart && (m * S > 18 || (i + 1) % 5 === 0)) segs.append(el('text', { class: 'unl__n', x: x + (m * S) / 2, y: 71, 'text-anchor': 'middle' }, String(i + 1)));
+				i++;
+			};
+			add();
+			timer = window.setInterval(add, count > 12 ? 90 : 260);
+		};
+		unit.addEventListener('change', layout);
+		len.addEventListener('input', layout);
+		q('[data-go]').addEventListener('click', measure);
+		q('[data-clear]').addEventListener('click', () => log.replaceChildren());
+		layout();
+	}
+</script>
