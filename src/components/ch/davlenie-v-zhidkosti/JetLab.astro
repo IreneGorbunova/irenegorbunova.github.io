@@ -1,0 +1,129 @@
+---
+/**
+ * «Струи из отверстий»: a tall vessel on a stand 40 см high has three holes, 10, 25 and 40 см above its bottom.
+ * Water leaves a hole with the speed υ = √(2·g·d), where d is the depth of the hole under the surface (the
+ * pressure of the water there is g·ρ·d), and then falls as a thrown body: the jet is the parabola
+ * y = g·x²/(2·υ²). The water level is set by the slider (20…50 см). 2,4 px per centimeter, everything to scale.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const S = 2.4;
+const FLOOR = 250;
+const BASE = FLOOR - 40 * S; // the bottom of the vessel
+const X0 = 40;
+---
+
+<G7Styles />
+<figure class="g7 jet not-content" data-jet>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 270" role="img" aria-label="Сосуд с тремя отверстиями на разной высоте; из них бьют струи воды" data-svg>
+			<line class="jet__floor" x1="0" x2="360" y1={FLOOR} y2={FLOOR}></line>
+			<rect class="jet__stand" x={X0 - 6} y={BASE} width="72" height={40 * S}></rect>
+			<rect class="jet__water" data-water x={X0} width="60"></rect>
+			<path class="jet__glass" d={`M${X0} ${BASE - 56 * S} V${BASE} H${X0 + 60} V${BASE - 56 * S}`}></path>
+			<g data-jets></g>
+			{[10, 25, 40].map((hh) => <circle class="jet__hole" cx={X0 + 60} cy={BASE - hh * S} r="2.5" />)}
+			{[0, 20, 40, 60, 80, 100].map((c) => (
+				<>
+					<line class="ln" x1={X0 + 60 + c * S} x2={X0 + 60 + c * S} y1={FLOOR} y2={FLOOR + 6} />
+					<text class="t-small t-num" x={X0 + 60 + c * S} y={FLOOR + 17} text-anchor="middle">{c}</text>
+				</>
+			))}
+			<text class="t-small" x="356" y={FLOOR - 6} text-anchor="end">см</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Уровень воды над дном сосуда</span>
+				<output data-out></output>
+				<input type="range" min="20" max="50" step="1" value="50" data-l aria-label="Уровень воды над дном сосуда, сантиметры" />
+			</label>
+			<ul class="g7__read" data-rows aria-live="polite"></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Сосуд стоит на подставке высотой 40 см. Скорость струи зависит только от того, как глубоко под поверхностью воды находится отверстие.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.jet__floor {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.jet__stand {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	.jet__water {
+		fill: var(--g7-water);
+	}
+	.jet__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.jet__hole {
+		fill: var(--g7-paper);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.jet__stream {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		stroke-dasharray: 9 5;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const S = 2.4;
+	const FLOOR = 250;
+	const BASE = FLOOR - 40 * S;
+	const X0 = 40;
+	const HOLES = [40, 25, 10]; // см above the bottom of the vessel
+	for (const root of document.querySelectorAll<HTMLElement>('[data-jet]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const lIn = q<HTMLInputElement>('[data-l]');
+		const jets = q<SVGGElement>('[data-jets]');
+		const paths = HOLES.map(() => jets.appendChild(el('path', { class: 'jet__stream' })));
+		let phase = 0;
+		const draw = () => {
+			const L = Number(lIn.value);
+			const water = q<SVGRectElement>('[data-water]');
+			water.setAttribute('y', String(BASE - L * S));
+			water.setAttribute('height', String(L * S));
+			q('[data-out]').textContent = `${L} см`;
+			const rows: string[] = [];
+			HOLES.forEach((hh, i) => {
+				const d = L - hh; // depth of the hole, см
+				let path = '';
+				if (d > 0) {
+					const v = Math.sqrt(2 * 9.8 * (d / 100)); // м/с
+					const fall = (hh + 40) / 100; // м to the floor
+					const range = v * Math.sqrt((2 * fall) / 9.8) * 100; // см
+					for (let k = 0; k <= 20; k++) {
+						const xx = (range * k) / 20;
+						const yy = (9.8 * (xx / 100) ** 2) / (2 * v * v) * 100; // см below the hole
+						path += `${k ? 'L' : 'M'}${(X0 + 60 + xx * S).toFixed(1)} ${(BASE - hh * S + yy * S).toFixed(1)} `;
+					}
+					rows.push(`<li><span>Отверстие на глубине ${d} см</span><b>${fmt(v, 2)} м/с</b></li>`);
+				} else rows.push(`<li><span>Отверстие на высоте ${hh} см</span><b>выше воды</b></li>`);
+				paths[i].setAttribute('d', path);
+				paths[i].setAttribute('stroke-dashoffset', String(-phase));
+			});
+			q('[data-rows]').innerHTML = rows.join('');
+		};
+		loop(root, (dt) => {
+			phase = (phase + dt * 90) % 14;
+			for (const p of paths) p.setAttribute('stroke-dashoffset', String(-phase));
+			return true;
+		});
+		lIn.addEventListener('input', draw);
+		draw();
+	}
+</script>

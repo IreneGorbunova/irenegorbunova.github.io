@@ -1,0 +1,162 @@
+---
+/**
+ * «Датчик давления в жидкости»: a small box closed by a rubber film is joined by a tube to a U-shaped water
+ * manometer and can be moved anywhere in a tank of liquid 50 см deep (4 px per centimeter); the film can face
+ * up, down or sideways. The pressure of the liquid at the depth h of the film's centre is p = g·ρ·h (g = 9,8 Н/кг;
+ * water 1000, kerosene 800, sea water 1030, glycerin 1260 кг/м³). The manometer's water levels differ by
+ * p/(g·1000 кг/м³), shown to scale as well.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const TOP = 40;
+const CM = 4;
+---
+
+<G7Styles />
+<figure class="g7 dpl not-content" data-dpl>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 290" role="img" aria-label="Сосуд с жидкостью, датчик давления и манометр" data-svg>
+			<rect class="dpl__liquid" data-liquid x="20" y={TOP} width="210" height={50 * CM}></rect>
+			<path class="dpl__tank" d={`M20 ${TOP - 16} V${TOP + 50 * CM} H230 V${TOP - 16}`}></path>
+			{[0, 10, 20, 30, 40, 50].map((c) => (
+				<>
+					<line class="ln" x1="230" x2="238" y1={TOP + c * CM} y2={TOP + c * CM} />
+					<text class="t-small t-num" x="241" y={TOP + c * CM + 4}>{c}</text>
+				</>
+			))}
+			<text class="t-small" x="232" y={TOP - 8}>глубина, см</text>
+			<path class="dpl__hose" data-hose></path>
+			<g class="drag" data-probe>
+				<rect x="-22" y="-22" width="44" height="44" fill="transparent"></rect>
+				<g data-box>
+					<rect class="dpl__box" x="-12" y="-7" width="24" height="14" rx="2"></rect>
+					<path class="dpl__film" d="M-12 -7 q12 5 24 0"></path>
+				</g>
+			</g>
+			<path class="ln-dash" data-hline></path>
+			<!-- the manometer -->
+			<path class="dpl__mano" d="M290 60 V210 q0 14 14 14 q14 0 14 -14 V60"></path>
+			<path class="dpl__mwater" data-mwater></path>
+			<path class="ln" data-mdiff></path>
+			<text class="t-small t-num" x="336" y="140" data-mtext></text>
+			<text class="t-small" x="304" y="250" text-anchor="middle">манометр</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__select">
+				Жидкость
+				<select data-liq aria-label="Жидкость">
+					<option value="1000">Вода, 1000 кг/м³</option>
+					<option value="800">Керосин, 800 кг/м³</option>
+					<option value="1030">Морская вода, 1030 кг/м³</option>
+					<option value="1260">Глицерин, 1260 кг/м³</option>
+				</select>
+			</label>
+			<label class="g7__slider">
+				<span>Глубина датчика <i>h</i></span>
+				<output data-out></output>
+				<input type="range" min="0" max="48" step="1" value="10" data-h aria-label="Глубина датчика, сантиметры" />
+			</label>
+			<div class="g7__seg" role="group" aria-label="Куда обращена плёнка датчика" data-turn>
+				<button type="button" class="g7__btn" aria-pressed="true" data-a="0">Плёнкой вверх</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-a="90">Вбок</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-a="180">Вниз</button>
+			</div>
+			<ol class="g7__lines" data-lines aria-live="polite"></ol>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Датчик можно перетаскивать по всему сосуду. Чем сильнее жидкость давит на плёнку, тем больше разность уровней воды в манометре.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.dpl__liquid {
+		fill: var(--g7-water);
+	}
+	.dpl__tank {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.dpl__hose {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+	}
+	.dpl__box {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.dpl__film {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+	}
+	.dpl__mano {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.5;
+	}
+	.dpl__mwater {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 9;
+		stroke-linejoin: round;
+	}
+</style>
+
+<script>
+	import { drag, fmt, fmtInt, k, segment, tex } from '../g7/kit';
+
+	const TOP = 40;
+	const CM = 4;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-dpl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const hIn = q<HTMLInputElement>('[data-h]');
+		const liq = q<HTMLSelectElement>('[data-liq]');
+		const probe = q<SVGGElement>('[data-probe]');
+		let x = 110;
+		let turn = 0;
+		const draw = () => {
+			const h = Number(hIn.value); // см
+			const rho = Number(liq.value);
+			const p = 9.8 * rho * (h / 100);
+			const y = TOP + h * CM;
+			probe.setAttribute('transform', `translate(${x} ${y})`);
+			q('[data-box]').setAttribute('transform', `rotate(${turn})`);
+			q('[data-hose]').setAttribute('d', `M${x} ${y} C${x} ${TOP - 40} 270 ${TOP - 30} 290 60`);
+			q('[data-hline]').setAttribute('d', `M20 ${y} H230`);
+			// the manometer: the level in the arm joined to the probe goes down, in the open arm up
+			const d = ((p / 9800) * 100 * CM) / 2; // half of the difference of the levels, px
+			const base = 140;
+			q('[data-mwater]').setAttribute('d', `M290 ${base + d} V210 q0 14 14 14 q14 0 14 -14 V${base - d}`);
+			q('[data-mdiff]').setAttribute('d', `M326 ${base - d} h6 M326 ${base + d} h6 M329 ${base - d} V${base + d}`);
+			q('[data-mtext]').textContent = `${fmt((p / 9800) * 100, 1)} см`;
+			q('[data-liquid]').setAttribute('style', rho === 800 ? 'fill: color-mix(in srgb, var(--ig-v) 30%, transparent)' : rho === 1260 ? 'fill: color-mix(in srgb, var(--ig-vx) 16%, color-mix(in srgb, var(--ig-v) 12%, transparent))' : '');
+			q('[data-out]').textContent = `${h} см`;
+			q('[data-lines]').innerHTML = [
+				`<li>${k(`h = ${tex(fmt(h / 100, 2))}~\\text{м}`)}</li>`,
+				`<li class="is-key">${k(`p = g\\rho h = 9{,}8 \\cdot ${rho} \\cdot ${tex(fmt(h / 100, 2))} = ${tex(fmtInt(p))}~\\text{Па}`)}</li>`,
+				`<li class="is-text">Плёнка обращена ${turn === 0 ? 'вверх' : turn === 90 ? 'вбок' : 'вниз'}: давление на этой глубине одинаково во всех направлениях.</li>`,
+			].join('');
+		};
+		hIn.addEventListener('input', draw);
+		liq.addEventListener('change', draw);
+		segment(q('[data-turn]'), (b) => {
+			turn = Number(b.dataset.a);
+			draw();
+		});
+		drag(probe, svg, {
+			move: (pt) => {
+				x = Math.min(214, Math.max(36, pt.x));
+				hIn.value = String(Math.round(Math.min(48, Math.max(0, (pt.y - TOP) / CM))));
+				draw();
+			},
+		});
+		draw();
+	}
+</script>

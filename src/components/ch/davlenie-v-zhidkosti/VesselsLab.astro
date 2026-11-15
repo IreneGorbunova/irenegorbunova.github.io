@@ -1,0 +1,138 @@
+---
+/**
+ * «Сообщающиеся сосуды»: three vessels of different shapes (a narrow tube 3 см wide, a wide jar 12 см wide and a
+ * slanted tube 4 см wide; flat in depth, so widths stand for cross sections) joined at the bottom by a pipe with a
+ * tap. Water is poured into the wide jar (the slider sets its level, 5…40 см). When the tap is opened, the water
+ * flows until the surfaces are at one level; the volume of water stays the same:
+ * level = level₀·12/(3 + 12 + 4/cos 30°). The slanted tube leans by 30°. 4 px per centimeter.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const B = 220; // the bottom of the vessels
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<G7Styles />
+<figure class="g7 vsl not-content" data-vsl>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 400 260" role="img" aria-label="Три сосуда разной формы, соединённые внизу трубкой с краном" data-svg>
+			<defs>
+				<clipPath id={`vsl-a-${uid}`}><rect x="40" y="30" width="12" height="190"></rect></clipPath>
+				<clipPath id={`vsl-b-${uid}`}><rect x="130" y="30" width="48" height="190"></rect></clipPath>
+				<clipPath id={`vsl-c-${uid}`}><path d="M258 220 L367.7 30 H386.2 L276.5 220 Z"></path></clipPath>
+			</defs>
+			<rect class="vsl__water" data-pipe x="40" y={B} width="236" height="12"></rect>
+			<rect class="vsl__water" data-wa x="40" y={B} width="12" height="0" clip-path={`url(#vsl-a-${uid})`}></rect>
+			<rect class="vsl__water" data-wb x="130" y={B} width="48" height="0" clip-path={`url(#vsl-b-${uid})`}></rect>
+			<rect class="vsl__water" data-wc x="250" y={B} width="140" height="0" clip-path={`url(#vsl-c-${uid})`}></rect>
+			<path class="vsl__glass" d={`M40 30 V${B + 12} H276.5 M52 30 V${B} H130 V30 M178 30 V${B} H258 L367.7 30 M276.5 ${B + 12} V${B} L386.2 30`}></path>
+			<g data-tap><rect class="vsl__tap" x="200" y={B - 6} width="10" height="24" rx="2"></rect><path class="vsl__handle" d={`M205 ${B - 6} V${B - 20} M195 ${B - 20} H215`}></path></g>
+			<line class="vsl__level" data-level x1="20" x2="392" y1={B} y2={B}></line>
+			{[0, 10, 20, 30, 40].map((c) => (
+				<>
+					<line class="ln" x1="14" x2="22" y1={B - c * 4} y2={B - c * 4} />
+					<text class="t-small t-num" x="10" y={B - c * 4 + 4} text-anchor="end">{c}</text>
+				</>
+			))}
+			<text class="t-small" x="4" y="22">см</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Налито в широкий сосуд, до уровня</span>
+				<output data-out></output>
+				<input type="range" min="5" max="40" step="1" value="30" data-l aria-label="Уровень воды в широком сосуде до открытия крана, сантиметры" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-open>Открыть кран</button>
+				<button type="button" class="g7__btn" data-close>Закрыть и налить заново</button>
+			</div>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Узкая трубка</span><b data-ra></b></li>
+				<li><span>Широкий сосуд</span><b data-rb></b></li>
+				<li><span>Наклонная трубка</span><b data-rc></b></li>
+			</ul>
+			<p class="g7__msg" data-msg></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Уровень воды в каждом сосуде отсчитывается по вертикали от дна. Воды при перетекании не становится ни больше, ни меньше.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.vsl__water {
+		fill: var(--g7-water);
+	}
+	.vsl__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.vsl__tap {
+		fill: var(--g7-red);
+	}
+	.vsl__tap.is-open {
+		fill: var(--g7-green);
+	}
+	.vsl__handle {
+		stroke: var(--g7-ink);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.vsl__level {
+		stroke: var(--g7-red);
+		stroke-width: 1;
+		stroke-dasharray: 5 4;
+	}
+</style>
+
+<script>
+	import { fmt, loop } from '../g7/kit';
+
+	const B = 220;
+	const CM = 4;
+	const SHARE = 12 / (3 + 12 + 4 / Math.cos(Math.PI / 6)); // the level after the tap is opened, as a share of the first one
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vsl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const lIn = q<HTMLInputElement>('[data-l]');
+		let open = false;
+		let u = 0; // 0: all the water in the wide jar; 1: the levels are equal
+		const draw = () => {
+			const L0 = Number(lIn.value);
+			const end = L0 * SHARE;
+			const lb = L0 + (end - L0) * u;
+			const side = end * u;
+			for (const [key, level] of [['a', side], ['b', lb], ['c', side]] as const) {
+				const r = q<SVGRectElement>(`[data-w${key}]`);
+				r.setAttribute('y', String(B - level * CM));
+				r.setAttribute('height', String(level * CM));
+				q(`[data-r${key}]`).textContent = `${fmt(level, 1)} см`;
+			}
+			q('[data-level]').setAttribute('y1', String(B - lb * CM));
+			q('[data-level]').setAttribute('y2', String(B - lb * CM));
+			q('[data-out]').textContent = `${L0} см`;
+			q('[data-tap] rect').classList.toggle('is-open', open);
+			q('[data-msg]').textContent = !open ? 'Кран закрыт: вода только в широком сосуде.' : u < 0.999 ? 'Вода перетекает…' : 'Вода остановилась: во всех трёх сосудах её поверхность на одном уровне.';
+		};
+		const wake = loop(root, (dt) => {
+			if (!open) return false;
+			u += (1 - u) * Math.min(1, dt * 1.6);
+			if (1 - u < 0.001) u = 1;
+			draw();
+			return u < 1;
+		});
+		q('[data-open]').addEventListener('click', () => {
+			open = true;
+			wake();
+		});
+		const reset = () => {
+			open = false;
+			u = 0;
+			draw();
+		};
+		q('[data-close]').addEventListener('click', reset);
+		lIn.addEventListener('input', reset);
+		draw();
+	}
+</script>
