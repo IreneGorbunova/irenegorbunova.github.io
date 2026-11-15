@@ -1,0 +1,174 @@
+---
+/**
+ * «Блоки»: a load (10…100 кг) is lifted by 1 м with a fixed pulley, with a movable pulley, or with two movable
+ * pulleys one after another (each halves the force). The pulleys and ropes are taken as weightless and without
+ * friction: the force is P, P/2 or P/4, and the free end of the rope is pulled 1, 2 or 4 м. The work is the same
+ * in all three cases. The heights are to scale (24 px per metre) in the animation of the lift.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<G7Styles />
+<figure class="g7 blk not-content" data-blk>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 300" role="img" aria-label="Груз поднимают с помощью блоков" data-svg>
+			<defs>
+				<marker id={`blk-${uid}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="head--red" d="M0,0 L10,5 L0,10 z"></path></marker>
+			</defs>
+			<rect class="blk__ceil" x="20" y="10" width="260" height="8"></rect>
+			<g data-scene></g>
+			<line class="arrow arrow--red" data-arrow marker-end={`url(#blk-${uid})`}></line>
+			<text class="t-i t-red t-halo" data-flabel>F</text>
+			<line class="blk__floor" x1="20" x2="280" y1="282" y2="282"></line>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Какие блоки" data-kind>
+				<button type="button" class="g7__btn" aria-pressed="true" data-k="fixed">Неподвижный</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="mov">Подвижный</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="two">Два подвижных</button>
+			</div>
+			<label class="g7__slider">
+				<span>Масса груза</span>
+				<output data-om></output>
+				<input type="range" min="10" max="100" step="10" value="40" data-m aria-label="Масса груза, килограммы" />
+			</label>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Поднять груз на 1 м</button>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Вес груза <i>P</i></span><b data-p></b></li>
+				<li class="is-key"><span>Сила, с которой тянут верёвку</span><b data-f></b></li>
+				<li><span>Вытянуто верёвки</span><b data-rope></b></li>
+				<li><span>Работа силы <i>F</i></span><b data-a></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Блоки и верёвки считаются невесомыми, трения нет. Груз поднимается равномерно.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.blk__ceil {
+		fill: var(--g7-line);
+	}
+	.blk__floor {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.blk__rope {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.blk__wheel {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
+	}
+	.blk__axle {
+		fill: var(--g7-ink);
+	}
+	.blk__holder {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.blk__load {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+</style>
+
+<script>
+	import { ease, el, fmt, fmtTrim, loop, segment } from '../g7/kit';
+
+	const M = 24; // px per metre
+	for (const root of document.querySelectorAll<HTMLElement>('[data-blk]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const scene = q<SVGGElement>('[data-scene]');
+		const mIn = q<HTMLInputElement>('[data-m]');
+		const arrow = q<SVGLineElement>('[data-arrow]');
+		let kind = 'fixed';
+		let u = 0;
+		let running = false;
+		const wheel = (x: number, y: number, r = 14) => [el('circle', { class: 'blk__wheel', cx: x, cy: y, r }), el('circle', { class: 'blk__axle', cx: x, cy: y, r: 2.5 })];
+		const draw = () => {
+			const m = Number(mIn.value);
+			const P = 9.8 * m;
+			const gain = kind === 'fixed' ? 1 : kind === 'mov' ? 2 : 4;
+			const F = P / gain;
+			const lift = ease(u) * M; // px: the load has risen by this much
+			const pull = lift * gain; // px: the free end has been pulled by this much
+			scene.replaceChildren();
+			const loadY = 262 - lift; // the top of the load
+			const size = 18 + m * 0.14;
+			const loadBox = (x: number) => el('rect', { class: 'blk__load', x: x - size / 2, y: loadY, width: size, height: 20, rx: 2 });
+			let hand = { x: 0, y: 0, dir: 1 };
+			if (kind === 'fixed') {
+				// a fixed pulley at the ceiling: the rope goes from the load up, over the wheel and down to the hand
+				const hy = 120 + pull;
+				scene.append(el('line', { class: 'blk__holder', x1: 130, x2: 130, y1: 18, y2: 40 }), el('path', { class: 'blk__rope', d: `M116 ${loadY} V40 A14 14 0 0 1 144 40 V${hy}` }), ...wheel(130, 40), loadBox(116));
+				hand = { x: 144, y: hy, dir: 1 };
+			} else if (kind === 'mov') {
+				// a movable pulley: one end of the rope is tied to the ceiling, the other is pulled up
+				const py = loadY - 26; // the centre of the movable pulley
+				const hy = 110 - pull; // the free end rises twice as far as the load
+				scene.append(el('path', { class: 'blk__rope', d: `M116 18 V${py} A14 14 0 0 0 144 ${py} V${hy}` }), el('line', { class: 'blk__holder', x1: 130, x2: 130, y1: py, y2: loadY }), ...wheel(130, py), loadBox(130));
+				hand = { x: 144, y: hy, dir: -1 };
+			} else {
+				// two movable pulleys: the first carries the load, its rope goes up to the axle of the second
+				const py = loadY - 26;
+				const p2 = 170 - lift * 2; // the second pulley rises twice as far as the load
+				const hy = 160 - pull; // and the free end four times as far
+				scene.append(
+					el('path', { class: 'blk__rope', d: `M96 18 V${py} A14 14 0 0 0 124 ${py} V${p2 + 14}` }),
+					el('path', { class: 'blk__rope', d: `M150 18 V${p2} A14 14 0 0 0 178 ${p2} V${hy}` }),
+					el('line', { class: 'blk__holder', x1: 110, x2: 110, y1: py, y2: loadY }),
+					el('path', { class: 'blk__holder', d: `M124 ${p2 + 14} H164 V${p2}`, fill: 'none' }),
+					...wheel(110, py),
+					...wheel(164, p2),
+					loadBox(110),
+				);
+				hand = { x: 178, y: hy, dir: -1 };
+			}
+			const L = Math.max(14, F * 0.1);
+			arrow.setAttribute('x1', String(hand.x));
+			arrow.setAttribute('x2', String(hand.x));
+			arrow.setAttribute('y1', String(hand.y));
+			arrow.setAttribute('y2', String(hand.y + hand.dir * L));
+			q('[data-flabel]').setAttribute('x', String(hand.x + 8));
+			q('[data-flabel]').setAttribute('y', String(hand.y + hand.dir * L * 0.6 + 4));
+			q('[data-om]').textContent = `${m} кг`;
+			q('[data-p]').textContent = `${fmtTrim(P, 1)} Н`;
+			q('[data-f]').textContent = `${fmtTrim(F, 1)} Н`;
+			q('[data-rope]').textContent = `${fmt(ease(u) * gain, 2)} м`;
+			q('[data-a]').textContent = `${fmtTrim(F * ease(u) * gain, 0)} Дж`;
+		};
+		const wake = loop(root, (dt) => {
+			if (!running) return false;
+			u = Math.min(1, u + dt / 2.4);
+			draw();
+			if (u >= 1) running = false;
+			return running;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			u = 0;
+			running = true;
+			wake();
+		});
+		mIn.addEventListener('input', () => {
+			running = false;
+			u = 0;
+			draw();
+		});
+		segment(q('[data-kind]'), (b) => {
+			kind = b.dataset.k!;
+			running = false;
+			u = 0;
+			draw();
+		});
+		draw();
+	}
+</script>
