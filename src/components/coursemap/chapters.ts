@@ -45,6 +45,7 @@ export const MAP_CHAPTERS: Record<string, MapChapter> = {
 	'fizicheskie-velichiny': { line: 'Что значит измерить; единицы СИ и приставки; шкала прибора и цена деления.', peryshkin: '' },
 	'tochnost-izmereniy': { line: 'Почему измерения неточны, погрешность прибора, запись результата и способ рядов.', peryshkin: '' },
 	'molekuly-diffuziya': { line: 'Из чего состоит вещество, размер молекул, броуновское движение и диффузия.', peryshkin: '' },
+	'vzaimodeystvie-molekul': { line: 'Притяжение и отталкивание молекул; почему вода смачивает стекло, но не воск.', peryshkin: '' },
 	'atmosfernoe-davlenie': { line: 'Почему воздух давит, опыт Торричелли, барометры и давление в горах.', peryshkin: '' },
 	'arhimedova-sila': { line: 'Почему в воде тела легче, закон Архимеда и когда тело тонет, а когда плавает.', peryshkin: '' },
 	// 9 класс

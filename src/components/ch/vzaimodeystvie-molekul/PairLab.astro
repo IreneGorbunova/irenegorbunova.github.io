@@ -1,0 +1,207 @@
+---
+/**
+ * «Две молекулы»: the left molecule is fixed, the right one is dragged or let go. The force between them is the
+ * Lennard-Jones force F = 24·(2/r¹³ − 1/r⁷) (in the units of g7/md.ts; r in molecule diameters): repulsion closer
+ * than 1,12 diameters, attraction farther, the strongest at 1,24 diameters, almost nothing beyond 2,5. The graph
+ * shows this force against the distance, with the same horizontal scale as the picture (100 px per diameter).
+ * «Отпустить» lets the right molecule move under this force (with a little friction, so that it settles).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const X0 = 54;
+const S = 100;
+const FY = 236; // y of zero force
+const K = 13; // px per unit of force
+const f = (r: number) => 24 * (2 / r ** 13 - 1 / r ** 7);
+let d = '';
+for (let r = 0.9; r <= 3.25; r += 0.01) {
+	const y = Math.max(150, FY - f(r) * K);
+	d += `${d ? 'L' : 'M'}${(X0 + r * S).toFixed(1)} ${y.toFixed(1)} `;
+}
+---
+
+<G7Styles />
+<figure class="g7 g7--stack pair not-content" data-pair>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 430 300" role="img" aria-label="Две молекулы и график силы их взаимодействия в зависимости от расстояния" data-svg>
+			<defs>
+				<marker id={`pa-${uid}-r`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="head--red" d="M0,0 L10,5 L0,10 z"></path></marker>
+				<marker id={`pa-${uid}-b`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="head--blue" d="M0,0 L10,5 L0,10 z"></path></marker>
+			</defs>
+			<!-- the molecules -->
+			<circle class="pair__mol" cx={X0} cy="72" r="49"></circle>
+			<g class="drag" data-mol>
+				<circle class="pair__mol pair__mol--b" cx="0" cy="72" r="49"></circle>
+			</g>
+			<line class="arrow" data-f1 y1="72" y2="72"></line>
+			<line class="arrow" data-f2 y1="72" y2="72"></line>
+			<path class="ln-dash" data-guide></path>
+			<!-- the graph -->
+			<rect class="pair__zone pair__zone--rep" x={X0 + 0.9 * S} y="150" width={0.2225 * S} height="140"></rect>
+			<rect class="pair__zone pair__zone--att" x={X0 + 1.1225 * S} y="150" width={1.3775 * S} height="140"></rect>
+			<path class="ln" d={`M${X0 + 0.9 * S} ${FY} H424`}></path>
+			{[1, 2, 3].map((r) => (
+				<>
+					<path class="ln" d={`M${X0 + r * S} ${FY - 4} v8`} />
+					<text class="t-small t-num" x={X0 + r * S} y={FY + 18} text-anchor="middle">{r}</text>
+				</>
+			))}
+			<path class="pair__curve" d={d}></path>
+			<circle class="pair__dot" data-dot r="5"></circle>
+			<text class="t-small t-red" x={X0 + 0.92 * S} y="146">отталкивание</text>
+			<text class="t-small t-blue" x={X0 + 1.95 * S} y="258">притяжение</text>
+			<text class="t-small" x="424" y="294" text-anchor="end">расстояние между центрами, в диаметрах молекулы</text>
+			<text class="t-small" x="8" y="162">сила</text>
+		</svg>
+		<div class="g7__side pair__side">
+			<label class="g7__slider">
+				<span>Расстояние между центрами молекул</span>
+				<output data-out></output>
+				<input type="range" min="0.95" max="3.2" step="0.01" value="2.2" data-r aria-label="Расстояние между центрами молекул, в диаметрах молекулы" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Отпустить молекулу</button>
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite"></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Перетаскивайте правую молекулу. Стрелки — силы, с которыми молекулы действуют друг на друга: синие — притяжение, красные — отталкивание. Точка на графике показывает силу при этом расстоянии.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.pair__side {
+		grid-template-columns: minmax(0, 1.2fr) auto;
+		align-items: end;
+	}
+	.pair__side .g7__msg {
+		grid-column: 1 / -1;
+	}
+	.pair__mol {
+		fill: color-mix(in oklab, var(--ig-vx) 55%, var(--sl-color-gray-5));
+		stroke: var(--g7-blue);
+		stroke-width: 1.5;
+		opacity: 0.9;
+	}
+	.pair__mol--b {
+		fill: color-mix(in oklab, var(--ig-v) 55%, var(--sl-color-gray-5));
+		stroke: var(--g7-gold);
+	}
+	.pair__zone--rep {
+		fill: color-mix(in srgb, var(--ig-vy) 12%, transparent);
+	}
+	.pair__zone--att {
+		fill: color-mix(in srgb, var(--ig-vx) 10%, transparent);
+	}
+	.pair__curve {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.pair__dot {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	@container (max-width: 30rem) {
+		.pair__side {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { drag, fmt, loop } from '../g7/kit';
+
+	const X0 = 54;
+	const S = 100;
+	const FY = 236;
+	const K = 13;
+	const F = (r: number) => 24 * (2 / r ** 13 - 1 / r ** 7);
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pair]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const rIn = q<HTMLInputElement>('[data-r]');
+		const mol = q<SVGGElement>('[data-mol]');
+		const f1 = q<SVGLineElement>('[data-f1]');
+		const f2 = q<SVGLineElement>('[data-f2]');
+		const dot = q<SVGCircleElement>('[data-dot]');
+		const guide = q<SVGPathElement>('[data-guide]');
+		const uid = q('marker').id.replace(/-[rb]$/, '');
+		let r = 2.2;
+		let v = 0;
+		let free = false;
+
+		const draw = () => {
+			const x = X0 + r * S;
+			const f = F(r);
+			mol.setAttribute('transform', `translate(${x} 0)`);
+			// arrows from the centres: toward each other for attraction, apart for repulsion
+			const len = Math.abs(f) < 0.02 ? 0 : Math.min(46, 8 + Math.abs(f) * 16);
+			const sign = f < 0 ? 1 : -1; // +1: the left arrow points right
+			const cls = f < 0 ? 'blue' : 'red';
+			for (const [line, x0, dir] of [[f1, X0, sign], [f2, x, -sign]] as const) {
+				line.setAttribute('x1', String(x0));
+				line.setAttribute('x2', String(x0 + dir * len));
+				line.setAttribute('class', `arrow arrow--${cls}`);
+				line.setAttribute('marker-end', `url(#${uid}-${cls === 'blue' ? 'b' : 'r'})`);
+				line.style.visibility = len > 3 ? 'visible' : 'hidden';
+			}
+			dot.setAttribute('cx', String(x));
+			dot.setAttribute('cy', String(Math.max(150, FY - f * K)));
+			guide.setAttribute('d', `M${x} 124 V${Math.max(150, FY - f * K) - 6}`);
+			q('[data-out]').textContent = `${fmt(r, 2)} диаметра`;
+			q('[data-msg]').textContent =
+				r > 2.5
+					? 'Молекулы далеко друг от друга и почти не взаимодействуют.'
+					: Math.abs(r - 1.1225) < 0.012
+						? 'Притяжение и отталкивание уравновешены: сила равна нулю. На таком расстоянии молекулы и находятся в твёрдом теле и в жидкости.'
+						: f < 0
+							? Math.abs(r - 1.2445) < 0.06
+								? 'Молекулы притягиваются: здесь притяжение самое сильное.'
+								: 'Молекулы притягиваются.'
+							: 'Молекулы слишком близко: они отталкиваются, и тем сильнее, чем меньше расстояние.';
+		};
+		const wake = loop(root, (dt) => {
+			if (!free) return false;
+			const steps = 40;
+			const h = (dt * 0.9) / steps;
+			for (let s = 0; s < steps; s++) {
+				v += (F(r) - 1.1 * v) * h; // a little friction, so that the molecule settles
+				r += v * h;
+				if (r < 0.9) {
+					r = 0.9;
+					v = 0;
+				}
+			}
+			rIn.value = r.toFixed(2);
+			draw();
+			if ((Math.abs(v) < 0.004 && Math.abs(F(r)) < 0.02) || r > 3.25) {
+				free = false;
+				return false;
+			}
+			return true;
+		});
+		rIn.addEventListener('input', () => {
+			free = false;
+			r = Number(rIn.value);
+			draw();
+		});
+		drag(mol, svg, {
+			start: () => (free = false),
+			move: (p) => {
+				r = Math.min(3.2, Math.max(0.95, (p.x - X0) / S));
+				rIn.value = r.toFixed(2);
+				draw();
+			},
+		});
+		q('[data-go]').addEventListener('click', () => {
+			v = 0;
+			free = true;
+			wake();
+		});
+		draw();
+	}
+</script>

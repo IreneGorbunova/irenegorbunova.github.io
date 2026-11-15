@@ -63,7 +63,7 @@ export default defineConfig({
 				{ label: 'Об учебнике', slug: 'uchebnik' },
 				grade(7, [
 					section('Введение', '7-klass/vvedenie', ['chto-izuchaet-fizika', 'fizicheskie-velichiny', 'tochnost-izmereniy']),
-					section('Первоначальные сведения о строении вещества', '7-klass/stroenie-veshchestva', ['molekuly-diffuziya']),
+					section('Первоначальные сведения о строении вещества', '7-klass/stroenie-veshchestva', ['molekuly-diffuziya', 'vzaimodeystvie-molekul']),
 					section('Давление твёрдых тел, жидкостей и газов', '7-klass/davlenie', ['atmosfernoe-davlenie', 'arhimedova-sila']),
 				]),
 				grade(8, [
