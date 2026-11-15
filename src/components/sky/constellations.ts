@@ -33,6 +33,53 @@ export const ART_CREDIT =
 	'Рисунок — гравюра из атласа Яна Гевелия «Уранография» (1690), отражённая: Гевелий рисовал небо как на глобусе, снаружи.';
 
 export const CONSTELLATIONS: Record<string, Constellation> = {
+	'cepheus': {
+		name: 'Цефей',
+		fact: 'Дельта Цефея меняет блеск с периодом 5 суток 9 часов. По таким звёздам — цефеидам — Эдвин Хаббл в 1920-х годах измерил расстояние до туманности Андромеды и доказал, что это другая галактика.',
+		center: { ra: 22.0, dec: 66 },
+		stars: [
+			{ id: 'alpha', name: 'Альдерамин', ra: 21.3097, dec: 62.586, mag: 2.44 }, // HR 8162
+			{ id: 'beta', name: 'бета Цефея', ra: 21.4777, dec: 70.561, mag: 3.23 }, // HR 8238
+			{ id: 'gamma', name: 'Эррай', ra: 23.6558, dec: 77.632, mag: 3.21 }, // HR 8974
+			{ id: 'iota', name: 'йота Цефея', ra: 22.8280, dec: 66.201, mag: 3.52 }, // HR 8694
+			{ id: 'zeta', name: 'дзета Цефея', ra: 22.1809, dec: 58.201, mag: 3.35 }, // HR 8465
+			{ id: 'delta', name: 'дельта Цефея', ra: 22.4862, dec: 58.415, mag: 3.75 }, // HR 8571
+		],
+		lines: [['alpha', 'beta'], ['beta', 'gamma'], ['gamma', 'iota'], ['iota', 'zeta'], ['zeta', 'alpha'], ['zeta', 'delta'], ['alpha', 'iota']],
+	},
+	'auriga': {
+		name: 'Возничий',
+		fact: 'Капелла — это две жёлтые звезды-гиганта, которые обходят друг друга за 104 дня. Глазом и даже в обычный телескоп их не разделить: двойную звезду распознали по её спектру.',
+		center: { ra: 5.7, dec: 40 },
+		stars: [
+			{ id: 'alpha', name: 'Капелла', ra: 5.2782, dec: 45.998, mag: 0.08 }, // HR 1708
+			{ id: 'eps', name: 'эпсилон Возничего', ra: 5.0328, dec: 43.823, mag: 2.99 }, // HR 1605
+			{ id: 'zeta', name: 'дзета Возничего', ra: 5.0413, dec: 41.076, mag: 3.75 }, // HR 1612
+			{ id: 'eta', name: 'эта Возничего', ra: 5.1086, dec: 41.234, mag: 3.17 }, // HR 1641
+			{ id: 'iota', name: 'йота Возничего', ra: 4.9499, dec: 33.166, mag: 2.69 }, // HR 1577
+			{ id: 'beta', name: 'Менкалинан', ra: 5.9921, dec: 44.947, mag: 1.90 }, // HR 2088
+			{ id: 'theta', name: 'тета Возничего', ra: 5.9954, dec: 37.213, mag: 2.62 }, // HR 2095
+			{ id: 'bet-tau', name: 'Эльнат', ra: 5.4382, dec: 28.608, mag: 1.65 }, // HR 1791
+		],
+		lines: [['alpha', 'eps'], ['eps', 'zeta'], ['zeta', 'eta'], ['eta', 'iota'], ['alpha', 'beta'], ['beta', 'theta'], ['theta', 'bet-tau'], ['bet-tau', 'iota']],
+	},
+	'leo': {
+		name: 'Лев',
+		fact: 'Регул лежит почти на эклиптике — пути Солнца среди звёзд. Поэтому Луна время от времени закрывает его, а в конце августа рядом с ним проходит Солнце.',
+		center: { ra: 10.6, dec: 18 },
+		stars: [
+			{ id: 'alpha', name: 'Регул', ra: 10.1395, dec: 11.967, mag: 1.35 }, // HR 3982
+			{ id: 'eta', name: 'эта Льва', ra: 10.1222, dec: 16.763, mag: 3.52 }, // HR 3975
+			{ id: 'gamma', name: 'Альгиеба', ra: 10.3329, dec: 19.842, mag: 2.61 }, // HR 4057
+			{ id: 'zeta', name: 'дзета Льва', ra: 10.2782, dec: 23.417, mag: 3.44 }, // HR 4031
+			{ id: 'mu', name: 'мю Льва', ra: 9.8794, dec: 26.007, mag: 3.88 }, // HR 3905
+			{ id: 'eps', name: 'эпсилон Льва', ra: 9.7642, dec: 23.774, mag: 2.98 }, // HR 3873
+			{ id: 'delta', name: 'дельта Льва', ra: 11.2351, dec: 20.524, mag: 2.56 }, // HR 4357
+			{ id: 'theta', name: 'тета Льва', ra: 11.2373, dec: 15.429, mag: 3.34 }, // HR 4359
+			{ id: 'beta', name: 'Денебола', ra: 11.8177, dec: 14.572, mag: 2.14 }, // HR 4534
+		],
+		lines: [['alpha', 'eta'], ['eta', 'gamma'], ['gamma', 'zeta'], ['zeta', 'mu'], ['mu', 'eps'], ['gamma', 'delta'], ['delta', 'beta'], ['beta', 'theta'], ['theta', 'alpha'], ['delta', 'theta']],
+	},
 	'cygnus': {
 		name: 'Лебедь',
 		fact: 'Звезда 61 Лебедя — первая, до которой измерили расстояние. В 1838 году Фридрих Бессель заметил, что за год она чуть смещается на фоне далёких звёзд, пока Земля обходит Солнце. До неё около 11 световых лет.',
@@ -50,6 +97,32 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 		],
 		lines: [['alpha', 'gamma'], ['gamma', 'delta'], ['delta', 'iota'], ['iota', 'kappa'], ['gamma', 'eps'], ['eps', 'zeta'], ['gamma', 'eta'], ['eta', 'beta']],
 		art: { file: 'sky/cygnus.webp', box: [-0.2885, -0.3886, 0.3005, 0.2123], plate: 'K' },
+	},
+	'hercules': {
+		name: 'Геркулес',
+		fact: 'Геркулес — римское имя Геракла, героя двенадцати подвигов. В сторону этого созвездия Солнце со всеми планетами летит среди соседних звёзд со скоростью около 20 км/с. Это движение открыл в 1783 году Уильям Гершель.',
+		center: { ra: 17.0, dec: 30 },
+		stars: [
+			{ id: 'alpha', name: 'Рас Альгети', ra: 17.2441, dec: 14.390, mag: 3.48 }, // HR 6406
+			{ id: 'delta', name: 'дельта Геркулеса', ra: 17.2505, dec: 24.839, mag: 3.14 }, // HR 6410
+			{ id: 'eps', name: 'эпсилон Геркулеса', ra: 17.0048, dec: 30.926, mag: 3.92 }, // HR 6324
+			{ id: 'zeta', name: 'дзета Геркулеса', ra: 16.6881, dec: 31.603, mag: 2.81 }, // HR 6212
+			{ id: 'eta', name: 'эта Геркулеса', ra: 16.7149, dec: 38.922, mag: 3.53 }, // HR 6220
+			{ id: 'pi', name: 'пи Геркулеса', ra: 17.2508, dec: 36.809, mag: 3.16 }, // HR 6418
+			{ id: 'beta', name: 'Корнефорос', ra: 16.5037, dec: 21.490, mag: 2.77 }, // HR 6148
+			{ id: 'gamma', name: 'гамма Геркулеса', ra: 16.3653, dec: 19.153, mag: 3.75 }, // HR 6095
+			{ id: 'lambda', name: 'лямбда Геркулеса', ra: 17.5123, dec: 26.111, mag: 4.41 }, // HR 6526
+			{ id: 'mu', name: 'мю Геркулеса', ra: 17.7743, dec: 27.721, mag: 3.42 }, // HR 6623
+			{ id: 'xi', name: 'кси Геркулеса', ra: 17.9627, dec: 29.248, mag: 3.70 }, // HR 6703
+			{ id: 'omicron', name: 'омикрон Геркулеса', ra: 18.1257, dec: 28.762, mag: 3.83 }, // HR 6779
+			{ id: 'rho', name: 'ро Геркулеса', ra: 17.3947, dec: 37.146, mag: 4.52 }, // HR 6485
+			{ id: 'theta', name: 'тета Геркулеса', ra: 17.9376, dec: 37.251, mag: 3.86 }, // HR 6695
+			{ id: 'iota', name: 'йота Геркулеса', ra: 17.6578, dec: 46.006, mag: 3.80 }, // HR 6588
+			{ id: 'sigma', name: 'сигма Геркулеса', ra: 16.5684, dec: 42.437, mag: 4.20 }, // HR 6168
+			{ id: 'tau', name: 'тау Геркулеса', ra: 16.3290, dec: 46.313, mag: 3.89 }, // HR 6092
+			{ id: 'phi', name: 'фи Геркулеса', ra: 16.1462, dec: 44.935, mag: 4.26 }, // HR 6023
+		],
+		lines: [['alpha', 'delta'], ['delta', 'eps'], ['eps', 'zeta'], ['zeta', 'eta'], ['eta', 'pi'], ['pi', 'eps'], ['zeta', 'beta'], ['beta', 'gamma'], ['delta', 'lambda'], ['lambda', 'mu'], ['mu', 'xi'], ['xi', 'omicron'], ['pi', 'rho'], ['rho', 'theta'], ['theta', 'iota'], ['eta', 'sigma'], ['sigma', 'tau'], ['tau', 'phi']],
 	},
 	'ursa-major': {
 		name: 'Большая Медведица',
@@ -297,58 +370,33 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 		lines: [['lambda', 'alpha'], ['lambda', 'gamma'], ['alpha', 'gamma'], ['alpha', 'zeta'], ['gamma', 'delta'], ['delta', 'eps'], ['eps', 'zeta'], ['zeta', 'kappa'], ['delta', 'beta'], ['gamma', 'pi3'], ['pi3', 'pi2'], ['pi3', 'pi4'], ['pi4', 'pi5'], ['alpha', 'mu'], ['mu', 'xi'], ['xi', 'nu']],
 		art: { file: 'sky/orion.webp', box: [-0.1923, -0.3686, 0.2404, 0.3125], plate: 'QQ' },
 	},
-	'auriga': {
-		name: 'Возничий',
-		fact: 'Капелла — это две жёлтые звезды-гиганта, которые обходят друг друга за 104 дня. Глазом и даже в обычный телескоп их не разделить: двойную звезду распознали по её спектру.',
-		center: { ra: 5.7, dec: 40 },
+	'canis-major': {
+		name: 'Большой Пёс',
+		fact: 'Сириус — самая яркая звезда ночного неба. Он так ярок потому, что близок: до него 8,6 светового года. В Древнем Египте по первому утреннему появлению Сириуса перед восходом Солнца ждали разлива Нила.',
+		center: { ra: 6.8, dec: -22 },
 		stars: [
-			{ id: 'alpha', name: 'Капелла', ra: 5.2782, dec: 45.998, mag: 0.08 }, // HR 1708
-			{ id: 'eps', name: 'эпсилон Возничего', ra: 5.0328, dec: 43.823, mag: 2.99 }, // HR 1605
-			{ id: 'zeta', name: 'дзета Возничего', ra: 5.0413, dec: 41.076, mag: 3.75 }, // HR 1612
-			{ id: 'eta', name: 'эта Возничего', ra: 5.1086, dec: 41.234, mag: 3.17 }, // HR 1641
-			{ id: 'iota', name: 'йота Возничего', ra: 4.9499, dec: 33.166, mag: 2.69 }, // HR 1577
-			{ id: 'beta', name: 'Менкалинан', ra: 5.9921, dec: 44.947, mag: 1.90 }, // HR 2088
-			{ id: 'theta', name: 'тета Возничего', ra: 5.9954, dec: 37.213, mag: 2.62 }, // HR 2095
-			{ id: 'bet-tau', name: 'Эльнат', ra: 5.4382, dec: 28.608, mag: 1.65 }, // HR 1791
+			{ id: 'alpha', name: 'Сириус', ra: 6.7525, dec: -16.716, mag: -1.46 }, // HR 2491
+			{ id: 'beta', name: 'Мирцам', ra: 6.3783, dec: -17.956, mag: 1.98 }, // HR 2294
+			{ id: 'iota', name: 'йота Большого Пса', ra: 6.9356, dec: -17.054, mag: 4.37 }, // HR 2596
+			{ id: 'gamma', name: 'гамма Большого Пса', ra: 7.0626, dec: -15.633, mag: 4.12 }, // HR 2657
+			{ id: 'omicron2', name: 'омикрон² Большого Пса', ra: 7.0504, dec: -23.833, mag: 3.02 }, // HR 2653
+			{ id: 'delta', name: 'Везен', ra: 7.1399, dec: -26.393, mag: 1.84 }, // HR 2693
+			{ id: 'eta', name: 'Алудра', ra: 7.4016, dec: -29.303, mag: 2.45 }, // HR 2827
+			{ id: 'sigma', name: 'сигма Большого Пса', ra: 7.0286, dec: -27.935, mag: 3.47 }, // HR 2646
+			{ id: 'eps', name: 'Адара', ra: 6.9771, dec: -28.972, mag: 1.50 }, // HR 2618
+			{ id: 'zeta', name: 'дзета Большого Пса', ra: 6.3386, dec: -30.063, mag: 3.02 }, // HR 2282
 		],
-		lines: [['alpha', 'eps'], ['eps', 'zeta'], ['zeta', 'eta'], ['eta', 'iota'], ['alpha', 'beta'], ['beta', 'theta'], ['theta', 'bet-tau'], ['bet-tau', 'iota']],
-	},
-	'leo': {
-		name: 'Лев',
-		fact: 'Регул лежит почти на эклиптике — пути Солнца среди звёзд. Поэтому Луна время от времени закрывает его, а в конце августа рядом с ним проходит Солнце.',
-		center: { ra: 10.6, dec: 18 },
-		stars: [
-			{ id: 'alpha', name: 'Регул', ra: 10.1395, dec: 11.967, mag: 1.35 }, // HR 3982
-			{ id: 'eta', name: 'эта Льва', ra: 10.1222, dec: 16.763, mag: 3.52 }, // HR 3975
-			{ id: 'gamma', name: 'Альгиеба', ra: 10.3329, dec: 19.842, mag: 2.61 }, // HR 4057
-			{ id: 'zeta', name: 'дзета Льва', ra: 10.2782, dec: 23.417, mag: 3.44 }, // HR 4031
-			{ id: 'mu', name: 'мю Льва', ra: 9.8794, dec: 26.007, mag: 3.88 }, // HR 3905
-			{ id: 'eps', name: 'эпсилон Льва', ra: 9.7642, dec: 23.774, mag: 2.98 }, // HR 3873
-			{ id: 'delta', name: 'дельта Льва', ra: 11.2351, dec: 20.524, mag: 2.56 }, // HR 4357
-			{ id: 'theta', name: 'тета Льва', ra: 11.2373, dec: 15.429, mag: 3.34 }, // HR 4359
-			{ id: 'beta', name: 'Денебола', ra: 11.8177, dec: 14.572, mag: 2.14 }, // HR 4534
-		],
-		lines: [['alpha', 'eta'], ['eta', 'gamma'], ['gamma', 'zeta'], ['zeta', 'mu'], ['mu', 'eps'], ['gamma', 'delta'], ['delta', 'beta'], ['beta', 'theta'], ['theta', 'alpha'], ['delta', 'theta']],
-	},
-	'cepheus': {
-		name: 'Цефей',
-		fact: 'Дельта Цефея меняет блеск с периодом 5 суток 9 часов. По таким звёздам — цефеидам — Эдвин Хаббл в 1920-х годах измерил расстояние до туманности Андромеды и доказал, что это другая галактика.',
-		center: { ra: 22.0, dec: 66 },
-		stars: [
-			{ id: 'alpha', name: 'Альдерамин', ra: 21.3097, dec: 62.586, mag: 2.44 }, // HR 8162
-			{ id: 'beta', name: 'бета Цефея', ra: 21.4777, dec: 70.561, mag: 3.23 }, // HR 8238
-			{ id: 'gamma', name: 'Эррай', ra: 23.6558, dec: 77.632, mag: 3.21 }, // HR 8974
-			{ id: 'iota', name: 'йота Цефея', ra: 22.8280, dec: 66.201, mag: 3.52 }, // HR 8694
-			{ id: 'zeta', name: 'дзета Цефея', ra: 22.1809, dec: 58.201, mag: 3.35 }, // HR 8465
-			{ id: 'delta', name: 'дельта Цефея', ra: 22.4862, dec: 58.415, mag: 3.75 }, // HR 8571
-		],
-		lines: [['alpha', 'beta'], ['beta', 'gamma'], ['gamma', 'iota'], ['iota', 'zeta'], ['zeta', 'alpha'], ['zeta', 'delta'], ['alpha', 'iota']],
+		lines: [['alpha', 'beta'], ['alpha', 'iota'], ['iota', 'gamma'], ['alpha', 'omicron2'], ['omicron2', 'delta'], ['delta', 'eta'], ['delta', 'sigma'], ['sigma', 'eps'], ['eps', 'zeta']],
 	},
 };
 
 /** The constellation of each sidebar section: «<grade label>/<section label>» → key. */
 export const SECTION_SKY: Record<string, string> = {
+	'7 класс/Введение': 'cepheus',
+	'7 класс/Первоначальные сведения о строении вещества': 'auriga',
+	'7 класс/Взаимодействие тел': 'leo',
 	'7 класс/Давление твёрдых тел, жидкостей и газов': 'cygnus',
+	'7 класс/Работа и мощность. Энергия': 'hercules',
 	'8 класс/Тепловые явления': 'ursa-major',
 	'8 класс/Электрические явления': 'gemini',
 	'8 класс/Электромагнитные явления': 'ursa-minor',
@@ -364,7 +412,7 @@ export const SECTION_SKY: Record<string, string> = {
 };
 
 /** Given in this order to sections that have no constellation yet (sections.ts warns at build time). */
-export const RESERVE: string[] = ['auriga', 'leo', 'cepheus'];
+export const RESERVE: string[] = ['canis-major'];
 
 /** Gnomonic projection around the centre; x grows to the west (right), y grows to the south (down). */
 export const project = (c: Constellation, ra: number, dec: number): [number, number] => {

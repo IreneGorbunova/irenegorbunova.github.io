@@ -24,6 +24,7 @@ const MOMENT = {
 	vlazhnost: 0.5 + 0.35 * 7, // the asphalt half dry, the puddle still there
 	elektrizaciya: 0.5 + 0.405 * 5, // the spark between the finger and the handle
 	elektromagnity: 0.5 + 0.55 * 8, // the car carried by the electromagnet
+	'chto-izuchaet-fizika': 1.08, // the lightning flash
 };
 // A chapter without an opening scene whose first model makes a poor picture: the drawing to take instead.
 const PICK = {

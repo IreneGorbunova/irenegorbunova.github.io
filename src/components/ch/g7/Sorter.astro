@@ -1,0 +1,217 @@
+---
+/**
+ * A sorting game: the items come one at a time, the reader sends each to one of the groups. A wrong choice gets a
+ * hint and the item stays; a right one is added to its group's list, and the next item comes. The right button gets
+ * the class `is-right` for a moment (the chapter's «вопрос» star). Several sorters may stand on one page.
+ *   <Sorter groups={[{ key: 'body', label: 'Тело' }, …]} items={[{ text: 'гвоздь', group: 'body', why: '…', hint: '…' }, …]} />
+ * `why` is shown after the right choice, `hint` after a wrong one.
+ */
+import G7Styles from './G7Styles.astro';
+
+interface Props {
+	groups: { key: string; label: string }[];
+	items: { text: string; group: string; why?: string; hint?: string }[];
+	/** what the reader is asked, above the item */
+	ask?: string;
+	caption?: string;
+	done?: string;
+}
+const { groups, items, ask = 'Куда это отнести?', caption, done = 'Всё разобрано верно.' } = Astro.props;
+---
+
+<G7Styles />
+<figure class="g7 g7--stack srt not-content" data-sorter data-items={JSON.stringify(items)} data-done={done}>
+	<div class="srt__top">
+		<p class="srt__ask">{ask}</p>
+		<p class="srt__count" data-count></p>
+	</div>
+	<p class="srt__item" data-item aria-live="polite"></p>
+	<div class="srt__btns" role="group" aria-label="Группы">
+		{
+			groups.map((g) => (
+				<button type="button" class="g7__btn srt__btn" data-group={g.key}>
+					{g.label}
+				</button>
+			))
+		}
+	</div>
+	<p class="g7__msg srt__msg" data-msg aria-live="polite"></p>
+	<div class="srt__bins" style={`--n:${groups.length}`}>
+		{
+			groups.map((g) => (
+				<div class="srt__bin">
+					<p class="srt__bin-name">{g.label}</p>
+					<ul data-bin={g.key} />
+				</div>
+			))
+		}
+	</div>
+	<div class="g7__row">
+		<button type="button" class="g7__btn" data-restart>Начать заново</button>
+	</div>
+	{caption && <figcaption class="g7__caption">{caption}</figcaption>}
+</figure>
+
+<style is:global>
+	.srt__top {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+		align-items: baseline;
+	}
+	.srt__ask,
+	.srt__count {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.srt__count {
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.srt__item {
+		margin: 0.5rem 0 0.75rem;
+		padding: 0.9rem 1rem;
+		border-radius: 0.8rem;
+		background: var(--sl-color-gray-6);
+		border: 1px dashed var(--sl-color-gray-4);
+		font-size: var(--sl-text-xl);
+		font-weight: 700;
+		line-height: 1.3;
+		text-align: center;
+		color: var(--sl-color-white);
+		min-height: 2.6em;
+	}
+	.srt__item.is-wrong {
+		animation: srt-shake 0.35s;
+	}
+	@keyframes srt-shake {
+		25% {
+			transform: translateX(-6px);
+		}
+		75% {
+			transform: translateX(6px);
+		}
+	}
+	.srt__btns {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		justify-content: center;
+		margin-bottom: 0.6rem;
+	}
+	.srt__btn.is-right {
+		background: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.srt__btn.is-miss {
+		border-color: var(--ig-vy);
+		color: var(--ig-vy);
+	}
+	.srt__msg {
+		margin-bottom: 0.75rem;
+	}
+	.srt__bins {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+	}
+	.srt__bin {
+		padding: 0.5rem 0.6rem;
+		border-radius: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		min-height: 4.5rem;
+	}
+	.srt__bin-name {
+		margin: 0 0 0.3rem;
+		font-size: var(--sl-text-xs);
+		font-weight: 700;
+		color: var(--sl-color-gray-2);
+	}
+	.srt__bin ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 0.35rem;
+	}
+	.srt__bin li {
+		margin: 0;
+		padding: 0.1rem 0.45rem;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--sl-color-accent) 22%, var(--sl-color-gray-6));
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-white);
+	}
+	@container (max-width: 30rem) {
+		.srt__bins {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.srt__bin {
+			min-height: 3.2rem;
+		}
+		.srt__item {
+			font-size: var(--sl-text-lg);
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-sorter]')) {
+		const items: { text: string; group: string; why?: string; hint?: string }[] = JSON.parse(root.dataset.items!);
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const item = q<HTMLElement>('[data-item]');
+		const msg = q<HTMLElement>('[data-msg]');
+		const count = q<HTMLElement>('[data-count]');
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-group]')];
+		let i = 0;
+		let misses = 0;
+
+		const show = () => {
+			for (const b of btns) b.classList.remove('is-right', 'is-miss');
+			if (i >= items.length) {
+				item.textContent = '✓';
+				msg.textContent = `${root.dataset.done} ${misses ? `Ошибок: ${misses}.` : 'Без единой ошибки!'}`;
+				count.textContent = `${items.length} из ${items.length}`;
+				for (const b of btns) b.disabled = true;
+				return;
+			}
+			for (const b of btns) b.disabled = false;
+			item.textContent = items[i].text;
+			count.textContent = `${i + 1} из ${items.length}`;
+		};
+		for (const b of btns)
+			b.addEventListener('click', () => {
+				if (i >= items.length) return;
+				const it = items[i];
+				if (b.dataset.group === it.group) {
+					b.classList.add('is-right');
+					const li = document.createElement('li');
+					li.textContent = it.text;
+					root.querySelector(`[data-bin="${it.group}"]`)!.append(li);
+					msg.textContent = it.why ? `Верно. ${it.why}` : 'Верно.';
+					i++;
+					for (const o of btns) o.disabled = true;
+					setTimeout(show, it.why ? 1400 : 600);
+				} else {
+					misses++;
+					b.classList.add('is-miss');
+					item.classList.remove('is-wrong');
+					void item.offsetWidth;
+					item.classList.add('is-wrong');
+					msg.textContent = it.hint ? `Подумайте ещё. ${it.hint}` : 'Подумайте ещё.';
+				}
+			});
+		q<HTMLButtonElement>('[data-restart]').addEventListener('click', () => {
+			i = 0;
+			misses = 0;
+			msg.textContent = '';
+			for (const ul of root.querySelectorAll('[data-bin]')) ul.replaceChildren();
+			show();
+		});
+		show();
+	}
+</script>

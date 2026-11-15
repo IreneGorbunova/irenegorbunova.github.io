@@ -1,0 +1,178 @@
+---
+/**
+ * A question with several answers and instant feedback (after ch/mayatnik/Choice.astro). The explanation
+ * (children) sits in a <details> block that opens by itself once the right answer is chosen. The right option
+ * gets the class `is-right`, which lights the chapter star.
+ */
+interface Props {
+	question: string;
+	options: string[];
+	answer: number;
+	hints?: string[];
+}
+const { question, options, answer, hints = [] } = Astro.props;
+---
+
+<div class="vchoice" data-vchoice data-answer={answer}>
+	<p class="vchoice__q not-content" set:html={question} />
+	<div class="vchoice__opts not-content" role="group" aria-label="Варианты ответа">
+		{
+			options.map((o, i) => (
+				<button type="button" class="vchoice__opt" data-i={i} data-hint={hints[i] ?? ''}>
+					<span class="vchoice__mark" aria-hidden="true" />
+					<span set:html={o} />
+				</button>
+			))
+		}
+	</div>
+	<p class="vchoice__fb not-content" aria-live="polite" data-fb></p>
+	<details class="vchoice__expl" data-expl>
+		<summary>Объяснение</summary>
+		<slot />
+	</details>
+</div>
+
+<style is:global>
+	.vchoice {
+		margin-block: 1.25rem;
+		padding: 0.9rem 1rem 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.vchoice i {
+		font-family: var(--ig-font-math);
+	}
+	.vchoice__q {
+		margin: 0 0 0.6rem;
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.vchoice__opts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.vchoice__opt {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 0;
+		padding: 0.45rem 1rem 0.45rem 0.6rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		text-align: start;
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			background-color 0.2s,
+			transform 0.2s;
+	}
+	.vchoice__opt:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+		transform: translateY(-1px);
+	}
+	.vchoice__opt:disabled {
+		cursor: default;
+	}
+	.vchoice__mark {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 1.3rem;
+		height: 1.3rem;
+		border-radius: 50%;
+		border: 1.5px solid var(--sl-color-gray-3);
+		font-size: 0.8rem;
+		font-weight: 700;
+		line-height: 1;
+	}
+	.vchoice__opt.is-right {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.vchoice__opt.is-right .vchoice__mark {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.vchoice__opt.is-right .vchoice__mark::after {
+		content: '✓';
+	}
+	.vchoice__opt.is-wrong {
+		border-color: var(--ig-vy);
+		opacity: 0.75;
+		text-decoration: line-through;
+		text-decoration-color: var(--ig-vy);
+	}
+	.vchoice__opt.is-wrong .vchoice__mark {
+		border-color: var(--ig-vy);
+		color: var(--ig-vy);
+	}
+	.vchoice__opt.is-wrong .vchoice__mark::after {
+		content: '✗';
+	}
+	.vchoice__fb {
+		min-height: 1.4em;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.vchoice__fb.is-right {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+	.vchoice__expl {
+		margin-top: 0.3rem;
+	}
+	.vchoice__expl summary {
+		cursor: pointer;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.vchoice__expl[open] summary {
+		margin-bottom: 0.3rem;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.vchoice__opt {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vchoice]')) {
+		const answer = Number(root.dataset.answer);
+		const opts = Array.from(root.querySelectorAll<HTMLButtonElement>('.vchoice__opt'));
+		const fb = root.querySelector<HTMLElement>('[data-fb]')!;
+		const expl = root.querySelector<HTMLDetailsElement>('[data-expl]')!;
+		let wrong = 0;
+		const finish = () => {
+			opts.forEach((b) => (b.disabled = true));
+			opts[answer].classList.add('is-right');
+			expl.open = true;
+		};
+		opts.forEach((btn, i) =>
+			btn.addEventListener('click', () => {
+				if (i === answer) {
+					fb.textContent = wrong === 0 ? 'Верно!' : 'Верно, теперь получилось!';
+					fb.classList.add('is-right');
+					finish();
+				} else {
+					wrong += 1;
+					btn.classList.add('is-wrong');
+					btn.disabled = true;
+					const hint = btn.dataset.hint ? `${btn.dataset.hint} ` : 'Не совсем. ';
+					if (wrong >= opts.length - 1) {
+						fb.innerHTML = `${hint}Правильный ответ отмечен — прочитайте объяснение.`;
+						finish();
+					} else fb.innerHTML = `${hint}Подумайте ещё раз.`;
+				}
+			}),
+		);
+	}
+</script>
