@@ -1,0 +1,162 @@
+---
+/**
+ * «Тележка с капельницей»: a cart with a dropper rolls along a track 6 м long; a drop falls every second and leaves
+ * a mark. Three motions: uniform (the speed is set by the slider, 0,2…1,0 м/с), speeding up from rest
+ * (a = 0,12 м/с²: s = a·t²/2) and slowing down (from 1,2 м/с with a = −0,12 м/с²). The distances between
+ * neighbouring marks are listed after the run. Played in real time; 56 px per metre.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const X0 = 16;
+const M = 56;
+---
+
+<G7Styles />
+<figure class="g7 g7--stack drp not-content" data-drp>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 384 130" role="img" aria-label="Тележка с капельницей катится по столу и оставляет капли через каждую секунду" data-svg>
+			<line class="drp__track" x1={X0 - 8} x2={X0 + 6 * M + 8} y1="74" y2="74"></line>
+			<g data-drops></g>
+			{Array.from({ length: 61 }, (_, i) => <line class="drp__tick" x1={X0 + (i * M) / 10} x2={X0 + (i * M) / 10} y1="92" y2={i % 10 === 0 ? 104 : i % 5 === 0 ? 100 : 97} />)}
+			{[0, 1, 2, 3, 4, 5, 6].map((m) => <text class="t-small t-num" x={X0 + m * M} y="118" text-anchor="middle">{m}</text>)}
+			<text class="t-small" x="376" y="128" text-anchor="end">м</text>
+			<g data-cart>
+				<rect class="drp__cart" x="-22" y="-24" width="44" height="16" rx="3"></rect>
+				<circle class="drp__wheel" cx="-13" cy="-5" r="5"></circle>
+				<circle class="drp__wheel" cx="13" cy="-5" r="5"></circle>
+				<path class="drp__bottle" d="M-5 -24 V-40 h10 V-24 M0 -8 V-2"></path>
+			</g>
+			<text class="t-strong t-num" x={X0} y="22" data-clock>0,0 с</text>
+			<text class="t-strong t-num" x="376" y="22" text-anchor="end" data-path></text>
+		</svg>
+		<div class="g7__side drp__side">
+			<div class="g7__seg" role="group" aria-label="Как движется тележка" data-mode>
+				<button type="button" class="g7__btn" aria-pressed="true" data-m="even">Равномерно</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="up">Разгоняется</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="down">Тормозит</button>
+			</div>
+			<label class="g7__slider" data-vwrap>
+				<span>Скорость тележки</span>
+				<output data-out></output>
+				<input type="range" min="0.2" max="1" step="0.1" value="0.5" data-v aria-label="Скорость тележки, метры в секунду" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пустить тележку</button>
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite">Капля падает каждую секунду. После пробега сравните расстояния между соседними каплями.</p>
+		</div>
+	</div>
+</figure>
+
+<style is:global>
+	.drp__side {
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: end;
+	}
+	.drp__side .g7__msg {
+		grid-column: 1 / -1;
+	}
+	.drp__track {
+		stroke: var(--g7-wood);
+		stroke-width: 6;
+		stroke-linecap: round;
+	}
+	.drp__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.drp__cart {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.drp__wheel {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.drp__bottle {
+		fill: color-mix(in srgb, var(--ig-vx) 40%, transparent);
+		stroke: var(--g7-blue);
+		stroke-width: 1.5;
+	}
+	.drp__drop {
+		fill: var(--g7-blue);
+	}
+	@container (max-width: 36rem) {
+		.drp__side {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { el, fmt, loop, segment } from '../g7/kit';
+
+	const X0 = 16;
+	const M = 56;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-drp]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const cart = q<SVGGElement>('[data-cart]');
+		const drops = q<SVGGElement>('[data-drops]');
+		const vIn = q<HTMLInputElement>('[data-v]');
+		const msg = q<HTMLElement>('[data-msg]');
+		let mode = 'even';
+		let t = -1;
+		let marks: number[] = [];
+		const pos = (time: number) => {
+			if (mode === 'even') return Number(vIn.value) * time;
+			if (mode === 'up') return 0.06 * time * time;
+			const tt = Math.min(time, 10); // stops after 10 s
+			return 1.2 * tt - 0.06 * tt * tt;
+		};
+		const place = (s: number) => cart.setAttribute('transform', `translate(${(X0 + s * M).toFixed(1)} 74)`);
+		const reset = () => {
+			t = -1;
+			marks = [];
+			drops.replaceChildren();
+			place(0);
+			q('[data-clock]').textContent = '0,0 с';
+			q('[data-path]').textContent = '';
+			q('[data-out]').textContent = `${fmt(Number(vIn.value), 1)} м/с`;
+			q<HTMLElement>('[data-vwrap]').style.visibility = mode === 'even' ? 'visible' : 'hidden';
+		};
+		const wake = loop(root, (dt) => {
+			if (t < 0) return false;
+			t += dt;
+			let s = pos(t);
+			const stopped = s >= 6 || (mode === 'down' && t >= 10);
+			if (s > 6) s = 6;
+			while (marks.length <= Math.floor(t) && pos(marks.length) <= 6 && !(mode === 'down' && marks.length > 10)) {
+				const sm = pos(marks.length);
+				marks.push(sm);
+				drops.append(el('circle', { class: 'drp__drop', cx: X0 + sm * M, cy: 82, r: 3 }));
+			}
+			place(s);
+			q('[data-clock]').textContent = `${fmt(t, 1)} с`;
+			q('[data-path]').textContent = `путь ${fmt(s, 2)} м`;
+			if (stopped) {
+				t = -1;
+				const gaps = marks.slice(1).map((m, i) => fmt(m - marks[i], 2));
+				msg.textContent = `Расстояния между соседними каплями, м: ${gaps.join('; ')}. ${
+					mode === 'even' ? 'Они одинаковы: за каждую секунду тележка проходит один и тот же путь.' : mode === 'up' ? 'Они растут: за каждую следующую секунду тележка проходит больший путь.' : 'Они уменьшаются: за каждую следующую секунду тележка проходит меньший путь.'
+				}`;
+				return false;
+			}
+			return true;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			reset();
+			t = 0;
+			msg.textContent = 'Тележка едет…';
+			wake();
+		});
+		vIn.addEventListener('input', reset);
+		segment(q('[data-mode]'), (b) => {
+			mode = b.dataset.m!;
+			reset();
+			msg.textContent = 'Капля падает каждую секунду. После пробега сравните расстояния между соседними каплями.';
+		});
+		reset();
+	}
+</script>

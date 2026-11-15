@@ -1,0 +1,93 @@
+---
+/**
+ * Picture «Траектория»: a wheel of radius 22 px rolls without slipping along a road. The axle draws a straight line,
+ * a point of the rim draws a cycloid: x = R·(φ − sin φ), y = R·(1 − cos φ). The picture loops; no controls.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 g7--pic g7--narrow traj not-content" data-traj>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 130" role="img" aria-label="Колесо катится по дороге. Ось колеса движется по прямой, а точка обода — по линии с арками">
+			<line class="traj__road" x1="0" x2="360" y1="104" y2="104"></line>
+			<path class="traj__axle" data-axle></path>
+			<path class="traj__rim" data-rim></path>
+			<g data-wheel>
+				<circle class="traj__wheel" r="22"></circle>
+				<path class="traj__spoke" d="M-22 0 H22 M0 -22 V22"></path>
+				<circle class="traj__hub" r="3"></circle>
+			</g>
+			<circle class="traj__mark" data-mark r="4.5"></circle>
+			<text class="t-small t-gold" x="352" y="74" text-anchor="end">траектория оси — прямая</text>
+			<text class="t-small t-red" x="352" y="122" text-anchor="end">траектория точки обода</text>
+		</svg>
+	</div>
+</figure>
+
+<style is:global>
+	.traj__road {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.traj__wheel {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 3;
+	}
+	.traj__spoke {
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.traj__hub {
+		fill: var(--g7-gold);
+	}
+	.traj__axle {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 1.8;
+		stroke-dasharray: 5 4;
+	}
+	.traj__rim {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 2;
+	}
+	.traj__mark {
+		fill: var(--g7-red);
+		stroke: var(--g7-paper);
+		stroke-width: 1;
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const R = 22;
+	const Y = 104 - R;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-traj]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const wheel = q<SVGGElement>('[data-wheel]');
+		const mark = q<SVGCircleElement>('[data-mark]');
+		const axle = q<SVGPathElement>('[data-axle]');
+		const rim = q<SVGPathElement>('[data-rim]');
+		let phi = 0;
+		loop(root, (dt) => {
+			phi += dt * 2.2;
+			const end = (360 - 2 * R) / R; // the angle at which the wheel reaches the right edge
+			if (phi > end + 1.5) phi = 0; // a pause at the end, then again
+			const p = Math.min(phi, end);
+			const cx = R + R * p;
+			wheel.setAttribute('transform', `translate(${cx.toFixed(1)} ${Y}) rotate(${((p * 180) / Math.PI).toFixed(1)})`);
+			let d = '';
+			for (let a = 0; a <= p; a += 0.08) d += `${d ? 'L' : 'M'}${(R + R * (a - Math.sin(a))).toFixed(1)} ${(104 - R * (1 - Math.cos(a))).toFixed(1)} `;
+			const mx = R + R * (p - Math.sin(p));
+			const my = 104 - R * (1 - Math.cos(p));
+			rim.setAttribute('d', `${d}L${mx.toFixed(1)} ${my.toFixed(1)}`);
+			axle.setAttribute('d', `M${R} ${Y} H${cx.toFixed(1)}`);
+			mark.setAttribute('cx', mx.toFixed(1));
+			mark.setAttribute('cy', my.toFixed(1));
+			return true;
+		});
+	}
+</script>
