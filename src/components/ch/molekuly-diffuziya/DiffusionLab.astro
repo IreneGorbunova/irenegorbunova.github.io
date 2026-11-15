@@ -1,0 +1,171 @@
+---
+/**
+ * «Диффузия»: two kinds of molecules, blue on the left and red on the right of a partition, in a gas (180 molecules
+ * fill the vessel) or in a liquid (245 molecules lie in a layer at the bottom, held together by their attraction and
+ * by gravity). When the partition is removed, the molecules mix by their own disorderly motion: quickly in the gas,
+ * many times slower in the liquid, and faster when the temperature is higher. The model is g7/md.ts; nothing is
+ * scripted. The graph shows the share of mixing: twice the fraction of red molecules found in the left half
+ * (0 % at the start, 100 % when a half of them is on each side). The previous run stays as a dashed line.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 dfl not-content" data-dfl>
+	<div class="g7__grid">
+		<div>
+			<canvas class="g7__canvas" width="720" height="468" role="img" aria-label="Синие и красные молекулы в сосуде, разделённом перегородкой" data-canvas></canvas>
+			<svg class="g7__svg dfl__chart" viewBox="0 0 360 120" role="img" aria-label="График: на сколько процентов перемешались вещества в зависимости от времени">
+				<path class="ln" d="M34 10 V96 H350"></path>
+				{[0, 50, 100].map((v) => (
+					<>
+						<path class="ln-dash" d={`M34 ${96 - v * 0.8} H350`} />
+						<text class="t-small t-num" x="30" y={99 - v * 0.8} text-anchor="end">{v}</text>
+					</>
+				))}
+				{[0, 30, 60, 90, 120].map((v) => <text class="t-small t-num" x={34 + v * 2.6} y="110" text-anchor="middle">{v}</text>)}
+				<text class="t-small" x="350" y="118" text-anchor="end">время, с</text>
+				<text class="t-small" x="38" y="16">перемешалось, %</text>
+				<polyline class="dfl__prev" data-prev></polyline>
+				<polyline class="dfl__curve" data-curve></polyline>
+			</svg>
+		</div>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Состояние вещества" data-state>
+				<button type="button" class="g7__btn" aria-pressed="true" data-s="gas">Газы</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-s="liquid">Жидкости</button>
+			</div>
+			<label class="g7__slider">
+				<span>Температура</span>
+				<output data-out></output>
+				<input type="range" min="0" max="2" step="1" value="1" data-t aria-label="Температура" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Убрать перегородку</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+			<ul class="g7__read" aria-live="off">
+				<li><span>Прошло после этого</span><b data-time>—</b></li>
+				<li><span>Красных молекул слева</span><b data-left>0</b></li>
+				<li class="is-key"><span>Вещества перемешались на</span><b data-mix>0 %</b></li>
+			</ul>
+			<p class="g7__note">Пунктир на графике — предыдущий опыт: с ним удобно сравнивать.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Каждая молекула движется сама по себе и сталкивается с соседями: никто не направляет её в другую половину сосуда. Движение показано во много миллиардов раз медленнее, чем в жизни.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.dfl__chart {
+		margin-top: 0.5rem;
+	}
+	.dfl__curve {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2.2;
+		stroke-linejoin: round;
+	}
+	.dfl__prev {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 3;
+	}
+</style>
+
+<script>
+	import { loop, segment } from '../g7/kit';
+	import { MD, lattice, paint, themeColors } from '../g7/md';
+
+	const W = 40;
+	const H = 26;
+	const PX = 18;
+	const STATE = {
+		gas: { g: 0, temps: [0.8, 1.6, 2.4], make: () => lattice(0, 0, W, H, 2.6) },
+		liquid: { g: 0.1, temps: [0.42, 0.5, 0.58], make: () => lattice(0, H - 7.5, W, H, 1.13) },
+	} as const;
+	const WORDS = ['низкая', 'средняя', 'высокая'];
+	const NAMES = { mol0: '--ig-vx', mol1: '--ig-vy', wall: '--sl-color-gray-2', edge: '--sl-color-gray-5' };
+	for (const root of document.querySelectorAll<HTMLElement>('[data-dfl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const canvas = q<HTMLCanvasElement>('[data-canvas]');
+		const ctx = canvas.getContext('2d')!;
+		const tIn = q<HTMLInputElement>('[data-t]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		const curve = q<SVGPolylineElement>('[data-curve]');
+		const prev = q<SVGPolylineElement>('[data-prev]');
+		let state: keyof typeof STATE = 'gas';
+		let md = new MD({ w: W, h: H });
+		let since = -1; // seconds after the partition was removed; −1: it is in place
+		let points: string[] = [];
+		let colors = themeColors(root, NAMES);
+		let frame = 0;
+		let reds = 1;
+
+		const setup = () => {
+			const S = STATE[state];
+			md = new MD({ w: W, h: H, g: S.g });
+			const pts = S.make().map((p) => ({ ...p, kind: p.x < W / 2 ? 0 : 1 }));
+			md.set(pts, S.temps[Number(tIn.value)]);
+			md.partition = W / 2;
+			md.target = S.temps[Number(tIn.value)];
+			reds = pts.filter((p) => p.kind === 1).length;
+			since = -1;
+			if (points.length > 1) prev.setAttribute('points', points.join(' '));
+			points = [];
+			curve.setAttribute('points', '');
+			go.disabled = false;
+			q('[data-time]').textContent = '—';
+			q('[data-out]').textContent = WORDS[Number(tIn.value)];
+			readout();
+			wake();
+		};
+		const readout = () => {
+			let left = 0;
+			for (let i = 0; i < md.n; i++) if (md.kind[i] === 1 && md.x[i] < W / 2) left++;
+			const mix = Math.min(100, (200 * left) / reds);
+			q('[data-left]').textContent = `${left} из ${reds}`;
+			q('[data-mix]').textContent = `${Math.round(mix)} %`;
+			return mix;
+		};
+		const draw = () => {
+			if (frame++ % 90 === 0) colors = themeColors(root, NAMES);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			paint(ctx, md, PX, (i) => (md.kind[i] ? colors.mol1 : colors.mol0));
+			if (md.partition !== null) {
+				ctx.fillStyle = colors.wall;
+				ctx.fillRect((W / 2) * PX - 3, 0, 6, canvas.height);
+			}
+		};
+		const wake = loop(root, (dt) => {
+			md.run(10);
+			draw();
+			if (since >= 0) {
+				since += dt;
+				if (frame % 12 === 0) {
+					const mix = readout();
+					q('[data-time]').textContent = `${Math.floor(since)} с`;
+					if (since <= 121) {
+						points.push(`${(34 + since * 2.6).toFixed(1)},${(96 - mix * 0.8).toFixed(1)}`);
+						curve.setAttribute('points', points.join(' '));
+					}
+				}
+			}
+			return true;
+		});
+		go.addEventListener('click', () => {
+			md.partition = null;
+			since = 0;
+			go.disabled = true;
+		});
+		q('[data-reset]').addEventListener('click', setup);
+		tIn.addEventListener('input', setup);
+		segment(q('[data-state]'), (b) => {
+			state = b.dataset.s as keyof typeof STATE;
+			setup();
+		});
+		setup();
+	}
+</script>

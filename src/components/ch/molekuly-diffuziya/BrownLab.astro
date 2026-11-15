@@ -1,0 +1,146 @@
+---
+/**
+ * «Броуновское движение»: a grain five times larger and twelve times heavier than a molecule floats among 228
+ * molecules of a gas (the model of g7/md.ts: every pair of particles interacts, nothing is drawn by hand). The
+ * grain is pushed about by the uneven blows of the molecules; its path is drawn. At first only the grain is shown,
+ * as in a microscope; «Показать молекулы» reveals the cause. The temperature sets the mean kinetic energy of the
+ * molecules (five values, 0,8…2,4 in the units of the model). 18 canvas pixels per molecule diameter.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 brl not-content" data-brl>
+	<div class="g7__grid">
+		<canvas class="g7__canvas" width="720" height="468" role="img" aria-label="Крупная частица беспорядочно движется среди молекул и оставляет ломаный след" data-canvas></canvas>
+		<div class="g7__side">
+			<label class="brl__check"><input type="checkbox" data-show /> Показать молекулы</label>
+			<label class="g7__slider">
+				<span>Температура</span>
+				<output data-out></output>
+				<input type="range" min="0" max="4" step="1" value="1" data-t aria-label="Температура" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn" data-clear>Стереть след</button>
+				<button type="button" class="g7__btn" data-pause aria-pressed="false">Пауза</button>
+			</div>
+			<ul class="g7__read" aria-live="off">
+				<li><span>Время наблюдения</span><b data-time>0 с</b></li>
+				<li class="is-key"><span>Путь частицы за это время</span><b data-path>0</b></li>
+			</ul>
+			<p class="g7__note">Путь измерен в диаметрах молекулы. Движение показано во много миллиардов раз медленнее, чем в жизни.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Крупная частица — пылинка или крупинка краски в капле воды. В микроскоп видна только она; молекулы слишком малы.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.brl__check {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.brl__check input {
+		accent-color: var(--sl-color-accent);
+	}
+</style>
+
+<script>
+	import { fmt, loop } from '../g7/kit';
+	import { MD, lattice, paint, themeColors } from '../g7/md';
+
+	const W = 40;
+	const H = 26;
+	const PX = 18;
+	const TEMPS = [0.8, 1.2, 1.6, 2, 2.4];
+	const WORDS = ['низкая', 'ниже средней', 'средняя', 'высокая', 'очень высокая'];
+	for (const root of document.querySelectorAll<HTMLElement>('[data-brl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const canvas = q<HTMLCanvasElement>('[data-canvas]');
+		const ctx = canvas.getContext('2d')!;
+		const show = q<HTMLInputElement>('[data-show]');
+		const tIn = q<HTMLInputElement>('[data-t]');
+		const pause = q<HTMLButtonElement>('[data-pause]');
+		const md = new MD({ w: W, h: H });
+		const pts: { x: number; y: number; extra?: number; m?: number }[] = lattice(0, 0, W, H, 2.2).filter((p) => Math.hypot(p.x - 20, p.y - 13) > 5.5);
+		pts.push({ x: 20, y: 13, extra: 2, m: 12 });
+		md.set(pts, TEMPS[1]);
+		const grain = md.n - 1;
+		let trail: number[] = [];
+		let path = 0;
+		let seconds = 0;
+		let colors = themeColors(root, { mol: '--ig-vx', grain: '--ig-v', trail: '--ig-vy', edge: '--sl-color-gray-1' });
+		let frame = 0;
+
+		const draw = () => {
+			if (frame++ % 90 === 0) colors = themeColors(root, { mol: '--ig-vx', grain: '--ig-v', trail: '--ig-vy', edge: '--sl-color-gray-1' });
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			if (trail.length > 2) {
+				ctx.beginPath();
+				ctx.moveTo(trail[0] * PX, trail[1] * PX);
+				for (let i = 2; i < trail.length; i += 2) ctx.lineTo(trail[i] * PX, trail[i + 1] * PX);
+				ctx.strokeStyle = colors.trail;
+				ctx.lineWidth = 2.5;
+				ctx.lineJoin = 'round';
+				ctx.stroke();
+			}
+			if (show.checked) {
+				ctx.globalAlpha = 0.8;
+				paint(ctx, md, PX, (i) => (i === grain ? 'transparent' : colors.mol));
+				ctx.globalAlpha = 1;
+			}
+			ctx.beginPath();
+			ctx.arc(md.x[grain] * PX, md.y[grain] * PX, 2.5 * PX * 0.94, 0, Math.PI * 2);
+			ctx.fillStyle = colors.grain;
+			ctx.fill();
+			ctx.strokeStyle = colors.edge;
+			ctx.lineWidth = 2;
+			ctx.stroke();
+		};
+		const label = () => {
+			q('[data-out]').textContent = WORDS[Number(tIn.value)];
+			md.target = TEMPS[Number(tIn.value)];
+		};
+		const wake = loop(root, (dt) => {
+			if (pause.getAttribute('aria-pressed') === 'true') return false;
+			const x0 = md.x[grain];
+			const y0 = md.y[grain];
+			md.run(16);
+			path += Math.hypot(md.x[grain] - x0, md.y[grain] - y0);
+			seconds += dt;
+			if (frame % 3 === 0) {
+				trail.push(md.x[grain], md.y[grain]);
+				if (trail.length > 1600) trail = trail.slice(2);
+			}
+			draw();
+			if (frame % 15 === 0) {
+				q('[data-time]').textContent = `${Math.floor(seconds)} с`;
+				q('[data-path]').textContent = fmt(path, 0);
+			}
+			return true;
+		});
+		tIn.addEventListener('input', label);
+		show.addEventListener('change', draw);
+		q('[data-clear]').addEventListener('click', () => {
+			trail = [];
+			path = 0;
+			seconds = 0;
+			q('[data-time]').textContent = '0 с';
+			q('[data-path]').textContent = '0';
+			draw();
+		});
+		pause.addEventListener('click', () => {
+			const on = pause.getAttribute('aria-pressed') !== 'true';
+			pause.setAttribute('aria-pressed', String(on));
+			pause.textContent = on ? 'Продолжить' : 'Пауза';
+			if (!on) wake();
+		});
+		label();
+		draw();
+	}
+</script>

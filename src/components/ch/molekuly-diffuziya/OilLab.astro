@@ -1,0 +1,126 @@
+---
+/**
+ * «Масляное пятно»: a drop of oil of a known volume V spreads over water into a round spot one molecule thick.
+ * The area of the spot is S = V/d with d = 0,0000017 мм (1,7 нм, close to what Rayleigh measured for olive oil in
+ * 1890); the reader gets V and S and finds the thickness d = V/S. The tray and the spot are drawn to scale
+ * (10 px per centimeter); the side view of the film is only a scheme.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 oil not-content" data-oil>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 300" role="img" aria-label="Вид сверху на кювету с водой: по воде растекается круглое масляное пятно; внизу схема слоя молекул масла на воде" data-svg>
+			<text class="t-title" x="170" y="18" text-anchor="middle">вид сверху</text>
+			<rect class="oil__tray" x="20" y="26" width="300" height="170" rx="6"></rect>
+			<circle class="oil__spot" cx="170" cy="111" r="0" data-spot></circle>
+			<line class="oil__dim" data-dim y1="111" y2="111"></line>
+			<text class="t-strong t-num t-halo" x="170" y="106" text-anchor="middle" data-dtext></text>
+			<!-- the ruler -->
+			{Array.from({ length: 31 }, (_, i) => <line class="oil__tick" x1={20 + i * 10} x2={20 + i * 10} y1="200" y2={i % 5 === 0 ? 210 : 206} />)}
+			{[0, 5, 10, 15, 20, 25, 30].map((v) => <text class="t-small t-num" x={20 + v * 10} y="221" text-anchor="middle">{v}</text>)}
+			<text class="t-small" x="330" y="221" text-anchor="end">см</text>
+			<!-- the scheme of the film -->
+			<text class="t-title" x="170" y="244" text-anchor="middle">слой масла сбоку (схема)</text>
+			<rect class="oil__water" x="40" y="270" width="260" height="22"></rect>
+			{Array.from({ length: 22 }, (_, i) => <ellipse class="oil__mol" cx={46 + i * 11.8} cy="263" rx="5" ry="7" />)}
+			<path class="ln" d="M312 256 v14 M308 256 h8 M308 270 h8"></path>
+			<text class="t-i" x="320" y="268">d</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Объём капли масла</span>
+				<output data-out></output>
+				<input type="range" min="0.5" max="4" step="0.5" value="1" data-v aria-label="Объём капли, тысячные доли кубического миллиметра" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Капнуть на воду</button>
+			</div>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Диаметр пятна</span><b data-d>—</b></li>
+				<li><span>Площадь пятна <i>S</i></span><b data-s>—</b></li>
+				<li class="is-key"><span>Толщина слоя <i>V</i> : <i>S</i></span><b data-h>—</b></li>
+			</ul>
+			<p class="g7__note">Такую маленькую каплю получают, растворив масло в спирте или бензине: растворитель быстро испаряется, а масло остаётся на воде.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Капля растекается, пока слой масла не станет толщиной в одну молекулу. Кювета и пятно нарисованы в одном масштабе, слой молекул внизу — схема.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.oil__tray {
+		fill: var(--g7-water);
+		stroke: var(--g7-line);
+		stroke-width: 2;
+	}
+	.oil__spot {
+		fill: color-mix(in oklab, var(--ig-v) 55%, transparent);
+		stroke: var(--g7-gold);
+		stroke-width: 1.5;
+	}
+	.oil__dim {
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.oil__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.oil__water {
+		fill: var(--g7-water);
+	}
+	.oil__mol {
+		fill: var(--g7-gold);
+		stroke: color-mix(in oklab, var(--ig-v) 50%, black);
+		stroke-width: 0.8;
+	}
+</style>
+
+<script>
+	import { ease, fmt, loop } from '../g7/kit';
+
+	const D = 1.7e-6; // мм: the length of an oil molecule
+	for (const root of document.querySelectorAll<HTMLElement>('[data-oil]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const v = q<HTMLInputElement>('[data-v]');
+		const spot = q<SVGCircleElement>('[data-spot]');
+		const dim = q<SVGLineElement>('[data-dim]');
+		let t = -1; // seconds since the drop fell; −1: no drop on the water
+		const vol = () => Number(v.value) / 1000; // мм³
+		const label = () => (q('[data-out]').textContent = `${fmt(vol(), 4)} мм³`);
+		const show = (u: number) => {
+			const S = vol() / D; // мм²
+			const diam = (2 * Math.sqrt(S / Math.PI)) / 10; // см
+			const r = (diam / 2) * 10 * ease(u); // px
+			spot.setAttribute('r', r.toFixed(1));
+			dim.setAttribute('x1', (170 - r).toFixed(1));
+			dim.setAttribute('x2', (170 + r).toFixed(1));
+			const done = u >= 1;
+			q('[data-dtext]').textContent = done ? `${fmt(diam, 1)} см` : '';
+			q('[data-d]').textContent = done ? `${fmt(diam, 1)} см` : '—';
+			q('[data-s]').textContent = done ? `${fmt(S / 100, 1)} см² = ${Math.round(S / 10) * 10} мм²` : '—';
+			q('[data-h]').textContent = done ? '0,0000017 мм' : '—';
+		};
+		const wake = loop(root, (dt) => {
+			if (t < 0) return false;
+			t += dt;
+			show(t / 1.6);
+			return t < 1.7;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			t = 0;
+			wake();
+		});
+		v.addEventListener('input', () => {
+			label();
+			t = -1;
+			show(0);
+		});
+		label();
+		show(0);
+	}
+</script>
