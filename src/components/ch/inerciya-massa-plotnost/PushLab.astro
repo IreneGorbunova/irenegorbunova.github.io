@@ -1,0 +1,189 @@
+---
+/**
+ * «Две тележки и пружина»: two carts at rest with a compressed spring between them (it stores 1,5 Дж). When the
+ * thread is burnt, the spring pushes both: m₁υ₁ = m₂υ₂ and m₁υ₁²/2 + m₂υ₂²/2 = 1,5 Дж, so
+ * υ₁ = √(3·m₂/(m₁·(m₁ + m₂))). The masses are 1, 2 or 3 кг (the cart with its weights). A flag marks where each
+ * cart is one second after the start: the path in that second is its speed. Real time; 60 px per metre.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const CX = 190;
+---
+
+<G7Styles />
+<figure class="g7 g7--stack psh not-content" data-psh>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 380 150" role="img" aria-label="Две тележки со сжатой пружиной между ними разъезжаются в разные стороны" data-svg>
+			<line class="psh__track" x1="8" x2="372" y1="110" y2="110"></line>
+			{[-3, -2, -1, 0, 1, 2, 3].map((m) => (
+				<>
+					<line class="ln" x1={CX + m * 60} x2={CX + m * 60} y1="110" y2="117" />
+					<text class="t-small t-num" x={CX + m * 60} y="130" text-anchor="middle">{Math.abs(m)}</text>
+				</>
+			))}
+			<text class="t-small" x="372" y="144" text-anchor="end">расстояние от места старта, м</text>
+			<path class="psh__spring" data-spring></path>
+			{['1', '2'].map((k) => (
+				<g data-cart={k}>
+					<rect class={`psh__cart psh__cart--${k}`} x="-22" y="-24" width="44" height="14" rx="3" />
+					<circle class="psh__wheel" cx="-12" cy="-6" r="6" />
+					<circle class="psh__wheel" cx="12" cy="-6" r="6" />
+					<g data-load={k} />
+				</g>
+			))}
+			<g data-flags></g>
+			<text class="t-strong t-num" x="12" y="20" data-v1></text>
+			<text class="t-strong t-num" x="368" y="20" text-anchor="end" data-v2></text>
+		</svg>
+		<div class="g7__side psh__side">
+			<label class="g7__slider">
+				<span>Масса левой тележки</span>
+				<output data-o1></output>
+				<input type="range" min="1" max="3" step="1" value="1" data-m1 aria-label="Масса левой тележки, килограммы" />
+			</label>
+			<label class="g7__slider">
+				<span>Масса правой тележки</span>
+				<output data-o2></output>
+				<input type="range" min="1" max="3" step="1" value="1" data-m2 aria-label="Масса правой тележки, килограммы" />
+			</label>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Пережечь нить</button>
+			<p class="g7__msg" data-msg aria-live="polite">Пружина между тележками сжата и связана нитью. Пережгите нить.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Флажок отмечает, где тележка оказалась через секунду после старта: путь за одну секунду равен её скорости. Пружина каждый раз сжата одинаково.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.psh__side {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+		align-items: end;
+	}
+	.psh__side .g7__msg {
+		grid-column: 1 / -1;
+	}
+	.psh__track {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.psh__cart--1 {
+		fill: var(--g7-blue);
+	}
+	.psh__cart--2 {
+		fill: var(--g7-gold);
+	}
+	.psh__wheel {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.psh__weight {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.psh__spring {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+	.psh__flag {
+		stroke: var(--g7-red);
+		stroke-width: 1.5;
+	}
+	.psh svg .psh__flagtext {
+		font-size: 11px;
+		font-weight: 700;
+		fill: var(--g7-red);
+	}
+	@container (max-width: 34rem) {
+		.psh__side {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const CX = 190;
+	const M = 60;
+	const E = 1.5; // Дж in the spring
+	for (const root of document.querySelectorAll<HTMLElement>('[data-psh]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const m1In = q<HTMLInputElement>('[data-m1]');
+		const m2In = q<HTMLInputElement>('[data-m2]');
+		const carts = [q<SVGGElement>('[data-cart="1"]'), q<SVGGElement>('[data-cart="2"]')];
+		const spring = q<SVGPathElement>('[data-spring]');
+		const flags = q<SVGGElement>('[data-flags]');
+		const msg = q<HTMLElement>('[data-msg]');
+		let t = -1;
+		let flagged = false;
+		const speeds = () => {
+			const m1 = Number(m1In.value);
+			const m2 = Number(m2In.value);
+			const v1 = Math.sqrt((2 * E * m2) / (m1 * (m1 + m2)));
+			return { m1, m2, v1, v2: (v1 * m1) / m2 };
+		};
+		const place = (time: number) => {
+			const { v1, v2 } = speeds();
+			const x1 = CX - 26 - Math.min(v1 * time * M, CX - 26 - 30);
+			const x2 = CX + 26 + Math.min(v2 * time * M, 380 - 30 - CX - 26);
+			carts[0].setAttribute('transform', `translate(${x1.toFixed(1)} 110)`);
+			carts[1].setAttribute('transform', `translate(${x2.toFixed(1)} 110)`);
+			// the spring: compressed between the carts, then left lying in the middle
+			const a = time <= 0 ? CX - 4 : CX - 9;
+			const w = time <= 0 ? 8 : 18;
+			let d = `M${a} 93`;
+			for (let i = 1; i <= 8; i++) d += ` L${(a + (w * i) / 8).toFixed(1)} ${i % 2 ? 87 : 99}`;
+			spring.setAttribute('d', d);
+		};
+		const setup = () => {
+			t = -1;
+			flagged = false;
+			flags.replaceChildren();
+			const { m1, m2 } = speeds();
+			q('[data-o1]').textContent = `${m1} кг`;
+			q('[data-o2]').textContent = `${m2} кг`;
+			for (const [k, m] of [['1', m1], ['2', m2]] as const) {
+				const g = q<SVGGElement>(`[data-load="${k}"]`);
+				g.replaceChildren();
+				for (let i = 0; i < m - 1; i++) g.append(el('rect', { class: 'psh__weight', x: -14, y: -38 - i * 13, width: 28, height: 12, rx: 2 }));
+			}
+			q('[data-v1]').textContent = '';
+			q('[data-v2]').textContent = '';
+			place(0);
+		};
+		const wake = loop(root, (dt) => {
+			if (t < 0) return false;
+			t += dt;
+			place(t);
+			const { m1, m2, v1, v2 } = speeds();
+			if (!flagged && t >= 1) {
+				flagged = true;
+				for (const [sign, v] of [[-1, v1], [1, v2]] as const) {
+					const x = CX + sign * (26 + v * M);
+					flags.append(el('line', { class: 'psh__flag', x1: x, x2: x, y1: 110, y2: 58 }));
+					flags.append(el('text', { class: 'psh__flagtext', x, y: 52, 'text-anchor': 'middle' }, `${fmt(v, 2)} м`));
+				}
+				q('[data-v1]').textContent = `${fmt(v1, 2)} м/с`;
+				q('[data-v2]').textContent = `${fmt(v2, 2)} м/с`;
+				msg.textContent =
+					m1 === m2
+						? `Массы тележек равны, и скорости равны: по ${fmt(v1, 2)} м/с.`
+						: `Скорости: ${fmt(v1, 2)} и ${fmt(v2, 2)} м/с. Тележка, масса которой в ${fmt(Math.max(m1, m2) / Math.min(m1, m2), 1).replace(',0', '')} раза больше, получила скорость во столько же раз меньшую.`;
+			}
+			return t < 3.2;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			setup();
+			t = 0;
+			wake();
+		});
+		m1In.addEventListener('input', setup);
+		m2In.addEventListener('input', setup);
+		setup();
+	}
+</script>

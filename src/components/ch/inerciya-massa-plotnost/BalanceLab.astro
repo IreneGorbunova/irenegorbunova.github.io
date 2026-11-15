@@ -1,0 +1,184 @@
+---
+/**
+ * «Рычажные весы»: a body lies on the left pan of an equal-arm balance; the reader puts weights from a set
+ * (100, 50, 20, 20, 10, 5, 2, 2, 1 г) on the right pan. The beam tilts toward the heavier pan (the angle grows with
+ * the difference of the masses and is limited to 12°); when the masses are equal the beam is level, and the mass of
+ * the body is the sum of the weights. Bodies: an apple 137 г, a battery 46 г, a key 23 г, an eraser 18 г.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const WEIGHTS = [100, 50, 20, 20, 10, 5, 2, 2, 1];
+const BODIES = [
+	{ key: 'apple', name: 'Яблоко' },
+	{ key: 'battery', name: 'Батарейка' },
+	{ key: 'key', name: 'Ключ' },
+	{ key: 'eraser', name: 'Ластик' },
+];
+---
+
+<G7Styles />
+<figure class="g7 bal not-content" data-bal>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 230" role="img" aria-label="Рычажные весы: на левой чаше тело, на правой гири" data-svg>
+			<path class="bal__stand" d="M170 60 V196 M120 204 H220 M150 204 L170 190 L190 204"></path>
+			<g data-beam>
+				<line class="bal__beam" x1="50" y1="60" x2="290" y2="60"></line>
+				<path class="bal__pointer" d="M170 60 V100"></path>
+			</g>
+			<circle class="bal__pivot" cx="170" cy="60" r="5"></circle>
+			<path class="ln" d="M158 104 H182 M170 100 V108"></path>
+			{['l', 'r'].map((k) => (
+				<g data-pan={k}>
+					<path class="bal__string" d="M0 0 L-34 62 M0 0 L34 62"></path>
+					<path class="bal__pan" d="M-40 62 H40 q-6 14 -40 14 q-34 0 -40 -14 Z"></path>
+					<g data-on={k} />
+				</g>
+			))}
+			<text class="t-strong t-num" x="330" y="24" text-anchor="end" data-sum></text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__select">
+				Тело на левой чаше
+				<select data-body aria-label="Тело на левой чаше">
+					{BODIES.map((b) => <option value={b.key}>{b.name}</option>)}
+				</select>
+			</label>
+			<p class="g7__label">Гири на правой чаше (нажмите, чтобы положить или снять)</p>
+			<div class="g7__row" data-weights>
+				{WEIGHTS.map((w, i) => (
+					<button type="button" class="g7__btn bal__w" aria-pressed="false" data-w={w} data-i={i}>
+						{w} г
+					</button>
+				))}
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite"></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Начинайте с самой большой гири. Если она перетягивает — снимите её и возьмите следующую, поменьше; если не перетягивает — оставьте и добавляйте следующую.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.bal__stand {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.bal__beam {
+		stroke: var(--g7-gold);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.bal__pointer {
+		stroke: var(--g7-red);
+		stroke-width: 2;
+	}
+	.bal__pivot {
+		fill: var(--g7-ink);
+	}
+	.bal__string {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.bal__pan {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.bal__wt {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.bal__apple {
+		fill: hsl(4, 70%, 52%);
+		stroke: hsl(4, 60%, 32%);
+	}
+	.bal__thing {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.bal__w {
+		padding-inline: 0.55rem;
+	}
+</style>
+
+<script>
+	import { el, loop } from '../g7/kit';
+
+	const MASS: Record<string, number> = { apple: 137, battery: 46, key: 23, eraser: 18 };
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bal]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const beam = q<SVGGElement>('[data-beam]');
+		const pans = { l: q<SVGGElement>('[data-pan="l"]'), r: q<SVGGElement>('[data-pan="r"]') };
+		const onL = q<SVGGElement>('[data-on="l"]');
+		const onR = q<SVGGElement>('[data-on="r"]');
+		const body = q<HTMLSelectElement>('[data-body]');
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-w]')];
+		const msg = q<HTMLElement>('[data-msg]');
+		let angle = -12; // degrees; negative: the left pan is down
+		const sum = () => btns.filter((b) => b.getAttribute('aria-pressed') === 'true').reduce((s, b) => s + Number(b.dataset.w), 0);
+		const target = () => {
+			const d = sum() - MASS[body.value]; // > 0: the weights are heavier
+			return d === 0 ? 0 : Math.sign(d) * Math.min(12, 3 + Math.abs(d) * 0.6);
+		};
+		const drawBody = () => {
+			onL.replaceChildren();
+			const k = body.value;
+			if (k === 'apple') onL.append(el('circle', { class: 'bal__apple', cx: 0, cy: 46, r: 16 }), el('path', { class: 'bal__string', d: 'M0 30 q4 -8 8 -8' }));
+			else if (k === 'battery') onL.append(el('rect', { class: 'bal__thing', x: -9, y: 30, width: 18, height: 32, rx: 3 }), el('rect', { class: 'bal__thing', x: -4, y: 26, width: 8, height: 4 }));
+			else if (k === 'key') onL.append(el('circle', { class: 'bal__thing', cx: -12, cy: 54, r: 8 }), el('rect', { class: 'bal__thing', x: -5, y: 51, width: 28, height: 6 }));
+			else onL.append(el('rect', { class: 'bal__thing', x: -18, y: 48, width: 36, height: 14, rx: 3 }));
+		};
+		const drawWeights = () => {
+			onR.replaceChildren();
+			let x = -34;
+			for (const b of btns) {
+				if (b.getAttribute('aria-pressed') !== 'true') continue;
+				const w = Number(b.dataset.w);
+				const h = w >= 100 ? 30 : w >= 50 ? 24 : w >= 20 ? 18 : w >= 10 ? 14 : w >= 5 ? 11 : 8;
+				const wd = w >= 50 ? 14 : w >= 10 ? 11 : 8;
+				onR.append(el('rect', { class: 'bal__wt', x, y: 62 - h, width: wd, height: h, rx: 2 }));
+				x += wd + 2;
+			}
+		};
+		const say = () => {
+			const s = sum();
+			const m = MASS[body.value];
+			q('[data-sum]').textContent = `гири: ${s} г`;
+			msg.textContent = s === m ? `Весы в равновесии. Масса тела равна массе гирь: ${s} г.` : s === 0 ? 'Положите гири на правую чашу.' : s > m ? 'Гири перетягивают: их масса больше массы тела.' : 'Тело перетягивает: его масса больше массы гирь.';
+			msg.classList.toggle('is-right', s === m);
+		};
+		const wake = loop(root, (dt) => {
+			const want = target();
+			angle += (want - angle) * Math.min(1, dt * 5);
+			const rad = (angle * Math.PI) / 180;
+			beam.setAttribute('transform', `rotate(${angle.toFixed(2)} 170 60)`);
+			pans.l.setAttribute('transform', `translate(${(170 - 120 * Math.cos(rad)).toFixed(1)} ${(60 - 120 * Math.sin(rad)).toFixed(1)})`);
+			pans.r.setAttribute('transform', `translate(${(170 + 120 * Math.cos(rad)).toFixed(1)} ${(60 + 120 * Math.sin(rad)).toFixed(1)})`);
+			return Math.abs(want - angle) > 0.02;
+		});
+		for (const b of btns)
+			b.addEventListener('click', () => {
+				b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+				drawWeights();
+				say();
+				wake();
+			});
+		body.addEventListener('change', () => {
+			for (const b of btns) b.setAttribute('aria-pressed', 'false');
+			drawBody();
+			drawWeights();
+			say();
+			wake();
+		});
+		drawBody();
+		say();
+		wake();
+	}
+</script>

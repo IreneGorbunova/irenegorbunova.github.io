@@ -48,6 +48,7 @@ export const MAP_CHAPTERS: Record<string, MapChapter> = {
 	'vzaimodeystvie-molekul': { line: 'Притяжение и отталкивание молекул; почему вода смачивает стекло, но не воск.', peryshkin: '' },
 	'tri-sostoyaniya-veshchestva': { line: 'Твёрдые тела, жидкости и газы: свойства и то, как расположены и движутся молекулы.', peryshkin: '' },
 	'mehanicheskoe-dvizhenie': { line: 'Движение и покой, траектория и путь, равномерное движение, скорость, путь и время.', peryshkin: '' },
+	'inerciya-massa-plotnost': { line: 'Инерция, взаимодействие тел, масса и весы, плотность, расчёт массы и объёма.', peryshkin: '' },
 	'atmosfernoe-davlenie': { line: 'Почему воздух давит, опыт Торричелли, барометры и давление в горах.', peryshkin: '' },
 	'arhimedova-sila': { line: 'Почему в воде тела легче, закон Архимеда и когда тело тонет, а когда плавает.', peryshkin: '' },
 	// 9 класс

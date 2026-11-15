@@ -1,0 +1,173 @@
+---
+/**
+ * «Тележка на разных поверхностях»: a cart rolls down a small ramp and reaches the level track with 1,2 м/с. On the
+ * track it is slowed down evenly: on sand by 3,6 м/с² (it stops after 0,20 м), on cloth by 0,72 м/с² (1,00 м), on
+ * glass by 0,24 м/с² (3,00 м); with nothing acting on it, it keeps 1,2 м/с and leaves the picture. The path to the
+ * stop is υ²/(2a). Real time; 80 px per metre.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const X0 = 74;
+const M = 80;
+---
+
+<G7Styles />
+<figure class="g7 g7--stack inl not-content" data-inl>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 390 150" role="img" aria-label="Тележка скатывается с горки и катится по горизонтальной поверхности" data-svg>
+			<path class="inl__ramp" d={`M10 96 L10 52 L${X0} 96 Z`}></path>
+			<rect class="inl__surface" data-surface x={X0} y="96" width="316" height="8"></rect>
+			<text class="t-small" x={X0 + 4} y="118" data-sname></text>
+			{[0, 1, 2, 3].map((m) => (
+				<>
+					<line class="ln" x1={X0 + m * M} x2={X0 + m * M} y1="104" y2="110" />
+					<text class="t-small t-num" x={X0 + m * M} y="132" text-anchor="middle">{m}</text>
+				</>
+			))}
+			<text class="t-small" x="384" y="132" text-anchor="end">м</text>
+			<g data-cart>
+				<rect class="inl__cart" x="-20" y="-22" width="40" height="14" rx="3"></rect>
+				<circle class="inl__wheel" cx="-11" cy="-5" r="5"></circle>
+				<circle class="inl__wheel" cx="11" cy="-5" r="5"></circle>
+			</g>
+			<text class="t-strong t-num" x="384" y="22" text-anchor="end" data-v></text>
+			<text class="t-strong t-num" x="384" y="42" text-anchor="end" data-s></text>
+		</svg>
+		<div class="g7__side inl__side">
+			<div class="g7__seg" role="group" aria-label="Поверхность" data-surf>
+				<button type="button" class="g7__btn" aria-pressed="true" data-k="sand">Песок</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="cloth">Ткань</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="glass">Стекло</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-k="none">Ничто не мешает</button>
+			</div>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Пустить тележку</button>
+			<ul class="g7__read" data-log aria-live="polite"></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Каждый раз тележка скатывается с одной и той же высоты и въезжает на поверхность с одной и той же скоростью — 1,2 м/с. Меняется только поверхность.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.inl__side {
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+	}
+	.inl__side .g7__read {
+		grid-column: 1 / -1;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.inl__ramp {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	.inl__surface {
+		fill: var(--g7-gold);
+	}
+	.inl__cart {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.inl__wheel {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	@container (max-width: 34rem) {
+		.inl__side,
+		.inl__side .g7__read {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { fmt, loop, segment } from '../g7/kit';
+
+	const X0 = 74;
+	const M = 80;
+	const V0 = 1.2;
+	const SURF: Record<string, { name: string; a: number; fill: string }> = {
+		sand: { name: 'песок', a: 3.6, fill: 'hsl(42, 70%, 62%)' },
+		cloth: { name: 'ткань', a: 0.72, fill: 'hsl(150, 40%, 46%)' },
+		glass: { name: 'стекло', a: 0.24, fill: 'hsl(200, 70%, 72%)' },
+		none: { name: 'поверхность, которая совсем не мешает движению', a: 0, fill: 'hsl(230, 10%, 60%)' },
+	};
+	for (const root of document.querySelectorAll<HTMLElement>('[data-inl]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const cart = q<SVGGElement>('[data-cart]');
+		const log = q<HTMLUListElement>('[data-log]');
+		let key = 'sand';
+		let t = -1;
+		const RAMP_T = 1.1; // seconds on the ramp
+		const place = (time: number) => {
+			const S = SURF[key];
+			let x: number;
+			let y = 96;
+			let v: number;
+			let s = 0;
+			let angle = 0;
+			if (time < RAMP_T) {
+				// down the ramp: the speed grows evenly from 0 to 1,2 м/с
+				const u = (time / RAMP_T) ** 2;
+				x = 20 + (X0 - 20) * u;
+				y = 59 + (96 - 59) * u;
+				v = V0 * (time / RAMP_T);
+				angle = 34.5;
+			} else {
+				const tt = time - RAMP_T;
+				const ts = S.a ? V0 / S.a : Infinity;
+				const te = Math.min(tt, ts);
+				s = V0 * te - (S.a * te * te) / 2;
+				v = Math.max(0, V0 - S.a * te);
+				x = X0 + s * M;
+			}
+			cart.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${angle})`);
+			q('[data-v]').textContent = `скорость ${fmt(v, 2)} м/с`;
+			q('[data-s]').textContent = time < RAMP_T ? '' : `путь ${fmt(s, 2)} м`;
+			return { s, v, x };
+		};
+		const setup = () => {
+			t = -1;
+			const S = SURF[key];
+			q<SVGRectElement>('[data-surface]').style.fill = S.fill;
+			q('[data-sname]').textContent = S.name;
+			place(0);
+			q('[data-v]').textContent = '';
+			q('[data-s]').textContent = '';
+		};
+		const wake = loop(root, (dt) => {
+			if (t < 0) return false;
+			t += dt;
+			const { s, v, x } = place(t);
+			const S = SURF[key];
+			const done = t > RAMP_T && (v <= 0 || x > 420);
+			if (done) {
+				t = -1;
+				const text = S.a ? `${fmt(s, 2)} м` : 'не остановилась';
+				let li = log.querySelector<HTMLElement>(`[data-key="${key}"]`);
+				if (!li) {
+					li = document.createElement('li');
+					li.dataset.key = key;
+					log.append(li);
+				}
+				li.innerHTML = `<span>${key === 'none' ? 'Ничто не мешает' : S.name[0].toUpperCase() + S.name.slice(1)}: путь до остановки</span><b>${text}</b>`;
+				return false;
+			}
+			return true;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			setup();
+			t = 0;
+			wake();
+		});
+		segment(q('[data-surf]'), (b) => {
+			key = b.dataset.k!;
+			setup();
+		});
+		setup();
+	}
+</script>

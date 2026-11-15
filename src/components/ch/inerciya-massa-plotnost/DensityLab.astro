@@ -1,0 +1,123 @@
+---
+/**
+ * «Плотность»: a cube of a chosen substance and volume (1…100 см³) stands on electronic scales. Its mass is
+ * m = ρ·V with the table densities (г/см³): cork 0,24; oak 0,7; ice 0,9; aluminium 2,7; iron 7,8; copper 8,9;
+ * silver 10,5 (shown as «неизвестный металл»); lead 11,3; gold 19,3. The cube is drawn to scale (its edge is the
+ * cube root of the volume, 12 px per centimeter). The reader divides the mass by the volume.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const SUBS = [
+	{ key: 'cork', name: 'Пробка' },
+	{ key: 'oak', name: 'Дуб' },
+	{ key: 'ice', name: 'Лёд' },
+	{ key: 'al', name: 'Алюминий' },
+	{ key: 'fe', name: 'Железо' },
+	{ key: 'cu', name: 'Медь' },
+	{ key: 'pb', name: 'Свинец' },
+	{ key: 'au', name: 'Золото' },
+	{ key: 'x', name: 'Неизвестный металл' },
+];
+---
+
+<G7Styles />
+<figure class="g7 den not-content" data-den>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 220" role="img" aria-label="Кубик из выбранного вещества стоит на электронных весах" data-svg>
+			<rect class="den__cube" data-cube></rect>
+			<text class="t-small" x="150" y="22" text-anchor="middle" data-edge></text>
+			<rect class="den__plate" x="70" y="140" width="160" height="8" rx="3"></rect>
+			<rect class="den__scale" x="60" y="148" width="180" height="50" rx="8"></rect>
+			<rect class="den__screen" x="96" y="158" width="108" height="30" rx="4"></rect>
+			<text class="den__digits" x="196" y="180" text-anchor="end" data-mass></text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__select">
+				Вещество
+				<select data-sub aria-label="Вещество">
+					{SUBS.map((s) => <option value={s.key} selected={s.key === 'al'}>{s.name}</option>)}
+				</select>
+			</label>
+			<label class="g7__slider">
+				<span>Объём кубика</span>
+				<output data-out></output>
+				<input type="range" min="1" max="100" step="1" value="10" data-v aria-label="Объём кубика, кубические сантиметры" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Масса <i>m</i></span><b data-m></b></li>
+				<li><span>Объём <i>V</i></span><b data-vv></b></li>
+				<li class="is-key"><span>Масса одного см³: <i>m</i> : <i>V</i></span><b data-rho></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Кубик нарисован в настоящих пропорциях: при объёме 64 см³ его ребро 4 см. Весы показывают массу в граммах.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.den__cube {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.den__plate {
+		fill: var(--sl-color-gray-3);
+	}
+	.den__scale {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.den__screen {
+		fill: hsl(150, 30%, 12%);
+	}
+	.den svg .den__digits {
+		font-size: 18px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		fill: hsl(140, 80%, 62%);
+	}
+</style>
+
+<script>
+	import { fmt, fmtTrim } from '../g7/kit';
+
+	const RHO: Record<string, [number, string]> = {
+		cork: [0.24, 'hsl(32, 45%, 62%)'],
+		oak: [0.7, 'hsl(28, 50%, 44%)'],
+		ice: [0.9, 'hsl(200, 70%, 86%)'],
+		al: [2.7, 'hsl(215, 14%, 76%)'],
+		fe: [7.8, 'hsl(215, 10%, 52%)'],
+		cu: [8.9, 'hsl(20, 70%, 55%)'],
+		pb: [11.3, 'hsl(225, 12%, 40%)'],
+		au: [19.3, 'hsl(46, 90%, 55%)'],
+		x: [10.5, 'hsl(210, 12%, 82%)'],
+	};
+	for (const root of document.querySelectorAll<HTMLElement>('[data-den]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const sub = q<HTMLSelectElement>('[data-sub]');
+		const v = q<HTMLInputElement>('[data-v]');
+		const cube = q<SVGRectElement>('[data-cube]');
+		const draw = () => {
+			const [rho, color] = RHO[sub.value];
+			const V = Number(v.value);
+			const m = rho * V;
+			const edge = Math.cbrt(V);
+			const px = edge * 12;
+			cube.setAttribute('x', (150 - px / 2).toFixed(1));
+			cube.setAttribute('y', (140 - px).toFixed(1));
+			cube.setAttribute('width', px.toFixed(1));
+			cube.setAttribute('height', px.toFixed(1));
+			cube.style.fill = color;
+			q('[data-edge]').textContent = `ребро кубика ${fmt(edge, 1)} см`;
+			q('[data-mass]').textContent = `${fmtTrim(m, 1)} г`;
+			q('[data-out]').textContent = `${V} см³`;
+			q('[data-m]').textContent = `${fmtTrim(m, 1)} г`;
+			q('[data-vv]').textContent = `${V} см³`;
+			q('[data-rho]').textContent = sub.value === 'x' ? '? г/см³' : `${fmtTrim(rho, 2)} г/см³`;
+		};
+		sub.addEventListener('change', draw);
+		v.addEventListener('input', draw);
+		draw();
+	}
+</script>
