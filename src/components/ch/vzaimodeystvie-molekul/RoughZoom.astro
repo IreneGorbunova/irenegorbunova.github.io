@@ -1,0 +1,383 @@
+---
+/**
+ * Picture «Гладкие грани под увеличением» (Irina, 17 Nov 2026: «вроде бы идеально гладкие поверхности, но при
+ * приближении всё больше и больше будет видно, что они всё равно не идеально гладкие»). Two smooth steel blocks are
+ * pressed together face to face. «Ближе» zooms in ten times (an animated zoom, 1,4 s), seven steps from «как видит
+ * глаз» to a million times; «Сначала» goes back. Each step shows its magnification and a scale bar.
+ *
+ * Scale: at the first step the frame is 30 мм wide (360 units, 12 units per мм), the blocks are 24 × 7 мм. Every step
+ * divides the frame by ten: 3 мм, 0,3 мм, 0,03 мм, 0,003 мм, 0,0003 мм, 0,00003 мм (30 нм, 12 units per нм). Heights
+ * and widths always have the same scale, so the slopes of the bumps are true.
+ *
+ * The faces are random self-affine surfaces, as real ground and polished surfaces are: a sum of sine waves, three per
+ * octave, with wavelengths from 40 мкм down to 0,6 нм and amplitudes 0,012 × wavelength (random phases, a fixed seed).
+ * Each face then has an rms height of 0,5 мкм and an rms slope of 0,37 (bumps of 0,001–0,003 мм from top to bottom, as
+ * on ground steel)
+ * and the same look at every magnification from a thousand times on: every bump is covered with smaller bumps. Waves
+ * longer than 40 мкм are absent: polishing makes the face flat on a large scale, so at ten times nothing is seen.
+ * The blocks are rigid and rest on the highest point of contact within the 0,3 мм frame (the zoom always goes into
+ * that point); the flattening of the tips under the press is neglected, it would widen the few contact spots only a
+ * little.
+ *
+ * At the last step molecules appear: circles 0,0000003 мм (0,3 нм) across, packed in rows inside each block. Red are
+ * the molecules closer than 0,000001 мм (1 нм) to the other block's face: the distance at which molecules attract
+ * (task 1 of the chapter). They sit only around the point of contact; elsewhere the gap is many times larger.
+ * Simplified: the molecules stand still (their thermal vibration, about 0,00000001 мм, is too small to see), and the
+ * packing is drawn as regular rows.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 g7--stack rz not-content" data-rzoom>
+	<div class="rz__box">
+		<canvas class="g7__canvas" width="1080" height="660" role="img" aria-label="Два гладких бруска, прижатые друг к другу, под всё большим увеличением: грани оказываются неровными и касаются лишь в немногих точках" data-canvas></canvas>
+		<div class="g7__row rz__row">
+			<button type="button" class="g7__btn g7__btn--go" data-next>Ближе</button>
+			<button type="button" class="g7__btn" data-first>Сначала</button>
+		</div>
+		<p class="g7__msg" aria-live="polite" data-text></p>
+	</div>
+	<figcaption class="g7__caption">
+		Каждое нажатие «Ближе» увеличивает картинку в 10&nbsp;раз, отрезок внизу показывает масштаб. Неровности граней нарисованы в верном масштабе, а молекулы для простоты — ровными рядами.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rz__box {
+		max-width: 34rem;
+		margin-inline: auto;
+		display: grid;
+		gap: 0.6rem;
+	}
+	.rz__row {
+		justify-content: flex-start;
+	}
+</style>
+
+<script>
+	import { ease, loop, rng } from '../g7/kit';
+	import { themeColors } from '../g7/md';
+
+	const W = 360;
+	const H = 220;
+	const S = 3; // canvas pixels per unit
+	const CX = W / 2;
+	const CY = H / 2;
+	const P0 = 1.2e-5; // units per нм at the first step: 12 units per мм
+	const LAST = 6; // ×1 000 000
+	const ZOOM_T = 1.4; // s per step
+	const MOL = 0.3; // нм, the size of a molecule
+	const REACH = 1; // нм, molecules attract closer than this
+	const LMAX = 40000; // нм, the longest wave of the faces
+	const AMP = 0.012; // amplitude / wavelength
+	const BL = { left: 13e6, right: 11e6, h: 7e6 }; // нм: the blocks reach 13 мм left and 11 мм right of the contact
+	const NB = ' ';
+	const TEXTS = [
+		'Два шлифованных стальных бруска прижаты друг к другу. На вид их грани совпадают идеально.',
+		'Увеличили в 10 раз. Граница между брусками по-прежнему ровная.',
+		'В 100 раз. Граница стала чуть неровной.',
+		'В 1000 раз. Грани покрыты выступами и впадинами. Бруски касаются друг друга только вершинами выступов, а между ними — щели.',
+		'В 10 000 раз. Вершины выступов тоже неровные: на них свои выступы, поменьше.',
+		'В 100 000 раз. Между гранями по-прежнему щели. Здесь бруски касаются лишь в одном месте.',
+		'В 1 000 000 раз. Видны молекулы. Красные молекулы ближе 0,000001 мм к другому бруску — только они и притягивают его к себе. Такие молекулы есть лишь у редких точек касания, а почти по всей грани щель между брусками в тысячи раз шире.',
+	].map((s) => s.replace(/(\d) (\d)/g, `$1${NB}$2`).replace(/(\d) (мм|раз)/g, `$1${NB}$2`));
+	const ZOOM = ['как видит глаз', 'в 10 раз', 'в 100 раз', 'в 1000 раз', 'в 10 000 раз', 'в 100 000 раз', 'в 1 000 000 раз'];
+	const BAR = ['1 см', '1 мм', '0,1 мм', '0,01 мм', '0,001 мм', '0,0001 мм', '0,00001 мм'];
+
+	type Wave = { k: number; a: number; f: number };
+	const face = (seed: number): Wave[] => {
+		const r = rng(seed);
+		const out: Wave[] = [];
+		for (let o = 0; o < 16; o++)
+			for (let j = 0; j < 3; j++) {
+				const l = (LMAX / 2 ** o) * 2 ** -r();
+				out.push({ k: (2 * Math.PI) / l, a: AMP * l, f: 2 * Math.PI * r() });
+			}
+		return out.sort((p, q) => p.k - q.k);
+	};
+	/** the height of a face at x (нм), waves with k ≤ kmax only */
+	const height = (ws: Wave[], x: number, kmax = Infinity) => {
+		let s = 0;
+		for (const w of ws) {
+			if (w.k > kmax) break;
+			s += w.a * Math.sin(w.k * x + w.f);
+		}
+		return s;
+	};
+
+	const NAMES = {
+		paper: '--g7-paper',
+		top: '--g7-steel',
+		bot: '--g7-steel-dark',
+		ink: '--g7-ink',
+		line: '--g7-line',
+		red: '--g7-red',
+		gold: '--g7-gold',
+		text: '--sl-color-gray-1',
+		pill: '--ig-surface',
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rzoom]')) {
+		const canvas = root.querySelector<HTMLCanvasElement>('[data-canvas]')!;
+		const ctx = canvas.getContext('2d')!;
+		const text = root.querySelector<HTMLElement>('[data-text]')!;
+		const next = root.querySelector<HTMLButtonElement>('[data-next]')!;
+		const family = getComputedStyle(root).fontFamily;
+		let fs = 11;
+		let colors = themeColors(root, NAMES);
+
+		const bot = face(11);
+		const top = face(29);
+		// the point of contact: the smallest gap within the 0,3 мм frame, refined step by step
+		const gap0 = (x: number) => height(top, x) - height(bot, x);
+		let xs = 0;
+		for (let lev = 2; lev <= LAST; lev++) {
+			const span = W / (P0 * 10 ** lev);
+			let best = Infinity;
+			let bx = xs;
+			for (let i = 0; i <= 4000; i++) {
+				const x = xs - span / 2 + (span * i) / 4000;
+				const g = gap0(x);
+				if (g < best) {
+					best = g;
+					bx = x;
+				}
+			}
+			xs = bx;
+		}
+		const lift = -gap0(xs); // the top block's face is raised by this so that the faces just touch at xs
+		const ys = height(bot, xs);
+
+		const N = 300;
+		const sx = new Float64Array(N + 1);
+		const yb = new Float64Array(N + 1);
+		const yt = new Float64Array(N + 1);
+
+		const pill = (x: number, y: number, w: number, h: number) => {
+			ctx.beginPath();
+			ctx.roundRect(x, y, w, h, 5);
+			ctx.globalAlpha = 0.86;
+			ctx.fillStyle = colors.pill;
+			ctx.fill();
+			ctx.globalAlpha = 1;
+		};
+		const arrow = (x: number, y0: number, y1: number) => {
+			ctx.strokeStyle = colors.ink;
+			ctx.fillStyle = colors.ink;
+			ctx.lineWidth = 2.4;
+			ctx.beginPath();
+			ctx.moveTo(x, y0);
+			ctx.lineTo(x, y1 - 5);
+			ctx.stroke();
+			ctx.beginPath();
+			ctx.moveTo(x, y1);
+			ctx.lineTo(x - 4.5, y1 - 8);
+			ctx.lineTo(x + 4.5, y1 - 8);
+			ctx.closePath();
+			ctx.fill();
+		};
+
+		/** one frame at `lev` (a fractional step: 0 … 6) */
+		const draw = (lev: number) => {
+			const p = P0 * 10 ** lev; // units per нм
+			const kmax = Math.PI * p * 0.75; // waves shorter than ~2,7 units are not drawn
+			ctx.setTransform(S, 0, 0, S, 0, 0);
+			// the labels keep about 11 px on a phone
+			fs = Math.min(13, Math.max(11, (11 * W) / (canvas.clientWidth || W)));
+			const font = `${fs}px ${family}`;
+			ctx.fillStyle = colors.paper;
+			ctx.fillRect(0, 0, W, H);
+			const X = (x: number) => CX + (x - xs) * p;
+			const Y = (y: number) => CY - (y - ys) * p;
+			const xa = Math.max(xs - CX / p, xs - BL.left);
+			const xb = Math.min(xs + (W - CX) / p, xs + BL.right);
+			for (let i = 0; i <= N; i++) {
+				const x = xa + ((xb - xa) * i) / N;
+				sx[i] = X(x);
+				yb[i] = Y(height(bot, x, kmax));
+				yt[i] = Math.min(yb[i], Y(height(top, x, kmax) + lift));
+			}
+			const yFloor = Math.min(H + 4, Y(ys - BL.h));
+			const yRoof = Math.max(-4, Y(ys + BL.h));
+			// molecules fade in on the last step
+			const dm = MOL * p;
+			const ma = Math.min(1, Math.max(0, (dm - 1.4) / 1.8));
+			// the blocks
+			ctx.globalAlpha = 1 - 0.55 * ma;
+			ctx.fillStyle = colors.bot;
+			ctx.beginPath();
+			ctx.moveTo(sx[0], yFloor);
+			for (let i = 0; i <= N; i++) ctx.lineTo(sx[i], yb[i]);
+			ctx.lineTo(sx[N], yFloor);
+			ctx.closePath();
+			ctx.fill();
+			ctx.fillStyle = colors.top;
+			ctx.beginPath();
+			ctx.moveTo(sx[0], yRoof);
+			for (let i = 0; i <= N; i++) ctx.lineTo(sx[i], yt[i]);
+			ctx.lineTo(sx[N], yRoof);
+			ctx.closePath();
+			ctx.fill();
+			ctx.globalAlpha = 1;
+			if (ma > 0) {
+				const r = (dm / 2) * 0.86;
+				const rh = (MOL * Math.sqrt(3)) / 2;
+				const sAt = (xu: number, arr: Float64Array) => {
+					const u = ((xu - sx[0]) / (sx[N] - sx[0])) * N;
+					const i = Math.min(N - 1, Math.max(0, Math.floor(u)));
+					const f = u - i;
+					return arr[i] * (1 - f) + arr[i + 1] * f;
+				};
+				const paths = { bot: new Path2D(), top: new Path2D(), red: new Path2D() };
+				const yLo = ys - (H - CY) / p - MOL;
+				const yHi = ys + CY / p + MOL;
+				for (const body of ['bot', 'top'] as const) {
+					const ox = body === 'bot' ? 0.07 : 0.19;
+					const oy = body === 'bot' ? 0.05 : 0.11;
+					for (let j = Math.floor((yLo - oy) / rh); j <= Math.ceil((yHi - oy) / rh); j++) {
+						const y = j * rh + oy;
+						const shift = ox + (j & 1 ? MOL / 2 : 0);
+						const i0 = Math.floor((xa - shift) / MOL);
+						const i1 = Math.ceil((xb - shift) / MOL);
+						for (let i = i0; i <= i1; i++) {
+							const mx = X(i * MOL + shift);
+							const my = Y(y);
+							if (mx < -r || mx > W + r) continue;
+							const fb = sAt(mx, yb);
+							const ft = sAt(mx, yt);
+							let pth: Path2D;
+							if (body === 'bot') {
+								if (my < fb + dm / 2) continue;
+								pth = (my - ft) / p <= REACH ? paths.red : paths.bot;
+							} else {
+								if (my > ft - dm / 2) continue;
+								pth = (fb - my) / p <= REACH ? paths.red : paths.top;
+							}
+							pth.moveTo(mx + r, my);
+							pth.arc(mx, my, r, 0, 2 * Math.PI);
+						}
+					}
+				}
+				ctx.globalAlpha = ma;
+				ctx.fillStyle = colors.bot;
+				ctx.fill(paths.bot);
+				ctx.fillStyle = colors.top;
+				ctx.fill(paths.top);
+				ctx.strokeStyle = colors.ink;
+				ctx.lineWidth = 0.35;
+				ctx.stroke(paths.bot);
+				ctx.stroke(paths.top);
+				ctx.fillStyle = colors.red;
+				ctx.fill(paths.red);
+				ctx.globalAlpha = 1;
+			}
+			// the faces
+			ctx.globalAlpha = 1 - 0.7 * ma;
+			ctx.strokeStyle = colors.ink;
+			ctx.lineWidth = 1.1;
+			ctx.lineJoin = 'round';
+			for (const arr of [yb, yt]) {
+				ctx.beginPath();
+				for (let i = 0; i <= N; i++) (i ? ctx.lineTo : ctx.moveTo).call(ctx, sx[i], arr[i]);
+				ctx.stroke();
+			}
+			ctx.globalAlpha = 1;
+			// the press, on the first step
+			const pa = Math.max(0, 1 - lev * 1.5);
+			if (pa > 0) {
+				ctx.globalAlpha = pa;
+				arrow(X(xs + 2e6), 2, yRoof - 2);
+				arrow(X(xs + 8e6), 2, yRoof - 2);
+				ctx.globalAlpha = 1;
+			}
+			// magnification and the scale bar
+			const k = Math.min(LAST, Math.ceil(lev - 1e-6));
+			ctx.font = `600 ${font}`;
+			ctx.textBaseline = 'middle';
+			const zt = ZOOM[k];
+			const zw = ctx.measureText(zt).width;
+			pill(6, 6, zw + 14, fs + 9);
+			ctx.fillStyle = colors.text;
+			ctx.fillText(zt, 13, 6 + (fs + 9) / 2 + 0.5);
+			const len = 1e7 / 10 ** k; // нм: 1 см, 1 мм …
+			const bw = len * p;
+			const bt = BAR[k];
+			ctx.font = `600 ${font}`;
+			const tw = ctx.measureText(bt).width;
+			let w = bw + tw + 26;
+			let rw = 0;
+			if (ma > 0) {
+				ctx.font = font;
+				rw = REACH * p + ctx.measureText('притяжение').width + 22;
+				w += rw;
+			}
+			pill(6, H - 26, w, 20);
+			ctx.strokeStyle = colors.ink;
+			ctx.lineWidth = 1.6;
+			ctx.beginPath();
+			ctx.moveTo(13, H - 16);
+			ctx.lineTo(13 + bw, H - 16);
+			ctx.moveTo(13, H - 20);
+			ctx.lineTo(13, H - 12);
+			ctx.moveTo(13 + bw, H - 20);
+			ctx.lineTo(13 + bw, H - 12);
+			ctx.stroke();
+			ctx.font = `600 ${font}`;
+			ctx.fillStyle = colors.text;
+			ctx.fillText(bt, 19 + bw, H - 15.5);
+			if (ma > 0) {
+				ctx.globalAlpha = ma;
+				const x0 = 13 + bw + tw + 20;
+				const rp = REACH * p;
+				ctx.strokeStyle = colors.red;
+				ctx.beginPath();
+				ctx.moveTo(x0, H - 16);
+				ctx.lineTo(x0 + rp, H - 16);
+				ctx.moveTo(x0, H - 20);
+				ctx.lineTo(x0, H - 12);
+				ctx.moveTo(x0 + rp, H - 20);
+				ctx.lineTo(x0 + rp, H - 12);
+				ctx.stroke();
+				ctx.font = font;
+				ctx.fillStyle = colors.red;
+				ctx.fillText('притяжение', x0 + rp + 6, H - 15.5);
+				ctx.globalAlpha = 1;
+			}
+		};
+
+		let level = 0; // the step shown or being zoomed into
+		let from = 0;
+		let t = ZOOM_T;
+		const show = () => {
+			text.textContent = TEXTS[level];
+			next.disabled = level >= LAST;
+		};
+		const wake = loop(root, (dt) => {
+			t = Math.min(ZOOM_T, t + dt);
+			draw(from + (level - from) * ease(t / ZOOM_T));
+			return t < ZOOM_T;
+		});
+		next.addEventListener('click', () => {
+			if (level >= LAST) return;
+			from = t < ZOOM_T ? from + (level - from) * ease(t / ZOOM_T) : level;
+			level += 1;
+			t = 0;
+			show();
+			wake();
+		});
+		root.querySelector('[data-first]')!.addEventListener('click', () => {
+			level = 0;
+			from = 0;
+			t = ZOOM_T;
+			show();
+			draw(0);
+		});
+		new MutationObserver(() => {
+			colors = themeColors(root, NAMES);
+			draw(from + (level - from) * ease(t / ZOOM_T));
+		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+		show();
+		draw(0);
+	}
+</script>
