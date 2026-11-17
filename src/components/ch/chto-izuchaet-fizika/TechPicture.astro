@@ -1,0 +1,1048 @@
+---
+/**
+ * Picture «Физика и техника»: six small panels, in the order of the section's text. Our own drawings, schemes not to
+ * scale unless stated; each panel loops while it is on screen (`loop` from kit.ts).
+ *
+ *  1. Паровая машина — a steam locomotive. The drivers (R = 11 px) turn once in 2 с; the sleepers move by ω·R, so the
+ *     wheels roll without slipping. The main rod (24 px) turns the crank (5 px) of the third driver from the crosshead;
+ *     the coupling rod joins the cranks of all three drivers. A two-cylinder engine exhausts 4 times per turn of the
+ *     wheels, so 4 puffs leave the chimney per turn. If a driver is 1,6 м across, the train goes 2,5 м/с (9 км/ч):
+ *     a train leaving a station.
+ *  2. Электричество — a lamp and a desk fan plugged into a power strip; the switch turns on for 3,5 с and off for
+ *     2,5 с. The filament heats in 0,1 с; the fan spins up with a time constant of 0,7 с and coasts down with 1,5 с.
+ *     The fan turns 2 times a second, about 10 times slower than a real one (a faster drawing would flicker).
+ *  3. Лазер — a hobby laser engraver: a blue diode laser (450 нм, a visible colour, so the drawn beam is honest)
+ *     burns an atom sign into a wooden board. Seen from above at a slant (depth × 0,4). The sign is three ellipses
+ *     (34 × 11 px, turned by 0°, 60°, 120°) and a nucleus; each ellipse (about 150 px ≈ 150 мм around if 1 px = 1 мм)
+ *     takes 2 с, i. e. 75 мм/с, a usual engraving speed.
+ *  4. Телескоп — Jupiter and its four large moons as Galileo saw them in 1610: the orbits are seen edge-on, so the
+ *     moons move along a line. Distances in Jupiter radii and periods: Io 5,90 and 1,769 сут, Europa 9,39 and 3,551,
+ *     Ganymede 14,97 and 7,155, Callisto 26,33 and 16,689 (1,55 px per radius). One day passes in 3 с. Jupiter's disc
+ *     is drawn 2,5 times larger than at this scale, the moons as dots; a moon behind the disc is hidden.
+ *  5. Микроскоп — a school microscope and the onion skin it shows: cells about 0,2–0,3 мм long with a nucleus each,
+ *     magnified about 150 times. The focus knob turns and the blurred picture becomes sharp.
+ *  6. «Восток» — the Vostok rocket (8К72К) that carried Gagarin on 12 апреля 1961. To scale (2,4 px per metre): total
+ *     length 38,4 м, a core (2,95 м across at the top, narrower below) with four conical strap-on boosters (about
+ *     19,6 м long, 2,68 м across at the base); the two side boosters and the front one are seen, the fourth is behind.
+ *     Above the core: an open truss, the third stage (2,56 м) and the fairing of the ship. Four support arms (two are
+ *     seen) hold the rocket and fall back at lift-off. Ignition is shortened to 2,5 с; the climb is in real time:
+ *     thrust about 3,9 МН, mass about 281 т, so a = 3,9·10⁶ / 2,81·10⁵ − 9,8 ≈ 4 м/с², and the rocket leaves the
+ *     panel after about 5 с.
+ * The caption says what is slowed down and what is enlarged.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import { rng } from '../g7/kit';
+
+const uid = `tech-${Math.random().toString(36).slice(2, 8)}`;
+
+// 1. the locomotive
+const DRV = [50, 74, 98]; // the drivers' centres, y = 87, R = 11
+const sleepers = Array.from({ length: 16 }, (_, i) => -12 + i * 12);
+
+// 3. the engraver: board coordinates (u right, v toward us) → the picture
+const PX = (u: number, v: number, h = 0) => [80 + u - 0.24 * v, 84 + 0.4 * v - h] as const;
+const pt = (u: number, v: number, h = 0) => PX(u, v, h).map((n) => n.toFixed(1)).join(' ');
+const BU = 52;
+const BV = 36;
+const H = 36;
+const boardTop = `M${pt(-BU, -BV)} L${pt(BU, -BV)} L${pt(BU, BV)} L${pt(-BU, BV)} Z`;
+const boardFront = `M${pt(-BU, BV)} L${pt(BU, BV)} l0 5 L${(PX(-BU, BV)[0]).toFixed(1)} ${(PX(-BU, BV)[1] + 5).toFixed(1)} Z`;
+const boardSide = `M${pt(BU, -BV)} L${pt(BU, BV)} l0 5 L${PX(BU, -BV)[0].toFixed(1)} ${(PX(BU, -BV)[1] + 5).toFixed(1)} Z`;
+const RU = 58;
+
+// 4. stars of the night sky, away from the view circle
+const r4 = rng(7);
+const stars: { x: number; y: number; r: number }[] = [];
+while (stars.length < 14) {
+	const x = 4 + r4() * 152;
+	const y = 4 + r4() * 70;
+	if (Math.hypot(x - 110, y - 52) > 50) stars.push({ x, y, r: 0.5 + r4() * 0.7 });
+}
+
+// 5. onion cells: rows of long cells, each with a nucleus
+const r5 = rng(11);
+const cells: { d: string; nx: number; ny: number }[] = [];
+for (let row = 0; row < 9; row++) {
+	const y0 = 12 + row * 11.5;
+	let x = 58 - r5() * 30;
+	while (x < 160) {
+		const w = 28 + r5() * 14;
+		const k = (r5() - 0.5) * 3; // a slight slant of the row
+		cells.push({
+			d: `M${x.toFixed(1)} ${(y0 + k).toFixed(1)} L${(x + w).toFixed(1)} ${(y0 - k).toFixed(1)} L${(x + w + 1).toFixed(1)} ${(y0 + 11.5 - k).toFixed(1)} L${(x + 1).toFixed(1)} ${(y0 + 11.5 + k).toFixed(1)} Z`,
+			nx: x + w * (0.3 + r5() * 0.4),
+			ny: y0 + 4 + r5() * 3.5,
+		});
+		x += w;
+	}
+}
+
+// 6. the Vostok rocket, metres → picture: 2,4 px per metre, the axis at x = 80, the base of the blocks at y = 100
+const K = 2.4;
+const R = (xm: number, ym: number) => `${(80 + xm * K).toFixed(1)} ${(100 - ym * K).toFixed(1)}`;
+const poly = (pts: [number, number][]) => 'M' + pts.map(([a, b]) => R(a, b)).join(' L') + ' Z';
+const mirror = (pts: [number, number][]) => pts.map(([a, b]) => [-a, b] as [number, number]);
+const core: [number, number][] = [
+	[-1.05, 0], [-1.05, 16.5], [-1.475, 20.5], [-1.475, 27.8], [1.475, 27.8], [1.475, 20.5], [1.05, 16.5], [1.05, 0],
+];
+const boosterR: [number, number][] = [[1.05, 0], [3.73, 0], [3.73, 1.8], [1.38, 19.6], [1.05, 16.5]];
+const boosterF = `M${R(-1.34, 0)} L${R(1.34, 0)} L${R(1.34, 1.8)} L${R(0.16, 19.3)} Q${R(0, 19.75)} ${R(-0.16, 19.3)} L${R(-1.34, 1.8)} Z`;
+const fairing = `M${R(-1.28, 32)} L${R(-1.28, 33.4)} L${R(-0.45, 37.8)} Q${R(0, 38.75)} ${R(0.45, 37.8)} L${R(1.28, 33.4)} L${R(1.28, 32)} Z`;
+const truss = `M${R(-1.28, 27.8)} L${R(1.28, 29)} M${R(1.28, 27.8)} L${R(-1.28, 29)} M${R(-1.28, 27.8)} V${100 - 29 * K} M${R(1.28, 27.8)} V${100 - 29 * K} M${R(0, 27.8)} V${100 - 29 * K}`;
+const nozzles = [-3.1, -2.0, -0.55, 0.55, 2.0, 3.1];
+const bell = (c: number) => `M${R(c - 0.25, 0)} L${R(c + 0.25, 0)} L${R(c + 0.42, -1.3)} L${R(c - 0.42, -1.3)} Z`;
+// a support arm: the pivot on the ground at x = ±4.6 м, the top at the booster
+const arm = (s: 1 | -1) => {
+	const a = [4.6 * s, -1.6] as const;
+	const b = [2.05 * s, 15.5] as const;
+	const n = 7;
+	let zig = '';
+	for (let i = 0; i <= n; i++) {
+		const f = i / n;
+		const x = a[0] + (b[0] - a[0]) * f + (i % 2 ? 0.35 : -0.35) * s;
+		const y = a[1] + (b[1] - a[1]) * f;
+		zig += (i ? ' L' : 'M') + R(x, y);
+	}
+	return {
+		rails: `M${R(a[0] - 0.35 * s, a[1])} L${R(b[0] - 0.35 * s, b[1])} M${R(a[0] + 0.35 * s, a[1])} L${R(b[0] + 0.35 * s, b[1])} M${R(b[0] - 0.35 * s, b[1])} L${R(b[0] - 0.75 * s, b[1] + 0.8)}`,
+		zig,
+		pivot: R(a[0], a[1]).split(' '),
+	};
+};
+const armL = arm(-1);
+const armR = arm(1);
+const r6 = rng(5);
+const smoke = Array.from({ length: 24 }, (_, i) => {
+	const side = i % 2 ? 1 : -1;
+	const d = 12 + r6() * 46;
+	return { x: 80 + side * d, y: 103 - r6() * 7, r: 4 + r6() * 6 * (1 - d / 90), side, delay: (d / 58) * 1.2 };
+});
+
+const panels = [
+	{ key: 'steam', name: 'Паровая машина', ex: 'Пар толкает поршни, и колёса паровоза крутятся.' },
+	{ key: 'el', name: 'Электричество', ex: 'Ток зажигает лампу и крутит электродвигатель.' },
+	{ key: 'laser', name: 'Лазер', ex: 'Узкий луч лазера выжигает на доске знак атома.' },
+	{ key: 'tele', name: 'Телескоп', ex: 'Галилей увидел в телескоп четыре спутника Юпитера.' },
+	{ key: 'micro', name: 'Микроскоп', ex: 'В микроскоп видны клетки кожицы лука.' },
+	{ key: 'rocket', name: 'Ракета «Восток»', ex: '12 апреля 1961 года она унесла в космос Юрия Гагарина.' },
+];
+const aria: Record<string, string> = {
+	steam: 'Паровоз едет по рельсам: шатун от поршня вращает колёса, из трубы клубами выходит пар',
+	el: 'Лампа и вентилятор включены в удлинитель: щёлкает выключатель — лампа загорается, вентилятор раскручивается',
+	laser: 'Гравёр водит синим лучом лазера по деревянной доске и выжигает знак атома: три овала и ядро',
+	tele: 'Телескоп на треноге смотрит в ночное небо; в окуляре — Юпитер и четыре его спутника, которые движутся по линии',
+	micro: 'Школьный микроскоп и вид в окуляре: ручка фокуса поворачивается, и размытые клетки кожицы лука становятся чёткими',
+	rocket: 'Ракета «Восток» с четырьмя боковыми блоками стоит на старте; включаются двигатели, опоры отходят, и ракета уходит вверх',
+};
+---
+
+<G7Styles />
+<figure class="g7 g7--pic tech not-content" data-techpic>
+	<div class="tech__grid">
+		{
+			panels.map((p) => (
+				<div class="tech__cell">
+					<svg class="g7__svg" viewBox="0 0 160 120" role="img" aria-label={aria[p.key]} data-panel={p.key}>
+						{p.key === 'steam' && (
+							<>
+								<rect class="tech__ground" x="0" y="103" width="160" height="17" />
+								<g data-sleepers>
+									{sleepers.map((x) => (
+										<rect class="tech__sleeper" x={x} y="99.5" width="7" height="3.5" rx="0.8" />
+									))}
+								</g>
+								<line class="tech__rail" x1="0" y1="98.6" x2="160" y2="98.6" />
+								<g data-puffs>
+									{Array.from({ length: 7 }, () => (
+										<circle class="tech__steam" r="0" cx="118" cy="30" opacity="0" />
+									))}
+								</g>
+								{/* chimney, boiler, dome, cab */}
+								<path class="tech__loco" d="M114 49 V35 H122 V49 Z" />
+								<rect class="tech__loco-dark" x="111.5" y="31" width="13" height="4.5" rx="1.2" />
+								<path class="tech__brass" d="M70 51 Q70 42 77 42 Q84 42 84 51 Z" />
+								<rect class="tech__loco" x="40" y="50" width="76" height="26" rx="3" />
+								<rect class="tech__loco-dark" x="112" y="48" width="16" height="28" rx="2.5" />
+								<line class="tech__band" x1="58" y1="50.5" x2="58" y2="75.5" />
+								<line class="tech__band" x1="96" y1="50.5" x2="96" y2="75.5" />
+								<rect class="tech__loco" x="12" y="40" width="30" height="40" rx="1.5" />
+								<rect class="tech__loco-dark" x="9" y="36.5" width="36" height="4.5" rx="1.5" />
+								<rect class="tech__window" x="18" y="46" width="13" height="12" rx="1.5" />
+								<rect class="tech__loco-dark" x="10" y="76" width="134" height="4.5" rx="1" />
+								{/* cylinder, guide, buffer beam, pilot */}
+								<rect class="tech__loco-dark" x="128" y="69.5" width="18" height="13" rx="2.5" />
+								<line class="tech__rod" x1="108" y1="72.2" x2="128" y2="72.2" />
+								<rect class="tech__brass" x="144" y="76" width="4" height="9" rx="1" />
+								<path class="tech__pilot" d="M140 84 L154 97 M140 89 L149 97 M144 84 V97" />
+								{/* wheels */}
+								{[...DRV.map((x) => ({ x, y: 87, r: 11 })), { x: 132, y: 92, r: 6 }].map((w) => (
+									<g>
+										<circle class="tech__wheel" cx={w.x} cy={w.y} r={w.r - 0.8} />
+										<g data-spokes transform={`rotate(0 ${w.x} ${w.y})`} data-cx={w.x} data-cy={w.y} data-r={w.r}>
+											{Array.from({ length: w.r > 8 ? 10 : 6 }, (_, i) => {
+												const n = w.r > 8 ? 10 : 6;
+												const a = (i / n) * 2 * Math.PI;
+												return <line class="tech__spoke" x1={w.x} y1={w.y} x2={w.x + (w.r - 1.6) * Math.cos(a)} y2={w.y + (w.r - 1.6) * Math.sin(a)} />;
+											})}
+										</g>
+										<circle class="tech__hub" cx={w.x} cy={w.y} r={w.r > 8 ? 2.4 : 1.6} />
+									</g>
+								))}
+								<line class="tech__rod tech__rod--main" data-main x1="0" y1="0" x2="0" y2="0" />
+								<rect class="tech__brass" data-cross x="0" y="0" width="6" height="5" rx="1" />
+								<line class="tech__rod tech__rod--piston" data-piston x1="0" y1="76" x2="128" y2="76" />
+								<line class="tech__rod tech__rod--couple" data-couple x1="0" y1="0" x2="0" y2="0" />
+								{DRV.map(() => (
+									<circle class="tech__pin" data-pin r="1.6" cx="0" cy="0" />
+								))}
+							</>
+						)}
+						{p.key === 'el' && (
+							<>
+								<defs>
+									<radialGradient id={`${uid}-glow`}>
+										<stop offset="0" class="tech__glow-in" />
+										<stop offset="1" class="tech__glow-out" />
+									</radialGradient>
+								</defs>
+								<circle cx="40" cy="38" r="38" fill={`url(#${uid}-glow)`} opacity="0" data-glow />
+								<path class="tech__cord" d="M0 112 C26 112 40 106 55 106" />
+								<path class="tech__cord" d="M40 79 C40 93 66 86 66 97" />
+								<path class="tech__cord" d="M104 97.5 C96 88 82 88 82 97" />
+								<rect class="tech__strip" x="54" y="98" width="52" height="12" rx="3" />
+								<rect class="tech__plug" x="62.5" y="96" width="7" height="5" rx="1" />
+								<rect class="tech__plug" x="78.5" y="96" width="7" height="5" rx="1" />
+								<rect class="tech__switch" x="92" y="100.5" width="10" height="7" rx="1.5" data-switch />
+								{/* the lamp */}
+								<path class="tech__bulb" d="M33.5 58 C33.5 52 24 48 24 38 A16 16 0 1 1 56 38 C56 48 46.5 52 46.5 58 Z" data-bulb />
+								<path class="tech__wire" d="M37 58 V44 M43 58 V44" />
+								<path class="tech__filament" d="M37 44 L37.8 40 L39 44 L40 40 L41 44 L42.2 40 L43 44" data-fil />
+								<rect class="tech__base" x="33" y="58" width="14" height="11" rx="1.5" />
+								<path class="tech__thread" d="M33 61.5 H47 M33 65 H47" />
+								<rect class="tech__loco-dark" x="31" y="69" width="18" height="10" rx="2" />
+								{/* the fan */}
+								<rect class="tech__steel" x="115.5" y="62" width="5" height="32" rx="1.5" />
+								<ellipse class="tech__steel" cx="118" cy="96.5" rx="16" ry="4.5" />
+								<circle class="tech__motor" cx="118" cy="40" r="9" />
+								<g data-fan transform="translate(118 40)">
+									{[0, 120, 240].map((a) => (
+										<path class="tech__blade" transform={`rotate(${a})`} d="M0 0 C4 -6 19 -10 21 -2 C22 4 9 6 0 0 Z" />
+									))}
+								</g>
+								<circle class="tech__hub" cx="118" cy="40" r="3.6" />
+								<circle class="tech__grille" cx="118" cy="40" r="23.5" />
+								<circle class="tech__grille tech__grille--thin" cx="118" cy="40" r="15" />
+								<path class="tech__grille tech__grille--thin" d={Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * 2 * Math.PI; return `M${118 + 5 * Math.cos(a)} ${40 + 5 * Math.sin(a)} L${118 + 23.5 * Math.cos(a)} ${40 + 23.5 * Math.sin(a)}`; }).join(' ')} />
+							</>
+						)}
+						{p.key === 'laser' && (
+							<>
+								<path class="tech__wood-dark" d={boardFront} />
+								<path class="tech__wood-dark" d={boardSide} />
+								<path class="tech__wood" d={boardTop} />
+								<g data-burn>
+									{[0, 1, 2].map(() => (
+										<polyline class="tech__burn" points="" />
+									))}
+									<circle class="tech__burn-dot" cx={PX(0, 0)[0]} cy={PX(0, 0)[1]} r="0" />
+								</g>
+								{/* the frame: two side rails and four posts */}
+								<path class="tech__frame" d={`M${pt(-RU, -BV - 4)} L${pt(-RU, -BV - 4, H)} M${pt(RU, -BV - 4)} L${pt(RU, -BV - 4, H)} M${pt(-RU, -BV - 4, H)} L${pt(-RU, BV + 4, H)} M${pt(RU, -BV - 4, H)} L${pt(RU, BV + 4, H)} M${pt(-RU, BV + 4)} L${pt(-RU, BV + 4, H)} M${pt(RU, BV + 4)} L${pt(RU, BV + 4, H)}`} />
+								<g data-smoke>
+									{Array.from({ length: 8 }, () => (
+										<circle class="tech__steam" r="0" cx="0" cy="0" opacity="0" />
+									))}
+								</g>
+								<circle class="tech__spot-glow" r="5" cx="0" cy="0" opacity="0" data-spot />
+								<g data-beam opacity="0">
+									<line class="tech__beam-halo" x1="0" y1="0" x2="0" y2="0" />
+									<line class="tech__beam" x1="0" y1="0" x2="0" y2="0" />
+								</g>
+								<line class="tech__gantry" data-gantry x1="0" y1="0" x2="0" y2="0" />
+								<g data-head>
+									<rect class="tech__loco-dark" x="-6.5" y="-8" width="13" height="13" rx="1.5" />
+									<path class="tech__fins" d="M-4 -6 V3 M-1.3 -6 V3 M1.3 -6 V3 M4 -6 V3" />
+									<path class="tech__steel" d="M-3 5 H3 L1.4 9 H-1.4 Z" />
+								</g>
+							</>
+						)}
+						{p.key === 'tele' && (
+							<>
+								<rect class="tech__night" x="0" y="0" width="160" height="120" rx="7" />
+								{stars.map((s) => (
+									<circle class="tech__star" cx={s.x.toFixed(1)} cy={s.y.toFixed(1)} r={s.r.toFixed(2)} />
+								))}
+								<path class="tech__hill" d="M0 120 V108 Q40 100 80 106 T160 104 V120 Z" />
+								<path class="tech__tripod" d="M34 84 L19 112 M34 84 L49 112 M34 84 L35 113" />
+								<g transform="translate(34 82) rotate(-38)">
+									<path class="tech__tube" d="M-14 -2.8 L36 -4 L36 4 L-14 2.8 Z" />
+									<rect class="tech__tube-cap" x="33" y="-4.8" width="8" height="9.6" rx="1" />
+									<rect class="tech__tube-cap" x="-21" y="-1.6" width="7" height="3.2" rx="0.8" />
+									<circle class="tech__hub" r="2.6" />
+								</g>
+								<circle class="tech__view" cx="110" cy="52" r="44" />
+								<g data-jup>
+									<ellipse class="tech__jupiter" cx="110" cy="52" rx="4.2" ry="4" />
+									<path class="tech__jband" d="M106.2 50.8 H113.8 M106.2 53.4 H113.8" />
+									{[0, 1, 2, 3].map(() => (
+										<circle class="tech__moon" r="1.5" cx="110" cy="52" />
+									))}
+								</g>
+								<circle class="tech__view-rim" cx="110" cy="52" r="44" />
+							</>
+						)}
+						{p.key === 'micro' && (
+							<>
+								<defs>
+									<clipPath id={`${uid}-eye`}>
+										<circle cx="110" cy="58" r="44" />
+									</clipPath>
+									<filter id={`${uid}-blur`} x="-10%" y="-10%" width="120%" height="120%">
+										<feGaussianBlur stdDeviation="2.5" data-blur />
+									</filter>
+								</defs>
+								{/* the microscope */}
+								<path class="tech__steel-dark" d="M12 112 L16 103 H56 L60 112 Z" />
+								<path class="tech__arm" d="M26 103 V84 C26 70 22 54 30 40 C33 35 37 32 40 31" />
+								<rect class="tech__steel" x="18" y="75.5" width="44" height="4.5" rx="1" />
+								<rect class="tech__slide" x="33" y="73.5" width="24" height="2" rx="0.5" />
+								<rect class="tech__steel" x="39.5" y="22" width="9" height="40" rx="1.2" />
+								<rect class="tech__steel-dark" x="38" y="15" width="12" height="7.5" rx="1.2" />
+								<rect class="tech__steel-dark" x="37" y="60" width="14" height="4" rx="1.5" />
+								<rect class="tech__steel" x="41.5" y="64" width="5" height="6.5" rx="0.8" />
+								<ellipse class="tech__mirror" cx="44" cy="92" rx="6.5" ry="2.4" transform="rotate(-14 44 92)" />
+								<path class="tech__light" d="M44 89.5 V80 M44 75.5 V71" />
+								<g data-knob>
+									<circle class="tech__knob" cx="26" cy="62" r="5.5" />
+									<line class="tech__knob-mark" x1="26" y1="62" x2="26" y2="57" />
+								</g>
+								{/* the view in the eyepiece */}
+								<circle class="tech__field" cx="110" cy="58" r="44" />
+								<g clip-path={`url(#${uid}-eye)`}>
+									<g filter={`url(#${uid}-blur)`}>
+										{cells.map((c) => (
+											<>
+												<path class="tech__cell-wall" d={c.d} />
+												<ellipse class="tech__nucleus" cx={c.nx.toFixed(1)} cy={c.ny.toFixed(1)} rx="2.4" ry="1.9" />
+											</>
+										))}
+									</g>
+								</g>
+								<circle class="tech__view-rim" cx="110" cy="58" r="44" />
+							</>
+						)}
+						{p.key === 'rocket' && (
+							<>
+								<rect class="tech__sky" x="0" y="0" width="160" height="120" rx="7" />
+								<rect class="tech__ground" x="0" y="103.8" width="160" height="16.2" />
+								<rect class="tech__pit" x="62" y="103.8" width="36" height="16.2" />
+								<rect class="tech__column" data-column x="74" y="104" width="12" height="0" />
+								<g data-rocket>
+									<g data-flames opacity="0">
+										<path class="tech__flame" data-plume d="" />
+										{nozzles.map((c) => (
+											<path class="tech__flame-core" data-flamec={c} d="" />
+										))}
+									</g>
+									{nozzles.map((c) => (
+										<path class="tech__bell" d={bell(c)} />
+									))}
+									<path class="tech__rocket" d={poly(core)} />
+									<path class="tech__rocket-shade" d={poly(boosterR)} />
+									<path class="tech__rocket-shade" d={poly(mirror(boosterR))} />
+									<path class="tech__rocket" d={boosterF} />
+									<path class="tech__truss" d={truss} />
+									<rect class="tech__rocket" x={80 - 1.28 * K} y={100 - 32 * K} width={2.56 * K} height={3 * K} />
+									<path class="tech__rocket" d={fairing} />
+								</g>
+								<g data-arm={-1} data-px={armL.pivot[0]} data-py={armL.pivot[1]}>
+									<path class="tech__arm-rail" d={armL.rails} />
+									<path class="tech__arm-zig" d={armL.zig} />
+								</g>
+								<g data-arm={1} data-px={armR.pivot[0]} data-py={armR.pivot[1]}>
+									<path class="tech__arm-rail" d={armR.rails} />
+									<path class="tech__arm-zig" d={armR.zig} />
+								</g>
+								<g data-clouds>
+									{smoke.map((s) => (
+										<circle class="tech__steam tech__cloud" cx={s.x.toFixed(1)} cy={s.y.toFixed(1)} r="0" data-x={s.x.toFixed(1)} data-side={s.side} data-r={s.r.toFixed(1)} data-delay={s.delay.toFixed(2)} />
+									))}
+								</g>
+							</>
+						)}
+					</svg>
+					<p class="tech__name">{p.name}</p>
+					<p class="tech__ex">{p.ex}</p>
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="g7__caption">
+		Ракета нарисована в масштабе и взлетает так же быстро, как настоящая; остальные рисунки — схемы. Вентилятор крутится медленнее настоящего, у Юпитера сутки проходят за 3&nbsp;секунды, а его диск увеличен.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.tech {
+		--tech-steam: hsl(220, 20%, 86%);
+		--tech-rocket: hsl(210, 12%, 90%);
+	}
+	:root[data-theme='light'] .tech {
+		--tech-steam: hsl(220, 12%, 80%);
+		--tech-rocket: hsl(210, 10%, 97%);
+	}
+	.tech__grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.9rem 0.75rem;
+	}
+	.tech__name {
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		text-align: center;
+	}
+	.tech__ex {
+		margin: 0.1rem 0 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.35;
+		color: var(--sl-color-gray-2);
+		text-align: center;
+	}
+	@container (max-width: 34rem) {
+		.tech__grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 0.75rem 0.5rem;
+		}
+	}
+	/* common */
+	.tech__ground {
+		fill: var(--g7-ground);
+	}
+	.tech__steam {
+		fill: var(--tech-steam);
+	}
+	.tech__hub {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.tech__steel {
+		fill: var(--g7-steel);
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.tech__steel-dark,
+	.tech__loco-dark {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.tech__view-rim {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 4;
+	}
+	/* 1. the locomotive */
+	.tech__sleeper {
+		fill: var(--g7-wood-dark);
+	}
+	.tech__rail {
+		stroke: var(--g7-steel);
+		stroke-width: 2;
+	}
+	.tech__loco {
+		fill: color-mix(in oklab, var(--g7-green) 42%, var(--sl-color-gray-5));
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.tech__brass {
+		fill: var(--g7-gold);
+		stroke: color-mix(in oklab, var(--ig-v) 55%, black);
+		stroke-width: 0.6;
+	}
+	.tech__band {
+		stroke: var(--g7-gold);
+		stroke-width: 1.4;
+	}
+	.tech__window {
+		fill: color-mix(in oklab, var(--ig-v) 40%, var(--g7-paper));
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	.tech__pilot {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+	.tech__wheel {
+		fill: color-mix(in oklab, var(--g7-red) 80%, var(--sl-color-gray-5));
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
+	}
+	.tech__spoke {
+		stroke: color-mix(in oklab, var(--g7-red) 45%, black);
+		stroke-width: 1;
+	}
+	.tech__rod {
+		stroke: var(--g7-steel);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.tech__rod--main,
+	.tech__rod--couple {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.6;
+	}
+	.tech__rod--piston {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+	}
+	.tech__pin {
+		fill: var(--g7-gold);
+	}
+	/* 2. the lamp and the fan */
+	.tech__glow-in {
+		stop-color: var(--g7-gold);
+		stop-opacity: 0.6;
+	}
+	.tech__glow-out {
+		stop-color: var(--g7-gold);
+		stop-opacity: 0;
+	}
+	.tech__cord {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+	.tech__strip {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.tech__plug {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--g7-line);
+		stroke-width: 0.7;
+	}
+	.tech__switch {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--g7-line);
+		stroke-width: 0.7;
+	}
+	.tech__switch.is-on {
+		fill: var(--g7-red);
+	}
+	.tech__bulb {
+		fill: color-mix(in srgb, var(--g7-glass) 30%, transparent);
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+	}
+	.tech__bulb.is-on {
+		fill: color-mix(in srgb, var(--g7-gold) 45%, transparent);
+		stroke: var(--g7-gold);
+	}
+	.tech__wire {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 0.7;
+	}
+	.tech__filament {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.tech__filament.is-on {
+		stroke: hsl(50, 100%, 82%);
+		stroke-width: 1.4;
+	}
+	.tech__base {
+		fill: var(--g7-steel);
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.tech__thread {
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.tech__motor {
+		fill: var(--g7-steel-dark);
+	}
+	.tech__blade {
+		fill: color-mix(in srgb, var(--g7-blue) 70%, transparent);
+		stroke: var(--g7-blue);
+		stroke-width: 0.6;
+	}
+	.tech__grille {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1.4;
+	}
+	.tech__grille--thin {
+		stroke-width: 0.5;
+		opacity: 0.8;
+	}
+	/* 3. the laser engraver */
+	.tech__wood {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 0.8;
+	}
+	.tech__wood-dark {
+		fill: var(--g7-wood-dark);
+	}
+	.tech__burn {
+		fill: none;
+		stroke: color-mix(in oklab, var(--g7-wood-dark) 35%, black);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.tech__burn-dot {
+		fill: color-mix(in oklab, var(--g7-wood-dark) 35%, black);
+	}
+	.tech__frame {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	.tech__gantry {
+		stroke: var(--g7-steel);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.tech__fins {
+		stroke: var(--g7-line);
+		stroke-width: 0.7;
+	}
+	.tech__beam {
+		stroke: color-mix(in oklab, var(--g7-blue) 55%, white);
+		stroke-width: 1;
+	}
+	.tech__beam-halo {
+		stroke: var(--g7-blue);
+		stroke-width: 4;
+		opacity: 0.4;
+	}
+	.tech__spot-glow {
+		fill: hsl(45, 100%, 70%);
+	}
+	/* 4. the telescope */
+	.tech__night {
+		fill: hsl(232, 40%, 14%);
+	}
+	.tech__star {
+		fill: hsl(220, 30%, 90%);
+	}
+	.tech__hill {
+		fill: hsl(232, 30%, 22%);
+	}
+	.tech__tripod {
+		fill: none;
+		stroke: hsl(30, 25%, 55%);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.tech__tube {
+		fill: hsl(210, 12%, 80%);
+		stroke: hsl(220, 15%, 40%);
+		stroke-width: 0.8;
+	}
+	.tech__tube-cap {
+		fill: hsl(220, 12%, 45%);
+	}
+	.tech .tech__hub {
+		stroke-width: 0.6;
+	}
+	.tech__view {
+		fill: hsl(232, 50%, 5%);
+	}
+	.tech__jupiter {
+		fill: hsl(36, 60%, 78%);
+	}
+	.tech__jband {
+		stroke: hsl(22, 45%, 52%);
+		stroke-width: 1;
+	}
+	.tech__moon {
+		fill: hsl(45, 30%, 92%);
+	}
+	/* 5. the microscope */
+	.tech__arm {
+		fill: none;
+		stroke: var(--g7-steel);
+		stroke-width: 7;
+		stroke-linecap: round;
+	}
+	.tech__slide {
+		fill: color-mix(in srgb, var(--g7-blue) 35%, transparent);
+		stroke: var(--g7-blue);
+		stroke-width: 0.5;
+	}
+	.tech__mirror {
+		fill: hsl(205, 30%, 85%);
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.tech__light {
+		stroke: var(--g7-gold);
+		stroke-width: 1.2;
+		stroke-dasharray: 2 2;
+	}
+	.tech__knob {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.tech__knob-mark {
+		stroke: var(--g7-gold);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.tech__field {
+		fill: hsl(50, 70%, 90%);
+	}
+	.tech__cell-wall {
+		fill: hsl(48, 65%, 84%);
+		stroke: hsl(30, 40%, 48%);
+		stroke-width: 1.1;
+		stroke-linejoin: round;
+	}
+	.tech__nucleus {
+		fill: hsl(28, 45%, 45%);
+	}
+	/* 6. the rocket */
+	.tech__sky {
+		fill: var(--g7-sky);
+	}
+	.tech__pit {
+		fill: color-mix(in oklab, var(--g7-ground) 50%, black);
+	}
+	.tech__column {
+		fill: var(--tech-steam);
+		opacity: 0.5;
+	}
+	.tech__rocket,
+	.tech__rocket-shade {
+		fill: var(--tech-rocket);
+		stroke: hsl(220, 15%, 30%);
+		stroke-width: 0.6;
+		stroke-linejoin: round;
+	}
+	.tech__rocket-shade {
+		fill: color-mix(in oklab, var(--tech-rocket) 80%, hsl(220, 15%, 40%));
+	}
+	.tech__truss {
+		fill: none;
+		stroke: hsl(220, 15%, 30%);
+		stroke-width: 0.5;
+	}
+	.tech__bell {
+		fill: hsl(220, 10%, 35%);
+	}
+	.tech__flame {
+		fill: hsl(28, 100%, 60%);
+		opacity: 0.85;
+	}
+	.tech__cloud {
+		opacity: 0.92;
+	}
+	.tech__flame-core {
+		fill: hsl(50, 100%, 82%);
+	}
+	.tech__arm-rail {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 1.1;
+		stroke-linecap: round;
+	}
+	.tech__arm-zig {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 0.6;
+	}
+</style>
+
+<script>
+	import { loop, ease } from '../g7/kit';
+
+	const TAU = 2 * Math.PI;
+	const $ = <T extends Element = SVGElement>(root: Element, sel: string) => root.querySelector(sel) as T;
+	const $$ = <T extends Element = SVGElement>(root: Element, sel: string) => [...root.querySelectorAll(sel)] as T[];
+	const attrs = (e: Element, a: Record<string, string | number>) => {
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, typeof v === 'number' ? v.toFixed(2) : v);
+	};
+
+	/** 1. The locomotive: the wheels roll (period 2 s), 4 puffs per turn of the drivers. */
+	const steam = (svg: SVGSVGElement) => {
+		const W = TAU / 2; // rad/s
+		const v = W * 11; // px/s of the rails under the train
+		const sleepers = $(svg, '[data-sleepers]');
+		const spokes = $$(svg, '[data-spokes]');
+		const pins = $$(svg, '[data-pin]');
+		const main = $(svg, '[data-main]');
+		const cross = $(svg, '[data-cross]');
+		const piston = $(svg, '[data-piston]');
+		const couple = $(svg, '[data-couple]');
+		const puffs = $$(svg, '[data-puffs] circle').map((e) => ({ e, age: 99 }));
+		let th = 0;
+		let next = 0;
+		let p = 0;
+		return (dt: number) => {
+			th += W * dt;
+			for (const s of spokes) {
+				const r = +s.dataset.r!;
+				s.setAttribute('transform', `rotate(${((th * 11) / r) * (180 / Math.PI)} ${s.dataset.cx} ${s.dataset.cy})`);
+			}
+			sleepers.setAttribute('transform', `translate(${-((th * 11) % 12)} 0)`);
+			const c = Math.cos(th);
+			const s = Math.sin(th);
+			const px = [50, 74, 98].map((x) => x + 5 * c);
+			const py = 87 + 5 * s;
+			pins.forEach((e, i) => attrs(e, { cx: px[i], cy: py }));
+			attrs(couple, { x1: px[0], y1: py, x2: px[2], y2: py });
+			const dy = 76 - py;
+			const xc = px[2] + Math.sqrt(24 * 24 - dy * dy);
+			attrs(main, { x1: px[2], y1: py, x2: xc, y2: 76 });
+			attrs(cross, { x: xc - 3, y: 73.5 });
+			attrs(piston, { x1: xc, x2: 128 });
+			// a puff at every quarter turn
+			if (th >= next) {
+				next += TAU / 4;
+				puffs[p].age = 0;
+				p = (p + 1) % puffs.length;
+			}
+			for (const q of puffs) {
+				q.age += dt;
+				if (q.age > 2.4) {
+					q.e.setAttribute('opacity', '0');
+					continue;
+				}
+				const a = q.age;
+				attrs(q.e, { cx: 118 - v * a * 0.85, cy: 31 - 9 * a, r: 2.5 + 7 * Math.sqrt(a), opacity: 0.9 * (1 - a / 2.4) });
+			}
+		};
+	};
+
+	/** 2. The lamp and the fan on one switch: on 3,5 s, off 2,5 s. */
+	const el = (svg: SVGSVGElement) => {
+		const glow = $(svg, '[data-glow]');
+		const bulb = $(svg, '[data-bulb]');
+		const fil = $(svg, '[data-fil]');
+		const sw = $(svg, '[data-switch]');
+		const fan = $(svg, '[data-fan]');
+		let t = 0;
+		let w = 0; // rev/s
+		let ang = 0;
+		let heat = 0;
+		return (dt: number) => {
+			t = (t + dt) % 6;
+			const on = t > 0.5 && t < 4;
+			heat += ((on ? 1 : 0) - heat) * Math.min(1, dt / 0.1);
+			w += ((on ? 2 : 0) - w) * Math.min(1, dt / (on ? 0.7 : 1.5));
+			ang = (ang + w * 360 * dt) % 360;
+			glow.setAttribute('opacity', heat.toFixed(2));
+			bulb.classList.toggle('is-on', heat > 0.5);
+			fil.classList.toggle('is-on', heat > 0.5);
+			sw.classList.toggle('is-on', on);
+			fan.setAttribute('transform', `translate(118 40) rotate(${ang.toFixed(1)})`);
+		};
+	};
+
+	/** 3. The engraver: three ellipses, 2 s each, then the nucleus; the head moves between them with the laser off. */
+	const laser = (svg: SVGSVGElement) => {
+		const P = (u: number, v: number, h = 0) => [80 + u - 0.24 * v, 84 + 0.4 * v - h];
+		const A = 34;
+		const B = 11;
+		const ell = (k: number, f: number) => {
+			const al = (k * Math.PI) / 3;
+			const ph = f * TAU;
+			return [A * Math.cos(ph) * Math.cos(al) - B * Math.sin(ph) * Math.sin(al), A * Math.cos(ph) * Math.sin(al) + B * Math.sin(ph) * Math.cos(al)];
+		};
+		// the plan: [kind, duration, ...]
+		type Seg = { d: number; on: boolean; pos: (f: number) => number[]; k?: number };
+		const park = [0, -34];
+		const lerp = (a: number[], b: number[]) => (f: number) => [a[0] + (b[0] - a[0]) * ease(f), a[1] + (b[1] - a[1]) * ease(f)];
+		const plan: Seg[] = [];
+		let at = park;
+		for (let k = 0; k < 3; k++) {
+			const s = ell(k, 0);
+			plan.push({ d: 0.45, on: false, pos: lerp(at, s) });
+			plan.push({ d: 2, on: true, pos: (f) => ell(k, f), k });
+			at = s;
+		}
+		plan.push({ d: 0.45, on: false, pos: lerp(at, [0, 0]) });
+		plan.push({ d: 0.7, on: true, pos: (f) => [2.6 * f * Math.cos(f * 18), 2.6 * f * Math.sin(f * 18)], k: 3 });
+		plan.push({ d: 0.6, on: false, pos: lerp([0, 0], park) });
+		plan.push({ d: 2.2, on: false, pos: () => park });
+		plan.push({ d: 0.8, on: false, pos: () => park, k: -1 }); // the board is cleaned: the sign fades
+		const total = plan.reduce((s, g) => s + g.d, 0);
+		const lines = $$(svg, '[data-burn] polyline');
+		const dot = $(svg, '[data-burn] circle');
+		const burn = $(svg, '[data-burn]');
+		const beam = $(svg, '[data-beam]');
+		const beamLines = $$(beam, 'line');
+		const spot = $(svg, '[data-spot]');
+		const head = $(svg, '[data-head]');
+		const gantry = $(svg, '[data-gantry]');
+		const smoke = $$(svg, '[data-smoke] circle').map((e) => ({ e, age: 9, x: 0, y: 0 }));
+		let si = 0;
+		let st = 0;
+		let t = 0;
+		let lastSeg = -1;
+		return (dt: number) => {
+			t = (t + dt) % total;
+			let i = 0;
+			let s0 = 0;
+			while (s0 + plan[i].d < t) s0 += plan[i++].d;
+			const g = plan[i];
+			const f = (t - s0) / g.d;
+			if (i < lastSeg) {
+				for (const l of lines) l.setAttribute('points', '');
+				dot.setAttribute('r', '0');
+				burn.setAttribute('opacity', '1');
+			}
+			lastSeg = i;
+			const [u, v] = g.pos(f);
+			// the burned lines: full for finished ellipses, partial for the current one
+			for (let k = 0; k < 3; k++) {
+				const done = g.k === k ? f : plan.findIndex((q) => q.k === k) < i ? 1 : 0;
+				if (done <= 0) continue;
+				const n = Math.max(2, Math.ceil(done * 72));
+				const pts: string[] = [];
+				for (let j = 0; j <= n; j++) {
+					const [a, b] = ell(k, (j / n) * done);
+					const [x, y] = P(a, b);
+					pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+				}
+				lines[k].setAttribute('points', pts.join(' '));
+			}
+			if (g.k === 3) dot.setAttribute('r', (2.8 * f).toFixed(2));
+			if (g.k === -1) burn.setAttribute('opacity', (1 - f).toFixed(2));
+			const [x, y] = P(u, v);
+			const [hx, hy] = P(u, v, 36);
+			head.setAttribute('transform', `translate(${hx.toFixed(1)} ${hy.toFixed(1)})`);
+			const [gx1, gy1] = P(-58, v, 36);
+			const [gx2, gy2] = P(58, v, 36);
+			attrs(gantry, { x1: gx1, y1: gy1, x2: gx2, y2: gy2 });
+			beam.setAttribute('opacity', g.on ? '1' : '0');
+			for (const l of beamLines) attrs(l, { x1: hx, y1: hy + 9, x2: x, y2: y });
+			attrs(spot, { cx: x, cy: y, opacity: g.on ? 0.55 + 0.3 * Math.random() : 0, r: 2.2 });
+			st += dt;
+			if (g.on && st > 0.12) {
+				st = 0;
+				Object.assign(smoke[si], { age: 0, x, y });
+				si = (si + 1) % smoke.length;
+			}
+			for (const q of smoke) {
+				q.age += dt;
+				if (q.age > 1) {
+					q.e.setAttribute('opacity', '0');
+					continue;
+				}
+				attrs(q.e, { cx: q.x + 3 * q.age, cy: q.y - 12 * q.age, r: 0.6 + 1.6 * q.age, opacity: 0.3 * (1 - q.age) });
+			}
+		};
+	};
+
+	/** 4. Jupiter and its moons, edge-on: one day in 3 s. */
+	const tele = (svg: SVGSVGElement) => {
+		const moons = [
+			[5.9, 1.769, 0.3],
+			[9.39, 3.551, 2.2],
+			[14.97, 7.155, 4.1],
+			[26.33, 16.689, 5.6],
+		];
+		const dots = $$(svg, '.tech__moon');
+		let days = 0;
+		return (dt: number) => {
+			days += dt / 3;
+			moons.forEach(([a, P, ph], i) => {
+				const q = (TAU * days) / P + ph;
+				const x = 1.55 * a * Math.cos(q);
+				const behind = Math.sin(q) < 0 && Math.abs(x) < 4.2;
+				attrs(dots[i], { cx: 110 + x, cy: 52, opacity: behind ? 0 : 1 });
+			});
+		};
+	};
+
+	/** 5. Focusing: blurred → the knob turns for 1,6 s → sharp for 3,4 s. */
+	const micro = (svg: SVGSVGElement) => {
+		const blur = $(svg, '[data-blur]');
+		const knob = $(svg, '[data-knob]');
+		let t = 0;
+		return (dt: number) => {
+			t = (t + dt) % 6;
+			const f = t < 0.6 ? 0 : t < 2.2 ? ease((t - 0.6) / 1.6) : t < 5.6 ? 1 : 1 - (t - 5.6) / 0.4;
+			blur.setAttribute('stdDeviation', (2.6 * (1 - f)).toFixed(2));
+			const turn = t < 0.6 ? 0 : t < 2.2 ? ease((t - 0.6) / 1.6) : 1;
+			knob.setAttribute('transform', `rotate(${(turn * 220).toFixed(1)} 26 62)`);
+		};
+	};
+
+	/** 6. The launch: ignition (shortened) and the climb with a = 4 м/с² in real time. */
+	const rocket = (svg: SVGSVGElement) => {
+		const K = 2.4;
+		const T0 = 0.8; // ignition
+		const T1 = 3.3; // lift-off
+		const CYCLE = 11;
+		const body = $(svg, '[data-rocket]');
+		const flames = $(svg, '[data-flames]');
+		const plume = $(svg, '[data-plume]');
+		const inner = $$(svg, '[data-flamec]');
+		const arms = $$(svg, '[data-arm]');
+		const column = $(svg, '[data-column]');
+		const clouds = $$(svg, '[data-clouds] circle');
+		const cloudGroup = $(svg, '[data-clouds]');
+		const flame = (c: number, len: number, w: number) => {
+			const x = 80 + c * K;
+			const y = 100 + 1.3 * K;
+			const h = len * K;
+			return `M${(x - w).toFixed(1)} ${y.toFixed(1)} Q${(x - w * 1.3).toFixed(1)} ${(y + h * 0.35).toFixed(1)} ${x.toFixed(1)} ${(y + h).toFixed(1)} Q${(x + w * 1.3).toFixed(1)} ${(y + h * 0.35).toFixed(1)} ${(x + w).toFixed(1)} ${y.toFixed(1)} Z`;
+		};
+		let t = 0;
+		return (dt: number) => {
+			t = (t + dt) % CYCLE;
+			const ign = t < T0 ? 0 : Math.min(1, (t - T0) / (T1 - T0));
+			const tau = Math.max(0, t - T1);
+			const rise = 0.5 * 4 * tau * tau * K; // px
+			body.setAttribute('transform', `translate(0 ${(-rise).toFixed(2)})`);
+			const len = t < T0 ? 0 : (ign < 1 ? 6 * ign : 6 + 6 * Math.min(1, tau)) * (0.9 + 0.2 * Math.random());
+			flames.setAttribute('opacity', t < T0 ? '0' : '1');
+			plume.setAttribute('d', flame(0, len, 3.9 * K));
+			inner.forEach((e) => e.setAttribute('d', flame(+e.dataset.flamec!, len * (0.5 + 0.1 * Math.random()), 0.9)));
+			const swing = -32 * ease(tau / 1.2);
+			for (const a of arms) {
+				const s = +a.dataset.arm!;
+				a.setAttribute('transform', `rotate(${(swing * -s).toFixed(1)} ${a.dataset.px} ${a.dataset.py})`);
+			}
+			// the column of exhaust from the pad to the rocket
+			const top = 100 + 1.3 * K + len * K - rise;
+			const ch = Math.max(0, 104 - Math.max(0, top));
+			attrs(column, { y: 104 - ch, height: tau > 0 ? ch : 0, width: 10 + 6 * Math.min(1, tau / 2), x: 75 - 3 * Math.min(1, tau / 2) });
+			const fade = t > 9.6 ? 1 - (t - 9.6) / 1.4 : 1;
+			column.setAttribute('opacity', (0.5 * fade).toFixed(2));
+			cloudGroup.setAttribute('opacity', fade.toFixed(2));
+			for (const c of clouds) {
+				const g = Math.max(0, (t - T0 - +c.dataset.delay!) / 2.5);
+				c.setAttribute('r', (+c.dataset.r! * Math.min(1.5, Math.sqrt(g))).toFixed(2));
+				c.setAttribute('cx', (+c.dataset.x! + +c.dataset.side! * 3 * Math.sqrt(g)).toFixed(2));
+			}
+		};
+	};
+
+	const make: Record<string, (svg: SVGSVGElement) => (dt: number) => void> = { steam, el, laser, tele, micro, rocket };
+	for (const root of document.querySelectorAll('[data-techpic]')) {
+		const steps = [...root.querySelectorAll<SVGSVGElement>('svg[data-panel]')].map((svg) => make[svg.dataset.panel!](svg));
+		for (const s of steps) s(0);
+		loop(root, (dt) => {
+			for (const s of steps) s(dt);
+			return true;
+		});
+	}
+</script>
