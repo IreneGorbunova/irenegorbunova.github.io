@@ -1,12 +1,14 @@
 ---
 /**
- * A matching table: cards lie mixed up above a table; the reader drags each card into its row, or taps a card and then
- * the row. A right card stays in the row (a card marked `si` goes first and keeps its color), a wrong one goes back
+ * A matching table: cards lie mixed up beside the table (above it on a narrow screen); the reader drags each card into
+ * its row, or taps a card and then the row. While a card is dragged near the top or bottom of the screen the page
+ * scrolls. A right card stays in the row (a card marked `si` goes first; its letters are yellow), a wrong one goes back
  * with a hint. «Верно» is lit green, «Подумайте ещё» red, as in Sorter.astro. A right card gives the row the class
  * `is-right` for a moment (the chapter's «вопрос» star).
  *   <Match rows={[{ key: 'm', label: 'm', name: 'масса', letter: true }, …]}
  *          items={[{ text: 'кг', row: 'm', si: true, name: 'килограмм', why: '…' }, …]} legend="единицы СИ" />
- * A row with `letter` shows its label as a quantity's letter; hovering or tapping it shows the quantity's name.
+ * A row with `letter` shows the quantity's name and its letter: «Масса m» (Irina, 17 Nov 2026: the name written out,
+ * not in a popover); `label` may hold HTML such as «t<sub>вр</sub>».
  * An item with `pic` shows a picture of an instrument (MatchIcon.astro). `hint` is shown after a wrong choice;
  * without it the hint is «„кг“ — это килограмм.» made from `name`.
  */
@@ -48,37 +50,38 @@ const pics = items.some((i) => i.pic);
 		<p class="mt__ask">{ask}</p>
 		<p class="mt__count" data-count></p>
 	</div>
-	<div class="mt__pool" data-pool>
-		{
-			items.map((it, i) => (
-				<button type="button" class:list={['mt__chip', it.si && 'is-si']} data-i={i} aria-pressed="false">
-					{it.pic && <MatchIcon name={it.pic} />}
-					<span>{it.text}</span>
-				</button>
-			))
-		}
-	</div>
 	<p class="g7__msg mt__msg" data-msg aria-live="polite"></p>
-	<div class="mt__table">
-		{
-			rows.map((r) => (
-				<div class="mt__row">
-					<span class:list={['mt__name', r.letter && 'is-letter']} data-name={r.key}>
-						{r.label}
-					</span>
-					<div class="mt__zone" data-zone={r.key} role="button" tabindex="0" aria-label={`Строка «${r.name}»`} />
-				</div>
-			))
-		}
+	<div class="mt__main">
+		<div class="mt__pool" data-pool>
+			{
+				items.map((it, i) => (
+					<button type="button" class:list={['mt__chip', it.si && 'is-si']} data-i={i} aria-pressed="false">
+						{it.pic && <MatchIcon name={it.pic} />}
+						<span>{it.text}</span>
+					</button>
+				))
+			}
+		</div>
+		<div class="mt__table">
+			{
+				rows.map((r) => (
+					<div class="mt__row">
+						<span class="mt__name">
+							{r.letter ? (
+								<>
+									{r.name[0].toUpperCase() + r.name.slice(1)} <i class="mt__letter" set:html={r.label} />
+								</>
+							) : (
+								r.label
+							)}
+						</span>
+						<div class="mt__zone" data-zone={r.key} role="button" tabindex="0" aria-label={`Строка «${r.name}»`} />
+					</div>
+				))
+			}
+		</div>
 	</div>
-	{
-		legend && (
-			<p class="mt__legend">
-				<span class="mt__swatch" aria-hidden="true" />
-				{legend}
-			</p>
-		)
-	}
+	{legend && <p class="mt__legend" set:html={legend} />}
 	<div class="g7__row">
 		<button type="button" class="g7__btn" data-restart>Начать заново</button>
 	</div>
@@ -102,13 +105,29 @@ const pics = items.some((i) => i.pic);
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 	}
+	.mt__main {
+		display: grid;
+		gap: 0.6rem;
+		margin: 0.6rem 0;
+	}
+	/* a wide screen: the cards beside the table, so that the whole game fits the screen while a card is dragged */
+	@container (min-width: 36rem) {
+		.mt__main {
+			grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+			align-items: start;
+		}
+		.mt__pool {
+			justify-content: flex-start;
+			align-content: flex-start;
+		}
+	}
 	.mt__pool {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
 		gap: 0.45rem;
 		min-height: 2.6rem;
-		margin: 0.6rem 0 0.5rem;
+		margin: 0;
 		padding: 0.6rem;
 		border-radius: 0.8rem;
 		background: var(--sl-color-gray-6);
@@ -129,9 +148,10 @@ const pics = items.some((i) => i.pic);
 		user-select: none;
 		-webkit-user-select: none;
 	}
-	.mt__chip.is-si {
-		border-color: var(--g7-gold);
-		background: color-mix(in oklab, var(--g7-gold) 26%, var(--ig-surface));
+	.mt__chip.is-si,
+	.mt__chip.is-si:disabled,
+	.mt__si {
+		color: var(--g7-gold);
 	}
 	.mt__chip[aria-pressed='true'] {
 		outline: 3px solid var(--sl-color-accent);
@@ -149,14 +169,23 @@ const pics = items.some((i) => i.pic);
 		color: var(--sl-color-white);
 	}
 	.mt--pics .mt__chip {
-		width: 6.2rem;
-		padding: 0.35rem 0.3rem;
+		width: 5.9rem;
+		padding: 0.3rem 0.25rem;
 		font-size: var(--sl-text-sm);
 		font-weight: 600;
 	}
+	/* in its row a card with a picture lies flat: the picture beside the name */
 	.mt--pics .mt__zone .mt__chip {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
 		width: auto;
-		min-width: 5rem;
+		min-height: 2.2rem;
+		padding: 0.15rem 0.5rem 0.15rem 0.3rem;
+	}
+	.mt--pics .mt__zone .mti {
+		width: 1.9rem;
+		margin: 0;
 	}
 	.mt__ghost {
 		position: fixed;
@@ -169,7 +198,7 @@ const pics = items.some((i) => i.pic);
 		cursor: grabbing;
 	}
 	.mt__msg {
-		margin-bottom: 0.6rem;
+		margin: 0.5rem 0 0;
 	}
 	.mt__ok,
 	.mt__no {
@@ -194,16 +223,12 @@ const pics = items.some((i) => i.pic);
 	.mt__table {
 		display: grid;
 		gap: 0.4rem;
-		margin-bottom: 0.6rem;
 	}
 	.mt__row {
 		display: grid;
-		grid-template-columns: 3.2rem minmax(0, 1fr);
+		grid-template-columns: 7.6rem minmax(0, 1fr);
 		gap: 0.5rem;
 		align-items: stretch;
-	}
-	.mt--pics .mt__row {
-		grid-template-columns: 9.5rem minmax(0, 1fr);
 	}
 	.mt__name {
 		display: flex;
@@ -216,16 +241,16 @@ const pics = items.some((i) => i.pic);
 		color: var(--sl-color-white);
 		text-align: center;
 	}
-	.mt__name.is-letter {
+	.mt__letter {
+		margin-left: 0.3em;
 		font-family: var(--ig-font-math);
-		font-style: italic;
-		font-size: 1.45rem;
+		font-size: 1.25rem;
 		font-weight: 400;
-		cursor: help;
-		text-decoration: underline dotted;
-		text-decoration-thickness: 2px;
-		text-underline-offset: 0.2em;
-		text-decoration-color: var(--sl-color-text-accent);
+	}
+	.mt__letter sub {
+		font-family: var(--__sl-font);
+		font-style: normal;
+		font-size: 0.6em;
 	}
 	.mt__zone {
 		display: flex;
@@ -266,19 +291,11 @@ const pics = items.some((i) => i.pic);
 		font-size: var(--sl-text-sm);
 		color: var(--sl-color-gray-2);
 	}
-	.mt__swatch {
-		flex: none;
-		width: 1.6rem;
-		height: 1.1rem;
-		border: 1.5px solid var(--g7-gold);
-		border-radius: 0.3rem;
-		background: color-mix(in oklab, var(--g7-gold) 26%, var(--ig-surface));
-	}
 	@container (max-width: 30rem) {
-		.mt--pics .mt__row {
-			grid-template-columns: 6.2rem minmax(0, 1fr);
+		.mt__row {
+			grid-template-columns: 6.4rem minmax(0, 1fr);
 		}
-		.mt--pics .mt__name {
+		.mt__name {
 			font-size: var(--sl-text-sm);
 		}
 		.mt--pics .mt__chip {
@@ -291,7 +308,6 @@ const pics = items.some((i) => i.pic);
 <script>
 	type It = { text: string; row: string; name?: string; why?: string; hint?: string };
 	type Rw = { key: string; label: string; name: string; letter?: boolean };
-	type NoteEl = HTMLElement & { igNote?: () => Node };
 	const VARS = ['--g7-gold', '--g7-red', '--g7-wood', '--g7-paper', '--g7-water'];
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-match]')) {
@@ -306,23 +322,6 @@ const pics = items.some((i) => i.pic);
 		let picked: HTMLButtonElement | null = null;
 		let placed = 0;
 		let misses = 0;
-
-		// a quantity's letter: hovering or tapping it shows the name (the shared notes of MoreSetup.astro)
-		for (const r of rows) {
-			if (!r.letter) continue;
-			const el = root.querySelector<NoteEl>(`[data-name="${r.key}"]`)!;
-			el.dataset.note = '';
-			el.igNote = () => {
-				const s = document.createElement('span');
-				s.innerHTML = `<b><i>${r.label}</i></b> — ${r.name}`;
-				return s;
-			};
-			el.tabIndex = 0;
-			el.setAttribute('role', 'button');
-			el.setAttribute('aria-label', r.name);
-			el.setAttribute('aria-haspopup', 'dialog');
-			el.setAttribute('aria-expanded', 'false');
-		}
 
 		const say = (ok: boolean, text?: string) => {
 			const mark = document.createElement('span');
@@ -401,7 +400,29 @@ const pics = items.some((i) => i.pic);
 		}
 
 		// or drag a card to its row
-		let drag: { c: HTMLButtonElement; id: number; x0: number; y0: number; dx: number; dy: number; ghost: HTMLElement | null } | null = null;
+		let drag: { c: HTMLButtonElement; id: number; x0: number; y0: number; dx: number; dy: number; x: number; y: number; ghost: HTMLElement | null; scroller: Element | null } | null = null;
+		// the box that scrolls: the page, or the «Полный экран» view
+		const scrollerOf = (e: Element | null): Element | null => {
+			for (; e; e = e.parentElement) {
+				const o = getComputedStyle(e).overflowY;
+				if ((o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight) return e;
+			}
+			return null;
+		};
+		// near the top or bottom edge of the screen the page scrolls by itself while a card is dragged
+		const edge = () => {
+			if (!drag?.ghost) return;
+			const h = drag.scroller ? drag.scroller.getBoundingClientRect() : { top: 0, bottom: innerHeight };
+			const k = drag.y < h.top + 60 ? -(h.top + 60 - drag.y) : drag.y > h.bottom - 60 ? drag.y - (h.bottom - 60) : 0;
+			if (k) {
+				const dy = Math.max(-9, Math.min(9, k / 6)); // at most 9 px a frame, slower farther from the edge
+				if (drag.scroller) drag.scroller.scrollBy(0, dy);
+				else scrollBy(0, dy);
+				const z = zoneAt(drag.x, drag.y);
+				for (const o of zones) o.classList.toggle('is-over', o === z);
+			}
+			requestAnimationFrame(edge);
+		};
 		const zoneAt = (x: number, y: number) => {
 			const z = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-zone]');
 			return z && zones.includes(z) ? z : null;
@@ -417,7 +438,7 @@ const pics = items.some((i) => i.pic);
 			c.addEventListener('pointerdown', (e) => {
 				dragged = false;
 				if (c.classList.contains('is-placed') || e.button !== 0) return;
-				drag = { c, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, ghost: null };
+				drag = { c, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, x: e.clientX, y: e.clientY, ghost: null, scroller: null };
 			});
 		addEventListener('pointermove', (e) => {
 			if (!drag || e.pointerId !== drag.id) return;
@@ -436,8 +457,12 @@ const pics = items.some((i) => i.pic);
 				drag.dx = drag.x0 - r.left;
 				drag.dy = drag.y0 - r.top;
 				drag.c.classList.add('is-dragging');
+				drag.scroller = scrollerOf(root.parentElement);
 				pick(null);
+				requestAnimationFrame(edge);
 			}
+			drag.x = e.clientX;
+			drag.y = e.clientY;
 			drag.ghost.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px)`;
 			const z = zoneAt(e.clientX, e.clientY);
 			for (const o of zones) o.classList.toggle('is-over', o === z);
