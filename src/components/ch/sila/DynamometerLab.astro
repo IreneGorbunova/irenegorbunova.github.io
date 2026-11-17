@@ -1,0 +1,293 @@
+---
+/**
+ * «Школьный динамометр»: a labelled school spring dynamometer (кольцо, планка, пружина, указатель, шкала, крючок) and
+ * a model: a chosen body hangs on the hook, the spring stretches and the pointer settles at F = mg on the scale.
+ * The spring has k = 40 Н/м, the scale is 0…4 Н with a division of 0,1 Н, so 1 Н stretches the spring by 2,5 см and
+ * the full scale is 10 см; the slot stops the pointer at 10,5 см (4,2 Н). Bodies, g = 9,8 Н/кг: a 100 г weight
+ * (0,98 Н, Δl = 2,45 см, read as 1,0 Н), two 100 г weights (1,96 Н, 4,9 см, 2,0 Н), an apple of 200 г (the same
+ * 1,96 Н), a book of 300 г (2,94 Н, 7,35 см, 2,9 Н) and a 0,5 кг weight (4,9 Н: beyond the scale, the pointer rests at
+ * the end of the slot). The reading is F rounded to the division 0,1 Н.
+ * Motion: the body is hung on the free spring and let go; x'' = g − (k/m)·x − 2β·x' with β = 5 1/с (the friction of
+ * the pointer in its slot, chosen so that the pointer settles in about a second), in real time. The dynamometer and
+ * the stretch are to scale, 11 px per сантиметр; the bodies are drawn smaller than they are.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const X = 142; // the axis of the ring, the spring and the hook
+const Y0 = 88; // the pointer of the free spring: the zero of the scale
+const CM = 11; // px per сантиметр
+const N_PX = 2.5 * CM; // px per ньютон: 2,5 см per Н
+const ticks = Array.from({ length: 41 }, (_, i) => i); // 0,0 … 4,0 Н every 0,1 Н
+---
+
+<G7Styles />
+<figure class="g7 dyn not-content" data-dynlab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 330 404" role="img" aria-label="Школьный динамометр: кольцо, планка со шкалой, пружина, указатель и крючок; на крючке висит тело" data-svg>
+			<!-- the ring and the plank -->
+			<circle class="dyn__ring" cx={X} cy="15" r="9"></circle>
+			<rect class="dyn__metal" x={X - 3} y="23" width="6" height="12"></rect>
+			<rect class="dyn__plank" x="118" y="32" width="88" height="180" rx="6"></rect>
+			<rect class="dyn__slot" x={X - 3} y={Y0 - 4} width="6" height={212 - Y0 + 2} rx="3"></rect>
+			<!-- the scale: a paper strip, ticks every 0,1 Н, numbers every 1 Н -->
+			<rect class="dyn__paper" x="164" y={Y0 - 22} width="36" height={4 * N_PX + 32} rx="2"></rect>
+			{ticks.map((i) => <line class="dyn__tick" x1="166" x2={166 + (i % 10 === 0 ? 11 : i % 5 === 0 ? 8 : 4.5)} y1={Y0 + (i * N_PX) / 10} y2={Y0 + (i * N_PX) / 10} />)}
+			{[0, 1, 2, 3, 4].map((f) => <text class="dyn__num t-num" x="188" y={Y0 + f * N_PX + 4} text-anchor="middle">{f}</text>)}
+			<text class="dyn__num" x="182" y={Y0 - 9} text-anchor="middle" style="font-size:10px">Н</text>
+			<!-- the moving parts: the spring, the pointer, the rod and the hook -->
+			<circle class="dyn__screw" cx={X} cy="44" r="3"></circle>
+			<path class="dyn__spring" data-spring></path>
+			<path class="dyn__rod" data-rod></path>
+			<path class="dyn__pointer" data-pointer></path>
+			<g data-body></g>
+			<!-- labels -->
+			<g class="dyn__labels">
+				<path class="dyn__lead" d={`M${X + 10} 15 H214`}></path>
+				<text x="218" y="19">кольцо</text>
+				<path class="dyn__lead" d="M206 50 H214"></path>
+				<text x="218" y="54">планка</text>
+				<path class="dyn__lead" d={`M200 ${Y0 + 1.5 * N_PX} H214`}></path>
+				<text x="218" y={Y0 + 1.5 * N_PX + 4}>шкала</text>
+				<path class="dyn__lead" d={`M${X - 9} 62 H102`}></path>
+				<text x="98" y="66" text-anchor="end">пружина</text>
+				<path class="dyn__lead" data-lead-ptr></path>
+				<text data-lab-ptr x="98" text-anchor="end">указатель</text>
+				<path class="dyn__lead" data-lead-hook></path>
+				<text data-lab-hook x="98" text-anchor="end">крючок</text>
+			</g>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Что подвешиваем" data-pick>
+				<button type="button" class="g7__btn" aria-pressed="true" data-m="0.1" data-k="w1">Груз 100&nbsp;г</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="0.2" data-k="w2">Два груза по 100&nbsp;г</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="0.2" data-k="apple">Яблоко</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="0.3" data-k="book">Книга</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="0.5" data-k="w5">Груз 0,5&nbsp;кг</button>
+			</div>
+			<ul class="g7__read" aria-live="off">
+				<li><span>Масса тела <i>m</i></span><b data-r-m></b></li>
+				<li><span>Сила тяжести <i>F</i><sub>тяж</sub> = <i>gm</i></span><b data-r-f></b></li>
+				<li><span>Удлинение пружины Δ<i>l</i></span><b data-r-dl></b></li>
+				<li class="is-key"><span>Показание динамометра</span><b data-r-read></b></li>
+			</ul>
+			<p class="g7__msg" data-msg aria-live="polite"></p>
+			<p class="g7__note">Жёсткость пружины 40&nbsp;Н/м, цена деления 0,1&nbsp;Н, предел измерения 4&nbsp;Н.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Динамометр и удлинение пружины нарисованы в масштабе, тела — меньше настоящих. Указатель качается и останавливается в настоящем темпе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.dyn__plank {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1.4;
+	}
+	.dyn__paper {
+		fill: color-mix(in oklab, var(--ig-v) 10%, var(--sl-color-gray-6));
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.dyn__slot {
+		fill: color-mix(in oklab, var(--g7-wood-dark) 60%, var(--sl-color-black));
+	}
+	.dyn__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.dyn svg .dyn__num {
+		font-size: 11px;
+		font-weight: 700;
+		fill: var(--g7-ink);
+	}
+	.dyn__ring {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2.6;
+	}
+	.dyn__metal,
+	.dyn__screw {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.dyn__spring {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.7;
+		stroke-linejoin: round;
+	}
+	.dyn__rod {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.dyn__pointer {
+		fill: var(--g7-red);
+		stroke: var(--g7-red);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.dyn__lead {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.dyn__iron {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1.1;
+	}
+	.dyn__wire {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.dyn__thread {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.1;
+	}
+	.dyn__apple {
+		fill: color-mix(in oklab, var(--g7-red) 75%, var(--sl-color-gray-5));
+		stroke: var(--g7-ink);
+		stroke-width: 1.1;
+	}
+	.dyn__leaf {
+		fill: var(--g7-green);
+	}
+	.dyn__book {
+		fill: color-mix(in oklab, var(--g7-blue) 55%, var(--sl-color-gray-5));
+		stroke: var(--g7-ink);
+		stroke-width: 1.1;
+	}
+	.dyn__pages {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+</style>
+
+<script>
+	import { el, fmtTrim, loop, segment, set } from '../g7/kit';
+
+	const X = 142;
+	const Y0 = 88;
+	const CM = 11;
+	const ROD = 130; // from the pointer to the top of the hook
+	const G = 9.8;
+	const K = 40; // Н/м
+	const BETA = 5; // 1/с
+	const XL = 0.105; // the end of the slot, м
+	const LIMIT = 4; // Н
+
+	// the bodies, hung from (0, 0): the lowest point of the hook
+	const weight = (y: number, w: number, h: number) => [
+		el('path', { class: 'dyn__wire', d: `M0 ${y} v-1 a3.5 3.5 0 1 1 0.1 0 M0 ${y + 3} v5` }),
+		el('rect', { class: 'dyn__iron', x: -w / 2, y: y + 8, width: w, height: h, rx: 2 }),
+		el('path', { class: 'dyn__wire', d: `M0 ${y + 8 + h} v5 a4 4 0 0 1 -8 0` }),
+	];
+	const BODIES: Record<string, () => SVGElement[]> = {
+		w1: () => weight(4, 24, 24),
+		w2: () => [...weight(4, 24, 24), ...weight(45, 24, 24)],
+		apple: () => [
+			el('path', { class: 'dyn__thread', d: 'M0 0 V12' }),
+			el('path', { class: 'dyn__apple', d: 'M0 16 C-6 10 -22 10 -22 28 C-22 44 -10 52 0 48 C10 52 22 44 22 28 C22 10 6 10 0 16 Z' }),
+			el('path', { class: 'dyn__wire', d: 'M0 16 Q1 12 0 9' }),
+			el('path', { class: 'dyn__leaf', d: 'M1 11 Q9 4 14 8 Q8 14 1 11 Z' }),
+		],
+		book: () => [
+			el('path', { class: 'dyn__thread', d: 'M0 0 L-22 20 M0 0 L22 20' }),
+			el('rect', { class: 'dyn__pages', x: -26, y: 20, width: 52, height: 6 }),
+			el('rect', { class: 'dyn__book', x: -28, y: 20, width: 56, height: 40, rx: 2 }),
+			el('path', { class: 'dyn__thread', d: 'M-22 20 V60 M22 20 V60' }),
+		],
+		w5: () => weight(4, 32, 38),
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-dynlab]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const bodyG = q<SVGGElement>('[data-body]');
+		let m = 0.1;
+		let x = 0; // the stretch, м
+		let v = 0;
+		let still = false;
+
+		const draw = () => {
+			const py = Y0 + x * 100 * CM; // the pointer
+			// the spring: from the screw at y = 44 to the pointer
+			let d = `M${X} 44 V50`;
+			const n = 16;
+			for (let i = 1; i < n; i++) d += ` L${X + (i % 2 ? 8 : -8)} ${(50 + ((py - 56) * i) / n).toFixed(1)}`;
+			d += ` L${X} ${(py - 6).toFixed(1)} V${py.toFixed(1)}`;
+			q('[data-spring]').setAttribute('d', d);
+			q('[data-pointer]').setAttribute('d', `M${X} ${(py - 2.5).toFixed(1)} H160 L166 ${py.toFixed(1)} L160 ${(py + 2.5).toFixed(1)} H${X} Z`);
+			const hy = py + ROD; // the top of the hook
+			q('[data-rod]').setAttribute('d', `M${X} ${py.toFixed(1)} V${(hy + 10).toFixed(1)} A7 7 0 0 1 ${X - 14} ${(hy + 10).toFixed(1)} V${(hy + 5).toFixed(1)}`);
+			bodyG.setAttribute('transform', `translate(${X - 7} ${(hy + 17).toFixed(1)})`);
+			set(q('[data-lead-ptr]'), { d: `M102 ${py.toFixed(1)} H${X - 4}` });
+			set(q('[data-lab-ptr]'), { y: (py + 4).toFixed(1) });
+			set(q('[data-lead-hook]'), { d: `M102 ${(hy + 12).toFixed(1)} H${X - 16}` });
+			set(q('[data-lab-hook]'), { y: (hy + 16).toFixed(1) });
+		};
+
+		const read = () => {
+			const F = m * G;
+			const dl = x * 100;
+			q('[data-r-dl]').textContent = `${fmtTrim(dl, 2)}\u00a0см`;
+			const over = F > LIMIT;
+			const s = (f: number) => `${fmtTrim(f, 2)}\u00a0Н`;
+			const r = fmtTrim(Math.round(F * 10) / 10, 1);
+			q('[data-r-read]').textContent = !still ? 'качается' : over ? 'больше 4\u00a0Н' : `${r.includes(',') ? r : `${r},0`}\u00a0Н`;
+			let msg: string;
+			if (!still) msg = 'Пружина растягивается, пока её сила упругости не станет равна силе, с которой тело тянет крючок вниз. Подождите, пока указатель остановится.';
+			else if (over) msg = `Тело тянет крючок с силой ${s(F)}, а шкала кончается на 4\u00a0Н. Указатель ушёл за последнюю отметку и упёрся в конец прорези: этим динамометром такое тело не взвесить.`;
+			else msg = `Тело тянет крючок вниз с силой ${s(F)}. Пружина растянулась на ${fmtTrim(dl, 2)}\u00a0см, и её сила упругости стала такой же. Указатель остановился у отметки ${r.includes(',') ? r : `${r},0`}\u00a0Н.`;
+			const box = q('[data-msg]');
+			if (box.textContent !== msg) box.textContent = msg;
+		};
+
+		const wake = loop(root, (dt) => {
+			if (still) return false;
+			const h = 0.002;
+			for (let t = 0; t < dt; t += h) {
+				const a = G - (K / m) * x - 2 * BETA * v;
+				v += a * h;
+				x += v * h;
+				if (x > XL) {
+					x = XL;
+					v = 0;
+				}
+			}
+			const eq = Math.min((m * G) / K, XL);
+			if (Math.abs(x - eq) < 2e-5 && Math.abs(v) < 1e-3) {
+				x = eq;
+				v = 0;
+				still = true;
+			}
+			draw();
+			read();
+			return !still;
+		});
+
+		const hang = (key: string, mass: number) => {
+			m = mass;
+			bodyG.replaceChildren(...BODIES[key]());
+			x = 0;
+			v = 0;
+			still = false;
+			q('[data-r-m]').textContent = key === 'apple' ? '?' : mass < 0.5 ? `${Math.round(mass * 1000)}\u00a0г` : `${fmtTrim(mass, 1)}\u00a0кг`; // the apple's mass is the pupil's question
+			q('[data-r-f]').textContent = `${fmtTrim(mass * G, 2)}\u00a0Н`;
+			draw();
+			read();
+			wake();
+		};
+		segment(q('[data-pick]'), (b) => hang(b.dataset.k!, Number(b.dataset.m)));
+		hang('w1', 0.1);
+	}
+</script>
