@@ -1,0 +1,641 @@
+---
+/**
+ * Picture «Трение в природе и технике» (Irina, 17 Nov 2026: «Трение в природе и технике сделать интереснее»).
+ * Six small animated panels in the order of the list: useful friction increased (tyre tread, magnesia), harmful
+ * friction decreased (a ball bearing, a streamlined shape), friction in nature (a gecko, a snake). Schemes, not to
+ * scale.
+ *
+ * Протектор — two tyres seen from the front on a wet road. A smooth tyre rides on a layer of water (it slides from side
+ *   to side); the grooves of a tread take the water in, and the rubber touches the road. The water layer is
+ *   exaggerated (in reality tenths of a millimetre to millimetres).
+ * Магнезия — a gymnast turns round the bar («большой оборот»), modelled as a rigid rod of 2,2 м turning about its end
+ *   without losses: ω² = ω₀² + 3g(1 − cos θ)/ℓ, θ from the top, ω₀ = 1,6 рад/с at the top. Real time: one turn takes
+ *   1,95 с, 5,4 рад/с at the bottom (33,6 px per metre). Magnesia dries the sweat of the palms, so they do not slip.
+ * Подшипник — the outer ring is fixed, the inner ring with the shaft turns once in 3 с (slowed down a lot). The balls
+ *   (radius r = 11 px, centres at R = 45 px between the races at 34 and 56 px) roll without slipping: their centres go
+ *   round at 34/90 = 0,378 of the shaft's rate, and each ball turns about its centre the other way at 45/11 times the
+ *   rate of the centres. The text's «в десятки раз меньше» is the chapter's claim (plain bearing about 0,1 dry,
+ *   rolling bearing about 0,001–0,005).
+ * Обтекаемая форма — wind past a cube and past a streamlined body of the same height. Lines of the flow are drawn by
+ *   continuity round an axisymmetric body, d = √(o² + h(x)²) (o: the line's distance from the axis far ahead, h: the
+ *   half-thickness of the body, or of the dead water behind the cube). Behind the cube the flow breaks into eddies.
+ *   Drag coefficients (the usual table): cube 1,05, streamlined body 0,04 — 26 times less at the same frontal area,
+ *   «примерно в 25 раз».
+ * Геккон — a gecko trots up a vertical glass: diagonal legs move together, a foot stands still on the glass while it
+ *   pushes (no slipping) and moves at twice the body's speed while it is carried forward. Slowed down. The hairs (setae)
+ *   on its toes come so close to the glass that their molecules attract the glass's molecules (van der Waals forces;
+ *   Autumn et al., 2000).
+ * Змея — a snake on flat ground slides along its own wavy track (lateral undulation). Its belly scales overlap like
+ *   tiles: forward they slide easily, backward and sideways they catch (Hu et al., PNAS 2009). Slowed down.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const f = (v: number) => v.toFixed(1);
+const D = Math.PI / 180;
+// the streamlines: rows of the cube and of the drop
+const Y1 = 84;
+const Y2 = 160;
+const hCube = (x: number) => {
+	if (x < 66) return 0;
+	if (x < 86) {
+		const k = (x - 66) / 20;
+		return 17 * Math.sin((k * Math.PI) / 2);
+	}
+	if (x <= 150) return 17;
+	return 17 - 8 * Math.min(1, (x - 150) / 80);
+};
+const hDrop = (x: number) => {
+	if (x < 78 || x > 162) return 0;
+	if (x <= 100) return 17 * Math.sqrt(1 - ((100 - x) / 22) ** 2);
+	return 17 * (1 - ((x - 100) / 62) ** 1.6);
+};
+const line = (y0: number, o: number, h: (x: number) => number) => {
+	let d = '';
+	for (let x = 34; x <= 238; x += 2) d += `${d ? 'L' : 'M'}${x} ${f(y0 + Math.sign(o) * Math.sqrt(o * o + h(x) ** 2))} `;
+	return d;
+};
+const offs = [-27, -16, -7, 7, 16, 27];
+let drop = '';
+for (let x = 78; x <= 162; x += 2) drop += `${drop ? 'L' : 'M'}${x} ${f(Y2 - hDrop(x))} `;
+for (let x = 162; x >= 78; x -= 2) drop += `L${x} ${f(Y2 + hDrop(x))} `;
+// the bearing
+const BC = [120, 116];
+const balls = Array.from({ length: 8 }, (_, i) => i * 45);
+// a spiral for an eddy
+const eddy = (r: number) => {
+	let d = '';
+	for (let a = 0; a <= 300; a += 15) {
+		const rr = r * (0.35 + (0.65 * a) / 300);
+		d += `${d ? 'L' : 'M'}${f(rr * Math.cos(a * D))} ${f(rr * Math.sin(a * D))} `;
+	}
+	return d;
+};
+// the gecko's toes
+const toes = (a0: number) =>
+	[-50, -25, 0, 25, 50]
+		.map((a) => {
+			const ang = (a0 + a) * D;
+			return `M0 0 L${f(6 * Math.cos(ang))} ${f(6 * Math.sin(ang))}`;
+		})
+		.join(' ');
+const feet = [
+	{ sx: -6, sy: -10, fx: -17, fy: -16, a: -120, pair: 0 },
+	{ sx: 6, sy: -10, fx: 17, fy: -16, a: -60, pair: 1 },
+	{ sx: -6, sy: 12, fx: -17, fy: 20, a: 150, pair: 1 },
+	{ sx: 6, sy: 12, fx: 17, fy: 20, a: 30, pair: 0 },
+];
+// the snake's belly: tiles with the steep edge facing back
+let belly = 'M14 168 H226 V178';
+for (let x = 226; x > 20; x -= 14) belly += ` L${x - 14} 184 V178`;
+belly += ' V168 Z';
+---
+
+<G7Styles />
+<figure class="g7 g7--pic ntp not-content" data-naturetech>
+	<div class="g7__grid is-two">
+		<!-- 1. tread -->
+		<svg class="g7__svg" viewBox="0 0 240 236" role="img" aria-label="Гладкая шина едет по слою воды и скользит; у шины с протектором вода уходит в канавки, и резина касается дороги" data-p="tread">
+			<text class="t-title" x="120" y="18" text-anchor="middle">Протектор</text>
+			<text class="t-small t-green" x="120" y="33" text-anchor="middle">полезное трение увеличивают</text>
+			<text class="t-small" x="62" y="56" text-anchor="middle">гладкая шина</text>
+			<text class="t-small" x="178" y="56" text-anchor="middle">с протектором</text>
+			<rect class="ntp__road" x="6" y="182" width="228" height="14" rx="2"></rect>
+			<rect class="ntp__water" x="10" y="172" width="104" height="10"></rect>
+			<rect class="ntp__water" x="134" y="179" width="96" height="3"></rect>
+			<g data-slick>
+				<rect class="ntp__tyre" x="30" y="68" width="64" height="104" rx="16"></rect>
+				<rect class="ntp__rim" x="46" y="98" width="32" height="44" rx="4"></rect>
+			</g>
+			<g>
+				<rect class="ntp__tyre" x="146" y="78" width="64" height="104" rx="16"></rect>
+				<rect class="ntp__rim" x="162" y="108" width="32" height="44" rx="4"></rect>
+				{[156, 168, 182, 194].map((x) => <rect class="ntp__groove" x={x} y="170" width="6" height="12" />)}
+			</g>
+			<g data-drops>
+				{Array.from({ length: 6 }, () => <circle class="ntp__drop" r="1.8" cx="-9" cy="-9" />)}
+			</g>
+			<path class="ln" d="M112 163 L104 176"></path>
+			<text class="t-small" x="120" y="146" text-anchor="middle">слой</text>
+			<text class="t-small" x="120" y="158" text-anchor="middle">воды</text>
+			<text class="t-small ntp__note" x="120" y="214" text-anchor="middle">канавки протектора забирают воду,</text>
+			<text class="t-small ntp__note" x="120" y="228" text-anchor="middle">и резина касается дороги</text>
+		</svg>
+
+		<!-- 2. magnesia -->
+		<svg class="g7__svg" viewBox="0 0 240 236" role="img" aria-label="Гимнаст делает большой оборот на перекладине; ладони натёрты магнезией" data-p="gym">
+			<text class="t-title" x="120" y="18" text-anchor="middle">Магнезия</text>
+			<text class="t-small t-green" x="120" y="33" text-anchor="middle">полезное трение увеличивают</text>
+			<line class="ntp__post" x1="120" y1="116" x2="120" y2="196"></line>
+			<line class="ln" x1="10" x2="230" y1="196" y2="196"></line>
+			<path class="ntp__bowl" d="M18 186 Q30 198 42 186 Z"></path>
+			<ellipse class="ntp__chalk" cx="30" cy="186" rx="11" ry="2.5"></ellipse>
+			<text class="t-small" x="30" y="178" text-anchor="middle">магнезия</text>
+			<g data-gymnast>
+				<line class="ntp__arm" x1="-1.5" y1="1" x2="-1.5" y2="22"></line>
+				<line class="ntp__leg" x1="-1.5" y1="47" x2="-1.2" y2="73"></line>
+				<line class="ntp__leg" x1="1.5" y1="47" x2="1.2" y2="73"></line>
+				<path class="ntp__limb" d="M0 23 L0 47"></path>
+				<circle class="ntp__head" cx="6" cy="18" r="6"></circle>
+				<line class="ntp__arm" x1="1.5" y1="1" x2="1.5" y2="22"></line>
+				<circle class="ntp__palm" cx="0" cy="1.5" r="3.6"></circle>
+			</g>
+			<circle class="ntp__bar" cx="120" cy="116" r="3.5"></circle>
+			<g data-puffs>
+				{Array.from({ length: 5 }, () => <circle class="ntp__puff" r="2" cx="-9" cy="-9" />)}
+			</g>
+			<text class="t-small ntp__note" x="120" y="214" text-anchor="middle">магнезия впитывает пот —</text>
+			<text class="t-small ntp__note" x="120" y="228" text-anchor="middle">руки не соскальзывают с перекладины</text>
+		</svg>
+
+		<!-- 3. ball bearing -->
+		<svg class="g7__svg" viewBox="0 0 240 236" role="img" aria-label="Шариковый подшипник: внешнее кольцо неподвижно, внутреннее вращается вместе с осью, шарики катятся между кольцами" data-p="bearing">
+			<text class="t-title" x="120" y="18" text-anchor="middle">Подшипник</text>
+			<text class="t-small t-red" x="120" y="33" text-anchor="middle">вредное трение уменьшают</text>
+			<path class="ntp__ring" fill-rule="evenodd" d={`M${BC[0] - 70} ${BC[1]} a70 70 0 1 0 140 0 a70 70 0 1 0 -140 0 Z M${BC[0] - 56} ${BC[1]} a56 56 0 1 0 112 0 a56 56 0 1 0 -112 0 Z`}></path>
+			<g data-inner>
+				<path class="ntp__ring" fill-rule="evenodd" d={`M${BC[0] - 34} ${BC[1]} a34 34 0 1 0 68 0 a34 34 0 1 0 -68 0 Z M${BC[0] - 22} ${BC[1]} a22 22 0 1 0 44 0 a22 22 0 1 0 -44 0 Z`}></path>
+				<circle class="ntp__shaft" cx={BC[0]} cy={BC[1]} r="22"></circle>
+				<path class="ntp__key" d={`M${BC[0] - 4} ${BC[1] - 22} h8 v8 h-8 Z`}></path>
+				<circle class="ntp__mark" cx={BC[0]} cy={BC[1] + 28} r="2.5"></circle>
+			</g>
+			<g data-balls>
+				{balls.map(() => (
+					<g>
+						<circle class="ntp__ball" r="10.6" cx="0" cy="0" />
+						<path class="ntp__ballmark" d="M-7 -4 A8 8 0 0 1 -1 -8" />
+						<circle class="ntp__balldot" cx="0" cy="6" r="2" />
+					</g>
+				))}
+			</g>
+			<path class="ln" d="M44 56 L71 78"></path>
+			<circle class="ntp__lead" cx="71" cy="78" r="2"></circle>
+			<text class="t-small" x="8" y="48">неподвижное</text>
+			<text class="t-small" x="8" y="60">кольцо</text>
+			<line class="ln" x1="196" y1="56" x2="152" y2="84"></line>
+			<text class="t-small" x="232" y="52" text-anchor="end">шарики</text>
+			<path class="ln" d="M40 184 L108 128"></path>
+			<circle class="ntp__lead" cx="108" cy="128" r="2"></circle>
+			<text class="t-small" x="8" y="194">ось вращается</text>
+			<text class="t-small ntp__note" x="120" y="214" text-anchor="middle">шарики катятся между кольцами —</text>
+			<text class="t-small ntp__note" x="120" y="228" text-anchor="middle">трение в десятки раз меньше</text>
+		</svg>
+
+		<!-- 4. streamlined shape -->
+		<svg class="g7__svg" viewBox="0 0 240 236" role="img" aria-label="Ветер обтекает куб и обтекаемое тело той же высоты; за кубом образуются вихри" data-p="flow">
+			<text class="t-title" x="120" y="18" text-anchor="middle">Обтекаемая форма</text>
+			<text class="t-small t-red" x="120" y="33" text-anchor="middle">вредное сопротивление уменьшают</text>
+			{offs.map((o) => <path class="ntp__stream" d={line(Y1, o, hCube)} data-stream />)}
+			{offs.map((o) => <path class="ntp__stream" d={line(Y2, o, hDrop)} data-stream />)}
+			<rect class="ntp__body" x="86" y={Y1 - 17} width="34" height="34" rx="1"></rect>
+			<path class="ntp__body" d={`${drop}Z`}></path>
+			{[
+				[134, Y1 - 9, 7, 1],
+				[134, Y1 + 9, 7, -1],
+				[156, Y1 - 7, 5, 1],
+				[156, Y1 + 7, 5, -1],
+			].map(([x, y, r, s]) => (
+				<g transform={`translate(${x} ${y})`}>
+					<path class="ntp__eddy" d={eddy(r)} data-eddy={s} transform={s < 0 ? 'scale(1 -1)' : ''} />
+				</g>
+			))}
+			<text class="t-small" x="6" y={Y1 + 4}>куб</text>
+			<text class="t-small" x="6" y={Y2 + 4}>капля</text>
+			<text class="t-small ntp__note" x="120" y="214" text-anchor="middle">при той же площади спереди у капли</text>
+			<text class="t-small ntp__note" x="120" y="228" text-anchor="middle">сопротивление воздуха раз в 25 меньше</text>
+		</svg>
+
+		<!-- 5. gecko -->
+		<svg class="g7__svg" viewBox="0 0 240 236" role="img" aria-label="Геккон бежит вверх по вертикальному стеклу; под увеличением — волоски на его пальцах" data-p="gecko">
+			<text class="t-title" x="120" y="18" text-anchor="middle">Геккон на стекле</text>
+			<text class="t-small t-blue" x="120" y="33" text-anchor="middle">трение в природе</text>
+			<clipPath id="ntp-glass"><rect x="12" y="42" width="134" height="156" rx="4"></rect></clipPath>
+			<rect class="ntp__glass" x="12" y="42" width="134" height="156" rx="4"></rect>
+			<path class="ntp__shine" d="M30 60 L60 46 M28 76 L76 52 M110 196 L142 180"></path>
+			<g clip-path="url(#ntp-glass)">
+				<g data-gecko>
+					{feet.map((p, i) => (
+						<g>
+							<path class="ntp__gleg" data-leg={i} d="" />
+							<g data-foot={i}><path class="ntp__toes" d={toes(p.a)} />{[-50, -25, 0, 25, 50].map((a) => <circle class="ntp__pad" cx={f(6 * Math.cos((p.a + a) * D))} cy={f(6 * Math.sin((p.a + a) * D))} r="1.3" />)}</g>
+						</g>
+					))}
+					<path class="ntp__gecko" d="M-3 16 Q-6 34 0 46 Q6 58 2 70 Q8 58 4 46 Q2 34 3 16 Z" data-tail></path>
+					<ellipse class="ntp__gecko" cx="0" cy="2" rx="7.5" ry="17"></ellipse>
+					<ellipse class="ntp__gecko" cx="0" cy="-20" rx="6.5" ry="8.5"></ellipse>
+					<circle class="ntp__geye" cx="-3.6" cy="-22" r="1.6"></circle>
+					<circle class="ntp__geye" cx="3.6" cy="-22" r="1.6"></circle>
+					<path class="ntp__gspots" d="M-3 -4 h2 M2 2 h2 M-3 8 h2 M1 12 h2"></path>
+				</g>
+			</g>
+			<!-- one toe much magnified -->
+			<circle class="ntp__lens" cx="194" cy="120" r="40"></circle>
+			<clipPath id="ntp-toe"><circle cx="194" cy="120" r="39"></circle></clipPath>
+			<g clip-path="url(#ntp-toe)">
+				<rect class="ntp__glass" x="212" y="78" width="30" height="84"></rect>
+				<path class="ntp__gecko" d="M150 92 Q186 92 196 104 Q201 120 196 136 Q186 148 150 148 Z"></path>
+				{[100, 112, 124, 136].map((y) => (
+					<g>
+						<path class="ntp__lamella" d={`M${y === 100 || y === 136 ? 190 : 196} ${y - 4} Q${y === 100 || y === 136 ? 196 : 201} ${y} ${y === 100 || y === 136 ? 190 : 196} ${y + 4}`} />
+						{[-3, -1.5, 0, 1.5, 3].map((dy) => <path class="ntp__seta" d={`M${y === 100 || y === 136 ? 193 : 199.5} ${y + dy} L212 ${y + dy * 1.6}`} />)}
+					</g>
+				))}
+			</g>
+			<text class="t-small" x="194" y="174" text-anchor="middle">палец</text>
+			<text class="t-small" x="194" y="187" text-anchor="middle">и стекло</text>
+			<text class="t-small ntp__note" x="120" y="214" text-anchor="middle">волоски на пальцах подходят к стеклу</text>
+			<text class="t-small ntp__note" x="120" y="228" text-anchor="middle">так близко, что молекулы притягиваются</text>
+		</svg>
+
+		<!-- 6. snake -->
+		<svg class="g7__svg" viewBox="0 0 240 236" role="img" aria-label="Змея ползёт по земле волнами; чешуйки на её брюхе лежат как черепица" data-p="snake">
+			<text class="t-title" x="120" y="18" text-anchor="middle">Змея</text>
+			<text class="t-small t-blue" x="120" y="33" text-anchor="middle">трение в природе</text>
+			<rect class="ntp__sand" x="6" y="42" width="228" height="104" rx="4"></rect>
+			{[
+				[22, 58], [64, 132], [96, 52], [140, 136], [176, 60], [214, 122], [40, 110], [200, 84], [118, 96], [160, 104],
+			].map(([x, y]) => <circle class="ntp__pebble" cx={x} cy={y} r="2" />)}
+			<clipPath id="ntp-sand"><rect x="6" y="42" width="228" height="104" rx="4"></rect></clipPath>
+			<g clip-path="url(#ntp-sand)">
+				<g data-snake>
+					{Array.from({ length: 30 }, () => <line class="ntp__snake" x1="0" y1="0" x2="0" y2="0" />)}
+				</g>
+				<g data-shead>
+					<path class="ntp__tongue" d="M9 0 L15 0 L18 -2 M15 0 L18 2"></path>
+					<ellipse class="ntp__snakehead" cx="2" cy="0" rx="8" ry="5.5"></ellipse>
+					<circle class="ntp__geye" cx="4" cy="-3" r="1.1"></circle>
+					<circle class="ntp__geye" cx="4" cy="3" r="1.1"></circle>
+				</g>
+			</g>
+			<!-- the belly from the side, magnified -->
+			<path class="ntp__belly" d={belly}></path>
+			<line class="ln" x1="10" x2="230" y1="187" y2="187"></line>
+			<g>
+				<path class="arrow arrow--green" d="M200 159 H222"></path>
+				<path class="head--green" d="M229 159 L221 155 V163 Z"></path>
+				<text class="t-small t-green" x="196" y="163" text-anchor="end">легко</text>
+				<path class="arrow arrow--red" d="M40 159 H18"></path>
+				<path class="head--red" d="M11 159 L19 155 V163 Z"></path>
+				<text class="t-small t-red" x="44" y="163">цепляется</text>
+			</g>
+			<text class="t-small ntp__note" x="120" y="214" text-anchor="middle">чешуйки на брюхе лежат как черепица:</text>
+			<text class="t-small ntp__note" x="120" y="228" text-anchor="middle">вперёд скользят, назад и вбок цепляются</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Схемы не в масштабе: слой воды под шиной, волоски геккона и чешуйки змеи сильно увеличены. Гимнаст вращается в настоящем темпе, подшипник, геккон и змея — медленнее, чем на самом деле.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ntp {
+		--ntp-rubber: var(--sl-color-gray-5);
+		--ntp-white: var(--sl-color-gray-1);
+	}
+	:root[data-theme='light'] .ntp {
+		--ntp-rubber: var(--sl-color-gray-2);
+		--ntp-white: var(--sl-color-black);
+	}
+	.g7__svg text.ntp__note {
+		font-size: 10.5px;
+	}
+	.ntp__lead {
+		fill: var(--g7-ink);
+	}
+	.ntp__road {
+		fill: var(--g7-ground);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	:root[data-theme='light'] .ntp__road {
+		fill: color-mix(in oklab, var(--ig-v) 14%, var(--sl-color-gray-6));
+	}
+	.ntp__water {
+		fill: color-mix(in srgb, var(--ig-vx) 55%, transparent);
+	}
+	.ntp__tyre {
+		fill: var(--ntp-rubber);
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+	}
+	.ntp__rim {
+		fill: var(--g7-steel);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.ntp__groove {
+		fill: color-mix(in srgb, var(--ig-vx) 70%, var(--g7-paper));
+	}
+	.ntp__drop {
+		fill: var(--g7-water-edge);
+	}
+	.ntp__post {
+		stroke: var(--g7-line);
+		stroke-width: 3;
+	}
+	.ntp__bar {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.ntp__arm,
+	.ntp__leg,
+	.ntp__limb {
+		stroke: var(--g7-skin);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.ntp__limb {
+		stroke: var(--g7-violet);
+		stroke-width: 11;
+	}
+	.ntp__leg {
+		stroke: var(--g7-violet);
+		stroke-width: 4.5;
+	}
+	.ntp__head {
+		fill: var(--g7-skin);
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.ntp__palm,
+	.ntp__puff,
+	.ntp__chalk {
+		fill: var(--ntp-white);
+	}
+	:root[data-theme='light'] .ntp__palm,
+	:root[data-theme='light'] .ntp__puff,
+	:root[data-theme='light'] .ntp__chalk {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.6;
+	}
+	.ntp__bowl {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	.ntp__ring {
+		fill: var(--g7-steel);
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+	}
+	.ntp__shaft {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.ntp__key {
+		fill: var(--g7-paper);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.ntp__mark {
+		fill: var(--g7-gold);
+	}
+	.ntp__ball {
+		fill: color-mix(in oklab, var(--ig-vx) 20%, var(--sl-color-gray-3));
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	:root[data-theme='light'] .ntp__ball {
+		fill: color-mix(in oklab, var(--ig-vx) 12%, var(--sl-color-gray-5));
+	}
+	.ntp__ballmark {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		opacity: 0.6;
+	}
+	:root[data-theme='light'] .ntp__ballmark {
+		stroke: var(--sl-color-black);
+		opacity: 0.9;
+	}
+	.ntp__balldot {
+		fill: var(--g7-gold);
+	}
+	.ntp__stream {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 1.4;
+		stroke-dasharray: 7 6;
+		stroke-linecap: round;
+		opacity: 0.85;
+	}
+	.ntp__body {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.ntp__eddy {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 1.3;
+		stroke-linecap: round;
+	}
+	.ntp__glass {
+		fill: color-mix(in srgb, var(--ig-vx) 10%, transparent);
+		stroke: var(--g7-glass);
+		stroke-width: 1.5;
+	}
+	.ntp__shine {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2;
+		stroke-linecap: round;
+		opacity: 0.6;
+	}
+	.ntp__gecko {
+		fill: color-mix(in oklab, var(--g7-green) 65%, var(--sl-color-gray-4));
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	.ntp__gleg {
+		fill: none;
+		stroke: color-mix(in oklab, var(--g7-green) 65%, var(--sl-color-gray-4));
+		stroke-width: 3.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.ntp__toes {
+		fill: none;
+		stroke: color-mix(in oklab, var(--g7-green) 65%, var(--sl-color-gray-4));
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.ntp__pad {
+		fill: var(--g7-gold);
+	}
+	.ntp__geye {
+		fill: var(--g7-ink);
+	}
+	.ntp__gspots {
+		stroke: var(--g7-gold);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.ntp__lens {
+		fill: var(--g7-paper);
+		stroke: var(--g7-line);
+		stroke-width: 1.5;
+	}
+	.ntp__lamella {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.ntp__seta {
+		stroke: var(--g7-gold);
+		stroke-width: 0.8;
+	}
+	.ntp__sand {
+		fill: color-mix(in oklab, var(--ig-v) 18%, var(--g7-paper));
+	}
+	.ntp__pebble {
+		fill: var(--g7-faint);
+		stroke: var(--g7-line);
+		stroke-width: 0.6;
+	}
+	.ntp__snake {
+		stroke: color-mix(in oklab, var(--ig-v) 55%, var(--g7-green));
+		stroke-linecap: round;
+	}
+	.ntp__snakehead {
+		fill: color-mix(in oklab, var(--ig-v) 55%, var(--g7-green));
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.ntp__tongue {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+	}
+	.ntp__belly {
+		fill: color-mix(in oklab, var(--ig-v) 55%, var(--g7-green));
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const D = Math.PI / 180;
+	// gymnast: a rigid rod of 2,2 м turning about the bar
+	const G = 9.8;
+	const ELL = 2.2;
+	const W0 = 1.6;
+	const omega = (th: number) => Math.sqrt(W0 * W0 + (3 * G * (1 - Math.cos(th))) / ELL);
+	// bearing
+	const BC = [120, 116];
+	const W_IN = (2 * Math.PI) / 3; // rad/s, the shaft
+	const W_CAGE = (W_IN * 34) / 90;
+	const W_BALL = -W_CAGE * (45 / 11);
+	// gecko
+	const V_G = 22; // px/s
+	const T_G = 1.0; // s, one stride
+	const FEET = [
+		{ sx: -6, sy: -10, fx: -17, fy: -16, pair: 0 },
+		{ sx: 6, sy: -10, fx: 17, fy: -16, pair: 1 },
+		{ sx: -6, sy: 12, fx: -17, fy: 20, pair: 1 },
+		{ sx: 6, sy: 12, fx: 17, fy: 20, pair: 0 },
+	];
+	// snake: a fixed wavy track
+	const trackY = (x: number) => 94 + 18 * Math.sin((2 * Math.PI * x) / 92);
+	const SNAKE_L = 128; // px along x
+	const V_S = 24; // px/s
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-naturetech]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const slick = q<SVGGElement>('[data-slick]');
+		const drops = [...q('[data-drops]').children] as SVGCircleElement[];
+		const gym = q<SVGGElement>('[data-gymnast]');
+		const puffs = [...q('[data-puffs]').children] as SVGCircleElement[];
+		const inner = q<SVGGElement>('[data-inner]');
+		const ballG = [...q('[data-balls]').children] as SVGGElement[];
+		const streams = [...root.querySelectorAll<SVGPathElement>('[data-stream]')];
+		const eddies = [...root.querySelectorAll<SVGPathElement>('[data-eddy]')];
+		const gecko = q<SVGGElement>('[data-gecko]');
+		const legs = [...root.querySelectorAll<SVGPathElement>('[data-leg]')];
+		const feet = [...root.querySelectorAll<SVGGElement>('[data-foot]')];
+		const tail = q<SVGPathElement>('[data-tail]');
+		const segs = [...q('[data-snake]').children] as SVGLineElement[];
+		const shead = q<SVGGElement>('[data-shead]');
+		let t = 0;
+		let th = 0; // the gymnast's angle from the top
+		const draw = () => {
+			// 1. the smooth tyre slides from side to side on the water; drops leave the grooves of the tread
+			slick.setAttribute('transform', `translate(${(4 * Math.sin(t * 2.1) * Math.sin(t * 0.7)).toFixed(2)} ${(-1 - Math.sin(t * 3.3)).toFixed(2)})`);
+			drops.forEach((d, i) => {
+				const side = i % 2 ? 1 : -1;
+				const ph = ((t + i * 0.27) % 0.9) / 0.9;
+				const x0 = side > 0 ? 212 : 144;
+				d.setAttribute('cx', (x0 + side * 26 * ph).toFixed(2));
+				d.setAttribute('cy', (179 - 14 * ph + 22 * ph * ph).toFixed(2));
+				d.setAttribute('opacity', (1 - ph).toFixed(2));
+			});
+			// 2. the gymnast
+			gym.setAttribute('transform', `translate(120 116) rotate(${(180 + (th * 180) / Math.PI).toFixed(2)})`);
+			puffs.forEach((p, i) => {
+				const ph = ((t + i * 0.4) % 2) / 2;
+				const a = i * 72 * D;
+				p.setAttribute('cx', (120 + (5 + 14 * ph) * Math.cos(a)).toFixed(2));
+				p.setAttribute('cy', (116 + (5 + 14 * ph) * Math.sin(a) + 6 * ph).toFixed(2));
+				p.setAttribute('r', (1 + 2.5 * ph).toFixed(2));
+				p.setAttribute('opacity', (0.7 * (1 - ph)).toFixed(2));
+			});
+			// 3. the bearing
+			inner.setAttribute('transform', `rotate(${((W_IN * t * 180) / Math.PI).toFixed(2)} ${BC[0]} ${BC[1]})`);
+			ballG.forEach((b, i) => {
+				const a = i * 45 * D + W_CAGE * t;
+				const x = BC[0] + 45 * Math.cos(a);
+				const y = BC[1] + 45 * Math.sin(a);
+				b.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${((W_BALL * t * 180) / Math.PI).toFixed(2)})`);
+			});
+			// 4. the wind
+			for (const s of streams) s.setAttribute('stroke-dashoffset', (-(t * 30) % 13).toFixed(2));
+			for (const e of eddies) e.setAttribute('transform', `${e.dataset.eddy === '-1' ? 'scale(1 -1) ' : ''}rotate(${((t * 160) % 360).toFixed(1)})`);
+			// 5. the gecko: diagonal pairs; a standing foot stays still on the glass
+			const yb = 250 - ((60 + V_G * t) % 290);
+			gecko.setAttribute('transform', `translate(78 ${yb.toFixed(2)}) scale(1.35)`);
+			FEET.forEach((p, i) => {
+				const ph = ((t / T_G + p.pair * 0.5) % 1 + 1) % 1;
+				const half = (V_G * T_G) / 4; // the foot moves ±5,5 px relative to the body
+				const rel = ph < 0.5 ? -half + (4 * half * ph) : half - 4 * half * (ph - 0.5); // stance: moves back with the glass
+				const fx = p.fx;
+				const fy = p.fy + rel;
+				feet[i].setAttribute('transform', `translate(${fx} ${fy.toFixed(2)})`);
+				const mx = (p.sx + fx) / 2 + Math.sign(fx) * 4;
+				const my = (p.sy + fy) / 2 - (p.sy < 0 ? 3 : -3);
+				legs[i].setAttribute('d', `M${p.sx} ${p.sy} Q${mx.toFixed(2)} ${my.toFixed(2)} ${fx} ${fy.toFixed(2)}`);
+			});
+			tail.setAttribute('transform', `rotate(${(6 * Math.sin((2 * Math.PI * t) / T_G)).toFixed(2)} 0 16)`);
+			// 6. the snake slides along its own track
+			const xh = -20 + ((120 + V_S * t) % (240 + SNAKE_L + 40));
+			segs.forEach((s, i) => {
+				const n = segs.length;
+				const x1 = xh - (SNAKE_L * (i + 1)) / n;
+				const x2 = xh - (SNAKE_L * i) / n;
+				s.setAttribute('x1', x1.toFixed(2));
+				s.setAttribute('y1', trackY(x1).toFixed(2));
+				s.setAttribute('x2', x2.toFixed(2));
+				s.setAttribute('y2', trackY(x2).toFixed(2));
+				s.setAttribute('stroke-width', (9 - (7 * i) / n).toFixed(2));
+			});
+			const slope = (trackY(xh + 0.5) - trackY(xh - 0.5)) / 1;
+			shead.setAttribute('transform', `translate(${xh.toFixed(2)} ${trackY(xh).toFixed(2)}) rotate(${((Math.atan(slope) * 180) / Math.PI).toFixed(2)})`);
+		};
+		loop(root, (dt) => {
+			t += dt;
+			// the gymnast in real time, in small steps
+			const n = 8;
+			for (let i = 0; i < n; i++) th = (th + (omega(th) * dt) / n) % (2 * Math.PI);
+			draw();
+			return true;
+		});
+		draw();
+	}
+</script>
