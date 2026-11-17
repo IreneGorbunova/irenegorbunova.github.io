@@ -2,6 +2,7 @@
 /**
  * Picture «Объём тела мензуркой»: the same measuring cylinder before and after a body on a thread is put under
  * water. `explain` writes V₁, V₂ and V = V₂ − V₁; `task` shows only the scales, for a question below the picture.
+ * Without `v2` one cylinder is drawn with water up to `v1` and no body (a picture for a task about reading a scale).
  * The scale: from 0 to `max` мл, numbers every `every` мл, a division of `step` мл; 160 px from 0 to `max`.
  * The body is drawn to the scale of the glass: glass and body are cylinders, so a body of width w and height h raises
  * the water by r = w²·h / 48² px; w and h (h = 1,35 w) are found from the rise V₂ − V₁.
@@ -10,31 +11,34 @@ import G7Styles from '../g7/G7Styles.astro';
 
 interface Props {
 	v1: number;
-	v2: number;
+	v2?: number;
 	max: number;
 	every: number;
 	step: number;
-	body: 'cylinder' | 'weight';
+	body?: 'cylinder' | 'weight';
 	mode?: 'explain' | 'task';
 	label: string;
 }
-const { v1, v2, max, every, step, body, mode = 'explain', label } = Astro.props;
+const { v1, v2, max, every, step, body = 'cylinder', mode = v2 === undefined ? 'task' : 'explain', label } = Astro.props;
+const single = v2 === undefined;
 const BOT = 200;
 const y = (v: number) => BOT - (v * 160) / max;
-const cups = [
-	{ cx: 78, v: v1, name: 'до погружения', sym: 'V₁' },
-	{ cx: 214, v: v2, name: 'после погружения', sym: 'V₂' },
-];
+const cups = single
+	? [{ cx: 160, v: v1, name: '', sym: '' }]
+	: [
+			{ cx: 78, v: v1, name: 'до погружения', sym: 'V₁' },
+			{ cx: 214, v: v2!, name: 'после погружения', sym: 'V₂' },
+		];
 const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
 const nf = (v: number) => String(v).replace('.', ',');
-const rise = ((v2 - v1) * 160) / max;
+const rise = (((v2 ?? v1) - v1) * 160) / max;
 const bw = Math.cbrt((48 * 48 * rise) / 1.35);
 const bh = 1.35 * bw;
 ---
 
 <G7Styles />
-<figure class="g7 g7--pic men not-content">
-	<svg class="g7__svg men__svg" viewBox="0 0 300 236" role="img" aria-label={label}>
+<figure class:list={['g7 g7--pic men not-content', single && 'men--single']}>
+	<svg class="g7__svg men__svg" viewBox={single ? '90 20 140 200' : '0 0 300 236'} role="img" aria-label={label}>
 		{
 			cups.map((c, k) => (
 				<g>
@@ -56,7 +60,7 @@ const bh = 1.35 * bw;
 					<text class="men__num" x={c.cx - 28} y={y(max) - 12} text-anchor="end">
 						мл
 					</text>
-					{k === 1 && (
+					{k === 1 && !single && (
 						<>
 							<line class="men__thread" x1={c.cx} y1="20" x2={c.cx} y2={BOT - bh - (body === 'weight' ? 5 : 3)} />
 							{body === 'cylinder' ? (
@@ -86,7 +90,7 @@ const bh = 1.35 * bw;
 		}
 	</svg>
 	{
-		mode === 'explain' && (
+		mode === 'explain' && v2 !== undefined && (
 			<p class="men__res">
 				<i>V</i> = <i>V</i>
 				<sub>2</sub> − <i>V</i>
@@ -103,6 +107,9 @@ const bh = 1.35 * bw;
 	.men__svg {
 		max-width: 26rem;
 		margin-inline: auto;
+	}
+	.men--single .men__svg {
+		max-width: 12rem;
 	}
 	.men__water {
 		fill: var(--g7-water);

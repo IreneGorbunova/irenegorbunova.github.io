@@ -8,13 +8,22 @@
  * The script lives in MoreSetup.astro, rendered once per chapter page from PageTitle.astro: a script
  * inside an inline component is repeated after every use.
  */
+import katex from 'katex';
+
 interface Props {
 	term: string;
 }
 const { term } = Astro.props;
+// a term may hold math between dollars: <More term="$\Delta a$"> shows Δa in the formula font (before 17 Nov 2026 the
+// dollars were printed as they are)
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const html = term
+	.split(/(\$[^$]+\$)/)
+	.map((part) => (/^\$[^$]+\$$/.test(part) ? katex.renderToString(part.slice(1, -1), { throwOnError: false, output: 'html' }) : esc(part)))
+	.join('');
 ---
 
-<span class="ig-more" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" data-more>{term}</span><template data-more-body><slot /></template>
+<span class="ig-more" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" data-more set:html={html} /><template data-more-body><slot /></template>
 
 <style is:global>
 	/* a span, not a <button>: a button does not break across lines */

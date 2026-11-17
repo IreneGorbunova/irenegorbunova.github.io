@@ -4,6 +4,8 @@
  * is read to the nearest millimeter, with an error of 0,5 мм; the size of one body is the length divided by the
  * number of bodies, and its error is 0,5 мм divided by that number. Peas are 5,6 мм across (3 px per mm), the wire
  * is 0,8 мм thick (6 px per mm): the reader does not see these numbers, only what the ruler gives.
+ * Under the readings the size is found by the formula of the text, d = L / N and Δd = ΔL / N, and written as
+ * d = (… ± …) мм (Irina, 17 Nov 2026: «в модели сделаем расчёт по формуле»).
  */
 import G7Styles from '../g7/G7Styles.astro';
 ---
@@ -26,6 +28,7 @@ import G7Styles from '../g7/G7Styles.astro';
 				<li><span>Длина ряда по линейке</span><b data-len></b></li>
 				<li class="is-key"><span data-one>Диаметр одной горошины</span><b data-d></b></li>
 			</ul>
+			<div class="rowl__calc" data-calc aria-live="polite"></div>
 		</div>
 	</div>
 	<figcaption class="g7__caption">
@@ -38,8 +41,23 @@ import G7Styles from '../g7/G7Styles.astro';
 		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		align-items: end;
 	}
-	.rowl__read {
+	.rowl__read,
+	.rowl__calc {
 		grid-column: 1 / -1;
+	}
+	.rowl__calc {
+		display: grid;
+		gap: 0.5rem;
+		padding: 0.4rem 0.6rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		overflow-x: auto;
+	}
+	.rowl__calc p {
+		margin: 0;
+	}
+	.rowl__calc .rowl__rec {
+		font-weight: 700;
 	}
 	.rowl__ruler {
 		fill: color-mix(in oklab, var(--ig-v) 16%, var(--sl-color-gray-6));
@@ -82,7 +100,7 @@ import G7Styles from '../g7/G7Styles.astro';
 </style>
 
 <script>
-	import { el, fmt, segment } from '../g7/kit';
+	import { el, fmt, k, segment, tex } from '../g7/kit';
 
 	const KIND = {
 		pea: { d: 5.6, px: 3, max: 20, nname: 'Число горошин в ряду', one: 'Диаметр одной горошины', span: 120 },
@@ -121,8 +139,17 @@ import G7Styles from '../g7/G7Styles.astro';
 			svg.append(el('line', { class: 'rowl__end', x1: X0, x2: X0, y1: 30, y2: yR + 16 }));
 			const read = Math.round(L + 1e-9); // the nearest millimeter stroke
 			const digits = N >= 10 ? 2 : N >= 2 ? 1 : 0;
+			const dd = fmt(read / N, Math.max(digits, kind === 'wire' ? 1 : 0));
+			const de = fmt(0.5 / N, 0.5 / N < 0.095 ? 2 : 1);
 			q('[data-len]').textContent = `${read} ± 0,5 мм`;
-			q('[data-d]').textContent = `${fmt(read / N, Math.max(digits, kind === 'wire' ? 1 : 0))} ± ${fmt(0.5 / N, 0.5 / N < 0.095 ? 2 : 1)} мм`;
+			q('[data-d]').textContent = `${dd} ± ${de} мм`;
+			// the same by the formula: d = L / N, Δd = ΔL / N
+			const frac = (a: string, b: number) => `\\dfrac{${tex(a)}~\\text{мм}}{${b}}`;
+			q('[data-calc]').innerHTML = [
+				`<p>${k(`d = \\dfrac{L}{N} = ${frac(String(read), N)} = ${tex(dd)}~\\text{мм}`)}</p>`,
+				`<p>${k(`\\Delta d = \\dfrac{\\Delta L}{N} = ${frac('0,5', N)} = ${tex(de)}~\\text{мм}`)}</p>`,
+				`<p class="rowl__rec">${k(`d = (${tex(dd)} \\pm ${tex(de)})~\\text{мм}`)}</p>`,
+			].join('');
 		};
 		n.addEventListener('input', draw);
 		segment(q('[data-kind]'), (b) => {
