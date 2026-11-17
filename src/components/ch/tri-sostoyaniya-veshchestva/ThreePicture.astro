@@ -1,58 +1,102 @@
 ---
 /**
- * Picture «Как расположены молекулы»: three panels with the same number of molecules per panel area for the solid
- * and the liquid (they are almost equally dense) and far fewer for the gas. Solid: a regular lattice. Liquid: the
- * same molecules close together but without order. Gas: molecules far apart. A scheme: in a real gas at room
- * conditions the distances are about ten times the size of a molecule. The positions are fixed (a seeded generator).
+ * Picture «Как расположены и движутся молекулы»: three panels, each a small closed box of molecules whose motion is
+ * computed by the model of g7/md.ts (round molecules that attract at a distance and repel when they come close, the
+ * Lennard-Jones force; size σ = 1, the box 12,5 × 10 σ, drawn at 12 px per σ in every panel, so the molecules are
+ * the same size everywhere). One molecule in each panel is gold, and a red line shows its path over the last 2 s.
+ *
+ *   Твёрдое тело — 105 molecules in a triangular lattice (spacing 1,12 σ) at the temperature 0,25 (model units, mean
+ *     kinetic energy of a molecule). Each vibrates about its place, about 0,2 σ; none leaves it.
+ *   Жидкость — 94 molecules (0,9 of the crystal's density), a dense fluid at the temperature 0,6, prepared at build
+ *     time from a hot gas cooled down and run for 4000 steps. No order; a molecule jostles between its neighbours and
+ *     moves on by about one neighbour distance in 2–4 s of the animation. (In two dimensions this model has a liquid
+ *     only in a narrow band of temperatures; the dense fluid at 0,6, held by the walls at a liquid's density, behaves
+ *     like a liquid at the molecular level, and that is what the panel is for.)
+ *   Газ — 6 molecules at the temperature 1,3, no thermostat (energy is conserved): they fly in straight lines and
+ *     bounce off the walls and each other. The mean distance between them, √(area/6) ≈ 4,6 σ, is about five sizes of
+ *     a molecule; in air it is about ten (3,3 нм between molecules of about 0,35 нм). The caption says so.
+ *
+ * Speeds. The three panels are one substance at three temperatures (0,25, 0,6, 1,3, as in StatesLab), so the mean
+ * speed grows as √T: the gas molecules are about 2,3 times faster than those of the solid. In real ice, water and
+ * steam the speeds differ less (they are all hundreds of metres per second); what differs most is how far a molecule
+ * gets before its neighbours stop it, and the paths show exactly that.
+ * Time: 4,5 model time units per second of animation. For argon-like molecules (σ = 0,34 нм, ε = 120 K·k, m = 40 а.е.м.)
+ * the unit is σ√(m/ε) ≈ 2,15·10⁻¹² с, so the motion is slowed about 10¹¹ times («в сто миллиардов раз»).
+ * Without JavaScript the start positions are shown.
  */
 import G7Styles from '../g7/G7Styles.astro';
+import { MD, lattice } from '../g7/md';
 
-let seed = 21;
-const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-const R = 6.5;
-// solid: a triangular lattice
-const solid: [number, number][] = [];
-for (let row = 0; row < 7; row++) for (let col = 0; col < 8; col++) solid.push([22 + col * 14 + (row % 2 ? 7 : 0), 22 + row * 12.2]);
-// liquid: the lattice shaken, with a few gaps; rejected when two molecules overlap
-const liquid: [number, number][] = [];
-let tries = 0;
-while (liquid.length < 50 && tries++ < 6000) {
-	const p: [number, number] = [14 + rnd() * 122, 34 + rnd() * 72];
-	if (liquid.every(([x, y]) => Math.hypot(x - p[0], y - p[1]) > 2 * R + 0.6)) liquid.push(p);
+const W = 12.5;
+const H = 10;
+const PX = 12;
+const rnd = ((seed: number) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296))(17);
+const r3 = (v: number) => Math.round(v * 1000) / 1000;
+
+// solid: the lattice itself (the client starts from it too)
+const solid = lattice(0, 0, W, H, 1.12);
+// liquid: 94 of the lattice sites taken at random, melted hot, then cooled to 0,6
+const keep = lattice(0, 0, W, H, 1.12)
+	.map((p) => ({ p, k: rnd() }))
+	.sort((a, b) => a.k - b.k)
+	.slice(0, 94)
+	.map((o) => o.p);
+const liqMD = new MD({ w: W, h: H });
+liqMD.set(keep, 2, rnd);
+liqMD.target = 2;
+liqMD.run(2000);
+liqMD.target = 0.6;
+liqMD.run(4000);
+const liquid = Array.from({ length: liqMD.n }, (_, i) => ({ x: r3(liqMD.x[i]), y: r3(liqMD.y[i]) }));
+// gas: 6 molecules apart from each other, each with the speed of the mean energy 1,3 (collisions then spread them)
+const gas: { x: number; y: number; vx: number; vy: number }[] = [];
+const sv = Math.sqrt(2 * 1.3);
+for (let tries = 0; gas.length < 6 && tries < 5000; tries++) {
+	const p = { x: 1 + rnd() * (W - 2), y: 1 + rnd() * (H - 2) };
+	if (gas.every((q) => Math.hypot(q.x - p.x, q.y - p.y) > 3.2)) {
+		const a = 2 * Math.PI * rnd();
+		gas.push({ x: r3(p.x), y: r3(p.y), vx: r3(sv * Math.cos(a)), vy: r3(sv * Math.sin(a)) });
+	}
 }
-const gas: [number, number][] = [];
-tries = 0;
-while (gas.length < 7 && tries++ < 2000) {
-	const p: [number, number] = [14 + rnd() * 122, 14 + rnd() * 92];
-	if (gas.every(([x, y]) => Math.hypot(x - p[0], y - p[1]) > 34)) gas.push(p);
-}
+// the gold molecule: the one nearest the centre
+const nearest = (pts: { x: number; y: number }[]) =>
+	pts.reduce((b, p, i) => (Math.hypot(p.x - W / 2, p.y - H / 2) < Math.hypot(pts[b].x - W / 2, pts[b].y - H / 2) ? i : b), 0);
+
 const panels = [
-	{ name: 'твёрдое тело', note: 'молекулы в строгом порядке, колеблются на своих местах', pts: solid, arrows: false },
-	{ name: 'жидкость', note: 'молекулы вплотную, но без порядка: меняются местами', pts: liquid, arrows: false },
-	{ name: 'газ', note: 'молекулы далеко друг от друга, летают по всему сосуду', pts: gas, arrows: true },
+	{ key: 'solid', name: 'Твёрдое тело', note: 'молекулы в строгом порядке, каждая колеблется около своего места', pts: solid },
+	{ key: 'liquid', name: 'Жидкость', note: 'молекулы вплотную, но без порядка: толкаются и время от времени перескакивают на новое место', pts: liquid },
+	{ key: 'gas', name: 'Газ', note: 'молекулы далеко друг от друга, быстро летят по прямой от удара до удара', pts: gas },
 ];
+const init = JSON.stringify({ liquid: liquid.flatMap((p) => [p.x, p.y]), gas: gas.flatMap((g) => [g.x, g.y, g.vx, g.vy]) });
 ---
 
 <G7Styles />
-<figure class="g7 g7--pic thr not-content">
+<figure class="g7 g7--pic thr not-content" data-thr data-init={init}>
 	<div class="g7__grid is-three">
 		{
-			panels.map((p) => (
-				<div>
-					<svg class="g7__svg" viewBox="0 0 150 120" role="img" aria-label={`${p.name}: ${p.note}`}>
-						{p.pts.map(([x, y], i) => (
-							<>
-								<circle class="thr__mol" cx={x} cy={y} r={R} />
-								{p.arrows && <line class="thr__v" x1={x} y1={y} x2={x + 16 * Math.cos(i * 2.4)} y2={y + 16 * Math.sin(i * 2.4)} />}
-							</>
-						))}
-					</svg>
-					<p class="thr__name">{p.name}</p>
-					<p class="thr__note">{p.note}</p>
-				</div>
-			))
+			panels.map((p) => {
+				const one = nearest(p.pts);
+				return (
+					<div>
+						<svg class="g7__svg" viewBox={`0 0 ${W * PX} ${H * PX}`} role="img" aria-label={`${p.name}: ${p.note}`} data-panel={p.key} data-one={one}>
+							<g>
+								{p.pts.map((q, i) => (
+									<circle class={i === one ? 'thr__mol thr__one' : 'thr__mol'} cx={r3(q.x * PX)} cy={r3(q.y * PX)} r={0.47 * PX} />
+								))}
+							</g>
+							<polyline class="thr__trail" points="" data-trail />
+							<rect class="thr__wall" x="0.75" y="0.75" width={W * PX - 1.5} height={H * PX - 1.5} rx="6" />
+						</svg>
+						<p class="thr__name">{p.name}</p>
+						<p class="thr__note">{p.note}</p>
+					</div>
+				);
+			})
 		}
 	</div>
+	<figcaption class="g7__caption">
+		На каждой картинке одна молекула выделена жёлтым, красная линия — её путь за последние 2&nbsp;секунды. Движение замедлено примерно в сто миллиардов раз; молекулы газа на рисунке отстоят друг от друга примерно на пять своих размеров, а в воздухе — примерно на десять.
+	</figcaption>
 </figure>
 
 <style is:global>
@@ -61,10 +105,21 @@ const panels = [
 		stroke: var(--g7-blue);
 		stroke-width: 0.8;
 	}
-	.thr__v {
-		stroke: var(--g7-gold);
-		stroke-width: 1.6;
+	.thr__mol.thr__one {
+		fill: var(--g7-gold);
+		stroke: color-mix(in oklab, var(--g7-gold) 60%, var(--sl-color-white));
+	}
+	.thr__trail {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 1.4;
 		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.thr__wall {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1.5;
 	}
 	.thr__name {
 		margin: 0.35rem 0 0;
@@ -79,3 +134,70 @@ const panels = [
 		color: var(--sl-color-gray-2);
 	}
 </style>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { MD, lattice } from '../g7/md';
+
+	const W = 12.5;
+	const H = 10;
+	const PX = 12;
+	const RATE = 4.5; // model time units per second of animation
+	const DT = 0.006;
+	const TRAIL = 2; // s of the path that is drawn
+	const rnd = ((seed: number) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296))(5);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-thr]')) {
+		const init = JSON.parse(root.dataset.init!) as { liquid: number[]; gas: number[] };
+		const make = (key: string): MD => {
+			const md = new MD({ w: W, h: H });
+			if (key === 'solid') {
+				md.set(lattice(0, 0, W, H, 1.12), 0.25, rnd);
+				md.target = 0.25;
+			} else if (key === 'liquid') {
+				const pts = [];
+				for (let i = 0; i < init.liquid.length; i += 2) pts.push({ x: init.liquid[i], y: init.liquid[i + 1] });
+				md.set(pts, 0.6, rnd);
+				md.target = 0.6;
+			} else {
+				const g = init.gas;
+				const pts = [];
+				for (let i = 0; i < g.length; i += 4) pts.push({ x: g[i], y: g[i + 1] });
+				md.set(pts, 1.3, rnd);
+				for (let i = 0; i < md.n; i++) {
+					md.vx[i] = g[4 * i + 2];
+					md.vy[i] = g[4 * i + 3];
+				}
+				md.target = null; // no thermostat: the energy of the gas is conserved
+			}
+			return md;
+		};
+		const panels = [...root.querySelectorAll<SVGSVGElement>('[data-panel]')].map((svg) => ({
+			md: make(svg.dataset.panel!),
+			circles: [...svg.querySelectorAll<SVGCircleElement>('circle')],
+			trail: svg.querySelector<SVGPolylineElement>('[data-trail]')!,
+			one: Number(svg.dataset.one),
+			path: [] as { t: number; x: number; y: number }[],
+		}));
+		let acc = 0;
+		let time = 0;
+		loop(root, (dt) => {
+			time += dt;
+			acc += (dt * RATE) / DT;
+			const steps = Math.floor(acc);
+			acc -= steps;
+			for (const p of panels) {
+				p.md.run(steps, DT);
+				const { x, y } = p.md;
+				for (let i = 0; i < p.circles.length; i++) {
+					p.circles[i].setAttribute('cx', (x[i] * PX).toFixed(2));
+					p.circles[i].setAttribute('cy', (y[i] * PX).toFixed(2));
+				}
+				p.path.push({ t: time, x: x[p.one] * PX, y: y[p.one] * PX });
+				while (p.path.length && p.path[0].t < time - TRAIL) p.path.shift();
+				p.trail.setAttribute('points', p.path.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' '));
+			}
+			return true;
+		});
+	}
+</script>

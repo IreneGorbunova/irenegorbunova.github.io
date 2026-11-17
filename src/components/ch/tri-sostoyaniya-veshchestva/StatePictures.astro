@@ -1,0 +1,437 @@
+---
+/**
+ * Picture «Твёрдое тело, жидкость, газ»: three short loops side by side (one above another on a phone), all three on
+ * one clock: 0,8 s of the start frame, 7 s of motion, 3 s of the end frame.
+ *
+ * Твёрдое тело — a cube of ice 3 × 3 × 3 см (27 см³) is carried from a saucer into a wide glass bowl and keeps its
+ * shape and size; a dashed outline stays on the saucer. Scale 8 px per см (the front face 24 px; the depth is drawn
+ * in oblique projection at about half length). The ice does not melt noticeably in the few seconds of the move.
+ *
+ * Жидкость — 200 мл of water poured from a tall narrow glass into the same bowl. Both vessels are cylinders, drawn to
+ * the same 8 px per см: the glass has an inner diameter of 5 см (area 19,6 см², so 200 мл stand 10,2 см high; glass
+ * 12 см tall), the bowl 16 см (area 201 см², so 200 мл make a layer of 0,99 см ≈ 1 см; bowl 3 см deep). The glass
+ * turns about its lip; the water surface stays horizontal, and the glass keeps only the water below the lip, so the
+ * water pours out because of the tilt (no flow rate is invented). During the tilt the water is computed in the axial
+ * section of the glass (exact for the upright glass, close for a tilted round one); the readouts keep the total at
+ * 200 мл. The bowl's layer is height = volume / 201 см².
+ *
+ * Газ — a canister of 1 л (a cylinder 8 см wide and 20 см tall, 1,005 л) on the floor of a room 4 × 3 × 2,5 м
+ * (30 м³ = 30 000 л), side view at 48 px per м, so the canister is drawn to scale (4 × 10 px). Each dot is a crowd of
+ * molecules of the released gas (the air of the room is not drawn). The dots leave the valve one after another, rise
+ * as a jet (about 1 м) and spread as a Gaussian whose width grows in proportion to the time since the dot left
+ * (5,5 м per run), reflected at the walls, floor and ceiling; by the end they fill the room evenly. This is a scheme of mixing by air currents, not a molecular simulation.
+ *
+ * Slowed or compressed: the ice and the water move at about real speed; the spreading of the gas, which takes
+ * minutes in a real room, is compressed into a few seconds (the caption says it).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const TY = 196; // table / floor
+const IB = 193; // inner bottom of the bowl
+// the bowl (both first panels): inner 16 см × 3 см at 8 px per см
+const BX0 = 84;
+const BX1 = 212;
+const RIM = IB - 24;
+// the cube of ice, 3 см = 24 px, oblique depth (10, −6)
+const S = 24;
+const DX = 10;
+const DY = -6;
+const cube = {
+	front: `M0 0 H${S} V${-S} H0 Z`,
+	top: `M0 ${-S} L${DX} ${-S + DY} H${S + DX} L${S} ${-S} Z`,
+	side: `M${S} 0 V${-S} L${S + DX} ${-S + DY} V${DY} Z`,
+};
+const ICE0 = { x: 28, y: 192 };
+// the glass: inner 5 × 12 см, its lip (the inner top right corner) on the table
+const GW = 40;
+const GH = 96;
+const L0 = { x: 58, y: IB - GH };
+const W0 = 81.49; // 200 мл: 10,19 см × 8 px
+// the room 4 × 2,5 м at 48 px per м
+const M = 48;
+const RX = 18;
+const RTOP = TY - 2.5 * M;
+const CAN = { x: RX + 0.6 * M - 1.92, w: 0.08 * M, h: 0.2 * M };
+---
+
+<G7Styles />
+<figure class="g7 g7--pic stp not-content" data-stp>
+	<div class="g7__grid is-three">
+		<svg class="g7__svg" viewBox="0 0 220 262" role="img" aria-label="Твёрдое тело: кубик льда переложили с блюдца в миску, его форма и объём не изменились">
+			<text class="t-title" x="110" y="18" text-anchor="middle">Твёрдое тело</text>
+			<text class="t-small" x="110" y="33" text-anchor="middle">кубик льда переложили в миску</text>
+			<path class="stp__table" d={`M2 ${TY + 1.5} H218`}></path>
+			<path class="stp__saucer" d={`M8 192 H72 L66 ${TY} H14 Z`}></path>
+			<rect class="stp__glass-fill" x={BX0 - 1.2} y={IB} width={BX1 - BX0 + 2.4} height="3"></rect>
+			<path class="stp__glass" d={`M${BX0 - 1.2} ${RIM - 2} V${TY - 1.2} H${BX1 + 1.2} V${RIM - 2}`}></path>
+			<g class="stp__ghost" transform={`translate(${ICE0.x} ${ICE0.y})`} data-ghost>
+				<path d={`${cube.front} ${cube.top} ${cube.side}`}></path>
+			</g>
+			<g transform={`translate(${ICE0.x} ${ICE0.y})`} data-ice>
+				<path class="stp__ice-side" d={cube.side}></path>
+				<path class="stp__ice-top" d={cube.top}></path>
+				<path class="stp__ice" d={cube.front}></path>
+			</g>
+			<text class="t-small t-halo" x={ICE0.x + 17} y={ICE0.y - 36} text-anchor="middle" data-ice-cm>3 × 3 × 3 см</text>
+			<text class="t-strong t-num" x="110" y="228" text-anchor="middle" data-line1>на блюдце: 27 см³</text>
+			<text class="t-gold" x="110" y="248" text-anchor="middle" data-line2>форма и объём те же</text>
+		</svg>
+
+		<svg class="g7__svg" viewBox="0 0 220 262" role="img" aria-label="Жидкость: 200 мл воды перелили из узкого стакана в широкую миску, форма изменилась, объём остался 200 мл">
+			<text class="t-title" x="110" y="18" text-anchor="middle">Жидкость</text>
+			<text class="t-small" x="110" y="33" text-anchor="middle">воду перелили из стакана в миску</text>
+			<path class="stp__table" d={`M2 ${TY + 1.5} H218`}></path>
+			<rect class="stp__water" x={BX0} y={IB} width={BX1 - BX0} height="0" data-bowl-water></rect>
+			<rect class="stp__glass-fill" x={BX0 - 1.2} y={IB} width={BX1 - BX0 + 2.4} height="3"></rect>
+			<path class="stp__glass" d={`M${BX0 - 1.2} ${RIM - 2} V${TY - 1.2} H${BX1 + 1.2} V${RIM - 2}`}></path>
+			<path class="stp__stream" d="" data-stream></path>
+			<path class="stp__water" d="" data-glass-water></path>
+			<g transform={`translate(${L0.x} ${L0.y})`} data-cup>
+				<rect class="stp__glass-fill" x={-GW - 1.2} y={GH} width={GW + 2.4} height="3"></rect>
+				<path class="stp__glass" d={`M${-GW - 1.2} -4 V${GH + 1.8} H1.2 V-4`}></path>
+			</g>
+			<g data-cup-cm>
+				<path class="ln" d={`M10 ${IB - W0} V${IB} M7 ${IB - W0} H13 M7 ${IB} H13`}></path>
+				<text class="t-small t-halo" x="10" y={IB - W0 / 2} text-anchor="middle" transform={`rotate(-90 10 ${IB - W0 / 2})`} dy="3.5">10 см</text>
+			</g>
+			<text class="t-small t-halo" x={(BX0 + BX1) / 2 + 20} y={IB - 14} text-anchor="middle" data-bowl-cm>слой 1 см</text>
+			<text class="t-strong t-num" x="110" y="228" text-anchor="middle" data-line1>стакан 200 мл · миска 0 мл</text>
+			<text class="t-gold" x="110" y="248" text-anchor="middle" data-line2>форма другая, объём тот же</text>
+		</svg>
+
+		<svg class="g7__svg" viewBox="0 0 220 262" role="img" aria-label="Газ: газ из баллончика объёмом 1 литр разошёлся по всей комнате объёмом 30 кубических метров">
+			<text class="t-title" x="110" y="18" text-anchor="middle">Газ</text>
+			<text class="t-small" x="110" y="33" text-anchor="middle">газ выпустили из баллончика</text>
+			<text class="t-small" x={RX + 2 * M} y={RTOP - 8} text-anchor="middle">комната 4 × 3 × 2,5 м</text>
+			<rect class="stp__room" x={RX} y={RTOP} width={4 * M} height={2.5 * M}></rect>
+			<g data-gas></g>
+			<rect class="stp__can" x={CAN.x} y={TY - CAN.h} width={CAN.w} height={CAN.h} rx="0.8"></rect>
+			<rect class="stp__valve" x={CAN.x + 1.2} y={TY - CAN.h - 2} width="1.5" height="2"></rect>
+			<path class="ln" d={`M${CAN.x + CAN.w + 1} ${TY - CAN.h - 1} L${CAN.x + 22} ${TY - 34}`} data-can-cm></path>
+			<text class="t-small t-halo" x={CAN.x + 23} y={TY - 37} data-can-cm>баллончик 1 л</text>
+			<path class="ln" d={`M${RX} ${TY + 9} H${RX + 4 * M} M${RX} ${TY + 5} V${TY + 13} M${RX + 4 * M} ${TY + 5} V${TY + 13}`}></path>
+			<text class="t-small t-halo" x={RX + 2 * M} y={TY + 13} text-anchor="middle">4 м</text>
+			<path class="ln" d={`M${RX - 8} ${RTOP} V${TY} M${RX - 11} ${RTOP} H${RX - 5} M${RX - 11} ${TY} H${RX - 5}`}></path>
+			<text class="t-small t-halo" x={RX - 8} y={(RTOP + TY) / 2} text-anchor="middle" transform={`rotate(-90 ${RX - 8} ${(RTOP + TY) / 2})`} dy="3.5">2,5 м</text>
+			<text class="t-strong t-num" x="110" y="228" text-anchor="middle" data-line1>в баллончике: 1 л</text>
+			<text class="t-gold" x="110" y="248" text-anchor="middle" data-line2>своей формы и объёма нет</text>
+		</svg>
+	</div>
+	<div class="stp__row">
+		<button type="button" class="g7__btn" data-again>Повторить</button>
+	</div>
+	<figcaption class="g7__caption">
+		Стакан, миска и кубик нарисованы в одном масштабе; комната тоже нарисована в масштабе, поэтому баллончик в ней совсем маленький. Каждая точка — множество молекул выпущенного газа (воздух не показан); по настоящей комнате газ расходится за несколько минут, здесь — за секунды.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.stp__table {
+		fill: none;
+		stroke: var(--g7-wood);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.stp__saucer {
+		fill: var(--g7-faint);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.stp__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	.stp__glass-fill {
+		fill: var(--g7-glass);
+	}
+	.stp__ice {
+		fill: color-mix(in oklab, var(--ig-vx) 30%, var(--g7-paper));
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.stp__ice-top {
+		fill: color-mix(in oklab, var(--ig-vx) 18%, var(--g7-paper));
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.stp__ice-side {
+		fill: color-mix(in oklab, var(--ig-vx) 42%, var(--g7-paper));
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.stp__ghost path {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.stp__water {
+		fill: color-mix(in srgb, var(--ig-vx) 45%, transparent);
+	}
+	.stp__stream {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, transparent);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.stp__room {
+		fill: color-mix(in oklab, var(--g7-faint) 25%, transparent);
+		stroke: var(--g7-line);
+		stroke-width: 1.4;
+	}
+	.stp__can {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	.stp__valve {
+		fill: var(--g7-ink);
+	}
+	.stp__gas {
+		fill: var(--g7-violet);
+		fill-opacity: 0.9;
+	}
+	.stp__row {
+		display: flex;
+		margin-top: 0.6rem;
+	}
+</style>
+
+<script>
+	import { el, ease, loop, rng } from '../g7/kit';
+
+	const PRE = 0.8; // s of the start frame
+	const RUN = 7; // s of motion
+	const HOLD = 3; // s of the end frame
+	const TY = 196;
+	const IB = 193;
+	const BX0 = 84;
+	const BX1 = 212;
+	const CM = 8; // px per см in the first two panels
+	// ice
+	const ICE0 = { x: 28, y: 192 };
+	const ICE1 = { x: 136, y: IB };
+	// glass and water
+	const GW = 40;
+	const GH = 96;
+	const L0 = { x: 58, y: IB - GH };
+	const P1 = { x: 110, y: 102 }; // the lip when the pouring starts
+	const P2 = { x: 110, y: 124 }; // the lip when the glass is empty
+	const TH1 = 25; // ° at the end of the lift: the water does not reach the lip yet (it would at 35,9°)
+	const TH2 = 120; // ° at the end of the pour: the glass is empty above 112,6°
+	const V0 = 200; // мл
+	const GLASS_S = Math.PI * 2.5 * 2.5; // см²
+	const BOWL_S = Math.PI * 8 * 8; // см²
+	const A0 = GW * (V0 / GLASS_S) * CM; // px², the axial section of 200 мл
+	// gas
+	const M = 48; // px per м
+	const RX = 18;
+	const ROOM = { w: 4, h: 2.5 }; // м
+	const VALVE = { x: 0.6, y: 0.22 }; // м
+	const N_GAS = 130;
+
+	type Pt = { x: number; y: number };
+	const lerp = (a: number, b: number, u: number) => a + (b - a) * u;
+	const seg = (x: number, a: number, b: number) => Math.min(1, Math.max(0, (x - a) / (b - a)));
+	const fold = (v: number, a: number, b: number) => {
+		const span = b - a;
+		let u = (v - a) % (2 * span);
+		if (u < 0) u += 2 * span;
+		return a + (u > span ? 2 * span - u : u);
+	};
+
+	/** The glass: its lip and tilt (degrees, clockwise) at time x, and the largest tilt reached so far. */
+	const cupAt = (x: number) => {
+		// lift and tilt to TH1 · pour to TH2 · back to TH1 · back to the table
+		const lift = (u: number) => ({
+			lip: { x: lerp(L0.x, P1.x, ease(u)), y: lerp(L0.y, P1.y, ease(u)) - 22 * Math.sin(Math.PI * u) },
+			th: TH1 * u * u,
+		});
+		const pour = (u: number) => ({ lip: { x: P1.x, y: lerp(P1.y, P2.y, ease(u)) }, th: lerp(TH1, TH2, ease(u)) });
+		if (x < 0.22) {
+			const c = lift(seg(x, 0.04, 0.22));
+			return { ...c, max: c.th };
+		}
+		if (x < 0.62) {
+			const c = pour(seg(x, 0.22, 0.62));
+			return { ...c, max: c.th };
+		}
+		if (x < 0.74) return { ...pour(1 - seg(x, 0.62, 0.74)), max: TH2 };
+		return { ...lift(1 - seg(x, 0.74, 0.86)), max: TH2 };
+	};
+	/** The inner section of the glass in world coordinates. */
+	const cupPoly = (lip: Pt, th: number): Pt[] => {
+		const c = Math.cos((th * Math.PI) / 180);
+		const s = Math.sin((th * Math.PI) / 180);
+		return [
+			[0, 0],
+			[0, GH],
+			[-GW, GH],
+			[-GW, 0],
+		].map(([u, v]) => ({ x: lip.x + u * c - v * s, y: lip.y + u * s + v * c }));
+	};
+	/** The part of a polygon below the level y (screen y grows downwards). */
+	const below = (poly: Pt[], level: number): Pt[] => {
+		const out: Pt[] = [];
+		for (let i = 0; i < poly.length; i++) {
+			const a = poly[i];
+			const b = poly[(i + 1) % poly.length];
+			const ina = a.y >= level;
+			const inb = b.y >= level;
+			if (ina) out.push(a);
+			if (ina !== inb) {
+				const u = (level - a.y) / (b.y - a.y);
+				out.push({ x: a.x + (b.x - a.x) * u, y: level });
+			}
+		}
+		return out;
+	};
+	const area = (p: Pt[]) => {
+		let s = 0;
+		for (let i = 0; i < p.length; i++) {
+			const a = p[i];
+			const b = p[(i + 1) % p.length];
+			s += a.x * b.y - b.x * a.y;
+		}
+		return Math.abs(s) / 2;
+	};
+	/** The water in the glass: what it can hold below the lip at its largest tilt, at most 200 мл. */
+	const waterIn = (lip: Pt, th: number, maxTh: number) => {
+		const keep = Math.min(A0, area(below(cupPoly({ x: 0, y: 0 }, maxTh), 0)));
+		if (keep < 0.5) return { a: 0, poly: [] as Pt[] };
+		const poly = cupPoly(lip, th);
+		let lo = Math.min(...poly.map((p) => p.y));
+		let hi = Math.max(...poly.map((p) => p.y));
+		for (let i = 0; i < 40; i++) {
+			const mid = (lo + hi) / 2;
+			if (area(below(poly, mid)) > keep) lo = mid;
+			else hi = mid;
+		}
+		return { a: keep, poly: below(poly, (lo + hi) / 2) };
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-stp]')) {
+		const [svgSolid, svgLiquid, svgGas] = [...root.querySelectorAll<SVGSVGElement>('svg')];
+		// Твёрдое тело
+		const ice = svgSolid.querySelector('[data-ice]')!;
+		const ghost = svgSolid.querySelector<SVGGElement>('[data-ghost]')!;
+		const iceCm = svgSolid.querySelector<SVGTextElement>('[data-ice-cm]')!;
+		const s1 = svgSolid.querySelector<SVGTextElement>('[data-line1]')!;
+		const s2 = svgSolid.querySelector<SVGTextElement>('[data-line2]')!;
+		// Жидкость
+		const cup = svgLiquid.querySelector('[data-cup]')!;
+		const gw = svgLiquid.querySelector('[data-glass-water]')!;
+		const bw = svgLiquid.querySelector('[data-bowl-water]')!;
+		const stream = svgLiquid.querySelector('[data-stream]')!;
+		const cupCm = svgLiquid.querySelector<SVGGElement>('[data-cup-cm]')!;
+		const bowlCm = svgLiquid.querySelector<SVGTextElement>('[data-bowl-cm]')!;
+		const l1 = svgLiquid.querySelector<SVGTextElement>('[data-line1]')!;
+		const l2 = svgLiquid.querySelector<SVGTextElement>('[data-line2]')!;
+		// Газ
+		const rand = rng(29);
+		const gauss = () => {
+			const u = Math.max(rand(), 1e-9);
+			return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand());
+		};
+		const gasG = svgGas.querySelector('[data-gas]')!;
+		const gas = Array.from({ length: N_GAS }, (_, i) => {
+			const c = el('circle', { class: 'stp__gas', r: 1.6 });
+			gasG.append(c);
+			return {
+				c,
+				e: 0.06 + (0.3 * i) / N_GAS, // when it leaves the valve
+				gx: gauss(),
+				gy: gauss(),
+				ix: (rand() - 0.5) * 0.06, // м, its place inside the canister
+				iy: 0.02 + rand() * 0.16,
+				ph: rand() * 6.283,
+				w: 5 + rand() * 4,
+			};
+		});
+		const canCm = [...svgGas.querySelectorAll<SVGElement>('[data-can-cm]')];
+		const g1 = svgGas.querySelector<SVGTextElement>('[data-line1]')!;
+		const g2 = svgGas.querySelector<SVGTextElement>('[data-line2]')!;
+		const vis = (e: Element, on: boolean) => e.setAttribute('visibility', on ? 'visible' : 'hidden');
+
+		const draw = (x: number, clock: number) => {
+			// Твёрдое тело: lift, carry, lower
+			const m = ease(seg(x, 0.06, 0.5));
+			const ix = lerp(ICE0.x, ICE1.x, m);
+			const iy = lerp(ICE0.y, ICE1.y, m) - 70 * Math.sin(Math.PI * m);
+			ice.setAttribute('transform', `translate(${ix.toFixed(1)} ${iy.toFixed(1)})`);
+			iceCm.setAttribute('x', (ix + 17).toFixed(1));
+			iceCm.setAttribute('y', (iy - 36).toFixed(1));
+			vis(ghost, x > 0.06);
+			s1.textContent = m === 0 ? 'на блюдце: 27 см³' : m === 1 ? 'в миске: 27 см³' : 'кубик: 27 см³';
+			vis(s2, x >= 0.55);
+
+			// Жидкость
+			const c = cupAt(x);
+			cup.setAttribute('transform', `translate(${c.lip.x.toFixed(2)} ${c.lip.y.toFixed(2)}) rotate(${c.th.toFixed(2)})`);
+			const w = waterIn(c.lip, c.th, c.max);
+			gw.setAttribute('d', w.poly.length ? `M${w.poly.map((p) => `${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' L')} Z` : '');
+			const vGlass = Math.round((V0 * w.a) / A0);
+			const vBowl = V0 - vGlass;
+			const h = (vBowl / BOWL_S) * CM;
+			bw.setAttribute('y', (IB - h).toFixed(2));
+			bw.setAttribute('height', h.toFixed(2));
+			// the water stands at the lip and runs out while the tilt grows
+			if (x > 0.04 && x < 0.62 && w.a > 0 && w.a < A0) {
+				const top = c.lip;
+				const end = IB - h;
+				stream.setAttribute('d', `M${top.x.toFixed(1)} ${top.y.toFixed(1)} Q${(top.x + 6).toFixed(1)} ${(top.y + 8).toFixed(1)} ${(top.x + 6).toFixed(1)} ${end.toFixed(1)}`);
+			} else stream.setAttribute('d', '');
+			l1.textContent = `стакан ${vGlass} мл · миска ${vBowl} мл`;
+			vis(cupCm, x < 0.04);
+			vis(bowlCm, x >= 0.86);
+			vis(l2, x >= 0.86);
+
+			// Газ
+			for (const d of gas) {
+				const age = x - d.e;
+				let mx: number;
+				let my: number;
+				if (age <= 0) {
+					mx = VALVE.x + d.ix;
+					my = d.iy;
+				} else {
+					const sg = 5.5 * age;
+					const jet = 1 - Math.exp(-age / 0.04);
+					mx = fold(VALVE.x + sg * d.gx, 0.04, ROOM.w - 0.04);
+					my = fold(VALVE.y + 1 * jet + sg * d.gy, 0.04, ROOM.h - 0.04);
+				}
+				const jx = age > 0 ? 1.2 * Math.sin(d.w * clock + d.ph) : 0;
+				const jy = age > 0 ? 1.2 * Math.cos(0.8 * d.w * clock + 2 * d.ph) : 0;
+				d.c.setAttribute('cx', (RX + mx * M + jx).toFixed(1));
+				d.c.setAttribute('cy', (TY - my * M + jy).toFixed(1));
+			}
+			for (const e of canCm) vis(e, x < 0.5);
+			g1.textContent = x < 0.06 ? 'в баллончике: 1 л' : x < 0.9 ? 'газ расходится по комнате' : 'во всей комнате: 30 м³';
+			vis(g2, x >= 0.9);
+		};
+
+		let t = 0;
+		let clock = 0;
+		const cycle = PRE + RUN + HOLD;
+		const show = () => draw(Math.min(1, Math.max(0, (t - PRE) / RUN)), clock);
+		const wake = loop(root, (dt) => {
+			t += dt;
+			clock += dt;
+			if (t >= cycle) t = 0;
+			show();
+			return true;
+		});
+		root.querySelector('[data-again]')!.addEventListener('click', () => {
+			t = 0;
+			show();
+			wake();
+		});
+		show();
+	}
+</script>

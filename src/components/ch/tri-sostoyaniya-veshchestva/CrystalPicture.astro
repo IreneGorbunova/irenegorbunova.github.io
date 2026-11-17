@@ -1,0 +1,264 @@
+---
+/**
+ * Picture «Кристаллы и аморфные тела»: three panels, each a body as the eye sees it (a small icon) and its particles
+ * under a magnifier. A static scheme.
+ *
+ * Поваренная соль — a piece of the lattice of NaCl, 3 × 3 × 3 particles in oblique projection: particles of sodium
+ * and chlorine alternate along every edge, so the piece is a cube, like a grain of salt. The neighbours are 0,28 нм
+ * apart (drawn 32 px, a magnification of a few tens of millions); the balls keep the real ratio of sizes (chlorine
+ * 0,181 нм, sodium 0,102 нм, 1,8 : 1) but are drawn smaller than the gaps, so the order shows (the caption says it).
+ * A grain of salt 0,3 мм across holds about a million particles along one edge (0,3 мм / 0,28 нм ≈ 1,1·10⁶).
+ *
+ * Лёд — ordinary ice (Ih) seen along its sixfold axis: the oxygen atoms of the water molecules project onto a
+ * honeycomb of hexagons with empty channels, which is why snowflakes have six arms and ice is lighter than water.
+ * Each circle is a water molecule; the neighbours are 0,28 нм apart (drawn 16 px). The puckering of the layers is not
+ * shown.
+ *
+ * Стекло — amorphous: particles at random places with about the same density as in the ice panel, no repeating
+ * order (a seeded random packing, each linked to its close neighbours). A scheme, not a model of silica.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const C = { x: 130, y: 90 };
+const R = 72;
+const inLens = (x: number, y: number, pad = 0) => Math.hypot(x - C.x, y - C.y) < R + pad;
+const linkPairs = (pts: { x: number; y: number }[], dmax: number) => {
+	const out: [number, number, number, number][] = [];
+	for (let i = 0; i < pts.length; i++)
+		for (let j = i + 1; j < pts.length; j++) if (Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y) < dmax) out.push([pts[i].x, pts[i].y, pts[j].x, pts[j].y]);
+	return out;
+};
+
+// Salt: 3 × 3 × 3, step 32 px, oblique depth (13, −10) per layer
+const A = 32;
+const ODX = 13;
+const ODY = -10;
+const O = { x: C.x - (2 * A + 2 * ODX) / 2, y: C.y + (2 * A - 2 * ODY) / 2 };
+const sp = (i: number, j: number, k: number) => ({ x: O.x + i * A + k * ODX, y: O.y - j * A + k * ODY });
+const salt: { x: number; y: number; cl: boolean; k: number }[] = [];
+const saltBonds: [number, number, number, number][] = [];
+for (let k = 0; k < 3; k++)
+	for (let j = 0; j < 3; j++)
+		for (let i = 0; i < 3; i++) {
+			const p = sp(i, j, k);
+			salt.push({ ...p, cl: (i + j + k) % 2 === 0, k });
+			for (const [di, dj, dk] of [
+				[1, 0, 0],
+				[0, 1, 0],
+				[0, 0, 1],
+			]) {
+				if (i + di > 2 || j + dj > 2 || k + dk > 2) continue;
+				const q = sp(i + di, j + dj, k + dk);
+				saltBonds.push([p.x, p.y, q.x, q.y]);
+			}
+		}
+salt.sort((a, b) => b.k - a.k);
+
+// Ice: a honeycomb, bond 16 px
+const B = 16;
+const ice: { x: number; y: number }[] = [];
+for (let i = -7; i <= 7; i++)
+	for (let j = -7; j <= 7; j++)
+		for (const by of [0, B]) {
+			const x = C.x + i * Math.sqrt(3) * B + j * (Math.sqrt(3) / 2) * B;
+			const y = C.y - B / 2 + j * 1.5 * B + by;
+			if (inLens(x, y, 8)) ice.push({ x, y });
+		}
+const iceBonds = linkPairs(ice, B * 1.05);
+
+// Glass: random packing with the same number of particles per area as the ice
+let seed = 41;
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const glass: { x: number; y: number }[] = [];
+let tries = 0;
+const target = Math.round(ice.length);
+while (glass.length < target && tries++ < 40000) {
+	const x = C.x + (rnd() * 2 - 1) * (R + 8);
+	const y = C.y + (rnd() * 2 - 1) * (R + 8);
+	if (!inLens(x, y, 8)) continue;
+	if (glass.every((p) => Math.hypot(p.x - x, p.y - y) > 11.5)) glass.push({ x, y });
+}
+const glassBonds = linkPairs(glass, 17.5);
+
+// the icons and the lines from an icon to the lens
+const lensPt = (deg: number) => ({ x: C.x + R * Math.cos((deg * Math.PI) / 180), y: C.y + R * Math.sin((deg * Math.PI) / 180) });
+const zoom = (x: number, y1: number, y2: number) => {
+	const a = lensPt(238);
+	const b = lensPt(200);
+	return `M${x} ${y1} L${a.x.toFixed(1)} ${a.y.toFixed(1)} M${x} ${y2} L${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+};
+const arm = (deg: number) => {
+	const r = (deg * Math.PI) / 180;
+	const p = (l: number, d = 0) => ({ x: 26 + l * Math.cos(r + d), y: 34 + l * Math.sin(r + d) });
+	const tip = p(15);
+	const m1 = p(8);
+	const m2 = p(11.5);
+	const side = (m: { x: number; y: number }, l: number) =>
+		[-1, 1].map((sg) => `M${m.x.toFixed(2)} ${m.y.toFixed(2)} l${(l * Math.cos(r + sg * 1.05)).toFixed(2)} ${(l * Math.sin(r + sg * 1.05)).toFixed(2)}`).join(' ');
+	return `M26 34 L${tip.x.toFixed(2)} ${tip.y.toFixed(2)} ${side(m1, 5)} ${side(m2, 3.2)}`;
+};
+const flake = [0, 60, 120, 180, 240, 300].map((d) => arm(d - 90)).join(' ');
+const panels = [
+	{ key: 'salt', name: 'Поваренная соль', note: 'частицы натрия и хлора чередуются в строгом порядке — получаются кубики' },
+	{ key: 'ice', name: 'Лёд', note: 'молекулы воды уложены шестиугольниками, с пустотами — у снежинки шесть лучей' },
+	{ key: 'glass', name: 'Стекло', note: 'частицы без всякого порядка, как в жидкости: стекло — не кристалл' },
+];
+---
+
+<G7Styles />
+<figure class="g7 g7--pic crp not-content" data-crp>
+	<div class="g7__grid is-three">
+		{
+			panels.map((p) => (
+				<div>
+					<svg class="g7__svg" viewBox="0 0 220 172" role="img" aria-label={`${p.name}: ${p.note}`}>
+						<defs>
+							<clipPath id={`crp-${uid}-${p.key}`}>
+								<circle cx={C.x} cy={C.y} r={R} />
+							</clipPath>
+						</defs>
+						<circle class="crp__lens-bg" cx={C.x} cy={C.y} r={R} />
+						{p.key === 'salt' && (
+							<>
+								<path class="crp__grain-top" d="M14 26 L21 21 H41 L34 26 Z" />
+								<path class="crp__grain-side" d="M34 26 L41 21 V41 L34 46 Z" />
+								<rect class="crp__grain" x="14" y="26" width="20" height="20" />
+								<text class="t-small" x="4" y="11">крупинка</text>
+								<path class="ln-dash" d={zoom(45, 20, 40)} />
+								{saltBonds.map(([x1, y1, x2, y2]) => (
+									<line class="crp__bond" x1={x1} y1={y1} x2={x2} y2={y2} />
+								))}
+								{salt.map((s) => (
+									<circle class={s.cl ? 'crp__cl' : 'crp__na'} cx={s.x} cy={s.y} r={s.cl ? 8 : 4.5} />
+								))}
+								<circle class="crp__cl" cx="12" cy="140" r="6" />
+								<text class="t-small" x="22" y="144">хлор</text>
+								<circle class="crp__na" cx="12" cy="158" r="3.4" />
+								<text class="t-small" x="22" y="162">натрий</text>
+							</>
+						)}
+						{p.key === 'ice' && (
+							<>
+								<path class="crp__flake" d={flake} />
+								<text class="t-small" x="4" y="11">снежинка</text>
+								<path class="ln-dash" d={zoom(45, 20, 40)} />
+								<g clip-path={`url(#crp-${uid}-${p.key})`}>
+									{iceBonds.map(([x1, y1, x2, y2]) => (
+										<line class="crp__bond" x1={x1} y1={y1} x2={x2} y2={y2} />
+									))}
+									{ice.map((s) => (
+										<circle class="crp__mol" cx={s.x} cy={s.y} r="5" />
+									))}
+								</g>
+							</>
+						)}
+						{p.key === 'glass' && (
+							<>
+								<path class="crp__shard" d="M12 40 L20 20 L38 16 L42 30 L30 48 Z" />
+								<path class="crp__shine" d="M20 36 L25 24" />
+								<text class="t-small" x="4" y="11">осколок</text>
+								<path class="ln-dash" d={zoom(45, 20, 40)} />
+								<g clip-path={`url(#crp-${uid}-${p.key})`}>
+									{glassBonds.map(([x1, y1, x2, y2]) => (
+										<line class="crp__bond" x1={x1} y1={y1} x2={x2} y2={y2} />
+									))}
+									{glass.map((s) => (
+										<circle class="crp__part" cx={s.x} cy={s.y} r="5" />
+									))}
+								</g>
+							</>
+						)}
+						<circle class="crp__lens" cx={C.x} cy={C.y} r={R} />
+					</svg>
+					<p class="crp__name">{p.name}</p>
+					<p class="crp__note">{p.note}</p>
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="g7__caption">
+		В кругах частицы показаны увеличенными в десятки миллионов раз — такого увеличения не даёт ни лупа, ни обычный микроскоп. Шарики нарисованы маленькими, чтобы был виден порядок. В крупинке соли вдоль одного ребра — около миллиона частиц.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.crp__lens-bg {
+		fill: color-mix(in oklab, var(--g7-faint) 22%, var(--g7-paper));
+	}
+	.crp__lens {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.crp__bond {
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+	}
+	.crp__cl {
+		fill: var(--g7-green);
+		stroke: color-mix(in oklab, var(--g7-green) 60%, var(--sl-color-gray-6));
+		stroke-width: 0.8;
+	}
+	.crp__na {
+		fill: var(--g7-violet);
+		stroke: color-mix(in oklab, var(--g7-violet) 60%, var(--sl-color-gray-6));
+		stroke-width: 0.8;
+	}
+	.crp__mol {
+		fill: color-mix(in oklab, var(--ig-vx) 70%, var(--sl-color-gray-5));
+		stroke: var(--g7-blue);
+		stroke-width: 0.8;
+	}
+	.crp__part {
+		fill: color-mix(in oklab, var(--g7-gold) 55%, var(--sl-color-gray-5));
+		stroke: var(--g7-gold);
+		stroke-width: 0.8;
+	}
+	.crp__grain {
+		fill: color-mix(in oklab, var(--sl-color-gray-2) 55%, var(--g7-paper));
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.crp__grain-top {
+		fill: color-mix(in oklab, var(--sl-color-gray-2) 35%, var(--g7-paper));
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.crp__grain-side {
+		fill: color-mix(in oklab, var(--sl-color-gray-2) 70%, var(--g7-paper));
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.crp__flake {
+		fill: none;
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.crp__shard {
+		fill: var(--g7-glass);
+		fill-opacity: 0.45;
+		stroke: var(--g7-glass);
+		stroke-width: 1.4;
+		stroke-linejoin: round;
+	}
+	.crp__shine {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+		opacity: 0.6;
+	}
+	.crp__name {
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+		color: var(--sl-color-white);
+	}
+	.crp__note {
+		margin: 0.1rem 0 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.35;
+		color: var(--sl-color-gray-2);
+	}
+</style>
