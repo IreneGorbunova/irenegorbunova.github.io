@@ -1,18 +1,13 @@
-// The first page of the textbook (Hub.astro): the pendulum wave of the hero, «Сегодня» and the stars
-// of every grade, from localStorage only (ig:last, ig:sky, ig:cards).
+// The first page of the textbook (Hub.astro): the pendulum wave of the hero and the stars of every grade, from
+// localStorage only (ig:last, ig:sky).
 import { load as loadSky, type Step } from '../sky/progress';
 import { litCount } from '../sky/constellations';
-import { load as loadCards, today, isDue } from '../formulas/leitner.mjs';
 
 interface Ch {
 	id: string;
-	href: string;
-	title: string;
 	need: string;
 	size: number;
 	grade: string;
-	keys: string[];
-	thumb: string;
 }
 
 const root = document.querySelector<HTMLElement>('[data-hub]');
@@ -124,23 +119,12 @@ if (root) {
 		frame(now);
 	});
 
-	// ---------- «Сегодня» and the stars of the grades ----------
+	// ---------- the stars of the grades, and «Продолжить чтение» for a reader who has been here ----------
 	const chapters = JSON.parse(root.dataset.chapters!) as Ch[];
 	const byId = new Map(chapters.map((c) => [c.id, c]));
-	const pic = (ch: Ch | undefined) => {
-		const img = document.createElement('img');
-		if (!ch?.thumb) return document.createTextNode('');
-		img.src = ch.thumb;
-		img.alt = '';
-		img.width = 480;
-		img.height = 320;
-		return img;
-	};
 	const paint = () => {
 		const sky = loadSky();
-		const cards = loadCards();
-		const day = today();
-		let last: { id: string; title: string; href: string; h?: string; ht?: string } | null = null;
+		let last: { id: string; href: string; h?: string } | null = null;
 		try {
 			last = JSON.parse(localStorage.getItem('ig:last') ?? 'null');
 		} catch {}
@@ -149,8 +133,6 @@ if (root) {
 			const done = (sky[ch.id] ?? '').split('').filter((r) => ch.need.includes(r as Step)).length;
 			lit.set(ch.id, litCount(ch.size, done, ch.need.length));
 		}
-		const complete = (c: Ch) => lit.get(c.id)! >= c.size;
-		// the grades
 		for (const tile of root.querySelectorAll<HTMLElement>('[data-grade]')) {
 			const own = chapters.filter((c) => c.grade === tile.dataset.grade);
 			const total = own.reduce((a, c) => a + c.size, 0);
@@ -158,39 +140,13 @@ if (root) {
 			tile.querySelector('[data-stars]')!.textContent = `Звёзды: ${got} из ${total}`;
 			tile.querySelector<HTMLElement>('[data-bar]')!.style.width = `${total ? (100 * got) / total : 0}%`;
 		}
-		// «Сегодня»: only for a reader who has been here
-		const due = chapters.flatMap((c) => c.keys).filter((k) => isDue(cards[k], day)).length;
-		const lastCh = last?.id ? byId.get(last.id) : undefined;
-		const touched = chapters.some((c) => sky[c.id]);
-		const box = root.querySelector<HTMLElement>('[data-hub-today]')!;
-		box.hidden = !(lastCh || touched || due);
-		const row = (name: string) => box.querySelector<HTMLElement>(`[data-row="${name}"]`)!;
-		const cont = row('continue');
-		cont.hidden = !lastCh || !last;
-		if (lastCh && last) {
-			cont.setAttribute('href', last.h ? `${last.href}#${last.h}` : last.href);
-			cont.querySelector('[data-pic]')!.replaceChildren(pic(lastCh));
-			cont.querySelector('[data-title]')!.textContent = lastCh.title;
-			cont.querySelector('[data-sub]')!.textContent = last.ht ? `С раздела «${last.ht}»` : 'С начала главы';
+		if (last?.id && last.href && byId.has(last.id)) {
 			const cta = root.querySelector<HTMLAnchorElement>('[data-hub-cta]')!;
 			cta.textContent = 'Продолжить чтение';
-			cta.href = cont.getAttribute('href')!;
-		}
-		row('due').hidden = !due;
-		row('due').querySelector('[data-n]')!.textContent = String(due);
-		// «Дальше»: the next chapter after the one being read whose stars are not all lit, in the order of the course
-		const from = lastCh ? chapters.indexOf(lastCh) + 1 : 0;
-		const next = [...chapters.slice(from), ...chapters.slice(0, from)].find((c) => !complete(c) && c !== lastCh);
-		const nx = row('next');
-		nx.hidden = !next || !(lastCh || touched);
-		if (next) {
-			nx.setAttribute('href', next.href);
-			nx.querySelector('[data-pic]')!.replaceChildren(pic(next));
-			nx.querySelector('[data-title]')!.textContent = next.title;
-			nx.querySelector('[data-sub]')!.textContent = next.grade;
+			cta.href = last.h ? `${last.href}#${last.h}` : last.href;
 		}
 	};
 	paint();
 	addEventListener('pageshow', (e) => e.persisted && paint());
-	addEventListener('storage', (e) => ['ig:sky', 'ig:cards', 'ig:last'].includes(e.key ?? '') && paint());
+	addEventListener('storage', (e) => ['ig:sky', 'ig:last'].includes(e.key ?? '') && paint());
 }

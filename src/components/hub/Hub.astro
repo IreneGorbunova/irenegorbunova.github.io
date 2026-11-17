@@ -4,12 +4,10 @@
  *  - a hero with a pendulum wave: fifteen pendulums whose lengths are chosen so that in one minute they make 51, 52,
  *    … 65 swings (T = 2π√(l/g), l from 34 cm to 21 cm); they drift apart into waves and swing together again
  *    exactly once a minute. Drawn as seen along the row, in real time (./hub.ts);
- *  - «Сегодня»: where the reader stopped, the cards due, what is next (only for a reader with progress);
  *  - the five grades as tiles with pictures of their chapters, what is written and the reader's stars;
  *  - the other places of the textbook: the map of discoveries, the telescope, «Моё небо», the formulas;
  *  - «Новое в учебнике», as before.
  */
-import { getCollection } from 'astro:content';
 import { skySections } from '../sky/sections';
 import { CONSTELLATIONS, blocks } from '../sky/constellations';
 import NovoeList from '../NovoeList.astro';
@@ -19,22 +17,17 @@ import { plural } from '../coursemap/words';
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const thumbs = import.meta.glob<{ default: ImageMetadata }>('../coursemap/thumbs/*-dark.webp', { eager: true });
 const thumbOf = (slug: string) => thumbs[`../coursemap/thumbs/${slug}-dark.webp`]?.default;
-const entries = new Map((await getCollection('docs')).map((e) => [e.id, e]));
 
 const secs = skySections(Astro.locals.starlightRoute);
 const gradeNames = [...new Set(secs.map((s) => s.grade))];
 const chapters = secs.flatMap((s) => {
 	const own = blocks(CONSTELLATIONS[s.key].stars.length, Math.max(1, s.chapters.length));
 	return s.chapters.map((c, i) => {
-		const e = entries.get(c.id);
 		return {
 			id: c.id,
-			href: c.href,
-			title: e?.data.title ?? c.label,
 			need: c.need,
 			size: own[i].length,
 			grade: s.grade,
-			keys: (e?.data.formulas ?? []).map((f) => `${c.id}/${f.id}`),
 			thumb: thumbOf(c.id.split('/').pop()!),
 		};
 	});
@@ -53,10 +46,10 @@ const grades = gradeNames.map((g) => {
 		stars: own.reduce((a, c) => a + c.size, 0),
 	};
 });
-const json = JSON.stringify(chapters.map(({ thumb, ...c }) => ({ ...c, thumb: thumb?.src ?? '' })));
+const json = JSON.stringify(chapters.map(({ id, need, size, grade }) => ({ id, need, size, grade })));
 ---
 
-<div class="hub not-content" data-hub data-chapters={json} data-formuly={`${base}uchebnik/formuly/`} data-pagefind-ignore>
+<div class="hub not-content" data-hub data-chapters={json} data-pagefind-ignore>
 	<section class="hub-hero" aria-label="Учебник физики">
 		<canvas class="hub-hero__wave" data-hub-wave aria-hidden="true"></canvas>
 		<div class="hub-hero__text">
@@ -73,24 +66,6 @@ const json = JSON.stringify(chapters.map(({ thumb, ...c }) => ({ ...c, thumb: th
 			<a href={`${base}uchebnik/9-klass/kolebaniya-i-volny/mayatnik/#почему-период-зависит-от-длины`}>Почему период зависит от длины</a>
 			<button type="button" class="hub-hero__pause" data-hub-pause aria-pressed="false">Пауза</button>
 		</p>
-	</section>
-
-	<section class="hub-today" data-hub-today hidden aria-labelledby="hub-today-h">
-		<h2 class="hub-h" id="hub-today-h">Сегодня</h2>
-		<div class="hub-today__rows">
-			<a class="hub-row" data-row="continue" hidden>
-				<span class="hub-row__pic" data-pic></span>
-				<span class="hub-row__text"><span class="hub-kicker">Продолжить</span><span class="hub-row__title" data-title></span><span class="hub-row__sub" data-sub></span></span>
-			</a>
-			<a class="hub-row" data-row="due" href={`${base}uchebnik/formuly/`} hidden>
-				<span class="hub-row__pic hub-row__pic--n" data-n></span>
-				<span class="hub-row__text"><span class="hub-kicker">Повторить карточки</span><span class="hub-row__sub">Формулы и определения, которые пора вспомнить сегодня.</span></span>
-			</a>
-			<a class="hub-row" data-row="next" hidden>
-				<span class="hub-row__pic" data-pic></span>
-				<span class="hub-row__text"><span class="hub-kicker">Дальше</span><span class="hub-row__title" data-title></span><span class="hub-row__sub" data-sub></span></span>
-			</a>
-		</div>
 	</section>
 
 	<section aria-labelledby="hub-grades">
@@ -194,12 +169,6 @@ const json = JSON.stringify(chapters.map(({ thumb, ...c }) => ({ ...c, thumb: th
 		font-weight: 400;
 		line-height: 1.1;
 		color: var(--sl-color-white);
-	}
-	.hub-kicker {
-		display: block;
-		font-size: var(--sl-text-sm);
-		font-weight: 600;
-		color: var(--sl-color-text-accent);
 	}
 
 	/* the hero: a night panel in both themes */
@@ -323,66 +292,6 @@ const json = JSON.stringify(chapters.map(({ thumb, ...c }) => ({ ...c, thumb: th
 		.hub-hero__text {
 			padding-bottom: 13.5rem;
 		}
-	}
-
-	/* «Сегодня» */
-	.hub-today[hidden],
-	.hub-row[hidden] {
-		display: none;
-	}
-	.hub-today__rows {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-		gap: 0.75rem;
-	}
-	.hub-row {
-		display: grid;
-		grid-template-columns: 6.5rem 1fr;
-		align-items: center;
-		gap: 0.85rem;
-		padding: 0.6rem;
-		border: 1px solid var(--sl-color-gray-5);
-		border-radius: 1rem;
-		background: var(--ig-surface);
-		color: var(--sl-color-white);
-	}
-	.hub-row:hover {
-		border-color: var(--sl-color-accent);
-		color: var(--sl-color-white);
-	}
-	.hub-row__pic {
-		display: block;
-		aspect-ratio: 3 / 2;
-		overflow: hidden;
-		border-radius: 0.6rem;
-		background: var(--sl-color-gray-6);
-	}
-	.hub-row__pic img {
-		display: block;
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
-	.hub-row__pic--n {
-		display: grid;
-		place-items: center;
-		font-family: var(--ig-font-display);
-		font-size: 2.6rem;
-		color: var(--sl-color-text-accent);
-	}
-	.hub-row__text {
-		display: grid;
-		gap: 0.1rem;
-		min-width: 0;
-	}
-	.hub-row__title {
-		font-weight: 700;
-		line-height: 1.25;
-	}
-	.hub-row__sub {
-		font-size: var(--sl-text-sm);
-		line-height: 1.3;
-		color: var(--sl-color-gray-2);
 	}
 
 	/* the grades */
