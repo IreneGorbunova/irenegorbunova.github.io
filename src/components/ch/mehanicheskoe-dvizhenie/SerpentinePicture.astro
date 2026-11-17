@@ -1,0 +1,351 @@
+---
+/**
+ * Picture «Траектория, путь и перемещение»: a mountain serpentine seen from above, like on a map; uphill is up.
+ * A car drives from А to Б. The road it has driven along lights up (its trajectory), a readout shows the path so far
+ * (the length of the lit part), and at the end a straight arrow from А to Б appears: the displacement.
+ *
+ * Geometry (viewBox units, 1 unit = 7 м; the scale bar below shows 0,5 и 1 км = 71,4 и 142,9 units):
+ *   the legs run between x = 60 and x = 300 and climb at a = 8° on the map; the hairpins are arcs of radius
+ *   r = 18 tangent to both legs (each turns by 180° − 2a and ends 2r·cos a straight above its start).
+ *   А = (180; 290) in the middle of the lowest leg, then a right hairpin, a full leg, a left hairpin, a full leg,
+ *   a right hairpin and half a leg to Б = (180; 81,86), straight above А.
+ *   Path А→Б: 720 / cos a + 3·r·(π − 2a) = 727,08 + 154,57 = 881,65 units = 6,17 км → «6,2 км».
+ *   Displacement: 720·tan a + 6·r·cos a = 101,19 + 106,95 = 208,14 units = 1,46 км → «1,5 км».
+ *   The path is about 4,2 times the displacement. The readout uses these numbers; the script checks them against the
+ *   length of the drawn path (getTotalLength).
+ *   These are lengths on the map. With a climb of about 360 м (an average road grade of 6 %, usual for a mountain
+ *   road), the real lengths are √(6,17² + 0,36²) ≈ 6,18 км and √(1,46² + 0,36²) ≈ 1,50 км: the shown numbers stay.
+ * Not to scale: the road (8 units = 56 м wide instead of about 7 м) and the car (14 units = 98 м instead of 4,5 м);
+ * the hairpin radius (126 м) is larger than on a real road (15–30 м). Slowed time: the car drives the 6,2 км in 9 с,
+ * about 60 times faster than at 40 км/ч. The caption says so.
+ * Loop: 0,8 с at А, 9 с of driving at a constant speed, 0,9 с the arrow grows, 4 с of rest; «Повторить» restarts.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const M = 7; // м per unit
+const a = (8 * Math.PI) / 180;
+const r = 18;
+const xL = 60;
+const xR = 300;
+const xM = 180;
+const yA = 290;
+const t = Math.tan(a);
+const c = Math.cos(a);
+const sa = Math.sin(a);
+const up = 2 * r * c; // rise of one hairpin
+const f = (v: number) => +v.toFixed(2);
+const p1 = yA - (xR - xM) * t;
+const p1e = p1 - up;
+const p2 = p1e - (xR - xL) * t;
+const p2e = p2 - up;
+const p3 = p2e - (xR - xL) * t;
+const p3e = p3 - up;
+const yB = p3e - (xR - xM) * t;
+const arcR = (y: number) => `A${r} ${r} 0 0 0 ${xR} ${f(y)}`;
+const arcL = (y: number) => `A${r} ${r} 0 0 1 ${xL} ${f(y)}`;
+const dAB = `M${xM} ${yA} L${xR} ${f(p1)} ${arcR(p1e)} L${xL} ${f(p2)} ${arcL(p2e)} L${xR} ${f(p3)} ${arcR(p3e)} L${xM} ${f(yB)}`;
+// the road goes on below А (to the valley) and above Б (to the pass)
+const dRoad = `M0 ${f(yA + xM * t)} L${xM} ${yA} ${dAB.slice(dAB.indexOf('L'))} L0 ${f(yB - xM * t)}`;
+const lenPath = (2 * (xR - xL) + 2 * (xR - xM)) / c + 3 * r * (Math.PI - 2 * a); // units
+const lenDisp = yA - yB;
+const kmPath = (lenPath * M) / 1000;
+const kmDisp = (lenDisp * M) / 1000;
+const km = (v: number) => v.toFixed(1).replace('.', ',');
+const KM = 1000 / M; // units per km
+
+// trees: a repeatable scatter that keeps off the road and the labels
+const samples: [number, number][] = [];
+{
+	const pts: [number, number][] = [
+		[0, yA + xM * t],
+		[xR, p1],
+		[xR, p1e],
+		[xL, p2],
+		[xL, p2e],
+		[xR, p3],
+		[xR, p3e],
+		[0, yB - xM * t],
+	];
+	for (let i = 0; i < pts.length - 1; i += 1) {
+		const [x0, y0] = pts[i];
+		const [x1, y1] = pts[i + 1];
+		const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 3);
+		for (let j = 0; j <= n; j += 1) samples.push([x0 + ((x1 - x0) * j) / n, y0 + ((y1 - y0) * j) / n]);
+	}
+	// hairpins: centres and a disc of radius r around them
+	for (const [cx, cy] of [
+		[xR - r * sa, p1 - r * c],
+		[xL + r * sa, p2 - r * c],
+		[xR - r * sa, p3 - r * c],
+	])
+		for (let k = 0; k < 24; k += 1) samples.push([cx + r * Math.cos((k * Math.PI) / 12), cy + r * Math.sin((k * Math.PI) / 12)]);
+}
+const keepOut = [
+	[196, 4, 360, 60], // the readout
+	[184, 166, 272, 204], // «перемещение»
+	[214, 238, 300, 266], // «траектория»
+	[0, 168, 46, 262], // «в гору»
+	[190, 296, 360, 330], // the scale bar
+	[160, 292, 200, 316], // А
+	[166, 56, 196, 78], // Б
+	[0, 4, 120, 26], // «вид сверху»
+];
+const trees: { x: number; y: number; s: number }[] = [];
+{
+	let seed = 7;
+	const rand = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+	for (let n = 0; n < 900 && trees.length < 46; n += 1) {
+		const x = 8 + rand() * 344;
+		const y = 30 + rand() * 296;
+		const s = 2.6 + rand() * 1.8;
+		if (samples.some(([sx, sy]) => Math.hypot(sx - x, sy - y) < 10 + s)) continue;
+		if (keepOut.some(([x0, y0, x1, y1]) => x > x0 - s && x < x1 + s && y > y0 - s && y < y1 + s)) continue;
+		if (trees.some((o) => Math.hypot(o.x - x, o.y - y) < 13)) continue;
+		trees.push({ x: f(x), y: f(y), s: f(s) });
+	}
+}
+---
+
+<G7Styles />
+<figure
+	class="g7 g7--pic g7--narrow serp not-content"
+	data-serp
+	data-km={kmPath}
+	data-units={lenPath}
+	data-ya={yA}
+	data-yb={f(yB)}
+>
+	<div class="g7__grid">
+		<svg
+			class="g7__svg"
+			viewBox="0 0 360 330"
+			role="img"
+			aria-label={`Горная дорога-серпантин, вид сверху. Машина едет по поворотам от А до Б и проезжает путь ${km(kmPath)} километра, а длина перемещения — прямая стрелка от А до Б — всего ${km(kmDisp)} километра`}
+		>
+			<defs>
+				<linearGradient id="serp-slope" x1="0" y1="1" x2="0" y2="0">
+					<stop class="serp__low" offset="0"></stop>
+					<stop class="serp__high" offset="1"></stop>
+				</linearGradient>
+			</defs>
+			<rect x="0" y="0" width="360" height="330" fill="url(#serp-slope)"></rect>
+			{trees.map((o) => <circle class="serp__tree" cx={o.x} cy={o.y} r={o.s}></circle>)}
+			<text class="t-small" x="8" y="18">вид сверху</text>
+			<!-- uphill -->
+			<path class="arrow serp__up" d="M22 238 V196"></path>
+			<path class="serp__up-head" d="M22 188 L17.5 197 H26.5 Z"></path>
+			<text class="t-small" x="22" y="254" text-anchor="middle">в гору</text>
+
+			<path class="serp__road-edge" d={dRoad}></path>
+			<path class="serp__road" d={dRoad}></path>
+			<path class="serp__mid" d={dRoad}></path>
+			<path class="serp__trace" d={dAB} data-trace></path>
+
+			<!-- the displacement: hidden until the car is at Б -->
+			<g class="serp__disp" data-disp opacity="0">
+				<line class="arrow serp__disp-line" x1={xM} y1={yA} x2={xM} y2={yA} data-dline></line>
+				<path class="serp__disp-head" d="M0 0 L-5.5 12 H5.5 Z" data-dhead transform={`translate(${xM} ${yA})`}></path>
+				<text class="serp__disp-label t-halo" x={xM + 8} y="182">перемещение</text>
+				<text class="t-strong t-num t-halo serp__disp-num" x={xM + 8} y="199">{km(kmDisp)}&nbsp;км</text>
+			</g>
+
+			<!-- «траектория»: shows once the car has passed it -->
+			<g class="serp__tlabel" data-tlabel opacity="0">
+				<path class="ln serp__lead" d="M246 256 L240 274"></path>
+				<text class="t-small serp__gold" x="250" y="252" text-anchor="middle">траектория</text>
+			</g>
+
+			<circle class="serp__pt" cx={xM} cy={yA} r="4.5"></circle>
+			<circle class="serp__pt" cx={xM} cy={f(yB)} r="4.5"></circle>
+			<text class="t-strong t-halo" x={xM} y="312" text-anchor="middle">А</text>
+			<text class="t-strong t-halo" x={xM} y={f(yB - 10)} text-anchor="middle">Б</text>
+
+			<g data-car transform={`translate(${xM} ${yA})`}>
+				<rect class="serp__car" x="-7" y="-3.8" width="14" height="7.6" rx="2"></rect>
+				<rect class="serp__glass" x="1.6" y="-2.9" width="2.6" height="5.8" rx="0.8"></rect>
+				<rect class="serp__glass" x="-5.4" y="-2.6" width="1.8" height="5.2" rx="0.6"></rect>
+			</g>
+
+			<!-- the readout of the path -->
+			<rect class="serp__panel" x="200" y="8" width="152" height="46" rx="7"></rect>
+			<text class="t-small serp__gold" x="276" y="25" text-anchor="middle">путь — длина траектории</text>
+			<text class="t-strong t-num serp__big" x="276" y="46" text-anchor="middle"
+				><tspan class="t-i">s</tspan> = <tspan data-s>0,0</tspan>&nbsp;км</text
+			>
+
+			<!-- scale bar: 0,5 и 1 км -->
+			<path class="serp__bar" d={`M${f(343 - KM)} 318 H343 M${f(343 - KM)} 314 V322 M${f(343 - KM / 2)} 315 V321 M343 314 V322`}></path>
+			<text class="t-small" x={f(343 - KM)} y="309" text-anchor="middle">0</text>
+			<text class="t-small" x={f(343 - KM / 2)} y="309" text-anchor="middle">0,5</text>
+			<text class="t-small" x="343" y="309" text-anchor="end">1&nbsp;км</text>
+		</svg>
+	</div>
+	<div class="g7__row serp__ctl">
+		<button type="button" class="g7__btn" data-again>Повторить</button>
+	</div>
+	<figcaption class="g7__caption">
+		Горный серпантин на карте: машина проезжает от&nbsp;А до&nbsp;Б путь {km(kmPath)}&nbsp;км, а длина её перемещения — всего {km(kmDisp)}&nbsp;км.
+		Дорога и машина нарисованы шире и крупнее, а едет машина примерно в&nbsp;60&nbsp;раз быстрее, чем на самом деле.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.serp__low {
+		stop-color: color-mix(in oklab, var(--g7-green) 16%, var(--g7-paper));
+	}
+	.serp__high {
+		stop-color: color-mix(in oklab, var(--g7-ground) 70%, var(--g7-paper));
+	}
+	.serp__tree {
+		fill: color-mix(in oklab, var(--g7-green) 42%, var(--g7-paper));
+	}
+	.serp__up {
+		stroke: var(--g7-line);
+		stroke-width: 2;
+	}
+	.serp__up-head {
+		fill: var(--g7-line);
+	}
+	.serp__road-edge,
+	.serp__road,
+	.serp__mid,
+	.serp__trace {
+		fill: none;
+		stroke-linecap: butt;
+		stroke-linejoin: round;
+	}
+	.serp__road-edge {
+		stroke: var(--g7-line);
+		stroke-width: 10;
+	}
+	.serp__road {
+		stroke: color-mix(in oklab, var(--sl-color-gray-5) 70%, var(--g7-paper));
+		stroke-width: 8;
+	}
+	.serp__mid {
+		stroke: var(--g7-faint);
+		stroke-width: 0.8;
+		stroke-dasharray: 4 5;
+	}
+	:root[data-theme='light'] .serp__mid {
+		stroke: var(--sl-color-gray-4);
+	}
+	.serp__trace {
+		stroke: var(--g7-gold);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.serp__disp-line {
+		stroke: var(--g7-blue);
+		stroke-width: 3;
+	}
+	.serp__disp-head {
+		fill: var(--g7-blue);
+	}
+	.g7__svg .serp__disp-label {
+		font-weight: 700;
+		fill: var(--g7-blue);
+	}
+	.g7__svg .serp__disp-num {
+		font-size: 14px;
+	}
+	.g7__svg .serp__gold {
+		fill: var(--g7-gold);
+		font-weight: 600;
+	}
+	.g7__svg .serp__lead {
+		stroke: var(--g7-gold);
+	}
+	.serp__pt {
+		fill: var(--g7-paper);
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.serp__car {
+		fill: var(--g7-red);
+		stroke: var(--g7-paper);
+		stroke-width: 1;
+	}
+	.serp__glass {
+		fill: color-mix(in oklab, var(--g7-paper) 75%, var(--g7-blue));
+	}
+	.serp__panel {
+		fill: color-mix(in oklab, var(--g7-paper) 88%, transparent);
+		stroke: var(--sl-color-gray-5);
+	}
+	.g7__svg .serp__big {
+		font-size: 16px;
+	}
+	.g7__svg .serp__big .t-i {
+		font-size: 17px;
+		fill: var(--sl-color-white);
+	}
+	.serp__bar {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
+	}
+	.serp__ctl {
+		margin-top: 0.6rem;
+	}
+</style>
+
+<script>
+	import { loop, fmt, ease } from '../g7/kit';
+
+	const PRE = 0.8;
+	const RUN = 9;
+	const GROW = 0.9;
+	const HOLD = 4;
+	const CYCLE = PRE + RUN + GROW + HOLD;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-serp]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const trace = q<SVGPathElement>('[data-trace]');
+		const car = q<SVGGElement>('[data-car]');
+		const sOut = q<SVGTSpanElement>('[data-s]');
+		const disp = q<SVGGElement>('[data-disp]');
+		const dline = q<SVGLineElement>('[data-dline]');
+		const dhead = q<SVGPathElement>('[data-dhead]');
+		const tlabel = q<SVGGElement>('[data-tlabel]');
+		const kmPath = Number(root.dataset.km);
+		const yA = Number(root.dataset.ya);
+		const yB = Number(root.dataset.yb);
+		const x = Number(dline.getAttribute('x1'));
+		const len = trace.getTotalLength(); // the drawn length: equals data-units (881,65)
+		trace.style.strokeDasharray = `${len} ${len + 10}`;
+		// the arc length at which the car passes the «траектория» label (x ≈ 240 on the lowest leg)
+		const atLabel = (240 - x) / Math.cos((8 * Math.PI) / 180);
+
+		let t = 0;
+		const show = () => {
+			const u = Math.min(1, Math.max(0, (t - PRE) / RUN));
+			const l = u * len;
+			trace.style.strokeDashoffset = String(len - l);
+			const p = trace.getPointAtLength(l);
+			const p0 = trace.getPointAtLength(Math.max(0, l - 0.8));
+			const p1 = trace.getPointAtLength(Math.min(len, l + 0.8));
+			const ang = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI;
+			car.setAttribute('transform', `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)}) rotate(${ang.toFixed(1)})`);
+			sOut.textContent = fmt(u * kmPath, 1);
+			tlabel.setAttribute('opacity', l >= atLabel ? '1' : '0');
+			const g = ease((t - PRE - RUN) / GROW);
+			disp.setAttribute('opacity', t > PRE + RUN ? '1' : '0');
+			const yTip = yA + (yB + 5 - yA) * g;
+			dline.setAttribute('y2', Math.min(yA, yTip + 8).toFixed(2));
+			dhead.setAttribute('transform', `translate(${x} ${yTip.toFixed(2)})`);
+		};
+		const wake = loop(root, (dt) => {
+			t += dt;
+			if (t >= CYCLE) t = 0;
+			show();
+			return true;
+		});
+		q('[data-again]').addEventListener('click', () => {
+			t = 0;
+			show();
+			wake();
+		});
+		show();
+	}
+</script>

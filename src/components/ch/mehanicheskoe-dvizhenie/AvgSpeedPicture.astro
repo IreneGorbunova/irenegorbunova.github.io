@@ -1,0 +1,342 @@
+---
+/**
+ * Picture «Средняя скорость» (Irina, 17 Nov 2026: «рисунок движения тела с разными скоростями… в числителе сумма
+ * путей, в знаменателе сумма времён»). A walker goes along a route of three parts with constant speeds:
+ *   1) по дороге  s₁ = 2,5 км, υ₁ = 5 км/ч,   t₁ = 0,5 ч;
+ *   2) вплавь     s₂ = 1,5 км, υ₂ = 1,5 км/ч, t₂ = 1 ч;
+ *   3) в гору     s₃ = 2,5 км, υ₃ = 2,5 км/ч, t₃ = 1 ч.
+ * Sums: s = 6,5 км, t = 2,5 ч, υср = 6,5 км : 2,5 ч = 2,6 км/ч; the mean of the three speeds is (5 + 1,5 + 2,5) : 3 =
+ * 3 км/ч, not the same: 2 ч of the 2,5 ч are spent on the slow parts. Two strips below the scene fill as he goes: the
+ * path (50 px per km, as the route itself) and the time (130 px per hour).
+ * Scales: the lengths along the route are to scale, 50 px per km (the hill path is measured along the slope). The
+ * height of the hill is exaggerated (the slope is drawn at 22°; a real path of 2,5 км climbed in an hour is about 7°),
+ * and the walker is drawn far larger than the route. Time: 1 ч of the trip lasts 4 s of the animation (900 times
+ * faster). The picture plays once when it comes on screen; «Повторить» plays it again.
+ */
+import katex from 'katex';
+import G7Styles from '../g7/G7Styles.astro';
+
+const k = (s: string) => katex.renderToString(s, { throwOnError: false });
+const G = 100; // the level of the road and of the lake
+const PX = 50; // px per km along the route
+const PH = 130; // px per hour in the time strip
+const X0 = 16;
+const TH = (22 * Math.PI) / 180;
+const PARTS = [
+	{ s: 2.5, v: 5, name: 'по дороге', c: 'p1' },
+	{ s: 1.5, v: 1.5, name: 'вплавь', c: 'p2' },
+	{ s: 2.5, v: 2.5, name: 'в гору', c: 'p3' },
+];
+const comma = (x: number) => String(x).replace('.', ',');
+let ds = 0;
+let ts = 0;
+const segs = PARTS.map((p, i) => {
+	const t = p.s / p.v;
+	const r = { ...p, i: i + 1, t, xs: X0 + ds * PX, ws: p.s * PX, xt: X0 + ts * PH, wt: t * PH };
+	ds += p.s;
+	ts += t;
+	return r;
+});
+const LAKE0 = X0 + 2.5 * PX; // 141
+const HILL0 = X0 + 4 * PX; // 216
+const TOP = { x: HILL0 + 2.5 * PX * Math.cos(TH), y: G - 2.5 * PX * Math.sin(TH) };
+const ground = `M0 ${G} H${LAKE0 - 5} C${LAKE0 + 1} ${G} ${LAKE0 + 3} ${G + 16} ${LAKE0 + 15} ${G + 16} H${HILL0 - 16} C${HILL0 - 4} ${G + 16} ${HILL0 - 4} ${G} ${HILL0} ${G} L${TOP.x.toFixed(1)} ${TOP.y.toFixed(1)} H360 V122 H0 Z`;
+const water = `M${LAKE0 - 5} ${G} C${LAKE0 + 1} ${G} ${LAKE0 + 3} ${G + 16} ${LAKE0 + 15} ${G + 16} H${HILL0 - 16} C${HILL0 - 4} ${G + 16} ${HILL0 - 4} ${G} ${HILL0} ${G} Z`;
+const FX = TOP.x + 12;
+const SY = 142; // the path strip
+const TY = 202; // the time strip
+const H = 34;
+const general = k('\\upsilon_{\\text{ср}} = \\dfrac{s_1 + s_2 + s_3}{t_1 + t_2 + t_3}');
+const numbers = k('= \\dfrac{2{,}5~\\text{км} + 1{,}5~\\text{км} + 2{,}5~\\text{км}}{0{,}5~\\text{ч} + 1~\\text{ч} + 1~\\text{ч}} = \\dfrac{6{,}5~\\text{км}}{2{,}5~\\text{ч}} = 2{,}6~\\text{км/ч}');
+---
+
+<G7Styles />
+<figure class="g7 g7--pic g7--narrow avs not-content" data-avgspeed>
+	<svg class="g7__svg" viewBox="0 16 360 228" role="img" aria-label="Путник идёт по дороге, переплывает озеро и поднимается в гору. Ниже две полосы: весь путь 6,5 км и всё время 2,5 ч">
+		<path class="avs__ground" d={ground}></path>
+		<path class="avs__road" d={`M${X0} ${G} H${LAKE0 - 5}`}></path>
+		<path class="avs__slope" d={`M${HILL0} ${G} L${TOP.x.toFixed(1)} ${TOP.y.toFixed(1)} H360`}></path>
+		<path class="avs__post" d={`M${X0} ${G} V${G - 12}`}></path>
+		<text class="t-small" x={X0 - 4} y="114">старт</text>
+		<path class="avs__post" d={`M${FX.toFixed(1)} ${TOP.y.toFixed(1)} V${(TOP.y - 26).toFixed(1)}`}></path>
+		<path class="avs__flag" d={`M${FX.toFixed(1)} ${(TOP.y - 26).toFixed(1)} l14 5 l-14 5 Z`}></path>
+		{
+			segs.map((p) => {
+				const x = p.i === 3 ? 304 : p.xs + p.ws / 2;
+				const y = p.i === 3 ? 88 : 56;
+				return (
+					<g class={`avs__part avs__part--${p.c}`} data-part={p.i}>
+						<text class="t-small t-halo" x={x} y={y} text-anchor="middle">{p.name}</text>
+						<text class="avs__v t-num t-halo" x={x} y={y + 14} text-anchor="middle">{`${comma(p.v)} км/ч`}</text>
+					</g>
+				);
+			})
+		}
+		<g class="avs__man" data-man>
+			<path class="avs__legs" data-legs></path>
+			<path class="avs__arms" data-arms></path>
+			<path class="avs__body" data-body></path>
+			<circle class="avs__head" r="3.8" data-head></circle>
+		</g>
+		<path class="avs__water" d={water}></path>
+		<path class="avs__surf" d={`M${LAKE0 - 5} ${G} H${HILL0}`}></path>
+
+		<!-- the strips: the path (as the route, 50 px per km) and the time (130 px per hour) -->
+		<text class="t-small" x={X0} y={SY - 6}>путь</text>
+		<text class="t-strong t-num" x="341" y={SY - 6} text-anchor="end"><tspan class="t-i">s</tspan> = <tspan data-s>0 км</tspan></text>
+		<rect class="avs__empty" x={X0} y={SY} width={6.5 * PX} height={H} rx="5"></rect>
+		<text class="t-small" x={X0} y={TY - 6}>время</text>
+		<text class="t-strong t-num" x="341" y={TY - 6} text-anchor="end"><tspan class="t-i">t</tspan> = <tspan data-t>0 ч</tspan></text>
+		<rect class="avs__empty" x={X0} y={TY} width={2.5 * PH} height={H} rx="5"></rect>
+		{
+			segs.map((p) => (
+				<>
+					<rect class={`avs__fill avs__fill--${p.c}`} x={p.xs} y={SY} width="0" height={H} data-fs={p.i}></rect>
+					<rect class={`avs__fill avs__fill--${p.c}`} x={p.xt} y={TY} width="0" height={H} data-ft={p.i}></rect>
+					<g class="avs__lab" data-lab={p.i}>
+						<text class="t-i t-strong" x={p.xs + p.ws / 2} y={SY + 15} text-anchor="middle">
+							s<tspan class="avs__sub" dy="3">{p.i}</tspan>
+						</text>
+						<text class="t-num t-strong" x={p.xs + p.ws / 2} y={SY + 29} text-anchor="middle">{`${comma(p.s)} км`}</text>
+						<text class="t-i t-strong" x={p.xt + p.wt / 2} y={TY + 15} text-anchor="middle">
+							t<tspan class="avs__sub" dy="3">{p.i}</tspan>
+						</text>
+						<text class="t-num t-strong" x={p.xt + p.wt / 2} y={TY + 29} text-anchor="middle">{`${comma(p.t)} ч`}</text>
+					</g>
+				</>
+			))
+		}
+	</svg>
+	<ul class="g7__lines avs__lines">
+		<li class="is-key" set:html={general} />
+		<li class="avs__res" data-res set:html={numbers} />
+		<li class="is-text">
+			Средняя скорость — не среднее трёх скоростей (5&nbsp;+&nbsp;1,5&nbsp;+&nbsp;2,5)&nbsp;:&nbsp;3&nbsp;=&nbsp;3&nbsp;км/ч.
+			Вплавь и в гору путник двигался медленно, и на это ушло 2&nbsp;ч из 2,5&nbsp;ч. Поэтому средняя скорость ближе к
+			медленным скоростям.
+		</li>
+	</ul>
+	<div class="g7__row avs__row">
+		<button type="button" class="g7__btn" data-again>Повторить</button>
+	</div>
+	<figcaption class="g7__caption">
+		Час пути на рисунке длится 4&nbsp;с. Длины участков нарисованы в одном масштабе, а высота горы и путник сильно
+		увеличены.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.avs {
+		--avs-p1: var(--g7-gold);
+		--avs-p2: var(--g7-blue);
+		--avs-p3: var(--g7-green);
+	}
+	.avs__ground {
+		fill: var(--g7-ground);
+	}
+	.avs__road {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.avs__slope {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.avs__post {
+		stroke: var(--g7-ink);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.avs__flag {
+		fill: var(--g7-red);
+	}
+	.avs__water {
+		fill: var(--g7-water);
+	}
+	.avs__surf {
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.5;
+	}
+	.avs__part--p1 .avs__v {
+		fill: var(--avs-p1);
+	}
+	.avs__part--p2 .avs__v {
+		fill: var(--avs-p2);
+	}
+	.avs__part--p3 .avs__v {
+		fill: var(--avs-p3);
+	}
+	.avs__v {
+		font-weight: 700;
+	}
+	.g7__svg .avs__part--p3 .t-halo {
+		stroke: var(--g7-ground);
+	}
+	.avs__legs,
+	.avs__arms {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.avs__body {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 4.5;
+		stroke-linecap: round;
+	}
+	.avs__head {
+		fill: var(--g7-skin);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.avs__empty {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+		stroke-dasharray: 4 3;
+	}
+	.avs__fill--p1 {
+		fill: color-mix(in oklab, var(--avs-p1) 38%, transparent);
+		stroke: var(--avs-p1);
+	}
+	.avs__fill--p2 {
+		fill: color-mix(in oklab, var(--avs-p2) 38%, transparent);
+		stroke: var(--avs-p2);
+	}
+	.avs__fill--p3 {
+		fill: color-mix(in oklab, var(--avs-p3) 38%, transparent);
+		stroke: var(--avs-p3);
+	}
+	.avs__fill {
+		stroke-width: 1.5;
+	}
+	.g7__svg .avs__sub {
+		font-size: 10px;
+		font-style: normal;
+	}
+	.avs__lab,
+	.avs__res {
+		transition: opacity 0.5s;
+	}
+	.avs__lab.is-off,
+	.avs__res.is-off {
+		opacity: 0;
+	}
+	.avs__lines {
+		margin-top: 0.6rem;
+	}
+	.avs__row {
+		margin-top: 0.6rem;
+	}
+</style>
+
+<script>
+	import { fmt, loop } from '../g7/kit';
+
+	const G = 100;
+	const PX = 50;
+	const PH = 130;
+	const X0 = 16;
+	const TH = (22 * Math.PI) / 180;
+	const HOUR = 4; // s of the animation per hour of the trip
+	const PRE = 0.8; // s before the walker sets off
+	// the parts: path (km), speed (km/h); start of each part in km and in h
+	const S = [2.5, 1.5, 2.5];
+	const V = [5, 1.5, 2.5];
+	const T = S.map((s, i) => s / V[i]);
+	const D0 = [0, 2.5, 4];
+	const T0 = [0, 0.5, 1.5];
+	const TALL = 2.5;
+	const n = (x: number) => x.toFixed(1);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-avgspeed]')) {
+		const q = <E extends Element>(s: string) => root.querySelector<E>(s)!;
+		const man = q<SVGGElement>('[data-man]');
+		const legs = q<SVGPathElement>('[data-legs]');
+		const arms = q<SVGPathElement>('[data-arms]');
+		const body = q<SVGPathElement>('[data-body]');
+		const head = q<SVGCircleElement>('[data-head]');
+		const sOut = q('[data-s]');
+		const tOut = q('[data-t]');
+		const fs = [1, 2, 3].map((i) => q(`[data-fs="${i}"]`));
+		const ft = [1, 2, 3].map((i) => q(`[data-ft="${i}"]`));
+		const labs = [1, 2, 3].map((i) => q(`[data-lab="${i}"]`));
+		const res = [...root.querySelectorAll('[data-res]')];
+
+		/** The walker: on the road and up the hill he walks upright (leaning on the hill), in the lake he swims. */
+		const pose = (part: number, d: number, still: boolean) => {
+			const phase = still ? 0 : (d * PX * 2 * Math.PI) / (part === 1 ? 16 : 22);
+			let x: number;
+			let y: number;
+			if (part === 2) {
+				x = X0 + d * PX;
+				y = G;
+				// freestyle: body along the surface, the arms turning, the legs kicking
+				const a = phase;
+				const arm = (b: number) => `M2 0.5 l${n(10 * Math.cos(b))} ${n(7 * Math.sin(b))}`;
+				legs.setAttribute('d', `M-7 1.5 L-15 ${n(1.5 + 2 * Math.sin(2 * a))} M-7 1.5 L-15 ${n(1.5 - 2 * Math.sin(2 * a))}`);
+				arms.setAttribute('d', `${arm(a)} ${arm(a + Math.PI)}`);
+				body.setAttribute('d', 'M-7 1.5 L2 0.5');
+				head.setAttribute('cx', '6.5');
+				head.setAttribute('cy', '-2.6');
+			} else {
+				const up = part === 3;
+				const r = up ? d - 4 : d;
+				x = up ? X0 + 4 * PX + r * PX * Math.cos(TH) : X0 + r * PX;
+				y = up ? G - r * PX * Math.sin(TH) : G;
+				const lean = up ? 4 : 1;
+				const sw = still ? 0 : (up ? 0.38 : 0.45) * Math.sin(phase);
+				const hip = { x: 0, y: -12.5 };
+				const foot = (b: number) => {
+					const fx = hip.x + 12.5 * Math.sin(b);
+					const ground = up ? -fx * Math.tan(TH) : 0; // the foot stays on the slope
+					return `M${n(hip.x)} ${n(hip.y)} L${n(fx)} ${n(Math.min(hip.y + 12.5 * Math.cos(b), ground))}`;
+				};
+				legs.setAttribute('d', `${foot(sw)} ${foot(-sw)}`);
+				const sh = { x: lean, y: -22 };
+				const hand = (b: number) => `M${n(sh.x)} ${n(sh.y)} l${n(9.5 * Math.sin(b) + (up ? 2 : 0))} ${n(9.5 * Math.cos(b))}`;
+				arms.setAttribute('d', `${hand(-0.8 * sw)} ${hand(0.8 * sw)}`);
+				body.setAttribute('d', `M0 -12.5 L${n(sh.x)} ${n(sh.y)}`);
+				head.setAttribute('cx', n(lean * 1.35));
+				head.setAttribute('cy', '-27');
+			}
+			man.setAttribute('transform', `translate(${n(x)} ${n(y)}) scale(1.15)`);
+		};
+
+		/** Everything at the trip time th (hours, 0…2,5). */
+		const show = (th: number) => {
+			const part = th < T0[1] ? 1 : th < T0[2] ? 2 : 3;
+			const i = part - 1;
+			const d = D0[i] + V[i] * Math.min(th - T0[i], T[i]);
+			pose(part, d, th <= 0 || th >= TALL);
+			for (let j = 0; j < 3; j++) {
+				fs[j].setAttribute('width', n(PX * Math.min(Math.max(d - D0[j], 0), S[j])));
+				ft[j].setAttribute('width', n(PH * Math.min(Math.max(th - T0[j], 0), T[j])));
+				labs[j].classList.toggle('is-off', th < T0[j] + T[j] - 1e-9);
+			}
+			sOut.textContent = `${th >= TALL ? '6,5' : fmt(d, 1)} км`;
+			tOut.textContent = `${th >= TALL ? '2,5' : fmt(th, 1)} ч`;
+			for (const r of res) r.classList.toggle('is-off', th < TALL);
+		};
+
+		let clock = 0; // s of the animation since the start
+		const wake = loop(root, (dt) => {
+			clock += dt;
+			const th = Math.min(Math.max((clock - PRE) / HOUR, 0), TALL);
+			show(th);
+			return th < TALL;
+		});
+		q('[data-again]').addEventListener('click', () => {
+			clock = 0;
+			show(0);
+			wake();
+		});
+		show(0);
+	}
+</script>

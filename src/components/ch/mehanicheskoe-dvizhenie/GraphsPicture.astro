@@ -1,0 +1,415 @@
+---
+/**
+ * Picture «Графики равномерного движения»: a pedestrian (1,5 м/с) and a cyclist (5 м/с) start together and move
+ * uniformly along a straight road for 6 с. The clock runs in real time: the run takes 6 s, then the end frame stays
+ * for 3 s and the run repeats; «Повторить» restarts it, the slider sets the time by hand (and stops the run).
+ *
+ * After 6 с: the pedestrian 1,5 · 6 = 9 м, the cyclist 5 · 6 = 30 м.
+ * Road: 9 px per metre (0…30 м). The figures are drawn at the same scale as the road: a pedestrian 1,7 м tall
+ *   (15 px), a bicycle 1,7 м long with wheels of 0,7 м (6 px); the cyclist is drawn a little taller than real.
+ * Graph s(t): 40 px per second (0…6 с), 6 px per metre (0…30 м). The «step» triangles show one second and the rise
+ *   of the line during it: the cyclist from 3 to 4 с (15 → 20 м, +5 м), the pedestrian from 4 to 5 с (6 → 7,5 м, +1,5 м).
+ * Graph υ(t): 40 px per second, 30 px per м/с (0…6 м/с). The shaded rectangle under the chosen line has the sides υ
+ *   and t; its area υ · t is the path s (shown with the numbers). Nothing is exaggerated.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+// road
+const RX = 104; // 0 м
+const RS = 9; // px per metre
+const LANE = { p: 46, c: 82 };
+// graphs
+const OX = 46;
+const OY = 218;
+const TS = 40; // px per second
+const SS = 6; // px per metre
+const VS = 30; // px per м/с
+const T_END = 6;
+const V = { p: 1.5, c: 5 };
+const gx = (t: number) => OX + t * TS;
+const sy = (s: number) => OY - s * SS;
+const vy = (v: number) => OY - v * VS;
+const W = T_END * TS;
+const H = 180;
+// step triangles: [t0, body]
+const STEP = { c: 3, p: 4 };
+---
+
+<G7Styles />
+<figure class="g7 g7--pic grf not-content" data-grf>
+	<svg class="g7__svg grf__road" viewBox="0 0 400 106" role="img" aria-label="Пешеход и велосипедист одновременно трогаются с места и движутся по прямой дороге">
+		<text class="t-strong t-num" x="8" y="18"><tspan class="t-i">t</tspan><tspan data-clock> = 0,0 с</tspan></text>
+		<text class="t-small t-blue" x="8" y={LANE.p - 6}>пешеход</text>
+		<text class="t-small t-num" x="8" y={LANE.p + 7}>1,5 м/с</text>
+		<text class="t-small t-gold" x="8" y={LANE.c - 6}>велосипедист</text>
+		<text class="t-small t-num" x="8" y={LANE.c + 7}>5 м/с</text>
+		<line class="grf__lane" x1={RX} x2={RX + 30 * RS} y1={LANE.p} y2={LANE.p}></line>
+		<line class="grf__lane" x1={RX} x2={RX + 30 * RS} y1={LANE.c} y2={LANE.c}></line>
+		<line class="grf__done grf__done--p" x1={RX} x2={RX} y1={LANE.p} y2={LANE.p} data-done="p"></line>
+		<line class="grf__done grf__done--c" x1={RX} x2={RX} y1={LANE.c} y2={LANE.c} data-done="c"></line>
+		{Array.from({ length: 7 }, (_, i) => i * 5).map((m) => (
+			<>
+				<line class="ln" x1={RX + m * RS} x2={RX + m * RS} y1="88" y2="93"></line>
+				<text class="t-small t-num" x={RX + m * RS} y="104" text-anchor="middle">{m}</text>
+			</>
+		))}
+		<text class="t-small" x="396" y="104" text-anchor="end">м</text>
+		<!-- the pedestrian: 1,7 м = 15 px; feet at y = 0 -->
+		<g class="grf__walker" data-body="p">
+			<circle cx="0" cy="-13.2" r="1.9"></circle>
+			<path d="M0 -11 V-5.5" data-torso></path>
+			<path d="" data-legs></path>
+			<path d="" data-arms></path>
+		</g>
+		<!-- the cyclist: the bicycle 1,7 м = 15 px long, wheels 0,7 м -->
+		<g class="grf__bike" data-body="c">
+			<circle class="grf__wheel" cx="-4.5" cy="-3.2" r="3.1"></circle>
+			<circle class="grf__wheel" cx="4.5" cy="-3.2" r="3.1"></circle>
+			<path class="grf__frame" d="M-4.5 -3.2 L-1 -8.5 L3 -8.5 L4.5 -3.2 M-1 -8.5 L0.5 -3.2 L-4.5 -3.2 M3 -8.5 L3.6 -10.5"></path>
+			<path class="grf__rider" d="M-1.2 -9.5 L1.2 -15 L3.6 -10.5 M1.2 -15 L0.5 -3.5"></path>
+			<circle class="grf__head" cx="1.8" cy="-17.4" r="1.9"></circle>
+		</g>
+		<text class="t-small t-num t-halo" x={RX} y={LANE.p - 19} text-anchor="middle" data-dist="p"></text>
+		<text class="t-small t-num t-halo" x={RX} y={LANE.c - 23} text-anchor="middle" data-dist="c"></text>
+	</svg>
+
+	<div class="g7__grid is-two grf__graphs">
+		<div class="grf__panel">
+			<svg class="g7__svg" viewBox="0 0 300 252" role="img" aria-label="График зависимости пути от времени: две прямые из начала координат, у велосипедиста линия круче">
+				<text class="t-title" x="150" y="15" text-anchor="middle">График пути: <tspan class="t-i">s</tspan> от <tspan class="t-i">t</tspan></text>
+				{[5, 10, 15, 20, 25, 30].map((s) => <path class="grf__grid" d={`M${OX} ${sy(s)} H${OX + W}`}></path>)}
+				{[1, 2, 3, 4, 5, 6].map((t) => <path class="grf__grid" d={`M${gx(t)} ${OY} V${OY - H}`}></path>)}
+				<path class="ink" d={`M${OX} ${OY} H${OX + W + 8} M${OX} ${OY} V${OY - H - 12}`}></path>
+				<path class="head--ink" d={`M${OX + W + 12} ${OY} l-7 -3.5 v7 Z M${OX} ${OY - H - 16} l-3.5 7 h7 Z`}></path>
+				{[0, 1, 2, 3, 4, 5, 6].map((t) => <text class="t-small t-num" x={gx(t)} y={OY + 15} text-anchor="middle">{t}</text>)}
+				{[0, 5, 10, 15, 20, 25, 30].map((s) => <text class="t-small t-num" x={OX - 6} y={sy(s) + 4} text-anchor="end">{s}</text>)}
+				<text x={OX + 9} y={OY - H - 6}><tspan class="t-i">s</tspan>, м</text>
+				<text x="298" y={OY + 30} text-anchor="end"><tspan class="t-i">t</tspan>, с</text>
+				<line class="grf__now" x1={OX} x2={OX} y1={OY} y2={OY - H} data-now></line>
+				<!-- the lines -->
+				<line class="grf__line grf__line--p" x1={OX} y1={OY} x2={gx(T_END)} y2={sy(V.p * T_END)}></line>
+				<line class="grf__line grf__line--c" x1={OX} y1={OY} x2={gx(T_END)} y2={sy(V.c * T_END)}></line>
+				<text class="t-small t-gold t-halo" x={gx(5.15)} y={sy(27.5)} text-anchor="end">велосипедист</text>
+				<text class="t-small t-blue t-halo" x={gx(5.8)} y={sy(11.4)} text-anchor="end">пешеход</text>
+				<!-- the step triangles: one second and the rise of the line -->
+				{(['c', 'p'] as const).map((b) => {
+					const t0 = STEP[b];
+					const s0 = V[b] * t0;
+					const s1 = V[b] * (t0 + 1);
+					return (
+						<g class={`grf__step grf__step--${b}`}>
+							<path class="grf__step-fill" d={`M${gx(t0)} ${sy(s0)} H${gx(t0 + 1)} V${sy(s1)} Z`}></path>
+							<path class="grf__step-leg" d={`M${gx(t0)} ${sy(s0)} H${gx(t0 + 1)} V${sy(s1)}`}></path>
+							<text class="t-small t-num t-halo" x={gx(t0 + 0.5)} y={sy(s0) + 13} text-anchor="middle">1 с</text>
+							<text class={`t-small t-num t-halo t-strong ${b === 'c' ? 't-gold' : 't-blue'}`} x={gx(t0 + 1) + 4} y={(sy(s0) + sy(s1)) / 2 + 4}>
+								{b === 'c' ? '+5 м' : '+1,5 м'}
+							</text>
+						</g>
+					);
+				})}
+				<!-- the clock: two points on the lines -->
+				<path class="grf__proj" d="" data-proj="p"></path>
+				<path class="grf__proj" d="" data-proj="c"></path>
+				<circle class="grf__dot grf__dot--p" r="4.5" cx={OX} cy={OY} data-sdot="p"></circle>
+				<circle class="grf__dot grf__dot--c" r="4.5" cx={OX} cy={OY} data-sdot="c"></circle>
+			</svg>
+			<p class="grf__text">
+				Линии прямые: каждую секунду путь растёт на одно и то же число метров, равное скорости. Чем больше скорость, тем
+				круче линия.
+			</p>
+		</div>
+		<div class="grf__panel">
+			<svg class="g7__svg" viewBox="0 0 300 252" role="img" aria-label="График зависимости скорости от времени: две горизонтальные линии; площадь прямоугольника под линией равна пути">
+				<text class="t-title" x="150" y="15" text-anchor="middle">График скорости: <tspan class="t-i">υ</tspan> от <tspan class="t-i">t</tspan></text>
+				{[1, 2, 3, 4, 5, 6].map((v) => <path class="grf__grid" d={`M${OX} ${vy(v)} H${OX + W}`}></path>)}
+				{[1, 2, 3, 4, 5, 6].map((t) => <path class="grf__grid" d={`M${gx(t)} ${OY} V${OY - H}`}></path>)}
+				<rect class="grf__area" x={OX} y={vy(V.c)} width="0" height={V.c * VS} data-area></rect>
+				<line class="grf__now" x1={OX} x2={OX} y1={OY} y2={OY - H} data-now></line>
+				<path class="ink" d={`M${OX} ${OY} H${OX + W + 8} M${OX} ${OY} V${OY - H - 12}`}></path>
+				<path class="head--ink" d={`M${OX + W + 12} ${OY} l-7 -3.5 v7 Z M${OX} ${OY - H - 16} l-3.5 7 h7 Z`}></path>
+				{[0, 1, 2, 3, 4, 5, 6].map((t) => <text class="t-small t-num" x={gx(t)} y={OY + 15} text-anchor="middle">{t}</text>)}
+				{[0, 1, 2, 3, 4, 5, 6].map((v) => <text class="t-small t-num" x={OX - 6} y={vy(v) + 4} text-anchor="end">{v}</text>)}
+				<text x={OX + 9} y={OY - H - 6}><tspan class="t-i">υ</tspan>, м/с</text>
+				<text x="298" y={OY + 30} text-anchor="end"><tspan class="t-i">t</tspan>, с</text>
+				<line class="grf__line grf__line--p" x1={OX} y1={vy(V.p)} x2={gx(T_END)} y2={vy(V.p)}></line>
+				<line class="grf__line grf__line--c" x1={OX} y1={vy(V.c)} x2={gx(T_END)} y2={vy(V.c)}></line>
+				<text class="t-small t-gold t-halo" x={gx(5.8)} y={vy(V.c) - 7} text-anchor="end">велосипедист</text>
+				<text class="t-small t-blue t-halo" x={gx(5.8)} y={vy(V.p) - 7} text-anchor="end">пешеход</text>
+				<text class="t-small t-strong t-num t-halo" x={OX + 8} y={vy(3.1)} data-area-text><tspan class="t-i grf__si" data-area-s></tspan><tspan data-area-rest></tspan></text>
+				<circle class="grf__dot grf__dot--p" r="4.5" cx={OX} cy={vy(V.p)} data-vdot="p"></circle>
+				<circle class="grf__dot grf__dot--c" r="4.5" cx={OX} cy={vy(V.c)} data-vdot="c"></circle>
+			</svg>
+			<p class="grf__text">
+				Скорость не меняется, поэтому линии горизонтальные. Площадь закрашенного прямоугольника <i>υ</i>&#8239;·&#8239;<i>t</i> равна
+				пройденному пути <i>s</i>.
+			</p>
+		</div>
+	</div>
+
+	<div class="grf__ctrl">
+		<div class="g7__row">
+			<button type="button" class="g7__btn" data-again>Повторить</button>
+			<label class="g7__slider grf__time">
+				<span>Время <i>t</i></span>
+				<output data-tout>0,0 с</output>
+				<input type="range" min="0" max="6" step="0.1" value="0" data-t aria-label="Время, секунды" />
+			</label>
+		</div>
+		<div class="g7__row">
+			<span class="g7__label">Площадь под линией:</span>
+			<div class="g7__seg" role="group" aria-label="Чья площадь закрашена" data-who>
+				<button type="button" class="g7__btn" aria-pressed="false" data-b="p">пешехода</button>
+				<button type="button" class="g7__btn" aria-pressed="true" data-b="c">велосипедиста</button>
+			</div>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Пешеход идёт со скоростью 1,5&nbsp;м/с, велосипедист едет со скоростью 5&nbsp;м/с; оба движутся равномерно. Часы идут
+		как настоящие, дорога и графики нарисованы в масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.grf__road {
+		max-width: 34rem;
+		margin-inline: auto;
+		margin-bottom: 0.75rem;
+	}
+	.grf__lane {
+		stroke: var(--g7-faint);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.grf__done {
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.grf__done--p {
+		stroke: var(--g7-blue);
+	}
+	.grf__done--c {
+		stroke: var(--g7-gold);
+	}
+	.grf__walker {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.grf__walker circle {
+		fill: var(--g7-blue);
+		stroke: none;
+	}
+	.grf__bike {
+		fill: none;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.grf__wheel {
+		stroke: var(--g7-ink);
+		stroke-width: 1.1;
+	}
+	.grf__frame {
+		stroke: var(--g7-line);
+		stroke-width: 1.1;
+	}
+	.grf__rider {
+		stroke: var(--g7-gold);
+		stroke-width: 1.6;
+	}
+	.grf__head {
+		fill: var(--g7-gold);
+	}
+	.grf__panel {
+		display: grid;
+		gap: 0.4rem;
+		align-content: start;
+	}
+	.grf__text {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+		color: var(--sl-color-gray-2);
+	}
+	.grf__grid {
+		fill: none;
+		stroke: var(--g7-faint);
+		stroke-width: 1;
+	}
+	.grf__line {
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.grf__line--p {
+		stroke: var(--g7-blue);
+	}
+	.grf__line--c {
+		stroke: var(--g7-gold);
+	}
+	.grf__step-fill {
+		stroke: none;
+	}
+	.grf__step-leg {
+		fill: none;
+		stroke-width: 1.6;
+		stroke-dasharray: 3 2.5;
+	}
+	.grf__step--p .grf__step-fill {
+		fill: color-mix(in srgb, var(--g7-blue) 22%, transparent);
+	}
+	.grf__step--p .grf__step-leg {
+		stroke: var(--g7-blue);
+	}
+	.grf__step--c .grf__step-fill {
+		fill: color-mix(in srgb, var(--g7-gold) 22%, transparent);
+	}
+	.grf__step--c .grf__step-leg {
+		stroke: var(--g7-gold);
+	}
+	.g7__svg .grf__step .t-strong.t-gold {
+		fill: var(--g7-gold);
+	}
+	.g7__svg .grf__step .t-strong.t-blue {
+		fill: var(--g7-blue);
+	}
+	.grf__now {
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 3;
+	}
+	.grf__proj {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	.grf__dot {
+		stroke: var(--g7-paper);
+		stroke-width: 1.5;
+	}
+	.grf__dot--p {
+		fill: var(--g7-blue);
+	}
+	.grf__dot--c {
+		fill: var(--g7-gold);
+	}
+	.grf__area {
+		fill: color-mix(in srgb, var(--g7-gold) 26%, transparent);
+		stroke: var(--g7-gold);
+		stroke-width: 1;
+	}
+	.grf__area.is-p {
+		fill: color-mix(in srgb, var(--g7-blue) 30%, transparent);
+		stroke: var(--g7-blue);
+	}
+	.g7__svg text .grf__si {
+		font-size: 1.15em;
+	}
+	.grf__ctrl {
+		display: grid;
+		gap: 0.6rem;
+		margin-top: 0.85rem;
+	}
+	.grf__time {
+		flex: 1 1 12rem;
+	}
+</style>
+
+<script>
+	import { fmt, fmtTrim, loop, segment } from '../g7/kit';
+
+	const RX = 104;
+	const RS = 9;
+	const LANE = { p: 46, c: 82 };
+	const OX = 46;
+	const OY = 218;
+	const TS = 40;
+	const SS = 6;
+	const VS = 30;
+	const T_END = 6;
+	const HOLD = 3;
+	const V = { p: 1.5, c: 5 };
+	const BODIES = ['p', 'c'] as const;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-grf]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const qa = <T extends Element>(s: string) => [...root.querySelectorAll<T>(s)];
+		const slider = q<HTMLInputElement>('[data-t]');
+		const legs = q<SVGPathElement>('[data-legs]');
+		const arms = q<SVGPathElement>('[data-arms]');
+		const area = q<SVGRectElement>('[data-area]');
+		const areaText = q<SVGTextElement>('[data-area-text]');
+		const areaS = q<SVGTSpanElement>('[data-area-s]');
+		const areaRest = q<SVGTSpanElement>('[data-area-rest]');
+		let who: 'p' | 'c' = 'c';
+		let t = 0; // model time, s
+		let run = 0; // time since the start of the run, s (the run is T_END + HOLD long)
+		let playing = true;
+
+		const show = () => {
+			const tr = Math.round(t * 10) / 10; // the time as it is written
+			q('[data-clock]').textContent = ` = ${fmt(tr, 1)}\u00a0с`;
+			q('[data-tout]').textContent = `${fmt(tr, 1)}\u00a0с`;
+			slider.value = String(tr);
+			for (const b of BODIES) {
+				const s = V[b] * t;
+				const x = RX + s * RS;
+				q(`[data-body="${b}"]`).setAttribute('transform', `translate(${x.toFixed(2)} ${LANE[b]})`);
+				q(`[data-done="${b}"]`).setAttribute('x2', x.toFixed(2));
+				const d = q(`[data-dist="${b}"]`);
+				d.setAttribute('x', x.toFixed(1));
+				d.textContent = `${fmtTrim(V[b] * tr, 2)} м`;
+				const gx = OX + t * TS;
+				const gy = OY - s * SS;
+				q(`[data-sdot="${b}"]`).setAttribute('cx', gx.toFixed(1));
+				q(`[data-sdot="${b}"]`).setAttribute('cy', gy.toFixed(1));
+				q(`[data-proj="${b}"]`).setAttribute('d', t > 0.05 ? `M${gx.toFixed(1)} ${gy.toFixed(1)} H${OX}` : '');
+				q(`[data-vdot="${b}"]`).setAttribute('cx', gx.toFixed(1));
+			}
+			for (const n of qa('[data-now]')) {
+				n.setAttribute('x1', (OX + t * TS).toFixed(1));
+				n.setAttribute('x2', (OX + t * TS).toFixed(1));
+			}
+			// the walker's legs and arms swing, one step of 0,7 м
+			const ph = Math.sin((V.p * t * Math.PI) / 0.7);
+			const lx = 2.6 * ph;
+			legs.setAttribute('d', `M0 -5.5 L${lx.toFixed(2)} 0 M0 -5.5 L${(-lx).toFixed(2)} 0`);
+			arms.setAttribute('d', `M0 -10 L${(-1.8 * ph).toFixed(2)} -6 M0 -10 L${(1.8 * ph).toFixed(2)} -6`);
+			// the rectangle under the chosen line: area υ · t = s
+			area.setAttribute('width', (t * TS).toFixed(1));
+			area.setAttribute('y', String(OY - V[who] * VS));
+			area.setAttribute('height', String(V[who] * VS));
+			area.classList.toggle('is-p', who === 'p');
+			areaText.setAttribute('y', String(OY - (who === 'c' ? 3.1 : 0.75) * VS + 4));
+			areaS.textContent = 's';
+			areaRest.textContent = ` = ${fmt(V[who], who === 'c' ? 0 : 1)} м/с · ${fmt(tr, 1)} с = ${fmtTrim(V[who] * tr, 2)} м`;
+		};
+
+		const wake = loop(root, (dt) => {
+			if (!playing) return false;
+			run += dt;
+			if (run >= T_END + HOLD) run = 0;
+			t = Math.min(run, T_END);
+			show();
+			return true;
+		});
+		q('[data-again]').addEventListener('click', () => {
+			run = 0;
+			t = 0;
+			playing = true;
+			show();
+			wake();
+		});
+		slider.addEventListener('input', () => {
+			playing = false;
+			t = Number(slider.value);
+			show();
+		});
+		segment(q('[data-who]'), (btn) => {
+			who = btn.dataset.b as 'p' | 'c';
+			show();
+		});
+		show();
+	}
+</script>

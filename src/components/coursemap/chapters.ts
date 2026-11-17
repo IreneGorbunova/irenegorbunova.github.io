@@ -47,7 +47,7 @@ export const MAP_CHAPTERS: Record<string, MapChapter> = {
 	'molekuly-diffuziya': { line: 'Из чего состоит вещество, размер молекул, броуновское движение и диффузия.', peryshkin: '' },
 	'vzaimodeystvie-molekul': { line: 'Притяжение и отталкивание молекул; почему вода смачивает стекло, но не воск.', peryshkin: '' },
 	'tri-sostoyaniya-veshchestva': { line: 'Твёрдые тела, жидкости и газы: свойства и то, как расположены и движутся молекулы.', peryshkin: '' },
-	'mehanicheskoe-dvizhenie': { line: 'Движение и покой, траектория и путь, равномерное движение, скорость, путь и время.', peryshkin: '' },
+	'mehanicheskoe-dvizhenie': { line: 'Движение и покой, траектория, путь и перемещение, скорость, графики движения, средняя скорость.', peryshkin: '' },
 	'inerciya-massa-plotnost': { line: 'Инерция, взаимодействие тел, масса и весы, плотность, расчёт массы и объёма.', peryshkin: '' },
 	'sila': { line: 'Сила и её действие, сила тяжести, закон Гука, вес тела и динамометр.', peryshkin: '' },
 	'slozhenie-sil-trenie': { line: 'Равнодействующая двух сил, трение скольжения, качения и покоя, трение в технике.', peryshkin: '' },
