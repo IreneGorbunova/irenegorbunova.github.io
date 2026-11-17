@@ -5,6 +5,7 @@ import { satteri } from '@astrojs/markdown-satteri';
 import { katexPlugin } from './src/plugins/katex.mjs';
 import { motionCss, MOTION_SCRIPT } from './src/plugins/motion.mjs';
 import { TEST_SCRIPT, SHORT_SCRIPT } from './src/plugins/testmode.mjs';
+import { dedupeScripts } from './src/plugins/dedupe-scripts.mjs';
 
 const GOATCOUNTER = 'https://irenegorbunova.goatcounter.com/count';
 
@@ -103,5 +104,7 @@ export default defineConfig({
 				{ label: 'Посмотри в телескоп', slug: 'uchebnik/teleskop' },
 			],
 		}),
+		// a component used several times on a page keeps one copy of its script (src/plugins/dedupe-scripts.mjs)
+		dedupeScripts(),
 	],
 });
