@@ -3,7 +3,9 @@
  * «Масляное пятно»: a drop of oil of a known volume V spreads over water into a round spot one molecule thick.
  * The area of the spot is S = V/d with d = 0,0000017 мм (1,7 нм, close to what Rayleigh measured for olive oil in
  * 1890); the reader gets V and S and finds the thickness d = V/S. The tray and the spot are drawn to scale
- * (10 px per centimeter); the side view of the film is only a scheme.
+ * (10 px per centimeter); the side view of the film is only a scheme: the drop appears in it at the same moment as on
+ * the water above, as a heap of molecules, and spreads into a layer one molecule thick whose width follows the spot
+ * (four times the scale of the top view; the thickness is not to scale).
  */
 import G7Styles from '../g7/G7Styles.astro';
 ---
@@ -22,11 +24,13 @@ import G7Styles from '../g7/G7Styles.astro';
 			{[0, 5, 10, 15, 20, 25, 30].map((v) => <text class="t-small t-num" x={20 + v * 10} y="221" text-anchor="middle">{v}</text>)}
 			<text class="t-small" x="330" y="221" text-anchor="end">см</text>
 			<!-- the scheme of the film -->
-			<text class="t-title" x="170" y="244" text-anchor="middle">слой масла сбоку (схема)</text>
-			<rect class="oil__water" x="40" y="270" width="260" height="22"></rect>
-			{Array.from({ length: 22 }, (_, i) => <ellipse class="oil__mol" cx={46 + i * 11.8} cy="263" rx="5" ry="7" />)}
-			<path class="ln" d="M312 256 v14 M308 256 h8 M308 270 h8"></path>
-			<text class="t-i" x="320" y="268">d</text>
+			<text class="t-title" x="170" y="235" text-anchor="middle">слой масла сбоку (схема)</text>
+			<rect class="oil__water" x="40" y="275" width="260" height="22"></rect>
+			<g data-mols></g>
+			<g data-dmark opacity="0">
+				<path class="ln" d="M0 261 v14 M-4 261 h8 M-4 275 h8"></path>
+				<text class="t-i" x="8" y="273">d</text>
+			</g>
 		</svg>
 		<div class="g7__side">
 			<label class="g7__slider">
@@ -81,7 +85,7 @@ import G7Styles from '../g7/G7Styles.astro';
 </style>
 
 <script>
-	import { ease, fmt, loop } from '../g7/kit';
+	import { ease, el, fmt, loop } from '../g7/kit';
 
 	const D = 1.7e-6; // мм: the length of an oil molecule
 	for (const root of document.querySelectorAll<HTMLElement>('[data-oil]')) {
@@ -89,7 +93,31 @@ import G7Styles from '../g7/G7Styles.astro';
 		const v = q<HTMLInputElement>('[data-v]');
 		const spot = q<SVGCircleElement>('[data-spot]');
 		const dim = q<SVGLineElement>('[data-dim]');
+		const mols = q<SVGGElement>('[data-mols]');
+		const dmark = q<SVGGElement>('[data-dmark]');
 		let t = -1; // seconds since the drop fell; −1: no drop on the water
+		// the side view: a heap of molecules (the drop) that spreads into one layer as wide as the spot (×4)
+		let heap: { x0: number; y0: number; x1: number; e: SVGEllipseElement }[] = [];
+		const STEP = 11.8;
+		const makeHeap = () => {
+			const S = vol() / D;
+			const half = Math.min(128, 4 * Math.sqrt(S / Math.PI)); // px: the spot's radius in the top view is √(S/π)/10 cm·10 px
+			const n = Math.max(3, Math.floor((2 * half) / STEP) + 1);
+			const start: { x: number; y: number }[] = [];
+			const b = Math.ceil((n + 3) / 3); // a low heap: rows of b, b − 1, b − 2 molecules
+			for (let row = 0, left = n; left > 0; row++) {
+				const k = Math.min(left, Math.max(1, b - row));
+				for (let i = 0; i < k; i++) start.push({ x: 170 + (i - (k - 1) / 2) * STEP, y: 268 - row * 10 });
+				left -= k;
+			}
+			start.sort((a, b) => a.x - b.x || b.y - a.y);
+			mols.replaceChildren();
+			heap = start.map((p, j) => {
+				const e = el('ellipse', { class: 'oil__mol', rx: 5, ry: 7 });
+				mols.append(e);
+				return { x0: p.x, y0: p.y, x1: 170 + (j - (n - 1) / 2) * STEP, e };
+			});
+		};
 		const vol = () => Number(v.value) / 1000; // мм³
 		const label = () => (q('[data-out]').textContent = `${fmt(vol(), 4)} мм³`);
 		const show = (u: number) => {
@@ -104,6 +132,14 @@ import G7Styles from '../g7/G7Styles.astro';
 			q('[data-d]').textContent = done ? `${fmt(diam, 1)} см` : '—';
 			q('[data-s]').textContent = done ? `${fmt(S / 100, 1)} см² = ${Math.round(S / 10) * 10} мм²` : '—';
 			q('[data-h]').textContent = done ? '0,0000017 мм' : '—';
+			const w = ease(u);
+			for (const m of heap) {
+				m.e.setAttribute('cx', (m.x0 + (m.x1 - m.x0) * w).toFixed(1));
+				m.e.setAttribute('cy', (m.y0 + (268 - m.y0) * w).toFixed(1));
+			}
+			const right = heap.length ? Math.max(...heap.map((m) => m.x1)) : 170;
+			dmark.setAttribute('transform', `translate(${(right + 12).toFixed(1)} 0)`);
+			dmark.setAttribute('opacity', done ? '1' : '0');
 		};
 		const wake = loop(root, (dt) => {
 			if (t < 0) return false;
@@ -113,11 +149,14 @@ import G7Styles from '../g7/G7Styles.astro';
 		});
 		q('[data-go]').addEventListener('click', () => {
 			t = 0;
+			makeHeap();
 			wake();
 		});
 		v.addEventListener('input', () => {
 			label();
 			t = -1;
+			heap = [];
+			mols.replaceChildren();
 			show(0);
 		});
 		label();

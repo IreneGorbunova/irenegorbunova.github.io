@@ -1,0 +1,402 @@
+---
+/**
+ * Picture «Диффузия в газах, жидкостях и твёрдых телах»: three time-lapses side by side, each with its own clock, so
+ * the pupil sees minutes against weeks against years. All three run together: 9 s of animation each, then 3 s of the
+ * final frame, in a loop. Time in every panel runs evenly (linear), so the spreading slows down by itself: the width
+ * of the mixed layer grows as √t.
+ *
+ * Газы — духи в комнате 4 × 2,6 м (side view, 50 px per metre; the bottle 15 см tall and the person 1,7 м tall are
+ * drawn to the same scale). The clock runs 0…5 мин. 160 dots, each a crowd of perfume molecules, are spread from the
+ * bottle's mouth as a Gaussian of width σ = √(2Dt) in each direction, reflected at the walls, floor and ceiling (an
+ * exact sample of spreading in a closed room). D = 0,0067 м²/с, so σ = 2 м after 5 мин and the smell fills the room,
+ * as the text says («за минуты»). Honest note: molecular diffusion alone in still air (D ≈ 0,1 см²/с) would spread the
+ * smell only about √(2·0,1·300) ≈ 8 см in 5 мин; in a real room the smell crosses it in minutes because air currents
+ * carry it. D here is that effective, observed rate, not the molecular one.
+ *
+ * Жидкости — раствор медного купороса (below) and water (above) in a glass 10 см of liquid (5 + 5 см), 16 px per см.
+ * The clock runs 0…21 день (3 недели). The blue (a vertical gradient with 81 stops) is the exact solution of the diffusion equation in a closed
+ * column, c(z, t) = 1/2 + Σ (2/(nπ)) sin(nπ/2) cos(nπz/L) exp(−D(nπ/L)²t), L = 10 см, D = 0,7·10⁻⁵ см²/с (copper
+ * sulfate in water at room temperature). The layer √(2Dt) is 1,9 см after 3 дня and 4,1 см after 2 недели; after
+ * 3 недели the top is already about half as blue as the bottom («через две-три недели вся жидкость голубая»).
+ *
+ * Твёрдые тела — gold and lead plates pressed together (Roberts-Austen). The clock runs 0…5 лет. The magnifier shows a
+ * strip ±2 мм around the boundary at 25 px per мм (the plates above are drawn at 6 px per мм, so the magnifier is
+ * about four times larger than the plates; the scale bar shows 1 мм). Each dot is a crowd of atoms that crossed the
+ * boundary: gold into lead with σ = 0,5 мм·√(t/5 лет), so after 5 лет almost all lie within about 1 мм, as the text
+ * says. Lead atoms practically do not enter gold at room temperature (their depth in five years is about one atomic
+ * layer; gold wanders in lead because its atoms slip between the lead atoms), so only gold dots are drawn. At t = 0
+ * the dots lie on the boundary and are hidden.
+ *
+ * Compressed: the clocks — 5 мин, 3 недели and 5 лет all pass in the same 9 s (the caption says it). Magnified: the
+ * strip under the magnifier (its scale bar says by how much). Not to scale between panels: each panel has its own size.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+// Газы: room 4 × 2,6 м, 50 px per metre
+const GM = 50;
+const RX = 10;
+const FLOOR = 184;
+const gx = (m: number) => RX + m * GM;
+const gy = (m: number) => FLOOR - m * GM;
+// Жидкости: 10 см of liquid, 16 px per см
+const LX = 62;
+const LW = 52;
+const LTOP = 48;
+const LH = 160;
+const STRIPS = 80;
+// Твёрдые тела
+const PL = 6; // px per мм on the plates
+const MCX = 110;
+const MCY = 160;
+const MR = 46;
+const BAR = { x0: 22, x1: 198, y: 244 };
+const ticks = (n: number) => Array.from({ length: n + 1 }, (_, i) => BAR.x0 + ((BAR.x1 - BAR.x0) * i) / n);
+---
+
+<G7Styles />
+<figure class="g7 g7--pic dfp not-content" data-dfp>
+	<div class="g7__grid is-three">
+		<svg class="g7__svg" viewBox="0 0 220 268" role="img" aria-label="Газы: запах духов за несколько минут расходится по всей комнате">
+			<text class="t-title" x="110" y="18" text-anchor="middle">Газы</text>
+			<text class="t-small" x="110" y="33" text-anchor="middle">запах духов в комнате</text>
+			<rect class="dfp__room" x={RX} y={gy(2.6)} width={4 * GM} height={2.6 * GM}></rect>
+			<g class="dfp__person">
+				<path d={`M${gx(3.32)} ${gy(0)} V${gy(0.86)} M${gx(3.48)} ${gy(0)} V${gy(0.86)}`}></path>
+				<rect x={gx(3.2)} y={gy(1.45)} width={0.4 * GM} height={0.62 * GM} rx="5"></rect>
+				<circle cx={gx(3.4)} cy={gy(1.58)} r={0.11 * GM}></circle>
+			</g>
+			<g class="dfp__table">
+				<path d={`M${gx(0.25)} ${gy(0.75)} H${gx(1.05)} M${gx(0.33)} ${gy(0.75)} V${gy(0)} M${gx(0.97)} ${gy(0.75)} V${gy(0)}`}></path>
+			</g>
+			<rect class="dfp__bottle" x={gx(0.56)} y={gy(0.87)} width={0.08 * GM} height={0.12 * GM} rx="1"></rect>
+			<rect class="dfp__cap" x={gx(0.585)} y={gy(0.9)} width={0.03 * GM} height={0.03 * GM}></rect>
+			<path class="ln" d={`M${gx(0.62)} ${gy(0.92)} L${gx(0.9)} ${gy(1.35)}`}></path>
+			<text class="t-small t-halo" x={gx(0.92)} y={gy(1.38)}>духи</text>
+			<g data-gas></g>
+			<path class="ln" d={`M${RX} 194 H${gx(4)} M${RX} 190 V198 M${gx(4)} 190 V198`}></path>
+			<text class="t-small t-halo" x="110" y="198" text-anchor="middle">4 м</text>
+			<text class="t-strong t-num" x="110" y="228" text-anchor="middle" data-clock="gas">сразу</text>
+			<rect class="dfp__track" x={BAR.x0} y={BAR.y - 3} width={BAR.x1 - BAR.x0} height="6" rx="3"></rect>
+			<rect class="dfp__fill" x={BAR.x0} y={BAR.y - 3} width="0" height="6" rx="3" data-bar></rect>
+			{ticks(5).map((x, i) => <text class="t-small t-num" x={x} y="262" text-anchor="middle">{i === 5 ? '5 мин' : i}</text>)}
+		</svg>
+
+		<svg class="g7__svg" viewBox="0 0 220 268" role="img" aria-label="Жидкости: граница между раствором медного купороса и водой за три недели размывается">
+			<text class="t-title" x="110" y="18" text-anchor="middle">Жидкости</text>
+			<text class="t-small" x="110" y="33" text-anchor="middle">медный купорос и вода</text>
+			<rect class="dfp__water" x={LX} y={LTOP} width={LW} height={LH}></rect>
+			<defs>
+				<linearGradient x1="0" y1="0" x2="0" y2="1" data-grad>
+					{Array.from({ length: STRIPS + 1 }, (_, i) => <stop class="dfp__stop" offset={(i / STRIPS).toFixed(4)} stop-opacity="0"></stop>)}
+				</linearGradient>
+			</defs>
+			<rect x={LX} y={LTOP} width={LW} height={LH} data-liquid></rect>
+			<path class="dfp__glass" d={`M${LX - 2} ${LTOP - 12} V${LTOP + LH + 2} H${LX + LW + 2} V${LTOP - 12}`}></path>
+			<path class="ln-dash" d={`M${LX + LW + 4} ${LTOP + LH / 2} H${LX + LW + 12}`}></path>
+			<text class="t-small" x={LX + LW + 10} y={LTOP + 26}>вода</text>
+			<text class="t-small" x={LX + LW + 10} y={LTOP + LH - 46}>раствор</text>
+			<text class="t-small" x={LX + LW + 10} y={LTOP + LH - 33}>медного</text>
+			<text class="t-small" x={LX + LW + 10} y={LTOP + LH - 20}>купороса</text>
+			<text class="t-small" x={LX + LW + 15} y={LTOP + LH / 2 + 3.5}>граница</text>
+			<path class="ln" d={`M${LX - 14} ${LTOP} V${LTOP + LH} M${LX - 18} ${LTOP} H${LX - 10} M${LX - 18} ${LTOP + LH} H${LX - 10}`}></path>
+			<text class="t-small t-halo" x={LX - 14} y={LTOP + LH / 2} text-anchor="middle" transform={`rotate(-90 ${LX - 14} ${LTOP + LH / 2})`} dy="3.5">10 см</text>
+			<text class="t-strong t-num" x="110" y="228" text-anchor="middle" data-clock="liquid">сразу</text>
+			<rect class="dfp__track" x={BAR.x0} y={BAR.y - 3} width={BAR.x1 - BAR.x0} height="6" rx="3"></rect>
+			<rect class="dfp__fill" x={BAR.x0} y={BAR.y - 3} width="0" height="6" rx="3" data-bar></rect>
+			{ticks(3).map((x, i) => <text class="t-small t-num" x={x} y="262" text-anchor="middle">{i === 3 ? '3 нед.' : i}</text>)}
+		</svg>
+
+		<svg class="g7__svg" viewBox="0 0 220 268" role="img" aria-label="Твёрдые тела: золото и свинец за пять лет проникают друг в друга примерно на миллиметр">
+			<defs>
+				<clipPath id="dfp-lens"><circle cx={MCX} cy={MCY} r={MR}></circle></clipPath>
+			</defs>
+			<text class="t-title" x="110" y="18" text-anchor="middle">Твёрдые тела</text>
+			<text class="t-small" x="110" y="33" text-anchor="middle">прижатые пластинки</text>
+			<text class="t-small" x={110 - 30} y="50" text-anchor="middle">золото</text>
+			<text class="t-small" x={110 + 30} y="50" text-anchor="middle">свинец</text>
+			<rect class="dfp__gold" x={110 - 10 * PL} y="56" width={10 * PL} height="40"></rect>
+			<rect class="dfp__lead" x="110" y="56" width={10 * PL} height="40"></rect>
+			<path class="arrow arrow--green" d="M24 76 H42"></path>
+			<path class="head--green" d="M48 76 L40 71 V81 Z"></path>
+			<path class="arrow arrow--green" d="M196 76 H178"></path>
+			<path class="head--green" d="M172 76 L180 71 V81 Z"></path>
+			<rect class="dfp__zoom" x={110 - 2 * PL} y="68" width={4 * PL} height="16"></rect>
+			<path class="ln" d={`M${110 - 2 * PL} 84 L${MCX - MR * 0.78} ${MCY - MR * 0.62} M${110 + 2 * PL} 84 L${MCX + MR * 0.78} ${MCY - MR * 0.62}`}></path>
+			<g clip-path="url(#dfp-lens)">
+				<rect class="dfp__gold dfp__gold--lens" x={MCX - MR} y={MCY - MR} width={MR} height={2 * MR}></rect>
+				<rect class="dfp__lead dfp__lead--lens" x={MCX} y={MCY - MR} width={MR} height={2 * MR}></rect>
+				<g data-solid></g>
+				<path class="dfp__scale" d={`M${MCX - 34} ${MCY + 26} h25 M${MCX - 34} ${MCY + 23} v6 M${MCX - 9} ${MCY + 23} v6`}></path>
+				<text class="t-small t-halo" x={MCX - 21.5} y={MCY + 20} text-anchor="middle">1 мм</text>
+			</g>
+			<circle class="dfp__lens" cx={MCX} cy={MCY} r={MR}></circle>
+			<text class="t-strong t-num" x="110" y="228" text-anchor="middle" data-clock="solid">сразу</text>
+			<rect class="dfp__track" x={BAR.x0} y={BAR.y - 3} width={BAR.x1 - BAR.x0} height="6" rx="3"></rect>
+			<rect class="dfp__fill" x={BAR.x0} y={BAR.y - 3} width="0" height="6" rx="3" data-bar></rect>
+			{ticks(5).map((x, i) => <text class="t-small t-num" x={x} y="262" text-anchor="middle">{i === 5 ? '5 лет' : i}</text>)}
+		</svg>
+	</div>
+	<div class="dfp__row">
+		<button type="button" class="g7__btn" data-again>Повторить</button>
+	</div>
+	<figcaption class="g7__caption">
+		Часы в трёх картинках идут по-разному: пять минут, три недели и пять лет проходят за одни и те же 9&nbsp;секунд. В комнате запах разносит не только диффузия, но и движение воздуха. Под лупой граница золота и свинца сильно увеличена (отрезок — 1&nbsp;мм): атомы золота проникают в свинец. Каждая точка в картинках — множество молекул или атомов.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.dfp__room {
+		fill: color-mix(in oklab, var(--g7-faint) 25%, transparent);
+		stroke: var(--g7-line);
+		stroke-width: 1.4;
+	}
+	.dfp__person {
+		fill: var(--g7-faint);
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+	}
+	.dfp__person path {
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.dfp__table path {
+		fill: none;
+		stroke: var(--g7-wood);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	.dfp__bottle {
+		fill: color-mix(in oklab, var(--g7-violet) 60%, transparent);
+		stroke: var(--g7-violet);
+		stroke-width: 0.8;
+	}
+	.dfp__cap {
+		fill: var(--g7-ink);
+	}
+	.dfp__smell {
+		fill: var(--g7-violet);
+		fill-opacity: 0.85;
+	}
+	.dfp__water {
+		fill: color-mix(in srgb, var(--ig-vx) 12%, transparent);
+	}
+	.dfp__stop {
+		stop-color: var(--g7-blue);
+	}
+	.dfp__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	.dfp__gold {
+		fill: var(--g7-gold);
+	}
+	.dfp__lead {
+		fill: var(--g7-steel);
+	}
+	.dfp__gold--lens {
+		fill: color-mix(in oklab, var(--g7-gold) 55%, var(--g7-paper));
+	}
+	.dfp__lead--lens {
+		fill: color-mix(in oklab, var(--g7-steel) 70%, var(--g7-paper));
+	}
+	.dfp__au {
+		fill: var(--g7-gold);
+		stroke: color-mix(in oklab, var(--g7-gold) 55%, black);
+		stroke-width: 0.6;
+	}
+	.dfp__pb {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 0.5;
+	}
+	.dfp__zoom {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.dfp__lens {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.dfp__scale {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	.dfp__track {
+		fill: var(--sl-color-gray-5);
+	}
+	.dfp__fill {
+		fill: var(--sl-color-accent);
+	}
+	.dfp__row {
+		display: flex;
+		margin-top: 0.6rem;
+	}
+</style>
+
+<script>
+	import { el, fmtTrim, loop, rng } from '../g7/kit';
+
+	const RUN = 9; // s of animation
+	const PRE = 0.6; // s of the start frame
+	const HOLD = 3; // s of the end frame
+	// Газы
+	const GM = 50;
+	const RX = 10;
+	const FLOOR = 184;
+	const ROOM = { w: 4, h: 2.6 }; // м
+	const SRC = { x: 0.6, y: 0.9 }; // м: the bottle's mouth
+	const D_GAS = 0.0067; // м²/с, effective (air currents included)
+	const T_GAS = 300; // с
+	// Жидкости
+	const LTOP = 48;
+	const LH = 160;
+	const L = 10; // см
+	const D_LIQ = 0.7e-5; // см²/с
+	const T_LIQ = 21 * 86400; // с
+	const MODES = 240;
+	// Твёрдые тела
+	const MCX = 110;
+	const MCY = 160;
+	const MR = 46;
+	const MM = 25; // px per мм under the magnifier
+	const SIG_AU = 0.5; // мм after 5 лет
+	const SIG_PB = 0.12; // мм after 5 лет
+	const BAR = { x0: 22, x1: 198 };
+
+	const fold = (v: number, a: number, b: number) => {
+		const span = b - a;
+		let u = (v - a) % (2 * span);
+		if (u < 0) u += 2 * span;
+		return a + (u > span ? 2 * span - u : u);
+	};
+	const word = (n: number, f: [string, string, string]) => {
+		const m10 = n % 10;
+		const m100 = n % 100;
+		if (m10 === 1 && m100 !== 11) return f[0];
+		if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return f[1];
+		return f[2];
+	};
+	const NB = '\u00a0';
+	const clockGas = (x: number) => {
+		const s = Math.round((x * T_GAS) / 10) * 10;
+		if (s === 0) return 'сразу';
+		const m = Math.floor(s / 60);
+		const r = s % 60;
+		return `через ${m ? `${m}${NB}мин` : ''}${m && r ? ' ' : ''}${r ? `${r}${NB}с` : ''}`;
+	};
+	const clockLiq = (x: number) => {
+		const d = Math.floor(x * 21 + 1e-9);
+		if (x === 0) return 'сразу';
+		if (d === 0) return 'через несколько часов';
+		if (d % 7 === 0) {
+			const w = d / 7;
+			return `через ${w}${NB}${word(w, ['неделю', 'недели', 'недель'])}`;
+		}
+		return `через ${d}${NB}${word(d, ['день', 'дня', 'дней'])}`;
+	};
+	const clockSol = (x: number) => {
+		if (x === 0) return 'сразу';
+		const y = Math.floor(x * 50 + 1e-9) / 10;
+		if (y === 0) return 'через несколько недель';
+		if (Number.isInteger(y)) return `через ${y}${NB}${word(y, ['год', 'года', 'лет'])}`;
+		return `через ${fmtTrim(y, 1)}${NB}года`;
+	};
+
+	let seq = 0;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-dfp]')) {
+		const rand = rng(17);
+		const gauss = () => {
+			const u = Math.max(rand(), 1e-9);
+			return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand());
+		};
+		const bars = [...root.querySelectorAll<SVGRectElement>('[data-bar]')];
+		const clocks = {
+			gas: root.querySelector<SVGTextElement>('[data-clock="gas"]')!,
+			liquid: root.querySelector<SVGTextElement>('[data-clock="liquid"]')!,
+			solid: root.querySelector<SVGTextElement>('[data-clock="solid"]')!,
+		};
+		// Газы: dots with fixed random offsets, scaled by σ(t)
+		const gasG = root.querySelector('[data-gas]')!;
+		const smell = Array.from({ length: 160 }, () => {
+			const c = el('circle', { class: 'dfp__smell', r: 1.7 });
+			gasG.append(c);
+			return { c, gx: gauss(), gy: gauss() };
+		});
+		// Жидкости
+		const grad = root.querySelector<SVGLinearGradientElement>('[data-grad]')!;
+		grad.id = `dfp-grad-${seq++}`;
+		root.querySelector('[data-liquid]')!.setAttribute('fill', `url(#${grad.id})`);
+		const strips = [...grad.querySelectorAll<SVGStopElement>('stop')];
+		const coef = Array.from({ length: MODES + 1 }, (_, n) => (n === 0 ? 0 : (2 / (n * Math.PI)) * Math.sin((n * Math.PI) / 2)));
+		// Твёрдые тела
+		const solG = root.querySelector('[data-solid]')!;
+		const atoms = [
+			...Array.from({ length: 70 }, () => ({ au: true, g: Math.abs(gauss()), y: MCY + (rand() * 2 - 1) * MR })),
+		].map((a) => {
+			const c = el('circle', { class: a.au ? 'dfp__au' : 'dfp__pb', r: 2.1, cy: a.y.toFixed(1) });
+			solG.append(c);
+			return { ...a, c };
+		});
+
+		const draw = (x: number) => {
+			for (const b of bars) b.setAttribute('width', ((BAR.x1 - BAR.x0) * x).toFixed(2));
+			// Газы
+			const sg = Math.sqrt(2 * D_GAS * T_GAS * x);
+			for (const d of smell) {
+				const mx = fold(SRC.x + sg * d.gx, 0.04, ROOM.w - 0.04);
+				const my = fold(SRC.y + sg * d.gy, 0.04, ROOM.h - 0.04);
+				d.c.setAttribute('cx', (RX + mx * GM).toFixed(1));
+				d.c.setAttribute('cy', (FLOOR - my * GM).toFixed(1));
+			}
+			clocks.gas.textContent = clockGas(x);
+			// Жидкости: z from the bottom
+			const t = T_LIQ * x;
+			strips.forEach((s, i) => {
+				const z = L * (1 - i / (strips.length - 1));
+				let c: number;
+				if (t === 0) c = z < L / 2 ? 1 : z > L / 2 ? 0 : 0.5;
+				else {
+					c = 0.5;
+					for (let n = 1; n <= MODES; n += 2) {
+						const k = (n * Math.PI) / L;
+						const e = Math.exp(-D_LIQ * k * k * t);
+						if (e < 1e-7) break;
+						c += coef[n] * Math.cos(k * z) * e;
+					}
+				}
+				s.setAttribute('stop-opacity', (0.85 * Math.min(1, Math.max(0, c))).toFixed(3));
+			});
+			clocks.liquid.textContent = clockLiq(x);
+			// Твёрдые тела
+			const r = Math.sqrt(x);
+			for (const a of atoms) {
+				const off = a.g * (a.au ? SIG_AU : SIG_PB) * r * MM;
+				const cx = a.au ? MCX + off : MCX - off;
+				a.c.setAttribute('cx', cx.toFixed(1));
+				a.c.setAttribute('visibility', off > 2.4 ? 'visible' : 'hidden');
+			}
+			clocks.solid.textContent = clockSol(x);
+		};
+
+		let t = 0;
+		const cycle = PRE + RUN + HOLD;
+		const show = () => draw(Math.min(1, Math.max(0, (t - PRE) / RUN)));
+		const wake = loop(root, (dt) => {
+			t += dt;
+			if (t >= cycle) t = 0;
+			show();
+			return true;
+		});
+		root.querySelector('[data-again]')!.addEventListener('click', () => {
+			t = 0;
+			show();
+			wake();
+		});
+		show();
+	}
+</script>
