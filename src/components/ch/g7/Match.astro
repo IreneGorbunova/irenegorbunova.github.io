@@ -1,0 +1,460 @@
+---
+/**
+ * A matching table: cards lie mixed up above a table; the reader drags each card into its row, or taps a card and then
+ * the row. A right card stays in the row (a card marked `si` goes first and keeps its color), a wrong one goes back
+ * with a hint. «Верно» is lit green, «Подумайте ещё» red, as in Sorter.astro. A right card gives the row the class
+ * `is-right` for a moment (the chapter's «вопрос» star).
+ *   <Match rows={[{ key: 'm', label: 'm', name: 'масса', letter: true }, …]}
+ *          items={[{ text: 'кг', row: 'm', si: true, name: 'килограмм', why: '…' }, …]} legend="единицы СИ" />
+ * A row with `letter` shows its label as a quantity's letter; hovering or tapping it shows the quantity's name.
+ * An item with `pic` shows a picture of an instrument (MatchIcon.astro). `hint` is shown after a wrong choice;
+ * without it the hint is «„кг“ — это килограмм.» made from `name`.
+ */
+import G7Styles from './G7Styles.astro';
+import MatchIcon from './MatchIcon.astro';
+
+interface Row {
+	key: string;
+	label: string;
+	name: string;
+	letter?: boolean;
+}
+interface Item {
+	text: string;
+	row: string;
+	name?: string;
+	si?: boolean;
+	pic?: 'ruler' | 'tape' | 'scales' | 'stopwatch' | 'clock' | 'thermometer' | 'speedometer' | 'cylinder';
+	why?: string;
+	hint?: string;
+}
+interface Props {
+	rows: Row[];
+	items: Item[];
+	ask?: string;
+	done?: string;
+	/** what the colored cards are, under the table */
+	legend?: string;
+	caption?: string;
+}
+const { rows, items, ask = 'Разложите карточки по строкам.', done = 'Всё на своих местах.', legend, caption } = Astro.props;
+const data = items.map(({ text, row, name, why, hint }) => ({ text, row, name, why, hint }));
+const pics = items.some((i) => i.pic);
+---
+
+<G7Styles />
+<figure class:list={['g7 g7--stack mt not-content', pics && 'mt--pics']} data-match data-items={JSON.stringify(data)} data-rows={JSON.stringify(rows)} data-done={done}>
+	<div class="mt__top">
+		<p class="mt__ask">{ask}</p>
+		<p class="mt__count" data-count></p>
+	</div>
+	<div class="mt__pool" data-pool>
+		{
+			items.map((it, i) => (
+				<button type="button" class:list={['mt__chip', it.si && 'is-si']} data-i={i} aria-pressed="false">
+					{it.pic && <MatchIcon name={it.pic} />}
+					<span>{it.text}</span>
+				</button>
+			))
+		}
+	</div>
+	<p class="g7__msg mt__msg" data-msg aria-live="polite"></p>
+	<div class="mt__table">
+		{
+			rows.map((r) => (
+				<div class="mt__row">
+					<span class:list={['mt__name', r.letter && 'is-letter']} data-name={r.key}>
+						{r.label}
+					</span>
+					<div class="mt__zone" data-zone={r.key} role="button" tabindex="0" aria-label={`Строка «${r.name}»`} />
+				</div>
+			))
+		}
+	</div>
+	{
+		legend && (
+			<p class="mt__legend">
+				<span class="mt__swatch" aria-hidden="true" />
+				{legend}
+			</p>
+		)
+	}
+	<div class="g7__row">
+		<button type="button" class="g7__btn" data-restart>Начать заново</button>
+	</div>
+	{caption && <figcaption class="g7__caption">{caption}</figcaption>}
+</figure>
+
+<style is:global>
+	.mt__top {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+		align-items: baseline;
+	}
+	.mt__ask,
+	.mt__count {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mt__count {
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.mt__pool {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.45rem;
+		min-height: 2.6rem;
+		margin: 0.6rem 0 0.5rem;
+		padding: 0.6rem;
+		border-radius: 0.8rem;
+		background: var(--sl-color-gray-6);
+	}
+	.mt__chip {
+		min-width: 2.9rem;
+		min-height: 2.4rem;
+		padding: 0.25rem 0.7rem;
+		border: 1.5px solid var(--sl-color-gray-4);
+		border-radius: 0.6rem;
+		background: var(--ig-surface);
+		color: var(--sl-color-white);
+		font: inherit;
+		font-weight: 700;
+		line-height: 1.2;
+		cursor: grab;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.mt__chip.is-si {
+		border-color: var(--g7-gold);
+		background: color-mix(in oklab, var(--g7-gold) 26%, var(--ig-surface));
+	}
+	.mt__chip[aria-pressed='true'] {
+		outline: 3px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.mt__chip.is-dragging {
+		opacity: 0.35;
+	}
+	.mt__chip.is-placed {
+		cursor: default;
+		min-height: 2rem;
+	}
+	.mt__chip:disabled {
+		opacity: 1;
+		color: var(--sl-color-white);
+	}
+	.mt--pics .mt__chip {
+		width: 6.2rem;
+		padding: 0.35rem 0.3rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+	}
+	.mt--pics .mt__zone .mt__chip {
+		width: auto;
+		min-width: 5rem;
+	}
+	.mt__ghost {
+		position: fixed;
+		left: 0;
+		top: 0;
+		z-index: 10000;
+		margin: 0;
+		pointer-events: none;
+		box-shadow: 0 8px 22px rgb(0 0 0 / 0.35);
+		cursor: grabbing;
+	}
+	.mt__msg {
+		margin-bottom: 0.6rem;
+	}
+	.mt__ok,
+	.mt__no {
+		padding: 0.05rem 0.4rem;
+		border-radius: 0.35rem;
+		font-weight: 700;
+	}
+	.mt__ok {
+		background: var(--sl-color-green-low);
+		color: var(--sl-color-green);
+	}
+	.mt__no {
+		background: var(--sl-color-red-low);
+		color: var(--sl-color-red);
+	}
+	:root[data-theme='light'] .mt__ok {
+		color: var(--sl-color-green-high);
+	}
+	:root[data-theme='light'] .mt__no {
+		color: var(--sl-color-red-high);
+	}
+	.mt__table {
+		display: grid;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.mt__row {
+		display: grid;
+		grid-template-columns: 3.2rem minmax(0, 1fr);
+		gap: 0.5rem;
+		align-items: stretch;
+	}
+	.mt--pics .mt__row {
+		grid-template-columns: 9.5rem minmax(0, 1fr);
+	}
+	.mt__name {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.2rem 0.4rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		font-weight: 700;
+		color: var(--sl-color-white);
+		text-align: center;
+	}
+	.mt__name.is-letter {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 1.45rem;
+		font-weight: 400;
+		cursor: help;
+		text-decoration: underline dotted;
+		text-decoration-thickness: 2px;
+		text-underline-offset: 0.2em;
+		text-decoration-color: var(--sl-color-text-accent);
+	}
+	.mt__zone {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.35rem;
+		min-height: 2.9rem;
+		padding: 0.3rem 0.4rem;
+		border: 1.5px dashed var(--sl-color-gray-4);
+		border-radius: 0.6rem;
+		cursor: pointer;
+	}
+	.mt__zone.is-over,
+	.mt.is-picking .mt__zone:hover {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+	.mt__zone.is-right {
+		border-color: var(--sl-color-green);
+	}
+	.mt__zone.is-wrong {
+		animation: mt-shake 0.35s;
+		border-color: var(--sl-color-red);
+	}
+	@keyframes mt-shake {
+		25% {
+			transform: translateX(-5px);
+		}
+		75% {
+			transform: translateX(5px);
+		}
+	}
+	.mt__legend {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 0 0 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.mt__swatch {
+		flex: none;
+		width: 1.6rem;
+		height: 1.1rem;
+		border: 1.5px solid var(--g7-gold);
+		border-radius: 0.3rem;
+		background: color-mix(in oklab, var(--g7-gold) 26%, var(--ig-surface));
+	}
+	@container (max-width: 30rem) {
+		.mt--pics .mt__row {
+			grid-template-columns: 6.2rem minmax(0, 1fr);
+		}
+		.mt--pics .mt__name {
+			font-size: var(--sl-text-sm);
+		}
+		.mt--pics .mt__chip {
+			width: 5.4rem;
+			font-size: var(--sl-text-xs);
+		}
+	}
+</style>
+
+<script>
+	type It = { text: string; row: string; name?: string; why?: string; hint?: string };
+	type Rw = { key: string; label: string; name: string; letter?: boolean };
+	type NoteEl = HTMLElement & { igNote?: () => Node };
+	const VARS = ['--g7-gold', '--g7-red', '--g7-wood', '--g7-paper', '--g7-water'];
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-match]')) {
+		const items: It[] = JSON.parse(root.dataset.items!);
+		const rows: Rw[] = JSON.parse(root.dataset.rows!);
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const pool = q<HTMLElement>('[data-pool]');
+		const msg = q<HTMLElement>('[data-msg]');
+		const count = q<HTMLElement>('[data-count]');
+		const chips = [...pool.querySelectorAll<HTMLButtonElement>('.mt__chip')];
+		const zones = [...root.querySelectorAll<HTMLElement>('[data-zone]')];
+		let picked: HTMLButtonElement | null = null;
+		let placed = 0;
+		let misses = 0;
+
+		// a quantity's letter: hovering or tapping it shows the name (the shared notes of MoreSetup.astro)
+		for (const r of rows) {
+			if (!r.letter) continue;
+			const el = root.querySelector<NoteEl>(`[data-name="${r.key}"]`)!;
+			el.dataset.note = '';
+			el.igNote = () => {
+				const s = document.createElement('span');
+				s.innerHTML = `<b><i>${r.label}</i></b> — ${r.name}`;
+				return s;
+			};
+			el.tabIndex = 0;
+			el.setAttribute('role', 'button');
+			el.setAttribute('aria-label', r.name);
+			el.setAttribute('aria-haspopup', 'dialog');
+			el.setAttribute('aria-expanded', 'false');
+		}
+
+		const say = (ok: boolean, text?: string) => {
+			const mark = document.createElement('span');
+			mark.className = ok ? 'mt__ok' : 'mt__no';
+			mark.textContent = ok ? 'Верно.' : 'Подумайте ещё.';
+			msg.replaceChildren(mark, text ? ` ${text}` : '');
+		};
+		const tally = () => (count.textContent = `${placed} из ${items.length}`);
+		const pick = (c: HTMLButtonElement | null) => {
+			picked?.setAttribute('aria-pressed', 'false');
+			picked = c;
+			picked?.setAttribute('aria-pressed', 'true');
+			root.classList.toggle('is-picking', !!picked);
+		};
+		const place = (c: HTMLButtonElement, key: string) => {
+			const it = items[Number(c.dataset.i)];
+			const zone = zones.find((z) => z.dataset.zone === key)!;
+			pick(null);
+			if (it.row === key) {
+				c.classList.add('is-placed');
+				c.disabled = true;
+				if (c.classList.contains('is-si')) zone.prepend(c);
+				else zone.append(c);
+				zone.classList.add('is-right');
+				setTimeout(() => zone.classList.remove('is-right'), 700);
+				placed++;
+				tally();
+				if (placed === items.length) {
+					const end = document.createElement('span');
+					end.className = 'mt__ok';
+					end.textContent = 'Верно.';
+					msg.replaceChildren(end, ` ${root.dataset.done} ${misses ? `Ошибок: ${misses}.` : 'Без единой ошибки!'}`);
+				} else say(true, it.why);
+			} else {
+				misses++;
+				zone.classList.remove('is-wrong');
+				void zone.offsetWidth;
+				zone.classList.add('is-wrong');
+				setTimeout(() => zone.classList.remove('is-wrong'), 900);
+				say(false, it.hint ?? (it.name ? `«${it.text}» — это ${it.name}.` : ''));
+			}
+		};
+		const restart = () => {
+			pick(null);
+			placed = 0;
+			misses = 0;
+			msg.textContent = '';
+			const order = chips.slice();
+			for (let i = order.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[order[i], order[j]] = [order[j], order[i]];
+			}
+			for (const c of order) {
+				c.classList.remove('is-placed', 'is-dragging');
+				c.disabled = false;
+				pool.append(c);
+			}
+			tally();
+		};
+
+		// tap a card, then a row
+		let dragged = false;
+		for (const c of chips)
+			c.addEventListener('click', () => {
+				if (dragged || c.classList.contains('is-placed')) return;
+				pick(picked === c ? null : c);
+			});
+		for (const z of zones) {
+			z.addEventListener('click', () => picked && place(picked, z.dataset.zone!));
+			z.addEventListener('keydown', (e) => {
+				if ((e.key === 'Enter' || e.key === ' ') && picked) {
+					e.preventDefault();
+					place(picked, z.dataset.zone!);
+				}
+			});
+		}
+
+		// or drag a card to its row
+		let drag: { c: HTMLButtonElement; id: number; x0: number; y0: number; dx: number; dy: number; ghost: HTMLElement | null } | null = null;
+		const zoneAt = (x: number, y: number) => {
+			const z = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-zone]');
+			return z && zones.includes(z) ? z : null;
+		};
+		const stop = () => {
+			if (!drag) return;
+			drag.ghost?.remove();
+			drag.c.classList.remove('is-dragging');
+			for (const z of zones) z.classList.remove('is-over');
+			drag = null;
+		};
+		for (const c of chips)
+			c.addEventListener('pointerdown', (e) => {
+				dragged = false;
+				if (c.classList.contains('is-placed') || e.button !== 0) return;
+				drag = { c, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, ghost: null };
+			});
+		addEventListener('pointermove', (e) => {
+			if (!drag || e.pointerId !== drag.id) return;
+			if (!drag.ghost) {
+				if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
+				const r = drag.c.getBoundingClientRect();
+				const g = drag.c.cloneNode(true) as HTMLElement;
+				g.classList.add('mt__ghost');
+				g.removeAttribute('data-i');
+				g.setAttribute('aria-hidden', 'true');
+				g.style.width = `${r.width}px`;
+				const cs = getComputedStyle(root);
+				for (const v of VARS) g.style.setProperty(v, cs.getPropertyValue(v));
+				document.body.append(g);
+				drag.ghost = g;
+				drag.dx = drag.x0 - r.left;
+				drag.dy = drag.y0 - r.top;
+				drag.c.classList.add('is-dragging');
+				pick(null);
+			}
+			drag.ghost.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px)`;
+			const z = zoneAt(e.clientX, e.clientY);
+			for (const o of zones) o.classList.toggle('is-over', o === z);
+		});
+		addEventListener('pointerup', (e) => {
+			if (!drag || e.pointerId !== drag.id) return;
+			if (drag.ghost) {
+				const z = zoneAt(e.clientX, e.clientY);
+				const c = drag.c;
+				dragged = true;
+				stop();
+				if (z) place(c, z.dataset.zone!);
+			} else drag = null;
+		});
+		addEventListener('pointercancel', stop);
+
+		q('[data-restart]').addEventListener('click', restart);
+		restart();
+	}
+</script>

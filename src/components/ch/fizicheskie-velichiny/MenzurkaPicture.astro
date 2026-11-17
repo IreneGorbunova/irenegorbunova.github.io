@@ -1,0 +1,162 @@
+---
+/**
+ * Picture «Объём тела мензуркой»: the same measuring cylinder before and after a body on a thread is put under
+ * water. `explain` writes V₁, V₂ and V = V₂ − V₁; `task` shows only the scales, for a question below the picture.
+ * The scale: from 0 to `max` мл, numbers every `every` мл, a division of `step` мл; 160 px from 0 to `max`.
+ * The body is drawn to the scale of the glass: glass and body are cylinders, so a body of width w and height h raises
+ * the water by r = w²·h / 48² px; w and h (h = 1,35 w) are found from the rise V₂ − V₁.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+interface Props {
+	v1: number;
+	v2: number;
+	max: number;
+	every: number;
+	step: number;
+	body: 'cylinder' | 'weight';
+	mode?: 'explain' | 'task';
+	label: string;
+}
+const { v1, v2, max, every, step, body, mode = 'explain', label } = Astro.props;
+const BOT = 200;
+const y = (v: number) => BOT - (v * 160) / max;
+const cups = [
+	{ cx: 78, v: v1, name: 'до погружения', sym: 'V₁' },
+	{ cx: 214, v: v2, name: 'после погружения', sym: 'V₂' },
+];
+const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
+const nf = (v: number) => String(v).replace('.', ',');
+const rise = ((v2 - v1) * 160) / max;
+const bw = Math.cbrt((48 * 48 * rise) / 1.35);
+const bh = 1.35 * bw;
+---
+
+<G7Styles />
+<figure class="g7 g7--pic men not-content">
+	<svg class="g7__svg men__svg" viewBox="0 0 300 236" role="img" aria-label={label}>
+		{
+			cups.map((c, k) => (
+				<g>
+					<text class="t-small" x={c.cx} y="14" text-anchor="middle">
+						{c.name}
+					</text>
+					<rect class="men__water" x={c.cx - 24} y={y(c.v)} width="48" height={BOT - y(c.v)} />
+					<line class="men__level" x1={c.cx - 24} x2={c.cx + 24} y1={y(c.v)} y2={y(c.v)} />
+					{ticks.map((v) => (
+						<line class="men__tick" x1={c.cx - 24} x2={c.cx - 24 + (v % every === 0 ? 14 : 7)} y1={y(v)} y2={y(v)} />
+					))}
+					{ticks
+						.filter((v) => v % every === 0)
+						.map((v) => (
+							<text class="men__num" x={c.cx - 28} y={y(v) + 3.5} text-anchor="end">
+								{v}
+							</text>
+						))}
+					<text class="men__num" x={c.cx - 28} y={y(max) - 12} text-anchor="end">
+						мл
+					</text>
+					{k === 1 && (
+						<>
+							<line class="men__thread" x1={c.cx} y1="20" x2={c.cx} y2={BOT - bh - (body === 'weight' ? 5 : 3)} />
+							{body === 'cylinder' ? (
+								<g transform={`translate(${c.cx} ${BOT - bh})`}>
+									<path class="men__thread" d="M-3 -3 Q0 -6 3 -3" fill="none" />
+									<rect class="men__metal" x={-bw / 2} y="0" width={bw} height={bh} rx="2" />
+									<path class="men__shine" d={`M${-bw / 2 + 5} 4 V${bh - 4}`} />
+								</g>
+							) : (
+								<g transform={`translate(${c.cx} ${BOT - bh})`}>
+									<rect class="men__brass" x={-bw * 0.17} y="-5" width={bw * 0.34} height="6" rx="2" />
+									<rect class="men__brass" x={-bw / 2} y="0" width={bw} height={bh} rx="3" />
+								</g>
+							)}
+						</>
+					)}
+					<path class="men__glass" d={`M${c.cx - 24} ${y(max) - 22} V${BOT} H${c.cx + 24} V${y(max) - 22} M${c.cx - 24} ${y(max) - 22} l-5 -5 M${c.cx - 34} ${BOT + 6} H${c.cx + 34} L${c.cx + 24} ${BOT} M${c.cx - 34} ${BOT + 6} L${c.cx - 24} ${BOT}`} />
+					{mode === 'explain' && (
+						<g>
+							<text class="men__val" x={c.cx} y={BOT + 26} text-anchor="middle">
+								{`${c.sym} = ${nf(c.v)} мл`}
+							</text>
+						</g>
+					)}
+				</g>
+			))
+		}
+	</svg>
+	{
+		mode === 'explain' && (
+			<p class="men__res">
+				<i>V</i> = <i>V</i>
+				<sub>2</sub> − <i>V</i>
+				<sub>1</sub> = {nf(v2)}&nbsp;мл − {nf(v1)}&nbsp;мл = {nf(v2 - v1)}&nbsp;мл = {nf(v2 - v1)}&nbsp;см³
+			</p>
+		)
+	}
+	<figcaption class="g7__caption">
+		<slot />
+	</figcaption>
+</figure>
+
+<style is:global>
+	.men__svg {
+		max-width: 26rem;
+		margin-inline: auto;
+	}
+	.men__water {
+		fill: var(--g7-water);
+	}
+	.men__level {
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.6;
+	}
+	.men__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.g7__svg .men__num {
+		font-size: 10px;
+		fill: var(--sl-color-gray-2);
+	}
+	.men__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.men__thread {
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.men__metal {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.men__brass {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	.men__shine {
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+		opacity: 0.35;
+	}
+	.g7__svg .men__val {
+		font-size: 12px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+	.men__res {
+		margin: 0.5rem auto 0;
+		max-width: 26rem;
+		padding: 0.35rem 0.6rem;
+		border-radius: 0.5rem;
+		background: color-mix(in srgb, var(--g7-blue) 16%, transparent);
+		font-weight: 700;
+		text-align: center;
+		color: var(--sl-color-white);
+	}
+</style>

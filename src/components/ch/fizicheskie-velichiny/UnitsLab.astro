@@ -3,7 +3,9 @@
  * «Измерьте своей меркой»: one board is measured with different units of length: two people's cubits (48 см and
  * 40 см), the old Russian пядь (17,78 см) and аршин (71,12 см), the foot (30,48 см), the metre and the decimetre.
  * The unit is laid along the board again and again; the number of units is the length divided by the unit.
- * The drawing is to scale (130 px per metre). The results stay in a list, to be compared.
+ * The drawing is to scale (130 px per metre). The results stay in a list, to be compared. Units shorter than 6 px (the
+ * centimetre and the millimetre) are laid as a growing band with a tick at every unit (every 10 units for the
+ * millimetre, whose ticks would be 0,13 px apart) and a number every 50 cm.
  */
 import G7Styles from '../g7/G7Styles.astro';
 
@@ -16,6 +18,8 @@ const UNITS = [
 	{ key: 'foot', name: 'Фут', cm: 30.48, forms: 'фута|футов' },
 	{ key: 'm', name: 'Метр', cm: 100, forms: 'метра|метров' },
 	{ key: 'dm', name: 'Дециметр', cm: 10, forms: 'дециметра|дециметров' },
+	{ key: 'cm', name: 'Сантиметр', cm: 1, forms: 'сантиметра|сантиметров' },
+	{ key: 'mm', name: 'Миллиметр', cm: 0.1, forms: 'миллиметра|миллиметров' },
 ];
 ---
 
@@ -86,6 +90,15 @@ const UNITS = [
 		stroke: var(--g7-red);
 		stroke-dasharray: 3 2;
 	}
+	.unl__ticks {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 0.6;
+	}
+	.unl__ticks--big {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.2;
+	}
 	.unl svg .unl__n {
 		font-size: 11px;
 		font-weight: 700;
@@ -139,9 +152,39 @@ const UNITS = [
 			const part = n - whole;
 			const count = whole + (part > 1e-6 ? 1 : 0);
 			let i = 0;
+			// centimetres and millimetres: a band that grows along the board in 1,6 s, ticks at the units laid so far
+			const fine = m * S < 6;
+			const per = m * S >= 1.2 ? 1 : 10; // units between two ticks
+			const label = Math.round(0.5 / m); // a number every 50 cm
+			const band = el('rect', { class: 'unl__seg', x: X0, y: 54, width: 0, height: 26, rx: 2 });
+			const small = el('path', { class: 'unl__ticks' });
+			const big = el('path', { class: 'unl__ticks unl__ticks--big' });
+			const nums = el('g');
+			if (fine) segs.append(band, small, big, nums);
+			let shownTicks = 0;
+			let p = 0;
+			const grow = () => {
+				p = Math.min(1, p + 30 / 1600);
+				const k = Math.floor(p * whole + 1e-9);
+				band.setAttribute('width', (p * L * S).toFixed(2));
+				let ds = small.getAttribute('d') ?? '';
+				let db = big.getAttribute('d') ?? '';
+				for (let j = shownTicks + per; j <= k; j += per) {
+					const x = (X0 + j * m * S).toFixed(2);
+					if (j % (per * 10) === 0) db += `M${x} 54 V80`;
+					else ds += `M${x} 68 V80`;
+					if (j % label === 0) nums.append(el('text', { class: 'unl__n', x: Number(x), y: 49, 'text-anchor': 'middle' }, String(j)));
+					shownTicks = j;
+				}
+				small.setAttribute('d', ds);
+				big.setAttribute('d', db);
+				title.textContent = `Единица: ${name.toLowerCase()} — отложено ${k}`;
+				if (p >= 1) i = count;
+			};
 			const add = () => {
 				if (i >= count) {
 					clearInterval(timer);
+					if (fine) title.textContent = `Единица: ${name.toLowerCase()}`;
 					const text = `${fmtTrim(n, 2)}`;
 					// «3,75 локтя», «2 метра», «18 дециметров», «1 метр»
 					const whole = Math.abs(n - Math.round(n)) < 1e-9;
@@ -165,6 +208,13 @@ const UNITS = [
 				if (!isPart && (m * S > 18 || (i + 1) % 5 === 0)) segs.append(el('text', { class: 'unl__n', x: x + (m * S) / 2, y: 71, 'text-anchor': 'middle' }, String(i + 1)));
 				i++;
 			};
+			if (fine) {
+				timer = window.setInterval(() => {
+					grow();
+					if (i >= count) add();
+				}, 30);
+				return;
+			}
 			add();
 			timer = window.setInterval(add, count > 12 ? 90 : 260);
 		};
