@@ -4,7 +4,7 @@
  * hint and the item stays; a right one is added to its group's list, and the next item comes. The right button gets
  * the class `is-right` for a moment (the chapter's «вопрос» star). Several sorters may stand on one page.
  *   <Sorter groups={[{ key: 'body', label: 'Тело' }, …]} items={[{ text: 'гвоздь', group: 'body', why: '…', hint: '…' }, …]} />
- * `why` is shown after the right choice, `hint` after a wrong one.
+ * `why` is shown after the right choice, `hint` after a wrong one; «Верно» is lit green, «Подумайте ещё» red.
  */
 import G7Styles from './G7Styles.astro';
 
@@ -112,6 +112,26 @@ const { groups, items, ask = 'Куда это отнести?', caption, done = 
 	.srt__msg {
 		margin-bottom: 0.75rem;
 	}
+	.srt__ok,
+	.srt__no {
+		padding: 0.05rem 0.4rem;
+		border-radius: 0.35rem;
+		font-weight: 700;
+	}
+	.srt__ok {
+		background: var(--sl-color-green-low);
+		color: var(--sl-color-green);
+	}
+	.srt__no {
+		background: var(--sl-color-red-low);
+		color: var(--sl-color-red);
+	}
+	:root[data-theme='light'] .srt__ok {
+		color: var(--sl-color-green-high);
+	}
+	:root[data-theme='light'] .srt__no {
+		color: var(--sl-color-red-high);
+	}
 	.srt__bins {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
@@ -169,6 +189,13 @@ const { groups, items, ask = 'Куда это отнести?', caption, done = 
 		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-group]')];
 		let i = 0;
 		let misses = 0;
+		// «Верно» / «Подумайте ещё» lit in its color, then the explanation
+		const say = (ok: boolean, text?: string) => {
+			const mark = document.createElement('span');
+			mark.className = ok ? 'srt__ok' : 'srt__no';
+			mark.textContent = ok ? 'Верно.' : 'Подумайте ещё.';
+			msg.replaceChildren(mark, text ? ` ${text}` : '');
+		};
 
 		const show = () => {
 			for (const b of btns) b.classList.remove('is-right', 'is-miss');
@@ -192,7 +219,7 @@ const { groups, items, ask = 'Куда это отнести?', caption, done = 
 					const li = document.createElement('li');
 					li.textContent = it.text;
 					root.querySelector(`[data-bin="${it.group}"]`)!.append(li);
-					msg.textContent = it.why ? `Верно. ${it.why}` : 'Верно.';
+					say(true, it.why);
 					i++;
 					for (const o of btns) o.disabled = true;
 					setTimeout(show, it.why ? 1400 : 600);
@@ -202,7 +229,7 @@ const { groups, items, ask = 'Куда это отнести?', caption, done = 
 					item.classList.remove('is-wrong');
 					void item.offsetWidth;
 					item.classList.add('is-wrong');
-					msg.textContent = it.hint ? `Подумайте ещё. ${it.hint}` : 'Подумайте ещё.';
+					say(false, it.hint);
 				}
 			});
 		q<HTMLButtonElement>('[data-restart]').addEventListener('click', () => {

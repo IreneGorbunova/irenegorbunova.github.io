@@ -28,12 +28,7 @@ export const start = () => {
 	}
 	const folds: Fold[] = [];
 	const isPart = (e: Element): e is HTMLElement => e instanceof HTMLElement && !e.matches('script, style, template');
-	heads.forEach((h, i) => {
-		if (!FOLD.test(h.textContent?.trim() ?? '')) return;
-		const w = wrapOf(h) as HTMLElement;
-		const end = heads[i + 1] ? wrapOf(heads[i + 1]) : null;
-		const parts: HTMLElement[] = [];
-		for (let e = w.nextElementSibling; e && e !== end; e = e.nextElementSibling) if (isPart(e)) parts.push(e);
+	const fold = (w: HTMLElement, parts: HTMLElement[]) => {
 		if (!parts.length) return;
 		for (const p of parts) p.dataset.igsFold = '';
 		w.dataset.igsHead = '';
@@ -50,7 +45,26 @@ export const start = () => {
 		b.addEventListener('click', () => open(!w.hasAttribute('data-igs-open')));
 		w.append(b);
 		folds.push({ parts, open });
+	};
+	heads.forEach((h, i) => {
+		if (!FOLD.test(h.textContent?.trim() ?? '')) return;
+		const w = wrapOf(h) as HTMLElement;
+		const end = heads[i + 1] ? wrapOf(heads[i + 1]) : null;
+		const parts: HTMLElement[] = [];
+		for (let e = w.nextElementSibling; e && e !== end; e = e.nextElementSibling) if (isPart(e)) parts.push(e);
+		fold(w, parts);
 	});
+	// a «### …» subsection that the chapter marks with <ShortFold /> folds from its heading down to the mark
+	for (const mark of content.querySelectorAll<HTMLElement>(':scope > [data-igs-end]')) {
+		const parts: HTMLElement[] = [];
+		let e = mark.previousElementSibling;
+		while (e && !e.matches('.sl-heading-wrapper, h2, h3, h4')) {
+			if (isPart(e)) parts.unshift(e as HTMLElement);
+			e = e.previousElementSibling;
+		}
+		const h = e?.matches('.sl-heading-wrapper') ? e.querySelector('h3') : e?.matches('h3') ? e : null;
+		if (h) fold(wrapOf(h) as HTMLElement, parts);
+	}
 	// a link to a place inside a fold opens the fold
 	const reveal = () => {
 		const target = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
