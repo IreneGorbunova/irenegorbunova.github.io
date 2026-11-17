@@ -8,7 +8,7 @@ const html = document.documentElement;
 
 /** Sections («## …») the short view folds: history, the lunar task, derivations, applications, the optional ones.
  *  Models and experiments stay (Irina, 14 Nov 2026). */
-const FOLD = /^(Кто это открыл|Лунная задача|Рассчитайте сами|Выводим формул|Откуда берётся формула|Где это встречается|Для любознательных|Где работа)|( вокруг нас| в нашей жизни)$/;
+const FOLD = /^(Кто это открыл|Лунная задача|Как пользоваться формулами|Выводим формул|Откуда берётся формула|Где это встречается|Для любознательных|Где работа)|( вокруг нас| в нашей жизни)$/;
 
 /** The element of the chapter's text that holds the heading: Starlight wraps a heading together with its anchor link. */
 const wrapOf = (h: Element) => h.closest('.sl-heading-wrapper') ?? h;
