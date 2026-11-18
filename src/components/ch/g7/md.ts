@@ -5,7 +5,8 @@
  * kinetic energy of a particle (so in these units the 2D model melts near 0,4 and boils away above about 0,5).
  * Motion: velocity Verlet steps. A thermostat gently pulls the temperature to the wanted value, as a heater or
  * a cooler in contact with the vessel would. Optional: gravity, a removable partition, particles of a larger size
- * and mass (a Brownian grain), a floor that attracts the molecules (wetting).
+ * and mass (a Brownian grain), a floor that attracts the molecules (wetting), walls that move inward from any side
+ * (`top`, `left`, `right`, `bottom`) and a callback on every blow on a wall (`onHit`).
  */
 export interface MDSetup {
 	/** width and height of the box, in σ */
@@ -42,6 +43,13 @@ export class MD {
 	impulseTop = 0;
 	/** the same for all four walls together (the lid included) */
 	impulseWalls = 0;
+	/** x of the left wall (0: the left edge of the box) */
+	left = 0;
+	/** x of the right wall and y of the bottom (null: the right edge and the bottom of the box) */
+	right: number | null = null;
+	bottom: number | null = null;
+	/** called on every blow on a wall: wall 0 top, 1 right, 2 bottom, 3 left; (x, y) the point of the blow; dp the momentum given */
+	onHit: ((wall: number, x: number, y: number, dp: number) => void) | null = null;
 	/** x of a wall that particles cannot cross (null: no partition) */
 	partition: number | null = null;
 	/** the temperature the thermostat keeps; null: no thermostat */
@@ -142,7 +150,12 @@ export class MD {
 	}
 
 	step(dt: number) {
-		const { n, x, y, vx, vy, fx, fy, m, extra, w, h } = this;
+		const { n, x, y, vx, vy, fx, fy, m, extra } = this;
+		const L = this.left;
+		const R = this.right ?? this.w;
+		const TOP = this.top;
+		const B = this.bottom ?? this.h;
+		const hit = this.onHit;
 		for (let i = 0; i < n; i++) {
 			vx[i] += (0.5 * dt * fx[i]) / m[i];
 			vy[i] += (0.5 * dt * fy[i]) / m[i];
@@ -150,25 +163,39 @@ export class MD {
 			x[i] += dt * vx[i];
 			y[i] += dt * vy[i];
 			const pad = 0.5 + extra[i];
-			if (x[i] < pad) {
-				x[i] = 2 * pad - x[i];
-				if (vx[i] < 0) this.impulseWalls += 2 * m[i] * -vx[i];
+			if (x[i] < L + pad) {
+				x[i] = Math.min(R - pad, 2 * (L + pad) - x[i]);
+				if (vx[i] < 0) {
+					const dp = 2 * m[i] * -vx[i];
+					this.impulseWalls += dp;
+					if (hit) hit(3, L, y[i], dp);
+				}
 				vx[i] = Math.abs(vx[i]);
-			} else if (x[i] > w - pad) {
-				x[i] = 2 * (w - pad) - x[i];
-				if (vx[i] > 0) this.impulseWalls += 2 * m[i] * vx[i];
+			} else if (x[i] > R - pad) {
+				x[i] = Math.max(L + pad, 2 * (R - pad) - x[i]);
+				if (vx[i] > 0) {
+					const dp = 2 * m[i] * vx[i];
+					this.impulseWalls += dp;
+					if (hit) hit(1, R, y[i], dp);
+				}
 				vx[i] = -Math.abs(vx[i]);
 			}
-			if (y[i] < this.top + pad) {
-				y[i] = Math.min(h - pad, 2 * (this.top + pad) - y[i]);
+			if (y[i] < TOP + pad) {
+				y[i] = Math.min(B - pad, 2 * (TOP + pad) - y[i]);
 				if (vy[i] < 0) {
-					this.impulseTop += 2 * m[i] * -vy[i];
-					this.impulseWalls += 2 * m[i] * -vy[i];
+					const dp = 2 * m[i] * -vy[i];
+					this.impulseTop += dp;
+					this.impulseWalls += dp;
+					if (hit) hit(0, x[i], TOP, dp);
 				}
 				vy[i] = Math.abs(vy[i]);
-			} else if (y[i] > h - pad) {
-				y[i] = 2 * (h - pad) - y[i];
-				if (vy[i] > 0) this.impulseWalls += 2 * m[i] * vy[i];
+			} else if (y[i] > B - pad) {
+				y[i] = 2 * (B - pad) - y[i];
+				if (vy[i] > 0) {
+					const dp = 2 * m[i] * vy[i];
+					this.impulseWalls += dp;
+					if (hit) hit(2, x[i], B, dp);
+				}
 				vy[i] = -Math.abs(vy[i]);
 			}
 			const p = this.partition;

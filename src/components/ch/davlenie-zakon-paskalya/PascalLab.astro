@@ -1,10 +1,26 @@
 ---
 /**
- * «Шар Паскаля»: a hollow ball with small holes all over it is joined to a cylinder with a piston and filled with
- * water. When the piston is pushed, the pressure it makes is passed on to every point of the water, and equal
- * jets come out of all the holes, whatever their direction. Each jet leaves at right angles to the wall with the
- * speed √(2p/ρ) and then follows a parabola under gravity (drawn for the first 0,1 с of the flight; 1 px = 2 мм
- * in the drawing of the jets). The pressure is the force on the piston divided by its area, 4 см².
+ * «Шар Паскаля»: a hollow ball with small holes all over it is joined to a cylinder with a piston. A switch fills it
+ * with water or with smoke (air with smoke in it). The pressure the piston makes is passed on to every point of the
+ * water or of the gas, and equal streams come out of all the holes, whatever their direction. The pressure is the
+ * force on the piston divided by its area, 4 см². The device is drawn not to scale.
+ *
+ * Water: each jet leaves at right angles to the wall with the speed √(2p/ρ), ρ = 1000 кг/м³ (at 1 Н: p = 2,5 кПа,
+ * 2,2 м/с), and then follows a parabola under gravity (drawn for the first 0,1 с of the flight; 1 px = 2 мм in the
+ * drawing of the jets). The piston is drawn at rest.
+ *
+ * Smoke: the same pressure pushes air out of the 9 holes (diameter 1 мм) with the speed √(2p/ρ), ρ = 1,2 кг/м³
+ * (at 1 Н: 64,5 м/с, much faster than water, because air is light; Bernoulli without losses, fine at this speed,
+ * Mach 0,2; the discharge coefficient of the holes is taken as 1). A smoke stream is air moving through air: its
+ * weight is balanced by the push of the air around it (smoke particles add almost nothing), so gravity does not bend
+ * it, unlike the water jets. A free stream slows down as it mixes with the air: its speed along the axis is v₀ for
+ * the first 6 hole diameters and v₀·6d/s farther on (the textbook law of a round turbulent jet), and it widens in
+ * a cone of about 12°; the puffs follow that law, at 1 px = 1 мм from the hole. Air is compressible, so the piston
+ * moves in two ways: it first squeezes the air (isothermal, (p₀ + p)·V = p₀·V₀ for the amount of air V₀ at the
+ * atmospheric pressure p₀ = 101 кПа; the ball, 10,4 см across, and the cylinder hold 620 см³), then follows the
+ * air that leaves, Q = 9·πd²/4·v. At 1 Н the squeeze takes 3,7 см of the 8 см stroke, the piston reaches the bottom after
+ * 0,05 с (0,22 с at 0,1 Н); then the pressure falls and the streams die out. Everything in the
+ * smoke mode is slowed down 100 times; the pressure follows the force with a lag of 0,003 с (the piston's mass); friction is left out.
  */
 import G7Styles from '../g7/G7Styles.astro';
 
@@ -12,23 +28,28 @@ const HOLES = [-150, -110, -70, -30, 10, 50, 90, 130, 170];
 ---
 
 <G7Styles />
-<figure class="g7 pas not-content" data-pas>
+<figure class="g7 pas not-content" data-pas data-mode="water">
 	<div class="g7__grid">
-		<svg class="g7__svg" viewBox="0 0 340 280" role="img" aria-label="Шар с отверстиями, соединённый с цилиндром и поршнем; из всех отверстий бьют одинаковые струи" data-svg>
+		<svg class="g7__svg" viewBox="0 0 340 280" role="img" aria-label="Шар с отверстиями, соединённый с цилиндром и поршнем, наполнен водой или дымом; из всех отверстий одинаково бьют струи" data-svg>
 			<g data-jets></g>
-			<rect class="pas__water" x="150" y="20" width="40" height="92"></rect>
-			<circle class="pas__water" cx="170" cy="160" r="52"></circle>
+			<g data-smoke></g>
+			<rect class="pas__fill" x="150" y="25" width="40" height="87" data-col></rect>
+			<circle class="pas__fill" cx="170" cy="160" r="52"></circle>
 			<path class="pas__glass" d="M150 20 V114 M190 20 V114"></path>
 			<path class="pas__ball" d="M150 112 A52 52 0 1 0 190 112"></path>
 			<g data-piston>
 				<rect class="pas__piston" x="152" y="0" width="36" height="10" rx="2"></rect>
-				<path class="pas__rod" d="M170 0 V-30 M156 -30 H184"></path>
+				<path class="pas__rod" d="M170 0 V-60 M156 -60 H184"></path>
 			</g>
 			{HOLES.map((a) => <circle class="pas__hole" cx={170 + 52 * Math.cos((a * Math.PI) / 180)} cy={160 + 52 * Math.sin((a * Math.PI) / 180)} r="2.5" />)}
-			<text class="t-strong t-num" x="332" y="24" text-anchor="end" data-p></text>
-			<text class="t-small" x="332" y="40" text-anchor="end">давление поршня на воду</text>
+			<text class="t-strong t-num t-halo" x="332" y="24" text-anchor="end" data-p></text>
+			<text class="t-small t-halo" x="332" y="40" text-anchor="end" data-p-what>давление поршня на воду</text>
 		</svg>
 		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Чем наполнен шар" data-mode-pick>
+				<button type="button" class="g7__btn" aria-pressed="true" data-m="water">Вода</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="smoke">Дым</button>
+			</div>
 			<label class="g7__slider">
 				<span>Сила, с которой давят на поршень</span>
 				<output data-out></output>
@@ -36,19 +57,27 @@ const HOLES = [-150, -110, -70, -30, 10, 50, 90, 130, 170];
 			</label>
 			<ul class="g7__read" aria-live="polite">
 				<li><span>Площадь поршня</span><b>4 см²</b></li>
-				<li class="is-key"><span>Скорость воды в каждой струе</span><b data-v></b></li>
+				<li class="is-key"><span data-v-what>Скорость воды в каждой струе</span><b data-v></b></li>
 			</ul>
 			<p class="g7__msg" data-msg></p>
+			<button type="button" class="g7__btn g7__again" data-refill hidden>Набрать дым снова</button>
 		</div>
 	</div>
 	<figcaption class="g7__caption">
-		Поршень давит на воду только сверху вниз, а струи бьют и вниз, и в стороны, и вверх — из каждого отверстия с одной и той же скоростью.
+		Поршень давит только сверху вниз, а струи воды или дыма бьют и вниз, и в стороны, и вверх — из каждого отверстия с одной и той же скоростью. Опыт с дымом замедлен в 100 раз.
 	</figcaption>
 </figure>
 
 <style is:global>
-	.pas__water {
+	.pas {
+		--pas-smoke: color-mix(in oklab, var(--sl-color-gray-2) 85%, var(--sl-color-gray-4));
+	}
+	.pas__fill {
 		fill: var(--g7-water);
+		transition: fill 0.4s;
+	}
+	.pas[data-mode='smoke'] .pas__fill {
+		fill: color-mix(in srgb, var(--pas-smoke) 30%, transparent);
 	}
 	.pas__glass,
 	.pas__ball {
@@ -77,26 +106,71 @@ const HOLES = [-150, -110, -70, -30, 10, 50, 90, 130, 170];
 		stroke-width: 2.5;
 		stroke-linecap: round;
 	}
+	.pas__puff {
+		fill: var(--pas-smoke);
+	}
 </style>
 
 <script>
-	import { el, fmt, loop } from '../g7/kit';
+	import { el, fmt, loop, segment } from '../g7/kit';
 
 	const HOLES = [-150, -110, -70, -30, 10, 50, 90, 130, 170];
+	// the smoke mode, SI units
+	const S = 0.0004; // piston area, м²
+	const P0 = 101_000; // atmospheric pressure, Па
+	const V0 = 620e-6; // air in the ball and the cylinder, м³
+	const STROKE = 0.08; // м
+	const HOLE = (Math.PI * 0.001 ** 2) / 4; // one hole of 1 мм, м²
+	const RHO = 1.2; // air, кг/м³
+	const SLOW = 100;
+	const LAG = 0.003; // с
+	const D = 1; // the hole diameter in the drawing of the streams, px (1 px = 1 мм)
+	const PISTON_PX = 78; // the drawn stroke, px
+
 	for (const root of document.querySelectorAll<HTMLElement>('[data-pas]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
 		const fIn = q<HTMLInputElement>('[data-f]');
 		const jets = q<SVGGElement>('[data-jets]');
+		const smoke = q<SVGGElement>('[data-smoke]');
+		const refill = q<HTMLButtonElement>('[data-refill]');
 		const paths = HOLES.map(() => jets.appendChild(el('path', { class: 'pas__jet' })));
+		let mode: 'water' | 'smoke' = 'water';
 		let phase = 0;
-		const draw = () => {
+		// the smoke mode: the air left inside (as a volume at the atmospheric pressure), the piston, the pressure
+		let air = V0;
+		let x = 0;
+		let p = 0;
+		let target = 0;
+		// puffs of smoke: angle, the speed at the hole when it left (px per second of the slowed clock), distance from
+		// the hole s (px), sideways offset, age (s of the slowed clock)
+		type Puff = { a: number; v0: number; s: number; side: number; age: number; c: SVGCircleElement };
+		let puffs: Puff[] = [];
+		const spare: SVGCircleElement[] = [];
+		const debt = HOLES.map(() => Math.random());
+
+		const speed = (pa: number, rho: number) => Math.sqrt((2 * Math.max(pa, 0)) / rho);
+		const reset = () => {
+			air = V0;
+			x = 0;
+			p = 0;
+			target = 0;
+			for (const f of puffs) {
+				f.c.setAttribute('r', '0');
+				spare.push(f.c);
+			}
+			puffs = [];
+		};
+
+		const drawWater = () => {
 			const F = Number(fIn.value);
-			const p = F / 0.0004; // Па
-			const v = Math.sqrt((2 * p) / 1000); // м/с
-			q('[data-piston]').setAttribute('transform', `translate(0 ${20 + F * 6})`);
-			q('[data-out]').textContent = `${fmt(F, 2)} Н`;
-			q('[data-p]').textContent = `${fmt(p / 1000, 2)} кПа`;
-			q('[data-v]').textContent = `${fmt(v, 1)} м/с`;
+			const pw = F / S; // Па
+			const v = Math.sqrt((2 * pw) / 1000); // м/с
+			const top = 20 + F * 6;
+			q('[data-piston]').setAttribute('transform', `translate(0 ${top})`);
+			q('[data-col]').setAttribute('y', String(top + 5));
+			q('[data-col]').setAttribute('height', String(112 - top - 5));
+			q('[data-p]').textContent = `${fmt(pw / 1000, 2)}\u00a0кПа`;
+			q('[data-v]').textContent = `${fmt(v, 1)}\u00a0м/с`;
 			q('[data-msg]').textContent = F === 0 ? 'На поршень не давят: вода не вытекает.' : 'Давление поршня передалось во все точки воды: струи одинаковы во всех направлениях.';
 			HOLES.forEach((deg, i) => {
 				const a = (deg * Math.PI) / 180;
@@ -107,21 +181,133 @@ const HOLES = [-150, -110, -70, -30, 10, 50, 90, 130, 170];
 					for (let k = 0; k <= 10; k++) {
 						const t = 0.01 * k; // с
 						// the jet leaves along the radius and falls under gravity; 0,5 px per millimeter
-						const x = x0 + v * Math.cos(a) * t * 500;
-						const y = y0 + (v * Math.sin(a) * t * 1000 + 4900 * t * t) * 0.5;
-						d += `${k ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `;
+						const jx = x0 + v * Math.cos(a) * t * 500;
+						const jy = y0 + (v * Math.sin(a) * t * 1000 + 4900 * t * t) * 0.5;
+						d += `${k ? 'L' : 'M'}${jx.toFixed(1)} ${jy.toFixed(1)} `;
 					}
 				paths[i].setAttribute('d', d);
 				paths[i].setAttribute('stroke-dasharray', '9 5');
 				paths[i].setAttribute('stroke-dashoffset', String(-phase));
 			});
 		};
-		loop(root, (dt) => {
-			phase = (phase + dt * 60 * Math.sqrt(Number(fIn.value))) % 14;
-			draw();
-			return Number(fIn.value) > 0;
+
+		// one step of the smoke mode, dt in seconds of the slowed clock
+		const stepSmoke = (dt: number) => {
+			const F = Number(fIn.value);
+			const steps = Math.max(1, Math.ceil(dt / 0.004));
+			const h = dt / SLOW / steps; // real seconds
+			for (let k = 0; k < steps; k++) {
+				// a free piston keeps the pressure at F/S (reached with a short lag); it stands where the air left
+				// inside is squeezed to that pressure, unless it rests on the bottom or the top of the cylinder
+				target += (F / S - target) * Math.min(1, h / LAG);
+				x = (V0 - (P0 * air) / (P0 + target)) / S;
+				if (x > STROKE || x < 0) {
+					x = Math.min(STROKE, Math.max(0, x));
+					target = p = Math.max(0, P0 * (air / (V0 - S * x) - 1));
+				} else p = target;
+				air -= HOLES.length * HOLE * speed(p, RHO) * h;
+			}
+			const v = speed(p, RHO); // м/с
+			const v0 = (v * 1000) / SLOW; // px per second of the slowed clock
+			// new puffs: their number is proportional to the flow, 50 per second of the slowed clock from a hole at 1 Н
+			HOLES.forEach((deg, i) => {
+				debt[i] += (dt * 50 * v) / 64.5;
+				while (debt[i] >= 1) {
+					debt[i] -= 1;
+					const c = spare.pop() ?? smoke.appendChild(el('circle', { class: 'pas__puff', r: 0 }));
+					const jitter = (Math.random() + Math.random() + Math.random() - 1.5) * 0.12;
+					const age = Math.random() * dt;
+					puffs.push({ a: (deg * Math.PI) / 180 + jitter, v0, s: v0 * age, side: (Math.random() - 0.5) * 0.18, age, c });
+				}
+			});
+			// a puff moves with the local speed of its stream: v₀ near the hole, v₀·6d/s farther on
+			const keep: Puff[] = [];
+			for (const f of puffs) {
+				f.s += (f.s < 6 * D ? f.v0 : (f.v0 * 6 * D) / f.s) * dt;
+				f.age += dt;
+				// the smoke thins out as the stream mixes with the air; the puffs crowd where the stream is slow,
+				// so each one fades faster than 1/s to keep the drawn density close to the real ~1/s
+				const alpha = Math.min(0.45, ((10 * D) / Math.max(f.s, 1)) ** 1.5) * Math.min(1, f.age * 30);
+				if (f.s > 110 || alpha < 0.03 || f.age > 8) {
+					f.c.setAttribute('r', '0');
+					spare.push(f.c);
+					continue;
+				}
+				const r0 = 53 + f.s;
+				const cx = 170 + r0 * Math.cos(f.a) - f.side * f.s * Math.sin(f.a);
+				const cy = 160 + r0 * Math.sin(f.a) + f.side * f.s * Math.cos(f.a);
+				f.c.setAttribute('cx', cx.toFixed(1));
+				f.c.setAttribute('cy', cy.toFixed(1));
+				f.c.setAttribute('r', (1.4 + 0.1 * f.s).toFixed(1));
+				f.c.setAttribute('opacity', alpha.toFixed(2));
+				keep.push(f);
+			}
+			puffs = keep;
+		};
+
+		const drawSmoke = () => {
+			const F = Number(fIn.value);
+			const v = speed(p, RHO);
+			const top = 20 + (x / STROKE) * PISTON_PX;
+			q('[data-piston]').setAttribute('transform', `translate(0 ${top.toFixed(1)})`);
+			q('[data-col]').setAttribute('y', String(top + 5));
+			q('[data-col]').setAttribute('height', String(Math.max(0, 112 - top - 5)));
+			q('[data-p]').textContent = `${fmt(p / 1000, 2)}\u00a0кПа`;
+			q('[data-v]').textContent = `${fmt(v, 1)}\u00a0м/с`;
+			const atBottom = x > STROKE - 1e-6;
+			refill.hidden = x < 0.001;
+			q('[data-msg]').textContent = atBottom
+				? v > 0.5
+					? 'Поршень дошёл до дна цилиндра: дым выходит, пока давление в шаре не упадёт.'
+					: 'Поршень дошёл до дна цилиндра. Наберите дым снова.'
+				: v > 0.5
+					? 'Давление поршня передалось во все точки газа: дым выходит из всех отверстий одинаково.'
+					: F === 0
+						? 'На поршень не давят: дым не выходит.'
+						: 'Поршень сжимает воздух в шаре…';
+		};
+
+		const setMode = (m: 'water' | 'smoke') => {
+			mode = m;
+			root.dataset.mode = m;
+			reset();
+			fIn.value = '0';
+			q('[data-out]').textContent = `${fmt(0, 2)}\u00a0Н`;
+			for (const path of paths) path.setAttribute('d', '');
+			q('[data-v-what]').textContent = m === 'water' ? 'Скорость воды в каждой струе' : 'Скорость дыма в каждой струе';
+			q('[data-p-what]').textContent = m === 'water' ? 'давление поршня на воду' : 'давление воздуха в шаре';
+			refill.hidden = true;
+			if (m === 'water') drawWater();
+			else drawSmoke();
+		};
+
+		const wake = loop(root, (dt) => {
+			if (mode === 'water') {
+				phase = (phase + dt * 60 * Math.sqrt(Number(fIn.value))) % 14;
+				drawWater();
+				return Number(fIn.value) > 0;
+			}
+			stepSmoke(Math.min(dt, 0.05));
+			drawSmoke();
+			return true;
 		});
-		fIn.addEventListener('input', draw);
-		draw();
+		fIn.addEventListener('input', () => {
+			q('[data-out]').textContent = `${fmt(Number(fIn.value), 2)}\u00a0Н`;
+			if (mode === 'water') drawWater();
+			wake();
+		});
+		refill.addEventListener('click', () => {
+			reset();
+			fIn.value = '0';
+			q('[data-out]').textContent = `${fmt(0, 2)}\u00a0Н`;
+			drawSmoke();
+			wake();
+		});
+		segment(q('[data-mode-pick]'), (b) => {
+			setMode(b.dataset.m as 'water' | 'smoke');
+			wake();
+		});
+		q('[data-out]').textContent = `${fmt(0, 2)}\u00a0Н`;
+		drawWater();
 	}
 </script>

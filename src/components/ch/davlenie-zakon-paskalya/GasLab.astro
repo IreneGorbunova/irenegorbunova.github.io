@@ -1,19 +1,31 @@
 ---
 /**
- * «Давление газа»: 255 molecules (the model of g7/md.ts, without gravity) in a vessel 80 × 52 molecule diameters,
- * closed by a lid. The pressure is measured in the model itself: the momentum the molecules give to the walls in
- * their blows, per second and per unit of the walls' length, averaged over the last ten seconds and shown in
- * conventional units chosen so that the gas at the full volume and the low temperature gives about 100. The gas is
- * dilute, so halving the volume doubles the pressure within a few percent. The reader changes the volume (the lid
- * moves) and the temperature. A flash on the lid marks every blow on it.
+ * «Давление газа»: 255 molecules (the model of g7/md.ts, without gravity) in a vessel whose four walls are movable
+ * plates. At the full volume the vessel is 80 × 52 molecule diameters; the volume slider moves all four walls inward
+ * together, so the vessel shrinks toward its center and keeps its shape (each side × √(V/100 %)).
+ * The model is flat (2D): the «volume» is the area of the vessel, and the pressure is the momentum the molecules give
+ * to the walls in their blows per second and per unit of the walls' length (force per unit length). Both are measured
+ * in the model itself: the momentum of every blow on every wall is summed over the last ten seconds and divided by the
+ * time and by the perimeter 2(a + b) of the vessel. It is shown in conventional units chosen so that the gas at the
+ * full volume and the low temperature gives 100. The gas is dilute, so halving the volume doubles the pressure within
+ * a few percent (a headless run of 2400 frames, Nov 2026: 100 / 197 at 100 / 50 %, low temperature; 158 / 330 and
+ * 216 / 452 at the middle and high temperatures; the four walls get the same pressure within the noise).
+ * While the walls move (about 1,5 с for the whole range), the molecules' positions are scaled toward the center
+ * together with the vessel, as molecular simulations change the volume: the gas stays even and the pressure is
+ * right as soon as the walls stop. Without it, walls this fast would send a wave through the gas that falsifies the
+ * first reading (checked headless: the first ten seconds then gave about 20 % less pressure).
+ * Every blow on any wall flashes on that wall at the point of the blow; the length of the flash is proportional to
+ * the momentum given, so the flashes grow with the temperature. The molecules are slowed down enormously and there
+ * are very few of them: one square centimeter of a real wall gets about 10²³ blows a second. The thermostat of md.ts
+ * takes away the heat of compression, as the walls of a real vessel would.
  */
 import G7Styles from '../g7/G7Styles.astro';
 ---
 
 <G7Styles />
-<figure class="g7 gsl not-content" data-gsl>
+<figure class="g7 g7--wide gsl not-content" data-gsl>
 	<div class="g7__grid">
-		<canvas class="g7__canvas" width="720" height="468" role="img" aria-label="Молекулы газа в сосуде с подвижной крышкой ударяют о стенки" data-canvas></canvas>
+		<canvas class="g7__canvas" width="704" height="480" role="img" aria-label="Молекулы газа в сосуде, все четыре стенки которого можно сдвигать внутрь; каждый удар молекулы о стенку вспыхивает на ней" data-canvas></canvas>
 		<div class="g7__side">
 			<label class="g7__slider">
 				<span>Объём сосуда</span>
@@ -29,11 +41,11 @@ import G7Styles from '../g7/G7Styles.astro';
 				<li><span>Ударов о стенки за секунду</span><b data-hits>—</b></li>
 				<li class="is-key"><span>Давление газа на стенки</span><b data-p>—</b></li>
 			</ul>
-			<p class="g7__note">Давление дано в условных единицах и усреднено за десять секунд: удары молекул случайны, поэтому число немного колеблется. После каждой перемены подождите, пока оно появится.</p>
+			<p class="g7__note">Модель плоская: объём здесь — площадь сосуда, а давление — сила ударов на каждую единицу длины стенки. Давление дано в условных единицах и усреднено за десять секунд, поэтому после каждой перемены нужно подождать.</p>
 		</div>
 	</div>
 	<figcaption class="g7__caption">
-		Каждая вспышка на крышке — удар молекулы. Из множества таких ударов и складывается давление газа.
+		Каждая вспышка на стенке — удар молекулы. Стенки сдвигаются внутрь со всех четырёх сторон; движение молекул сильно замедлено.
 	</figcaption>
 </figure>
 
@@ -41,12 +53,21 @@ import G7Styles from '../g7/G7Styles.astro';
 	import { loop } from '../g7/kit';
 	import { MD, lattice, paint, themeColors } from '../g7/md';
 
-	const W = 80;
+	const W = 80; // the vessel at the full volume, in molecule diameters
 	const H = 52;
-	const PX = 9;
+	const M = 4; // room for the walls and their rods around the vessel
+	const PX = 8; // pixels per molecule diameter
 	const TEMPS = [1, 1.5, 2];
 	const WORDS = ['низкая', 'средняя', 'высокая'];
-	const NAMES = { mol: '--ig-vx', lid: '--sl-color-gray-3', edge: '--sl-color-gray-1', hit: '--ig-v' };
+	const NAMES = {
+		mol: '--ig-vx',
+		wall: '--g7-steel',
+		edge: '--g7-ink',
+		ghost: '--g7-line',
+		hit: '--ig-v',
+	};
+	const X = (x: number) => (x + M) * PX;
+	const Y = (y: number) => (y + M) * PX;
 	for (const root of document.querySelectorAll<HTMLElement>('[data-gsl]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
 		const canvas = q<HTMLCanvasElement>('[data-canvas]');
@@ -57,58 +78,134 @@ import G7Styles from '../g7/G7Styles.astro';
 		md.set(lattice(0, H * 0.5, W, H, 3.1), TEMPS[0]);
 		let colors = themeColors(root, NAMES);
 		let frame = 0;
-		let lid = 0;
-		// samples of the last seconds: [time of the model, impulse given to the lid, number of blows, real seconds]
+		let scale = 1; // each side of the vessel relative to the full volume
+		// samples of the last seconds: [time of the model, momentum given to the walls, number of blows, real seconds]
 		let samples: [number, number, number, number][] = [];
-		let flashes: { x: number; life: number }[] = [];
+		// a flash on wall `w` (0 top, 1 right, 2 bottom, 3 left) at the point `at` along it
+		let flashes: { w: number; at: number; len: number; life: number }[] = [];
 		let hitsTotal = 0;
 		let clock = 0;
+		md.onHit = (w, x, y, dp) => {
+			hitsTotal++;
+			// the mean momentum of a blow is 2·√(πT/2) ≈ 2,5 at the low temperature: a 16 px flash
+			if (flashes.length < 120) flashes.push({ w, at: w % 2 === 0 ? x : y, len: 6.4 * dp, life: 1 });
+		};
 		const label = () => {
-			q('[data-vout]').textContent = `${vIn.value} %`;
+			q('[data-vout]').textContent = `${vIn.value}\u00a0%`;
 			q('[data-tout]').textContent = WORDS[Number(tIn.value)];
 			md.target = TEMPS[Number(tIn.value)];
 			samples = [];
 		};
 		loop(root, (dt) => {
-			const want = H * (1 - Number(vIn.value) / 100);
-			if (Math.abs(want - lid) > 1e-9) samples = [];
-			lid += Math.max(-0.2, Math.min(0.2, want - lid));
-			md.top = lid;
-			for (let s = 0; s < 16; s++) {
-				const before = md.impulseTop;
-				const walls = md.impulseWalls;
-				md.step(0.006);
-				if (md.impulseWalls > walls) hitsTotal++;
-				if (md.impulseTop > before) {
-					// the molecule that has just bounced off the lid is the one nearest to it and moving away
-					let best = -1;
-					for (let i = 0; i < md.n; i++) if (md.vy[i] > 0 && (best < 0 || md.y[i] < md.y[best])) best = i;
-					if (best >= 0 && flashes.length < 40) flashes.push({ x: md.x[best], life: 1 });
+			const want = Math.sqrt(Number(vIn.value) / 100);
+			if (Math.abs(want - scale) > 1e-9) samples = [];
+			const old = scale;
+			scale += Math.max(-0.004, Math.min(0.004, want - scale));
+			if (scale !== old) {
+				// the gas is squeezed (or let out) evenly together with the vessel, as in molecular simulations
+				const k = scale / old;
+				for (let i = 0; i < md.n; i++) {
+					md.x[i] = W / 2 + (md.x[i] - W / 2) * k;
+					md.y[i] = H / 2 + (md.y[i] - H / 2) * k;
 				}
+				md.forces();
 			}
+			const a = W * scale;
+			const b = H * scale;
+			md.left = (W - a) / 2;
+			md.right = (W + a) / 2;
+			md.top = (H - b) / 2;
+			md.bottom = (H + b) / 2;
+			for (let s = 0; s < 16; s++) md.step(0.006);
 			clock += dt;
 			if (frame++ % 90 === 0) colors = themeColors(root, NAMES);
+
+			const l = X(md.left);
+			const r = X(md.right);
+			const t = Y(md.top);
+			const bt = Y(md.bottom);
+			const cx = X(W / 2);
+			const cy = Y(H / 2);
+			const th = 10; // the thickness of a wall, px
 			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			// the vessel at the full volume, for comparison
+			ctx.setLineDash([6, 6]);
+			ctx.strokeStyle = colors.ghost;
+			ctx.lineWidth = 1.5;
+			ctx.strokeRect(X(0), Y(0), W * PX, H * PX);
+			ctx.setLineDash([]);
+			// the rods that push the walls, from the edges of the picture to the middle of each wall
+			ctx.fillStyle = colors.wall;
+			ctx.strokeStyle = colors.edge;
+			ctx.lineWidth = 1.5;
+			for (const [x0, y0, w0, h0] of [
+				[cx - 6, -2, 12, t - th + 2],
+				[cx - 6, bt + th, 12, canvas.height - bt - th + 2],
+				[-2, cy - 6, l - th + 2, 12],
+				[r + th, cy - 6, canvas.width - r - th + 2, 12],
+			]) {
+				ctx.fillRect(x0, y0, w0, h0);
+				ctx.strokeRect(x0, y0, w0, h0);
+			}
+			// arrows beside the rods while the walls move: inward when the vessel shrinks
+			const moving = want - scale;
+			if (Math.abs(moving) > 1e-6) {
+				const k = moving < 0 ? 1 : -1; // 1: inward
+				ctx.fillStyle = colors.edge;
+				const head = (x: number, y: number, dx: number, dy: number) => {
+					ctx.beginPath();
+					ctx.moveTo(x + dx * 9, y + dy * 9);
+					ctx.lineTo(x - dy * 7, y + dx * 7);
+					ctx.lineTo(x + dy * 7, y - dx * 7);
+					ctx.fill();
+				};
+				const g = 22;
+				head(cx + g, t - th - 14, 0, k);
+				head(cx + g, bt + th + 14, 0, -k);
+				head(l - th - 14, cy + g, k, 0);
+				head(r + th + 14, cy + g, -k, 0);
+			}
+			// the four walls, the corners closed
+			ctx.fillStyle = colors.wall;
+			ctx.fillRect(l - th, t - th, r - l + 2 * th, th);
+			ctx.fillRect(l - th, bt, r - l + 2 * th, th);
+			ctx.fillRect(l - th, t, th, bt - t);
+			ctx.fillRect(r, t, th, bt - t);
+			ctx.strokeStyle = colors.edge;
+			ctx.lineWidth = 1.5;
+			ctx.strokeRect(l, t, r - l, bt - t);
+			ctx.strokeRect(l - th, t - th, r - l + 2 * th, bt - t + 2 * th);
+			// the molecules: paint() draws at the model's coordinates, the vessel is shifted by M
+			ctx.save();
+			ctx.translate(M * PX, M * PX);
 			paint(ctx, md, PX, () => colors.mol);
-			ctx.fillStyle = colors.lid;
-			ctx.fillRect(0, 0, canvas.width, lid * PX);
-			ctx.fillStyle = colors.edge;
-			ctx.fillRect(0, Math.max(0, lid * PX - 4), canvas.width, 5);
+			ctx.restore();
+			// a flash: a bright bar in the wall and a soft glow inside the vessel at the point of the blow
+			ctx.fillStyle = colors.hit;
 			for (const f of flashes) {
+				const c = f.w % 2 === 0 ? X(f.at) : Y(f.at);
+				const p = c - f.len / 2;
+				const [gx, gy] = f.w === 0 ? [c, t] : f.w === 2 ? [c, bt] : f.w === 3 ? [l, c] : [r, c];
+				ctx.globalAlpha = 0.3 * f.life;
+				ctx.beginPath();
+				ctx.arc(gx, gy, 0.45 * f.len + 3, 0, Math.PI * 2);
+				ctx.fill();
 				ctx.globalAlpha = f.life;
-				ctx.fillStyle = colors.hit;
-				ctx.fillRect(f.x * PX - 10, lid * PX + 1, 20, 6);
-				f.life -= 0.08;
+				if (f.w === 0) ctx.fillRect(p, t - 8, f.len, 10);
+				else if (f.w === 2) ctx.fillRect(p, bt - 2, f.len, 10);
+				else if (f.w === 3) ctx.fillRect(l - 8, p, 10, f.len);
+				else ctx.fillRect(r - 2, p, 10, f.len);
+				f.life -= 0.06;
 			}
 			ctx.globalAlpha = 1;
 			flashes = flashes.filter((f) => f.life > 0);
 			if (frame % 15 === 0) {
 				samples.push([md.time, md.impulseWalls, hitsTotal, clock]);
 				while (samples.length > 40) samples.shift(); // about ten seconds
-				if (samples.length >= 40 && Math.abs(want - lid) < 0.01) {
+				if (samples.length >= 40 && Math.abs(want - scale) < 1e-6) {
 					const [t0, i0, h0, c0] = samples[0];
 					const [t1, i1, h1, c1] = samples[samples.length - 1];
-					const p = (i1 - i0) / (t1 - t0) / (2 * (W + H - lid));
+					const p = (i1 - i0) / (t1 - t0) / (2 * (a + b));
 					q('[data-p]').textContent = String(Math.round(((p * 10000) / 6) / 5) * 5);
 					q('[data-hits]').textContent = String(Math.round((h1 - h0) / (c1 - c0)));
 				} else {
