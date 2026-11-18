@@ -46,6 +46,7 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 			{ id: 'delta', name: 'дельта Цефея', ra: 22.4862, dec: 58.415, mag: 3.75 }, // HR 8571
 		],
 		lines: [['alpha', 'beta'], ['beta', 'gamma'], ['gamma', 'iota'], ['iota', 'zeta'], ['zeta', 'alpha'], ['zeta', 'delta'], ['alpha', 'iota']],
+		art: { file: 'sky/cepheus.webp', box: [-0.2965, -0.5609, 0.3325, 0.3085], plate: 'C' },
 	},
 	'auriga': {
 		name: 'Возничий',
@@ -62,6 +63,7 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 			{ id: 'bet-tau', name: 'Эльнат', ra: 5.4382, dec: 28.608, mag: 1.65 }, // HR 1791
 		],
 		lines: [['alpha', 'eps'], ['eps', 'zeta'], ['zeta', 'eta'], ['eta', 'iota'], ['alpha', 'beta'], ['beta', 'theta'], ['theta', 'bet-tau'], ['bet-tau', 'iota']],
+		art: { file: 'sky/auriga.webp', box: [-0.2003, -0.3926, 0.2644, 0.2524], plate: 'X' },
 	},
 	'leo': {
 		name: 'Лев',
@@ -79,6 +81,7 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 			{ id: 'beta', name: 'Денебола', ra: 11.8177, dec: 14.572, mag: 2.14 }, // HR 4534
 		],
 		lines: [['alpha', 'eta'], ['eta', 'gamma'], ['gamma', 'zeta'], ['zeta', 'mu'], ['mu', 'eps'], ['gamma', 'delta'], ['delta', 'beta'], ['beta', 'theta'], ['theta', 'alpha'], ['delta', 'theta']],
+		art: { file: 'sky/leo.webp', box: [-0.3966, -0.2564, 0.3846, 0.4367], plate: 'FF' },
 	},
 	'cygnus': {
 		name: 'Лебедь',
@@ -123,6 +126,7 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 			{ id: 'phi', name: 'фи Геркулеса', ra: 16.1462, dec: 44.935, mag: 4.26 }, // HR 6023
 		],
 		lines: [['alpha', 'delta'], ['delta', 'eps'], ['eps', 'zeta'], ['zeta', 'eta'], ['eta', 'pi'], ['pi', 'eps'], ['zeta', 'beta'], ['beta', 'gamma'], ['delta', 'lambda'], ['lambda', 'mu'], ['mu', 'xi'], ['xi', 'omicron'], ['pi', 'rho'], ['rho', 'theta'], ['theta', 'iota'], ['eta', 'sigma'], ['sigma', 'tau'], ['tau', 'phi']],
+		art: { file: 'sky/hercules.webp', box: [-0.2724, -0.5649, 0.4127, 0.4608], plate: 'H' },
 	},
 	'ursa-major': {
 		name: 'Большая Медведица',
@@ -387,6 +391,7 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 			{ id: 'zeta', name: 'дзета Большого Пса', ra: 6.3386, dec: -30.063, mag: 3.02 }, // HR 2282
 		],
 		lines: [['alpha', 'beta'], ['alpha', 'iota'], ['iota', 'gamma'], ['alpha', 'omicron2'], ['omicron2', 'delta'], ['delta', 'eta'], ['delta', 'sigma'], ['sigma', 'eps'], ['eps', 'zeta']],
+		art: { file: 'sky/canis-major.webp', box: [-0.1803, -0.1883, 0.2284, 0.2845], plate: 'Ddd' },
 	},
 };
 
