@@ -1,0 +1,437 @@
+---
+/**
+ * «Лестница глубин»: a cut through the sea from the surface to the bottom of the Mariana Trench, with a diver at
+ * 10 м, a submarine at 300 м and the bathyscaphe «Триест» on the bottom (23 January 1960, Jacques Piccard and Don
+ * Walsh, almost 11 км; the slider's stop for it is 10 900 м). The slider (or a button) puts a sensor line at the depth
+ * h; the readouts give the pressure of the sea water p = g·ρ·h (g = 9,8 Н/кг, ρ = 1030 кг/м³; the water is taken
+ * as incompressible, as in the chapter's task: at 11 км the real pressure is about 2 % lower, 108,6 MPa against our
+ * 111), the ratio to the pressure at 10 м (= h/10) and the force on 1 см² as the weight of a load: m = ρ·h·10⁻⁴ кг
+ * (10 м → 1,03 кг, 300 м → 30,9 кг, 10 900 м → 1123 кг).
+ *
+ * The depth axis is compressed: y = 46 + 88·lg(1 + h/1 м) px, so 10, 100, 1000 and 10 000 м stand at equal steps; the
+ * pressure axis on the right uses the same marks (101, 1010, 10 100, 101 000 кПа), because p is proportional to h.
+ * The caption says so. The people and machines are not to scale. The slider moves along the same compressed axis
+ * (1000 steps over lg 11 001), its values rounded to 1, 5, 10 and 100 м.
+ * Air bubbles rise from the diver's regulator at a constant drawn speed and swell as they rise: their radius follows
+ * Boyle's law with the full pressure (atmosphere 101 кПа plus the water), r ∝ (p_total)^(−1/3), so a bubble that
+ * leaves the diver at 10 м is 1,26 times wider at the surface. The diver kicks with the fins, the propeller turns.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const Y0 = 46; // the surface
+const K = 88; // px per tenfold depth
+const y = (h: number) => Y0 + K * Math.log10(1 + h);
+const XL = 62; // the depth ruler
+const XR = 340; // the pressure ruler
+const uid = Math.random().toString(36).slice(2, 8);
+const major = [
+	{ h: 0, d: '0', p: '0' },
+	{ h: 10, d: '10 м', p: '101 кПа' },
+	{ h: 100, d: '100 м', p: '1 010 кПа' },
+	{ h: 1000, d: '1 км', p: '10 100 кПа' },
+	{ h: 10000, d: '10 км', p: '101 000 кПа' },
+];
+const minor: number[] = [];
+for (const dec of [10, 100, 1000]) for (let m = 2; m <= 9; m++) minor.push(dec * m);
+minor.push(11000);
+const FLOOR = y(4000); // the ocean floor
+const BOTTOM = y(11000); // the bottom of the trench
+const wave = Array.from({ length: 15 }, (_, i) => `q${10} ${i % 2 ? 3 : -3} 20 0`).join(' ');
+---
+
+<G7Styles />
+<figure class="g7 g7--wide dlad not-content" data-dlad>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 420 418" role="img" aria-label="Разрез моря от поверхности до дна Марианской впадины: ныряльщик, подводная лодка и батискаф на разных глубинах; линия датчика показывает глубину и давление" data-svg>
+			<defs>
+				<linearGradient id={`dlad-sea-${uid}`} x1="0" x2="0" y1={Y0} y2={BOTTOM} gradientUnits="userSpaceOnUse">
+					<stop offset="0" class="dlad__s0"></stop>
+					<stop offset="0.5" class="dlad__s1"></stop>
+					<stop offset="1" class="dlad__s2"></stop>
+				</linearGradient>
+			</defs>
+			<rect class="dlad__sky" x="0" y="0" width="420" height={Y0}></rect>
+			<rect x={XL} y={Y0} width={XR - XL} height={418 - Y0} fill={`url(#dlad-sea-${uid})`}></rect>
+			<path class="dlad__wave" d={`M${XL} ${Y0} ${wave}`}></path>
+			<path class="dlad__bed" d={`M${XL} 418 V${FLOOR} H190 C204 ${FLOOR + 6} 206 ${BOTTOM} 220 ${BOTTOM} H296 C310 ${BOTTOM} 314 ${FLOOR + 4} 326 ${FLOOR} H${XR} V418 Z`}></path>
+			<text class="t-small" x="120" y={FLOOR + 22} text-anchor="middle">дно океана</text>
+			<text class="t-small" x="258" y="414" text-anchor="middle">Марианская впадина</text>
+			<!-- the rulers -->
+			<line class="ln" x1={XL} x2={XL} y1={Y0} y2={BOTTOM}></line>
+			<line class="ln" x1={XR} x2={XR} y1={Y0} y2={BOTTOM}></line>
+			{minor.map((h) => (
+				<>
+					<line class="ln" x1={XL} x2={XL + 4} y1={y(h)} y2={y(h)} />
+					<line class="ln" x1={XR - 4} x2={XR} y1={y(h)} y2={y(h)} />
+				</>
+			))}
+			{major.map((m) => (
+				<>
+					<line class="ln" x1={XL} x2={XL + 9} y1={y(m.h)} y2={y(m.h)} />
+					<line class="ln" x1={XR - 9} x2={XR} y1={y(m.h)} y2={y(m.h)} />
+					<text class="t-small t-num" x={XL - 4} y={y(m.h) + 4} text-anchor="end">{m.d}</text>
+					<text class="t-small t-num" x={XR + 4} y={y(m.h) + 4}>{m.p}</text>
+				</>
+			))}
+			<text class="t-small" x="4" y="16">глубина</text>
+			<text class="t-small" x="416" y="16" text-anchor="end">давление воды</text>
+			<!-- the diver, prone, facing right; legs and bubbles move -->
+			<g data-bubbles></g>
+			<g data-diver transform={`translate(150 ${y(10)})`}>
+				<path class="dlad__out" data-leg="far" stroke-width="7.6"></path>
+				<path class="dlad__limb" data-leg="far" stroke-width="6"></path>
+				<path class="dlad__fin" data-fin="far"></path>
+				<path class="dlad__out" d="M26 -1 L14 1 L4 -0.5" stroke-width="5.8"></path>
+				<path class="dlad__limb" d="M26 -1 L14 1 L4 -0.5" stroke-width="4.2"></path>
+				<rect class="dlad__tank" x="-3" y="-13.5" width="27" height="8.5" rx="4.2"></rect>
+				<rect class="dlad__valve" x="24" y="-12" width="3.5" height="5" rx="1"></rect>
+				<path class="dlad__suit" d="M-9 -4.5 C5 -6 20 -6.8 28 -6.2 Q33 -5.5 33 0 Q33 5.5 28 6.2 C20 6.6 5 6 -9 5 Q-12 0 -9 -4.5 Z"></path>
+				<path class="dlad__belt" d="M-2 -5.4 V5.6"></path>
+				<rect class="dlad__suit" x="31" y="-3.2" width="4.5" height="5.4"></rect>
+				<circle class="dlad__suit" cx="39" cy="-1.5" r="6.8"></circle>
+				<ellipse class="dlad__skin" cx="42" cy="-0.6" rx="3.4" ry="4.6"></ellipse>
+				<path class="dlad__hose" d="M33.5 -5.6 A6.8 6.8 0 0 1 45.6 -3.4"></path>
+				<rect class="dlad__mask" x="41.2" y="-5.2" width="5.4" height="4.2" rx="1.5"></rect>
+				<path class="dlad__hose" d="M27 -10 Q34 -12 35 -4 Q36 4 43 3.6"></path>
+				<circle class="dlad__reg" cx="44.5" cy="3.4" r="2"></circle>
+				<path class="dlad__out" data-leg="near" stroke-width="8.6"></path>
+				<path class="dlad__limb" data-leg="near" stroke-width="7"></path>
+				<path class="dlad__fin" data-fin="near"></path>
+				<path class="dlad__out" d="M26 1.5 L15 5.5 L4 4" stroke-width="6.2"></path>
+				<path class="dlad__limb" d="M26 1.5 L15 5.5 L4 4" stroke-width="4.6"></path>
+				<circle class="dlad__skin" cx="2.6" cy="4" r="2.6"></circle>
+			</g>
+			<text class="t-halo dlad__name" data-name="0" x="150" y={y(10) - 22} text-anchor="middle">ныряльщик, 10&nbsp;м</text>
+			<!-- the submarine, bow to the right -->
+			<g transform={`translate(205 ${y(300)})`}>
+				<path class="dlad__sail" d="M2 -8 L5 -21 H21 L23 -8 Z"></path>
+				<path class="dlad__mast" d="M9 -21 V-28 H13"></path>
+				<path class="dlad__plane" d="M3 -15 H-3 M23 -15 H28"></path>
+				<path class="dlad__hull" d="M54 0 C54 -7 47 -8 38 -8 H-30 C-42 -8 -52 -4 -58 0 C-52 4 -42 8 -30 8 H38 C47 8 54 7 54 0 Z"></path>
+				<path class="dlad__plane" d="M-50 -2 L-56 -11 H-52 L-46 -3 M-50 2 L-56 11 H-52 L-46 3"></path>
+				<ellipse class="dlad__prop" data-prop cx="-61" cy="0" rx="1.8" ry="7"></ellipse>
+				<circle class="dlad__axle" cx="-60" cy="0" r="1.6"></circle>
+			</g>
+			<text class="t-halo dlad__name" data-name="1" x="200" y={y(300) - 34} text-anchor="middle">подводная лодка, 300 м</text>
+			<!-- the bathyscaphe «Триест» on the bottom: a float, a steel ball for the crew under it -->
+			<g transform={`translate(258 ${BOTTOM})`}>
+				<rect class="dlad__hopper" x="-24" y="-23" width="7" height="8" rx="1"></rect>
+				<rect class="dlad__hopper" x="17" y="-23" width="7" height="8" rx="1"></rect>
+				<rect class="dlad__hull" x="-3.5" y="-24" width="7" height="9"></rect>
+				<path class="dlad__float" d="M-36 -32 C-36 -38 -30 -41 -22 -41 H24 C32 -41 38 -36 38 -32 C38 -27 32 -23 24 -23 H-22 C-30 -23 -36 -26 -36 -32 Z"></path>
+				<rect class="dlad__sail" x="-6" y="-48" width="13" height="7.5" rx="1.5"></rect>
+				<circle class="dlad__ball" cx="0" cy="-8" r="8"></circle>
+				<circle class="dlad__window" cx="5" cy="-9" r="2.2"></circle>
+			</g>
+			<text class="t-halo dlad__name" data-name="2" x="258" y={BOTTOM - 56} text-anchor="middle">батискаф «Триест», 1960</text>
+			<!-- the sensor line -->
+			<line class="dlad__mark" data-mark x1={XL} x2={XR}></line>
+			<circle class="dlad__dot" data-dot-l cx={XL} r="3.5"></circle>
+			<circle class="dlad__dot" data-dot-r cx={XR} r="3.5"></circle>
+			<text class="t-small t-num t-strong t-halo" data-mark-t x={XR - 6} text-anchor="end"></text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Глубина <i>h</i></span>
+				<output data-out></output>
+				<input type="range" min="0" max="1000" step="1" value="0" data-s aria-label="Глубина, по сжатой шкале" />
+			</label>
+			<div class="g7__row" data-jumps>
+				<button type="button" class="g7__btn" data-h="10">Ныряльщик</button>
+				<button type="button" class="g7__btn" data-h="300">Подводная лодка</button>
+				<button type="button" class="g7__btn" data-h="10900">«Триест»</button>
+			</div>
+			<ol class="g7__lines" data-lines aria-live="polite"></ol>
+			<p class="g7__msg" data-msg></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Шкала глубин сжата: каждая следующая отметка в 10 раз глубже предыдущей, и давление у неё тоже в 10 раз больше. Люди и аппараты нарисованы не в масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.dlad {
+		--dlad-top: color-mix(in srgb, var(--ig-vx) 34%, transparent);
+		--dlad-mid: color-mix(in srgb, var(--ig-vx) 16%, transparent);
+		--dlad-deep: color-mix(in srgb, var(--ig-vx) 7%, transparent);
+	}
+	:root[data-theme='light'] .dlad {
+		--dlad-top: color-mix(in srgb, var(--ig-vx) 14%, transparent);
+		--dlad-mid: color-mix(in srgb, var(--ig-vx) 30%, transparent);
+		--dlad-deep: color-mix(in srgb, var(--ig-vx) 46%, transparent);
+	}
+	.dlad__s0 {
+		stop-color: var(--dlad-top);
+	}
+	.dlad__s1 {
+		stop-color: var(--dlad-mid);
+	}
+	.dlad__s2 {
+		stop-color: var(--dlad-deep);
+	}
+	.dlad__sky {
+		fill: var(--g7-sky);
+	}
+	.dlad__wave {
+		fill: none;
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.5;
+	}
+	.dlad__bed {
+		fill: var(--g7-ground);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	.dlad__out {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.dlad__limb {
+		fill: none;
+		stroke: var(--dlad-suit);
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.dlad {
+		--dlad-suit: color-mix(in oklab, var(--ig-vx) 22%, var(--sl-color-gray-5));
+	}
+	:root[data-theme='light'] .dlad {
+		--dlad-suit: color-mix(in oklab, var(--ig-vx) 30%, var(--sl-color-gray-2));
+	}
+	.dlad__suit {
+		fill: var(--dlad-suit);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.dlad__belt {
+		stroke: var(--g7-ink);
+		stroke-width: 1.6;
+	}
+	.dlad__skin {
+		fill: var(--g7-skin);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.dlad__mask {
+		fill: color-mix(in oklab, var(--ig-vx) 45%, var(--sl-color-white));
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.dlad__tank {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.dlad__valve,
+	.dlad__reg {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.dlad__hose {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.dlad__fin {
+		fill: var(--g7-violet);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	.dlad__bubble {
+		fill: none;
+		stroke: var(--g7-water-edge);
+		stroke-width: 1;
+	}
+	.dlad__hull,
+	.dlad__sail {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.dlad__mast {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	.dlad__plane {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+		stroke-linejoin: round;
+	}
+	.dlad__prop {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	.dlad__axle {
+		fill: var(--g7-ink);
+	}
+	.dlad__float {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.dlad__hopper {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.dlad__ball {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.dlad__window {
+		fill: var(--g7-gold);
+	}
+	.dlad__mark {
+		stroke: var(--g7-red);
+		stroke-width: 1.6;
+		stroke-dasharray: 6 4;
+	}
+	.dlad__dot {
+		fill: var(--g7-red);
+	}
+	.dlad .dlad__name.is-near {
+		fill: var(--g7-gold);
+		font-weight: 700;
+	}
+	.dlad [data-jumps] .g7__btn.is-near {
+		border-color: var(--g7-gold);
+	}
+</style>
+
+<script>
+	import { el, fmt, fmtInt, k, loop, tex } from '../g7/kit';
+
+	const Y0 = 46;
+	const K = 88;
+	const HMAX = 11000;
+	const RHO = 1030;
+	const LMAX = Math.log10(1 + HMAX);
+	const yOf = (h: number) => Y0 + K * Math.log10(1 + h);
+	const hOfY = (yy: number) => Math.max(0, 10 ** ((yy - Y0) / K) - 1);
+	const nice = (h: number) => (h < 20 ? Math.round(h) : h < 200 ? Math.round(h / 5) * 5 : h < 2000 ? Math.round(h / 10) * 10 : Math.round(h / 100) * 100);
+	const OBJ = [10, 300, 10900];
+	const FACTS = [
+		'Ныряльщик дышит воздухом из баллона. Пузырьки, поднимаясь, раздуваются: давление вокруг них становится меньше.',
+		'Прочный стальной корпус подводной лодки выдерживает давление воды на глубине в сотни метров.',
+		'В 1960\u00a0году Жак Пикар и Дон Уолш опустились в «Триесте» на дно Марианской впадины. Они сидели в стальном шаре с толстыми стенками.',
+	];
+	const DIVER_X = 150;
+	const XL = 62;
+	const XR = 340;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-dlad]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const sIn = q<HTMLInputElement>('[data-s]');
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-jumps] button')];
+		const names = [...root.querySelectorAll<SVGTextElement>('[data-name]')];
+		let h = 0;
+		const draw = () => {
+			const yy = yOf(h);
+			q('[data-mark]').setAttribute('y1', String(yy));
+			q('[data-mark]').setAttribute('y2', String(yy));
+			q('[data-dot-l]').setAttribute('cy', String(yy));
+			q('[data-dot-r]').setAttribute('cy', String(yy));
+			const p = 9.8 * RHO * h; // Па
+			const kpa = p / 1000;
+			const kpaS = h === 0 ? '0' : kpa < 100 ? fmt(kpa, 1) : fmtInt(kpa);
+			const hS = fmtInt(h);
+			const t = q<SVGTextElement>('[data-mark-t]');
+			t.setAttribute('y', String(yy < 70 ? yy + 15 : yy - 6));
+			// deep down the right half is taken by the bathyscaphe: the label moves to the left
+			const left = h > 2000;
+			t.setAttribute('x', String(left ? XL + 8 : XR - 6));
+			t.setAttribute('text-anchor', left ? 'start' : 'end');
+			t.textContent = `${hS} м: ${kpaS}\u00a0кПа`;
+			q('[data-out]').textContent = `${hS}\u00a0м`;
+			const m = RHO * h * 1e-4; // кг on 1 см²
+			const lines = [
+				`<li>${k(`h = ${tex(hS)}~\\text{м},\\ \\rho = 1030~\\text{кг/м}^3`)}</li>`,
+				`<li class="is-key">${k(`p = g\\rho h = 9{,}8 \\cdot 1030 \\cdot ${tex(hS)}~\\text{Па} ${h > 0 ? '\\approx' : '='} ${tex(kpaS)}~\\text{кПа}`)}</li>`,
+			];
+			if (h > 0) {
+				const r = h / 10;
+				const rS = r < 100 ? fmt(r, 1).replace(/,0$/, '') : fmtInt(r);
+				const word = /,/.test(rS) ? 'раза' : plural(Math.round(r));
+				const cmp = Math.abs(h - 10) < 0.5 ? '' : h > 10 ? `Это в ${rS} ${word} больше, чем на глубине 10\u00a0м.` : 'Это меньше, чем на глубине 10\u00a0м.';
+				lines.push(`<li class="is-text">${cmp} На каждый квадратный сантиметр вода давит, как груз массой ${m < 10 ? fmt(m, 2) : fmtInt(m)} кг.</li>`);
+			}
+			q('[data-lines]').innerHTML = lines.join('');
+			// which object is near the sensor line
+			const near = OBJ.findIndex((o) => Math.abs(Math.log10(1 + h) - Math.log10(1 + o)) < 0.05);
+			names.forEach((n, i) => n.classList.toggle('is-near', i === near));
+			btns.forEach((b, i) => b.classList.toggle('is-near', i === near));
+			q('[data-msg]').textContent = near >= 0 ? FACTS[near] : 'Каждые 10\u00a0м морской воды добавляют около 100\u00a0кПа.';
+		};
+		// «в 2 раза», «в 25 раз», «в 22 раза»
+		function plural(n: number) {
+			const d = n % 10;
+			const dd = n % 100;
+			return d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? 'раза' : 'раз';
+		}
+		sIn.addEventListener('input', () => {
+			h = nice(10 ** ((Number(sIn.value) / 1000) * LMAX) - 1);
+			draw();
+		});
+		for (const b of btns)
+			b.addEventListener('click', () => {
+				h = Number(b.dataset.h);
+				sIn.value = String(Math.round((Math.log10(1 + h) / LMAX) * 1000));
+				draw();
+			});
+		// moving parts: the diver's kick, the bubbles, the propeller
+		const legs = { near: root.querySelectorAll('[data-leg="near"]'), far: root.querySelectorAll('[data-leg="far"]') };
+		const fins = { near: q('[data-fin="near"]'), far: q('[data-fin="far"]') };
+		const prop = q('[data-prop]');
+		const bubbles = Array.from({ length: 6 }, () => q('[data-bubbles]').appendChild(el('circle', { class: 'dlad__bubble' })));
+		const yDiver = yOf(10);
+		const pose = (side: 'near' | 'far', a: number) => {
+			// hip at (−8, 0), the leg points backwards (to the left), a = swing in radians
+			const hip = { x: -8, y: side === 'near' ? 1 : -1 };
+			const dir = Math.PI + a;
+			const knee = { x: hip.x + 21 * Math.cos(dir), y: hip.y + 21 * Math.sin(dir) };
+			const dir2 = dir + 0.5 * a;
+			const ankle = { x: knee.x + 20 * Math.cos(dir2), y: knee.y + 20 * Math.sin(dir2) };
+			const d = `M${hip.x} ${hip.y} L${knee.x.toFixed(1)} ${knee.y.toFixed(1)} L${ankle.x.toFixed(1)} ${ankle.y.toFixed(1)}`;
+			for (const l of legs[side]) l.setAttribute('d', d);
+			// a fin: from the ankle further along the shin, 15 px long, widening to 8 px
+			const ux = Math.cos(dir2 + 0.25 * a);
+			const uy = Math.sin(dir2 + 0.25 * a);
+			const tip = { x: ankle.x + 16 * ux, y: ankle.y + 16 * uy };
+			const nx = -uy;
+			const ny = ux;
+			fins[side].setAttribute(
+				'd',
+				`M${(ankle.x + 2.5 * nx).toFixed(1)} ${(ankle.y + 2.5 * ny).toFixed(1)} L${(tip.x + 4 * nx).toFixed(1)} ${(tip.y + 4 * ny).toFixed(1)} L${(tip.x - 4 * nx).toFixed(1)} ${(tip.y - 4 * ny).toFixed(1)} L${(ankle.x - 2.5 * nx).toFixed(1)} ${(ankle.y - 2.5 * ny).toFixed(1)} Z`,
+			);
+		};
+		let time = 0;
+		loop(root, (dt) => {
+			time += dt;
+			const s = 0.22 * Math.sin(time * 5);
+			pose('far', -s - 0.05);
+			pose('near', s + 0.05);
+			prop.setAttribute('ry', (7 * Math.abs(Math.cos(time * 9))).toFixed(2));
+			bubbles.forEach((b, i) => {
+				const u = (time * 0.32 + i / bubbles.length) % 1; // 0 at the regulator, 1 at the surface
+				const by = yDiver + 2 - u * (yDiver + 2 - Y0);
+				const ptot = 101 + (9.8 * RHO * hOfY(by)) / 1000; // кПа
+				const r = 3.2 * (101 / ptot) ** (1 / 3);
+				b.setAttribute('cx', (DIVER_X + 44 + 3 * Math.sin(time * 3 + i * 1.7)).toFixed(1));
+				b.setAttribute('cy', by.toFixed(1));
+				b.setAttribute('r', r.toFixed(2));
+				b.style.opacity = u > 0.97 ? '0' : '1';
+			});
+			return true;
+		});
+		draw();
+	}
+</script>

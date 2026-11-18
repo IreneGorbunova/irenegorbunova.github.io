@@ -1,0 +1,817 @@
+---
+/**
+ * Picture «Где это встречается»: communicating vessels at home and around us, five animated panels in the order of
+ * the list. Schemes, not to scale unless said.
+ *
+ * Чайник — a teapot cut in half is lifted by its handle and tilted (up to 33°) over a cup. The water surface stays
+ *   horizontal in the body and in the spout and stands at one level in both. The level is found from the amount of
+ *   water: the area of the cut below a horizontal line is kept constant (the cut stands in for the volume); when the
+ *   level would rise above the lower lip of the spout tip, the water runs out into the cup and the amount drops.
+ * Водомерное стекло — a closed steel tank with a glass tube on its side, joined to it at the top and the bottom. The
+ *   tank is filled and emptied in turn (a 10 с cycle); the water in the glass is always at the level of the water in
+ *   the tank, which cannot be seen (the dashed line).
+ * Водопровод — a pump lifts water into the tank of a tower on a hill; the pipe goes underground to a three-storey
+ *   house, where taps on the floors are opened one by one. The water surface in the tank is above the roof (the dashed
+ *   line). The flow from a tap is drawn faster the lower the tap stands: the speed of the dashes is proportional to
+ *   √Δh, Δh the height of the tank's water surface above the tap (as for flow without losses); heights are schematic.
+ * Шлюз — a ship goes up the river through a lock chamber. The lower gate closes, the valve to the upper reach opens,
+ *   the chamber fills and lifts the ship to the upper level, the upper gate opens and the ship leaves; then the chamber
+ *   is emptied into the lower reach for the next ship. The level difference Δ drops as for flow through an opening:
+ *   dΔ/dt ∝ −√Δ, so Δ(t) = Δ₀(1 − t/T)², T = 4 с here (a real chamber fills in about 10 minutes); real locks lift
+ *   ships by 5–15 м over a chamber about 150 м long; heights here are exaggerated against lengths.
+ * Фонтан — a tank on a hill feeds a fountain in a park through a pipe under the ground. Scale 20 px per metre: the
+ *   water in the tank stands 7 м above the nozzle, the jet rises 6,3 м (90 %, the rest is lost to friction in the
+ *   pipe); the drops fly with υ₀ = √(2g·6,3 м) ≈ 11 м/с in real time.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const f = (v: number) => v.toFixed(1);
+
+// the teapot in its own coordinates (it stands on the table at y = 190, axis x = 100), 4,6 px per см
+const TB = 190;
+const TC = 100;
+const hwO = (z: number) => {
+	if (z < 3) return 20 + 4 * Math.sqrt(1 - ((3 - z) / 3) ** 2);
+	if (z < 28) return 24 + 16 * Math.sin((Math.PI / 2) * ((z - 3) / 25));
+	if (z <= 70) return 16 + 24 * Math.sqrt(Math.max(0, 1 - ((z - 28) / 42) ** 2));
+	return 16;
+};
+const TOP = 74;
+const bodyPts = (inset: number, z0: number, z1: number) => {
+	const r: string[] = [];
+	const l: string[] = [];
+	for (let z = z0; z <= z1 + 1e-6; z += 1) {
+		const w = Math.max(0, hwO(z) - inset);
+		r.push(`${f(TC + w)} ${f(TB - z)}`);
+		l.unshift(`${f(TC - w)} ${f(TB - z)}`);
+	}
+	return `M${r.join(' L')} L${l.join(' L')} Z`;
+};
+const teapotOuter = bodyPts(0, 0, TOP);
+const teapotInner = bodyPts(3, 3, TOP);
+
+// the gauge glass panel
+const TANK = { l: 34, r: 140, top: 52, bot: 196 };
+const GL = { x: 176, top: 74, bot: 182 };
+
+// the water tower panel (400 × 230)
+const WT = { cx: 70, tankTop: 30, tankBot: 66, legsBot: 150, w: 56 };
+const HOUSE = { l: 262, r: 362, top: 92, bot: 200, floors: 3 };
+const floorH = (HOUSE.bot - HOUSE.top) / HOUSE.floors;
+
+// the lock panel (400 × 230)
+const LK = { gl: 132, gu: 288, bedLow: 206, bedUp: 160, low: 156, up: 104 };
+
+// the fountain panel (400 × 230): 20 px per metre
+const FN = { tankL: 26, tankR: 92, tankTop: 44, level: 56, tankBot: 84, nozzleX: 286, nozzleY: 196 };
+---
+
+<G7Styles />
+<figure class="g7 g7--pic zwh not-content" data-zh-where>
+	<div class="g7__grid is-two">
+		<!-- 1. teapot -->
+		<svg class="g7__svg" viewBox="0 0 240 236" role="img" aria-label="Чайник в разрезе наклоняют над чашкой. Вода в носике и в самом чайнике всё время стоит на одном уровне; когда уровень доходит до кончика носика, вода льётся в чашку" data-p="pot">
+			<defs>
+				<clipPath id={`zwh-pot-${uid}`}>
+					<path data-pot-in d={teapotInner}></path>
+					<path data-pot-ch></path>
+				</clipPath>
+			</defs>
+			<text class="t-title" x="230" y="18" text-anchor="end">Чайник</text>
+			<rect class="zwh__table" x="0" y={TB} width="240" height="8"></rect>
+			<!-- the cup -->
+			<path class="zwh__cupwater" data-cupwater></path>
+			<path class="zwh__cup" d="M184 160 H218 L214 186 Q213 190 209 190 H193 Q189 190 188 186 Z"></path>
+			<path class="zwh__cup-h" d="M218 166 Q228 166 226 175 Q224 182 215 182"></path>
+			<path class="zwh__stream" data-potstream></path>
+			<path class="zwh__sleeve" data-sleeve></path>
+			<path class="zwh__arm" data-arm></path>
+			<g data-pot>
+				<path class="zwh__pot-handle" d={`M${TC - 30} ${TB - 60} Q${TC - 60} ${TB - 64} ${TC - 58} ${TB - 40} Q${TC - 56} ${TB - 22} ${TC - 32} ${TB - 22}`}></path>
+				<path class="zwh__pot" data-pot-out-ch></path>
+				<path class="zwh__pot" d={teapotOuter}></path>
+				<path class="zwh__inside" d={teapotInner}></path>
+				<path class="zwh__inside" data-pot-ch></path>
+				<g clip-path={`url(#zwh-pot-${uid})`}>
+					<rect class="zwh__water" data-potwater x="-200" y="0" width="600" height="400"></rect>
+				</g>
+				<path class="zwh__pot" d={`M${TC - 19} ${TB - TOP} H${TC + 19} V${TB - TOP - 3} Q${TC + 15} ${TB - TOP - 14} ${TC} ${TB - TOP - 15} Q${TC - 15} ${TB - TOP - 14} ${TC - 19} ${TB - TOP - 3} Z`}></path>
+				<ellipse class="zwh__pot" cx={TC} cy={TB - TOP - 17} rx="5" ry="3.5"></ellipse>
+				<!-- the hand grips the handle: the back of the hand outside, four fingers curled round the bar, the thumb on top -->
+				<g class="zwh__fist">
+					<rect x={TC - 70} y={TB - 56} width="15" height="25" rx="6"></rect>
+					{[0, 1, 2, 3].map((i) => <ellipse cx={TC - 54} cy={TB - 52 + 6 * i} rx="5" ry="3.3" />)}
+					<ellipse cx={TC - 58} cy={TB - 58} rx="7.5" ry="3.2" transform={`rotate(-12 ${TC - 58} ${TB - 58})`}></ellipse>
+				</g>
+			</g>
+			<line class="zwh__level" data-potlevel x1="40" x2="200" y1="0" y2="0"></line>
+			<text class="t-small zwh__note" x="120" y="214" text-anchor="middle">вода в носике и в чайнике —</text>
+			<text class="t-small zwh__note" x="120" y="228" text-anchor="middle">всегда на одном уровне</text>
+		</svg>
+
+		<!-- 2. gauge glass -->
+		<svg class="g7__svg" viewBox="0 0 240 236" role="img" aria-label="Закрытый бак, сбоку к нему присоединена стеклянная трубка. Бак то наполняют, то опорожняют, и вода в трубке всё время стоит на том же уровне, что и в баке" data-p="gauge">
+			<text class="t-title" x="10" y="18">Водомерное стекло</text>
+			<!-- inlet at the top, outlet at the bottom -->
+			<path class="zwh__pipe" d={`M10 ${TANK.top + 14} H${TANK.l + 20} V${TANK.top}`}></path>
+			<path class="zwh__pipe" d={`M${TANK.l + 30} ${TANK.bot} V${TANK.bot + 10} H8`}></path>
+			<path class="zwh__arrow" data-in d={`M12 ${TANK.top + 6} h14 m-5 -4 l5 4 l-5 4`}></path>
+			<path class="zwh__arrow" data-out d={`M30 ${TANK.bot + 18} h-14 m5 -4 l-5 4 l5 4`}></path>
+			<rect class="zwh__tank" x={TANK.l} y={TANK.top} width={TANK.r - TANK.l} height={TANK.bot - TANK.top} rx="12"></rect>
+			<path class="zwh__rivets" d={`M${TANK.l + 8} ${TANK.top + 30} H${TANK.r - 8} M${TANK.l + 8} ${TANK.bot - 30} H${TANK.r - 8}`}></path>
+			<!-- the glass with its two joints and taps -->
+			<path class="zwh__pipe-thin" d={`M${TANK.r} ${GL.top + 6} H${GL.x} M${TANK.r} ${GL.bot - 6} H${GL.x}`}></path>
+			<circle class="zwh__tap" cx={(TANK.r + GL.x) / 2} cy={GL.top + 6} r="4"></circle>
+			<circle class="zwh__tap" cx={(TANK.r + GL.x) / 2} cy={GL.bot - 6} r="4"></circle>
+			<rect class="zwh__water" data-glasswater x={GL.x - 4} y={GL.bot} width="8" height="0"></rect>
+			<rect class="zwh__glass" x={GL.x - 5} y={GL.top} width="10" height={GL.bot - GL.top} rx="3"></rect>
+			<path class="ln" d={`${[0, 1, 2, 3, 4].map((i) => `M${GL.x + 6} ${GL.bot - 6 - i * 24} h5`).join(' ')}`}></path>
+			<line class="zwh__level" data-gaugelevel x1={TANK.l + 6} x2={GL.x + 14} y1="0" y2="0"></line>
+			<text class="t-small zwh__tag" data-gaugetag x={(TANK.l + TANK.r) / 2} y="0" text-anchor="middle">вода в баке</text>
+			<text class="t-small zwh__note" x="120" y="214" text-anchor="middle">по стеклу видно,</text>
+			<text class="t-small zwh__note" x="120" y="228" text-anchor="middle">сколько воды в закрытом баке</text>
+		</svg>
+
+		<!-- 3. water supply -->
+		<svg class="g7__svg zwh__wide" viewBox="0 0 400 230" role="img" aria-label="Насос накачивает воду в бак водонапорной башни на холме. Под землёй труба идёт к трёхэтажному дому. В доме по очереди открывают краны, и вода течёт из них тем быстрее, чем ниже кран" data-p="tower">
+			<text class="t-title" x="10" y="18">Водопровод</text>
+			<path class="zwh__hill" d="M0 200 V150 Q40 140 110 150 Q150 160 180 200 Z"></path>
+			<rect class="zwh__ground" x="0" y="200" width="400" height="30"></rect>
+			<!-- the main under the ground -->
+			<path class="zwh__pipe" d={`M${WT.cx} ${WT.tankBot} V214 H${HOUSE.l + 20} V${HOUSE.top + floorH * 0.5}`}></path>
+			<path class="zwh__pipe" d={`M150 196 V176 Q150 170 144 170 H${WT.cx + 10} V${WT.tankTop + 4}`}></path>
+			<path class="zwh__flow" data-flow-up d={`M150 196 V176 Q150 170 144 170 H${WT.cx + 10} V${WT.tankTop + 4}`}></path>
+			<path class="zwh__flow" data-flow-main d={`M${WT.cx} ${WT.tankBot} V214 H${HOUSE.l + 20} V${HOUSE.top + floorH * 0.5}`}></path>
+			<!-- the tower -->
+			<path class="zwh__legs" d={`M${WT.cx - 22} ${WT.legsBot} L${WT.cx - 16} ${WT.tankBot} M${WT.cx + 22} ${WT.legsBot} L${WT.cx + 16} ${WT.tankBot} M${WT.cx - 20} ${WT.legsBot - 20} L${WT.cx + 18} ${WT.tankBot + 20} M${WT.cx + 20} ${WT.legsBot - 20} L${WT.cx - 18} ${WT.tankBot + 20}`}></path>
+			<rect class="zwh__tank" x={WT.cx - WT.w / 2} y={WT.tankTop} width={WT.w} height={WT.tankBot - WT.tankTop} rx="5"></rect>
+			<rect class="zwh__window" x={WT.cx - WT.w / 2 + 5} y={WT.tankTop + 5} width={WT.w - 10} height={WT.tankBot - WT.tankTop - 10} rx="2"></rect>
+			<rect class="zwh__water" data-towerwater x={WT.cx - WT.w / 2 + 5} y={WT.tankTop + 12} width={WT.w - 10} height="10"></rect>
+			<path class="zwh__roof" d={`M${WT.cx - WT.w / 2 - 4} ${WT.tankTop} L${WT.cx} ${WT.tankTop - 14} L${WT.cx + WT.w / 2 + 4} ${WT.tankTop} Z`}></path>
+			<!-- the pump -->
+			<rect class="zwh__pumphouse" x="138" y="180" width="34" height="20"></rect>
+			<path class="zwh__roof" d="M134 180 L155 168 L176 180 Z"></path>
+			<circle class="zwh__wheel" cx="155" cy="190" r="6"></circle>
+			<path class="zwh__spokes" data-wheel d="M149 190 H161 M155 184 V196"></path>
+			<text class="t-small zwh__halo" x="178" y="197">насос</text>
+			<!-- the house -->
+			<rect class="zwh__house" x={HOUSE.l} y={HOUSE.top} width={HOUSE.r - HOUSE.l} height={HOUSE.bot - HOUSE.top}></rect>
+			<path class="zwh__roof" d={`M${HOUSE.l - 6} ${HOUSE.top} L${(HOUSE.l + HOUSE.r) / 2} ${HOUSE.top - 22} L${HOUSE.r + 6} ${HOUSE.top} Z`}></path>
+			<path class="zwh__floor" d={[1, 2].map((i) => `M${HOUSE.l} ${HOUSE.top + i * floorH} H${HOUSE.r}`).join(' ')}></path>
+			<path class="zwh__pipe-thin" d={`M${HOUSE.l + 20} ${HOUSE.bot} V${HOUSE.top + floorH * 0.5}`}></path>
+			{[0, 1, 2].map((i) => {
+				const yTap = HOUSE.bot - i * floorH - floorH + 12;
+				return (
+					<g>
+						<path class="zwh__pipe-thin" d={`M${HOUSE.l + 20} ${yTap} H${HOUSE.l + 46} V${yTap + 5}`} />
+						<rect class="zwh__sink" x={HOUSE.l + 32} y={HOUSE.bot - i * floorH - 10} width="30" height="6" rx="2" />
+						<path class="zwh__tapstream" data-tapstream={i} d={`M${HOUSE.l + 46} ${yTap + 6} V${HOUSE.bot - i * floorH - 10}`} />
+						<rect class="zwh__window" x={HOUSE.l + 72} y={HOUSE.bot - i * floorH - floorH + 8} width="18" height="20" />
+					</g>
+				);
+			})}
+			<line class="zwh__level" data-towerlevel x1={WT.cx + WT.w / 2 + 4} x2="396" y1="0" y2="0"></line>
+			<text class="t-small zwh__tag" data-towertag x="394" y="0" text-anchor="end">уровень воды в баке</text>
+		</svg>
+
+		<!-- 4. lock -->
+		<svg class="g7__svg zwh__wide" viewBox="0 0 400 230" role="img" aria-label="Шлюз: корабль входит в камеру с нижнего участка реки, нижние ворота закрываются, открывается заслонка, камера наполняется водой с верхнего участка и поднимает корабль, верхние ворота открываются, и корабль уходит вверх по реке" data-p="lock">
+			<text class="t-title" x="10" y="18">Шлюз</text>
+			<defs>
+				<clipPath id={`zwh-sill-${uid}`}>
+					<rect x="0" y="0" width="400" height={LK.bedLow}></rect>
+				</clipPath>
+			</defs>
+			<!-- water: lower reach, chamber, upper reach -->
+			<rect class="zwh__river" x="0" y={LK.low} width={LK.gl} height={LK.bedLow - LK.low}></rect>
+			<rect class="zwh__river" data-chamber x={LK.gl} y={LK.low} width={LK.gu - LK.gl} height={LK.bedLow - LK.low}></rect>
+			<rect class="zwh__river" x={LK.gu} y={LK.up} width={400 - LK.gu} height={LK.bedUp - LK.up}></rect>
+			<!-- the ground: banks and the floors of the reaches -->
+			<path class="zwh__earth" d={`M0 ${LK.bedLow} H${LK.gu} V${LK.bedUp} H400 V230 H0 Z`}></path>
+			<!-- the culverts under the gates, with their valves -->
+			<path class="zwh__culvert" d={`M${LK.gl - 26} ${LK.bedLow - 2} V214 H${LK.gl + 26} V${LK.bedLow - 2} M${LK.gu + 34} ${LK.bedUp - 2} V176 H${LK.gu + 12} V214 H${LK.gu - 26} V${LK.bedLow - 2}`}></path>
+			<path class="zwh__flow-water" data-culv-up d={`M${LK.gu + 34} ${LK.bedUp} V176 H${LK.gu + 12} V214 H${LK.gu - 26} V${LK.bedLow - 4}`}></path>
+			<path class="zwh__flow-water" data-culv-low d={`M${LK.gl + 26} ${LK.bedLow} V214 H${LK.gl - 26} V${LK.bedLow - 4}`}></path>
+			<rect class="zwh__valve" data-valve-low x={LK.gl + 9} y="207" width="5" height="14"></rect>
+			<rect class="zwh__valve" data-valve-up x={LK.gu + 22} y="169" width="5" height="14"></rect>
+			<!-- the gates: the lower one lifts, the upper one sinks into its sill -->
+			<rect class="zwh__gate" data-gate-low x={LK.gl - 3} y={LK.up - 20} width="6" height={LK.bedLow - LK.up + 20}></rect>
+			<g clip-path={`url(#zwh-sill-${uid})`}>
+				<rect class="zwh__gate" data-gate-up x={LK.gu - 3} y={LK.up - 20} width="6" height={LK.bedLow - LK.up + 20}></rect>
+			</g>
+			<path class="zwh__wall" d={`M${LK.gl - 7} ${LK.bedLow} V${LK.up - 22} M${LK.gu + 7} ${LK.bedUp} V${LK.up - 22}`}></path>
+			<text class="t-small zwh__halo" x={LK.gu + 30} y="196">заслонка</text>
+			<!-- the ship -->
+			<g data-ship>
+				<path class="zwh__hull" d="M-36 -8 H36 L30 6 H-32 Z"></path>
+				<rect class="zwh__cabin" x="-22" y="-20" width="30" height="12" rx="2"></rect>
+				<path class="zwh__cabin-win" d="M-18 -16 h6 m4 0 h6 m4 0 h6"></path>
+				<rect class="zwh__funnel" x="14" y="-26" width="6" height="18"></rect>
+			</g>
+			<text class="t-small zwh__halo" x="8" y="224">ниже по реке</text>
+			<text class="t-small zwh__halo" x="392" y="224" text-anchor="end">выше по реке</text>
+			<text class="t-small zwh__halo" x={(LK.gl + LK.gu) / 2} y="200" text-anchor="middle">камера</text>
+			<text class="t-strong zwh__step" x="236" y="18" text-anchor="middle" data-step></text>
+			<text class="t-small zwh__halo" x={LK.gl - 14} y="98" text-anchor="end">ворота</text>
+			<text class="t-small zwh__halo" x={LK.gu - 14} y="98" text-anchor="end">ворота</text>
+		</svg>
+
+		<!-- 5. fountain -->
+		<svg class="g7__svg zwh__wide" viewBox="0 0 400 230" role="img" aria-label="Бак с водой стоит на холме; от него под землёй идёт труба к фонтану в парке. Струя фонтана поднимается почти до уровня воды в баке" data-p="fountain">
+			<text class="t-title" x="10" y="18">Фонтан</text>
+			<path class="zwh__hill" d={`M0 210 V${FN.tankBot + 6} Q60 ${FN.tankBot} 120 ${FN.tankBot + 14} Q170 ${FN.tankBot + 30} 200 210 Z`}></path>
+			<rect class="zwh__ground" x="0" y="206" width="400" height="24"></rect>
+			<path class="zwh__pipe" d={`M${(FN.tankL + FN.tankR) / 2} ${FN.tankBot} V218 H${FN.nozzleX} V${FN.nozzleY}`}></path>
+			<path class="zwh__flow" data-flow-fn d={`M${(FN.tankL + FN.tankR) / 2} ${FN.tankBot} V218 H${FN.nozzleX} V${FN.nozzleY}`}></path>
+			<rect class="zwh__tank" x={FN.tankL} y={FN.tankTop} width={FN.tankR - FN.tankL} height={FN.tankBot - FN.tankTop} rx="4"></rect>
+			<rect class="zwh__window" x={FN.tankL + 5} y={FN.tankTop + 4} width={FN.tankR - FN.tankL - 10} height={FN.tankBot - FN.tankTop - 8} rx="2"></rect>
+			<rect class="zwh__water" x={FN.tankL + 5} y={FN.level} width={FN.tankR - FN.tankL - 10} height={FN.tankBot - 4 - FN.level}></rect>
+			<!-- trees -->
+			<path class="zwh__trunk" d="M212 206 V182 M382 206 V180"></path>
+			<circle class="zwh__tree" cx="212" cy="172" r="14"></circle>
+			<circle class="zwh__tree" cx="382" cy="170" r="14"></circle>
+			<!-- the pool and the jet -->
+			<path class="zwh__poolwater" d={`M${FN.nozzleX - 52} 198 H${FN.nozzleX + 52} V206 H${FN.nozzleX - 52} Z`}></path>
+			<path class="zwh__jet" data-zwh-jet></path>
+			<g data-drops></g>
+			<path class="zwh__pool" d={`M${FN.nozzleX - 56} 192 V206 H${FN.nozzleX + 56} V192`}></path>
+			<line class="zwh__level" x1={FN.tankR + 4} x2="396" y1={FN.level} y2={FN.level}></line>
+			<text class="t-small zwh__tag" x="394" y={FN.level - 6} text-anchor="end">уровень воды в баке</text>
+			<path class="ln" d={`M${FN.nozzleX + 64} ${FN.level} V${FN.nozzleY} M${FN.nozzleX + 60} ${FN.nozzleY} h8 M${FN.nozzleX + 60} ${FN.level} h8`}></path>
+			<text class="t-small zwh__halo" x={FN.nozzleX + 68} y="130">7&nbsp;м</text>
+			<text class="t-small zwh__halo" data-jettag x={FN.nozzleX + 8} y="0">6,3&nbsp;м</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Схемы не в масштабе, кроме фонтана. Шлюз наполняется в десятки раз быстрее, чем на самом деле, а высоты шлюза сильно увеличены по сравнению с его длиной.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.zwh .zwh__wide {
+		grid-column: 1 / -1;
+	}
+	/* on a phone a wide panel is drawn at about 0,85 of its size: larger letters keep the labels at 11–12 px */
+	@container (max-width: 30rem) {
+		.zwh .zwh__wide text,
+		.zwh .zwh__wide .t-small {
+			font-size: 14px;
+		}
+		.zwh .zwh__wide .t-title {
+			font-size: 16px;
+		}
+		.zwh .zwh__wide .zwh__step {
+			font-size: 14px;
+		}
+	}
+	.zwh__note {
+		fill: var(--sl-color-gray-2);
+	}
+	.zwh__tag {
+		font-weight: 600;
+		fill: var(--sl-color-gray-1);
+	}
+	.zwh__halo,
+	.zwh__tag {
+		paint-order: stroke fill;
+		stroke: var(--g7-paper);
+		stroke-width: 3.5px;
+		stroke-linejoin: round;
+	}
+	.zwh__step {
+		font-size: 12px;
+	}
+	.zwh__water,
+	.zwh__cupwater,
+	.zwh__river,
+	.zwh__poolwater {
+		fill: color-mix(in srgb, var(--ig-vx) 55%, var(--g7-paper));
+	}
+	.zwh__level {
+		stroke: var(--sl-color-white);
+		stroke-width: 1;
+		stroke-dasharray: 5 4;
+		opacity: 0.85;
+	}
+	.zwh__table,
+	.zwh__trunk {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood);
+	}
+	.zwh__trunk {
+		stroke-width: 4;
+	}
+	.zwh__tree {
+		fill: color-mix(in oklab, var(--g7-green) 55%, var(--g7-paper));
+	}
+	.zwh__pot {
+		fill: var(--g7-red);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.zwh__inside {
+		fill: color-mix(in oklab, var(--g7-red) 22%, var(--g7-paper));
+	}
+	.zwh__pot-handle {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 6;
+		stroke-linecap: round;
+	}
+	.zwh__fist,
+	.zwh__arm {
+		fill: var(--g7-skin);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.zwh__sleeve {
+		fill: var(--g7-blue);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+		stroke-linejoin: round;
+	}
+	.zwh__cup {
+		fill: color-mix(in srgb, var(--sl-color-white) 12%, transparent);
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.zwh__cup-h {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.zwh__stream,
+	.zwh__tapstream,
+	.zwh__jet {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vx) 75%, var(--g7-paper));
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.zwh__tapstream {
+		stroke-dasharray: 5 3;
+	}
+	.zwh__drop {
+		fill: color-mix(in srgb, var(--ig-vx) 75%, var(--g7-paper));
+	}
+	.zwh__tank {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.zwh__rivets {
+		stroke: var(--g7-steel-dark);
+		stroke-width: 2;
+		stroke-dasharray: 1 6;
+		stroke-linecap: round;
+	}
+	.zwh__window {
+		fill: color-mix(in oklab, var(--g7-paper) 80%, var(--g7-steel));
+	}
+	.zwh__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 1.6;
+	}
+	.zwh__pipe {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 6;
+		stroke-linejoin: round;
+	}
+	.zwh__pipe-thin {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 3.5;
+		stroke-linejoin: round;
+	}
+	.zwh__flow,
+	.zwh__flow-water {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vx) 80%, var(--g7-paper));
+		stroke-width: 2.4;
+		stroke-dasharray: 4 8;
+		stroke-linejoin: round;
+	}
+	.zwh__tap {
+		fill: var(--g7-red);
+	}
+	.zwh__arrow {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.zwh__hill {
+		fill: color-mix(in oklab, var(--g7-green) 25%, var(--g7-ground));
+	}
+	.zwh__ground,
+	.zwh__earth {
+		fill: var(--g7-ground);
+	}
+	.zwh__legs {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 3;
+	}
+	.zwh__roof {
+		fill: var(--g7-red);
+		opacity: 0.85;
+	}
+	.zwh__pumphouse,
+	.zwh__house {
+		fill: color-mix(in oklab, var(--g7-gold) 22%, var(--g7-steel));
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.zwh__floor {
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.zwh__wheel {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+	}
+	.zwh__spokes {
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
+	}
+	.zwh__sink {
+		fill: var(--g7-steel-dark);
+	}
+	.zwh__culvert {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-vx) 30%, var(--g7-paper));
+		stroke-width: 8;
+		stroke-linejoin: round;
+	}
+	.zwh__valve {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.zwh__wall {
+		stroke: var(--g7-steel-dark);
+		stroke-width: 8;
+	}
+	.zwh__gate {
+		fill: var(--g7-wood-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.zwh__frame {
+		fill: none;
+		stroke: var(--g7-steel);
+		stroke-width: 2.5;
+	}
+	.zwh__hull {
+		fill: var(--g7-red);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.zwh__cabin {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.zwh__cabin-win {
+		stroke: var(--g7-blue);
+		stroke-width: 3;
+	}
+	.zwh__funnel {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.zwh__pool {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 4;
+	}
+</style>
+
+<script>
+	import { el, loop } from '../g7/kit';
+
+	type Pt = { x: number; y: number };
+	const f = (v: number) => v.toFixed(1);
+	const clamp = (u: number) => Math.min(1, Math.max(0, u));
+	const ease = (u: number) => {
+		const t = clamp(u);
+		return t * t * (3 - 2 * t);
+	};
+	const g = 9.8;
+
+	// area of a polygon below the horizontal line y = L (y down)
+	const areaBelow = (poly: Pt[], L: number) => {
+		const out: Pt[] = [];
+		for (let i = 0; i < poly.length; i++) {
+			const a = poly[i];
+			const b = poly[(i + 1) % poly.length];
+			const ain = a.y >= L;
+			const bin = b.y >= L;
+			if (ain) out.push(a);
+			if (ain !== bin) {
+				const k = (L - a.y) / (b.y - a.y);
+				out.push({ x: a.x + (b.x - a.x) * k, y: L });
+			}
+		}
+		let s = 0;
+		for (let i = 0; i < out.length; i++) {
+			const a = out[i];
+			const b = out[(i + 1) % out.length];
+			s += a.x * b.y - b.x * a.y;
+		}
+		return Math.abs(s) / 2;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-zh-where]')) {
+		const panel = (k: string) => root.querySelector<SVGSVGElement>(`[data-p="${k}"]`)!;
+
+		// ---------- 1. the teapot ----------
+		const pot = panel('pot');
+		const TB = 190;
+		const TC = 100;
+		const hwO = (z: number) => {
+			if (z < 3) return 20 + 4 * Math.sqrt(1 - ((3 - z) / 3) ** 2);
+			if (z < 28) return 24 + 16 * Math.sin((Math.PI / 2) * ((z - 3) / 25));
+			if (z <= 70) return 16 + 24 * Math.sqrt(Math.max(0, 1 - ((z - 28) / 42) ** 2));
+			return 16;
+		};
+		const cavity: Pt[] = [];
+		for (let z = 3; z <= 74; z += 1) cavity.push({ x: TC + hwO(z) - 3, y: TB - z });
+		for (let z = 74; z >= 3; z -= 1) cavity.push({ x: TC - hwO(z) + 3, y: TB - z });
+		// the spout: a curve from the wall low on the right up to the tip
+		const P0 = { x: TC + 21, y: TB - 14 };
+		const P1 = { x: TC + 52, y: TB - 14 };
+		const P2 = { x: TC + 64, y: TB - 64 };
+		const bez = (s: number): Pt => ({ x: (1 - s) ** 2 * P0.x + 2 * (1 - s) * s * P1.x + s * s * P2.x, y: (1 - s) ** 2 * P0.y + 2 * (1 - s) * s * P1.y + s * s * P2.y });
+		const side = (s: number, w: number): Pt => {
+			const tx = 2 * (1 - s) * (P1.x - P0.x) + 2 * s * (P2.x - P1.x);
+			const ty = 2 * (1 - s) * (P1.y - P0.y) + 2 * s * (P2.y - P1.y);
+			const l = Math.hypot(tx, ty);
+			const p = bez(s);
+			return { x: p.x + (ty / l) * w, y: p.y - (tx / l) * w };
+		};
+		const ribbon = (w0: number, w1: number): Pt[] => {
+			const a: Pt[] = [];
+			const b: Pt[] = [];
+			for (let i = 0; i <= 24; i++) {
+				const s = i / 24;
+				const w = w0 + (w1 - w0) * s;
+				a.push(side(s, w));
+				b.unshift(side(s, -w));
+			}
+			return [...a, ...b];
+		};
+		const toD = (p: Pt[]) => `M${p.map((q) => `${f(q.x)} ${f(q.y)}`).join(' L')} Z`;
+		const channel = ribbon(4, 2.4);
+		pot.querySelector('[data-pot-out-ch]')!.setAttribute('d', toD(ribbon(6.5, 4.2)));
+		for (const e of pot.querySelectorAll('[data-pot-ch]')) e.setAttribute('d', toD(channel));
+		const lipLocal = side(1, -2.4); // the lower lip of the tip
+		const PIV = { x: TC + 24, y: TB }; // the teapot turns about the edge of its foot
+		const potG = pot.querySelector<SVGGElement>('[data-pot]')!;
+		const potWater = pot.querySelector<SVGRectElement>('[data-potwater]')!;
+		const potLevel = pot.querySelector<SVGLineElement>('[data-potlevel]')!;
+		const potStream = pot.querySelector<SVGPathElement>('[data-potstream]')!;
+		const cupWater = pot.querySelector<SVGPathElement>('[data-cupwater]')!;
+		const arm = pot.querySelector<SVGPathElement>('[data-arm]')!;
+		const sleeve = pot.querySelector<SVGPathElement>('[data-sleeve]')!;
+		const WRIST = { x: TC - 66, y: TB - 46 }; // where the forearm meets the back of the hand
+		const world = (p: Pt, th: number, lift: number): Pt => {
+			const c = Math.cos(th);
+			const s = Math.sin(th);
+			const dx = p.x - PIV.x;
+			const dy = p.y - PIV.y;
+			return { x: PIV.x + dx * c - dy * s, y: PIV.y + dx * s + dy * c - lift };
+		};
+		const amount = (th: number, lift: number, L: number) => areaBelow(cavity.map((p) => world(p, th, lift)), L) + areaBelow(channel.map((p) => world(p, th, lift)), L);
+		const V0 = amount(0, 0, TB - 40); // water 40 px deep in the upright teapot
+		const CUP = { l: 186, r: 216, bot: 188 };
+		let V = V0;
+		let tPrev = -1;
+		const POT_CYCLE = 10;
+		const potDraw = (t: number) => {
+			if (t < tPrev) V = V0; // a new cycle: the teapot is full again, the cup empty
+			tPrev = t;
+			const tilt = t < 1.2 ? 0 : t < 3.6 ? ease((t - 1.2) / 2.4) : t < 5.6 ? 1 : t < 7.6 ? 1 - ease((t - 5.6) / 2) : 0;
+			const th = ((33 * Math.PI) / 180) * tilt;
+			const lift = 46 * Math.min(1, tilt * 1.6);
+			// the level: the line below which lies the amount V (bisection), but not above the lip
+			let lo = 0;
+			let hi = TB + 10;
+			for (let i = 0; i < 40; i++) {
+				const mid = (lo + hi) / 2;
+				if (amount(th, lift, mid) > V) lo = mid;
+				else hi = mid;
+			}
+			let L = (lo + hi) / 2;
+			const lip = world(lipLocal, th, lift);
+			let spilling = false;
+			if (L < lip.y - 0.05) {
+				L = lip.y;
+				V = amount(th, lift, L);
+				spilling = true;
+			}
+			potG.setAttribute('transform', `translate(0 ${f(-lift)}) rotate(${f((th * 180) / Math.PI)} ${PIV.x} ${PIV.y})`);
+			potWater.setAttribute('transform', `rotate(${f((-th * 180) / Math.PI)} ${PIV.x} ${PIV.y}) translate(0 ${f(lift)})`);
+			potWater.setAttribute('y', f(L));
+			potLevel.setAttribute('y1', f(L));
+			potLevel.setAttribute('y2', f(L));
+			const cupFill = Math.min(24, ((V0 - V) / V0) * 70); // px of tea in the cup
+			const cw = CUP.bot - cupFill;
+			cupWater.setAttribute('d', cupFill > 0.3 ? `M${f(CUP.l + 1 + (188 - cw) * 0.15)} ${f(cw)} H${f(CUP.r - 1 - (188 - cw) * 0.15)} L${CUP.r - 3} ${CUP.bot} H${CUP.l + 3} Z` : '');
+			potStream.setAttribute('d', spilling ? `M${f(lip.x)} ${f(lip.y)} Q${f(lip.x + 4)} ${f(lip.y + 4)} ${f(lip.x + 5)} ${f(cw)}` : '');
+			// the forearm (25 см, 115 px) comes from the upper left to the wrist; a sleeve covers its far half
+			const w = world(WRIST, th, lift);
+			const ux = -0.85;
+			const uy = -0.53;
+			const band = (a: number, b: number, wa: number, wb: number) =>
+				`M${f(w.x + ux * a - uy * wa)} ${f(w.y + uy * a + ux * wa)} L${f(w.x + ux * b - uy * wb)} ${f(w.y + uy * b + ux * wb)} L${f(w.x + ux * b + uy * wb)} ${f(w.y + uy * b - ux * wb)} L${f(w.x + ux * a + uy * wa)} ${f(w.y + uy * a - ux * wa)} Z`;
+			arm.setAttribute('d', band(-2, 70, 5, 6.5));
+			sleeve.setAttribute('d', band(58, 130, 8, 9));
+		};
+
+		// ---------- 2. the gauge glass ----------
+		const gauge = panel('gauge');
+		const TANKG = { top: 52, bot: 196 };
+		const GL = { x: 176, top: 74, bot: 182 };
+		const gw = gauge.querySelector<SVGRectElement>('[data-glasswater]')!;
+		const gl = gauge.querySelector<SVGLineElement>('[data-gaugelevel]')!;
+		const gt = gauge.querySelector<SVGTextElement>('[data-gaugetag]')!;
+		const gin = gauge.querySelector<SVGPathElement>('[data-in]')!;
+		const gout = gauge.querySelector<SVGPathElement>('[data-out]')!;
+		const GAUGE_CYCLE = 10;
+		const gaugeDraw = (t: number) => {
+			// the level between the joints of the glass, a smooth rise and fall
+			const u = 0.5 - 0.5 * Math.cos((2 * Math.PI * t) / GAUGE_CYCLE);
+			const y = GL.bot - 16 - u * (GL.bot - GL.top - 32);
+			gw.setAttribute('y', f(y));
+			gw.setAttribute('height', f(GL.bot - y));
+			gl.setAttribute('y1', f(y));
+			gl.setAttribute('y2', f(y));
+			gt.setAttribute('y', f(y - 6));
+			const filling = Math.sin((2 * Math.PI * t) / GAUGE_CYCLE) > 0;
+			gin.style.opacity = filling ? '1' : '0.15';
+			gout.style.opacity = filling ? '0.15' : '1';
+			void TANKG;
+		};
+
+		// ---------- 3. the water tower ----------
+		const tower = panel('tower');
+		const tw = tower.querySelector<SVGRectElement>('[data-towerwater]')!;
+		const tl = tower.querySelector<SVGLineElement>('[data-towerlevel]')!;
+		const ttag = tower.querySelector<SVGTextElement>('[data-towertag]')!;
+		const taps = [...tower.querySelectorAll<SVGPathElement>('[data-tapstream]')];
+		const flowUp = tower.querySelector<SVGPathElement>('[data-flow-up]')!;
+		const flowMain = tower.querySelector<SVGPathElement>('[data-flow-main]')!;
+		const wheel = tower.querySelector<SVGPathElement>('[data-wheel]')!;
+		const HOUSE = { top: 92, bot: 200 };
+		const floorH = (HOUSE.bot - HOUSE.top) / 3;
+		const TOWER_CYCLE = 10;
+		let dash = [0, 0, 0];
+		let dashMain = 0;
+		let dashUp = 0;
+		let spin = 0;
+		const towerDraw = (t: number, dt: number) => {
+			// taps open one by one (1, 2, 3 с) and close at 8 с; the pump runs all the time and keeps the level
+			const open = [0, 1, 2].map((i) => t > 1 + i && t < 8);
+			const nOpen = open.filter(Boolean).length;
+			const level = 44 + 1.2 * nOpen; // the tank's water surface, px (it drops a little while taps run)
+			tw.setAttribute('y', f(level));
+			tw.setAttribute('height', f(66 - 5 - level));
+			tl.setAttribute('y1', f(level));
+			tl.setAttribute('y2', f(level));
+			ttag.setAttribute('y', f(level - 5));
+			taps.forEach((p, i) => {
+				const yTap = HOUSE.bot - i * floorH - floorH + 12;
+				const dh = yTap - level; // the tank's surface above the tap
+				dash[i] = (dash[i] + dt * 6 * Math.sqrt(dh)) % 8;
+				p.style.opacity = open[i] ? '1' : '0';
+				p.style.strokeDashoffset = f(-dash[i]);
+			});
+			dashMain = (dashMain + dt * 10 * nOpen) % 12;
+			flowMain.style.strokeDashoffset = f(-dashMain);
+			flowMain.style.opacity = nOpen ? '1' : '0';
+			dashUp = (dashUp + dt * 24) % 12;
+			flowUp.style.strokeDashoffset = f(-dashUp);
+			spin = (spin + dt * 360) % 360;
+			wheel.setAttribute('transform', `rotate(${f(spin)} 155 190)`);
+		};
+
+		// ---------- 4. the lock ----------
+		const lock = panel('lock');
+		const LK = { gl: 132, gu: 288, bedLow: 206, bedUp: 160, low: 156, up: 104 };
+		const chamber = lock.querySelector<SVGRectElement>('[data-chamber]')!;
+		const ship = lock.querySelector<SVGGElement>('[data-ship]')!;
+		const gateLow = lock.querySelector<SVGRectElement>('[data-gate-low]')!;
+		const gateUp = lock.querySelector<SVGRectElement>('[data-gate-up]')!;
+		const valveLow = lock.querySelector<SVGRectElement>('[data-valve-low]')!;
+		const valveUp = lock.querySelector<SVGRectElement>('[data-valve-up]')!;
+		const culvUp = lock.querySelector<SVGPathElement>('[data-culv-up]')!;
+		const culvLow = lock.querySelector<SVGPathElement>('[data-culv-low]')!;
+		const step = lock.querySelector<SVGTextElement>('[data-step]')!;
+		const D0 = LK.low - LK.up; // the lift, px
+		const FILL = 4; // s to fill or empty the chamber
+		// the timeline, s
+		const K = { enter: 2.6, closeLow: 3.4, valveUp: 3.7, filled: 7.7, openUp: 8.6, leave: 11.4, closeUp: 12.2, emptied: 16.2, openLow: 17 };
+		const LOCK_CYCLE = 17.6;
+		const GATE_LIFT = 80; // px the lower gate rises to let the ship through
+		const GATE_SINK = 42; // px the upper gate sinks
+		let dashLk = 0;
+		const lockDraw = (t: number, dt: number) => {
+			// the chamber's level: Δ(t) = Δ₀(1 − t/T)² towards the reach it is joined to
+			let y = LK.low;
+			if (t >= K.valveUp && t < K.closeUp) y = LK.up + D0 * (1 - clamp((t - K.valveUp) / FILL)) ** 2;
+			if (t >= K.closeUp) y = LK.low - D0 * (1 - clamp((t - K.closeUp - 0.3) / FILL)) ** 2;
+			chamber.setAttribute('y', f(y));
+			chamber.setAttribute('height', f(LK.bedLow - y));
+			// gates: 0 closed, 1 open (lifted)
+			const low = t < K.enter ? 1 : t < K.closeLow ? 1 - ease((t - K.enter) / 0.8) : t < K.emptied ? 0 : ease((t - K.emptied) / 0.8);
+			const up = t < K.filled ? 0 : t < K.openUp ? ease((t - K.filled - 0.1) / 0.8) : t < K.leave ? 1 : t < K.closeUp ? 1 - ease((t - K.leave) / 0.8) : 0;
+			gateLow.setAttribute('transform', `translate(0 ${f(-GATE_LIFT * low)})`);
+			gateUp.setAttribute('transform', `translate(0 ${f(GATE_SINK * up)})`);
+			const vUp = t > K.valveUp - 0.3 && t < K.filled;
+			const vLow = t > K.closeUp && t < K.emptied;
+			valveUp.setAttribute('transform', `translate(0 ${vUp ? -12 : 0})`);
+			valveLow.setAttribute('transform', `translate(0 ${vLow ? 12 : 0})`);
+			dashLk = (dashLk + dt * 30) % 12;
+			culvUp.style.opacity = vUp ? '1' : '0';
+			culvLow.style.opacity = vLow ? '1' : '0';
+			culvUp.style.strokeDashoffset = f(-dashLk);
+			culvLow.style.strokeDashoffset = f(-dashLk);
+			// the ship: in from the left at the lower level, out to the right at the upper level
+			let sx = (LK.gl + LK.gu) / 2;
+			let sy = y;
+			let shown = true;
+			if (t < K.enter) {
+				sx = -40 + (sx + 40) * ease(t / K.enter);
+				sy = LK.low;
+			} else if (t >= K.openUp) {
+				sx = sx + (480 - sx) * clamp((t - K.openUp) / (K.leave - K.openUp)) ** 1.4;
+				sy = LK.up;
+				shown = t < K.leave;
+			}
+			if (t >= K.leave) shown = false;
+			ship.setAttribute('transform', `translate(${f(sx)} ${f(sy)})`);
+			ship.style.opacity = shown ? '1' : '0';
+			step.textContent =
+				t < K.enter ? 'корабль входит в камеру' : t < K.valveUp ? 'нижние ворота закрываются' : t < K.filled ? 'вода сверху наполняет камеру' : t < K.leave ? 'корабль уходит вверх по реке' : t < K.emptied ? 'вода из камеры уходит вниз' : 'нижние ворота открываются';
+		};
+
+		// ---------- 5. the fountain ----------
+		const fn = panel('fountain');
+		const PXM = 20; // px per metre
+		const NZ = { x: 286, y: 196 };
+		const HJET = 6.3; // м
+		const V0J = Math.sqrt(2 * g * HJET);
+		const jet = fn.querySelector<SVGPathElement>("[data-zwh-jet]")!;
+		const jetTag = fn.querySelector<SVGTextElement>('[data-jettag]')!;
+		const flowFn = fn.querySelector<SVGPathElement>('[data-flow-fn]')!;
+		const dropsG = fn.querySelector('[data-drops]')!;
+		jet.setAttribute('d', `M${NZ.x} ${NZ.y} V${f(NZ.y - HJET * PXM)}`);
+		jetTag.setAttribute('y', f(NZ.y - HJET * PXM + 4));
+		const N = 26;
+		const TFL = (2 * V0J) / g; // the flight of a drop up and back, s
+		const drops = Array.from({ length: N }, (_, i) => {
+			const c = el('circle', { class: 'zwh__drop', r: 1.8 });
+			dropsG.append(c);
+			return { c, phase: (i / N) * TFL, ang: (((i * 37) % 13) - 6) * 0.006 };
+		});
+		let dashFn = 0;
+		const fountainDraw = (t: number, dt: number) => {
+			for (const d of drops) {
+				const tt = (t + d.phase) % TFL;
+				const vx = V0J * Math.sin(d.ang);
+				const vy = V0J * Math.cos(d.ang);
+				const x = NZ.x + vx * tt * PXM;
+				const y = NZ.y - (vy * tt - 0.5 * g * tt * tt) * PXM;
+				d.c.setAttribute('cx', f(x));
+				d.c.setAttribute('cy', f(Math.min(y, 200)));
+				d.c.style.opacity = y > 199 ? '0' : '1';
+			}
+			dashFn = (dashFn + dt * 30) % 12;
+			flowFn.style.strokeDashoffset = f(-dashFn);
+		};
+
+		let t = 0;
+		const draw = (dt: number) => {
+			potDraw(t % POT_CYCLE);
+			gaugeDraw(t % GAUGE_CYCLE);
+			towerDraw(t % TOWER_CYCLE, dt);
+			lockDraw(t % LOCK_CYCLE, dt);
+			fountainDraw(t, dt);
+		};
+		draw(0);
+		loop(root, (dt) => {
+			t += dt;
+			draw(dt);
+			return true;
+		});
+	}
+</script>

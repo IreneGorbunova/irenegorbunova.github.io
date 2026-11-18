@@ -1,9 +1,13 @@
 ---
 /**
- * «Струи из отверстий»: a tall vessel on a stand 40 см high has three holes, 10, 25 and 40 см above its bottom.
- * Water leaves a hole with the speed υ = √(2·g·d), where d is the depth of the hole under the surface (the
- * pressure of the water there is g·ρ·d), and then falls as a thrown body: the jet is the parabola
- * y = g·x²/(2·υ²). The water level is set by the slider (20…50 см). 2,4 px per centimeter, everything to scale.
+ * «Струи из отверстий»: a tall vessel 25 см wide on a stand 40 см high has three holes, 10, 25 and 40 см above its
+ * bottom. A tap above it keeps adding water, as much as flows out, so the level stays where the slider puts it
+ * (20…50 см). The pressure of the water at a hole is p = g·ρ·d, where d is the depth of the hole under the surface
+ * (g = 9,8 Н/кг, ρ = 1000 кг/м³): at 10, 25 and 40 см it is 980, 2450 and 3920 Па. Water leaves a hole with the speed
+ * υ = √(2·g·d) and then falls as a thrown body: a drop that left the hole t seconds ago is υ·t to the side and g·t²/2
+ * lower. The drops are drawn by these formulas, slowed down 5 times (a drop of the lowest jet would otherwise fly to the
+ * floor in 0,3 s); the faint line is the whole parabola. Inside the vessel a red arrow points at each hole; its length
+ * is proportional to the pressure there (1 px per 100 Па). 2,4 px per centimeter, everything else to scale.
  */
 import G7Styles from '../g7/G7Styles.astro';
 
@@ -11,17 +15,28 @@ const S = 2.4;
 const FLOOR = 250;
 const BASE = FLOOR - 40 * S; // the bottom of the vessel
 const X0 = 40;
+const TOPV = BASE - 56 * S; // the top of the vessel
+const uid = Math.random().toString(36).slice(2, 8);
 ---
 
 <G7Styles />
 <figure class="g7 jet not-content" data-jet>
 	<div class="g7__grid">
-		<svg class="g7__svg" viewBox="0 0 360 270" role="img" aria-label="Сосуд с тремя отверстиями на разной высоте; из них бьют струи воды" data-svg>
+		<svg class="g7__svg" viewBox="0 -28 360 298" role="img" aria-label="Сосуд с тремя отверстиями на разной высоте; из них бьют струи воды, сверху воду доливают из крана" data-svg>
+			<defs>
+				<marker id={`jet-${uid}-red`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path class="head--red" d="M0,0 L10,5 L0,10 z"></path></marker>
+			</defs>
 			<line class="jet__floor" x1="0" x2="360" y1={FLOOR} y2={FLOOR}></line>
 			<rect class="jet__stand" x={X0 - 6} y={BASE} width="72" height={40 * S}></rect>
+			<!-- the tap that keeps the level -->
+			<path class="jet__pipe" d={`M0 -18 H${X0 + 22} q8 0 8 8 V-4`}></path>
+			<rect class="jet__valve" x={X0 + 4} y="-25" width="12" height="9" rx="2"></rect>
+			<path class="jet__pour" data-pour></path>
 			<rect class="jet__water" data-water x={X0} width="60"></rect>
-			<path class="jet__glass" d={`M${X0} ${BASE - 56 * S} V${BASE} H${X0 + 60} V${BASE - 56 * S}`}></path>
-			<g data-jets></g>
+			<path class="jet__glass" d={`M${X0} ${TOPV} V${BASE} H${X0 + 60} V${TOPV}`}></path>
+			<g data-paths></g>
+			<g data-drops></g>
+			<g data-arrows></g>
 			{[10, 25, 40].map((hh) => <circle class="jet__hole" cx={X0 + 60} cy={BASE - hh * S} r="2.5" />)}
 			{[0, 20, 40, 60, 80, 100].map((c) => (
 				<>
@@ -37,11 +52,14 @@ const X0 = 40;
 				<output data-out></output>
 				<input type="range" min="20" max="50" step="1" value="50" data-l aria-label="Уровень воды над дном сосуда, сантиметры" />
 			</label>
-			<ul class="g7__read" data-rows aria-live="polite"></ul>
+			<table class="jet__table" aria-live="polite">
+				<thead><tr><th>Глубина отверстия</th><th>Давление воды</th><th>Скорость струи</th></tr></thead>
+				<tbody data-rows></tbody>
+			</table>
 		</div>
 	</div>
 	<figcaption class="g7__caption">
-		Сосуд стоит на подставке высотой 40 см. Скорость струи зависит только от того, как глубоко под поверхностью воды находится отверстие.
+		Сверху всё время доливают воду, поэтому её уровень не меняется; сосуд стоит на подставке высотой 40&nbsp;см. Красные стрелки показывают давление воды у отверстий, а капли летят в 5&nbsp;раз медленнее, чем на самом деле.
 	</figcaption>
 </figure>
 
@@ -54,6 +72,24 @@ const X0 = 40;
 		fill: var(--g7-wood);
 		stroke: var(--g7-wood-dark);
 		stroke-width: 1;
+	}
+	.jet__pipe {
+		fill: none;
+		stroke: var(--g7-steel);
+		stroke-width: 7;
+		stroke-linejoin: round;
+	}
+	.jet__valve {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.jet__pour {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 3;
+		stroke-dasharray: 6 4;
+		stroke-linecap: round;
 	}
 	.jet__water {
 		fill: var(--g7-water);
@@ -69,58 +105,140 @@ const X0 = 40;
 		stroke: var(--g7-ink);
 		stroke-width: 1;
 	}
-	.jet__stream {
+	.jet__path {
 		fill: none;
 		stroke: var(--g7-blue);
+		stroke-opacity: 0.32;
+		stroke-width: 3.5;
+		stroke-linecap: round;
+	}
+	.jet__drop {
+		fill: var(--g7-blue);
+	}
+	.jet__push {
+		stroke: var(--g7-red);
 		stroke-width: 2.5;
 		stroke-linecap: round;
-		stroke-dasharray: 9 5;
+	}
+	.jet__table {
+		width: 100%;
+		margin: 0;
+		border-collapse: separate;
+		border-spacing: 0 0.3rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		display: table;
+	}
+	.jet__table th {
+		padding: 0 0.4rem;
+		border: 0;
+		font-size: var(--sl-text-xs);
+		font-weight: 400;
+		color: var(--sl-color-gray-3);
+		text-align: left;
+		vertical-align: bottom;
+		background: none;
+	}
+	.jet__table td {
+		padding: 0.3rem 0.4rem;
+		border: 0;
+		background: var(--sl-color-gray-6);
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+	}
+	.jet__table td + td {
+		color: var(--sl-color-white);
+		font-weight: 700;
+	}
+	.jet__table td:first-child {
+		border-radius: 0.5rem 0 0 0.5rem;
+		font-weight: 400;
+		color: var(--sl-color-gray-2);
+	}
+	.jet__table td:last-child {
+		border-radius: 0 0.5rem 0.5rem 0;
+	}
+	.jet__table td[colspan] {
+		border-radius: 0 0.5rem 0.5rem 0;
+		font-weight: 400;
+		color: var(--sl-color-gray-3);
 	}
 </style>
 
 <script>
-	import { el, fmt, loop } from '../g7/kit';
+	import { el, fmt, fmtInt, loop } from '../g7/kit';
 
 	const S = 2.4;
 	const FLOOR = 250;
 	const BASE = FLOOR - 40 * S;
 	const X0 = 40;
 	const HOLES = [40, 25, 10]; // см above the bottom of the vessel
+	const SLOW = 5;
+	const N = 40; // drops per jet
+	const DT = 0.011; // s of real time between two drops
 	for (const root of document.querySelectorAll<HTMLElement>('[data-jet]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
 		const lIn = q<HTMLInputElement>('[data-l]');
-		const jets = q<SVGGElement>('[data-jets]');
-		const paths = HOLES.map(() => jets.appendChild(el('path', { class: 'jet__stream' })));
-		let phase = 0;
+		const marker = root.querySelector('marker')!.id;
+		const paths = HOLES.map(() => q('[data-paths]').appendChild(el('path', { class: 'jet__path' })));
+		const drops = HOLES.map(() => Array.from({ length: N }, () => q('[data-drops]').appendChild(el('circle', { class: 'jet__drop', r: 1.9 }))));
+		const arrows = HOLES.map((hh) => q('[data-arrows]').appendChild(el('line', { class: 'jet__push', y1: BASE - hh * S, y2: BASE - hh * S, x2: X0 + 57, 'marker-end': `url(#${marker})` })));
+		const pour = q<SVGPathElement>('[data-pour]');
+		let t = 0; // real seconds
+		const jetsNow = () => {
+			const L = Number(lIn.value);
+			return HOLES.map((hh) => {
+				const d = L - hh; // the depth of the hole, см
+				const v = d > 0 ? Math.sqrt(2 * 9.8 * (d / 100)) : 0; // м/с
+				const fall = (hh + 40) / 100; // м to the floor
+				return { hh, d, v, fall, tLand: Math.sqrt((2 * fall) / 9.8) };
+			});
+		};
+		const moveDrops = () => {
+			jetsNow().forEach((j, i) => {
+				drops[i].forEach((c, n) => {
+					const age = (t + n * DT) % (N * DT);
+					if (j.v === 0 || age > j.tLand) {
+						c.setAttribute('cx', '-20');
+						return;
+					}
+					c.setAttribute('cx', (X0 + 61 + j.v * age * 100 * S).toFixed(1));
+					c.setAttribute('cy', (BASE - j.hh * S + ((9.8 * age * age) / 2) * 100 * S).toFixed(1));
+				});
+			});
+			pour.setAttribute('stroke-dashoffset', String((-t * 60 * SLOW) % 10));
+		};
 		const draw = () => {
 			const L = Number(lIn.value);
 			const water = q<SVGRectElement>('[data-water]');
 			water.setAttribute('y', String(BASE - L * S));
 			water.setAttribute('height', String(L * S));
-			q('[data-out]').textContent = `${L} см`;
+			pour.setAttribute('d', `M${X0 + 30} 0 V${BASE - L * S}`);
+			q('[data-out]').textContent = `${L}\u00a0см`;
 			const rows: string[] = [];
-			HOLES.forEach((hh, i) => {
-				const d = L - hh; // depth of the hole, см
+			jetsNow().forEach((j, i) => {
 				let path = '';
-				if (d > 0) {
-					const v = Math.sqrt(2 * 9.8 * (d / 100)); // м/с
-					const fall = (hh + 40) / 100; // м to the floor
-					const range = v * Math.sqrt((2 * fall) / 9.8) * 100; // см
-					for (let k = 0; k <= 20; k++) {
-						const xx = (range * k) / 20;
-						const yy = (9.8 * (xx / 100) ** 2) / (2 * v * v) * 100; // см below the hole
-						path += `${k ? 'L' : 'M'}${(X0 + 60 + xx * S).toFixed(1)} ${(BASE - hh * S + yy * S).toFixed(1)} `;
+				if (j.v > 0) {
+					for (let n = 0; n <= 24; n++) {
+						const tt = (j.tLand * n) / 24;
+						path += `${n ? 'L' : 'M'}${(X0 + 61 + j.v * tt * 100 * S).toFixed(1)} ${(BASE - j.hh * S + ((9.8 * tt * tt) / 2) * 100 * S).toFixed(1)} `;
 					}
-					rows.push(`<li><span>Отверстие на глубине ${d} см</span><b>${fmt(v, 2)} м/с</b></li>`);
-				} else rows.push(`<li><span>Отверстие на высоте ${hh} см</span><b>выше воды</b></li>`);
+					const p = 9.8 * 1000 * (j.d / 100);
+					arrows[i].setAttribute('x1', String(X0 + 57 - Math.max(6, p / 100)));
+					arrows[i].style.opacity = '1';
+					rows.push(`<tr><td>${j.d}&nbsp;см</td><td>${fmtInt(p)}&nbsp;Па</td><td>${fmt(j.v, 2)}&nbsp;м/с</td></tr>`);
+				} else {
+					arrows[i].style.opacity = '0';
+					rows.push(`<tr><td>не ниже уровня воды</td><td colspan="2">вода не течёт</td></tr>`);
+				}
 				paths[i].setAttribute('d', path);
-				paths[i].setAttribute('stroke-dashoffset', String(-phase));
 			});
 			q('[data-rows]').innerHTML = rows.join('');
+			moveDrops();
 		};
 		loop(root, (dt) => {
-			phase = (phase + dt * 90) % 14;
-			for (const p of paths) p.setAttribute('stroke-dashoffset', String(-phase));
+			t += dt / SLOW;
+			moveDrops();
 			return true;
 		});
 		lIn.addEventListener('input', draw);
