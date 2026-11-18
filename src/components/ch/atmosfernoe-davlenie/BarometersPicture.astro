@@ -1,0 +1,274 @@
+---
+/**
+ * Picture to «Барометры»: the two barometers side by side, labelled, reading the same pressure.
+ * Left: a cup mercury barometer: a glass tube 850 мм long, sealed at the top, standing in a cup of mercury, fixed to
+ * a board with a scale in мм рт. ст.; 0,3 px per мм, so the column of 760 мм is 228 px. The level in the cup is taken
+ * as fixed (the cup is much wider than the tube). Right: an aneroid with a scale of 700–800 мм рт. ст. over 270° and
+ * the weather words of a home barometer (drawn over the needle); a window in the dial shows the corrugated box.
+ * The pressure changes as with the weather, between about 730 and 785 мм рт. ст.; days of weather are sped up to a
+ * cycle of 12 s. Both readings come from the same number.
+ */
+import AtmStyles from './AtmStyles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const gHg = `abh-${uid}`;
+// mercury barometer
+const K = 0.3; // px per мм
+const SURF = 300; // mercury surface in the cup
+const TX = 112; // tube axis
+const yOf = (mm: number) => SURF - mm * K;
+const TOPY = yOf(850);
+let hgTicks = '';
+for (let mm = 680; mm <= 800; mm += 10) hgTicks += `M${TX + 9} ${yOf(mm)}h${mm % 50 ? 6 : 10}`;
+const hgNums = [700, 750, 800].map((mm) => ({ mm, y: yOf(mm) + 4 }));
+// aneroid
+const C = { x: 330, y: 150 };
+const P_MIN = 700;
+const P_MAX = 800;
+const ang = (mm: number) => -135 + ((mm - P_MIN) / (P_MAX - P_MIN)) * 270;
+const pt = (deg: number, r: number) => {
+	const a = (deg * Math.PI) / 180;
+	return [C.x + r * Math.sin(a), C.y - r * Math.cos(a)].map((v) => Math.round(v * 10) / 10);
+};
+let dial = '';
+for (let mm = P_MIN; mm <= P_MAX; mm += 2) {
+	const r2 = mm % 10 === 0 ? 68 : 73;
+	const [x1, y1] = pt(ang(mm), 78);
+	const [x2, y2] = pt(ang(mm), r2);
+	dial += `M${x1} ${y1}L${x2} ${y2}`;
+}
+const dialNums = [700, 720, 740, 760, 780, 800].map((mm) => {
+	const [x, y] = pt(ang(mm), 58);
+	return { mm, x, y: y + 4 };
+});
+const words = [
+	{ mm: 715, w: 'Буря' },
+	{ mm: 735, w: 'Дождь' },
+	{ mm: 755, w: 'Перем.' },
+	{ mm: 775, w: 'Ясно' },
+	{ mm: 795, w: 'Сушь' },
+].map((o) => {
+	const [x, y] = pt(ang(o.mm), 37);
+	return { ...o, x, y: y + 3 };
+});
+// the window with the box, at the bottom of the dial
+const WIN = { x: C.x - 20, y: C.y + 34, w: 34, h: 20 };
+---
+
+<AtmStyles />
+<figure class="ap-pic ap-pic--one ap-pic--baro not-content" data-atmbaro>
+	<div class="ap-pic__grid">
+		<svg class="ap-pic__svg" viewBox="0 0 440 340" role="img" aria-label="Ртутный барометр и барометр-анероид рядом. Давление меняется, столб ртути поднимается и опускается, и стрелка анероида показывает то же число миллиметров ртутного столба">
+			<defs>
+				<linearGradient id={gHg} x1="0" x2="1">
+					<stop offset="0" class="ap-hg-edge"></stop>
+					<stop offset="0.45" class="ap-hg-mid"></stop>
+					<stop offset="1" class="ap-hg-edge"></stop>
+				</linearGradient>
+				<clipPath id={`abw-${uid}`}>
+					<rect x={WIN.x} y={WIN.y} width={WIN.w} height={WIN.h} rx="4"></rect>
+				</clipPath>
+			</defs>
+			<text class="ap-title" x={TX} y="18" text-anchor="middle">Ртутный барометр</text>
+			<text class="ap-title" x={C.x} y="18" text-anchor="middle">Барометр-анероид</text>
+
+			<!-- mercury barometer: board, scale, tube, cup -->
+			<rect class="ab-board" x={TX - 18} y={TOPY - 12} width="64" height={SURF - TOPY + 4} rx="4"></rect>
+			<path class="ab-tick" d={hgTicks}></path>
+			{hgNums.map((n) => <text class="ab-num" x={TX + 22} y={n.y}>{n.mm}</text>)}
+			<rect class="ap-vacuum" x={TX - 4} y={TOPY + 2} width="8" height={SURF - TOPY}></rect>
+			<rect x={TX - 4} width="8" fill={`url(#${gHg})`} data-hg></rect>
+			<path class="ap-glass" d={`M${TX - 6} ${SURF + 10} V${TOPY + 6} a6 6 0 0 1 12 0 V${SURF + 10}`}></path>
+			<rect x={TX - 30} y={SURF} width="60" height="16" fill={`url(#${gHg})`}></rect>
+			<path class="ap-glass" d={`M${TX - 32} ${SURF - 10} V${SURF + 14} q0 5 5 5 H${TX + 27} q5 0 5 -5 V${SURF - 10}`}></path>
+			<line class="ab-level" x1={TX - 6} x2={TX + 30} data-hglevel></line>
+			<!-- labels of the mercury barometer -->
+			<line class="ab-lead" x1="78" y1={TOPY + 16} x2={TX - 7} y2={TOPY + 16}></line>
+			<text class="ab-lab" x="74" y={TOPY + 20} text-anchor="end">пустота</text>
+			<line class="ab-lead" x1="78" y1="190" x2={TX - 7} y2="190"></line>
+			<text class="ab-lab" x="74" y="186" text-anchor="end">стеклянная</text>
+			<text class="ab-lab" x="74" y="200" text-anchor="end">трубка</text>
+			<line class="ab-lead" x1="78" y1="250" x2={TX - 5} y2="250"></line>
+			<text class="ab-lab" x="74" y="246" text-anchor="end">столб</text>
+			<text class="ab-lab" x="74" y="260" text-anchor="end">ртути</text>
+			<line class="ab-lead" x1="78" y1={SURF + 8} x2={TX - 33} y2={SURF + 8}></line>
+			<text class="ab-lab" x="74" y={SURF + 4} text-anchor="end">чашка</text>
+			<text class="ab-lab" x="74" y={SURF + 18} text-anchor="end">с ртутью</text>
+			<text class="ab-lab" x={TX + 52} y={yOf(780) - 18}>шкала,</text>
+			<text class="ab-lab" x={TX + 52} y={yOf(780) - 4}>мм</text>
+			<rect class="ab-pill" x={TX - 44} y="322" width="88" height="16" rx="8"></rect>
+			<text class="ab-read" x={TX} y="334" text-anchor="middle" data-hgread>760 мм</text>
+
+			<!-- aneroid: case, dial, the window with the box, needle -->
+			<circle class="ab-case" cx={C.x} cy={C.y} r="92"></circle>
+			<circle class="ab-face" cx={C.x} cy={C.y} r="80"></circle>
+			<path class="ab-tick" d={dial}></path>
+			{dialNums.map((n) => <text class="ab-num ab-num--dial" x={n.x} y={n.y} text-anchor="middle">{n.mm}</text>)}
+			<rect class="ab-window" x={WIN.x} y={WIN.y} width={WIN.w} height={WIN.h} rx="4"></rect>
+			<g clip-path={`url(#abw-${uid})`}>
+				<path class="ab-box" data-box></path>
+			</g>
+			<g data-needle>
+				<path class="ab-needle" d={`M${C.x} ${C.y - 70} L${C.x + 3.4} ${C.y} L${C.x} ${C.y + 18} L${C.x - 3.4} ${C.y} Z`}></path>
+			</g>
+			<circle class="ab-cap" cx={C.x} cy={C.y} r="5.5"></circle>
+			<!-- the weather words over the needle, with a halo, so that the needle never hides them -->
+			{words.map((o) => <text class="ab-word" x={o.x} y={o.y} text-anchor="middle">{o.w}</text>)}
+			<!-- labels of the aneroid -->
+			<line class="ab-lead" x1={C.x + 4} y1={C.y + 6} x2={C.x + 42} y2="252"></line>
+			<text class="ab-lab" x={C.x + 42} y="264" text-anchor="middle">стрелка</text>
+			<line class="ab-lead" x1={WIN.x + 8} y1={WIN.y + WIN.h} x2={C.x - 64} y2="252"></line>
+			<text class="ab-lab" x={C.x - 66} y="264" text-anchor="middle">коробочка</text>
+			<text class="ab-lab" x={C.x - 66} y="278" text-anchor="middle">(в окошке)</text>
+			<line class="ab-lead" x1={pt(ang(800), 76)[0]} y1={pt(ang(800), 76)[1]} x2="414" y2="276"></line>
+			<text class="ab-lab" x="434" y="290" text-anchor="end">шкала,</text>
+			<text class="ab-lab" x="434" y="304" text-anchor="end">мм рт. ст.</text>
+			<rect class="ab-pill" x={C.x - 56} y="322" width="112" height="16" rx="8"></rect>
+			<text class="ab-read" x={C.x} y="334" text-anchor="middle" data-anread>760 мм рт. ст.</text>
+		</svg>
+	</div>
+	<div class="ap-pic__foot">
+		<figcaption>
+			Ртутный барометр и барометр-анероид показывают одно и то же давление: сколько миллиметров в столбе ртути, столько миллиметров ртутного столба на шкале анероида. Изменения давления с погодой за несколько дней здесь ускорены.
+		</figcaption>
+	</div>
+</figure>
+
+<style is:global>
+	.ap-pic--baro.ap-pic--one .ap-pic__grid {
+		max-width: 34rem;
+	}
+	.ab-board {
+		fill: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-4);
+	}
+	.ab-tick {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.ap-pic .ab-num {
+		font-size: 11px;
+		fill: var(--sl-color-gray-1);
+		stroke: none;
+		font-variant-numeric: tabular-nums;
+	}
+	.ap-pic .ab-num--dial {
+		font-size: 12px;
+	}
+	.ap-pic .ab-word {
+		font-size: 9.5px;
+		fill: var(--ig-vx);
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+	}
+	.ap-pic .ab-lab {
+		font-size: 12px;
+		fill: var(--sl-color-gray-2);
+	}
+	.ab-lead {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ab-level {
+		stroke: var(--ig-v);
+		stroke-width: 1.4;
+		stroke-dasharray: 3 2;
+	}
+	.ab-case {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 2;
+	}
+	.ab-face {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ab-window {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+	}
+	.ab-box {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.ab-needle {
+		fill: var(--ig-vy);
+	}
+	.ab-cap {
+		fill: var(--sl-color-gray-3);
+	}
+	.ab-pill {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ap-pic .ab-read {
+		font-size: 12px;
+		font-weight: 700;
+		fill: var(--ig-v);
+		stroke: none;
+		font-variant-numeric: tabular-nums;
+	}
+	@media (max-width: 40rem) {
+		.ap-pic .ab-lab {
+			font-size: 13px;
+		}
+		.ap-pic .ab-num {
+			font-size: 12.5px;
+		}
+		.ap-pic .ab-num--dial {
+			font-size: 13.5px;
+		}
+		.ap-pic .ab-read {
+			font-size: 13px;
+		}
+	}
+</style>
+
+<script>
+	import { loop } from '@components/intro/scene';
+
+	const K = 0.3;
+	const SURF = 300;
+	const C = { x: 330, y: 150 };
+	const WIN = { x: C.x - 20, y: C.y + 34, w: 34, h: 20 };
+	// pressure in мм рт. ст. at time t (s): slow weather swings, a cycle of 12 s
+	const pAt = (t: number) => 757 + 20 * Math.sin((2 * Math.PI * t) / 12) + 6 * Math.sin((2 * Math.PI * t) / 4);
+	const ang = (mm: number) => -135 + ((mm - 700) / 100) * 270;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-atmbaro]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const hg = $<SVGRectElement>('[data-hg]');
+		const lvl = $<SVGLineElement>('[data-hglevel]');
+		const hgRead = $<SVGTextElement>('[data-hgread]');
+		const anRead = $<SVGTextElement>('[data-anread]');
+		const needle = $<SVGGElement>('[data-needle]');
+		const box = $<SVGPathElement>('[data-box]');
+		let t = 0;
+		const draw = () => {
+			const p = pAt(t);
+			const top = SURF - p * K;
+			hg.setAttribute('y', top.toFixed(1));
+			hg.setAttribute('height', (SURF + 10 - top).toFixed(1));
+			lvl.setAttribute('y1', top.toFixed(1));
+			lvl.setAttribute('y2', top.toFixed(1));
+			const mm = String(Math.round(p));
+			hgRead.textContent = `столб ${mm}\u00a0мм`;
+			anRead.textContent = `${mm}\u00a0мм рт. ст.`;
+			needle.setAttribute('transform', `rotate(${ang(p).toFixed(2)} ${C.x} ${C.y})`);
+			// the box: its corrugated lid goes down as the pressure grows (greatly enlarged)
+			const lid = WIN.y + 8 + (p - 757) * 0.06;
+			let d = `M${WIN.x + 4} ${WIN.y + WIN.h + 2} V${lid.toFixed(1)}`;
+			for (let i = 0; i <= 16; i++) d += ` L${(WIN.x + 4 + (i * (WIN.w - 8)) / 16).toFixed(1)} ${(lid + (i % 2 ? 1.6 : -1.6)).toFixed(1)}`;
+			box.setAttribute('d', `${d} V${WIN.y + WIN.h + 2} Z`);
+		};
+		draw();
+		loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+	}
+</script>

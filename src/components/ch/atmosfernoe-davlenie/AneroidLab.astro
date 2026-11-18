@@ -57,7 +57,7 @@ const parts = [
 	{ n: 2, text: 'пружина: не даёт воздуху раздавить коробочку' },
 	{ n: 3, text: 'тяга и рычаг: увеличивают малое движение крышки' },
 	{ n: 4, text: 'цепочка: поворачивает ось стрелки' },
-	{ n: 5, text: 'стрелка на оси показывает давление по шкале' },
+	{ n: 5, text: 'ось со стрелкой: та же стрелка показывает давление на шкале' },
 ];
 ---
 
@@ -93,6 +93,11 @@ const parts = [
 				<path class="anr__needle" d={`M${C} ${C - 86}L${C + 3.6} ${C}L${C} ${C + 22}L${C - 3.6} ${C}Z`}></path>
 			</g>
 			<circle class="anr__cap" cx={C} cy={C} r="6.5"></circle>
+			<!-- the same number as on the axle in the mechanism: this needle sits on that axle -->
+			<g class="anr__num-badge" data-part="5">
+				<circle cx={C} cy={C + 36} r="9"></circle>
+				<text x={C} y={C + 40} text-anchor="middle">5</text>
+			</g>
 		</svg>
 	</div>
 
@@ -197,9 +202,9 @@ const parts = [
 		stroke-width: 2;
 	}
 	.anr__spoke {
-		stroke: var(--ig-vy);
-		stroke-width: 2.5;
-		stroke-linecap: round;
+		fill: var(--ig-vy);
+		stroke: var(--ig-surface);
+		stroke-width: 0.8;
 	}
 	.anr__arrow {
 		stroke: var(--ig-vx);
@@ -430,7 +435,9 @@ const parts = [
 	// the needle turns by 270° over 200 мм рт. ст.; the chain unwinds r·Δθ;
 	// the long arm moves 3 times more than the short one, the short one as much as the lid
 	const RAD_PER_MM = ((270 / 200) * Math.PI) / 180;
-	const LID_PER_MM = (PUL.r * RAD_PER_MM * SHORT) / LONG; // ≈ 0,079 px per мм рт. ст.
+	// the lid moves 2,2 times more than the chain needs (≈ 0,17 px per мм рт. ст., 17 px from 700 to 800), so that
+	// one sees which way it bends; the needle angle is computed from the pressure itself
+	const LID_PER_MM = (2.2 * PUL.r * RAD_PER_MM * SHORT) / LONG;
 
 	const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent: Element) => {
 		const e = document.createElementNS(NS, tag);
@@ -477,7 +484,7 @@ const parts = [
 		el('rect', { class: 'anr__frame', x: PUL.x - 2, y: 18, width: 4, height: PUL.y - 18 }, stat);
 		const airLabel = el('text', { class: 'anr__text anr__text--air', x: 22, y: 150 }, stat);
 		airLabel.textContent = 'воздух давит';
-		const boxText = el('text', { class: 'anr__text', x: BOX_CX, y: BASE - 10, 'text-anchor': 'middle' }, stat);
+		const boxText = el('text', { class: 'anr__text', x: BOX_CX, y: BASE - 4, 'text-anchor': 'middle' }, stat);
 		boxText.textContent = 'воздуха почти нет';
 
 		// ----- moving parts -----
@@ -498,8 +505,11 @@ const parts = [
 		const chain = el('line', { class: 'anr__chain' }, gChain);
 		const gAxle = el('g', { 'data-part': 5 }, dyn);
 		el('circle', { class: 'anr__pulley', cx: PUL.x, cy: PUL.y, r: PUL.r }, gAxle);
-		const spoke = el('line', { class: 'anr__spoke' }, gAxle);
+		// the needle itself sits on the front end of the axle: the same red needle as on the dial, turned by the same
+		// angle, so the axle in the mechanism and the needle on the dial read as one part
+		const spoke = el('path', { class: 'anr__spoke', d: `M${PUL.x} ${PUL.y - 30}L${PUL.x + 2.6} ${PUL.y}L${PUL.x} ${PUL.y + 8}L${PUL.x - 2.6} ${PUL.y}Z` }, gAxle);
 		el('circle', { class: 'anr__pivot', cx: PUL.x, cy: PUL.y, r: 3 }, gAxle);
+
 		// number badges
 		const badge = (n: number, x: number, y: number) => {
 			const g = el('g', { class: 'anr__num-badge', 'data-part': n }, dyn);
@@ -511,7 +521,7 @@ const parts = [
 		badge(2, 220, 150);
 		badge(3, 240, 96);
 		badge(4, PUL.x + 22, 66);
-		badge(5, PUL.x + 24, PUL.y);
+		badge(5, PUL.x + 42, PUL.y);
 
 		let p = 760;
 		let shown = 760;
@@ -576,17 +586,13 @@ const parts = [
 			chain.setAttribute('y2', String(PUL.y));
 			// axle and needle turn together
 			const deg = -135 + ((pmm - P_MIN) / (P_MAX - P_MIN)) * 270;
-			const a = (deg * Math.PI) / 180;
-			spoke.setAttribute('x1', String(r1(PUL.x - PUL.r * 0.8 * Math.sin(a))));
-			spoke.setAttribute('y1', String(r1(PUL.y + PUL.r * 0.8 * Math.cos(a))));
-			spoke.setAttribute('x2', String(r1(PUL.x + PUL.r * 0.8 * Math.sin(a))));
-			spoke.setAttribute('y2', String(r1(PUL.y - PUL.r * 0.8 * Math.cos(a))));
+			spoke.setAttribute('transform', `rotate(${deg.toFixed(2)} ${PUL.x} ${PUL.y})`);
 			needle.setAttribute('transform', `rotate(${deg.toFixed(2)} 110 110)`);
 		};
 
 		const label = (pmm: number) => {
 			const mm = Math.round(pmm);
-			return `${fmt(mm)} мм рт. ст. ≈ ${fmt((mm * MMHG) / 1000, 1)} кПа`;
+			return `${fmt(mm)} мм рт. ст. ≈ ${fmt((mm * MMHG) / 1000, 1)}\u00a0кПа`;
 		};
 		const describe = (pmm: number) => {
 			const d = Math.round(pmm) - 760;
@@ -597,7 +603,8 @@ const parts = [
 		};
 
 		const frame = (now: number) => {
-			const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+			// the rAF timestamp can be earlier than the performance.now() taken in kick(): never let dt go negative
+			const dt = Math.min(0.05, Math.max(0, (now - last) / 1000) || 0.016);
 			last = now;
 			if (playT >= 0) {
 				playT += dt;
@@ -629,6 +636,7 @@ const parts = [
 		input.addEventListener('input', () => {
 			playT = -1;
 			p = Number(input.value);
+			live.textContent = describe(p);
 			kick();
 		});
 		play.addEventListener('click', () => {
