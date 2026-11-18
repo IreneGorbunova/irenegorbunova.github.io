@@ -1,0 +1,426 @@
+---
+/**
+ * «Подводная лодка»: a submarine in section dives and surfaces by its ballast tanks.
+ *
+ * The boat (a typical diesel submarine, not a particular one): 2300 т with crew, fuel and stores; between the
+ * pressure hull and the outer hull — ballast tanks for 721 т of sea water (700 м³), plus a small trim tank for 20 т.
+ * Sea water 1030 кг/м³. Submerged, the hull displaces V = 2933 м³, so with full ballast tanks the boat (3021 т) weighs
+ * exactly as much as the water it displaces: ρV = 1030 · 2933 ≈ 3 021 000 кг. For the forces the hull is a cylinder
+ * of radius 3,6 м and length 72,0 м (the same volume); its submerged volume is the circular segment under the
+ * surface times the length. Afloat with empty tanks it sits 76 % deep: draft 5,1 м, 2,1 м of the hull above the water.
+ *
+ * «Погрузиться»: the vents open, the tanks fill at 30 т/с, air bubbles out; the boat settles lower and is under
+ * water after 26 с; with 20 т in the trim tank it is heavier than the water it displaces by 20 т (0,2 МН) and sinks
+ * at 0,46 м/с. From 30 м (keel) the pump empties the trim tank (2 т/с): the forces become equal, the boat slows down
+ * and floats inside the water at 40 м. «Всплыть»: compressed air drives the water out of the tanks (15 т/с, 48 с
+ * for all of it), the Archimedes force wins, the boat rises, breaks the surface 24 с after the start and settles at
+ * its draft again. Besides ½ρCAv², a resistance linear in the speed, (m + ρV)·v / 20 с, stands for the hydroplanes
+ * with which the crew holds the boat, so a boat with equal forces stops instead of drifting on. (These times and
+ * depths were checked by running the same integration outside the page.)
+ * Vertical motion integrated in the script: gravity, ρgV_погр, the added mass of the water (ρV_погр, a cylinder
+ * moving sideways), drag ½ρCAv² with C = 1 and A = 2R·L, and wave damping near the surface.
+ * Time runs 15 times faster than in reality (the caption says it).
+ *
+ * The drawing: 3,2 px per m both ways (the boat is 230 px long), the depth scale on the left counts to the keel.
+ * The water in the tanks is drawn as a level in the space between the hulls, in proportion to its mass. The force
+ * arrows from the middle of the boat: 1,6 px per MN (22,5 MN afloat → 36 px); the difference of 0,2 MN while sinking
+ * is too small for the arrows, the readouts show it.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const SURF = 44;
+const PX = 3.2;
+const BED = SURF + 62 * PX; // the sea bottom at 62 m, below the last mark of the scale
+const TICKS = [0, 10, 20, 30, 40, 50, 60];
+---
+
+<G7Styles />
+<figure class="g7 g7--wide sub not-content" data-sub>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 262" role="img" aria-label="Подводная лодка в разрезе: прочный корпус, вокруг него балластные цистерны. Лодка погружается, когда цистерны заполняются водой, и всплывает, когда воду вытесняют сжатым воздухом" data-svg>
+			<defs>
+				<linearGradient id={`sub-sea-${uid}`} x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" style="stop-color: var(--ig-vx); stop-opacity: 0.2"></stop>
+					<stop offset="1" style="stop-color: var(--ig-vx); stop-opacity: 0.5"></stop>
+				</linearGradient>
+				{['red', 'green'].map((c) => (
+					<marker id={`sub-${uid}-${c}`} viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">
+						<path class={`head--${c}`} d="M0,0 L10,5 L0,10 z" />
+					</marker>
+				))}
+				<clipPath id={`sub-tank-${uid}`}>
+					<path d="" data-tank-clip clip-rule="evenodd"></path>
+				</clipPath>
+			</defs>
+			<rect class="sub__sky" x="0" y="0" width="360" height={SURF}></rect>
+			<rect class="sub__sea" x="0" y={SURF} width="360" height={BED - SURF} fill={`url(#sub-sea-${uid})`}></rect>
+			<rect class="sub__bed" x="0" y={BED} width="360" height={262 - BED}></rect>
+			<!-- depth scale, to the keel -->
+			<g class="sub__ruler">
+				<line x1="30" x2="30" y1={SURF} y2={SURF + 60 * PX}></line>
+				{TICKS.map((d) => (
+					<>
+						<line x1="25" x2="30" y1={SURF + d * PX} y2={SURF + d * PX}></line>
+						<text class="t-small" x="22" y={SURF + d * PX + 4} text-anchor="end">{d}</text>
+					</>
+				))}
+				<text class="t-small" x="4" y="15">глубина, м</text>
+			</g>
+			<g data-bubbles></g>
+			<!-- the boat, drawn about the middle of its axis -->
+			<g data-hullg>
+				<path class="sub__sail" d="M -14 -10 L -10 -30 L 22 -30 L 26 -10 Z"></path>
+				<line class="sub__mast" x1="12" x2="12" y1="-30" y2="-40"></line>
+				<line class="sub__mast" x1="4" x2="4" y1="-30" y2="-36"></line>
+				<path class="sub__outer-fill" d="" data-outer-fill></path>
+				<g clip-path={`url(#sub-tank-${uid})`}>
+					<rect class="sub__air" x="-130" y="-14" width="260" height="28"></rect>
+					<rect class="sub__tankwater" x="-130" y="14" width="260" height="0" data-tankwater></rect>
+				</g>
+				<path class="sub__inner" d="" data-inner></path>
+				<path class="sub__outer" d="" data-outer></path>
+				<path class="sub__rudder" d="M -122 0 L -132 -9 L -132 9 Z"></path>
+				<rect class="sub__screw" x="-136" y="-6" width="3" height="12" rx="1.2"></rect>
+				<g class="sub__vents">
+					{[-70, -20, 50, 92].map((x) => <rect x={x - 2} y="-12.6" width="4" height="2" rx="0.6" />)}
+				</g>
+			</g>
+			<path class="sub__surface" d="" data-surface></path>
+			<line class="arrow arrow--green" marker-end={`url(#sub-${uid}-green)`} data-fa></line>
+			<line class="arrow arrow--red" marker-end={`url(#sub-${uid}-red)`} data-fg></line>
+			<text class="t-i t-green t-halo" text-anchor="end" data-lfa>F<tspan class="sub__s" dy="4">А</tspan></text>
+			<text class="t-i t-red t-halo" data-lfg>F<tspan class="sub__s" dy="4">тяж</tspan></text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-dive>Погрузиться</button>
+				<button type="button" class="g7__btn" data-up disabled>Всплыть</button>
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite"></p>
+			<ul class="g7__read">
+				<li><span>Глубина (до киля)</span><b data-o-depth></b></li>
+				<li><span>Вода в цистернах</span><b data-o-water></b></li>
+				<li><span>Сила тяжести <i>F</i><sub>тяж</sub></span><b data-o-fg></b></li>
+				<li class="is-key"><span>Архимедова сила <i>F</i><sub>А</sub></span><b data-o-fa></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Между прочным корпусом лодки и наружным корпусом — балластные цистерны. Время в модели идёт в 15&nbsp;раз быстрее; 1&nbsp;МН (меганьютон) = 1&nbsp;000&nbsp;000&nbsp;Н.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.sub {
+		--sub-hull: color-mix(in oklab, var(--ig-vx) 22%, var(--sl-color-gray-3));
+		--sub-hull-dark: color-mix(in oklab, var(--ig-vx) 20%, var(--sl-color-gray-4));
+		--sub-air: color-mix(in oklab, var(--sl-color-gray-6) 70%, var(--sl-color-bg));
+		--sub-sand: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-4));
+	}
+	:root[data-theme='light'] .sub {
+		--sub-hull: color-mix(in oklab, var(--ig-vx) 30%, var(--sl-color-gray-3));
+		--sub-hull-dark: color-mix(in oklab, var(--ig-vx) 25%, var(--sl-color-gray-2));
+		--sub-air: var(--sl-color-gray-7, #fff);
+		--sub-sand: color-mix(in oklab, var(--ig-v) 35%, var(--sl-color-gray-5));
+	}
+	.sub__sky {
+		fill: var(--g7-sky);
+	}
+	.sub__bed {
+		fill: var(--sub-sand);
+	}
+	.sub__surface {
+		fill: none;
+		stroke: var(--g7-water-edge);
+		stroke-width: 2;
+	}
+	.sub__ruler line {
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.sub__outer-fill {
+		fill: var(--sub-air);
+	}
+	.sub__air {
+		fill: var(--sub-air);
+	}
+	.sub__tankwater {
+		fill: color-mix(in srgb, var(--ig-vx) 62%, transparent);
+	}
+	.sub__inner {
+		fill: var(--sub-hull-dark);
+		stroke: var(--sub-hull);
+		stroke-width: 2.5;
+	}
+	.sub__outer {
+		fill: none;
+		stroke: var(--sub-hull);
+		stroke-width: 2.2;
+	}
+	.sub__sail,
+	.sub__rudder {
+		fill: var(--sub-hull);
+		stroke: var(--sub-hull-dark);
+		stroke-width: 1;
+	}
+	.sub__screw {
+		fill: var(--g7-gold);
+	}
+	.sub__mast {
+		stroke: var(--sub-hull);
+		stroke-width: 2;
+	}
+	.sub__vents rect {
+		fill: var(--sub-hull-dark);
+	}
+	.sub [data-bubbles] circle {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vx) 45%, var(--sl-color-white));
+		stroke-width: 0.9;
+	}
+	.sub [data-bubbles] line {
+		stroke: color-mix(in srgb, var(--ig-vx) 60%, var(--sl-color-white));
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.sub svg .sub__s {
+		font-size: 10px;
+		font-style: normal;
+		font-family: var(--__sl-font);
+	}
+	.sub .g7__read li.is-key {
+		box-shadow: inset 3px 0 0 var(--g7-green);
+		background: color-mix(in oklab, var(--g7-green) 14%, var(--sl-color-gray-6));
+	}
+	.sub .g7__read li b {
+		min-width: 4.5em;
+		text-align: right;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const RHO = 1030; // kg/m³, sea water
+	const G = 9.8;
+	const R = 3.6; // m, hull radius
+	const V = 3021000 / RHO; // m³, the hull submerged
+	const L = V / (Math.PI * R * R); // m, 72,0
+	const M0 = 2300; // t
+	const MAIN = 721; // t, main ballast
+	const TRIM = 20; // t, trim tank
+	const BED_KEEL = 62; // m
+	const CXB = 210; // x of the middle of the boat
+	const SPEED = 15; // time runs 15 times faster
+	const TRIM_AT = 30; // m of keel depth where the trim tank is pumped out
+	const TAU = 20; // s, time constant of the low-speed resistance
+	const SURF = 44;
+	const PX = 3.2;
+	const KF = 1.6; // px per MN
+	const HL = 115; // half-length of the drawn hull, px (72 m)
+	const HR = R * PX; // 11,5 px
+
+	/** Area of the circular segment of height h (0…2R) under the surface. */
+	const seg = (h: number) => {
+		const c = Math.min(2 * R, Math.max(0, h));
+		return R * R * Math.acos((R - c) / R) - (R - c) * Math.sqrt(Math.max(0, 2 * R * c - c * c));
+	};
+	/** Hull outline about its axis, px: a rounded bow on the right, a tapered stern on the left. */
+	const hull = (r: number, l: number) =>
+		`M ${-l + 12} ${-r} L ${l - 1.6 * r} ${-r} Q ${l} ${-r} ${l} 0 Q ${l} ${r} ${l - 1.6 * r} ${r} L ${-l + 12} ${r} Q ${-l - 6} ${r * 0.4} ${-l - 8} 0 Q ${-l - 6} ${-r * 0.4} ${-l + 12} ${-r} Z`;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-sub]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const boat = q<SVGGElement>('[data-hullg]');
+		const surface = q<SVGPathElement>('[data-surface]');
+		const tankWater = q<SVGRectElement>('[data-tankwater]');
+		const bubblesG = q<SVGGElement>('[data-bubbles]');
+		const fa = q<SVGLineElement>('[data-fa]');
+		const fg = q<SVGLineElement>('[data-fg]');
+		const lfa = q<SVGTextElement>('[data-lfa]');
+		const lfg = q<SVGTextElement>('[data-lfg]');
+		const dive = q<HTMLButtonElement>('[data-dive]');
+		const up = q<HTMLButtonElement>('[data-up]');
+		const msg = q<HTMLElement>('[data-msg]');
+		const out = {
+			depth: q<HTMLElement>('[data-o-depth]'),
+			water: q<HTMLElement>('[data-o-water]'),
+			fg: q<HTMLElement>('[data-o-fg]'),
+			fa: q<HTMLElement>('[data-o-fa]'),
+		};
+		const outer = hull(HR, HL);
+		const inner = hull(HR - 5, HL - 12);
+		q('[data-outer]').setAttribute('d', outer);
+		q('[data-outer-fill]').setAttribute('d', outer);
+		q('[data-inner]').setAttribute('d', inner);
+		q('[data-tank-clip]').setAttribute('d', `${outer} ${inner}`);
+
+		// the boat afloat with empty tanks: solve ρ·seg(h)·L = M0
+		const draftOf = (mass: number) => {
+			let lo = 0;
+			let hi = 2 * R;
+			for (let k = 0; k < 50; k++) {
+				const mid = (lo + hi) / 2;
+				if (RHO * seg(mid) * L < mass * 1000) lo = mid;
+				else hi = mid;
+			}
+			return lo;
+		};
+		let z = draftOf(M0) - R; // m, depth of the axis (negative: above the surface)
+		let v = 0; // m/s, down
+		let water = 0; // t in the tanks
+		let mode: 'rest' | 'dive' | 'trim' | 'hold' | 'blow' = 'rest';
+		type Bubble = { x: number; y: number; vx: number; vy: number; air: boolean; age: number; node: SVGElement };
+		const bubbles: Bubble[] = [];
+		let spawn = 0;
+
+		const forces = () => {
+			const vs = seg(R + z) * L;
+			return { vs, fa: RHO * G * vs, fg: (M0 + water) * 1000 * G };
+		};
+
+		const step = (h: number) => {
+			if (mode === 'dive') {
+				water = Math.min(MAIN + TRIM, water + 30 * h);
+				if (water >= MAIN + TRIM - 1e-9 && z + R >= TRIM_AT) mode = 'trim';
+			} else if (mode === 'trim') {
+				water = Math.max(MAIN, water - 2 * h);
+				if (water <= MAIN + 1e-9) {
+					mode = 'hold';
+				}
+			} else if (mode === 'blow') {
+				water = Math.max(0, water - 15 * h);
+			}
+			const { vs, fa: FA, fg: FG } = forces();
+			const m = (M0 + water) * 1000;
+			const sub = vs / V;
+			const width = 2 * Math.sqrt(Math.max(0, R * R - z * z)); // waterline width, m (0 when under)
+			const kW = RHO * G * width * L;
+			let F = FG - FA - 0.5 * RHO * 1.0 * 2 * R * L * v * Math.abs(v) * Math.max(0.2, sub);
+			if (width > 0) F -= 2 * 0.25 * Math.sqrt(kW * (m + RHO * vs)) * v;
+			// at low speed the resistance is nearly linear (and the crew holds the boat with the hydroplanes)
+			F -= ((m + RHO * vs) * v) / TAU;
+			v += (F / (m + RHO * vs)) * h;
+			z += v * h;
+			if (z + R >= BED_KEEL) {
+				z = BED_KEEL - R;
+				if (v > 0) v = 0;
+			}
+		};
+
+		const pt = (px: number, py: number) => `${px.toFixed(1)} ${py.toFixed(1)}`;
+		const draw = (now: number) => {
+			const { fa: FA, fg: FG } = forces();
+			const cy = SURF + z * PX;
+			const cx = CXB;
+			boat.setAttribute('transform', `translate(${cx} ${cy.toFixed(1)})`);
+			// the water in the tanks: a level between the hulls, in proportion to its mass
+			const full = Math.min(1, water / (MAIN + TRIM));
+			tankWater.setAttribute('y', (HR - 2 * HR * full).toFixed(1));
+			tankWater.setAttribute('height', (2 * HR * full).toFixed(1));
+			// the surface with a gentle ripple
+			const pts: string[] = [];
+			for (let x = 0; x <= 360; x += 8) pts.push(pt(x, SURF + 0.7 * Math.sin(x / 17 + now * 1.4)));
+			surface.setAttribute('d', `M ${pts.join(' L ')}`);
+			// forces from the middle of the boat
+			const la = (FA / 1e6) * KF;
+			const lg = (FG / 1e6) * KF;
+			fa.setAttribute('x1', String(cx - 30));
+			fa.setAttribute('x2', String(cx - 30));
+			fa.setAttribute('y1', cy.toFixed(1));
+			fa.setAttribute('y2', (cy - la + 5).toFixed(1));
+			fg.setAttribute('x1', String(cx - 18));
+			fg.setAttribute('x2', String(cx - 18));
+			fg.setAttribute('y1', cy.toFixed(1));
+			fg.setAttribute('y2', (cy + lg - 5).toFixed(1));
+			lfa.setAttribute('x', String(cx - 36));
+			lfa.setAttribute('y', (cy - la + 10).toFixed(1));
+			lfg.setAttribute('x', String(cx - 12));
+			lfg.setAttribute('y', (cy + lg - 2).toFixed(1));
+			// readouts
+			const keel = z + R;
+			out.depth.textContent = `${fmt(Math.max(0, keel), 1)} м`;
+			out.water.textContent = `${Math.round(water)} т`;
+			out.fg.textContent = `${fmt(FG / 1e6, 1)} МН`;
+			out.fa.textContent = `${fmt(FA / 1e6, 1)} МН`;
+			const under = z - R > 0.05;
+			const still = Math.abs(v) < 0.01;
+			let text = '';
+			if (mode === 'rest') text = 'Лодка плавает на поверхности: сила тяжести равна архимедовой силе. Над водой — рубка и верх корпуса.';
+			else if (mode === 'dive' && !under) text = 'Клапаны открыты: вода заполняет балластные цистерны, воздух выходит пузырями. Сила тяжести растёт, лодка садится всё глубже.';
+			else if (mode === 'dive') text = 'Лодка под водой: с полными цистернами сила тяжести больше архимедовой силы, и лодка опускается.';
+			else if (mode === 'trim') text = 'Насос откачивает немного воды из цистерн: сила тяжести становится равна архимедовой силе.';
+			else if (mode === 'hold') text = still ? `Силы равны: лодка плавает внутри воды на глубине ${Math.round(keel)} м.` : 'Силы равны: лодка, замедляясь, останавливается.';
+			else if (mode === 'blow') text = under ? 'Сжатый воздух вытесняет воду из цистерн: сила тяжести становится меньше архимедовой силы, лодка всплывает.' : 'Лодка всплыла: часть корпуса вышла из воды, и архимедова сила уменьшается, пока не станет равна силе тяжести.';
+			if (msg.textContent !== text) msg.textContent = text;
+			dive.disabled = mode === 'dive' || mode === 'trim' || mode === 'hold';
+			up.disabled = mode === 'rest' || mode === 'blow';
+		};
+
+		const addBubble = (x: number, y: number, air: boolean) => {
+			const node = air ? el('circle', { r: (1.2 + Math.random() * 1.6).toFixed(1) }) : el('line', {});
+			bubblesG.append(node);
+			bubbles.push({ x, y, vx: (Math.random() - 0.5) * 6, vy: air ? -(18 + Math.random() * 10) : 26, air, age: 0, node });
+		};
+
+		const wake = loop(root, (dt) => {
+			const now = performance.now() / 1000;
+			// physics in steps of 0,02 s of model time
+			let left = dt * SPEED;
+			while (left > 1e-9) {
+				const h = Math.min(0.02, left);
+				left -= h;
+				step(h);
+			}
+			// bubbles: air out of the top vents while the tanks fill, water out of the bottom while they are blown
+			const cy = SURF + z * PX;
+			spawn += dt;
+			if (spawn > 0.09) {
+				spawn = 0;
+				const vents = [-70, -20, 50, 92];
+				const filling = mode === 'dive' && water < MAIN + TRIM - 0.5;
+				const blowing = mode === 'blow' && water > 0.5;
+				if (filling) addBubble(CXB + vents[Math.floor(Math.random() * 4)], cy - HR, true);
+				if (blowing) addBubble(CXB + vents[Math.floor(Math.random() * 4)] + 8, cy + HR, false);
+			}
+			for (let k = bubbles.length - 1; k >= 0; k--) {
+				const b = bubbles[k];
+				b.age += dt;
+				b.x += b.vx * dt;
+				b.y += b.vy * dt;
+				const gone = b.air ? b.y < SURF + 2 : b.age > 0.5;
+				if (gone) {
+					b.node.remove();
+					bubbles.splice(k, 1);
+					continue;
+				}
+				if (b.air) {
+					b.node.setAttribute('cx', (b.x + 1.5 * Math.sin(b.age * 9)).toFixed(1));
+					b.node.setAttribute('cy', b.y.toFixed(1));
+				} else {
+					b.node.setAttribute('x1', b.x.toFixed(1));
+					b.node.setAttribute('y1', (b.y - 4).toFixed(1));
+					b.node.setAttribute('x2', b.x.toFixed(1));
+					b.node.setAttribute('y2', (b.y + 2).toFixed(1));
+					b.node.setAttribute('opacity', (1 - b.age / 0.5).toFixed(2));
+				}
+			}
+			draw(now);
+			// surfaced and settled: back to rest
+			if (mode === 'blow' && water <= 0 && z - R < 0 && Math.abs(v) < 0.005) mode = 'rest';
+			// the ripple keeps the picture alive while it is on screen
+			return true;
+		});
+
+		dive.addEventListener('click', () => {
+			mode = 'dive';
+			wake();
+		});
+		up.addEventListener('click', () => {
+			mode = 'blow';
+			wake();
+		});
+		draw(0);
+	}
+</script>

@@ -1,0 +1,142 @@
+---
+/**
+ * Picture to V_погр / V_т = ρ_т / ρ_ж: how deep floating bodies sit.
+ * Ice in water: 900 / 1000 = 9/10 under water. Pine in water: 400 / 1000 = 4/10. An iceberg in sea water:
+ * 900 / 1030 = 0,874, about 7/8 under water.
+ * The ice cube and the pine block are drawn the same size (80 × 80 px); a ruler of ten parts beside each shows the
+ * share under water (72 and 32 px). Only the pine's share is written out: the ice and the iceberg are the chapter's
+ * worked task and Задача 2, so their pictures say only «бо́льшая часть под водой». The iceberg's outline is a free shape; its volume is kept as the area of the
+ * drawing, and the waterline is found in this file so that 87,4 % of that area is under the surface.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const SURF = 92;
+const BOX = 80;
+/** Area of a polygon (shoelace). */
+const area = (p: number[][]) => Math.abs(p.reduce((s, [x, y], i) => { const [x2, y2] = p[(i + 1) % p.length]; return s + x * y2 - x2 * y; }, 0)) / 2;
+/** The part of the polygon below the line y = c (Sutherland–Hodgman against one edge). */
+const below = (p: number[][], c: number) => {
+	const out: number[][] = [];
+	for (let i = 0; i < p.length; i++) {
+		const a = p[i];
+		const b = p[(i + 1) % p.length];
+		const ina = a[1] >= c;
+		const inb = b[1] >= c;
+		if (ina) out.push(a);
+		if (ina !== inb) {
+			const t = (c - a[1]) / (b[1] - a[1]);
+			out.push([a[0] + t * (b[0] - a[0]), c]);
+		}
+	}
+	return out;
+};
+// the iceberg, y down from its peak; px
+const BERG = [
+	[0, 0], [8, 10], [14, 8], [22, 26], [30, 30], [44, 34], [56, 52], [60, 74], [54, 96], [58, 112], [44, 130], [20, 140],
+	[-6, 146], [-30, 138], [-50, 124], [-62, 102], [-58, 80], [-64, 60], [-50, 44], [-34, 36], [-22, 30], [-14, 14], [-6, 8],
+];
+const total = area(BERG);
+let lo = 0;
+let hi = 146;
+for (let k = 0; k < 60; k++) {
+	const mid = (lo + hi) / 2;
+	if (area(below(BERG, mid)) / total > 900 / 1030) lo = mid;
+	else hi = mid;
+}
+const WL = lo; // the waterline, px below the peak
+const bergPath = 'M ' + BERG.map(([x, y]) => `${x} ${(y - WL + SURF).toFixed(1)}`).join(' L ') + ' Z';
+const panels = [
+	{ id: 'ice', title: 'Лёд', sub: 'в воде', share: 0.9, frac: '', text: 'под водой бо́льшая часть' },
+	{ id: 'pine', title: 'Сосна', sub: 'в воде', share: 0.4, frac: '4/10', text: 'под водой 400 / 1000 = 4/10' },
+];
+---
+
+<G7Styles />
+<figure class="g7 g7--pic fsh not-content" data-fshare>
+	<div class="g7__grid is-three">
+		{
+			panels.map((p) => {
+				const top = SURF - BOX * (1 - p.share);
+				return (
+					<svg class="g7__svg" viewBox="0 0 200 224" role="img" aria-label={p.frac ? `${p.title} в воде: под водой ${p.frac} объёма` : `${p.title} в воде: под водой бо́льшая часть объёма`}>
+						<rect class="fsh__water" x="0" y={SURF} width="200" height={224 - SURF} />
+						<rect class={`fsh__block fsh__block--${p.id}`} x="50" y={top} width={BOX} height={BOX} rx="3" />
+						{p.id === 'pine' && <path class="fsh__grain" d={`M 52 ${top + 18} C 70 ${top + 12}, 100 ${top + 26}, 128 ${top + 16} M 52 ${top + 40} C 76 ${top + 34}, 98 ${top + 48}, 128 ${top + 38} M 52 ${top + 62} C 72 ${top + 58}, 104 ${top + 70}, 128 ${top + 60}`} />}
+						{p.id === 'ice' && <path class="fsh__shine" d={`M 58 ${top + 10} H 74 M 58 ${top + 16} V ${top + 32}`} />}
+						<line class="fsh__surf" x1="0" x2="200" y1={SURF} y2={SURF} />
+						<g class="fsh__ruler">
+							<line x1="146" x2="146" y1={top} y2={top + BOX} />
+							<line class="fsh__under" x1="146" x2="146" y1={SURF} y2={top + BOX} />
+							{Array.from({ length: 11 }, (_, k) => <line x1="142" x2="150" y1={top + (BOX * k) / 10} y2={top + (BOX * k) / 10} />)}
+						</g>
+						<text class="t-title" x="10" y="20">{p.title}</text>
+						<text class="t-small" x="10" y="36">{p.sub}</text>
+						{p.frac && <text class="t-strong t-halo" x="156" y={(SURF + top + BOX) / 2 + 4}>{p.frac}</text>}
+						<text class="t-small t-halo" x="100" y="216" text-anchor="middle">{p.text}</text>
+					</svg>
+				);
+			})
+		}
+		<svg class="g7__svg" viewBox="0 0 200 224" role="img" aria-label="Айсберг в морской воде: над водой только его верхушка, бо́льшая часть под водой">
+			<rect class="fsh__water fsh__water--sea" x="0" y={SURF} width="200" height={224 - SURF} />
+			<path class="fsh__block fsh__block--ice" d={bergPath} transform="translate(96 0)" />
+			<line class="fsh__surf" x1="0" x2="200" y1={SURF} y2={SURF} />
+			<text class="t-title" x="10" y="20">Айсберг</text>
+			<text class="t-small" x="10" y="36">в морской воде</text>
+			<text class="t-small t-halo" x="100" y="216" text-anchor="middle">под водой бо́льшая часть</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Чем меньше плотность тела по сравнению с плотностью жидкости, тем меньшая его часть погружена. Кубики льда и сосны одного размера; у айсберга объём показан площадью рисунка.
+	</figcaption>
+</figure>
+
+<style>
+	.fsh {
+		--fsh-ice: hsl(193, 80%, 88%);
+	}
+	:root[data-theme='light'] .fsh {
+		--fsh-ice: hsl(193, 60%, 70%);
+	}
+	.fsh__water {
+		fill: var(--g7-water);
+	}
+	.fsh__water--sea {
+		fill: color-mix(in srgb, var(--ig-vx) 34%, transparent);
+	}
+	.fsh__surf {
+		stroke: var(--g7-water-edge);
+		stroke-width: 2;
+	}
+	.fsh__block {
+		stroke-width: 1.2;
+	}
+	.fsh__block--ice {
+		fill: color-mix(in oklab, var(--fsh-ice) 75%, transparent);
+		stroke: color-mix(in oklab, var(--fsh-ice) 55%, var(--sl-color-black));
+	}
+	.fsh__block--pine {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+	}
+	.fsh__grain {
+		fill: none;
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1.2;
+	}
+	.fsh__shine {
+		fill: none;
+		stroke: #fff;
+		stroke-opacity: 0.8;
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.fsh__ruler line {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.fsh__ruler .fsh__under {
+		stroke: var(--g7-blue);
+		stroke-width: 4;
+	}
+</style>

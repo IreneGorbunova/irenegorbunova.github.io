@@ -7,15 +7,19 @@
  * Hydrometer: the same hydrometer in water (1000 kg/m³) and in salt water (1200 kg/m³). In the drawing the volume
  *   under the surface is kept as an area: the bulb with the shot takes 771 px², the stem is 8 px wide.
  *   In water 771 + 8 · 30 = 1011 px² are under the surface (30 px of the stem), in salt water 1011 / 1,2 = 842,5 px²
- *   (8,9 px of the stem): it floats 21 px higher.
+ *   (8,9 px of the stem): it floats 21 px higher. The scale is drawn the same way: the mark of a density ρ stands
+ *   (1011 · 1000 / ρ − 771) / 8 px above the bulb: 1200 → 8,9 px, 1100 → 18,5, 1000 → 30, 900 → 44,0, 800 → 61,6.
+ *   The stem is 76 px long, so the whole hydrometer stays inside the panel.
  * Balloon: hot air inside the envelope; the Archimedes force is larger than the force of gravity on the balloon with
  *   its basket and the air inside, so it rises.
  */
 import ArhPicStyles from './ArhPicStyles.astro';
 
 const uid = Math.random().toString(36).slice(2, 8);
-// hydrometer: the surface in both cylinders at y = 84; in water the stem goes 30 px under it
-const HS = 84;
+// hydrometer: the surface in both cylinders at y = 90; in water the stem goes 30 px under it
+const HS = 90;
+const STEM = 76;
+const MARKS = [1200, 1100, 1000, 900, 800].map((rho) => ({ rho, h: (1011 * 1000) / rho / 8 - 771 / 8 }));
 const hydro = (cx: number, stem: number) => {
 	// stem: px of the stem under the surface; the stem bottom (top of the bulb) is at HS + stem
 	const yb = HS + stem; // where the stem meets the bulb
@@ -23,7 +27,6 @@ const hydro = (cx: number, stem: number) => {
 };
 const inWater = hydro(100, 30);
 const inBrine = hydro(236, 8.9);
-const SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 ---
 
 <ArhPicStyles />
@@ -43,12 +46,12 @@ const SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 			<g clip-path={`url(#${uid}-tank)`}>
 				<rect class="up-air" x="30" y="70" width="270" height="80"></rect>
 				<rect class="up-tankwater" x="30" y="112" width="270" height="40"></rect>
+				<line class="up-tankwl" x1="44" x2="290" y1="112" y2="112"></line>
 			</g>
 			<path class="up-outer" d="M 40 110 Q 40 76 100 74 L 236 74 Q 290 76 292 110 Q 290 144 236 146 L 100 146 Q 40 144 40 110 Z"></path>
 			<path class="up-inner" d="M 70 110 Q 70 90 108 88 L 228 88 Q 262 90 264 110 Q 262 130 228 132 L 108 132 Q 70 130 70 110 Z"></path>
-			<line class="up-tankwl" x1="44" x2="290" y1="112" y2="112"></line>
 			<path class="up-screw" d="M 292 102 L 302 96 L 302 124 L 292 118 Z"></path>
-			<text x="94" y="114">прочный корпус</text>
+			<text x="104" y="107">прочный корпус</text>
 			<text x="14" y="178">балластная цистерна: вода</text>
 			<path class="ap-lead" d="M 120 168 L 128 142"></path>
 			<text x="196" y="178">и воздух</text>
@@ -62,12 +65,17 @@ const SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 					{ h: inBrine, label: 'солёная вода', read: '1200 кг/м³' },
 				].map(({ h, label, read }) => (
 					<g>
-						<rect class={label === 'вода' ? 'ap-water' : 'up-brine'} x={h.cx - 34} y={HS} width="68" height={170 - HS} />
+						<rect class={label === 'вода' ? 'ap-water' : 'up-brine'} x={h.cx - 34} y={HS} width="68" height={172 - HS} />
 						<line class="ap-surface" x1={h.cx - 34} x2={h.cx + 34} y1={HS} y2={HS} />
-						<path class="ap-glass" d={`M ${h.cx - 36} 54 V 171 H ${h.cx + 36} V 54`} />
+						<path class="ap-glass" d={`M ${h.cx - 36} 46 V 173 H ${h.cx + 36} V 46`} />
 						<g transform={`translate(${h.cx} ${h.yb})`}>
-							<rect class="up-hglass" x="-4" y="-104" width="8" height="104" rx="2" />
-							{SCALE.map((k) => <line class="up-hscale" x1="-4" x2={k % 2 ? 0 : 2} y1={-8 - 10 * k} y2={-8 - 10 * k} />)}
+							<rect class="up-hglass" x="-4" y={-STEM} width="8" height={STEM} rx="2" />
+							{MARKS.map((m) => (
+								<>
+									<line class="up-hscale" x1="-4" x2={m.rho % 200 ? 1 : 4} y1={-m.h} y2={-m.h} />
+									{m.rho % 200 === 0 && <text class="up-hnum" x="7" y={-m.h + 3.5}>{m.rho}</text>}
+								</>
+							))}
 							<path class="up-hglass" d="M -4 0 Q -12 2 -12 14 Q -12 30 -4 34 L -3 44 Q 0 48 3 44 L 4 34 Q 12 30 12 14 Q 12 2 4 0 Z" />
 							<circle class="up-shot" cx="-1.5" cy="40" r="1.6" />
 							<circle class="up-shot" cx="1.6" cy="41" r="1.6" />
@@ -78,10 +86,10 @@ const SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 					</g>
 				))
 			}
-			<text class="ap-small" x="148" y="44">шкала</text>
-			<path class="ap-lead" d={`M 146 42 L ${inWater.cx + 6} ${inWater.yb - 70}`}></path>
-			<text class="ap-small" x="146" y="150">груз</text>
-			<path class="ap-lead" d={`M 144 146 L ${inWater.cx + 5} ${inWater.yb + 40}`}></path>
+			<text class="ap-small" x="150" y="40">шкала, кг/м³</text>
+			<path class="ap-lead" d={`M 148 38 L ${inWater.cx + 5} ${inWater.yb - 66}`}></path>
+			<text class="ap-small" x="146" y="152">груз</text>
+			<path class="ap-lead" d={`M 144 148 L ${inWater.cx + 5} ${inWater.yb + 40}`}></path>
 		</svg>
 		<svg class="ap-pic__svg" viewBox="0 0 320 200" role="img" aria-label="Рыба. Внутри её тела — плавательный пузырь, наполненный газом">
 			<rect class="ap-water" x="0" y="34" width="320" height="166"></rect>
@@ -119,7 +127,7 @@ const SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 			<line class="ap-arrow ap-arrow--fa" x1="200" x2="200" y1="96" y2="48" marker-end={`url(#${uid}-fa)`}></line>
 			<text class="ap-tfa" x="192" y="66" text-anchor="end"><tspan class="ap-math">F</tspan><tspan class="ap-sub" dy="4">А</tspan></text>
 			<line class="ap-arrow ap-arrow--fg" x1="200" x2="200" y1="172" y2="190" marker-end={`url(#${uid}-fg)`}></line>
-			<text class="ap-tfg" x="218" y="194"><tspan class="ap-math">F</tspan><tspan class="ap-sub" dy="4">тяж</tspan></text>
+			<text class="ap-tfg" x="208" y="185"><tspan class="ap-math">F</tspan><tspan class="ap-sub" dy="4">тяж</tspan></text>
 			<text class="ap-small" x="236" y="150">горелка</text>
 			<path class="ap-lead" d="M 234 146 L 206 142"></path>
 		</svg>
@@ -170,6 +178,12 @@ const SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 		stroke: var(--sl-color-gray-1);
 		stroke-width: 1;
 	}
+	.ap-pic .up-hnum {
+		font-size: 9.5px;
+		fill: var(--sl-color-gray-1);
+		stroke-width: 3px;
+		font-variant-numeric: tabular-nums;
+	}
 	.up-shot {
 		fill: var(--sl-color-gray-2);
 	}
@@ -190,7 +204,7 @@ const SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 		stroke-width: 1.4;
 	}
 	.up-bladder {
-		fill: color-mix(in oklab, var(--sl-color-white) 70%, var(--ig-vx));
+		fill: hsl(200, 50%, 88%);
 		stroke: var(--sl-color-gray-2);
 		stroke-width: 1.2;
 	}
