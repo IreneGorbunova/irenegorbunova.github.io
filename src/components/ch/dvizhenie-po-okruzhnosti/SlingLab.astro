@@ -1,0 +1,148 @@
+---
+/**
+ * «Отпустите шарик»: a ball on a string 0,8 м long is whirled in a horizontal circle (seen from above), one turn in
+ * 0,8 с: υ = 2π · 0,8 / 0,8 ≈ 6,3 м/с. While it turns, the gold arrow shows its velocity along the tangent
+ * (6 px per м/с) and the string pulls it toward the hand. «Отпустить» frees it: no string force any more, and the
+ * ball flies on in a straight line along the tangent with the same speed (its fall downward is not seen from above).
+ * Scale 100 px per metre; the motion is shown four times slower than real.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 sling not-content" data-sling>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 260" role="img" aria-label="Вид сверху: шарик на нити вращается по окружности, а после того как нить отпустили, летит по касательной" data-svg>
+			<circle class="ln-dash" cx="120" cy="130" r="80"></circle>
+			<g data-trace></g>
+			<line class="sling__tan" data-tan></line>
+			<line class="sling__string" data-string></line>
+			<circle class="sling__hand" cx="120" cy="130" r="9"></circle>
+			<path class="sling__finger" d="M114 126 q6 -4 12 0 M113 131 q7 -4 14 0"></path>
+			<line class="arrow arrow--gold" data-arr></line>
+			<path class="head--gold" data-head></path>
+			<text class="t-small t-gold" data-vlab></text>
+			<circle class="sling__ball" r="7" data-ball></circle>
+			<text class="t-small" x="8" y="252">вид сверху</text>
+		</svg>
+		<div class="g7__side">
+			<button type="button" class="g7__btn g7__btn--go" data-go>Отпустить</button>
+			<button type="button" class="g7__btn" data-reset>Раскрутить снова</button>
+			<ul class="g7__read">
+				<li><span>Радиус окружности</span><b>0,8 м</b></li>
+				<li><span>Один оборот</span><b>0,8 с</b></li>
+				<li class="is-warm"><span>Скорость шарика</span><b>6,3 м/с</b></li>
+			</ul>
+			<p class="g7__note">Нажмите «Отпустить», когда шарик будет в нужной точке окружности. Пунктир — прямая, по которой шарик летит после этого.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Вид сверху: падение шарика вниз здесь не видно. Золотая стрелка — скорость шарика, пунктирная окружность — его путь до броска. Движение замедлено в 4 раза.</figcaption>
+</figure>
+
+<style is:global>
+	.sling__string {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.sling__tan {
+		stroke: var(--g7-gold);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 4;
+		opacity: 0.8;
+	}
+	.sling__hand {
+		fill: var(--g7-skin);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.sling__finger {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.sling__ball {
+		fill: var(--g7-red);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.sling__dot {
+		fill: var(--g7-line);
+	}
+</style>
+
+<script>
+	import { el, loop } from '../g7/kit';
+
+	const CX = 120;
+	const CY = 130;
+	const R = 80;
+	const TURN = 0.8 * 4; // s of the screen per turn
+	const W = (2 * Math.PI) / TURN;
+	const V = R * W; // px per s of the screen
+	const AL = 6.3 * 6; // arrow length, px
+	for (const root of document.querySelectorAll<HTMLElement>('[data-sling]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		let th = -Math.PI / 2;
+		let free: { x: number; y: number; vx: number; vy: number; t: number } | null = null;
+		let lastDot = 0;
+		const trace = $('[data-trace]');
+		const set = (e: Element, a: Record<string, string | number>) => Object.entries(a).forEach(([k, v]) => e.setAttribute(k, String(v)));
+		const draw = () => {
+			let x: number;
+			let y: number;
+			let ux: number;
+			let uy: number;
+			if (!free) {
+				x = CX + R * Math.cos(th);
+				y = CY + R * Math.sin(th);
+				ux = -Math.sin(th);
+				uy = Math.cos(th);
+				set($('[data-string]'), { x1: CX, y1: CY, x2: x, y2: y, opacity: 1 });
+				set($('[data-tan]'), { opacity: 0 });
+			} else {
+				x = free.x + free.vx * free.t;
+				y = free.y + free.vy * free.t;
+				ux = free.vx / V;
+				uy = free.vy / V;
+				set($('[data-string]'), { opacity: 0 });
+				set($('[data-tan]'), { x1: free.x - ux * 400, y1: free.y - uy * 400, x2: free.x + ux * 400, y2: free.y + uy * 400, opacity: 1 });
+			}
+			set($('[data-ball]'), { cx: x.toFixed(1), cy: y.toFixed(1) });
+			const x1 = x + ux * 8;
+			const y1 = y + uy * 8;
+			const x2 = x + ux * (8 + AL);
+			const y2 = y + uy * (8 + AL);
+			set($('[data-arr]'), { x1: x1.toFixed(1), y1: y1.toFixed(1), x2: (x2 - ux * 5).toFixed(1), y2: (y2 - uy * 5).toFixed(1) });
+			const nx = -uy;
+			const ny = ux;
+			$('[data-head]').setAttribute('d', `M${(x2 - ux * 8 + nx * 5).toFixed(1)} ${(y2 - uy * 8 + ny * 5).toFixed(1)} L${x2.toFixed(1)} ${y2.toFixed(1)} L${(x2 - ux * 8 - nx * 5).toFixed(1)} ${(y2 - uy * 8 - ny * 5).toFixed(1)} Z`);
+			set($('[data-vlab]'), { x: (x2 + ux * 6 + nx * 10).toFixed(1), y: (y2 + uy * 6 + ny * 10 + 4).toFixed(1) });
+			$('[data-vlab]').innerHTML = '<tspan class="t-i">υ</tspan>';
+		};
+		const wake = loop(root, (dt) => {
+			if (!free) th += W * dt;
+			else {
+				free.t += dt;
+				lastDot += dt;
+				if (lastDot > 0.12) {
+					lastDot = 0;
+					trace.append(el('circle', { class: 'sling__dot', cx: (free.x + free.vx * free.t).toFixed(1), cy: (free.y + free.vy * free.t).toFixed(1), r: 1.6 }));
+				}
+				if (free.t > 3) return draw(), false;
+			}
+			draw();
+			return true;
+		});
+		$('[data-go]').addEventListener('click', () => {
+			if (free) return;
+			free = { x: CX + R * Math.cos(th), y: CY + R * Math.sin(th), vx: -Math.sin(th) * V, vy: Math.cos(th) * V, t: 0 };
+			wake();
+		});
+		$('[data-reset]').addEventListener('click', () => {
+			free = null;
+			trace.replaceChildren();
+			wake();
+		});
+		draw();
+	}
+</script>

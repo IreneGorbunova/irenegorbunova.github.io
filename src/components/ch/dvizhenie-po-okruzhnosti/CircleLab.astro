@@ -1,0 +1,212 @@
+---
+/**
+ * «Две точки на диске»: a disc of radius 1,5 м turns evenly, one turn in T = 2…10 с (real time). Point A sits at
+ * 0,5 м from the axis, point B at r_B = 0,6…1,5 м. Both turn by the same angle φ = 2π t / T (the shaded sector of
+ * the current turn), so T, ν = 1/T and ω = 2π/T are common, while the speeds υ = 2πr/T = ωr differ.
+ * The arcs each point has covered in the current turn are drawn; the gold arrows are the velocities along the
+ * tangents, 16 px per м/с, drawn from the edge of the dot. Scale 80 px per metre.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 circ not-content" data-circ>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 300" role="img" aria-label="Вращающийся диск с двумя точками на разных расстояниях от оси и их скорости" data-svg>
+			<circle class="circ__disc" cx="150" cy="150" r="120"></circle>
+			<path class="circ__sector" data-sector></path>
+			<g data-spokes></g>
+			<path class="circ__arc circ__arc--a" data-arca></path>
+			<path class="circ__arc circ__arc--b" data-arcb></path>
+			<circle class="circ__axle" cx="150" cy="150" r="4"></circle>
+			<line class="ln-dash" data-start x1="150" y1="150"></line>
+			<text class="t-small t-i" data-philab></text>
+			<g data-arrows></g>
+			<circle class="circ__pt circ__pt--a" r="4" data-pa></circle>
+			<circle class="circ__pt circ__pt--b" r="4" data-pb></circle>
+			<text class="t-title" data-la>A</text>
+			<text class="t-title" data-lb>B</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Период <i>T</i></span>
+				<output data-ot></output>
+				<input type="range" min="2" max="10" step="1" value="6" data-t aria-label="Период, секунды" />
+			</label>
+			<label class="g7__slider">
+				<span>Расстояние от оси до точки B</span>
+				<output data-or></output>
+				<input type="range" min="0.6" max="1.5" step="0.1" value="1.5" data-r aria-label="Расстояние от оси до точки B, метры" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пауза</button>
+				<button type="button" class="g7__btn" data-zero>С начала</button>
+			</div>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Время <i>t</i></span><b data-time></b></li>
+				<li><span>Полных оборотов <i>N</i></span><b data-n></b></li>
+				<li><span>Частота <i>ν</i></span><b data-nu></b></li>
+				<li><span>Угловая скорость <i>ω</i></span><b data-w></b></li>
+				<li class="is-warm"><span>Скорость точки A (0,5 м)</span><b data-va></b></li>
+				<li class="is-warm"><span>Скорость точки B</span><b data-vb></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Время идёт как в жизни. Закрашенный сектор — угол, на который диск повернулся за текущий оборот; цветные дуги — пути точек за этот оборот. Золотые стрелки — скорости точек.</figcaption>
+</figure>
+
+<style is:global>
+	.circ__disc {
+		fill: color-mix(in oklab, var(--ig-vx) 10%, var(--sl-color-gray-6));
+		stroke: var(--g7-line);
+		stroke-width: 1.5;
+	}
+	.circ__sector {
+		fill: color-mix(in oklab, var(--ig-v) 18%, transparent);
+	}
+	.circ__spoke {
+		stroke: var(--g7-faint);
+		stroke-width: 1.2;
+	}
+	.circ__axle {
+		fill: var(--g7-ink);
+	}
+	.circ__arc {
+		fill: none;
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.circ__arc--a,
+	.circ__pt--a {
+		stroke: var(--g7-blue);
+	}
+	.circ__arc--b,
+	.circ__pt--b {
+		stroke: var(--g7-red);
+	}
+	.circ__pt--a {
+		fill: var(--g7-blue);
+	}
+	.circ__pt--b {
+		fill: var(--g7-red);
+	}
+	.circ__pt {
+		stroke-width: 1;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const C = 150;
+	const PXM = 80;
+	const AV = 16; // px per м/с
+	const RA = 0.5;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-circ]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const tIn = $<HTMLInputElement>('[data-t]');
+		const rIn = $<HTMLInputElement>('[data-r]');
+		let t = 0;
+		let run = true;
+		const spokes = $('[data-spokes]');
+		const sp = [0, 1, 2, 3, 4, 5].map(() => {
+			const l = el('line', { class: 'circ__spoke', x1: C, y1: C });
+			spokes.append(l);
+			return l;
+		});
+		// angles are counted counterclockwise from the start line (to the right), as in mathematics
+		const P = (r: number, a: number) => ({ x: C + r * PXM * Math.cos(a), y: C - r * PXM * Math.sin(a) });
+		const arc = (r: number, a: number) => {
+			if (a < 1e-3) return '';
+			const p0 = P(r, 0);
+			const p1 = P(r, a);
+			return `M${p0.x} ${p0.y} A${r * PXM} ${r * PXM} 0 ${a > Math.PI ? 1 : 0} 0 ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+		};
+		const arrow = (p: { x: number; y: number }, a: number, v: number) => {
+			const ux = -Math.sin(a);
+			const uy = -Math.cos(a);
+			// the arrow starts at the edge of the dot (radius 4 px) and is v·AV long from there, so even a short one shows
+			const L = v * AV;
+			const sx = p.x + ux * 4;
+			const sy = p.y + uy * 4;
+			const x2 = sx + ux * L;
+			const y2 = sy + uy * L;
+			const h = Math.min(8, Math.max(4, L * 0.75));
+			const nx = -uy;
+			const ny = ux;
+			const g = el('g');
+			if (L - h * 0.6 > 0.5) g.append(el('line', { class: 'arrow arrow--gold', x1: sx, y1: sy, x2: x2 - ux * h * 0.6, y2: y2 - uy * h * 0.6 }));
+			g.append(el('path', { class: 'head--gold', d: `M${x2 - ux * h + nx * 4.5} ${y2 - uy * h + ny * 4.5} L${x2} ${y2} L${x2 - ux * h - nx * 4.5} ${y2 - uy * h - ny * 4.5} Z` }));
+			return g;
+		};
+		const draw = () => {
+			const T = Number(tIn.value);
+			const rB = Number(rIn.value);
+			const w = (2 * Math.PI) / T;
+			const N = Math.floor(t / T + 1e-9);
+			const a = (w * t) % (2 * Math.PI);
+			$('[data-ot]').textContent = `${T} с`;
+			$('[data-or]').textContent = `${fmt(rB, 1)} м`;
+			const e = P(1.5, 0);
+			$('[data-start]').setAttribute('x2', String(e.x));
+			$('[data-start]').setAttribute('y2', String(e.y));
+			const s1 = P(1.5, a);
+			$('[data-sector]').setAttribute('d', a < 1e-3 ? '' : `M${C} ${C} L${e.x} ${e.y} A120 120 0 ${a > Math.PI ? 1 : 0} 0 ${s1.x.toFixed(1)} ${s1.y.toFixed(1)} Z`);
+			const pl = P(0.32, a / 2);
+			$('[data-philab]').setAttribute('x', pl.x.toFixed(1));
+			$('[data-philab]').setAttribute('y', (pl.y + 4).toFixed(1));
+			$('[data-philab]').textContent = a > 0.35 ? 'φ' : '';
+			sp.forEach((l, i) => {
+				const q = P(1.5, a + (i * Math.PI) / 3);
+				l.setAttribute('x2', q.x.toFixed(1));
+				l.setAttribute('y2', q.y.toFixed(1));
+			});
+			$('[data-arca]').setAttribute('d', arc(RA, a));
+			$('[data-arcb]').setAttribute('d', arc(rB, a));
+			const pa = P(RA, a);
+			const pb = P(rB, a);
+			const vA = w * RA;
+			const vB = w * rB;
+			$('[data-pa]').setAttribute('cx', pa.x.toFixed(1));
+			$('[data-pa]').setAttribute('cy', pa.y.toFixed(1));
+			$('[data-pb]').setAttribute('cx', pb.x.toFixed(1));
+			$('[data-pb]').setAttribute('cy', pb.y.toFixed(1));
+			const lab = (k: string, r: number) => {
+				const q = P(r, a - 0.18 / r);
+				$(`[data-l${k}]`).setAttribute('x', (q.x - 4).toFixed(1));
+				$(`[data-l${k}]`).setAttribute('y', (q.y + 4).toFixed(1));
+			};
+			lab('a', RA - 0.17);
+			lab('b', rB - 0.17);
+			const arr = $('[data-arrows]');
+			arr.replaceChildren(arrow(pa, a, vA), arrow(pb, a, vB));
+			$('[data-time]').textContent = `${fmt(t, 1)} с`;
+			$('[data-n]').textContent = String(N);
+			$('[data-nu]').textContent = `${fmt(1 / T, 3)} с⁻¹`;
+			$('[data-w]').textContent = `${fmt(w, 2)} рад/с`;
+			$('[data-va]').textContent = `${fmt(vA, 2)} м/с`;
+			$('[data-vb]').textContent = `${fmt(vB, 2)} м/с`;
+		};
+		const wake = loop(root, (dt) => {
+			if (!run) return false;
+			t += dt;
+			draw();
+			return true;
+		});
+		$('[data-go]').addEventListener('click', (ev) => {
+			run = !run;
+			(ev.currentTarget as HTMLElement).textContent = run ? 'Пауза' : 'Пуск';
+			if (run) wake();
+		});
+		$('[data-zero]').addEventListener('click', () => {
+			t = 0;
+			draw();
+		});
+		for (const i of [tIn, rIn])
+			i.addEventListener('input', () => {
+				t = 0;
+				draw();
+			});
+		draw();
+	}
+</script>

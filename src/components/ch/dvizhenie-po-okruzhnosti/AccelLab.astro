@@ -1,0 +1,142 @@
+---
+/**
+ * «Куда направлено ускорение»: a point moves clockwise along a circle of radius R = 1…3 м with a constant speed
+ * υ = 2…6 м/с. Points A and B are Δφ = 5…90° apart, symmetric about the top point M; the point needs
+ * Δt = R·Δφ/υ to get from A to B. The velocities at A and B (gold, 12 px per м/с) are equal in length and differ
+ * in direction. Their copies from the center of the circle show the change Δυ = υ_B − υ_A (red): it points down,
+ * toward the center, and |Δυ| = 2υ·sin(Δφ/2). The average acceleration |Δυ|/Δt tends to υ²/R as Δφ shrinks
+ * (at 90° it is 0,90 of υ²/R, at 5° 0,9997). The green arrow at M is the acceleration a = υ²/R, 4,5 px per м/с².
+ * Scale 40 px per metre.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 acc not-content" data-acc>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 310" role="img" aria-label="Скорости точки в двух положениях на окружности и изменение скорости, направленное к центру" data-svg>
+			<g data-draw></g>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Скорость <i>υ</i></span>
+				<output data-ov></output>
+				<input type="range" min="2" max="6" step="0.5" value="4" data-v aria-label="Скорость, метры в секунду" />
+			</label>
+			<label class="g7__slider">
+				<span>Радиус <i>R</i></span>
+				<output data-or></output>
+				<input type="range" min="1" max="3" step="0.5" value="3" data-r aria-label="Радиус, метры" />
+			</label>
+			<label class="g7__slider">
+				<span>Угол между точками A и B</span>
+				<output data-oa></output>
+				<input type="range" min="5" max="90" step="5" value="90" data-a aria-label="Угол между точками, градусы" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Время от A до B, <i>Δt</i></span><b data-dt></b></li>
+				<li><span>Изменение скорости <i>|Δυ|</i></span><b data-dv></b></li>
+				<li class="is-key"><span><i>|Δυ|</i> / <i>Δt</i></span><b data-ratio></b></li>
+				<li class="is-key"><span><i>υ</i>²/<i>R</i></span><b data-a2></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Точка движется по часовой стрелке с постоянной по модулю скоростью. Золотые стрелки — скорости в точках A и B, их копии отложены от центра; красная стрелка — изменение скорости <i>Δυ</i>, зелёная — ускорение в точке M.</figcaption>
+</figure>
+
+<style is:global>
+	.acc__circle {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1.5;
+	}
+	.acc__copy {
+		stroke-dasharray: 5 3;
+		stroke-width: 2.2;
+	}
+	.acc__pt {
+		fill: var(--g7-ink);
+	}
+</style>
+
+<script>
+	import { el, fmt } from '../g7/kit';
+
+	const CX = 160;
+	const CY = 172;
+	const PXM = 40;
+	const AV = 12;
+	const AA = 4.5; // px per м/с²
+	for (const root of document.querySelectorAll<HTMLElement>('[data-acc]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const vIn = $<HTMLInputElement>('[data-v]');
+		const rIn = $<HTMLInputElement>('[data-r]');
+		const aIn = $<HTMLInputElement>('[data-a]');
+		const g = $('[data-draw]');
+		const arrow = (x1: number, y1: number, x2: number, y2: number, color: string, extra = '') => {
+			const L = Math.hypot(x2 - x1, y2 - y1);
+			const out = el('g');
+			if (L < 1) return out;
+			const ux = (x2 - x1) / L;
+			const uy = (y2 - y1) / L;
+			const h = Math.min(8, L * 0.6);
+			out.append(el('line', { class: `arrow arrow--${color} ${extra}`, x1, y1, x2: x2 - ux * h * 0.6, y2: y2 - uy * h * 0.6 }));
+			out.append(el('path', { class: `head--${color}`, d: `M${x2 - ux * h - uy * 4.5} ${y2 - uy * h + ux * 4.5} L${x2} ${y2} L${x2 - ux * h + uy * 4.5} ${y2 - uy * h - ux * 4.5} Z` }));
+			return out;
+		};
+		const text = (x: number, y: number, s: string, cls = 't-small') => {
+			const t = el('text', { class: cls, x: x.toFixed(1), y: y.toFixed(1) });
+			t.innerHTML = s;
+			return t;
+		};
+		const draw = () => {
+			const v = Number(vIn.value);
+			const R = Number(rIn.value);
+			const dphi = (Number(aIn.value) * Math.PI) / 180;
+			$('[data-ov]').textContent = `${fmt(v, 1)} м/с`;
+			$('[data-or]').textContent = `${fmt(R, 1)} м`;
+			$('[data-oa]').textContent = `${aIn.value}°`;
+			g.replaceChildren();
+			const r = R * PXM;
+			g.append(el('circle', { class: 'acc__circle', cx: CX, cy: CY, r }));
+			g.append(el('circle', { class: 'acc__pt', cx: CX, cy: CY, r: 2.5 }));
+			// A and B: at angles 90° ± Δφ/2 from the right-hand horizontal, counterclockwise; the motion is clockwise
+			const pos = (ang: number) => ({ x: CX + r * Math.cos(ang), y: CY - r * Math.sin(ang) });
+			const vel = (ang: number) => ({ x: Math.sin(ang) * v * AV, y: Math.cos(ang) * v * AV });
+			const aA = Math.PI / 2 + dphi / 2;
+			const aB = Math.PI / 2 - dphi / 2;
+			const A = pos(aA);
+			const B = pos(aB);
+			const M = pos(Math.PI / 2);
+			const VA = vel(aA);
+			const VB = vel(aB);
+			g.append(el('line', { class: 'ln-dash', x1: CX, y1: CY, x2: A.x, y2: A.y }));
+			g.append(el('line', { class: 'ln-dash', x1: CX, y1: CY, x2: B.x, y2: B.y }));
+			g.append(arrow(A.x, A.y, A.x + VA.x, A.y + VA.y, 'gold'));
+			g.append(arrow(B.x, B.y, B.x + VB.x, B.y + VB.y, 'gold'));
+			for (const p of [A, B, M]) g.append(el('circle', { class: 'acc__pt', cx: p.x, cy: p.y, r: 3 }));
+			g.append(text(A.x - 14, A.y - 6, 'A', 't-title'));
+			g.append(text(B.x + 5, B.y - 6, 'B', 't-title'));
+			g.append(text(M.x - 4, M.y - 8, 'M', 't-title'));
+			// copies from the center and the change of velocity
+			g.append(arrow(CX, CY, CX + VA.x, CY + VA.y, 'gold', 'acc__copy'));
+			g.append(arrow(CX, CY, CX + VB.x, CY + VB.y, 'gold', 'acc__copy'));
+			g.append(arrow(CX + VA.x, CY + VA.y, CX + VB.x, CY + VB.y, 'red'));
+			const dv = 2 * v * Math.sin(dphi / 2);
+			if (dv * AV > 14) g.append(text(CX + (VA.x + VB.x) / 2 + 6, CY + (VA.y + VB.y) / 2 + 4, '<tspan class="t-i t-red">Δυ</tspan>'));
+			g.append(text(CX + VA.x - 4, CY + VA.y - 8, '<tspan class="t-i t-gold">υ</tspan><tspan class="t-gold" baseline-shift="sub" font-size="9">A</tspan>'));
+			g.append(text(CX + VB.x + 2, CY + VB.y - 8, '<tspan class="t-i t-gold">υ</tspan><tspan class="t-gold" baseline-shift="sub" font-size="9">B</tspan>'));
+			// the acceleration at M, toward the center
+			const acc = (v * v) / R;
+			g.append(arrow(M.x, M.y, M.x, M.y + acc * AA, 'green'));
+			g.append(text(M.x + 6, M.y + Math.min(acc * AA, 60) / 2 + 8, '<tspan class="t-i t-green">a</tspan>'));
+			const dt = (R * dphi) / v;
+			$('[data-dt]').textContent = `${fmt(dt, 3)} с`;
+			$('[data-dv]').textContent = `${fmt(dv, 2)} м/с`;
+			$('[data-ratio]').textContent = `${fmt(dv / dt, 2)} м/с²`;
+			$('[data-a2]').textContent = `${fmt(acc, 2)} м/с²`;
+		};
+		for (const i of [vIn, rIn, aIn]) i.addEventListener('input', draw);
+		draw();
+	}
+</script>
