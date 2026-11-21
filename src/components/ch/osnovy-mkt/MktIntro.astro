@@ -1,0 +1,951 @@
+---
+/**
+ * Two short looping opening scenes of «Основы молекулярно-кинетической теории». No terms of the chapter in the
+ * pictures; the captions' popovers name them.
+ *
+ * Pump: a courtyard; a teenager (172 см) pumps the rear tyre of a city bicycle with a floor pump. Scale 0,9 px per см
+ *   for the people, the bicycle (wheels 70 см, wheelbase 105 см) and the pump (barrel 50 см, handle travel 45 см:
+ *   from 101 to 56 см above the ground). One stroke takes 0,85 с, as fast as people pump, 12 strokes in all. The
+ *   barrel is 3,8 см across inside, so a stroke pushes 0,5 л of outside air into a tyre of 2,5 л: the gauge rises by
+ *   p₀ · 0,5 / 2,5 = 0,2 атм per stroke (the temperature taken constant), from 0,6 to 3,0 атм above the outside air,
+ *   that is from 1,6 to 4,0 атм in all. The gauge is drawn twice its size. The magnifier shows the air on both sides
+ *   of the tyre's wall: the dots inside are as dense as the pressure inside (11 dots per атм on the upper part of the
+ *   lens), the dots outside keep the density of 1 атм; every blow on the wall flashes; the two labels in the lens keep
+ *   their boxes free of dots (the areas that set the numbers of dots leave the boxes out). The molecules are slowed down
+ *   about a million times and drawn huge; their number is that of the density, not of the real molecules.
+ * Thermometer: a room on a winter evening; a girl (158 см) sits in an armchair with a glass thermometer under her
+ *   arm; her mother (168 см) brings a cup of tea. Scale 0,9 px per см. The thermometer warms from 25 °C (the room) to
+ *   the body's 36,6 °C as T = 36,6 − 11,6·e^(−t/τ), τ = 1,5 мин (an armpit, a glass thermometer): its column
+ *   appears above 34 °C after 2,1 мин, reaches 36,5 °C after 7 мин and then stands still. Ten minutes are shown in 9 с
+ *   (67 times faster): the wall clock's minute hand turns 60°, the second hand makes ten turns. The magnifier shows
+ *   the thermometer's scale 34–42 °C.
+ */
+import IntroFrame from '@components/intro/IntroFrame.astro';
+import More from '@components/More.astro';
+import PeopleStyles from '../mehanicheskaya-rabota/PeopleStyles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+
+// ---- pump scene (px), 0,9 px per см
+const G = 246; // the sidewalk line where feet stand
+const RX = 214; // rear axle
+const AY = G - 31.5; // axles, 35 см above the ground
+const FX = RX + 94.5; // front axle
+const BB = { x: 252, y: 219 };
+const SC = { x: 238.3, y: 174.2 }; // the top of the seat tube
+const HT = { x: 296, y: 178 }; // the head tube, top
+const HB = { x: 299, y: 192 }; // the head tube, bottom
+const spokes = (cx: number) =>
+	Array.from({ length: 16 }, (_, i) => {
+		const a = (i * Math.PI) / 8;
+		return `M${(cx + 3 * Math.cos(a + 0.5)).toFixed(1)} ${(AY + 3 * Math.sin(a + 0.5)).toFixed(1)} L${(cx + 26.5 * Math.cos(a)).toFixed(1)} ${(AY + 26.5 * Math.sin(a)).toFixed(1)}`;
+	}).join(' ');
+const VA = (125 * Math.PI) / 180; // the valve, on the rear rim
+const valve = { x: RX + 27 * Math.cos(VA), y: AY + 27 * Math.sin(VA) };
+const valveIn = { x: RX + 22 * Math.cos(VA), y: AY + 22 * Math.sin(VA) };
+const PX = 140; // the pump's barrel
+const BTOP = G - 45; // the top of the barrel, 50 см
+// windows of the house behind
+const wins: { x: number; y: number }[] = [];
+for (const y of [22, 104]) for (const x of [14, 74, 134, 194, 254, 314]) wins.push({ x, y });
+// the lens
+const LX = 286;
+const LY = 76;
+const LR = 56;
+const B0 = LY - 4; // the tyre's wall in the lens, from B0 to B1 at the middle
+const B1 = LY + 7;
+const band = `M${LX - LR - 2} ${B0 - 6} Q${LX} ${B0 + 6} ${LX + LR + 2} ${B0 - 6} L${LX + LR + 2} ${B1 - 6} Q${LX} ${B1 + 6} ${LX - LR - 2} ${B1 - 6} Z`;
+// the gauge's ticks: 0…4 атм over 240°
+const gaugeTicks = Array.from({ length: 9 }, (_, i) => {
+	const a = ((-210 + i * 30) * Math.PI) / 180;
+	const r0 = i % 2 ? 4.6 : 3.8;
+	return `M${(PX + 13 + r0 * Math.cos(a)).toFixed(2)} ${(G - 12 + r0 * Math.sin(a)).toFixed(2)} L${(PX + 13 + 5.6 * Math.cos(a)).toFixed(2)} ${(G - 12 + 5.6 * Math.sin(a)).toFixed(2)}`;
+}).join(' ');
+
+// ---- thermometer scene (px), 0,9 px per см
+const FL = 250; // the floor line
+const SEAT = 212; // top of the armchair's seat, 42 см
+const CLX = 322;
+const CLY = 44;
+const clockTicks = Array.from({ length: 12 }, (_, i) => {
+	const a = (i * Math.PI) / 6;
+	const r0 = i % 3 ? 15 : 13;
+	return `M${(CLX + r0 * Math.sin(a)).toFixed(1)} ${(CLY - r0 * Math.cos(a)).toFixed(1)} L${(CLX + 17 * Math.sin(a)).toFixed(1)} ${(CLY - 17 * Math.cos(a)).toFixed(1)}`;
+}).join(' ');
+const TLX = 196; // the magnifier with the thermometer's scale
+const TLY = 104;
+const TLR = 52;
+const tx = (t: number) => TLX - 44 + (t - 34) * 11; // 11 px per °C on the magnified scale
+const thTicks: string[] = [];
+for (let t = 34; t <= 42.001; t += 0.5) {
+	const x = tx(t);
+	thTicks.push(`M${x.toFixed(1)} ${TLY - 7} V${TLY - (Number.isInteger(t) ? 13 : 10)}`);
+}
+const flakes = Array.from({ length: 22 }, (_, i) => ({ x: 18 + ((i * 37) % 82), y: 44 + ((i * 53) % 120), r: 0.9 + (i % 3) * 0.35 }));
+const ribs = Array.from({ length: 9 }, (_, i) => 28 + i * 7.6);
+---
+
+<PeopleStyles />
+<IntroFrame data-mktintro>
+	<div class="intro__card" data-scene="pump">
+		<svg class="intro__svg" viewBox="0 0 360 280" role="img" aria-label="Во дворе подросток накачивает напольным насосом заднее колесо велосипеда. Счётчик показывает число качков и показание стрелки насоса. В круглой лупе — стенка шины: с каждым качком молекул воздуха внутри становится больше, и они чаще ударяют о стенку, а снаружи их столько же, сколько было">
+			<defs>
+				<clipPath id={`mkl-${uid}`}><circle cx={LX} cy={LY} r={LR}></circle></clipPath>
+			</defs>
+			<!-- the house across the courtyard -->
+			<rect class="mk-house" x="0" y="0" width="360" height="206"></rect>
+			<path class="mk-courses" d="M0 88 H360 M0 170 H360"></path>
+			{
+				wins.map((w) => (
+					<g>
+						<rect class="mk-win" x={w.x} y={w.y} width="32" height="46" rx="1" />
+						<path class="mk-frame" d={`M${w.x + 16} ${w.y} V${w.y + 46} M${w.x} ${w.y + 14} H${w.x + 32}`} />
+						<rect class="mk-sill" x={w.x - 3} y={w.y + 46} width="38" height="3" />
+					</g>
+				))
+			}
+			<rect class="mk-pipe" x="236" y="0" width="4" height="206"></rect>
+			<!-- the lawn, a low fence, a tree and a bush -->
+			<rect class="mk-lawn" x="0" y="196" width="360" height="30"></rect>
+			<path class="mk-fence" d="M0 214 H360 M0 208 H360"></path>
+			<path class="mk-fence" d={Array.from({ length: 24 }, (_, i) => `M${8 + i * 15} 204 V218`).join(' ')}></path>
+			<path class="mk-trunk" d="M30 220 L33 150 L28 132 M33 158 L44 140"></path>
+			<circle class="mk-crown" cx="28" cy="122" r="22"></circle>
+			<circle class="mk-crown" cx="48" cy="134" r="16"></circle>
+			<circle class="mk-crown mk-crown--dark" cx="14" cy="140" r="14"></circle>
+			<path class="mk-bush" d="M330 222 q-6 -16 8 -20 q6 -12 16 -4 q10 2 6 24 Z"></path>
+			<!-- the sidewalk -->
+			<rect class="mk-walk" x="0" y="224" width="360" height="56"></rect>
+			<path class="mk-tiles" d="M0 238 H360 M0 258 H360 M30 224 L24 280 M90 224 L86 280 M150 224 L148 280 M210 224 L210 280 M270 224 L272 280 M330 224 L334 280"></path>
+			<rect class="mk-curb" x="0" y="222" width="360" height="3"></rect>
+			<!-- the bicycle, facing right: the far pedal, the frame, the wheels, the near pedal -->
+			<path class="mk-crank mk-far" d={`M${BB.x} ${BB.y} L${BB.x + 5} ${BB.y - 15}`}></path>
+			<rect class="mk-pedal mk-far" x={BB.x + 1} y={BB.y - 17} width="9" height="3" rx="1"></rect>
+			<g class="mk-wheel">
+				<circle class="mk-tyre" cx={RX} cy={AY} r="29.2"></circle>
+				<circle class="mk-rim" cx={RX} cy={AY} r="26.5"></circle>
+				<path class="mk-spoke" d={spokes(RX)}></path>
+				<circle class="mk-hub" cx={RX} cy={AY} r="3"></circle>
+				<circle class="mk-tyre" cx={FX} cy={AY} r="29.2"></circle>
+				<circle class="mk-rim" cx={FX} cy={AY} r="26.5"></circle>
+				<path class="mk-spoke" d={spokes(FX)}></path>
+				<circle class="mk-hub" cx={FX} cy={AY} r="3"></circle>
+			</g>
+			<path class="mk-guard" d={`M${RX - 33} ${AY - 4} A33 33 0 0 1 ${RX + 24} ${AY - 23}`}></path>
+			<path class="mk-guard" d={`M${FX - 24} ${AY - 23} A33 33 0 0 1 ${FX + 33} ${AY - 2}`}></path>
+			<path class="mk-rack" d={`M${RX - 16} ${AY - 38} H${RX + 20} M${RX - 12} ${AY - 38} L${RX} ${AY} M${RX + 16} ${AY - 38} L${SC.x - 4} ${SC.y + 8}`}></path>
+			<path class="mk-chain" d={`M${RX} ${AY - 3.5} L${BB.x} ${BB.y - 8} M${RX} ${AY + 3.5} L${BB.x} ${BB.y + 8}`}></path>
+			<path class="mk-frame-t" d={`M${RX} ${AY} L${BB.x} ${BB.y} L${SC.x} ${SC.y} Z M${SC.x} ${SC.y} L${HT.x} ${HT.y} M${BB.x} ${BB.y} L${HB.x} ${HB.y} M${HT.x} ${HT.y} L${HB.x} ${HB.y}`}></path>
+			<path class="mk-fork" d={`M${HB.x} ${HB.y} Q${HB.x + 5} ${AY - 8} ${FX} ${AY}`}></path>
+			<path class="mk-post" d={`M${SC.x} ${SC.y} L${SC.x - 2.5} ${SC.y - 8}`}></path>
+			<path class="mk-saddle" d={`M${SC.x - 14} ${SC.y - 10} Q${SC.x - 4} ${SC.y - 13} ${SC.x + 8} ${SC.y - 9} L${SC.x + 6} ${SC.y - 7} Q${SC.x - 4} ${SC.y - 7} ${SC.x - 13} ${SC.y - 7} Z`}></path>
+			<path class="mk-post" d={`M${HT.x} ${HT.y} L${HT.x - 1} ${HT.y - 9} L${HT.x - 13} ${HT.y - 12}`}></path>
+			<rect class="mk-grip" x={HT.x - 19} y={HT.y - 14.5} width="8" height="4" rx="2"></rect>
+			<circle class="mk-ring" cx={BB.x} cy={BB.y} r="8"></circle>
+			<circle class="mk-cog" cx={RX} cy={AY} r="3.6"></circle>
+			<path class="mk-stand" d={`M${BB.x - 10} ${BB.y + 2} L${BB.x - 18} ${G - 1}`}></path>
+			<path class="mk-crank" d={`M${BB.x} ${BB.y} L${BB.x - 5} ${BB.y + 15}`}></path>
+			<rect class="mk-pedal" x={BB.x - 10} y={BB.y + 14} width="9" height="3" rx="1"></rect>
+			<!-- the valve, the hose and the pump -->
+			<path class="mk-valve" d={`M${valve.x.toFixed(1)} ${valve.y.toFixed(1)} L${valveIn.x.toFixed(1)} ${valveIn.y.toFixed(1)}`}></path>
+			<path class="mk-hose" d={`M${PX + 12} ${G - 3} C${PX + 34} ${G + 10} ${valve.x - 16} ${G + 8} ${valve.x.toFixed(1)} ${(valve.y + 1).toFixed(1)}`}></path>
+			<rect class="mk-hosehead" x={(valve.x - 4).toFixed(1)} y={(valve.y - 1).toFixed(1)} width="7" height="5" rx="1.5" transform={`rotate(-55 ${valve.x.toFixed(1)} ${valve.y.toFixed(1)})`}></rect>
+			<g data-boy></g>
+			<path class="mk-base" d={`M${PX - 22} ${G} L${PX - 18} ${G - 4} H${PX + 18} L${PX + 22} ${G} Z`}></path>
+			<rect class="mk-barrel" x={PX - 3.5} y={BTOP} width="7" height={G - 4 - BTOP} rx="1.5"></rect>
+			<rect class="mk-collar" x={PX - 4.5} y={BTOP - 2} width="9" height="3" rx="1"></rect>
+			<circle class="mk-gauge" cx={PX + 13} cy={G - 12} r="7"></circle>
+			<path class="mk-gtick" d={gaugeTicks}></path>
+			<line class="mk-needle" data-needle x1={PX + 13} y1={G - 12} x2={PX + 13} y2={G - 17}></line>
+			<rect class="mk-rod" data-rod x={PX - 1} width="2"></rect>
+			<rect class="mk-handle" data-handle x={PX - 10} width="20" height="4" rx="2"></rect>
+			<g data-boyarm></g>
+			<!-- the magnifier: the tyre's wall with the air on both sides -->
+			<path class="mk-leader" d={`M${LX - LR * 0.72} ${LY + LR * 0.7} L${RX - 22} ${AY - 23}`}></path>
+			<circle class="mk-spot" cx={RX - 23} cy={AY - 22} r="3"></circle>
+			<circle class="mk-lensbg" cx={LX} cy={LY} r={LR}></circle>
+			<g clip-path={`url(#mkl-${uid})`}>
+				<path class="mk-rubber" d={band}></path>
+				<path class="mk-cord" d={`M${LX - LR} ${B0 + 0} Q${LX} ${B0 + 11} ${LX + LR} ${B0 + 0}`}></path>
+				<g data-hits></g>
+				<g data-dots></g>
+			</g>
+			<circle class="mk-lens" cx={LX} cy={LY} r={LR}></circle>
+			<text class="mk-tiny mk-halo" x={LX} y={LY - 42} text-anchor="middle">в шине</text>
+			<text class="mk-tiny mk-halo" x={LX} y={LY + 50} text-anchor="middle">снаружи</text>
+			<rect class="mk-pill" x="10" y="10" width="132" height="84" rx="10"></rect>
+			<text class="mk-small" x="22" y="29">качков насоса</text>
+			<text class="mk-num" x="22" y="48" data-n>0</text>
+			<text class="mk-small" x="22" y="68">стрелка насоса</text>
+			<text class="mk-num" x="22" y="87" data-p>0,6&nbsp;атм</text>
+		</svg>
+		<div class="intro__foot">
+			<p>
+				С каждым качком насоса{' '}
+				<More term="шина становится всё твёрже">
+					Каждый качок загоняет в шину около 0,5&nbsp;л воздуха снаружи. Молекул в шине становится больше, и о каждый кусочек её стенки они ударяются чаще — в лупе каждая вспышка означает удар. Давление газа пропорционально числу молекул в единице объёма — их концентрации. Стрелка насоса показывает, на сколько давление в шине больше, чем снаружи. Об этом — в разделе{' '}
+					<a href="#давление-газа-основное-уравнение-мкт">«Давление газа»</a>.
+				</More>.
+			</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+
+	<div class="intro__card" data-scene="thermo">
+		<svg class="intro__svg" viewBox="0 0 360 280" role="img" aria-label="Зимний вечер. Девочка сидит в кресле с градусником под мышкой, мама несёт ей чашку чая. Часы на стене отсчитывают десять минут. В лупе — шкала градусника: столбик поднимается до 36,6 градуса и останавливается">
+			<defs>
+				<clipPath id={`mkw-${uid}`}><rect x="16" y="42" width="86" height="126"></rect></clipPath>
+				<clipPath id={`mkt-${uid}`}><circle cx={TLX} cy={TLY} r={TLR}></circle></clipPath>
+			</defs>
+			<!-- the wall with stripes of wallpaper, the floor -->
+			<rect class="mk-wall" x="0" y="0" width="360" height={FL}></rect>
+			<path class="mk-paper" d={Array.from({ length: 18 }, (_, i) => `M${10 + i * 20} 0 V${FL - 3}`).join(' ')}></path>
+			<rect class="mk-floor" x="0" y={FL} width="360" height={280 - FL}></rect>
+			<path class="mk-boards" d={`M0 ${FL + 9} H360 M0 ${FL + 20} H360 M40 ${FL} V${FL + 9} M120 ${FL + 9} V${FL + 20} M200 ${FL} V${FL + 9} M280 ${FL + 9} V${FL + 20} M330 ${FL} V${FL + 9} M70 ${FL + 20} V280 M240 ${FL + 20} V280`}></path>
+			<rect class="mk-skirt" x="0" y={FL - 4} width="360" height="4"></rect>
+			<!-- the window: a winter evening outside -->
+			<rect class="mk-night" x="16" y="42" width="86" height="126"></rect>
+			<g clip-path={`url(#mkw-${uid})`}>
+				<circle class="mk-moon" cx="84" cy="62" r="7"></circle>
+				<path class="mk-roofs" d="M16 168 V130 L34 118 L52 130 V112 H80 V126 L102 116 V168 Z"></path>
+				<path class="mk-snowroof" d="M16 131 L34 118 L52 131 L52 128 L34 115 L16 128 Z M52 113 H80 V110 H52 Z M80 127 L102 117 V114 L80 124 Z"></path>
+				<rect class="mk-lit" x="60" y="120" width="6" height="8"></rect>
+				<rect class="mk-lit" x="70" y="140" width="6" height="8"></rect>
+				<rect class="mk-lit" x="26" y="142" width="6" height="8"></rect>
+				<g data-flakes>{flakes.map((f) => <circle class="mk-flake" cx={f.x} cy={f.y} r={f.r} />)}</g>
+			</g>
+			<path class="mk-wframe" d="M16 42 H102 V168 H16 Z M59 42 V168 M16 92 H102"></path>
+			<rect class="mk-sill2" x="10" y="168" width="98" height="5" rx="1"></rect>
+			<path class="mk-curtain" d="M4 32 H24 Q20 100 26 196 H2 Z"></path>
+			<path class="mk-curtain" d="M94 32 H114 Q118 110 116 196 H96 Q92 100 94 32 Z"></path>
+			<rect class="mk-cornice" x="0" y="29" width="122" height="3" rx="1"></rect>
+			<!-- the radiator under the window -->
+			<rect class="mk-rad" x="24" y="190" width="74" height="40" rx="3"></rect>
+			<path class="mk-ribs" d={ribs.map((x) => `M${x.toFixed(1)} 193 V227`).join(' ')}></path>
+			<path class="mk-heat" data-heat d="M34 186 q3 -6 0 -12 M54 186 q3 -6 0 -12 M74 186 q3 -6 0 -12"></path>
+			<!-- the clock -->
+			<circle class="mk-clock" cx={CLX} cy={CLY} r="20"></circle>
+			<path class="mk-gtick" d={clockTicks}></path>
+			<line class="mk-hand-h" x1={CLX} y1={CLY} x2={CLX + 6} y2={CLY - 8}></line>
+			<line class="mk-hand-m" data-min x1={CLX} y1={CLY} x2={CLX} y2={CLY - 15}></line>
+			<line class="mk-hand-s" data-sec x1={CLX} y1={CLY + 3} x2={CLX} y2={CLY - 16}></line>
+			<circle class="mk-hub" cx={CLX} cy={CLY} r="1.6"></circle>
+			<!-- the armchair in profile, facing right: the back, the far armrest, the seat -->
+			<path class="mk-chair" d={`M114 ${SEAT + 2} L104 134 Q103 124 113 124 L124 126 Q130 128 129 138 L128 ${SEAT - 6} Z`}></path>
+			<path class="mk-chair-far" d={`M118 ${SEAT - 24} H170 Q178 ${SEAT - 24} 178 ${SEAT - 18} V${SEAT} H118 Z`}></path>
+			<path class="mk-chair" d={`M112 ${SEAT} H176 Q182 ${SEAT} 182 ${SEAT + 6} V${SEAT + 22} H112 Z`}></path>
+			<path class="mk-seam" d={`M114 ${SEAT + 7} H180`}></path>
+			<path class="mk-leg" d={`M116 ${SEAT + 22} L114 ${FL} M178 ${SEAT + 22} L180 ${FL}`}></path>
+			<path class="mk-pillow" d={`M118 140 Q112 160 124 178 Q134 168 130 146 Z`}></path>
+			<g data-girl></g>
+			<path class="mk-glass" data-therm></path>
+			<!-- the small table with tea and raspberry jam -->
+			<rect class="mk-table" x="196" y="200" width="44" height="4" rx="1"></rect>
+			<path class="mk-leg" d={`M200 204 L198 ${FL} M236 204 L238 ${FL}`}></path>
+			<path class="mk-cup" d="M204 188 H216 L215 199 Q210 201 205 199 Z"></path>
+			<path class="mk-cuphandle" d="M216 190 q5 1 0 6"></path>
+			<rect class="mk-tea" x="204.5" y="189" width="11" height="2.5"></rect>
+			<path class="mk-jar" d="M222 184 H234 V199 Q228 201 222 199 Z"></path>
+			<rect class="mk-jam" x="222.5" y="188" width="11" height="10.5"></rect>
+			<rect class="mk-lid" x="221" y="182" width="14" height="3" rx="1"></rect>
+			<path class="mk-steam" data-steam1 d="M208 184 q-3 -6 0 -12 q3 -6 0 -12 M212 182 q3 -5 0 -10"></path>
+			<g data-mom></g>
+			<path class="mk-cup" data-mcup></path>
+			<path class="mk-steam" data-steam2></path>
+			<!-- the magnifier: the thermometer's scale -->
+			<path class="mk-leader" data-tleader></path>
+			<circle class="mk-lensbg" cx={TLX} cy={TLY} r={TLR}></circle>
+			<g clip-path={`url(#mkt-${uid})`}>
+				<rect class="mk-thglass" x={tx(33) - 10} y={TLY - 5} width={tx(42.6) - tx(33) + 10} height="10" rx="5"></rect>
+				<circle class="mk-bulb" cx={tx(33) - 4} cy={TLY} r="6"></circle>
+				<rect class="mk-col" data-col x={tx(33) - 4} y={TLY - 1.6} width="0" height="3.2"></rect>
+				<path class="mk-thtick" d={thTicks.join(' ')}></path>
+				{[35, 37, 39, 41].map((t) => <text class="mk-tiny" x={tx(t)} y={TLY - 16} text-anchor="middle">{t}</text>)}
+				<path class="mk-red" d={`M${tx(37)} ${TLY - 7} V${TLY - 14}`}></path>
+			</g>
+			<circle class="mk-lens" cx={TLX} cy={TLY} r={TLR}></circle>
+			<text class="mk-num" x={TLX} y={TLY + 28} text-anchor="middle" data-tval></text>
+			<text class="mk-small mk-halo" x={TLX} y={TLY + 70} text-anchor="middle" data-tmin>прошло 0&nbsp;мин</text>
+		</svg>
+		<div class="intro__foot">
+			<p>
+				Градусник держат под мышкой минут десять. Столбик ползёт вверх, а потом{' '}
+				<More term="останавливается">
+					Сначала градусник холоднее тела, и тепло переходит от тела к нему. Когда их температуры сравниваются, теплообмен прекращается, и дальше показания не меняются — наступает тепловое равновесие. Тогда градусник показывает температуру тела. Об этом — в разделе{' '}
+					<a href="#температура-и-тепловое-равновесие">«Температура и тепловое равновесие»</a>.
+				</More>.
+			</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+</IntroFrame>
+
+<style is:global>
+	[data-mktintro] .mk-house {
+		fill: color-mix(in oklab, var(--ig-v) 10%, var(--sl-color-gray-5));
+	}
+	[data-mktintro] .mk-courses {
+		stroke: color-mix(in oklab, var(--ig-v) 8%, var(--sl-color-gray-4));
+		stroke-width: 2;
+	}
+	[data-mktintro] .mk-win {
+		fill: color-mix(in oklab, var(--ig-vx) 24%, var(--sl-color-gray-6));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	[data-mktintro] .mk-frame {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+	}
+	[data-mktintro] .mk-sill,
+	[data-mktintro] .mk-pipe {
+		fill: var(--sl-color-gray-4);
+	}
+	[data-mktintro] .mk-lawn {
+		fill: color-mix(in oklab, hsl(140, 45%, 42%) 55%, var(--sl-color-gray-5));
+	}
+	[data-mktintro] .mk-fence {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-v) 40%, var(--sl-color-gray-4));
+		stroke-width: 1.4;
+	}
+	[data-mktintro] .mk-trunk {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-4));
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	[data-mktintro] .mk-crown,
+	[data-mktintro] .mk-bush {
+		fill: color-mix(in oklab, hsl(140, 50%, 38%) 70%, var(--sl-color-gray-5));
+	}
+	[data-mktintro] .mk-crown--dark {
+		fill: color-mix(in oklab, hsl(140, 50%, 28%) 70%, var(--sl-color-gray-5));
+	}
+	[data-mktintro] .mk-walk {
+		fill: color-mix(in oklab, var(--ig-v) 6%, var(--sl-color-gray-4));
+	}
+	[data-mktintro] .mk-tiles {
+		fill: none;
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-curb {
+		fill: var(--sl-color-gray-3);
+	}
+	[data-mktintro] .mk-tyre {
+		fill: none;
+		stroke: hsl(222, 20%, 16%);
+		stroke-width: 4.6;
+	}
+	[data-mktintro] .mk-rim {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	[data-mktintro] .mk-spoke {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.5;
+	}
+	[data-mktintro] .mk-hub {
+		fill: var(--sl-color-gray-2);
+	}
+	[data-mktintro] .mk-guard,
+	[data-mktintro] .mk-rack {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	[data-mktintro] .mk-chain {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 1.4 0.8;
+	}
+	[data-mktintro] .mk-frame-t,
+	[data-mktintro] .mk-fork {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 3.4;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	[data-mktintro] .mk-post,
+	[data-mktintro] .mk-stand,
+	[data-mktintro] .mk-crank {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	[data-mktintro] .mk-saddle,
+	[data-mktintro] .mk-grip,
+	[data-mktintro] .mk-pedal {
+		fill: hsl(222, 20%, 18%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	[data-mktintro] .mk-far {
+		opacity: 0.7;
+	}
+	[data-mktintro] .mk-ring,
+	[data-mktintro] .mk-cog {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	[data-mktintro] .mk-valve {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.6;
+	}
+	[data-mktintro] .mk-hose {
+		fill: none;
+		stroke: hsl(222, 20%, 14%);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	[data-mktintro] .mk-hosehead {
+		fill: var(--ig-vy);
+		stroke: hsl(222, 20%, 14%);
+		stroke-width: 0.6;
+	}
+	[data-mktintro] .mk-base {
+		fill: hsl(222, 20%, 18%);
+	}
+	[data-mktintro] .mk-barrel {
+		fill: var(--ig-vx);
+		stroke: hsl(222, 30%, 16%);
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-collar,
+	[data-mktintro] .mk-handle {
+		fill: hsl(222, 20%, 18%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	[data-mktintro] .mk-rod {
+		fill: var(--sl-color-gray-2);
+	}
+	[data-mktintro] .mk-gauge,
+	[data-mktintro] .mk-clock {
+		fill: hsl(40, 30%, 94%);
+		stroke: hsl(222, 20%, 18%);
+		stroke-width: 1.4;
+	}
+	[data-mktintro] .mk-gtick {
+		fill: none;
+		stroke: hsl(222, 20%, 18%);
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-needle,
+	[data-mktintro] .mk-hand-s {
+		stroke: hsl(355, 75%, 50%);
+		stroke-width: 0.9;
+		stroke-linecap: round;
+	}
+	[data-mktintro] .mk-hand-h,
+	[data-mktintro] .mk-hand-m {
+		stroke: hsl(222, 20%, 18%);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+	[data-mktintro] .mk-hand-h {
+		stroke-width: 2.4;
+	}
+	[data-mktintro] .mk-leader {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	[data-mktintro] .mk-spot {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+	[data-mktintro] .mk-lensbg {
+		fill: var(--sl-color-bg);
+	}
+	[data-mktintro] .mk-lens {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.4;
+	}
+	[data-mktintro] .mk-rubber {
+		fill: hsl(222, 18%, 22%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-cord {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.8;
+		stroke-dasharray: 2 2;
+	}
+	[data-mktintro] .mk-dot {
+		fill: var(--ig-vx);
+	}
+	[data-mktintro] .mk-dot--out {
+		fill: color-mix(in oklab, var(--ig-vx) 60%, var(--sl-color-gray-3));
+	}
+	[data-mktintro] .mk-hit {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	[data-mktintro] .mk-pill {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-5);
+	}
+	[data-mktintro] .mk-small {
+		font-size: 11px;
+		fill: var(--sl-color-gray-2);
+	}
+	[data-mktintro] .mk-tiny {
+		font-size: 9.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	[data-mktintro] .mk-num {
+		font-size: 16px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	[data-mktintro] .mk-halo {
+		paint-order: stroke fill;
+		stroke: var(--sl-color-bg);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+	}
+	/* the room */
+	[data-mktintro] .mk-wall {
+		fill: color-mix(in oklab, var(--ig-v) 12%, var(--sl-color-gray-6));
+	}
+	[data-mktintro] .mk-paper {
+		stroke: color-mix(in oklab, var(--ig-v) 16%, var(--sl-color-gray-5));
+		stroke-width: 5;
+		opacity: 0.45;
+	}
+	[data-mktintro] .mk-floor {
+		fill: color-mix(in oklab, var(--ig-v) 40%, var(--sl-color-gray-4));
+	}
+	[data-mktintro] .mk-boards {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-5));
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-skirt {
+		fill: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-3));
+	}
+	[data-mktintro] .mk-night {
+		fill: hsl(225, 45%, 18%);
+	}
+	[data-mktintro] .mk-moon {
+		fill: hsl(48, 70%, 86%);
+	}
+	[data-mktintro] .mk-roofs {
+		fill: hsl(225, 30%, 10%);
+	}
+	[data-mktintro] .mk-snowroof,
+	[data-mktintro] .mk-flake {
+		fill: hsl(210, 40%, 95%);
+	}
+	[data-mktintro] .mk-lit {
+		fill: hsl(45, 90%, 66%);
+	}
+	[data-mktintro] .mk-wframe {
+		fill: none;
+		stroke: hsl(40, 25%, 92%);
+		stroke-width: 3;
+	}
+	[data-mktintro] .mk-sill2,
+	[data-mktintro] .mk-cornice {
+		fill: hsl(40, 20%, 88%);
+	}
+	[data-mktintro] .mk-curtain {
+		fill: color-mix(in oklab, var(--ig-vy) 45%, var(--sl-color-gray-4));
+		opacity: 0.92;
+	}
+	[data-mktintro] .mk-rad {
+		fill: hsl(40, 15%, 90%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-ribs {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	[data-mktintro] .mk-heat,
+	[data-mktintro] .mk-steam {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		stroke-linecap: round;
+		opacity: 0.6;
+	}
+	[data-mktintro] .mk-chair {
+		fill: color-mix(in oklab, hsl(150, 40%, 40%) 70%, var(--sl-color-gray-4));
+		stroke: hsl(222, 25%, 16%);
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-chair-far {
+		fill: color-mix(in oklab, hsl(150, 40%, 30%) 70%, var(--sl-color-gray-5));
+		stroke: hsl(222, 25%, 16%);
+		stroke-width: 0.6;
+	}
+	[data-mktintro] .mk-seam {
+		stroke: hsl(222, 25%, 16%);
+		stroke-width: 0.6;
+		opacity: 0.6;
+	}
+	[data-mktintro] .mk-pillow {
+		fill: color-mix(in oklab, var(--ig-v) 60%, var(--sl-color-gray-3));
+		stroke: hsl(222, 25%, 16%);
+		stroke-width: 0.6;
+	}
+	[data-mktintro] .mk-leg,
+	[data-mktintro] .mk-table {
+		fill: color-mix(in oklab, var(--ig-v) 40%, var(--sl-color-gray-4));
+		stroke: color-mix(in oklab, var(--ig-v) 40%, var(--sl-color-gray-4));
+		stroke-width: 2;
+	}
+	[data-mktintro] .mk-cup {
+		fill: hsl(40, 30%, 95%);
+		stroke: hsl(222, 25%, 20%);
+		stroke-width: 0.7;
+	}
+	[data-mktintro] .mk-cuphandle {
+		fill: none;
+		stroke: hsl(40, 30%, 92%);
+		stroke-width: 1.4;
+	}
+	[data-mktintro] .mk-tea {
+		fill: hsl(25, 70%, 34%);
+	}
+	[data-mktintro] .mk-jar {
+		fill: hsl(200, 30%, 85%);
+		opacity: 0.8;
+		stroke: hsl(222, 25%, 20%);
+		stroke-width: 0.6;
+	}
+	[data-mktintro] .mk-jam {
+		fill: hsl(345, 70%, 42%);
+	}
+	[data-mktintro] .mk-lid {
+		fill: hsl(45, 70%, 50%);
+	}
+	[data-mktintro] .mk-glass {
+		fill: hsl(200, 40%, 92%);
+		stroke: hsl(222, 25%, 20%);
+		stroke-width: 0.5;
+	}
+	[data-mktintro] .mk-thglass {
+		fill: hsl(200, 30%, 94%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-bulb,
+	[data-mktintro] .mk-col {
+		fill: hsl(220, 8%, 55%);
+	}
+	[data-mktintro] .mk-thtick {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	[data-mktintro] .mk-red {
+		stroke: hsl(355, 75%, 55%);
+		stroke-width: 1.4;
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+	import { human, type HumanPose } from '../mehanicheskaya-rabota/people';
+
+	const ease = (u: number) => {
+		const t = Math.min(1, Math.max(0, u));
+		return t * t * (3 - 2 * t);
+	};
+	const fmt1 = (v: number) => v.toFixed(1).replace('.', ',');
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = (tag: string, attrs: Record<string, string | number>) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		return e;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-mktintro]')) {
+		// ---------------- the pump
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="pump"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const S = 0.9;
+			const H = 172;
+			const u = S * H;
+			const G = 246;
+			const PX = 140;
+			const boy = human($<SVGGElement>('[data-boy]'), { s: S, H, shirt: 'hm-green', hair: 'short' });
+			const rod = $<SVGRectElement>('[data-rod]');
+			const handle = $<SVGRectElement>('[data-handle]');
+			const needle = $<SVGLineElement>('[data-needle]');
+			const nOut = $('[data-n]');
+			const pOut = $('[data-p]');
+			const PER = 0.85; // s per stroke
+			const STROKES = 12;
+			const RUN = PER * STROKES + 0.4;
+			// handle height above the ground (см) during a stroke: down in the first 55 %, up in the rest
+			const handleCm = (ph: number) => (ph < 0.55 ? 101 - 45 * ease(ph / 0.55) : 56 + 45 * ease((ph - 0.55) / 0.45));
+			const pose = (hy: number): HumanPose => {
+				const k = (101 - hy) / 45; // 0 up … 1 down
+				const hip = { x: 100 - 4 * k, y: G - (0.505 * u - 9 * k) };
+				return {
+					hip,
+					lean: 0.35 + 0.6 * k,
+					ankles: [
+						{ x: 120, y: G - 4 - 6.3 },
+						{ x: 90, y: G - 6.3 },
+					],
+					feet: [0, 0.05],
+					hands: [
+						{ x: PX - 2, y: G - hy * S + 1 },
+						{ x: PX + 3, y: G - hy * S + 1 },
+					],
+					head: 0.25 + 0.15 * k,
+				};
+			};
+			// the lens: dots inside the tyre (density ∝ pressure in it) and outside (1 атм)
+			const LX = 286;
+			const LY = 76;
+			const LR = 56;
+			const bandY = (x: number, b: number) => b - 6 + 12 * (1 - ((x - LX) / (LR + 2)) ** 2); // the quadratic edge
+			const TOP = LY - 4;
+			const BOT = LY + 7;
+			const RD = 2.4;
+			// the labels «в шине» and «снаружи» keep their boxes free of dots, so the dots never cover them
+			const tags = [
+				{ x0: LX - 20, x1: LX + 20, y0: LY - 52, y1: LY - 38 },
+				{ x0: LX - 26, x1: LX + 26, y0: LY + 40, y1: LY + 54 },
+			];
+			const inTag = (x: number, y: number) => tags.find((b) => x > b.x0 - RD && x < b.x1 + RD && y > b.y0 - RD && y < b.y1 + RD);
+			const inside = (x: number, y: number) => Math.hypot(x - LX, y - LY) < LR - RD && y < bandY(x, TOP) - RD && !inTag(x, y);
+			const outside = (x: number, y: number) => Math.hypot(x - LX, y - LY) < LR - RD && y > bandY(x, BOT) + RD && !inTag(x, y);
+			// areas of the two parts, counted on a grid, give the dots per атм
+			let aIn = 0;
+			let aOut = 0;
+			for (let x = LX - LR; x <= LX + LR; x += 1)
+				for (let y = LY - LR; y <= LY + LR; y += 1) {
+					if (inside(x, y)) aIn++;
+					if (outside(x, y)) aOut++;
+				}
+			const perAtm = 44 / (4 * aIn); // 44 dots inside at 4,0 атм
+			const nOutDots = Math.round(perAtm * aOut);
+			const dotsG = $<SVGGElement>('[data-dots]');
+			const hitsG = $<SVGGElement>('[data-hits]');
+			type Dot = { x: number; y: number; vx: number; vy: number; inT: boolean; e: SVGCircleElement; age: number };
+			const dots: Dot[] = [];
+			const SPEED = 38; // px/s
+			const spawn = (inT: boolean) => {
+				let x = 0;
+				let y = 0;
+				do {
+					x = LX - LR + Math.random() * 2 * LR;
+					y = LY - LR + Math.random() * 2 * LR;
+				} while (!(inT ? inside(x, y) : outside(x, y)));
+				const a = Math.random() * 2 * Math.PI;
+				const e = mk('circle', { r: RD, class: inT ? 'mk-dot' : 'mk-dot mk-dot--out' }) as SVGCircleElement;
+				dotsG.append(e);
+				dots.push({ x, y, vx: SPEED * Math.cos(a), vy: SPEED * Math.sin(a), inT, e, age: 0 });
+			};
+			for (let i = 0; i < nOutDots; i++) spawn(false);
+			const hits: { e: SVGPathElement; t: number }[] = [];
+			const flash = (x: number, y: number) => {
+				const e = mk('path', { class: 'mk-hit', d: `M${(x - 3).toFixed(1)} ${y.toFixed(1)} h6` }) as SVGPathElement;
+				hitsG.append(e);
+				hits.push({ e, t: 0 });
+			};
+			let last = 0;
+			const step = (dt: number) => {
+				for (const d of dots) {
+					d.age += dt;
+					const px = d.x;
+					const py = d.y;
+					d.x += d.vx * dt;
+					d.y += d.vy * dt;
+					const ok = d.inT ? inside : outside;
+					if (!ok(d.x, d.y)) {
+						// step back, then bounce off the wall of the tyre (a blow, flashed) or off the rim of the lens
+						const by = d.inT ? bandY(d.x, TOP) - RD : bandY(d.x, BOT) + RD;
+						const hitBand = d.inT ? d.y >= by : d.y <= by;
+						const tag = inTag(d.x, d.y);
+						d.x = px;
+						d.y = py;
+						if (tag && !hitBand) {
+							// bounce off the label's box: off its side when the dot came from the side, else off its top or bottom
+							if (px <= tag.x0 - RD || px >= tag.x1 + RD) d.vx = -d.vx;
+							else d.vy = -d.vy;
+						} else if (hitBand) {
+							d.vy = d.inT ? -Math.abs(d.vy) : Math.abs(d.vy);
+							flash(d.x, d.inT ? by + RD + 0.6 : by - RD - 0.6);
+						} else {
+							const r = Math.hypot(d.x - LX, d.y - LY) || 1;
+							const nx = (d.x - LX) / r;
+							const ny = (d.y - LY) / r;
+							const dot = d.vx * nx + d.vy * ny;
+							if (dot > 0) {
+								d.vx -= 2 * dot * nx;
+								d.vy -= 2 * dot * ny;
+							}
+						}
+					}
+					d.e.setAttribute('cx', d.x.toFixed(1));
+					d.e.setAttribute('cy', d.y.toFixed(1));
+					d.e.setAttribute('opacity', Math.min(1, d.age / 0.35).toFixed(2));
+				}
+				for (let i = hits.length - 1; i >= 0; i--) {
+					hits[i].t += dt;
+					if (hits[i].t > 0.3) {
+						hits[i].e.remove();
+						hits.splice(i, 1);
+					} else hits[i].e.setAttribute('opacity', (1 - hits[i].t / 0.3).toFixed(2));
+				}
+			};
+			const nIn = () => dots.filter((d) => d.inT).length;
+			scene(card, RUN, (x) => {
+				const t = x * RUN;
+				const k = Math.min(STROKES, Math.floor(t / PER));
+				const ph = k >= STROKES ? 0 : (t - k * PER) / PER;
+				const hy = k >= STROKES ? 101 : handleCm(ph);
+				// the air goes in during the second half of the push
+				const part = k >= STROKES ? 0 : Math.min(1, Math.max(0, (ph - 0.25) / 0.3));
+				const pg = 0.6 + 0.2 * (k + part);
+				boy(pose(hy));
+				const yH = G - hy * S;
+				handle.setAttribute('y', (yH - 2).toFixed(1));
+				rod.setAttribute('y', (yH + 1).toFixed(1));
+				rod.setAttribute('height', Math.max(0, G - 45 - yH - 1).toFixed(1));
+				const a = ((-210 + (pg / 4) * 240) * Math.PI) / 180;
+				needle.setAttribute('x2', (PX + 13 + 5.2 * Math.cos(a)).toFixed(2));
+				needle.setAttribute('y2', (G - 12 + 5.2 * Math.sin(a)).toFixed(2));
+				nOut.textContent = String(k + (part >= 1 ? 1 : 0) > STROKES ? STROKES : Math.min(STROKES, k + (ph > 0.55 ? 1 : 0)));
+				pOut.textContent = `${fmt1(pg)}\u00a0атм`;
+				// dots inside follow the pressure in the tyre
+				const want = Math.round(perAtm * aIn * (1 + pg));
+				if (x === 0) {
+					for (let i = dots.length - 1; i >= 0; i--)
+						if (dots[i].inT) {
+							dots[i].e.remove();
+							dots.splice(i, 1);
+						}
+				}
+				while (nIn() < want) spawn(true);
+				while (nIn() > want) {
+					const i = dots.findIndex((d) => d.inT);
+					dots[i].e.remove();
+					dots.splice(i, 1);
+				}
+				const now = performance.now();
+				const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+				last = now;
+				step(dt);
+			});
+		}
+		// ---------------- the thermometer
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="thermo"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const S = 0.9;
+			const FL = 250;
+			const girl = human($<SVGGElement>('[data-girl]'), { s: S, H: 158, shirt: 'hm-gold', hair: 'pony' });
+			const mom = human($<SVGGElement>('[data-mom]'), { s: S, H: 168, shirt: 'hm-blue', hair: 'pony', dir: -1 });
+			const ug = S * 158;
+			const um = S * 168;
+			const lean = -0.16;
+			const hip = { x: 138, y: 206 };
+			girl({
+				hip,
+				lean,
+				ankles: [
+					{ x: 178, y: FL - 5.8 },
+					{ x: 172, y: FL - 5.8 },
+				],
+				feet: [0, 0],
+				hands: [
+					{ x: 160, y: 200 },
+					{ x: 164, y: 203 },
+				],
+				head: 0.12,
+			});
+			// the armpit: near the shoulder, a little down and in front
+			const L = 0.3 * ug;
+			const sh = { x: hip.x + Math.sin(lean) * (L - 0.05 * ug) + Math.cos(lean) * 0.03 * ug, y: hip.y - Math.cos(lean) * (L - 0.05 * ug) };
+			const t0 = { x: sh.x + 1, y: sh.y + 4 };
+			const t1 = { x: t0.x + 9, y: t0.y + 7 };
+			$<SVGPathElement>('[data-therm]').setAttribute('d', `M${t0.x.toFixed(1)} ${(t0.y - 1.2).toFixed(1)} L${t1.x.toFixed(1)} ${(t1.y - 1.2).toFixed(1)} Q${(t1.x + 1.4).toFixed(1)} ${t1.y.toFixed(1)} ${t1.x.toFixed(1)} ${(t1.y + 1.2).toFixed(1)} L${t0.x.toFixed(1)} ${(t0.y + 1.2).toFixed(1)} Z`);
+			$<SVGPathElement>('[data-tleader]').setAttribute('d', `M${(196 - 52 * 0.8).toFixed(1)} ${(104 + 52 * 0.6).toFixed(1)} L${(t1.x + 1).toFixed(1)} ${(t1.y + 0.5).toFixed(1)}`);
+			// the mother holds a cup out in front of her
+			const mh = { x: 292, y: FL - 0.505 * um };
+			const cup = { x: 262, y: mh.y - 0.06 * um };
+			mom({
+				hip: mh,
+				lean: 0.06,
+				ankles: [
+					{ x: 287, y: FL - 6.3 },
+					{ x: 298, y: FL - 6.3 },
+				],
+				feet: [0, 0],
+				hands: [
+					{ x: cup.x + 4, y: cup.y + 2 },
+					{ x: 300, y: mh.y + 6 },
+				],
+				head: 0.2,
+			});
+			$<SVGPathElement>('[data-mcup]').setAttribute('d', `M${cup.x - 6} ${cup.y - 9} H${cup.x + 5} L${cup.x + 4} ${cup.y + 1} Q${cup.x} ${cup.y + 3} ${cup.x - 5} ${cup.y + 1} Z M${cup.x - 10} ${cup.y + 2} H${cup.x + 9}`);
+			const steam2 = $<SVGPathElement>('[data-steam2]');
+			const steam1 = $<SVGPathElement>('[data-steam1]');
+			const heat = $<SVGPathElement>('[data-heat]');
+			const col = $<SVGRectElement>('[data-col]');
+			const tval = $('[data-tval]');
+			const tmin = $('[data-tmin]');
+			const minH = $<SVGLineElement>('[data-min]');
+			const secH = $<SVGLineElement>('[data-sec]');
+			const flakes = [...card.querySelectorAll<SVGCircleElement>('[data-flakes] circle')];
+			const fy0 = flakes.map((f) => Number(f.getAttribute('cy')));
+			const tx = (t: number) => 196 - 44 + (t - 34) * 11;
+			const RUN = 9;
+			const TAU = 1.5; // мин
+			let wall = 0;
+			let last = 0;
+			scene(card, RUN, (x) => {
+				const now = performance.now();
+				wall += last ? Math.min(0.05, (now - last) / 1000) : 0;
+				last = now;
+				const m = x * 10; // minutes of the story
+				const T = 36.6 - 11.6 * Math.exp(-m / TAU);
+				const shown = Math.max(33, T);
+				col.setAttribute('width', (tx(shown) - tx(33) + 4).toFixed(1));
+				tval.textContent = T >= 34 ? `${fmt1(Math.floor(T * 10 + 1e-6) / 10)} °C` : '';
+				tmin.textContent = `прошло ${Math.floor(m + 1e-6)}\u00a0мин`;
+				const am = (m / 60) * 2 * Math.PI;
+				minH.setAttribute('x2', (322 + 15 * Math.sin(am)).toFixed(1));
+				minH.setAttribute('y2', (44 - 15 * Math.cos(am)).toFixed(1));
+				const as = m * 2 * Math.PI;
+				secH.setAttribute('x2', (322 + 16 * Math.sin(as)).toFixed(1));
+				secH.setAttribute('y2', (44 - 16 * Math.cos(as)).toFixed(1));
+				// snow, steam and warm air move in real time
+				flakes.forEach((f, i) => {
+					const y = 42 + ((fy0[i] - 42 + wall * (8 + (i % 4) * 2)) % 128);
+					f.setAttribute('cy', y.toFixed(1));
+					f.setAttribute('cx', (Number(f.getAttribute('cx')) + Math.sin(wall + i) * 0.02).toFixed(2));
+				});
+				const w = Math.sin(wall * 2.2) * 1.5;
+				steam1.setAttribute('transform', `translate(${w.toFixed(2)} 0)`);
+				steam2.setAttribute('d', `M${cup.x - 3} ${(cup.y - 11).toFixed(1)} q${(-3 + w).toFixed(1)} -6 0 -12 q3 -6 0 -12 M${cup.x + 1} ${(cup.y - 12).toFixed(1)} q${(3 - w).toFixed(1)} -5 0 -10`);
+				heat.setAttribute('transform', `translate(${(-w * 0.6).toFixed(2)} 0)`);
+			});
+		}
+	}
+</script>

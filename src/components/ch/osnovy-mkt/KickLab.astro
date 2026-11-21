@@ -1,0 +1,223 @@
+---
+/**
+ * Model «Удары молекул о стенки»: an ideal gas (nitrogen) in a cubic vessel 10 × 10 × 10 см (1 л), seen from the
+ * side. The molecules are points that fly freely and bounce elastically off the walls; the picture is the projection
+ * of a three-dimensional gas, so the hidden depth does not change the blows on the four walls seen.
+ * One dot stands for 0,001 моль of nitrogen (6,02·10²⁰ molecules, 2,8·10⁻⁵ кг).
+ * Velocities: a gas of a few dozen dots drawn at random keeps a random share of υ² in the visible plane (the four walls
+ * feel only υx² + υy²) and a random hit rate for the whole page load, which once biased the sensor by 10–20 %. So every
+ * velocity component of the N dots takes the N quantiles of a normal distribution, (i + ½)/N, in an independent random
+ * order for x, y and z, and each component is then scaled so that Συx² = Συy² = Συz² = N·υ²/3 exactly. The directions
+ * stay random, the speeds keep a Maxwell-like spread, and the sums that set the pressure and the number of hits are the
+ * same at every load: hits ∝ Σ(|υx| + |υy|) ∝ N·υ.
+ * The sensor sums the momentum 2·m·|υ_n| given to the four walls (area 4 · 0,01 м²) since the last change of a slider and
+ * divides by that time in real seconds: p = ΣΔp / (Δt · S). The formula: p = ⅓·m₀n·υ² = ⅓·(N · 0,001 · 0,028 / 0,001)·υ²
+ * Па = N · 0,028 · υ² / 3 Па. 20 dots at 500 м/с: 47 кПа, 40 dots: 93 кПа, 40 dots at 1000 м/с: 373 кПа.
+ * Checked by a replica of this loop in python (60 frames/s, 30 loads each): after 10 s the sensor is within 1–2 % of
+ * the formula at 20–80 dots and 500–1000 м/с (≤ 5 % at 10 dots and 200 м/с, where there are only 4 hits per second);
+ * hits per second of the model: 19 (20 dots, 500 м/с), 37 (40 dots, 500 м/с), 74 (40 dots, 1000 м/с).
+ * Scale: 2000 px per metre (1 px = 0,5 мм), the motion slowed down 5000 times (500 м/с is 200 px/s on the screen).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 not-content" data-kicklab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 240 240" role="img" aria-label="Сосуд с газом: молекулы летают и ударяются о стенки, места ударов вспыхивают">
+			<rect class="kl-gas" x="18" y="18" width="204" height="204"></rect>
+			<g data-hits></g>
+			<g data-dots></g>
+			<rect class="kl-wall" x="18" y="18" width="204" height="204" rx="2"></rect>
+			<text class="t-small" x="120" y="236" text-anchor="middle">10&nbsp;см</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">Число молекул (точек) <output data-out-n>40</output><input type="range" min="10" max="80" step="10" value="40" data-n /></label>
+			<label class="g7__slider">Средняя квадратичная скорость <output data-out-v>500&nbsp;м/с</output><input type="range" min="200" max="1000" step="100" value="500" data-v /></label>
+			<ul class="g7__read">
+				<li>Ударов о стенки за 1&nbsp;с модели <b data-hits-out>—</b></li>
+				<li class="is-warm">Давление по ударам <b data-p1>—</b></li>
+				<li class="is-key"><span>По формуле <span class="kl-f">⅓<i>m</i>₀<i>n</i><i>υ</i>²</span></span> <b data-p2>—</b></li>
+			</ul>
+			<p class="g7__note">Датчик усредняет удары с последнего движения ползунка: чем дольше ждать, тем точнее.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Сосуд — куб с ребром 10&nbsp;см (объём 1&nbsp;л) с азотом, вид сбоку. Каждая точка изображает 6·10²⁰ молекул (0,001&nbsp;моль), движение замедлено в 5000&nbsp;раз.</figcaption>
+</figure>
+
+<style is:global>
+	[data-kicklab] .kl-gas {
+		fill: color-mix(in oklab, var(--g7-blue) 6%, var(--g7-paper));
+	}
+	[data-kicklab] .kl-wall {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 3;
+	}
+	[data-kicklab] .kl-dot {
+		fill: var(--g7-blue);
+	}
+	[data-kicklab] .kl-hit {
+		stroke: var(--g7-gold);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	[data-kicklab] .kl-f {
+		white-space: nowrap;
+	}
+	[data-kicklab] .kl-f i {
+		font-family: var(--ig-font-math);
+	}
+</style>
+
+<script>
+	import { loop, fmtInt } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const X0 = 18 + 2;
+	const X1 = 222 - 2; // the box for the dots' centres: 200 px = 10 см
+	const PXM = 2000; // px per metre
+	const SLOW = 5000;
+	const MDOT = 0.001 * 0.028; // кг per dot
+	const AREA = 4 * 0.01; // м², the four walls seen
+	// the inverse of the normal distribution function (Acklam's rational approximation, error below 1e-8)
+	const probit = (p: number) => {
+		const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+		const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+		const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+		const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+		const lo = 0.02425;
+		if (p < lo || p > 1 - lo) {
+			const q = Math.sqrt(-2 * Math.log(p < lo ? p : 1 - p));
+			const z = (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+			return p < lo ? z : -z;
+		}
+		const q = p - 0.5;
+		const r = q * q;
+		return ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+	};
+	// n normal quantiles in random order (Fisher–Yates)
+	const quantiles = (n: number) => {
+		const q = Array.from({ length: n }, (_, i) => probit((i + 0.5) / n));
+		for (let i = n - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[q[i], q[j]] = [q[j], q[i]];
+		}
+		return q;
+	};
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-kicklab]')) {
+		const dotsG = fig.querySelector<SVGGElement>('[data-dots]')!;
+		const hitsG = fig.querySelector<SVGGElement>('[data-hits]')!;
+		const inN = fig.querySelector<HTMLInputElement>('[data-n]')!;
+		const inV = fig.querySelector<HTMLInputElement>('[data-v]')!;
+		const outN = fig.querySelector('[data-out-n]')!;
+		const outV = fig.querySelector('[data-out-v]')!;
+		const hitsOut = fig.querySelector('[data-hits-out]')!;
+		const p1 = fig.querySelector('[data-p1]')!;
+		const p2 = fig.querySelector('[data-p2]')!;
+		type Dot = { x: number; y: number; v: [number, number, number]; e: SVGCircleElement };
+		const dots: Dot[] = [];
+		let sumDp = 0; // momentum given to the walls since the last change, кг·м/с
+		let hits = 0;
+		let since = 0; // time since the last change of the settings
+		const flashes: { e: SVGLineElement; age: number }[] = [];
+
+		// every component separately: Συx² = Συy² = Συz² = N·υ²/3
+		const rescale = () => {
+			const v = Number(inV.value);
+			for (let c = 0; c < 3; c++) {
+				const s = dots.reduce((a, d) => a + d.v[c] ** 2, 0);
+				const k = Math.sqrt((dots.length * v * v) / 3 / s);
+				for (const d of dots) d.v[c] *= k;
+			}
+		};
+		// new velocities for all dots from the normal quantiles; the positions stay
+		const deal = () => {
+			const q = [quantiles(dots.length), quantiles(dots.length), quantiles(dots.length)];
+			dots.forEach((d, i) => (d.v = [q[0][i], q[1][i], q[2][i]]));
+		};
+		const setN = () => {
+			const n = Number(inN.value);
+			while (dots.length < n) {
+				const e = document.createElementNS(NS, 'circle');
+				e.setAttribute('r', '3');
+				e.setAttribute('class', 'kl-dot');
+				dotsG.append(e);
+				dots.push({ x: X0 + Math.random() * (X1 - X0), y: X0 + Math.random() * (X1 - X0), v: [0, 0, 0], e });
+			}
+			while (dots.length > n) dots.pop()!.e.remove();
+			deal();
+			rescale();
+		};
+		const restart = () => {
+			sumDp = 0;
+			hits = 0;
+			since = 0;
+			outN.textContent = inN.value;
+			outV.textContent = `${inV.value}\u00a0м/с`;
+			const n = Number(inN.value);
+			const v = Number(inV.value);
+			p2.textContent = `${fmtInt((n * 0.028 * v * v) / 3 / 1000)}\u00a0кПа`;
+		};
+		inN.addEventListener('input', () => (setN(), restart()));
+		inV.addEventListener('input', () => (rescale(), restart()));
+		setN();
+		restart();
+
+		const flash = (x1: number, y1: number, x2: number, y2: number) => {
+			const e = document.createElementNS(NS, 'line');
+			e.setAttribute('class', 'kl-hit');
+			e.setAttribute('x1', x1.toFixed(1));
+			e.setAttribute('y1', y1.toFixed(1));
+			e.setAttribute('x2', x2.toFixed(1));
+			e.setAttribute('y2', y2.toFixed(1));
+			hitsG.append(e);
+			flashes.push({ e, age: 0 });
+		};
+		loop(fig, (dt) => {
+			since += dt;
+			for (const d of dots) {
+				const sx = (d.v[0] * PXM) / SLOW;
+				const sy = (d.v[1] * PXM) / SLOW;
+				d.x += sx * dt;
+				d.y += sy * dt;
+				if (d.x < X0 || d.x > X1) {
+					d.x = d.x < X0 ? 2 * X0 - d.x : 2 * X1 - d.x;
+					sumDp += 2 * MDOT * Math.abs(d.v[0]);
+					hits++;
+					d.v[0] = -d.v[0];
+					const wx = d.x < 120 ? 18 : 222;
+					flash(wx, d.y - 5, wx, d.y + 5);
+				}
+				if (d.y < X0 || d.y > X1) {
+					d.y = d.y < X0 ? 2 * X0 - d.y : 2 * X1 - d.y;
+					sumDp += 2 * MDOT * Math.abs(d.v[1]);
+					hits++;
+					d.v[1] = -d.v[1];
+					const wy = d.y < 120 ? 18 : 222;
+					flash(d.x - 5, wy, d.x + 5, wy);
+				}
+				d.e.setAttribute('cx', d.x.toFixed(1));
+				d.e.setAttribute('cy', d.y.toFixed(1));
+			}
+			for (let i = flashes.length - 1; i >= 0; i--) {
+				flashes[i].age += dt;
+				if (flashes[i].age > 0.25) {
+					flashes[i].e.remove();
+					flashes.splice(i, 1);
+				} else flashes[i].e.setAttribute('opacity', (1 - flashes[i].age / 0.25).toFixed(2));
+			}
+			const span = since;
+			if (span > 0.8) {
+				const p = sumDp / ((span / SLOW) * AREA);
+				p1.textContent = `${fmtInt(p / 1000)}\u00a0кПа`;
+				hitsOut.textContent = fmtInt(hits / span);
+			} else {
+				p1.textContent = '…';
+				hitsOut.textContent = '…';
+			}
+			return true;
+		});
+	}
+</script>

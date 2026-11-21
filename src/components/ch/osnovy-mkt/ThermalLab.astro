@@ -1,0 +1,245 @@
+---
+/**
+ * Model «Два газа приходят в равновесие»: a flat (two-dimensional) model of a mixture. 24 heavy molecules (mass 4 or
+ * 9 units, radius 5,5 px) start hot on the left of a partition, 24 light ones (mass 1, radius 3,5 px) start cold on
+ * the right. The molecules are hard disks; they collide elastically with each other and with the walls, so the total
+ * kinetic energy stays the same. At the start the mean kinetic energy is 3 units for the heavy molecules and 1 unit
+ * for the light ones (speeds drawn at random, then scaled exactly); once the partition is removed, collisions share
+ * the energy until both kinds have the same mean energy, (24·3 + 24·1)/48 = 2 units, while the heavy molecules stay
+ * slower: their mean square speed is √(m_light/m_heavy) of the light one's (½ or ⅓). The graph shows the mean
+ * energies, averaged over the last 3 s, for 40 s (the readouts too). Energies and speeds are in arbitrary units (a flat model);
+ * the motion is slowed down enormously.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const GX0 = 40;
+const GX1 = 310;
+const GY0 = 318; // the graph: 0 … 4 units on 222 … 318
+const GY1 = 226;
+---
+
+<G7Styles />
+<figure class="g7 g7--stack g7--narrow not-content" data-thermallab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 344" role="img" aria-label="Сосуд с тяжёлыми горячими и лёгкими холодными молекулами, разделёнными перегородкой; под ним график средней энергии молекул обоих видов">
+			<rect class="tl-box" x="10" y="10" width="300" height="190" rx="3"></rect>
+			<g data-mol></g>
+			<rect class="tl-wall" data-wall x="158" y="10" width="4" height="190"></rect>
+			<!-- the graph -->
+			<path class="ln" d={`M${GX0} ${GY1 - 6} V${GY0} H${GX1}`}></path>
+			{[1, 2, 3, 4].map((e) => <path class="ln-dash" d={`M${GX0} ${GY0 - (e * (GY0 - GY1)) / 4} H${GX1}`} />)}
+			{[0, 1, 2, 3, 4].map((e) => <text class="t-small" x={GX0 - 6} y={GY0 - (e * (GY0 - GY1)) / 4 + 4} text-anchor="end">{e}</text>)}
+			{[0, 10, 20, 30, 40].map((s) => <text class="t-small" x={GX0 + (s * (GX1 - GX0)) / 40} y={GY0 + 14} text-anchor="middle">{s}</text>)}
+			<text class="t-small" x={GX1} y={GY0 + 26} text-anchor="end"><tspan class="t-i">t</tspan>, с</text>
+			<text class="t-small" x={GX0 + 4} y={GY1 - 10}>средняя энергия молекулы, усл. ед.</text>
+			<path class="tl-line tl-line--heavy" data-gh></path>
+			<path class="tl-line tl-line--light" data-gl></path>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-open>Убрать перегородку</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Тяжёлые молекулы тяжелее лёгких</span>
+				<div class="g7__seg" data-mass>
+					<button type="button" class="g7__btn" aria-pressed="true" data-m="4">в 4 раза</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-m="9">в 9 раз</button>
+				</div>
+			</div>
+			<ul class="g7__read">
+				<li class="is-warm">Средняя энергия: тяжёлые / лёгкие <b data-e>—</b></li>
+				<li class="is-key">Средняя квадратичная скорость: тяжёлые / лёгкие <b data-v>—</b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Плоская модель: молекулы — упругие шарики, энергии и скорости в условных единицах, движение сильно замедлено. Красные — тяжёлые молекулы, синие — лёгкие.</figcaption>
+</figure>
+
+<style is:global>
+	[data-thermallab] .tl-box {
+		fill: color-mix(in oklab, var(--g7-blue) 5%, var(--g7-paper));
+		stroke: var(--g7-ink);
+		stroke-width: 2.4;
+	}
+	[data-thermallab] .tl-wall {
+		fill: var(--g7-line);
+	}
+	[data-thermallab] .tl-heavy {
+		fill: var(--g7-red);
+	}
+	[data-thermallab] .tl-light {
+		fill: var(--g7-blue);
+	}
+	[data-thermallab] .tl-line {
+		fill: none;
+		stroke-width: 2.2;
+		stroke-linejoin: round;
+	}
+	[data-thermallab] .tl-line--heavy {
+		stroke: var(--g7-red);
+	}
+	[data-thermallab] .tl-line--light {
+		stroke: var(--g7-blue);
+	}
+</style>
+
+<script>
+	import { loop, fmt, segment } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const L = 10;
+	const RGT = 310;
+	const TOP = 10;
+	const BOT = 200;
+	const MID = 160;
+	const GX0 = 40;
+	const GX1 = 310;
+	const GY0 = 318;
+	const GY1 = 226;
+	const VPX = 64; // px/s for a speed of 1 unit
+	const gauss = () => {
+		let u = 0;
+		while (u === 0) u = Math.random();
+		return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random());
+	};
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-thermallab]')) {
+		const molG = fig.querySelector<SVGGElement>('[data-mol]')!;
+		const wall = fig.querySelector<SVGRectElement>('[data-wall]')!;
+		const gh = fig.querySelector<SVGPathElement>('[data-gh]')!;
+		const gl = fig.querySelector<SVGPathElement>('[data-gl]')!;
+		const eOut = fig.querySelector('[data-e]')!;
+		const vOut = fig.querySelector('[data-v]')!;
+		const openBtn = fig.querySelector<HTMLButtonElement>('[data-open]')!;
+		type M = { x: number; y: number; vx: number; vy: number; m: number; r: number; heavy: boolean; e: SVGCircleElement };
+		let mols: M[] = [];
+		let heavyM = 4;
+		let open = false;
+		let t = 0; // time since the partition was removed
+		let clk = 0;
+		let hist: { t: number; h: number; l: number; vh: number; vl: number }[] = [];
+		let ptsH: string[] = [];
+		let ptsL: string[] = [];
+		let nextPt = 0;
+
+		const kinds = (heavy: boolean) => mols.filter((m) => m.heavy === heavy);
+		const meanE = (ms: M[]) => ms.reduce((s, m) => s + 0.5 * m.m * (m.vx ** 2 + m.vy ** 2), 0) / ms.length;
+		const meanV2 = (ms: M[]) => Math.sqrt(ms.reduce((s, m) => s + m.vx ** 2 + m.vy ** 2, 0) / ms.length);
+
+		const build = () => {
+			molG.replaceChildren();
+			mols = [];
+			open = false;
+			t = 0;
+			hist = [];
+			ptsH = [];
+			ptsL = [];
+			nextPt = 0;
+			wall.style.display = '';
+			openBtn.disabled = false;
+			for (const heavy of [true, false]) {
+				const r = heavy ? 5.5 : 3.5;
+				const x0 = heavy ? L + 2 + r : MID + 2 + r;
+				const x1 = heavy ? MID - 2 - r : RGT - 2 - r;
+				for (let i = 0; i < 24; i++) {
+					const col = i % 4;
+					const row = Math.floor(i / 4);
+					const e = document.createElementNS(NS, 'circle');
+					e.setAttribute('r', String(r));
+					e.setAttribute('class', heavy ? 'tl-heavy' : 'tl-light');
+					molG.append(e);
+					mols.push({ x: x0 + ((col + 0.5) * (x1 - x0)) / 4 + gauss() * 2, y: TOP + 2 + r + ((row + 0.5) * (BOT - TOP - 4 - 2 * r)) / 6 + gauss() * 2, vx: gauss(), vy: gauss(), m: heavy ? heavyM : 1, r, heavy, e });
+				}
+				// scale to the exact mean energy: 3 units for the heavy (hot), 1 for the light (cold)
+				const ms = kinds(heavy);
+				const k = Math.sqrt((heavy ? 3 : 1) / meanE(ms));
+				for (const m of ms) (m.vx *= k), (m.vy *= k);
+			}
+		};
+		segment(fig.querySelector('[data-mass]')!, (b) => {
+			heavyM = Number(b.dataset.m);
+			build();
+		});
+		openBtn.addEventListener('click', () => {
+			open = true;
+			wall.style.display = 'none';
+			openBtn.disabled = true;
+		});
+		fig.querySelector('[data-reset]')!.addEventListener('click', build);
+		build();
+
+		const gx = (s: number) => GX0 + (s / 40) * (GX1 - GX0);
+		const gy = (e: number) => GY0 - (Math.min(4.2, e) / 4) * (GY0 - GY1);
+		loop(fig, (dt) => {
+			const n = 4;
+			const h = dt / n;
+			for (let s = 0; s < n; s++) {
+				for (const p of mols) {
+					p.x += p.vx * VPX * h;
+					p.y += p.vy * VPX * h;
+					const left = !open && p.heavy;
+					const right = !open && !p.heavy;
+					const xl = (right ? MID + 2 : L) + p.r;
+					const xr = (left ? MID - 2 : RGT) - p.r;
+					if (p.x < xl) (p.x = xl), (p.vx = Math.abs(p.vx));
+					if (p.x > xr) (p.x = xr), (p.vx = -Math.abs(p.vx));
+					if (p.y < TOP + p.r) (p.y = TOP + p.r), (p.vy = Math.abs(p.vy));
+					if (p.y > BOT - p.r) (p.y = BOT - p.r), (p.vy = -Math.abs(p.vy));
+				}
+				for (let i = 0; i < mols.length; i++)
+					for (let j = i + 1; j < mols.length; j++) {
+						const a = mols[i];
+						const b = mols[j];
+						const dx = b.x - a.x;
+						const dy = b.y - a.y;
+						const rr = a.r + b.r;
+						if (Math.abs(dx) > rr || Math.abs(dy) > rr) continue;
+						const d = Math.hypot(dx, dy);
+						if (d >= rr || d === 0) continue;
+						const nx = dx / d;
+						const ny = dy / d;
+						const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+						if (rel <= 0) continue;
+						// an elastic collision of two masses along the line of centres
+						const J = (2 * rel) / (1 / a.m + 1 / b.m);
+						a.vx -= (J / a.m) * nx;
+						a.vy -= (J / a.m) * ny;
+						b.vx += (J / b.m) * nx;
+						b.vy += (J / b.m) * ny;
+					}
+			}
+			for (const p of mols) {
+				p.e.setAttribute('cx', p.x.toFixed(1));
+				p.e.setAttribute('cy', p.y.toFixed(1));
+			}
+			const H = kinds(true);
+			const Lt = kinds(false);
+			const eh = meanE(H);
+			const el = meanE(Lt);
+			clk += dt;
+			hist.push({ t: clk, h: eh, l: el, vh: meanV2(H) ** 2, vl: meanV2(Lt) ** 2 });
+			while (hist.length && hist[0].t < clk - 3) hist.shift();
+			const ah = hist.reduce((s, q) => s + q.h, 0) / hist.length;
+			const al = hist.reduce((s, q) => s + q.l, 0) / hist.length;
+			eOut.textContent = `${fmt(ah, 1)} / ${fmt(al, 1)}`;
+			const avh = Math.sqrt(hist.reduce((s, q) => s + q.vh, 0) / hist.length);
+			const avl = Math.sqrt(hist.reduce((s, q) => s + q.vl, 0) / hist.length);
+			vOut.textContent = `${fmt(avh, 2)} / ${fmt(avl, 2)}`;
+			if (open) {
+				if (t <= 40 && t >= nextPt) {
+					ptsH.push(`${gx(t).toFixed(1)} ${gy(ah).toFixed(1)}`);
+					ptsL.push(`${gx(t).toFixed(1)} ${gy(al).toFixed(1)}`);
+					nextPt = t + 0.25;
+				}
+				t += dt;
+			} else {
+				ptsH = [`${gx(0)} ${gy(ah).toFixed(1)}`];
+				ptsL = [`${gx(0)} ${gy(al).toFixed(1)}`];
+			}
+			gh.setAttribute('d', `M${ptsH.join(' L')}`);
+			gl.setAttribute('d', `M${ptsL.join(' L')}`);
+			return true;
+		});
+	}
+</script>
