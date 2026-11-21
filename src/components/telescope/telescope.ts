@@ -22,6 +22,11 @@ if (root) {
 	const data = JSON.parse(root.querySelector('[data-ts-data]')!.textContent!) as Data;
 	const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
 	const stage = $('[data-ts-stage]');
+	// the picture's box between the band of the labels and the band of the window and the buttons
+	const pic = $('[data-ts-pic]');
+	const bot = $('[data-ts-bot]');
+	const zoomBox = $('[data-ts-zoombox]');
+	const grip = $('[data-ts-grip]');
 	const telView = $('[data-ts-tel]');
 	const refImg = $<HTMLImageElement>('[data-ts-ref]');
 	const layers = [...root.querySelectorAll<HTMLElement>('[data-ts-ch]')];
@@ -34,13 +39,19 @@ if (root) {
 	const eyeDot = $('[data-ts-eye-dot]');
 	const eyeMoons = $('[data-ts-eye-moons]');
 	const eyeGlow = $<HTMLImageElement>('[data-ts-eye-glow]');
+	const eyeNote = $('[data-ts-eye-note]');
 	const warn = $('[data-ts-warn]');
 	const info = $('.ts-info');
 	const targetStrip = $('.ts-targets');
 	const scopeStrip = $('.ts-scopes');
 	const fullBtn = $('[data-ts-full]');
-	// the window of the field of view is 148 px wide, smaller on a phone: measured, so that its scale stays true
-	let EYE_PX = 148;
+	// the window of the field of view is 132 px wide, smaller on a phone: measured, so that its scale stays true
+	let EYE_PX = 132;
+	// the free stretch of the band below the picture, between the window and the buttons: the grip of the line stays
+	// in it (stage pixels)
+	let laneL = 0;
+	let laneR = 0;
+	let picLeft = 0; // the picture's box from the stage's left edge
 
 	let scope = data.scopes[1];
 	let target = data.targets[0];
@@ -188,8 +199,16 @@ if (root) {
 				? 'Глазом здесь ничего не видно'
 				: 'В этот телескоп здесь ничего не видно';
 		telView.style.clipPath = `inset(0 ${((1 - cut) * 100).toFixed(2)}% 0 0)`;
-		split.style.left = `${(cut * 100).toFixed(2)}%`;
+		split.style.left = `${(picLeft + cut * sw).toFixed(1)}px`;
 		split.setAttribute('aria-valuenow', String(Math.round(cut * 100)));
+		// the grip follows the line, but never onto the window or the buttons
+		const gx = picLeft + cut * sw;
+		const gc = laneR - laneL >= 44 ? Math.min(laneR - 22, Math.max(laneL + 22, gx)) : gx;
+		grip.style.transform = `translateX(${(gc - gx).toFixed(1)}px)`;
+		// the words about the left view stay on its side of the line (the left view is empty then)
+		const room = cut * sw - 32;
+		nothing.style.width = `${Math.max(0, Math.min(240, room)).toFixed(0)}px`;
+		nothing.style.visibility = room < 110 ? 'hidden' : '';
 
 		// the true field of view
 		const camera = scope.how === 'plate' || scope.how === 'ccd' || scope.how === 'ir';
@@ -198,13 +217,20 @@ if (root) {
 		const size = (target.width / scope.fov) * EYE_PX; // the picture's width in the window
 		const el = looks(scope.fov / EYE_PX, es);
 		const dot = size < 5;
+		// a field only a few dots of the picture across (the Milky Way in the large telescopes): enlarged, the picture
+		// is a blur, so the window says what the field shows instead
+		const across = Math.round(scope.fov / (target.width / target.w)); // dots of the picture across the field
+		const coarse = !dot && el.visible && across < 24;
+		const dots = across % 10 === 1 && across !== 11 ? 'точка' : [2, 3, 4].includes(across % 10) && (across < 12 || across > 14) ? 'точки' : 'точек';
+		eyeNote.hidden = !coarse;
+		eyeNote.textContent = coarse ? `${target.kind === 'stars' ? 'Россыпь звёзд. ' : ''}Поле\u00a0— ${across}\u00a0${dots} снимка` : '';
 		// without a clock drive the sky drifts west through the field; the observer brings the object back
 		const dx = (drift / scope.fov) * EYE_PX;
-		eyeImg.hidden = dot || !el.visible;
+		eyeImg.hidden = dot || !el.visible || coarse;
 		eyeImg.style.transform = `translate(-50%, -50%) translate(${dx.toFixed(1)}px, 0) scale(${es.toFixed(6)})`;
 		eyeImg.style.filter = el.filter;
 		const eg = glowLook(scope.fov / EYE_PX, es);
-		eyeGlow.hidden = !target.glow || dot || !el.visible || eg.share <= 0.005;
+		eyeGlow.hidden = !target.glow || dot || !el.visible || coarse || eg.share <= 0.005;
 		eyeGlow.style.transform = eyeImg.style.transform;
 		eyeGlow.style.filter = eg.filter;
 		eyeGlow.style.opacity = eg.share.toFixed(3);
@@ -226,10 +252,22 @@ if (root) {
 				}),
 		);
 		$('[data-ts-eye-cap]').textContent =
-			scope.how === 'eye' ? `Так на небе: кружок ${angle(scope.fov)}` : camera ? `Кадр камеры: ${angle(scope.fov)}` : `В окуляре: ${scope.mag}×, поле ${angle(scope.fov)}`;
+			scope.how === 'eye' ? `Так на небе: кружок\u00a0${angle(scope.fov)}` : camera ? `Кадр камеры: ${angle(scope.fov)}` : `В окуляре: ${scope.mag}×, поле\u00a0${angle(scope.fov)}`;
 	};
 
 	// ---------- the words ----------
+	// The source's label goes on a line of its own, under the instrument's, when it would not fit beside the longest
+	// instrument's label in one line: so it wraps the same way for every instrument and the picture keeps its place.
+	const tagR = $('[data-ts-tag-r]');
+	const fitTags = () => {
+		const band = tagR.parentElement!;
+		const cs = getComputedStyle(band);
+		const free = band.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 170;
+		tagR.style.whiteSpace = 'nowrap';
+		const need = tagR.offsetWidth;
+		tagR.style.whiteSpace = '';
+		band.classList.toggle('is-long', need > free);
+	};
 	const describe = () => {
 		$('[data-ts-year]').textContent =
 			scope.year === 'всегда' ? 'без телескопа' : /^\d/.test(scope.year) ? `${scope.year} год · ${scope.where}` : `${scope.year} · ${scope.where}`;
@@ -273,6 +311,7 @@ if (root) {
 		$('[data-ts-note]').hidden = !note;
 		$('[data-ts-tag-l]').textContent = scope.id === 'eye' ? 'Глазом' : `${scope.short}, ${scope.year}`;
 		$('[data-ts-tag-r]').textContent = target.ref;
+		fitTags();
 		$('[data-ts-about]').textContent = `${target.about} ${target.size}.`;
 		$('[data-ts-credit]').innerHTML = `Снимок: ${target.credit}, общественное достояние. <a href="${target.source}">${target.site ?? 'Wikimedia Commons'}</a>`;
 		warn.textContent = target.warn ?? '';
@@ -444,7 +483,7 @@ if (root) {
 
 	// ---------- the dividing line, dragging, zooming ----------
 	const local = (e: { clientX: number; clientY: number }) => {
-		const r = stage.getBoundingClientRect();
+		const r = pic.getBoundingClientRect();
 		return { x: e.clientX - r.left, y: e.clientY - r.top };
 	};
 	let dragLine = false;
@@ -534,12 +573,31 @@ if (root) {
 		paint();
 	});
 
-	new ResizeObserver(() => {
-		const r = stage.getBoundingClientRect();
+	// the picture is fitted into its box; the line starts at the box's top edge and runs down into the band below
+	const layout = () => {
+		// A wide frame (the whole screen on a computer, a phone held sideways) keeps the window and the buttons in the
+		// columns beside the picture and only the grip's lane below it, when the picture comes out larger that way.
+		fitTags();
+		const top = stage.querySelector<HTMLElement>('.ts-band--top')!.offsetHeight;
+		const W = stage.clientWidth;
+		const H = stage.clientHeight - top;
+		const side = eyeGlass.offsetWidth + 20 + zoomBox.offsetWidth + 20;
+		const lane = 56;
+		const band = eyeGlass.offsetWidth + 20;
+		stage.classList.toggle('is-wide', Math.min(W - side, H - lane) > Math.min(W, H - band) + 8);
+		const r = pic.getBoundingClientRect();
 		sw = r.width;
 		sh = r.height;
 		EYE_PX = eyeGlass.clientWidth || EYE_PX;
+		const st = stage.getBoundingClientRect();
+		const x0 = st.left + stage.clientLeft;
+		stage.style.setProperty('--ts-split-top', `${(r.top - st.top - stage.clientTop).toFixed(1)}px`);
+		picLeft = r.left - x0;
+		laneL = eye.getBoundingClientRect().right - x0 + 8;
+		laneR = zoomBox.getBoundingClientRect().left - x0 - 8;
 		paint();
-	}).observe(stage);
+	};
+	const ro = new ResizeObserver(layout);
+	for (const el of [stage, pic, bot, eye]) ro.observe(el);
 	setTarget(target);
 }
