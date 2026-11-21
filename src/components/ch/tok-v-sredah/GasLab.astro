@@ -1,0 +1,222 @@
+---
+/**
+ * «Разряд в воздухе»: two plates 1 мм apart in air; the left one is «+», the right one «−»; the voltage U is 0…4 кВ.
+ * An ionizer (a flame under the gap) can be turned on: it makes pairs of an electron (blue) and a positive ion (red)
+ * at a steady rate. The electrons fly to «+», the ions, much slower, to «−» (speeds symbolic, proportional to U).
+ *   Without the ionizer and below 3 кВ there is no current: air is an insulator.
+ *   With the ionizer below 3 кВ the discharge is non-self-sustained: the current grows with U and then stops growing
+ *   (saturation) once every pair made reaches the plates; it stops as soon as the ionizer is off.
+ *   At 3 кВ and more (air breaks down at about 3 кВ per millimeter) every electron knocks new pairs out of the
+ *   molecules: an avalanche, the gap sparks, and the discharge goes on without the ionizer (self-sustained).
+ * Pairs that wander 2 с without reaching a plate recombine (vanish): so at small U part of them is lost, and the
+ * current grows with U until saturation.
+ * The graph is the classic current–voltage curve of a gas discharge in relative units (the scale of the current near
+ * breakdown is squeezed so that the rising line reaches the top of the frame just at 4 кВ, without a flat cap): the gold
+ * line with the ionizer, the gray one without; the point is the present state.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const GX = 214;
+const GY = 196;
+// the current in relative units: with the ionizer it rises to saturation by 1,5 кВ; above 3 кВ it shoots up and
+// reaches the top of the frame (1,25) exactly at 4 кВ: never capped, never drawn flat
+const cur = (U: number, ion: boolean) => {
+	const sat = ion ? Math.min(1, U / 1.5) * 0.35 : 0;
+	return U < 3 ? sat : 0.35 + (U - 3) * 0.9;
+};
+const path = (ion: boolean) => {
+	let d = '';
+	for (let k = 0; k <= 80; k++) {
+		const U = (4 * k) / 80;
+		d += `${k ? 'L' : 'M'}${(GX + U * 30).toFixed(1)} ${(GY - cur(U, ion) * 100).toFixed(1)} `;
+	}
+	return d;
+};
+---
+
+<G7Styles />
+<figure class="g7 gas not-content" data-gas>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 240" role="img" aria-label="Воздух между двумя пластинами под напряжением. Ионизатор создаёт ионы и электроны, они движутся к пластинам; при большом напряжении возникает искра">
+			<rect class="gas-plate" x="40" y="40" width="10" height="130" rx="2"></rect>
+			<rect class="gas-plate" x="150" y="40" width="10" height="130" rx="2"></rect>
+			<text class="t-strong" x="45" y="32" text-anchor="middle">+</text>
+			<text class="t-strong" x="155" y="32" text-anchor="middle">−</text>
+			<g data-mol></g>
+			<path class="gas-spark" data-spark d=""></path>
+			<g data-pairs></g>
+			<g data-flame>
+				<path class="gas-flame" d="M88 214 Q80 200 92 186 Q90 198 100 194 Q104 182 112 178 Q110 192 118 196 Q124 204 116 214 Z"></path>
+				<rect class="gas-burner" x="90" y="214" width="24" height="8" rx="2"></rect>
+			</g>
+			<text class="t-small" x="100" y="234" text-anchor="middle" data-ionlab>ионизатор</text>
+			<text class="t-small" x="100" y="22" text-anchor="middle">1&nbsp;мм (увеличено)</text>
+			<!-- the graph -->
+			<path class="ln" d={`M${GX} ${GY} H${GX + 4 * 30 + 8} M${GX} ${GY} V${GY - 130}`}></path>
+			{[0, 1, 2, 3, 4].map((u) => <text class="t-small t-num" x={GX + u * 30} y={GY + 13} text-anchor="middle">{u}</text>)}
+			<line class="gas-grid" x1={GX + 90} x2={GX + 90} y1={GY} y2={GY - 125}></line>
+			<path class="gas-curve gas-curve--off" d={path(false)}></path>
+			<path class="gas-curve" d={path(true)}></path>
+			<text class="t-small" x={GX + 128} y={GY + 26} text-anchor="end"><tspan class="t-i">U</tspan>, кВ</text>
+			<text class="t-small" x={GX - 4} y={GY - 134}><tspan class="t-i">I</tspan> (условно)</text>
+			<circle class="gas-point" data-pt r="4.5"></circle>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Напряжение <i>U</i></span>
+				<output data-out-u></output>
+				<input type="range" min="0" max="4" step="0.1" value="1" data-u aria-label="Напряжение между пластинами, киловольты" />
+			</label>
+			<button type="button" class="g7__btn" data-ion aria-pressed="true">Выключить ионизатор</button>
+			<p class="g7__msg" data-state></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Синие точки — электроны, красные — положительные ионы; скорости условные. Справа — сила тока в зависимости от напряжения в условных единицах: золотая линия — с ионизатором, серая — без него.</figcaption>
+</figure>
+
+<style is:global>
+	.gas-plate {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.gas-mol {
+		fill: var(--g7-faint);
+	}
+	.gas-e {
+		fill: var(--g7-blue);
+	}
+	.gas-ion {
+		fill: var(--g7-red);
+	}
+	.gas-flame {
+		fill: color-mix(in oklab, var(--g7-gold) 70%, var(--g7-red));
+	}
+	.gas-burner {
+		fill: var(--g7-steel-dark);
+	}
+	.gas-spark {
+		fill: none;
+		stroke: hsl(230, 100%, 88%);
+		stroke-width: 2.4;
+		filter: drop-shadow(0 0 4px hsl(230, 100%, 70%));
+	}
+	.gas-grid {
+		stroke: var(--g7-faint);
+		stroke-width: 0.8;
+		stroke-dasharray: 3 3;
+	}
+	.gas-curve {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2.2;
+	}
+	.gas-curve--off {
+		stroke: var(--g7-line);
+		stroke-dasharray: 4 3;
+	}
+	.gas-point {
+		fill: var(--g7-red);
+		stroke: var(--g7-paper);
+		stroke-width: 1.5;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const GX = 214;
+	const GY = 196;
+	const cur = (U: number, ion: boolean) => {
+		const sat = ion ? Math.min(1, U / 1.5) * 0.35 : 0;
+		return U < 3 ? sat : 0.35 + (U - 3) * 0.9;
+	};
+	for (const root of document.querySelectorAll<HTMLElement>('[data-gas]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const uIn = q<HTMLInputElement>('[data-u]');
+		const ionBtn = q<HTMLButtonElement>('[data-ion]');
+		const pairsG = q<SVGGElement>('[data-pairs]');
+		const molG = q<SVGGElement>('[data-mol]');
+		const spark = q<SVGPathElement>('[data-spark]');
+		let seed = 17;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		for (let i = 0; i < 40; i++) molG.append(el('circle', { class: 'gas-mol', cx: (56 + rnd() * 90).toFixed(1), cy: (46 + rnd() * 118).toFixed(1), r: 2 }));
+		let ionizer = true;
+		type Q = { c: SVGCircleElement; x: number; y: number; e: boolean; age: number };
+		const live: Q[] = [];
+		const add = (x: number, y: number) => {
+			if (live.length > 80) return;
+			const e = el('circle', { class: 'gas-e', r: 2.4 });
+			const i = el('circle', { class: 'gas-ion', r: 3 });
+			pairsG.append(e, i);
+			live.push({ c: e, x, y, e: true, age: 0 }, { c: i, x: x + 3, y, e: false, age: 0 });
+		};
+		let acc = 0;
+		let sparkT = 0;
+		const state = () => {
+			const U = Number(uIn.value);
+			q('[data-out-u]').textContent = `${fmt(U, 1)} кВ`;
+			ionBtn.textContent = ionizer ? 'Выключить ионизатор' : 'Включить ионизатор';
+			ionBtn.setAttribute('aria-pressed', String(ionizer));
+			q<SVGGElement>('[data-flame]').style.opacity = ionizer ? '1' : '0.15';
+			const pt = q('[data-pt]');
+			pt.setAttribute('cx', (GX + U * 30).toFixed(1));
+			pt.setAttribute('cy', (GY - cur(U, ionizer) * 100).toFixed(1));
+			const msg = q<HTMLElement>('[data-state]');
+			msg.classList.toggle('is-right', U >= 3);
+			msg.textContent =
+				U >= 3
+					? 'Самостоятельный разряд: электроны выбивают из молекул новые пары, и ток идёт даже без ионизатора.'
+					: ionizer
+						? U === 0
+							? 'Ионы и электроны есть, но поля нет: тока нет.'
+							: U >= 1.5
+								? 'Несамостоятельный разряд, ток насыщения: все пары доходят до пластин, ток больше не растёт.'
+								: 'Несамостоятельный разряд: ток создают ионы и электроны, которые даёт ионизатор.'
+						: 'Тока нет: в воздухе почти нет свободных зарядов.';
+		};
+		loop(root, (dt) => {
+			const U = Number(uIn.value);
+			// new pairs: from the ionizer (8 per second), and from collisions in an avalanche
+			if (ionizer) acc += 8 * dt;
+			while (acc >= 1) {
+				acc -= 1;
+				add(60 + rnd() * 80, 50 + rnd() * 110);
+			}
+			const v = 30 * U; // px/с for electrons; ions 4 times slower (symbolic)
+			for (let k = live.length - 1; k >= 0; k--) {
+				const p = live[k];
+				p.x += (p.e ? -v : v / 4) * dt;
+				p.age += dt;
+				if (p.e && U >= 3 && rnd() < 1.2 * dt) add(p.x, p.y + (rnd() - 0.5) * 8);
+				// a charge that reached a plate leaves; one that wandered 2 с recombines with a partner
+				if (p.x < 50 || p.x > 150 || p.age > 2) {
+					p.c.remove();
+					live.splice(k, 1);
+					continue;
+				}
+				p.c.setAttribute('cx', p.x.toFixed(1));
+				p.c.setAttribute('cy', p.y.toFixed(1));
+			}
+			// a spark across the gap every 0,4 с above breakdown
+			if (U >= 3) {
+				sparkT -= dt;
+				if (sparkT <= 0) {
+					sparkT = 0.4;
+					let d = `M50 ${100 + rnd() * 20}`;
+					for (let x = 60; x <= 150; x += 10) d += ` L${x} ${(90 + rnd() * 40).toFixed(1)}`;
+					spark.setAttribute('d', d);
+					for (let i = 0; i < 4; i++) add(60 + rnd() * 80, 90 + rnd() * 40);
+				}
+				spark.style.opacity = sparkT > 0.3 ? '1' : '0';
+			} else spark.style.opacity = '0';
+			return true;
+		});
+		uIn.addEventListener('input', state);
+		ionBtn.addEventListener('click', () => {
+			ionizer = !ionizer;
+			state();
+		});
+		state();
+	}
+</script>

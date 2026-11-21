@@ -1,0 +1,175 @@
+---
+/**
+ * «Электролиз медного купороса»: a bath with a solution of copper sulfate and two copper electrodes. Cu²⁺ ions (red)
+ * go to the cathode («−», right) and settle there as copper; SO₄²⁻ ions (blue) go to the anode («+», left), which
+ * dissolves. The current I (0,5…3 А) is set by a slider; «Пуск» runs the clock, one real second = 2 минуты of the
+ * model, up to 60 минут; the clock pauses by itself at 30 минут (the tasks ask for 30 and 60 минут), so the readouts
+ * are exact: 2 А · 30 мин = 3600 Кл → 1,18 г, 1 А → 0,59 г, 2 А · 60 мин → 2,37 г. The deposited mass is m = kIt with the electrochemical equivalent of copper
+ * k = 3,29·10⁻⁷ кг/Кл (M = 0,0635 кг/моль, n = 2, F = 96 485 Кл/моль). The copper layer on the cathode is drawn
+ * 3 px thick per gram (exaggerated: the real layer is hundredths of a millimeter); the anode thins by the same amount.
+ * The ions move at a speed proportional to the current (symbolic; real ions move a few millimeters per minute).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 elz not-content" data-elz>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 330 240" role="img" aria-label="Электролиз раствора медного купороса: ионы меди идут к катоду и оседают на нём, ионы кислотного остатка идут к аноду">
+			<!-- the circuit and the source -->
+			<path class="elz-wire" d="M86 70 V24 H146 M184 24 H244 V70"></path>
+			<line class="elz-plate" x1="146" y1="12" x2="146" y2="36"></line>
+			<line class="elz-plate elz-plate--short" x1="154" y1="18" x2="154" y2="30"></line>
+			<line class="elz-plate" x1="176" y1="12" x2="176" y2="36"></line>
+			<line class="elz-plate elz-plate--short" x1="184" y1="18" x2="184" y2="30"></line>
+			<path class="elz-wire" d="M154 24 H176" stroke-dasharray="3 3"></path>
+			<text class="t-strong" x="136" y="14" text-anchor="middle">+</text>
+			<text class="t-strong" x="196" y="14" text-anchor="middle">−</text>
+			<!-- the bath -->
+			<path class="elz-sol" d="M44 96 H286 V206 Q286 214 278 214 H52 Q44 214 44 206 Z"></path>
+			<path class="elz-bath" d="M40 82 V206 Q40 218 52 218 H278 Q290 218 290 206 V82"></path>
+			<rect class="elz-cu" data-anode x="80" y="70" width="12" height="130"></rect>
+			<rect class="elz-cu" x="238" y="70" width="12" height="130"></rect>
+			<rect class="elz-coat" data-coat x="238" y="96" width="0" height="104"></rect>
+			<text class="t-small" x="86" y="230" text-anchor="middle">анод</text>
+			<text class="t-small" x="244" y="230" text-anchor="middle">катод</text>
+			<g data-ions></g>
+			<text class="t-strong t-num t-halo" x="165" y="62" text-anchor="middle" data-clock></text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Сила тока <i>I</i></span>
+				<output data-out-i></output>
+				<input type="range" min="0.5" max="3" step="0.5" value="2" data-i aria-label="Сила тока, амперы" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пуск</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Время <i>t</i></span><b data-t></b></li>
+				<li><span>Прошёл заряд <i>q</i> = <i>It</i></span><b data-q></b></li>
+				<li class="is-key"><span>Масса меди на катоде <i>m</i></span><b data-m></b></li>
+			</ul>
+			<p class="g7__note" data-calc></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Медные электроды в растворе медного купороса. Красные кружки — ионы меди Cu<sup>2+</sup>, синие — ионы SO<sub>4</sub><sup>2−</sup>. Часы модели идут в 120 раз быстрее настоящих и останавливаются сами на 30-й и на 60-й минуте. Слой меди на катоде нарисован намного толще настоящего.</figcaption>
+</figure>
+
+<style is:global>
+	.elz-wire {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 2.2;
+	}
+	.elz-plate {
+		stroke: var(--g7-ink);
+		stroke-width: 2;
+	}
+	.elz-plate--short {
+		stroke-width: 5;
+	}
+	.elz-bath {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 3;
+	}
+	.elz-sol {
+		fill: color-mix(in oklab, var(--g7-blue) 28%, transparent);
+	}
+	.elz-cu {
+		fill: hsl(22, 60%, 52%);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.elz-coat {
+		fill: hsl(16, 70%, 42%);
+	}
+	.elz-cu-ion {
+		fill: var(--g7-red);
+	}
+	.elz-so4 {
+		fill: var(--g7-blue);
+		stroke: var(--g7-paper);
+		stroke-width: 0.8;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const K = 3.29e-7; // кг/Кл
+	const SPEEDUP = 120;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-elz]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const iIn = q<HTMLInputElement>('[data-i]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		const g = q<SVGGElement>('[data-ions]');
+		let seed = 21;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		const ions = Array.from({ length: 26 }, (_, i) => {
+			const cu = i % 2 === 0;
+			const c = el('circle', { class: cu ? 'elz-cu-ion' : 'elz-so4', r: cu ? 3.2 : 4.2 });
+			g.append(c);
+			return { c, cu, x: 96 + rnd() * 138, y: 104 + rnd() * 100 };
+		});
+		let t = 0; // s of the model
+		let q0 = 0; // Кл passed
+		let running = false;
+		let phase = 0;
+		const draw = () => {
+			const I = Number(iIn.value);
+			const m = K * q0; // кг
+			q('[data-out-i]').textContent = `${fmt(I, 1)} А`;
+			q('[data-t]').textContent = `${fmt(t / 60, 1)} мин`;
+			q('[data-clock]').textContent = `${Math.floor(t / 60)} мин`;
+			q('[data-q]').textContent = `${Math.round(q0)} Кл`;
+			q('[data-m]').textContent = `${fmt(m * 1000, 2)} г`;
+			q('[data-calc]').innerHTML = `<i>m</i> = <i>kq</i> = 3,29·10<sup>−7</sup>&nbsp;кг/Кл · ${Math.round(q0)}&nbsp;Кл = ${fmt(m * 1e6, 0)}&nbsp;мг`;
+			const w = 3 * m * 1000;
+			q('[data-coat]').setAttribute('x', (238 - w).toFixed(1));
+			q('[data-coat]').setAttribute('width', w.toFixed(1));
+			q('[data-anode]').setAttribute('width', (12 - w).toFixed(1));
+			for (const ion of ions) {
+				ion.c.setAttribute('cx', ion.x.toFixed(1));
+				ion.c.setAttribute('cy', (ion.y + Math.sin(phase * 4 + ion.x) * 1.2).toFixed(1));
+			}
+			go.textContent = running ? 'Пауза' : t > 0 ? 'Дальше' : 'Пуск';
+		};
+		loop(root, (dt) => {
+			phase += dt;
+			if (running) {
+				const I = Number(iIn.value);
+				// the clock stops exactly at 30 and at 60 минут
+				const stop = t < 1800 ? 1800 : 3600;
+				const step = Math.min(dt * SPEEDUP, stop - t);
+				t = t + step >= stop ? stop : t + step;
+				q0 += I * step;
+				if (t >= stop) running = false;
+				const v = 14 * I; // px/с, symbolic
+				for (const ion of ions) {
+					ion.x += (ion.cu ? v : -v) * dt;
+					// an ion that reached its electrode is replaced by a new one far from it
+					if (ion.cu && ion.x > 232 - 3 * K * q0 * 1000) ion.x = 98 + rnd() * 20;
+					if (!ion.cu && ion.x < 96) ion.x = 214 + rnd() * 18;
+				}
+			}
+			draw();
+			return true;
+		});
+		go.addEventListener('click', () => {
+			if (t >= 3600) return;
+			running = !running;
+			draw();
+		});
+		q('[data-reset]').addEventListener('click', () => {
+			running = false;
+			t = 0;
+			q0 = 0;
+			draw();
+		});
+		iIn.addEventListener('input', draw);
+		draw();
+	}
+</script>
