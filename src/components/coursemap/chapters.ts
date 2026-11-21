@@ -11,7 +11,7 @@ export interface MapChapter {
 }
 
 /** Grades whose course is complete: the status line says «полный курс». */
-export const COMPLETE_GRADES = new Set(['7 класс', '8 класс']);
+export const COMPLETE_GRADES = new Set(['7 класс', '8 класс', '10 класс']);
 
 const nb = (s: string) => s.replace(/(\d) (°C)/g, '$1 $2'); // a number keeps its unit
 
