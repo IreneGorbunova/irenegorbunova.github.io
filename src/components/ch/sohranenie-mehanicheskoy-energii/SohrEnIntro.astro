@@ -1,0 +1,358 @@
+---
+/**
+ * Two short looping opening scenes of «Закон сохранения механической энергии» (grade 9). No terms of the chapter in
+ * the pictures or in the visible captions; each caption's popover names the notion and links to its section.
+ *
+ * Trampoline (tramp.ts): a summer garden, a girl of about 11 jumps on a round garden trampoline (Ø 3 м, mat 0,8 м
+ *   above the grass, an enclosure net 1,8 м high); after two jumps to gain height her feet rise 1,0 м above the mat
+ *   three times, the mat sags 0,35 м under her and throws her back up; then she stops. 60 px per metre, real time.
+ * Night (meteors.ts): an August night in the countryside, a father and his son on a blanket watch the Perseids:
+ *   five «falling stars» in 13 с, all streaks running away from one point low in the north-east. Real time.
+ * People: the shared people kit. At these scales the hands are mittens, so the poses read by the arms: arms swinging
+ * up and down in the jumps, a straight arm pointing at the sky, hands planted on the blanket.
+ */
+import IntroFrame from '@components/intro/IntroFrame.astro';
+import More from '@components/More.astro';
+import SmeStyles from './SmeStyles.astro';
+
+// ---- the trampoline: frame ellipse, springs, enclosure (60 px per metre)
+const CX = 180;
+const NET = 178;
+const GRASS = 226;
+const FRX = 88;
+const FRY = 11;
+const MRX = 78;
+const MRY = 9.5;
+const TOPY = NET - 108; // the enclosure is 1,8 м high
+const f1 = (v: number) => v.toFixed(1);
+const springs = (front: boolean) =>
+	Array.from({ length: 40 }, (_, i) => (i + 0.5) * (Math.PI / 20))
+		.filter((a) => (Math.sin(a) > 0) === front)
+		.map((a) => `M${f1(CX + MRX * Math.cos(a))} ${f1(NET + MRY * Math.sin(a))} L${f1(CX + FRX * Math.cos(a))} ${f1(NET + FRY * Math.sin(a))}`)
+		.join(' ');
+const poleAngles = [0, 60, 120, 180, 240, 300].map((d) => (d * Math.PI) / 180);
+const poles = (front: boolean) =>
+	poleAngles
+		.filter((a) => (front ? Math.sin(a) > 0.1 : Math.sin(a) <= 0.1))
+		.map((a) => {
+			const x = CX + FRX * Math.cos(a);
+			const y = NET + FRY * Math.sin(a);
+			return `M${f1(x)} ${f1(y)} L${f1(x)} ${f1(y - 108)}`;
+		})
+		.join(' ');
+const arc = (y: number, front: boolean) => `M${CX - FRX} ${y} A${FRX} ${FRY} 0 0 ${front ? 0 : 1} ${CX + FRX} ${y}`;
+const mesh = (front: boolean) => {
+	let d = '';
+	for (let i = 1; i < 15; i++) {
+		const a = (i * Math.PI) / 15;
+		const x = CX + FRX * Math.cos(a);
+		const s = (front ? 1 : -1) * FRY * Math.sin(a);
+		d += `M${f1(x)} ${f1(NET + s)} L${f1(x)} ${f1(TOPY + s)} `;
+	}
+	for (let y = TOPY + 18; y < NET; y += 18) d += arc(y, front) + ' ';
+	return d;
+};
+const pickets = Array.from({ length: 26 }, (_, i) => 104 + i * 10);
+const siding = Array.from({ length: 22 }, (_, i) => 36 + i * 9);
+const tufts = Array.from({ length: 16 }, (_, i) => 8 + i * 23);
+
+// ---- the night: stars (deterministic), the Milky Way
+const rnd = (i: number, k: number) => {
+	const r = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+	return r - Math.floor(r);
+};
+const stars = Array.from({ length: 130 }, (_, i) => ({ x: rnd(i, 1) * 360, y: rnd(i, 2) * 175, r: 0.35 + rnd(i, 3) ** 3 * 1.1, o: 0.35 + rnd(i, 4) * 0.6, tw: i % 9 === 0 }));
+// the glow of the horizon in thin steps; the Milky Way as soft nested bands
+const glow = Array.from({ length: 10 }, (_, i) => 110 + i * 8);
+const milkyBands = [34, 26, 19, 13, 8];
+const band = (w: number) => `M${f1(-10 - w * 0.4)} ${f1(205 - w)} C80 ${f1(155 - w)} 200 ${f1(78 - w)} 370 ${f1(-6 - w)} L370 ${f1(-6 + w)} C200 ${f1(78 + w)} 80 ${f1(155 + w)} ${f1(-10 + w * 0.4)} ${f1(205 + w)} Z`;
+// the Milky Way: a band from the lower left to the upper right, with many faint stars along it
+const milky = Array.from({ length: 160 }, (_, i) => {
+	const s = rnd(i, 5);
+	const off = (rnd(i, 6) + rnd(i, 7) - 1) * 26;
+	return { x: 20 + s * 330 - off * 0.45, y: 175 - s * 170 - off * 0.9, r: 0.3 + rnd(i, 8) * 0.4 };
+});
+---
+
+<SmeStyles />
+<IntroFrame data-smeintro>
+	<div class="intro__card" data-scene="tramp">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Летний сад. Девочка прыгает на круглом батуте с защитной сеткой и снова и снова взлетает почти на одну и ту же высоту; младший брат смотрит на неё из садового кресла">
+			<rect class="smt-sky" x="0" y="0" width="360" height="226"></rect>
+			<circle class="smt-sun" cx="240" cy="26" r="11"></circle>
+			<!-- the tree behind the fence -->
+			<rect class="smt-trunk" x="322" y="96" width="12" height="80"></rect>
+			<circle class="smt-crown" cx="328" cy="66" r="38"></circle>
+			<circle class="smt-crown smt-crown--b" cx="296" cy="84" r="26"></circle>
+			<circle class="smt-crown smt-crown--b" cx="352" cy="96" r="24"></circle>
+			<!-- the wooden fence -->
+			<path class="smt-rail" d="M100 164 H360 M100 204 H360"></path>
+			{pickets.map((x) => <path class="smt-picket" d={`M${x} 226 V152 L${x + 3.5} 147 L${x + 7} 152 V226 Z`}></path>)}
+			<!-- the house wall with a window and the eave -->
+			<rect class="smt-wall" x="0" y="26" width="102" height="200"></rect>
+			{siding.map((y) => <path class="smt-siding" d={`M0 ${y} H102`}></path>)}
+			<rect class="smt-eave" x="0" y="18" width="110" height="9"></rect>
+			<rect class="smt-window" x="20" y="62" width="56" height="62" rx="1.5"></rect>
+			<path class="smt-wframe" d="M20 62 h56 v62 h-56 Z M48 62 V124 M20 93 H76"></path>
+			<rect class="smt-sill" x="16" y="124" width="64" height="5"></rect>
+			<rect class="smt-flowers" x="20" y="129" width="56" height="8" rx="1"></rect>
+			<circle class="smt-bloom" cx="28" cy="128" r="3"></circle>
+			<circle class="smt-bloom smt-bloom--b" cx="40" cy="127" r="3"></circle>
+			<circle class="smt-bloom" cx="56" cy="128" r="3"></circle>
+			<circle class="smt-bloom smt-bloom--b" cx="68" cy="127" r="3"></circle>
+			<!-- the grass -->
+			<rect class="smt-grass" x="0" y="226" width="360" height="14"></rect>
+			{tufts.map((x) => <path class="smt-tuft" d={`M${x} 228 l2 -5 l1 5 l2 -6 l1 6`}></path>)}
+			<!-- the trampoline: legs, the back half of the enclosure and of the springs, the mat -->
+			<path class="smt-leg" d={`M${CX - 70} ${NET + 7} L${CX - 64} ${GRASS} M${CX - 40} ${NET + 10} L${CX - 46} ${GRASS} M${CX + 40} ${NET + 10} L${CX + 46} ${GRASS} M${CX + 70} ${NET + 7} L${CX + 64} ${GRASS} M${CX - 64} ${GRASS - 1} H${CX - 46} M${CX + 46} ${GRASS - 1} H${CX + 64}`}></path>
+			<ellipse class="smt-shadow" cx={CX} cy={GRASS + 4} rx="94" ry="5"></ellipse>
+			<path class="smt-mesh smt-mesh--back" d={mesh(false)}></path>
+			<path class="smt-pole" d={poles(false)}></path>
+			<path class="smt-ring" d={arc(TOPY, false)}></path>
+			<path class="smt-frame" d={arc(NET, false)}></path>
+			<path class="smt-spring" d={springs(false)}></path>
+			<path class="smt-mat" data-mat-back d=""></path>
+			<path class="smt-hollow" data-hollow d=""></path>
+			<!-- the garden chair and the brother -->
+			<path class="smt-chair" d="M318 204 L330 158 L336 159 L324 206 Z M286 202 H322 V207 H286 Z M289 207 L286 226 M318 207 L321 226 M290 190 H326"></path>
+			<g data-boy></g>
+			<g data-girl></g>
+			<!-- the front half: the mat in front of her feet, the springs, the frame, the net and the poles -->
+			<path class="smt-mat smt-mat--front" data-mat-front d=""></path>
+			<path class="smt-spring" d={springs(true)}></path>
+			<path class="smt-frame" d={arc(NET, true)}></path>
+			<path class="smt-mesh" d={mesh(true)}></path>
+			<path class="smt-pole" d={poles(true)}></path>
+			<path class="smt-ring" d={arc(TOPY, true)}></path>
+		</svg>
+		<div class="intro__foot">
+			<p>
+				Девочка прыгает на батуте и снова и снова взлетает{' '}
+				<More term="почти на ту же высоту">
+					Падая, девочка разгоняется. Полотно батута прогибается, останавливает её и, распрямляясь, снова подбрасывает вверх. Энергия переходит из одного вида в другой: высота, скорость и прогиб полотна сменяют друг друга, а общий запас энергии почти не меняется — так действует <a href="#закон-сохранения-механической-энергии">закон сохранения механической энергии</a>. Немного энергии всё же уходит на нагревание полотна и воздуха, и девочка возмещает её, чуть отталкиваясь ногами.
+				</More>.
+			</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+
+	<div class="intro__card" data-scene="night">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Августовская ночь за городом. Отец и сын сидят на пледе и смотрят на звёздное небо; по небу одна за другой проносятся падающие звёзды, мальчик показывает на них рукой">
+			<rect class="smn-sky" x="0" y="0" width="360" height="240"></rect>
+			{glow.map((y, i) => <rect class="smn-glow" x="0" y={y} width="360" height={200 - y} opacity={(0.07 + i * 0.012).toFixed(3)}></rect>)}
+			{milkyBands.map((w) => <path class="smn-milky" d={band(w)}></path>)}
+			{milky.map((s) => <circle class="smn-star" cx={f1(s.x)} cy={f1(s.y)} r={s.r.toFixed(2)} opacity="0.55"></circle>)}
+			{stars.map((s) => (s.tw ? <circle class="smn-star" data-tw cx={f1(s.x)} cy={f1(s.y)} r={(s.r + 0.3).toFixed(2)}></circle> : <circle class="smn-star" cx={f1(s.x)} cy={f1(s.y)} r={s.r.toFixed(2)} opacity={s.o.toFixed(2)}></circle>))}
+			<g data-meteors></g>
+			<!-- the far hills, the trees and the house with a lit window -->
+			<path class="smn-hill" d="M0 178 Q70 162 150 172 T300 166 T360 170 V240 H0 Z"></path>
+			<path class="smn-tree" d="M226 172 L236 128 L246 172 Z M231 150 L236 120 L241 150 Z M330 170 L342 116 L354 170 Z M336 140 L342 106 L348 140 Z M312 172 C300 150 312 132 322 140 C332 130 340 152 330 172 Z"></path>
+			<path class="smn-house" d="M252 176 V150 L274 134 L296 150 V176 Z M286 141 V130 H292 V146 Z"></path>
+			<rect class="smn-lit" x="260" y="156" width="11" height="10"></rect>
+			<path class="smn-lit-frame" d="M265.5 156 V166 M260 161 H271"></path>
+			<rect class="smn-lit smn-lit--dim" x="278" y="156" width="11" height="10"></rect>
+			<!-- the near meadow and the blanket -->
+			<path class="smn-meadow" d="M0 196 Q120 194 220 202 T360 206 V240 H0 Z"></path>
+			<path class="smn-blanket" d="M30 203 L196 205 L204 214 L22 212 Z"></path>
+			<path class="smn-check" d="M60 203.4 L56 212.4 M95 203.8 L93 212.8 M130 204.2 L130 213.2 M165 204.6 L167 213.6 M26 207.5 H200"></path>
+			<g class="smn-people">
+				<g data-father></g>
+				<g data-son></g>
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>
+				Августовской ночью по небу одна за другой проносятся{' '}
+				«<More term="падающие звёзды">
+					Это не звёзды, а песчинки, оставленные кометой на её орбите. Они влетают в воздух со скоростью около 59&nbsp;км/с, и у песчинки массой всего 1&nbsp;мг энергия движения около 1700&nbsp;Дж — столько же у гири 16&nbsp;кг, упавшей с высоты 11&nbsp;м. Воздух тормозит песчинку, и почти вся эта энергия идёт на её нагревание: на высоте около 100&nbsp;км песчинка раскаляется, светится и испаряется — раздел <a href="#механическая-энергия-и-трение">«Механическая энергия и трение»</a>.
+				</More>».
+			</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+</IntroFrame>
+
+<style is:global>
+	/* the trampoline: a summer afternoon */
+	[data-smeintro] .smt-sky {
+		fill: color-mix(in oklab, hsl(205, 65%, 72%) 70%, var(--sl-color-bg));
+	}
+	[data-smeintro] .smt-sun {
+		fill: color-mix(in oklab, var(--ig-v) 70%, var(--sl-color-white));
+		opacity: 0.85;
+	}
+	[data-smeintro] .smt-trunk {
+		fill: hsl(25, 30%, 30%);
+	}
+	[data-smeintro] .smt-crown {
+		fill: hsl(130, 30%, 34%);
+	}
+	[data-smeintro] .smt-crown--b {
+		fill: hsl(120, 28%, 40%);
+	}
+	[data-smeintro] .smt-rail {
+		stroke: hsl(30, 30%, 38%);
+		stroke-width: 4;
+	}
+	[data-smeintro] .smt-picket {
+		fill: hsl(32, 35%, 52%);
+		stroke: hsl(30, 30%, 36%);
+		stroke-width: 0.8;
+	}
+	[data-smeintro] .smt-wall {
+		fill: hsl(40, 25%, 70%);
+	}
+	[data-smeintro] .smt-siding {
+		stroke: hsl(40, 15%, 56%);
+		stroke-width: 0.7;
+	}
+	[data-smeintro] .smt-eave {
+		fill: hsl(10, 30%, 34%);
+	}
+	[data-smeintro] .smt-window {
+		fill: color-mix(in oklab, var(--ig-vx) 40%, hsl(210, 30%, 85%));
+	}
+	[data-smeintro] .smt-wframe {
+		fill: none;
+		stroke: hsl(0, 0%, 96%);
+		stroke-width: 3;
+	}
+	[data-smeintro] .smt-sill {
+		fill: hsl(0, 0%, 92%);
+	}
+	[data-smeintro] .smt-flowers {
+		fill: hsl(25, 40%, 38%);
+	}
+	[data-smeintro] .smt-bloom {
+		fill: hsl(345, 70%, 62%);
+	}
+	[data-smeintro] .smt-bloom--b {
+		fill: hsl(48, 85%, 60%);
+	}
+	[data-smeintro] .smt-grass {
+		fill: hsl(110, 35%, 42%);
+	}
+	[data-smeintro] .smt-tuft {
+		fill: none;
+		stroke: hsl(110, 40%, 30%);
+		stroke-width: 0.8;
+	}
+	[data-smeintro] .smt-shadow {
+		fill: hsl(110, 35%, 24%);
+		opacity: 0.5;
+	}
+	[data-smeintro] .smt-leg,
+	[data-smeintro] .smt-frame {
+		fill: none;
+		stroke: hsl(210, 8%, 62%);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	[data-smeintro] .smt-spring {
+		stroke: hsl(210, 8%, 75%);
+		stroke-width: 0.9;
+	}
+	[data-smeintro] .smt-mat {
+		fill: hsl(220, 15%, 16%);
+	}
+	[data-smeintro] .smt-mat--front {
+		fill: hsl(220, 15%, 22%);
+	}
+	[data-smeintro] .smt-hollow {
+		fill: none;
+		stroke: hsl(220, 12%, 30%);
+		stroke-width: 0.8;
+	}
+	[data-smeintro] .smt-pole {
+		stroke: hsl(210, 8%, 70%);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	[data-smeintro] .smt-ring {
+		fill: none;
+		stroke: hsl(215, 60%, 45%);
+		stroke-width: 3;
+	}
+	[data-smeintro] .smt-mesh {
+		fill: none;
+		stroke: hsl(0, 0%, 100%);
+		stroke-width: 0.5;
+		opacity: 0.35;
+	}
+	[data-smeintro] .smt-mesh--back {
+		opacity: 0.22;
+	}
+	[data-smeintro] .smt-chair {
+		fill: hsl(28, 40%, 50%);
+		stroke: hsl(28, 35%, 32%);
+		stroke-width: 1.4;
+		stroke-linejoin: round;
+	}
+	/* the night: the same in both themes */
+	[data-smeintro] .smn-sky {
+		fill: hsl(228, 45%, 8%);
+	}
+	[data-smeintro] .smn-glow {
+		fill: hsl(225, 35%, 26%);
+	}
+	[data-smeintro] .smn-milky {
+		fill: hsl(220, 30%, 85%);
+		opacity: 0.025;
+	}
+	[data-smeintro] .smn-star {
+		fill: hsl(220, 40%, 94%);
+	}
+	[data-smeintro] .smn-trail {
+		stroke: hsl(190, 80%, 92%);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	[data-smeintro] .smn-head {
+		fill: hsl(0, 0%, 100%);
+	}
+	[data-smeintro] .smn-hill {
+		fill: hsl(225, 25%, 11%);
+	}
+	[data-smeintro] .smn-tree,
+	[data-smeintro] .smn-house {
+		fill: hsl(225, 25%, 6%);
+	}
+	[data-smeintro] .smn-lit {
+		fill: hsl(42, 90%, 62%);
+	}
+	[data-smeintro] .smn-lit--dim {
+		fill: hsl(35, 70%, 40%);
+	}
+	[data-smeintro] .smn-lit-frame {
+		stroke: hsl(225, 25%, 6%);
+		stroke-width: 1.2;
+	}
+	[data-smeintro] .smn-meadow {
+		fill: hsl(140, 20%, 10%);
+	}
+	[data-smeintro] .smn-blanket {
+		fill: hsl(355, 35%, 30%);
+	}
+	[data-smeintro] .smn-check {
+		fill: none;
+		stroke: hsl(40, 40%, 55%);
+		stroke-width: 0.8;
+		opacity: 0.6;
+	}
+	[data-smeintro] .smn-people {
+		filter: brightness(0.62) saturate(0.75);
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+	import { trampScene, RUN as TRAMP_RUN } from './tramp';
+	import { nightScene, RUN as NIGHT_RUN } from './meteors';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-smeintro]')) {
+		const tramp = root.querySelector<HTMLElement>('[data-scene="tramp"]')!;
+		scene(tramp, TRAMP_RUN, trampScene(tramp));
+		const night = root.querySelector<HTMLElement>('[data-scene="night"]')!;
+		scene(night, NIGHT_RUN, nightScene(night));
+	}
+</script>

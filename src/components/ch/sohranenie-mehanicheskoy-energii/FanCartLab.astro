@@ -1,0 +1,313 @@
+---
+/**
+ * Model «Тележка с вентилятором»: a light cart (0,5 кг; loads of 0,5 кг make 1 and 2 кг) on a straight level track,
+ * friction neglected. Two light gates stand s = 1,0 м apart. The cart reaches gate 1 with the speed υ₁ (0, 1 or
+ * 2 м/с; it was pushed before; at υ₁ = 0 it starts at gate 1). A small electric fan on the cart works only between
+ * the gates (on at gate 1, off at gate 2) and pushes the cart with a constant force F (0,5, 1 or 2 Н) along the motion
+ * («Разгоняет»: the propeller at the back blows air backward) or against it («Тормозит»: the fan turned round).
+ * Physics: a = F/m, so between the gates E_к2 = E_к1 ± F·s and υ₂ = √(2E_к2/m). If braking stops the cart before
+ * gate 2 (E_к1 < F·s), it stops after s_ост = E_к1/F and the fan switches off there (a simplification: a real fan
+ * would push it back); then A = −F·s_ост = −E_к1 and E_к2 = 0. The motion is computed exactly piece by piece
+ * (uniform before gate 1, uniformly accelerated between the gates, uniform after gate 2) and played in real time.
+ * Examples: m = 1 кг, F = 1 Н, υ₁ = 0 → A = 1,00 Дж, υ₂ = 1,41 м/с; υ₁ = 2, «Тормозит» → A = −1,00 Дж,
+ * E_к2 = 1,00 Дж, υ₂ = 1,41 м/с; F = 2 Н, υ₁ = 2, «Тормозит» → stops exactly at gate 2.
+ * Scales: the track 150 px per metre (2,2 м shown), the cart 24 см long; the velocity arrow 24 px per м/с, the force
+ * 22 px per newton; the bars 100 px for 6 Дж (the largest E_к2, 2 кг from 2 м/с with 2 Н, is 6,00 Дж).
+ * Colors (sme.ts): force red, velocity blue, the distance between the gates gold, kinetic energy blue bars.
+ */
+import SmeStyles from './SmeStyles.astro';
+---
+
+<SmeStyles />
+<figure class="g7 sme not-content" data-sme-fan>
+	<svg class="g7__svg" viewBox="0 0 360 132" role="img" aria-label="Тележка с вентилятором на ровном пути между двумя воротами, стоящими в одном метре друг от друга. Красная стрелка — сила вентилятора, синяя — скорость тележки">
+		<rect class="sme-sky" x="0" y="0" width="360" height="104"></rect>
+		<!-- the track, the stopper at its end -->
+		<rect class="sme-track" x="10" y="100" width="340" height="5" rx="1"></rect>
+		<rect class="sme-steel" x="344" y="84" width="6" height="16" rx="1"></rect>
+		<!-- the light gates -->
+		<g data-gates></g>
+		<!-- the gold distance between the gates -->
+		<g data-dist></g>
+		<!-- the cart -->
+		<g data-cart>
+			<g data-loads></g>
+			<rect class="sme-cart" x="-18" y="-15" width="36" height="12" rx="2"></rect>
+			<circle class="sme-wheel" cx="-10" cy="-2.5" r="4.5"></circle>
+			<circle class="sme-wheel" cx="10" cy="-2.5" r="4.5"></circle>
+			<g data-fan>
+				<path class="sme-pylon" d="M-2 -15 L0 -27 L2 -15 Z"></path>
+				<rect class="sme-motor" x="-6" y="-31" width="12" height="7" rx="3.5"></rect>
+				<ellipse class="sme-prop" data-prop cx="-8" cy="-27.5" rx="1.6" ry="9"></ellipse>
+				<g data-air></g>
+			</g>
+		</g>
+		<g data-arrows></g>
+		<text class="t-small t-halo" x="12" y="16" data-note></text>
+	</svg>
+	<div class="g7__grid sme-fan-grid">
+		<div class="g7__side">
+			<div class="g7__row"><span class="g7__label">Масса <i>m</i></span><div class="g7__seg" data-m><button type="button" class="g7__btn" data-v="0.5">0,5&nbsp;кг</button><button type="button" class="g7__btn" data-v="1" aria-pressed="true">1&nbsp;кг</button><button type="button" class="g7__btn" data-v="2">2&nbsp;кг</button></div></div>
+			<div class="g7__row"><span class="g7__label">Сила <i>F</i></span><div class="g7__seg" data-f><button type="button" class="g7__btn" data-v="0.5">0,5&nbsp;Н</button><button type="button" class="g7__btn" data-v="1" aria-pressed="true">1&nbsp;Н</button><button type="button" class="g7__btn" data-v="2">2&nbsp;Н</button></div></div>
+			<div class="g7__row"><span class="g7__label">Скорость у ворот 1 <i>υ</i><sub>1</sub></span><div class="g7__seg" data-v1><button type="button" class="g7__btn" data-v="0" aria-pressed="true">0</button><button type="button" class="g7__btn" data-v="1">1&nbsp;м/с</button><button type="button" class="g7__btn" data-v="2">2&nbsp;м/с</button></div></div>
+			<div class="g7__row"><div class="g7__seg" data-mode><button type="button" class="g7__btn" data-v="1" aria-pressed="true">Разгоняет</button><button type="button" class="g7__btn" data-v="-1">Тормозит</button></div></div>
+			<div class="g7__row"><button type="button" class="g7__btn g7__btn--go" data-go>Пуск</button></div>
+			<p class="g7__note" data-hint></p>
+		</div>
+		<div class="sme-fan-out">
+			<svg class="g7__svg" viewBox="0 0 220 150" role="img" aria-label="Столбики кинетической энергии тележки у первых и у вторых ворот; скобка показывает работу силы вентилятора"><g data-bracket></g><g data-bars></g></svg>
+			<ul class="g7__read" data-read></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Вентилятор включается у ворот 1 и выключается у ворот 2: только на этом метре на тележку действует сила <i>F</i> (красная стрелка). Синяя стрелка — скорость тележки, золотая отметка — расстояние между воротами. Трение не учитывается; время идёт как настоящее.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.sme .sme-track {
+		fill: var(--g7-steel);
+	}
+	.sme .sme-cart {
+		fill: color-mix(in oklab, var(--ig-vx) 25%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	.sme .sme-wheel {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.sme .sme-load {
+		fill: var(--g7-steel-dark);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.6;
+	}
+	.sme .sme-pylon,
+	.sme .sme-motor {
+		fill: var(--sl-color-gray-3);
+	}
+	.sme .sme-prop {
+		fill: color-mix(in oklab, var(--sl-color-gray-2) 50%, transparent);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.6;
+	}
+	.sme .sme-airline {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-linecap: round;
+	}
+	.sme .sme-gate {
+		fill: var(--sl-color-gray-4);
+	}
+	.sme .sme-lamp {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	.sme .sme-lamp.is-on {
+		fill: var(--g7-gold);
+	}
+	.sme .sme-fan-out {
+		display: grid;
+		gap: 0.5rem;
+	}
+	.g7 .g7__grid.sme-fan-grid {
+		margin-top: 0.75rem;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+	@container (max-width: 36rem) {
+		.g7 .g7__grid.sme-fan-grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
+
+<script>
+	import { loop, segment } from '../g7/kit';
+	import { el, energyBars, f1, fmt, label, newArrow } from './sme';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-sme-fan]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const K = 150; // px per metre
+		const X1 = 95; // gate 1
+		const X2 = X1 + K; // gate 2, 1,0 м further
+		const XEND = (346 - 20 - X1) / K; // the cart's center stops at the stopper, м from gate 1
+		const XSTART = (34 - X1) / K; // the start when the cart comes with a speed
+		const Y = 100; // the top of the track
+		const VS = 24;
+		const FS = 22;
+		const st = { m: 1, F: 1, v1: 0, dir: 1 };
+		// the gates and the gold distance
+		const gates = $<SVGGElement>('[data-gates]');
+		const lamps = [X1, X2].map((x, i) => {
+			gates.append(el('rect', { class: 'sme-gate', x: x - 1.5, y: 44, width: 3, height: 56 }));
+			gates.append(el('rect', { class: 'sme-gate', x: x - 6, y: 38, width: 12, height: 9, rx: 2 }));
+			const lamp = el('circle', { class: 'sme-lamp', cx: x, cy: 42.5, r: 2.4 });
+			gates.append(lamp);
+			const t = el('text', { class: 't-small', x, y: 31, 'text-anchor': 'middle' });
+			t.textContent = `ворота ${i + 1}`;
+			gates.append(t);
+			return lamp;
+		});
+		const dist = $<SVGGElement>('[data-dist]');
+		const dArrow1 = newArrow(dist, 'gold');
+		const dArrow2 = newArrow(dist, 'gold');
+		dArrow1((X1 + X2) / 2, 114, X1 + 1, 114, 6, 3.5);
+		dArrow2((X1 + X2) / 2, 114, X2 - 1, 114, 6, 3.5);
+		dist.append(el('path', { class: 'arrow arrow--gold', d: `M${X1} 108 V120 M${X2} 108 V120` }));
+		label(dist, (X1 + X2) / 2, 127, [['s'], ' = 1,0 м'], { 'text-anchor': 'middle', class: 't-gold t-halo' });
+		const cart = $<SVGGElement>('[data-cart]');
+		const loads = $<SVGGElement>('[data-loads]');
+		const fan = $<SVGGElement>('[data-fan]');
+		const prop = $<SVGEllipseElement>('[data-prop]');
+		const air = $<SVGGElement>('[data-air]');
+		const arrows = $<SVGGElement>('[data-arrows]');
+		const vArrow = newArrow(arrows, 'blue');
+		const fArrow = newArrow(arrows, 'red');
+		const vLab = label(arrows, 0, 0, [['υ']], { class: 't-blue t-halo' });
+		const fLab = label(arrows, 0, 0, [['F']], { class: 't-red t-halo' });
+		const note = $<SVGTextElement>('[data-note]');
+		const bars = energyBars($('[data-bars]'), { x: 28, base: 122, full: 100, max: 6, kinds: ['ek1', 'ek2'], w: 34, gap: 24, digits: 2 });
+		const bracket = $<SVGGElement>('[data-bracket]');
+		const read = $<HTMLUListElement>('[data-read]');
+		const hint = $<HTMLElement>('[data-hint]');
+		const brake = fig.querySelector<HTMLButtonElement>('[data-mode] [data-v="-1"]')!;
+
+		// the run, computed exactly: x in metres from gate 1 (center of the cart), as a function of time
+		const plan = () => {
+			const { m, F, v1, dir } = st;
+			const a = (dir * F) / m;
+			const ek1 = (m * v1 * v1) / 2;
+			const x0 = v1 > 0 ? XSTART : 0;
+			const t1 = v1 > 0 ? -x0 / v1 : 0; // reaches gate 1
+			let stop = false;
+			let sStop = 1;
+			let tau2: number; // time between the gates
+			if (a < 0 && ek1 < F * 1 - 1e-12) {
+				stop = true;
+				sStop = ek1 / F;
+				tau2 = v1 / -a;
+			} else tau2 = Math.abs(a) < 1e-12 ? 1 / v1 : (-v1 + Math.sqrt(Math.max(0, v1 * v1 + 2 * a))) / a;
+			const ek2 = stop ? 0 : Math.max(0, ek1 + dir * F);
+			const v2 = Math.sqrt((2 * ek2) / m);
+			const A = stop ? -ek1 : dir * F;
+			const tEnd = stop || v2 < 1e-9 ? t1 + tau2 : t1 + tau2 + (XEND - 1) / v2;
+			const at = (t: number) => {
+				if (t < t1) return { x: x0 + v1 * t, v: v1, fan: false };
+				const tau = t - t1;
+				if (tau < tau2) return { x: v1 * tau + (a * tau * tau) / 2, v: v1 + a * tau, fan: true };
+				if (stop || v2 < 1e-9) return { x: stop ? sStop : 1, v: 0, fan: false };
+				return { x: Math.min(XEND, 1 + v2 * (tau - tau2)), v: t >= tEnd ? 0 : v2, fan: false };
+			};
+			return { at, t1, tau2, tEnd, ek1, ek2, v2, A, stop, sStop };
+		};
+		let p = plan();
+		let t = -1; // −1: before «Пуск»
+		let running = false;
+
+		const drawLoads = () => {
+			loads.replaceChildren();
+			const n = st.m === 0.5 ? 0 : st.m === 1 ? 1 : 3;
+			const xs = [-14, -4, 6];
+			for (let i = 0; i < n; i++) loads.append(el('rect', { class: 'sme-load', x: st.dir > 0 ? xs[i] + 2 : xs[i] - 2, y: -21, width: 8, height: 6, rx: 1 }));
+		};
+		const draw = () => {
+			const s = p.at(Math.max(0, t));
+			const cx = X1 + s.x * K;
+			cart.setAttribute('transform', `translate(${f1(cx)} ${Y})`);
+			// the fan: its propeller behind when it pushes forward, in front when it brakes
+			fan.setAttribute('transform', st.dir > 0 ? '' : 'scale(-1 1)');
+			const on = t >= 0 && s.fan;
+			prop.setAttribute('ry', on ? '9' : '7');
+			prop.setAttribute('rx', on ? '1.6' : '0.8');
+			air.replaceChildren();
+			if (on) {
+				const ph = (t * 6) % 1;
+				for (let i = 0; i < 3; i++) {
+					const x = -12 - ((ph + i / 3) % 1) * 22;
+					air.append(el('line', { class: 'sme-airline', x1: f1(x), x2: f1(x - 6), y1: -33 + i * 5.5, y2: -33 + i * 5.5 }));
+				}
+			}
+			// the arrows: the velocity above the cart, the fan's force on the cart's body
+			const v = t < 0 ? (st.v1 > 0 ? st.v1 : 0) : s.v;
+			vArrow(cx, 52, cx + v * VS, 52, 7, 4);
+			vLab.setAttribute('x', f1(cx + Math.max(4, v * VS) + 3));
+			vLab.setAttribute('y', '56');
+			vLab.setAttribute('visibility', v > 0.02 ? 'visible' : 'hidden');
+			fArrow(cx, 91, cx + (on ? st.dir * st.F * FS : 0), 91, 6, 3.5);
+			fLab.setAttribute('x', f1(cx + st.dir * (st.F * FS + 4) - (st.dir < 0 ? 9 : 0)));
+			fLab.setAttribute('y', '86');
+			fLab.setAttribute('visibility', on ? 'visible' : 'hidden');
+			// the gates light when the cart passes them
+			lamps[0].classList.toggle('is-on', t >= p.t1 && t >= 0);
+			lamps[1].classList.toggle('is-on', t >= p.t1 + p.tau2 && t >= 0 && !p.stop);
+			// the energies: E_к1 when the cart passes gate 1, E_к2 grows while the fan works
+			const past1 = t >= p.t1 && t >= 0;
+			const done = t >= p.t1 + p.tau2 && t >= 0;
+			const ekNow = (st.m * s.v * s.v) / 2;
+			bars([past1 ? p.ek1 : 0, past1 ? (done ? p.ek2 : ekNow) : 0]);
+			bracket.replaceChildren();
+			if (done) {
+				const y1 = bars.top(p.ek1);
+				const y2 = bars.top(p.ek2);
+				const xb = bars.x(1) + bars.w + 8;
+				bracket.append(el('path', { class: 'ln-dash', d: `M${f1(bars.x(0))} ${f1(y1)} H${f1(xb)}` }));
+				if (Math.abs(y1 - y2) > 1) bracket.append(el('path', { class: 'sme-bracket', d: `M${f1(xb - 3)} ${f1(y1)} H${f1(xb)} V${f1(y2)} H${f1(xb - 3)}` }));
+				const tx = el('text', { class: 't-small t-strong t-halo', x: f1(xb + 4), y: f1((y1 + y2) / 2 + 4) });
+				tx.textContent = `A = ${p.A > 0 ? '+' : ''}${fmt(p.A, 2)} Дж`;
+				bracket.append(tx);
+			}
+			// the readouts
+			const dash = '—';
+			const rows: [string, string, string?][] = [
+				['Скорость у ворот 1, <i>υ</i><sub>1</sub>', past1 ? `${fmt(st.v1, 2)} м/с` : dash],
+				p.stop ? ['Тележка остановилась через', done ? `<i>s</i> = ${fmt(p.sStop, 2)} м` : dash, 'is-warm'] : ['Скорость у ворот 2, <i>υ</i><sub>2</sub>', done ? `${fmt(p.v2, 2)} м/с` : dash],
+				[p.stop ? 'Работа силы, <i>A</i> = −<i>F</i>·<i>s</i><sub>ост</sub>' : `Работа силы, <i>A</i> = ${st.dir > 0 ? '' : '−'}<i>F</i>·<i>s</i>`, done ? `${p.A > 0 ? '+' : ''}${fmt(p.A, 2)} Дж` : dash],
+				['<i>E</i><sub>к1</sub> = <i>mυ</i><sub>1</sub><sup>2</sup>/2', past1 ? `${fmt(p.ek1, 2)} Дж` : dash],
+				['<i>E</i><sub>к2</sub> = <i>mυ</i><sub>2</sub><sup>2</sup>/2', done ? `${fmt(p.ek2, 2)} Дж` : dash],
+				['<i>E</i><sub>к2</sub> − <i>E</i><sub>к1</sub>', done ? `${p.ek2 - p.ek1 > 0 ? '+' : ''}${fmt(p.ek2 - p.ek1, 2)} Дж` : dash, 'is-key'],
+			];
+			read.innerHTML = rows.map(([a, b, c]) => `<li${c ? ` class="${c}"` : ''}><span>${a}</span><b>${b}</b></li>`).join('');
+			note.textContent = t < 0 ? (st.v1 > 0 ? 'тележку толкнули: она подъезжает к воротам 1' : 'тележка стоит у ворот 1') : p.stop && done ? 'вентилятор выключился: тележка остановилась' : '';
+		};
+		const reset = () => {
+			running = false;
+			p = plan();
+			t = -1;
+			drawLoads();
+			brake.disabled = st.v1 === 0;
+			hint.textContent = st.v1 === 0 ? 'Тормозить можно только движущуюся тележку: выберите υ₁ больше нуля.' : '';
+			draw();
+		};
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			t += dt;
+			if (t >= p.tEnd) {
+				t = p.tEnd;
+				running = false;
+			}
+			draw();
+			return running;
+		});
+		segment($('[data-m]'), (b) => ((st.m = Number(b.dataset.v)), reset()));
+		segment($('[data-f]'), (b) => ((st.F = Number(b.dataset.v)), reset()));
+		segment($('[data-v1]'), (b) => {
+			st.v1 = Number(b.dataset.v);
+			if (st.v1 === 0 && st.dir < 0) {
+				st.dir = 1;
+				fig.querySelectorAll('[data-mode] button').forEach((x) => x.setAttribute('aria-pressed', String((x as HTMLElement).dataset.v === '1')));
+			}
+			reset();
+		});
+		segment($('[data-mode]'), (b) => ((st.dir = Number(b.dataset.v)), reset()));
+		$('[data-go]').addEventListener('click', () => {
+			p = plan();
+			t = 0;
+			running = true;
+			draw();
+			wake();
+		});
+		reset();
+	}
+</script>
