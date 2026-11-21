@@ -1,0 +1,221 @@
+---
+/**
+ * «Чем выше, тем слабее притяжение»: a looping animation (not a model) after the formula g = GM/(R + h)².
+ * The Earth (R = 6371 км ↔ 50 px) and the heights to one scale (127 км per px). A small ball (drawn far larger than
+ * any real body, 4,5 px in radius) rises straight up along one radius from the surface to h = 3R = 19 113 км and comes
+ * back, pausing 1 s at h = 0, 400 км, R and 3R; one loop takes 12 s (0,8 s, 2 s and 2,5 s between the stops going up,
+ * 2,7 s coming down; eased). h is the height of the ball's lowest point.
+ * The arrow is the pull of the Earth on the same ball. It is drawn just under the ball, parallel to the radius and
+ * pointing toward the center, its length proportional to g = 9,8·(6371/(6371 + h))² м/с²: 144 px at the surface, so
+ * that it is still 9 px long at 3R (9,8 → 8,7 → 2,45 → 0,61 м/с² at the four stops: 144, 127, 36 and 9 px). When the
+ * ball reaches a stop on its way up, a pale copy of the arrow stays there until the loop starts again. Readout: h
+ * rounded to 10 км while moving and exact at the stops; g with one decimal from 5 м/с² up, two below. Force color
+ * --ig-v, as in the whole chapter.
+ */
+import PicStyles from './PicStyles.astro';
+
+const C = { x: 104, y: 84 };
+const R = 50; // px
+const RKM = 6371;
+const PX = R / RKM; // px per км
+const BR = 4.5; // ball radius, px
+const A0 = 144; // arrow length at the surface, px
+const AY = C.y + 18; // the row of the arrows, under the ball
+const STOPS = [0, 400, RKM, 3 * RKM];
+const gAt = (h: number) => 9.8 * (RKM / (RKM + h)) ** 2;
+// an arrow from under the ball's center toward the Earth's center: a shaft and a head (smaller for a short arrow)
+const arrowPath = (h: number) => {
+	const x0 = C.x + R + h * PX + BR;
+	const L = A0 * (gAt(h) / 9.8);
+	const hs = Math.min(8, 0.45 * L + 3);
+	const tip = x0 - L;
+	return `M${x0.toFixed(2)} ${AY - 1.5} H${(tip + hs).toFixed(2)} V${(AY - hs * 0.55).toFixed(2)} L${tip.toFixed(2)} ${AY} L${(tip + hs).toFixed(2)} ${(AY + hs * 0.55).toFixed(2)} V${AY + 1.5} H${x0.toFixed(2)} Z`;
+};
+const lands = [
+	'M86 52 q10 -8 22 -4 q8 6 2 14 q-10 4 -12 12 q-8 2 -12 -6 q-4 -10 0 -16 z',
+	'M112 106 q12 -4 20 6 q2 12 -8 18 q-10 4 -14 -6 q-4 -10 2 -18 z',
+	'M70 96 q8 -2 10 6 q0 8 -6 10 q-8 0 -6 -16 z',
+];
+const f = (v: number) => v.toFixed(1);
+---
+
+<PicStyles />
+<figure class="gp-pic gp-pic--one hp not-content" data-height-pic>
+	<div class="gp-pic__grid">
+		<svg class="gp-pic__svg" viewBox="0 0 360 190" role="img" aria-label="Шарик поднимается над Землёй по прямой от её центра до высоты трёх радиусов Земли и возвращается. Стрелка под шариком — сила притяжения шарика к Земле: чем выше шарик, тем она короче. На высоте, равной радиусу Земли, она в 4 раза короче, чем у поверхности, на высоте трёх радиусов — в 16 раз. На каждой остановке остаётся бледная копия стрелки">
+			<circle class="hp-earth" cx={C.x} cy={C.y} r={R}></circle>
+			{lands.map((d) => <path class="hp-land" d={d} />)}
+			<line class="hp-axis" x1={C.x} y1={C.y} x2="352" y2={C.y}></line>
+			<circle class="hp-center" cx={C.x} cy={C.y} r="2.2"></circle>
+			{STOPS.map((h) => <line class="hp-tick" x1={f(C.x + R + h * PX)} x2={f(C.x + R + h * PX)} y1={C.y - 4} y2={C.y + 4} />)}
+			<!-- R: center to surface, inside the Earth, above the axis -->
+			<path class="hp-dim" d={`M${C.x} ${C.y - 12} H${C.x + R} M${C.x} ${C.y - 16} V${C.y - 8} M${C.x + R} ${C.y - 16} V${C.y - 8}`}></path>
+			<text class="hp-let" x={C.x + R / 2} y={C.y - 18} text-anchor="middle">R</text>
+			<!-- R + h: center to the ball, below the Earth -->
+			<path class="hp-dim" data-rh></path>
+			<text class="hp-let" data-rh-t y={C.y + 88} text-anchor="middle">R + h</text>
+			<!-- h: surface to the ball, above the axis -->
+			<path class="hp-dim" data-h></path>
+			<text class="hp-let" data-h-t y={C.y - 26} text-anchor="middle">h</text>
+			<path class="hp-ext" data-ext></path>
+			{STOPS.map((h, i) => <path class="hp-ghost" d={arrowPath(h)} data-ghost={i} />)}
+			<path class="gp-head" data-arrow></path>
+			<circle class="hp-ball" data-ball cy={C.y} r={BR}></circle>
+			<text x={C.x} y="20" text-anchor="middle" class="hp-small">Земля</text>
+		</svg>
+	</div>
+	<p class="hp__read" aria-live="off"><i>h</i> = <b data-h-out>0</b>&nbsp;км, <i>g</i> = <b data-g-out>9,8</b>&nbsp;м/с²</p>
+	<figcaption>
+		Стрелка показывает, с какой силой Земля притягивает один и тот же шарик на разной высоте; бледные стрелки остаются на остановках для сравнения. Земля и высоты — в одном масштабе, а шарик нарисован намного больше настоящего.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.hp .hp-earth {
+		fill: color-mix(in srgb, var(--ig-vx) 55%, var(--ig-surface));
+	}
+	.hp .hp-land {
+		fill: color-mix(in oklab, hsl(110, 32%, 45%) 75%, var(--ig-surface));
+	}
+	.hp .hp-axis {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	.hp .hp-tick {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.hp .hp-center {
+		fill: var(--sl-color-white);
+	}
+	.hp .hp-ghost {
+		fill: var(--ig-v);
+		opacity: 0.35;
+		visibility: hidden;
+	}
+	.hp .hp-ghost.is-on {
+		visibility: visible;
+	}
+	.hp .hp-dim,
+	.hp .hp-ext {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.hp .hp-ext {
+		stroke-dasharray: 2 2;
+		stroke: var(--sl-color-gray-3);
+	}
+	.hp text.hp-let {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 15px;
+		fill: var(--sl-color-white);
+	}
+	.hp text.hp-small {
+		font-size: 12px;
+	}
+	.hp .hp-ball {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.8;
+	}
+	.hp .hp__read {
+		margin: 0.5rem 0 0;
+		text-align: center;
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-gray-2);
+	}
+	.hp .hp__read i {
+		font-family: var(--ig-font-math);
+	}
+	.hp .hp__read b {
+		color: var(--sl-color-white);
+	}
+</style>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+
+	const C = { x: 104, y: 84 };
+	const R = 50;
+	const RKM = 6371;
+	const PX = R / RKM;
+	const BR = 4.5;
+	const A0 = 144;
+	const AY = C.y + 18;
+	// the legs: [from, to, seconds]; a pause of 1 s at each stop on the way up; `stop` = the stop reached at the end
+	const LEGS: [number, number, number, number][] = [
+		[0, 0, 1, 0],
+		[0, 400, 0.8, 1],
+		[400, 400, 1, 1],
+		[400, RKM, 2, 2],
+		[RKM, RKM, 1, 2],
+		[RKM, 3 * RKM, 2.5, 3],
+		[3 * RKM, 3 * RKM, 1, 3],
+		[3 * RKM, 0, 2.7, 3],
+	];
+	const CYCLE = LEGS.reduce((s, l) => s + l[2], 0); // 12 s
+	const ease = (u: number) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, u)));
+	const comma = (v: number, d: number) => v.toFixed(d).replace('.', ',');
+	const km = (h: number) => Math.round(h).toLocaleString('ru-RU').replace(/\s/g, ' ');
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-height-pic]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const ball = q<SVGCircleElement>('[data-ball]');
+		const arrow = q<SVGPathElement>('[data-arrow]');
+		const ghosts = Array.from(root.querySelectorAll<SVGPathElement>('[data-ghost]'));
+		const rh = q<SVGPathElement>('[data-rh]');
+		const rhT = q<SVGTextElement>('[data-rh-t]');
+		const hDim = q<SVGPathElement>('[data-h]');
+		const hT = q<SVGTextElement>('[data-h-t]');
+		const ext = q<SVGPathElement>('[data-ext]');
+		const hOut = q<HTMLElement>('[data-h-out]');
+		const gOut = q<HTMLElement>('[data-g-out]');
+		const draw = (t: number) => {
+			let u = t % CYCLE;
+			let h = 0;
+			let still = false;
+			let reached = 0; // the highest stop reached in this loop
+			for (const [a, b, d, stop] of LEGS) {
+				if (u <= d) {
+					h = a + (b - a) * ease(u / d);
+					still = a === b;
+					if (a === b) reached = Math.max(reached, stop);
+					break;
+				}
+				u -= d;
+				reached = Math.max(reached, stop);
+			}
+			ghosts.forEach((g, i) => g.classList.toggle('is-on', i <= reached));
+			const g = 9.8 * (RKM / (RKM + h)) ** 2;
+			const xb = C.x + R + h * PX; // the ball's lowest point
+			const cx = xb + BR;
+			ball.setAttribute('cx', cx.toFixed(2));
+			// under the ball's center toward the Earth's center; the head shrinks with a short arrow
+			const L = A0 * (g / 9.8);
+			const hs = Math.min(8, 0.45 * L + 3);
+			const tip = cx - L;
+			arrow.setAttribute('d', `M${cx.toFixed(2)} ${AY - 1.5} H${(tip + hs).toFixed(2)} V${(AY - hs * 0.55).toFixed(2)} L${tip.toFixed(2)} ${AY} L${(tip + hs).toFixed(2)} ${(AY + hs * 0.55).toFixed(2)} V${AY + 1.5} H${cx.toFixed(2)} Z`);
+			const yR = C.y + 70;
+			rh.setAttribute('d', `M${C.x} ${yR} H${xb.toFixed(2)} M${C.x} ${yR - 4} V${yR + 4} M${xb.toFixed(2)} ${yR - 4} V${yR + 4}`);
+			rhT.setAttribute('x', ((C.x + xb) / 2).toFixed(2));
+			const yH = C.y - 20;
+			const showH = xb - (C.x + R) > 14;
+			hDim.setAttribute('d', showH ? `M${C.x + R} ${yH} H${xb.toFixed(2)} M${C.x + R} ${yH - 4} V${yH + 4} M${xb.toFixed(2)} ${yH - 4} V${yH + 4}` : '');
+			hT.setAttribute('x', ((C.x + R + xb) / 2).toFixed(2));
+			hT.style.visibility = showH ? 'visible' : 'hidden';
+			ext.setAttribute('d', `M${xb.toFixed(2)} ${showH ? yH : C.y} V${yR}`);
+			hOut.textContent = km(still ? h : Math.round(h / 10) * 10);
+			gOut.textContent = comma(g, g >= 5 ? 1 : 2);
+		};
+		let t = 0;
+		loop(root, (dt) => {
+			t += dt;
+			draw(t);
+			return true;
+		});
+		draw(0);
+	}
+</script>
