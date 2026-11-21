@@ -1,0 +1,154 @@
+---
+/**
+ * Picture for the formula p = F/S (Irina, 21 Nov 2026: «добавим рисунок тела (брусок, который лежит на поверхности, с
+ * указанием силы, направленной вниз, площади поверхности)»). One and the same pine block, 20 × 10 × 5 см, lies on a
+ * table on its large face and stands on its small face.
+ *
+ * Physics. Pine, ρ ≈ 500 кг/м³: V = 1000 см³, m = 0,5 кг, the force of pressure on the table F = mg = 0,5 · 9,8 =
+ * 4,9 Н in both cases (the arrows have the same length). Large face S = 20 · 10 = 200 см² = 0,02 м²:
+ * p = 4,9 / 0,02 = 245 Па. Small face S = 10 · 5 = 50 см² = 0,005 м²: p = 4,9 / 0,005 = 980 Па, four times more.
+ *
+ * Drawing. Cabinet oblique projection at 5 px per см, the depth drawn at half scale along 45°. The block is drawn
+ * translucent with its hidden edges dashed, so the face it stands on (gold, the area S, as in every picture of this
+ * chapter) shows through. The force F (red, the force of pressure, as in «Как уменьшают и увеличивают давление»)
+ * is applied to the table at the middle of the face and points down. Static.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const K = 5; // px per см
+const D = 2.5 * Math.SQRT1_2; // px per см of depth, along x and along −y
+const TABLE_Y = 180; // the front edge of the table top
+const f = (v: number) => v.toFixed(1);
+const P = (ox: number, x: number, y: number, z: number) => [ox + K * x + D * z, TABLE_Y - K * y - D * z];
+const poly = (pts: number[][]) => 'M' + pts.map((p) => `${f(p[0])} ${f(p[1])}`).join(' L') + ' Z';
+const line = (a: number[], b: number[]) => `M${f(a[0])} ${f(a[1])} L${f(b[0])} ${f(b[1])}`;
+
+// a block with its footprint x ∈ [0, w], z ∈ [z0, z0 + d] and height h, at the screen offset ox
+const block = (ox: number, w: number, d: number, h: number, z0: number) => {
+	const z1 = z0 + d;
+	const p = (x: number, y: number, z: number) => P(ox, x, y, z);
+	const c = p(w / 2, 0, z0 + d / 2);
+	return {
+		base: poly([p(0, 0, z0), p(w, 0, z0), p(w, 0, z1), p(0, 0, z1)]),
+		hidden: line(p(0, 0, z1), p(w, 0, z1)) + ' ' + line(p(0, 0, z1), p(0, 0, z0)) + ' ' + line(p(0, 0, z1), p(0, h, z1)),
+		front: poly([p(0, 0, z0), p(w, 0, z0), p(w, h, z0), p(0, h, z0)]),
+		right: poly([p(w, 0, z0), p(w, 0, z1), p(w, h, z1), p(w, h, z0)]),
+		top: poly([p(0, h, z0), p(w, h, z0), p(w, h, z1), p(0, h, z1)]),
+		// wood grain along the long side of the block
+		grain: [0.3, 0.55, 0.78]
+			.map((u) => {
+				const long = w >= h;
+				const a = long ? p(0, h * u, z0) : p(w * u, 0, z0);
+				const b = long ? p(w, h * u + 0.4, z0) : p(w * u + 0.3, h, z0);
+				return line(a, b);
+			})
+			.join(' '),
+		c,
+		edge: p(w, 0, z0 + d / 2),
+	};
+};
+
+const ARROW = 46; // px, the same force in both cases
+const flat = block(28, 20, 10, 5, 4);
+const tall = block(232, 10, 5, 20, 6.5);
+const tableTop = poly([[8, TABLE_Y], [334, TABLE_Y], [334 + D * 13, TABLE_Y - D * 13], [8 + D * 13, TABLE_Y - D * 13]]);
+const tableFront = `M8 ${TABLE_Y} H334 V${TABLE_Y + 12} H8 Z`;
+const tableSide = poly([[334, TABLE_Y], [334 + D * 13, TABLE_Y - D * 13], [334 + D * 13, TABLE_Y - D * 13 + 12], [334, TABLE_Y + 12]]);
+const cases = [
+	{ b: flat, cx: 95, title: 'на большой грани', S: '200 см² = 0,02 м²', calc: '4,9 Н : 0,02 м² = 245 Па', lab: [178, 172] },
+	{ b: tall, cx: 268, title: 'на малой грани', S: '50 см² = 0,005 м²', calc: '4,9 Н : 0,005 м² = 980 Па', lab: [310, 172] },
+];
+---
+
+<G7Styles />
+<figure class="g7 g7--pic g7--narrow blk not-content" data-dz-block>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 256" role="img" aria-label="Один и тот же брусок лежит на столе на большой грани и стоит на малой. Сила давления одна и та же, 4,9 ньютона, площадь опоры 200 и 50 квадратных сантиметров, давление 245 и 980 паскалей">
+			<text class="t-small" x="180" y="16" text-anchor="middle">брусок 20 × 10 × 5 см, m = 0,5 кг, F = gm = 4,9 Н</text>
+			<path class="blk__table" d={tableTop}></path>
+			<path class="blk__table-edge" d={tableFront}></path>
+			<path class="blk__table-edge" d={tableSide}></path>
+			{cases.map(({ b, cx, title, S, calc, lab }) => (
+				<>
+					<text class="t-title" x={cx} y="40" text-anchor="middle">{title}</text>
+					<path class="blk__area" d={b.base} />
+					<path class="blk__hidden" d={b.hidden} />
+					<path class="blk__face" d={b.front} />
+					<path class="blk__grain" d={b.grain} />
+					<path class="blk__face blk__face--side" d={b.right} />
+					<path class="blk__face blk__face--top" d={b.top} />
+					<path class="blk__area-edge" d={b.base} />
+					<path class="blk__lead" d={`M${f(b.edge[0] - 4)} ${f(b.edge[1])} L${lab[0] - 9} ${lab[1] - 4}`} />
+					<text class="t-i t-gold t-halo" x={lab[0]} y={lab[1]}>S</text>
+					<line class="arrow arrow--red blk__f" x1={f(b.c[0])} y1={f(b.c[1])} x2={f(b.c[0])} y2={f(b.c[1] + ARROW - 7)} />
+					<path class="head--red" d={`M${f(b.c[0] - 5)} ${f(b.c[1] + ARROW - 9)} L${f(b.c[0])} ${f(b.c[1] + ARROW)} L${f(b.c[0] + 5)} ${f(b.c[1] + ARROW - 9)} Z`} />
+					<text class="t-red t-halo" x={f(b.c[0] - 9)} y={f(b.c[1] + ARROW - 2)} text-anchor="end"><tspan class="t-i">F</tspan> = 4,9 Н</text>
+					<text class="t-num" x={cx} y="232" text-anchor="middle"><tspan class="t-i t-gold">S</tspan> = {S}</text>
+					<text class="t-num" x={cx} y="250" text-anchor="middle"><tspan class="t-i">p</tspan> = {calc}</text>
+				</>
+			))}
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Брусок давит на стол с одной и той же силой <i>F</i>&nbsp;=&nbsp;4,9&nbsp;Н. Площадь опоры <i>S</i> закрашена: на малой грани она в 4&nbsp;раза меньше, и давление в 4&nbsp;раза больше.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.blk__table {
+		fill: color-mix(in oklab, var(--g7-steel) 55%, var(--g7-paper));
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.blk__table-edge {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.blk__area {
+		fill: var(--g7-gold);
+	}
+	.blk__area-edge {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 1.6;
+		stroke-dasharray: 4 3;
+	}
+	.blk__hidden {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+		opacity: 0.7;
+	}
+	.blk__face {
+		fill: var(--g7-wood);
+		fill-opacity: 0.5;
+		stroke: var(--g7-ink);
+		stroke-width: 1.3;
+		stroke-linejoin: round;
+	}
+	.blk__face--side {
+		fill: var(--g7-wood-dark);
+	}
+	.blk__face--top {
+		fill: color-mix(in oklab, var(--g7-wood) 70%, var(--sl-color-white));
+	}
+	.blk__grain {
+		fill: none;
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+		opacity: 0.8;
+	}
+	.blk__lead {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 1;
+	}
+	.blk .t-gold {
+		fill: var(--g7-gold);
+	}
+	.blk .blk__f {
+		stroke-width: 2.6;
+	}
+</style>
