@@ -1,0 +1,352 @@
+---
+/**
+ * «Погружаем брусок»: the simple model under the formula F_А = gρ_жV_погр. A block 10 × 10 × 20 см (faces of
+ * S = 100 см², V_т = 2000 см³) hangs on a thread from a reel on a stand above a glass tank and is lowered into the
+ * liquid with the slider (or by dragging the block). The material of the block does not matter: the thread holds it,
+ * and the model shows only the Archimedes force.
+ *
+ * Physics: the slider sets d, the depth of the lower face under the surface (0…24 см, step 0,5 см; at 0 the block just touches the surface). The height of
+ * the immersed part is h = min(max(d, 0), 20) см, V_погр = S·h = 100·h см³, F_А = gρ_жV_погр with g = 9,8 Н/кг and
+ * ρ_ж from the chapter's table (physics.ts): kerosene 800, water 1000, brine 1200 кг/м³. Numbers: h = 10 см →
+ * V_погр = 1000 см³ = 0,001 м³, F_А = 9,8 Н in water, 7,84 Н in kerosene, 11,76 Н in brine; the whole block (h = 20 см):
+ * 19,6 / 15,68 / 23,52 Н. Lowered further, the force stays the same: it does not depend on the depth.
+ * The tank is 30 × 20 см inside (600 см²), 36 см high, with 18 л of liquid (level 30 см without the block); the
+ * displaced liquid raises the level honestly by V_погр / 600 см² (3,3 см for the whole block). The dashed line is the
+ * level without the block.
+ *
+ * Drawing: 5,5 px per см (about 6–7 times smaller than life on a screen). The F_А arrow starts at the center of the
+ * immersed part (where the force acts) and has one scale for every liquid: 4 px per Н (20 px = 5 Н, the key in the
+ * picture); below 3 Н it is drawn 12 px long so that its head stays visible. The block moves to the slider value in
+ * about 0,3 с (not to scale in time); the readouts follow it.
+ * Colors: the liquids as in the hydrometer model, F_А green as in every figure of the chapter, the immersed part
+ * violet.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import { LIQUIDS, fmtInt } from './physics';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const LIQ = LIQUIDS.filter((l) => ['kerosene', 'water', 'brine'].includes(l.id));
+---
+
+<G7Styles />
+<figure class="g7 subm not-content" data-subm>
+	<div class="g7__grid">
+		<svg
+			class="g7__svg"
+			viewBox="0 0 340 360"
+			role="img"
+			aria-label="Брусок на нити опускают в сосуд с жидкостью. Погружённая часть бруска выделена, вверх от неё направлена стрелка архимедовой силы"
+			data-svg
+		>
+			<defs>
+				<marker id={`subm-fa-${uid}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+					<path d="M 0 0 L 10 5 L 0 10 z"></path>
+				</marker>
+			</defs>
+			<!-- the table and the stand with the reel -->
+			<rect class="subm__table" x="8" y="340" width="324" height="8" rx="2"></rect>
+			<rect class="subm__steel" x="282" y="333" width="38" height="7" rx="2"></rect>
+			<rect class="subm__steel" x="298" y="6" width="6" height="328" rx="2"></rect>
+			<rect class="subm__steel" x="104" y="8" width="200" height="6" rx="2"></rect>
+			<rect class="subm__clamp" x="294" y="4" width="14" height="14" rx="2"></rect>
+			<line class="subm__steel-line" x1="116" y1="14" x2="116" y2="20"></line>
+			<line class="subm__thread" x1="122" y1="20" data-thread></line>
+			<circle class="subm__reel" cx="116" cy="20" r="6"></circle>
+			<line class="subm__spoke" x1="116" y1="20" x2="116" y2="15" data-spoke></line>
+
+			<!-- the block on its bridle -->
+			<g data-block class="drag">
+				<path class="subm__thread" d="" data-bridle></path>
+				<rect class="subm__block" x="94.5" width="55" height="110" rx="1.5" data-body></rect>
+				<rect class="subm__hit" x="84" width="76" height="130" data-hit></rect>
+			</g>
+
+			<!-- the liquid in front of the block, then the immersed part -->
+			<rect class="subm__liq" x="40" width="165" data-liq></rect>
+			<rect class="subm__vol" x="94.5" width="55" data-vol></rect>
+			<line class="subm__surf" x1="40" x2="205" data-surf></line>
+			<line class="subm__level0" x1="40" x2="205" data-level0></line>
+			<path class="subm__glass" d="M 38 138 V 340 H 207 V 138"></path>
+
+			<!-- the height of the immersed part -->
+			<g data-hdim>
+				<line class="subm__dim" x1="158" x2="158" data-hline></line>
+				<line class="subm__dim" x1="154" x2="162" data-htop></line>
+				<line class="subm__dim" x1="154" x2="162" data-hbot></line>
+				<text class="t-i t-halo" x="165" data-hlab>h</text>
+			</g>
+			<text class="t-i t-halo subm__vlab" x="89" text-anchor="end" data-vlab>V<tspan class="subm__sub" dy="4">погр</tspan></text>
+
+			<!-- the force -->
+			<line class="subm__fa" x1="122" x2="122" marker-end={`url(#subm-fa-${uid})`} data-fa></line>
+			<text class="t-i t-halo subm__falab" x="128" data-falab>F<tspan class="subm__sub" dy="4">А</tspan></text>
+
+			<text class="t-small t-halo" x="46" y="330" data-liqname>вода</text>
+			<text class="t-small" x="212" data-level0lab><tspan x="212">уровень</tspan><tspan x="212" dy="12">без бруска</tspan></text>
+			<!-- the key of the force scale -->
+			<line class="subm__fa" x1="230" x2="230" y1="320" y2="300" marker-end={`url(#subm-fa-${uid})`}></line>
+			<text class="t-small" x="238" y="314">5&nbsp;Н</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row subm__btns" role="group" aria-label="Жидкость">
+				{
+					LIQ.map((l) => (
+						<button type="button" class="g7__btn" data-liq-btn={l.id} aria-pressed={l.id === 'water' ? 'true' : 'false'}>
+							{l.name} <span class="subm__rho">{fmtInt(l.rho)}</span>
+						</button>
+					))
+				}
+			</div>
+			<p class="g7__note">Числа на кнопках — плотность жидкости, кг/м³.</p>
+			<label class="g7__slider">
+				<span>Глубина нижней грани</span>
+				<output data-out></output>
+				<input type="range" min="0" max="24" step="0.5" value="10" data-d aria-label="Глубина нижней грани бруска под поверхностью жидкости, сантиметры" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Высота погружённой части <i>h</i></span><b data-o-h></b></li>
+				<li><span>Её объём <i>V</i><sub>погр</sub></span><b data-o-v></b></li>
+				<li class="subm__key"><span>Архимедова сила <i>F</i><sub>А</sub></span><b data-o-f></b></li>
+			</ul>
+			<ul class="g7__lines subm__calc">
+				<li data-c-v></li>
+				<li data-c-f></li>
+			</ul>
+			<p class="g7__note">Площадь нижней грани бруска <i>S</i> = 100&nbsp;см², <span class="subm__nw"><i>g</i> = 9,8&nbsp;Н/кг</span>. Объём — в м³, плотность — в кг/м³, сила — в ньютонах.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Брусок 10&nbsp;×&nbsp;10&nbsp;×&nbsp;20&nbsp;см опускают на нити в жидкость. Сиреневым выделена погружённая часть, её объём <i>V</i><sub>погр</sub>&nbsp;=&nbsp;<i>S</i>·<i>h</i>. Чем глубже погружён брусок, тем больше архимедова сила; когда он целиком в жидкости, сила больше не растёт. Вытесненная жидкость поднимает уровень в сосуде, пунктир — уровень без бруска. Брусок и сосуд уменьшены примерно в&nbsp;<span class="subm__nw">6–7&nbsp;раз</span>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.subm {
+		--subm-liq: var(--ig-vx);
+	}
+	.subm[data-liq='kerosene'] {
+		--subm-liq: var(--ig-v);
+	}
+	.subm[data-liq='brine'] {
+		--subm-liq: color-mix(in oklab, var(--ig-vx) 45%, var(--g7-green));
+	}
+	.subm__table {
+		fill: var(--g7-wood);
+	}
+	.subm__steel {
+		fill: var(--g7-steel);
+	}
+	.subm__steel-line {
+		stroke: var(--g7-steel);
+		stroke-width: 2;
+	}
+	.subm__clamp {
+		fill: var(--g7-steel-dark);
+	}
+	.subm__reel {
+		fill: var(--g7-steel-dark);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.subm__spoke {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.subm__thread {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.subm__block {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.subm__hit {
+		fill: transparent;
+	}
+	.subm__liq {
+		fill: var(--subm-liq);
+		fill-opacity: 0.28;
+		transition: fill 0.5s;
+	}
+	.subm__surf {
+		stroke: var(--subm-liq);
+		stroke-width: 2;
+		transition: stroke 0.5s;
+	}
+	.subm__level0 {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		stroke-dasharray: 4 3;
+	}
+	.subm__vol {
+		fill: var(--g7-violet);
+		fill-opacity: 0.42;
+		stroke: var(--g7-violet);
+		stroke-width: 1.6;
+		stroke-dasharray: 5 3;
+	}
+	.subm__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.subm__dim {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.2;
+	}
+	.subm svg .subm__vlab {
+		fill: var(--g7-violet);
+	}
+	.subm__fa {
+		stroke: var(--g7-green);
+		stroke-width: 3;
+	}
+	.subm marker path {
+		fill: var(--g7-green);
+	}
+	.subm svg .subm__falab {
+		fill: var(--g7-green);
+	}
+	.subm svg .subm__sub {
+		font-size: 10px;
+		font-style: normal;
+		font-family: var(--__sl-font);
+	}
+	.subm__btns .g7__btn {
+		flex: 1 1 auto;
+	}
+	.subm__rho {
+		font-weight: 400;
+		font-size: var(--sl-text-xs);
+		opacity: 0.8;
+	}
+	.g7__read li.subm__key {
+		box-shadow: inset 3px 0 0 var(--g7-green);
+		background: color-mix(in oklab, var(--g7-green) 14%, var(--sl-color-gray-6));
+	}
+	.subm__nw {
+		white-space: nowrap;
+	}
+	.subm__calc li {
+		font-size: var(--sl-text-sm);
+	}
+</style>
+
+<script>
+	import { drag, fmtTrim, k, loop, set, tex } from '../g7/kit';
+	import { LIQUIDS, clamp } from './physics';
+
+	const G = 9.8; // N/kg
+	const PX = 5.5; // px per cm
+	const BOTTOM = 338; // y of the inner bottom of the tank
+	const AREA = 100; // cm², the lower face of the block
+	const H = 20; // cm, the height of the block
+	const TANK = 600; // cm², the inner cross-section of the tank
+	const LEVEL0 = 30; // cm, the level without the block
+	const KF = 4; // px per N
+	const MIN_ARROW = 12; // px
+	const CX = 122; // the axis of the block
+	const D_MIN = 0;
+	const D_MAX = 24;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-subm]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const input = q<HTMLInputElement>('[data-d]');
+		const out = q<HTMLOutputElement>('[data-out]');
+		const block = q<SVGGElement>('[data-block]');
+
+		let liq = LIQUIDS.find((l) => l.id === 'water')!;
+		let target = Number(input.value); // cm
+		let d = target;
+
+		const draw = () => {
+			const hr = Math.round(clamp(d, 0, H) * 10) / 10; // cm, shown to 0,1 см while the block moves
+			const v = AREA * hr; // cm³
+			const f = G * liq.rho * v * 1e-6; // N
+			const level = LEVEL0 + (AREA * clamp(d, 0, H)) / TANK; // cm
+			const ys = BOTTOM - level * PX;
+			const yb = ys + d * PX; // the lower face
+			const yt = yb - H * PX;
+			set(q('[data-liq]'), { y: ys.toFixed(1), height: (BOTTOM - ys).toFixed(1) });
+			set(q('[data-surf]'), { y1: ys.toFixed(1), y2: ys.toFixed(1) });
+			const y0 = BOTTOM - LEVEL0 * PX;
+			const raised = level - LEVEL0 > 0.05;
+			set(q('[data-level0]'), { y1: y0, y2: y0, visibility: raised ? 'visible' : 'hidden' });
+			set(q('[data-level0lab]'), { y: y0 + 3, visibility: raised ? 'visible' : 'hidden' });
+			set(q('[data-body]'), { y: yt.toFixed(1) });
+			set(q('[data-hit]'), { y: (yt - 14).toFixed(1) });
+			const hook = yt - 12;
+			set(q('[data-bridle]'), { d: `M ${CX} ${hook.toFixed(1)} L ${CX - 22} ${yt.toFixed(1)} M ${CX} ${hook.toFixed(1)} L ${CX + 22} ${yt.toFixed(1)}` });
+			set(q('[data-thread]'), { x2: CX, y2: hook.toFixed(1) });
+			// the reel turns as the thread unwinds: 5,5 px of thread per cm, radius 6 px
+			const a = (d * PX) / 6;
+			set(q('[data-spoke]'), { x2: (116 + 5 * Math.sin(a)).toFixed(2), y2: (20 - 5 * Math.cos(a)).toFixed(2) });
+
+			const hpx = clamp(d, 0, H) * PX;
+			const on = hpx > 0.3;
+			set(q('[data-vol]'), { y: (yb - hpx).toFixed(1), height: hpx.toFixed(1), visibility: on ? 'visible' : 'hidden' });
+			set(q('[data-hdim]'), { visibility: on ? 'visible' : 'hidden' });
+			set(q('[data-hline]'), { y1: (yb - hpx).toFixed(1), y2: yb.toFixed(1) });
+			set(q('[data-htop]'), { y1: (yb - hpx).toFixed(1), y2: (yb - hpx).toFixed(1) });
+			set(q('[data-hbot]'), { y1: yb.toFixed(1), y2: yb.toFixed(1) });
+			set(q('[data-hlab]'), { y: (yb - hpx / 2 + 5).toFixed(1) });
+			set(q('[data-vlab]'), { y: (yb - Math.max(hpx, 16) / 2 + 3).toFixed(1), visibility: on ? 'visible' : 'hidden' });
+
+			const yc = yb - hpx / 2; // the center of the immersed part
+			const len = f > 0 ? Math.max(MIN_ARROW, f * KF) : 0;
+			set(q('[data-fa]'), { y1: yc.toFixed(1), y2: (yc - len).toFixed(1), visibility: on ? 'visible' : 'hidden' });
+			set(q('[data-falab]'), { y: (yc - len + 8).toFixed(1), visibility: on ? 'visible' : 'hidden' });
+
+			q('[data-liqname]').textContent = liq.name.toLowerCase();
+			out.textContent = `${fmtTrim(Math.max(d, 0), 1)} см`;
+			const hs = fmtTrim(hr, 1);
+			q("[data-o-h]").textContent = `${hs} см`;
+			const vm = fmtTrim(v * 1e-6, 5);
+			q('[data-o-v]').textContent = `${fmtTrim(v, 0)} см³`;
+			const fs = fmtTrim(f, 2);
+			q('[data-o-f]').textContent = `${fs} Н`;
+			q('[data-c-v]').innerHTML = k(`V_{\\text{погр}} = Sh = 100\\ \\text{см}^2 \\cdot ${tex(hs)}\\ \\text{см} = ${tex(fmtTrim(v, 0))}\\ \\text{см}^3 = ${tex(vm)}\\ \\text{м}^3`);
+			q('[data-c-f]').innerHTML = k(
+				`F_{\\text{А}} = g\\rho_{\\text{ж}}V_{\\text{погр}} = 9{,}8 \\cdot ${tex(String(liq.rho))} \\cdot ${tex(vm)} = ${tex(fs)}\\ \\text{Н}`,
+			);
+		};
+
+		const wake = loop(root, (dt) => {
+			const step = (target - d) * Math.min(1, dt * 12);
+			d = Math.abs(target - d) < 0.02 ? target : d + step;
+			draw();
+			return d !== target;
+		});
+
+		const setTarget = (v: number) => {
+			target = clamp(Math.round(v * 2) / 2, D_MIN, D_MAX);
+			input.value = String(target);
+			wake();
+		};
+		input.addEventListener('input', () => setTarget(Number(input.value)));
+
+		let d0 = 0;
+		drag(block, svg, {
+			start: () => {
+				d0 = target;
+			},
+			move: (_p, s) => setTarget(d0 + s.dy / PX),
+		});
+
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-liq-btn]')) {
+			b.addEventListener('click', () => {
+				liq = LIQUIDS.find((l) => l.id === b.dataset.liqBtn)!;
+				root.dataset.liq = liq.id;
+				root.querySelectorAll('[data-liq-btn]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				draw();
+			});
+		}
+		root.dataset.liq = liq.id;
+		draw();
+	}
+</script>
