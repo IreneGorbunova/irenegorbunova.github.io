@@ -1,0 +1,243 @@
+---
+/**
+ * Model: a ball thrown vertically up from the point O on the ground (a small launcher plate) and falling back to it.
+ * The scale «y, м» 0…35 м (ticks every 5 м), 8,8 px per metre; the ball (drawn 5 px across, not to scale) carries its
+ * velocity (blue arrow on its right, 2,4 px per м/с, up or down; near the ground a downward arrow is moved up as a whole
+ * so its head stays above the ground) and g (red arrow on its left, always 24 px, down). Faint marks every 0,2 с:
+ * filled on the way up, rings on the way down (they fall on the same heights).
+ * Physics without air: g = 9,8 м/с², υ_y = υ₀ − gt, y = υ₀t − gt²/2; the top at t_под = υ₀/g, H = υ₀²/(2g); back at
+ * O after t_пол = 2υ₀/g with the speed υ₀ downward. Examples: υ₀ = 10 м/с → t_под = 1,02 с, H = 5,10 м,
+ * t_пол = 2,04 с; υ₀ = 20 м/с → 2,04 с and 20,4 м; υ₀ = 25 м/с → 2,55 с, 31,9 м, 5,10 с.
+ * Graph υ_y(t): t 0…5,2 с, υ_y −25…25 м/с, a straight line from υ₀ to −υ₀ with the slope −g; the top marked where it
+ * crosses zero; the dot at the present moment. Controls: υ₀ 5…25 м/с (step 1, default 10), «Бросить», «Пауза /
+ * Продолжить», «Сначала», and the time slider 0…t_пол (step 0,01 с). The clock runs in real time (the longest flight
+ * lasts 5,1 с). After the flight a table gives the times of rise and fall, H and the speed of return.
+ */
+import SptStyles from './SptStyles.astro';
+---
+
+<SptStyles />
+<figure class="g7 spt not-content" data-throwlab>
+	<div class="g7__grid spt-throw-grid">
+		<svg class="g7__svg" viewBox="0 0 170 360" role="img" aria-label="Мяч, брошенный вертикально вверх, и шкала высоты от 0 до 35 метров. Синяя стрелка — скорость мяча, красная — ускорение свободного падения">
+			<rect class="spt-sky" x="0" y="0" width="170" height="338"></rect>
+			<rect class="spt-earth" x="0" y="338" width="170" height="22"></rect>
+			<g data-scale></g>
+			<!-- the launcher plate at O -->
+			<rect class="spt-plate" x="86" y="334" width="22" height="4" rx="1"></rect>
+			<text class="t-i" x="114" y="336">O</text>
+			<line class="spt-ref" data-topline x1="60" x2="166" y1="0" y2="0" visibility="hidden"></line>
+			<text class="t-small t-gold t-halo" data-toptext x="167" y="0" text-anchor="end" visibility="hidden"></text>
+			<g data-marks></g>
+			<circle class="spt-ball" data-ball cx="97" cy="333" r="5"></circle>
+			<g data-arrows></g>
+		</svg>
+		<div class="g7__side">
+			<svg class="g7__svg" viewBox="0 0 220 168" role="img" aria-label="График проекции скорости мяча от времени — прямая, идущая вниз"><g data-gframe></g><path class="spt-curve" data-gline d=""></path><g data-gtop></g><circle class="spt-dot--now" data-gdot r="4"></circle></svg>
+			<label class="g7__slider"><span>Скорость броска <i>υ</i><sub>0</sub></span><output data-ov></output><input type="range" min="5" max="25" step="1" value="10" data-v0 aria-label="Скорость броска, метры в секунду" /></label>
+			<label class="g7__slider"><span>Время <i>t</i></span><output data-ot></output><input type="range" min="0" max="2.04" step="0.01" value="0" data-t aria-label="Время, секунды" /></label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Бросить</button>
+				<button type="button" class="g7__btn" data-pause disabled>Пауза</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+		</div>
+	</div>
+	<div class="spt-throw-out">
+		<ul class="g7__lines" data-calc></ul>
+		<ul class="g7__read" data-table style="display: none"></ul>
+	</div>
+	<figcaption class="g7__caption">
+		Синяя стрелка — скорость мяча, красная — ускорение свободного падения <i>g</i>: оно не меняется ни при подъёме, ни в верхней точке, ни при спуске. Бледные кружки отмечают мяч через каждые 0,2&nbsp;с: сплошные — на пути вверх, контурные — на пути вниз. Воздух не учитывается; мяч нарисован крупнее, чем в масштабе шкалы. Время идёт как настоящее.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.spt .spt-sky {
+		fill: color-mix(in oklab, var(--ig-vx) 10%, var(--g7-paper));
+	}
+	.spt .spt-earth {
+		fill: var(--g7-ground);
+	}
+	.spt .spt-plate {
+		fill: var(--g7-steel);
+	}
+	.spt .spt-mark-up {
+		fill: var(--sl-color-gray-3);
+		opacity: 0.45;
+	}
+	.spt .spt-mark-down {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		opacity: 0.7;
+	}
+	/* the ball's column stays beside the graph and the sliders on every screen, so the ball is seen while the time
+	   slider moves; the formulas and the table go under both, full width */
+	.g7 .g7__grid.spt-throw-grid {
+		grid-template-columns: minmax(0, 0.55fr) minmax(0, 1fr);
+	}
+	@container (max-width: 34rem) {
+		.g7 .g7__grid.spt-throw-grid {
+			grid-template-columns: minmax(0, 0.62fr) minmax(0, 1fr);
+			gap: 0.6rem;
+		}
+	}
+	.spt .spt-throw-out {
+		display: grid;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+</style>
+
+<script>
+	import { k, loop } from '../g7/kit';
+	import { el, f1, fmt, G, graphFrame, label, newArrow } from './spt';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-throwlab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const Y0 = 333; // the ball's center at O
+		const K = 8.8; // px per metre
+		const VS = 2.4; // px per м/с
+		const BX = 97;
+		const inV = $<HTMLInputElement>('[data-v0]');
+		const inT = $<HTMLInputElement>('[data-t]');
+		const go = $<HTMLButtonElement>('[data-go]');
+		const pause = $<HTMLButtonElement>('[data-pause]');
+		const ball = $<SVGCircleElement>('[data-ball]');
+		// the scale
+		const sc = $<SVGGElement>('[data-scale]');
+		sc.append(el('path', { class: 'ink', d: `M40 ${Y0} V${Y0 - 35 * K - 8}` }));
+		sc.append(el('path', { class: 'head--ink', d: `M40 ${f1(Y0 - 35 * K - 14)} l-4 9 h8 Z` }));
+		for (let m = 0; m <= 35; m += 5) {
+			const y = Y0 - m * K;
+			sc.append(el('line', { class: 'ln', x1: 36, y1: f1(y), x2: 44, y2: f1(y) }));
+			const t = el('text', { class: 't-small t-num', x: 32, y: f1(y + 3.5), 'text-anchor': 'end' });
+			t.textContent = String(m);
+			sc.append(t);
+		}
+		label(sc, 48, 14, [['y'], ', м']);
+		const vArrow = newArrow($<SVGGElement>('[data-arrows]'), 'blue');
+		const gArrow = newArrow($<SVGGElement>('[data-arrows]'), 'red');
+		const marks = $<SVGGElement>('[data-marks]');
+		const topLine = $<SVGLineElement>('[data-topline]');
+		const topText = $<SVGTextElement>('[data-toptext]');
+		const gf = graphFrame($<SVGGElement>('[data-gframe]'), { x0: 34, y0: 14, w: 168, h: 136, t1: 5.2, tStep: 1, v0: -25, v1: 25, vStep: 5, vEvery: 10, vName: ['υ', 'y'], vUnit: 'м/с' });
+		// the numbers of the axes go on top of the graph's line, each on a halo, so the line never hides them
+		{
+			const nums = el('g', {});
+			$('[data-gframe]').querySelectorAll('text').forEach((t) => {
+				t.classList.add('t-halo');
+				nums.append(t);
+			});
+			$('[data-gdot]').before(nums);
+		}
+		let t = 0;
+		let running = false;
+		const tex = (v: number, d = 2) => fmt(v, d).replace(',', '{,}').replace('−', '-');
+		const draw = () => {
+			const v0 = Number(inV.value);
+			const tUp = v0 / G;
+			const tAll = 2 * tUp;
+			const H = (v0 * v0) / (2 * G);
+			t = Math.min(t, tAll);
+			inT.max = tAll.toFixed(2);
+			if (Math.abs(Number(inT.value) - t) > 0.004) inT.value = t.toFixed(2);
+			$<HTMLOutputElement>('[data-ov]').textContent = `${v0} м/с`;
+			$<HTMLOutputElement>('[data-ot]').textContent = `${fmt(t, 2)} с`;
+			const vy = v0 - G * t;
+			const y = Math.max(0, v0 * t - 0.5 * G * t * t);
+			const yb = Y0 - y * K;
+			ball.setAttribute('cy', f1(yb));
+			// the velocity beside the ball on the right, g on the left; near the ground a downward arrow is moved up as a
+			// whole (its length kept) so that its head stays above the ground
+			const len = -vy * VS;
+			const lift = Math.max(0, yb + len - 336);
+			vArrow(BX + 10, yb - lift, BX + 10, yb + len - lift, 6, 3.5);
+			gArrow(BX - 12, yb - 14, BX - 12, yb + 10, 6, 3.5);
+			// marks every 0,2 с up to now
+			marks.replaceChildren();
+			for (let s = 0.2; s <= t + 1e-9 && s < tAll - 1e-9; s += 0.2) {
+				const ys = Y0 - (v0 * s - 0.5 * G * s * s) * K;
+				marks.append(el('circle', { class: s <= tUp ? 'spt-mark-up' : 'spt-mark-down', cx: BX, cy: f1(ys), r: 4.5 }));
+			}
+			// the top: a dashed line at H once reached
+			const reached = t >= tUp - 1e-9;
+			topLine.setAttribute('visibility', reached ? 'visible' : 'hidden');
+			topText.setAttribute('visibility', reached ? 'visible' : 'hidden');
+			const yh = Y0 - H * K;
+			topLine.setAttribute('y1', f1(yh));
+			topLine.setAttribute('y2', f1(yh));
+			topText.setAttribute('y', f1(yh - 4));
+			topText.textContent = `H = ${fmt(H, 2)} м`;
+			// the graph: the whole line, the top, the dot
+			$('[data-gline]').setAttribute('d', `M${f1(gf.T(0))} ${f1(gf.V(v0))} L${f1(gf.T(tAll))} ${f1(gf.V(-v0))}`);
+			const gt = $<SVGGElement>('[data-gtop]');
+			gt.replaceChildren();
+			// the top: a dashed line up from the crossing (clear of the time numbers under the axis), its name at the top
+			gt.append(el('line', { class: 'spt-ref', x1: f1(gf.T(tUp)), y1: f1(gf.V(0)), x2: f1(gf.T(tUp)), y2: f1(gf.V(25)) }));
+			const tt = el('text', { class: 't-small t-halo', x: f1(gf.T(tUp) + 3), y: f1(gf.V(25) + 9) });
+			tt.textContent = 'верхняя точка';
+			gt.append(tt);
+			const dot = $<SVGCircleElement>('[data-gdot]');
+			dot.setAttribute('cx', f1(gf.T(t)));
+			dot.setAttribute('cy', f1(gf.V(vy)));
+			// formulas with the numbers
+			$('[data-calc]').innerHTML = [
+				`<li class="is-key">${k(`t = ${tex(t)}\\ \\text{с}`)}</li>`,
+				`<li>${k(`\\upsilon_y = \\upsilon_0 - gt = ${v0} - 9{,}8 \\cdot ${tex(t)} = ${tex(Math.abs(vy) < 0.005 ? 0 : vy, 1)}\\ \\text{м/с}`)}</li>`,
+				`<li>${k(`y = \\upsilon_0 t - \\dfrac{gt^2}{2} = ${tex(y)}\\ \\text{м}`)}</li>`,
+			].join('');
+			// after the flight: the table
+			const tb = $<HTMLUListElement>('[data-table]');
+			const done = t >= tAll - 1e-9;
+			tb.style.display = done ? '' : 'none';
+			if (done)
+				tb.innerHTML = [
+					`<li><span>Время подъёма</span><b>${fmt(tUp, 2)} с</b></li>`,
+					`<li><span>Время спуска</span><b>${fmt(tAll - tUp, 2)} с</b></li>`,
+					`<li class="is-warm"><span>Наибольшая высота <i>H</i></span><b>${fmt(H, 2)} м</b></li>`,
+					`<li class="is-key"><span>Скорость при возвращении</span><b>${fmt(v0, 1)} м/с</b></li>`,
+				].join('');
+			pause.disabled = t === 0 && !running;
+			pause.textContent = !running && t > 0 && t < tAll - 1e-9 ? 'Продолжить' : 'Пауза';
+			if (t >= tAll - 1e-9) pause.disabled = true;
+		};
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			const tAll = (2 * Number(inV.value)) / G;
+			t = Math.min(tAll, t + dt);
+			if (t >= tAll) running = false;
+			draw();
+			return running;
+		});
+		go.addEventListener('click', () => {
+			t = 0;
+			running = true;
+			draw();
+			wake();
+		});
+		pause.addEventListener('click', () => {
+			running = !running;
+			draw();
+			if (running) wake();
+		});
+		$('[data-reset]').addEventListener('click', () => {
+			running = false;
+			t = 0;
+			draw();
+		});
+		inT.addEventListener('input', () => {
+			running = false;
+			// the slider's end is the moment of return (its max is rounded to 0,01 с)
+			t = Number(inT.value) >= Number(inT.max) - 1e-9 ? (2 * Number(inV.value)) / G : Number(inT.value);
+			draw();
+		});
+		inV.addEventListener('input', () => {
+			running = false;
+			t = 0;
+			draw();
+		});
+		draw();
+	}
+</script>

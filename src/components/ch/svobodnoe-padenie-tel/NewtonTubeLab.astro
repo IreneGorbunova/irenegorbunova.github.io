@@ -1,0 +1,254 @@
+---
+/**
+ * Model: the school «трубка Ньютона». A glass tube 1,0 м long, closed at both ends, with a tap at one end; a hand pump
+ * with a hose stands beside it. Inside: a lead shot (4 мм), a piece of cork (1 см) and a bird's feather. The buttons
+ * leave 100 %, 10 %, 1 % or 0,1 % of the air in the tube (the faint dots of air follow: 70, 7, 1 and 0 dots; the pump
+ * handle makes three strokes when air is taken out or let in). «Перевернуть трубку» turns the tube by 180° in 0,8 с
+ * (the bodies lie at the lower end and go up with it), then the three bodies fall the 1,0 м from the top.
+ *
+ * Physics: each body falls with quadratic air drag, a = g(1 − υ²/υт²), g = 9,8 м/с², stepped every 10 мкс. The
+ * terminal speeds in ordinary air are 32 м/с (shot), 6,8 м/с (cork) and 0,6 м/с (feather); with a share f of the
+ * air left υт grows as 1/√f. Times of the fall over 1,0 м:
+ *     air left   shot     cork     feather
+ *     100 %      0,45 с   0,47 с   1,71 с
+ *     10 %       0,45 с   0,45 с   0,66 с
+ *     1 %        0,45 с   0,45 с   0,47 с
+ *     0,1 %      0,45 с   0,45 с   0,45 с      (no air at all: √(2·1,0/9,8) = 0,452 с, 4,43 м/с at the bottom)
+ * The feather falls flat and rocks a little while there is air (amplitude ∝ √f, so it hardly rocks at 0,1 %).
+ * Scale: the tube's length is to scale (228 px per metre); its width and the bodies are drawn several times larger.
+ * The switch «Замедлить в 10 раз» (on by default) slows the fall; the stopwatch shows real seconds in both modes.
+ */
+import SptStyles from './SptStyles.astro';
+---
+
+<SptStyles />
+<figure class="g7 spt not-content" data-tubelab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 320" role="img" aria-label="Стеклянная трубка с дробинкой, кусочком пробки и пером внутри, рядом ручной насос со шлангом. Трубку переворачивают, и тела падают внутри неё">
+			<!-- the stand: a base on the table -->
+			<rect class="ln" x="0" y="306" width="300" height="1"></rect>
+			<!-- the pump on the left -->
+			<g data-pump>
+				<rect class="spt-cap" x="22" y="236" width="20" height="62" rx="3"></rect>
+				<rect class="spt-cap" x="14" y="296" width="36" height="6" rx="2"></rect>
+				<g data-handle>
+					<rect class="spt-cap" x="30" y="206" width="4" height="34"></rect>
+					<rect class="spt-cap" x="18" y="202" width="28" height="6" rx="3"></rect>
+				</g>
+			</g>
+			<path class="spt-hose" data-hose d=""></path>
+			<g data-tube>
+				<rect class="spt-glass" x="102" y="40" width="56" height="240" rx="6"></rect>
+				<path class="spt-glass-hl" d="M110 52 V268 M150 60 V120"></path>
+				<g data-air></g>
+				<g data-bodies></g>
+				<rect class="spt-cap" x="98" y="34" width="64" height="9" rx="2"></rect>
+				<rect class="spt-cap" x="98" y="277" width="64" height="9" rx="2"></rect>
+				<!-- the tap at end A (the lower end at the start) -->
+				<rect class="spt-cap" x="124" y="286" width="12" height="9"></rect>
+				<path class="spt-cap" d="M122 289 h-10 v3 h10 Z"></path>
+			</g>
+			<!-- the stopwatch -->
+			<g transform="translate(232 40)">
+				<circle class="spt-clock" r="24"></circle>
+				<rect class="spt-cap" x="-4" y="-31" width="8" height="6" rx="1.5"></rect>
+				<line class="ink" data-hand x1="0" y1="0" x2="0" y2="-19"></line>
+				<circle class="ink" r="1.6"></circle>
+				<text class="t-strong t-num" x="0" y="44" text-anchor="middle" data-time>0,00 с</text>
+			</g>
+			<g data-landed></g>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__label">Сколько воздуха осталось в трубке</div>
+			<div class="g7__seg" data-airseg>
+				<button type="button" class="g7__btn" data-f="1" aria-pressed="true">Воздух</button>
+				<button type="button" class="g7__btn" data-f="0.1" aria-pressed="false">Откачано 90&nbsp;%</button>
+				<button type="button" class="g7__btn" data-f="0.01" aria-pressed="false">Откачано 99&nbsp;%</button>
+				<button type="button" class="g7__btn" data-f="0.001" aria-pressed="false">Откачано 99,9&nbsp;%</button>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-flip>Перевернуть трубку</button>
+				<label class="spt-switch"><input type="checkbox" data-slow checked /> Замедлить в 10 раз</label>
+			</div>
+			<ul class="g7__read" data-read></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Трубка длиной 1&nbsp;м; её ширина и тела внутри нарисованы в несколько раз крупнее. Сопротивление воздуха рассчитано для каждого тела; чем меньше воздуха в трубке, тем оно слабее. Секундомер показывает настоящее время и тогда, когда падение замедлено.
+	</figcaption>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { dragFall, el, f1, fmt } from './spt';
+	import { ease } from '@components/people/motion';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-tubelab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const TX = 130;
+		const CY = 160;
+		const IN0 = 43; // the inside of the tube, tube frame
+		const IN1 = 277;
+		const tube = $<SVGGElement>('[data-tube]');
+		const hose = $<SVGPathElement>('[data-hose]');
+		const handle = $<SVGGElement>('[data-handle]');
+		const handS = $<SVGLineElement>('[data-hand]');
+		const timeT = $<SVGTextElement>('[data-time]');
+		const read = $<HTMLUListElement>('[data-read]');
+		const slow = $<HTMLInputElement>('[data-slow]');
+		const flipBtn = $<HTMLButtonElement>('[data-flip]');
+		const VT = { shot: 32, cork: 6.8, feather: 0.6 };
+		const NAMES = { shot: 'дробинка', cork: 'пробка', feather: 'перо' };
+		type Key = keyof typeof VT;
+		const KEYS: Key[] = ['shot', 'cork', 'feather'];
+		const DOTS: Record<string, number> = { '1': 70, '0.1': 7, '0.01': 1, '0.001': 0 };
+		// the bodies, drawn around their centers in the tube frame; half heights in px
+		const bodiesG = $<SVGGElement>('[data-bodies]');
+		const mk = (k: Key) => {
+			const g = el('g', {});
+			if (k === 'shot') g.append(el('circle', { class: 'spt-lead', r: 2.4 }));
+			if (k === 'cork') g.append(el('rect', { class: 'spt-cork', x: -3.5, y: -4.5, width: 7, height: 9, rx: 1.2 }));
+			if (k === 'feather') {
+				g.append(el('path', { class: 'spt-feather', d: 'M-12 0.4 Q-8 -3.4 0 -3.6 Q8 -3.2 12 -0.4 Q8 2.6 0 2.8 Q-8 3 -12 0.4 Z' }));
+				g.append(el('path', { class: 'spt-quill', d: 'M-14 0.6 L12 -0.3 M-6 -2.6 L-3 0.2 M0 -3.2 L3 0.1 M5 -2.8 L7 -0.1 M-5 2.4 L-2 0.3 M2 2.6 L5 0.1' }));
+			}
+			bodiesG.append(g);
+			return g;
+		};
+		const BX: Record<Key, number> = { shot: TX - 17, cork: TX - 4, feather: TX + 13 };
+		const HH: Record<Key, number> = { shot: 2.4, cork: 4.5, feather: 3.4 };
+		const bodyEl = Object.fromEntries(KEYS.map((k) => [k, mk(k)])) as Record<Key, SVGGElement>;
+		// air dots at fixed random places in the tube frame
+		let seed = 5;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		const airG = $<SVGGElement>('[data-air]');
+		const dots = Array.from({ length: 70 }, () => {
+			const c = el('circle', { class: 'spt-air', r: 1.1, cx: f1(106 + rnd() * 48), cy: f1(IN0 + 3 + rnd() * (IN1 - IN0 - 6)) });
+			airG.append(c);
+			return c;
+		});
+		const landedG = $<SVGGElement>('[data-landed]');
+
+		let f = 1; // share of the air left
+		let shown = 70; // dots shown (animated toward DOTS[f])
+		let pumpT = 0; // s of pumping left
+		let parity = 0; // 0: end A down (the start), 1: end A up
+		let phase: 'rest' | 'flip' | 'fall' | 'done' = 'rest';
+		let tFlip = 0;
+		let tFall = 0; // real seconds of the fall
+		let falls = Object.fromEntries(KEYS.map((k) => [k, dragFall(VT[k] / Math.sqrt(f), 1.0)])) as Record<Key, ReturnType<typeof dragFall>>;
+		const vacuum = dragFall(0, 1.0).T;
+		const setFalls = () => {
+			falls = Object.fromEntries(KEYS.map((k) => [k, dragFall(VT[k] / Math.sqrt(f), 1.0)])) as Record<Key, ReturnType<typeof dragFall>>;
+		};
+		const tStr = (t: number) => `${fmt(t, 2)} с`;
+		const angle = () => 180 * parity + (phase === 'flip' ? 180 * ease(tFlip / 0.8) : 0);
+		// the tube frame y of a body: lying at the lower end, or fallen p (0…1) from the upper one
+		const yRest = (k: Key, down: number) => (down === 0 ? IN1 - HH[k] - 0.5 : IN0 + HH[k] + 0.5);
+		const draw = () => {
+			const a = angle();
+			tube.setAttribute('transform', `rotate(${f1(a)} ${TX} ${CY})`);
+			// the hose goes to the tap only while the tube stands still
+			if (phase === 'flip') hose.setAttribute('d', '');
+			else {
+				const tapY = parity === 0 ? 296 : 24;
+				hose.setAttribute('d', parity === 0 ? `M130 ${tapY} Q130 312 80 312 Q44 312 44 296 V286` : `M130 ${tapY} Q130 8 80 10 Q40 12 40 60 V236`);
+			}
+			for (const k of KEYS) {
+				let y: number;
+				let rot = 0;
+				let dx = 0;
+				if (phase === 'fall' || phase === 'done') {
+					// fallen from the end that is now up (tube frame: parity 0 → falls toward IN1)
+					const p = falls[k].y(tFall) / 1.0;
+					const span = IN1 - IN0 - 2 * HH[k] - 1;
+					y = parity === 0 ? IN0 + HH[k] + 0.5 + p * span : IN1 - HH[k] - 0.5 - p * span;
+					if (k === 'feather' && p < 1) {
+						const amp = 0.4 * Math.sqrt(f);
+						rot = amp * Math.sin(2 * Math.PI * 1.4 * tFall);
+						dx = 6 * amp * Math.sin(2 * Math.PI * 0.7 * tFall);
+					}
+				} else {
+					// at rest, or turning with the tube: on the lower end before the turn
+					y = yRest(k, phase === 'flip' ? parity : parity);
+				}
+				// in the tube frame the screen's "down" is +y for parity 0 and −y for parity 1: rotate the feather the same way
+				bodyEl[k].setAttribute('transform', `translate(${f1(BX[k] + dx)} ${f1(y)}) rotate(${f1((rot * 180) / Math.PI)})`);
+			}
+			// air
+			dots.forEach((c, i) => c.setAttribute('visibility', i < Math.round(shown) ? 'visible' : 'hidden'));
+			// the stopwatch: one turn of the hand per second
+			const tw = phase === 'fall' || phase === 'done' ? Math.min(tFall, Math.max(...KEYS.map((k) => falls[k].T))) : 0;
+			timeT.textContent = tStr(tw);
+			const ah = 2 * Math.PI * tw;
+			handS.setAttribute('x2', f1(19 * Math.sin(ah)));
+			handS.setAttribute('y2', f1(-19 * Math.cos(ah)));
+			// the times of the bodies that have landed
+			landedG.replaceChildren();
+			const rows = KEYS.map((k) => {
+				const done = (phase === 'fall' || phase === 'done') && tFall >= falls[k].T;
+				return `<li><span>${NAMES[k][0].toUpperCase() + NAMES[k].slice(1)}</span><b>${done ? tStr(falls[k].T) : '—'}</b></li>`;
+			});
+			rows.push(`<li class="is-key"><span>Без воздуха (расчёт)</span><b>${tStr(vacuum)}</b></li>`);
+			read.innerHTML = rows.join('');
+			KEYS.forEach((k, i) => {
+				if ((phase === 'fall' || phase === 'done') && tFall >= falls[k].T) {
+					const t = el('text', { class: 't-small', x: 186, y: 214 + i * 15 });
+					t.textContent = `${NAMES[k]} — ${tStr(falls[k].T)}`;
+					landedG.append(t);
+				}
+			});
+			flipBtn.disabled = phase === 'flip' || pumpT > 0;
+		};
+		const wake = loop(fig, (dt) => {
+			let busy = false;
+			const target = DOTS[String(f)];
+			if (pumpT > 0) {
+				pumpT = Math.max(0, pumpT - dt);
+				const strokes = 3 * (1 - pumpT / 1.2);
+				handle.setAttribute('transform', `translate(0 ${f1(16 * Math.abs(Math.sin(Math.PI * strokes)))})`);
+				shown += (target - shown) * Math.min(1, dt * 4);
+				if (pumpT === 0) shown = target;
+				busy = true;
+			}
+			if (phase === 'flip') {
+				tFlip += dt;
+				if (tFlip >= 0.8) {
+					parity = 1 - parity;
+					phase = 'fall';
+					tFall = 0;
+				}
+				busy = true;
+			} else if (phase === 'fall') {
+				tFall += dt * (slow.checked ? 0.1 : 1);
+				if (tFall >= Math.max(...KEYS.map((k) => falls[k].T)) + 0.05) phase = 'done';
+				busy = true;
+			}
+			draw();
+			return busy;
+		});
+		for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-f]')) {
+			b.addEventListener('click', () => {
+				const nf = Number(b.dataset.f);
+				fig.querySelectorAll<HTMLButtonElement>('[data-f]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				if (nf === f) return;
+				f = nf;
+				setFalls();
+				// pumping needs the tube standing still: the bodies lie on its lower end
+				if (phase === 'fall' || phase === 'done') phase = 'rest';
+				pumpT = 1.2;
+				draw();
+				wake();
+			});
+		}
+		flipBtn.addEventListener('click', () => {
+			if (phase === 'flip') return;
+			if (phase === 'fall' || phase === 'done') phase = 'rest';
+			phase = 'flip';
+			tFlip = 0;
+			draw();
+			wake();
+		});
+		draw();
+	}
+</script>
