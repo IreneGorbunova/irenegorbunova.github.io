@@ -1,0 +1,112 @@
+---
+/**
+ * Picture to the closed system: the two carts of CollisionPicture (2 кг with a weight and a spring bumper, 1 кг) on a
+ * smooth level track at the moment of the impact, inside a dashed outline «система». External forces (gray): on each
+ * cart gravity m·g down and the support force N up, equal (2 px per Н: 19,6 Н is 39 px, 9,8 Н is 20 px), so they cancel
+ * on each cart. Internal forces (red): the carts push each other with F₁ = −F₂ (equal length, opposite). During an
+ * impact these forces are hundreds of newtons, much larger than the weights: they are drawn shorter than to the scale of
+ * the external forces (the caption says so). Friction is left out. Static.
+ */
+import IrdStyles from './IrdStyles.astro';
+
+const TY = 160; // the top of the rails
+const PN = 2; // px per Н
+const Y = 133; // the middle of the bodies
+const carts = [
+	{ x0: 46, w: 90, kind: 'a', m: '2 кг', g: 19.6, i: '1' },
+	{ x0: 148, w: 70, kind: 'b', m: '1 кг', g: 9.8, i: '2' },
+].map((c) => ({ ...c, cx: c.x0 + c.w / 2 }));
+const C = 142; // the contact (the pressed spring)
+const ar = (x1: number, y1: number, x2: number, y2: number, hl = 8, hw = 4.5) => {
+	const L = Math.hypot(x2 - x1, y2 - y1);
+	const ux = (x2 - x1) / L;
+	const uy = (y2 - y1) / L;
+	const bx = x2 - ux * hl;
+	const by = y2 - uy * hl;
+	return {
+		shaft: `M${x1} ${y1} L${(bx + ux * 0.5).toFixed(1)} ${(by + uy * 0.5).toFixed(1)}`,
+		head: `M${x2} ${y2} L${(bx - uy * hw).toFixed(1)} ${(by + ux * hw).toFixed(1)} L${(bx + uy * hw).toFixed(1)} ${(by - ux * hw).toFixed(1)} Z`,
+	};
+};
+const F1 = ar(C, Y - 4, C - 46, Y - 4, 9, 5);
+const F2 = ar(C, Y - 4, C + 46, Y - 4, 9, 5);
+let spring = `M136 ${Y - 4}`;
+for (let i = 1; i <= 6; i++) spring += ` L${(136 + (i - 0.5) * (12 / 6) / 1).toFixed(1)} ${i % 2 ? Y - 8 : Y}`;
+spring += ` L148 ${Y - 4}`;
+---
+
+<IrdStyles />
+<figure class="g7 g7--pic ird not-content" data-ird-closed>
+	<div class="g7__grid" style="grid-template-columns: minmax(0, 1fr)">
+		<svg class="g7__svg" viewBox="0 54 360 140" role="img" aria-label="Две тележки в момент удара внутри пунктирной рамки «система». На каждую тележку действуют сила тяжести вниз и сила реакции опоры вверх, равные друг другу, — это внешние силы. Тележки толкают друг друга силами F1 и F2, равными и противоположными, — это внутренние силы">
+			<rect class="ird-system" x="30" y="76" width="204" height="112" rx="10"></rect>
+			<text class="t-small ird-system-t" x="40" y="70">система</text>
+			<rect class="ird-track" x="0" y={TY} width="360" height="4" rx="1"></rect>
+			<line class="ird-track-line" x1="0" y1={TY + 4} x2="360" y2={TY + 4}></line>
+			{carts.map((c) => (
+				<g>
+					<rect class={`ird-cart ird-cart--${c.kind}`} x={c.x0} y={Y - 13} width={c.w} height="26" rx="3"></rect>
+					{c.kind === 'a' && <rect class="ird-load" x={c.cx - 15} y={Y - 25} width="30" height="12" rx="2"></rect>}
+					{[c.x0 + 11, c.x0 + c.w - 11].map((x) => (
+						<g>
+							<circle class="ird-wheel" cx={x} cy={TY - 7} r="7"></circle>
+							<circle class="ird-hub" cx={x} cy={TY - 7} r="2"></circle>
+						</g>
+					))}
+					<text class="t-small ird-mass" x={c.kind === 'a' ? c.x0 + 18 : c.x0 + c.w - 16} y={Y + 9} text-anchor="middle">{c.m}</text>
+				</g>
+			))}
+			<path class="ird-spring" d={spring}></path>
+			{carts.map((c) => {
+				const g = ar(c.cx, Y, c.cx, Y + c.g * PN);
+				const n = ar(c.cx, Y, c.cx, Y - c.g * PN);
+				return (
+					<g>
+						<path class="arrow ird-ext" d={g.shaft}></path>
+						<path class="ird-ext-head" d={g.head}></path>
+						<path class="arrow ird-ext" d={n.shaft}></path>
+						<path class="ird-ext-head" d={n.head}></path>
+						<circle class="ird-dot" cx={c.cx} cy={Y} r="2.2"></circle>
+						<text class="t-small t-halo" x={c.cx + 6} y={Y - c.g * PN + 9}><tspan class="t-i">N</tspan><tspan dy="2.5" font-size="9">{c.i}</tspan></text>
+						<text class="t-small t-halo" x={c.cx + 8} y={181}><tspan class="t-i">m</tspan><tspan dy="2.5" font-size="9">{c.i}</tspan><tspan class="t-i" dx="1.5" dy="-2.5">g</tspan></text>
+					</g>
+				);
+			})}
+			<path class="arrow arrow--red" d={F1.shaft}></path>
+			<path class="head--red" d={F1.head}></path>
+			<path class="arrow arrow--red" d={F2.shaft}></path>
+			<path class="head--red" d={F2.head}></path>
+			<text class="t-small t-red t-halo" x={C - 30} y={Y + 13} text-anchor="middle"><tspan class="t-i">F</tspan><tspan dy="2.5" font-size="9">1</tspan></text>
+			<text class="t-small t-red t-halo" x={C + 24} y={Y + 13} text-anchor="middle"><tspan class="t-i">F</tspan><tspan dy="2.5" font-size="9">2</tspan></text>
+			<!-- legend -->
+			<path class="arrow ird-ext" d="M250 104 V86"></path>
+			<path class="ird-ext-head" d="M250 80 L245.5 88 L254.5 88 Z"></path>
+			<text class="t-small" x="260" y="92"><tspan x="260">внешние</tspan><tspan x="260" dy="13">силы</tspan></text>
+			<path class="arrow arrow--red" d="M244 140 H254"></path>
+			<path class="head--red" d="M260 140 L252 135.5 L252 144.5 Z"></path>
+			<text class="t-small t-red" x="266" y="138"><tspan x="266">внутренние</tspan><tspan x="266" dy="13">силы</tspan></text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Тележки — система тел. Силы тяжести и реакции опоры — внешние: на каждую тележку они уравновешены. Силы, с которыми тележки толкают друг друга при ударе, — внутренние: они равны и противоположны. Силы удара во много раз больше сил тяжести и нарисованы короче, чем в их масштабе. Трение не учитывается.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ird .ird-system {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+		stroke-dasharray: 6 4;
+	}
+	.ird .g7__svg .ird-system-t {
+		fill: var(--sl-color-gray-2);
+		font-weight: 600;
+	}
+	.ird .g7__svg .ird-ext {
+		stroke: var(--sl-color-gray-2);
+	}
+	.ird .g7__svg .ird-ext-head {
+		fill: var(--sl-color-gray-2);
+	}
+</style>

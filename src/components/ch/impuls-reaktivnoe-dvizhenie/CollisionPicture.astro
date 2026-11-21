@@ -1,0 +1,203 @@
+---
+/**
+ * Picture: two carts on a smooth level track, before and after an impact (side view, 200 px per metre).
+ * Cart 1 (2 кг, with a weight on it and a spring bumper in front) rolls at 3 м/с into cart 2 (1 кг) at rest. The bumper
+ * is an elastic spring (k = 16,4 кН/м): the contact lasts 0,02 с, the spring is pressed by 1,9 см at most, and after
+ * it cart 1 rolls on at 1 м/с, cart 2 at 4 м/с. During the contact x₁ = x₁₀ + Vt + (m₂/M)s, x₂ = x₂₀ + Vt − (m₁/M)s
+ * with the speed of the pair V = 2 м/с and the squeeze s = (3 м/с / ω) sin ωt, ω = π / 0,02 с, so the speeds go
+ * υ₁ = 2 + cos ωt, υ₂ = 2 − 2 cos ωt (м/с) and the momenta change while their sum stays 6 кг·м/с at every moment.
+ * Energy check: 9 Дж before, 1 + 8 = 9 Дж after (an elastic impact). Friction is left out.
+ * Arrows ride with the carts: velocity blue (12 px per м/с), momentum violet (10 px per кг·м/с). Under each track the
+ * momenta are laid tip to tail: 6 + 0 and 2 + 4, the same length. Upper row: the approach (0,1 с); lower row: the
+ * impact and after (0,1 с). Slowed 10 times; the caption says so.
+ */
+import IrdStyles from './IrdStyles.astro';
+
+const TY = [96, 226]; // the tops of the rails in the two rows
+---
+
+<IrdStyles />
+<figure class="g7 g7--pic ird not-content" data-ird-collide>
+	<div class="g7__grid" style="grid-template-columns: minmax(0, 1fr)">
+		<svg class="g7__svg" viewBox="0 0 360 262" role="img" aria-label="Две тележки на гладких рельсах. Сверху — до удара: тележка массой 2 килограмма катится со скоростью 3 метра в секунду к стоящей тележке массой 1 килограмм. Снизу — после удара: первая тележка катится со скоростью 1 метр в секунду, вторая — 4 метра в секунду. Синие стрелки — скорости, фиолетовые — импульсы. Сумма импульсов до и после удара одна и та же: 6 килограмм-метров в секунду">
+			{TY.map((y, i) => (
+				<g data-row={i}>
+					<rect class="ird-track" x="0" y={y} width="360" height="4" rx="1"></rect>
+					<line class="ird-track-line" x1="0" y1={y + 4} x2="360" y2={y + 4}></line>
+					<text class="t-small" x="6" y={y - 80} data-head></text>
+					<g data-carts></g>
+					<g data-arrows></g>
+					<g data-sum></g>
+				</g>
+			))}
+			<line class="ird-sep" x1="0" y1="134" x2="360" y2="134"></line>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Синие стрелки — скорости тележек, фиолетовые — их импульсы. Под рельсами импульсы сложены друг за другом: до удара и после удара их сумма одна и та же, и во время удара тоже. Удар длится 0,02&nbsp;с, движение замедлено в 10&nbsp;раз; трение не учитывается.
+		<button type="button" class="g7__btn g7__again" data-again>Повторить</button>
+	</figcaption>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { el, f1, label, newArrow, setLabel } from './ird';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-ird-collide]')) {
+		const TY = [96, 226];
+		const PXM = 200; // px per metre
+		const SLOW = 10;
+		const m1 = 2;
+		const m2 = 1;
+		const M = m1 + m2;
+		const U = 3; // м/с, cart 1 before
+		const V = (m1 * U) / M; // 2 м/с, the pair
+		const TC = 0.02; // contact, с
+		const W = Math.PI / TC;
+		const VA = 12; // px per м/с
+		const PA = 10; // px per кг·м/с
+		const WA = 54; // cart 1 body width
+		const WB = 40;
+		const SPR = 10; // the spring, px when free
+		const B0 = 170; // cart 2's left edge before the impact
+		const A_CONTACT = B0 - SPR - WA; // cart 1's left edge when the spring touches
+		const T1 = (60 / PXM) / U; // the approach: 60 px, 0,1 с
+		const A0 = A_CONTACT - U * T1 * PXM;
+		const T2 = 0.1; // the impact and after
+		const PRE = 0.6;
+		const GAP = 0.4;
+		const HOLD = 3.5;
+		const CYCLE = PRE + T1 * SLOW + GAP + T2 * SLOW + HOLD;
+
+		// a cart: body, wheels, mass label; cart 1 also has a weight and the spring
+		const cart = (g: Element, w: number, kind: 'a' | 'b', mass: string) => {
+			const c = el('g');
+			c.append(el('rect', { class: `ird-cart ird-cart--${kind}`, x: 0, y: -26, width: w, height: 16, rx: 2 }));
+			if (kind === 'a') c.append(el('rect', { class: 'ird-load', x: w / 2 - 11, y: -34, width: 22, height: 8, rx: 1.5 }));
+			for (const x of [8, w - 8]) {
+				c.append(el('circle', { class: 'ird-wheel', cx: x, cy: -5, r: 5 }));
+				c.append(el('circle', { class: 'ird-hub', cx: x, cy: -5, r: 1.4 }));
+			}
+			const t = el('text', { class: 't-small ird-mass', x: w / 2, y: -14.5, 'text-anchor': 'middle' });
+			t.textContent = mass;
+			c.append(t);
+			g.append(c);
+			let spring: SVGPathElement | null = null;
+			if (kind === 'a') {
+				spring = el('path', { class: 'ird-spring' });
+				c.append(spring);
+			}
+			return {
+				at: (x: number, y: number, squeeze = 0) => {
+					c.setAttribute('transform', `translate(${f1(x)} ${y})`);
+					if (spring) {
+						const L = SPR - squeeze;
+						let d = `M${w} -18 h1`;
+						const n = 6;
+						for (let i = 1; i <= n; i++) d += ` L${f1(w + 1 + ((L - 2) * (i - 0.5)) / n)} ${i % 2 ? -22 : -14}`;
+						d += ` L${f1(w + L - 1)} -18 h1 M${f1(w + L)} -22 V-14`;
+						spring.setAttribute('d', d);
+					}
+				},
+			};
+		};
+
+		const rows = TY.map((y, i) => {
+			const g = fig.querySelector<SVGGElement>(`[data-row="${i}"]`)!;
+			const carts = g.querySelector('[data-carts]')!;
+			const ar = g.querySelector('[data-arrows]')!;
+			const sum = g.querySelector('[data-sum]')!;
+			setLabel(g.querySelector<SVGTextElement>('[data-head]')!, i === 0 ? ['До удара: ', ['υ', '1'], ' = 3 м/с, ', ['υ', '2'], ' = 0'] : ['После удара: ', ['υ', '1'], ' = 1 м/с, ', ['υ', '2'], ' = 4 м/с']);
+			const A = cart(carts, WA, 'a', '2 кг');
+			const B = cart(carts, WB, 'b', '1 кг');
+			const vA = newArrow(ar, 'blue');
+			const vB = newArrow(ar, 'blue');
+			const pA = newArrow(ar, 'violet');
+			const pB = newArrow(ar, 'violet');
+			const lv1 = label(ar, 0, 0, [['υ', '1']], { class: 't-small t-blue', 'text-anchor': 'end' });
+			const lp1 = label(ar, 0, 0, [['p', '1']], { class: 't-small t-violet', 'text-anchor': 'end' });
+			const lv2 = label(ar, 0, 0, [['υ', '2']], { class: 't-small t-blue', 'text-anchor': 'end' });
+			const lp2 = label(ar, 0, 0, [['p', '2']], { class: 't-small t-violet', 'text-anchor': 'end' });
+			// the sum strip under the rails
+			const sy = y + 22;
+			label(sum, 6, sy + 4, [['p', '1'], ' + ', ['p', '2'], ''], { class: 't-small' });
+			const s1 = newArrow(sum, 'violet');
+			const s2 = newArrow(sum, 'violet');
+			const tick = el('path', { class: 'ink', d: '' });
+			sum.append(tick);
+			const n1 = el('text', { class: 't-small t-num t-violet', 'text-anchor': 'middle', y: sy - 7 });
+			const n2 = el('text', { class: 't-small t-num t-violet', 'text-anchor': 'middle', y: sy - 7 });
+			const tot = el('text', { class: 't-small t-num', y: sy + 4 });
+			sum.append(n1, n2, tot);
+			const SX = 56;
+			const draw = (xa: number, xb: number, v1: number, v2: number, squeeze = 0) => {
+				A.at(xa, y, squeeze);
+				B.at(xb, y);
+				const ca = xa + WA / 2;
+				const cb = xb + WB / 2;
+				const yv = y - 46;
+				const yp = y - 62;
+				vA(ca, yv, ca + v1 * VA, yv);
+				pA(ca, yp, ca + m1 * v1 * PA, yp);
+				vB(cb, yv, cb + v2 * VA, yv);
+				pB(cb, yp, cb + m2 * v2 * PA, yp);
+				for (const [t, x, yy] of [[lv1, ca - 3, yv + 4], [lp1, ca - 3, yp + 4], [lv2, cb - 3, yv + 4], [lp2, cb - 3, yp + 4]] as [SVGTextElement, number, number][]) {
+					t.setAttribute('x', f1(x));
+					t.setAttribute('y', f1(yy));
+				}
+				// a body at rest has no arrows, so no labels either (the row's heading gives its zero speed)
+				lv1.setAttribute('visibility', Math.abs(v1) > 0.05 ? 'visible' : 'hidden');
+				lp1.setAttribute('visibility', Math.abs(v1) > 0.05 ? 'visible' : 'hidden');
+				lv2.setAttribute('visibility', Math.abs(v2) > 0.05 ? 'visible' : 'hidden');
+				lp2.setAttribute('visibility', Math.abs(v2) > 0.05 ? 'visible' : 'hidden');
+				const p1 = m1 * v1;
+				const p2 = m2 * v2;
+				s1(SX, sy, SX + p1 * PA, sy);
+				s2(SX + p1 * PA, sy, SX + (p1 + p2) * PA, sy);
+				tick.setAttribute('d', p1 > 0.3 && p2 > 0.3 ? `M${f1(SX + p1 * PA)} ${sy - 5} V${sy + 5}` : '');
+				n1.setAttribute('x', f1(SX + (p1 * PA) / 2));
+				n1.textContent = p1 > 0.6 ? p1.toFixed(p1 % 1 ? 1 : 0).replace('.', ',') : '';
+				n2.setAttribute('x', f1(SX + p1 * PA + (p2 * PA) / 2));
+				n2.textContent = p2 > 0.6 ? p2.toFixed(p2 % 1 ? 1 : 0).replace('.', ',') : '';
+				tot.setAttribute('x', f1(SX + (p1 + p2) * PA + 14));
+				tot.textContent = `= ${(p1 + p2).toFixed(0)} кг·м/с`;
+			};
+			return { g, draw };
+		});
+
+		// the lower row: the impact and after, t in real seconds from the touch
+		const after = (t: number) => {
+			if (t < TC) {
+				const s = (U / W) * Math.sin(W * t); // m
+				const c = Math.cos(W * t);
+				return { xa: A_CONTACT + (V * t + (m2 / M) * s) * PXM, xb: B0 + (V * t - (m1 / M) * s) * PXM, v1: V + (m2 / M) * U * c, v2: V - (m1 / M) * U * c, sq: s * PXM };
+			}
+			const xa = A_CONTACT + V * TC * PXM + 1 * (t - TC) * PXM;
+			const xb = B0 + V * TC * PXM + 4 * (t - TC) * PXM;
+			return { xa, xb, v1: 1, v2: 4, sq: 0 };
+		};
+
+		let t = 0;
+		const show = () => {
+			const t1 = Math.min(T1, Math.max(0, (t - PRE) / SLOW));
+			rows[0].draw(A0 + U * t1 * PXM, B0, U, 0);
+			const t2s = t - PRE - T1 * SLOW - GAP;
+			const on = t2s >= 0;
+			rows[1].g.setAttribute('opacity', on ? '1' : '0.25');
+			const a = after(Math.min(T2, Math.max(0, t2s / SLOW)));
+			rows[1].draw(a.xa, a.xb, a.v1, a.v2, a.sq);
+		};
+		const wake = loop(fig, (dt) => {
+			t += dt;
+			if (t >= CYCLE) t = 0;
+			show();
+			return true;
+		});
+		fig.querySelector('[data-again]')!.addEventListener('click', () => {
+			t = 0;
+			show();
+			wake();
+		});
+		show();
+	}
+</script>

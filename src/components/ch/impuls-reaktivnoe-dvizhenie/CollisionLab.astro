@@ -1,0 +1,350 @@
+---
+/**
+ * Model: two carts on a smooth level track 2,7 м long (side view, 106 px per метр, one scale). The reader sets the
+ * masses m₁, m₂ (0,5…2 кг, step 0,5) and the velocities υ₁, υ₂ (−3…3 м/с, step 0,5; positive to the right) and the kind of
+ * impact: «Пружина» (cart 1 carries a spring bumper, k = 30 кН/м: an elastic impact) or «Пластилин» (cart 2 carries a
+ * lump of plasticine and cart 1 a pin: the carts stick and roll on together). The contact is computed with real,
+ * equal and opposite forces (the spring force k·s, or a plasticine force proportional to the speed of approach with a
+ * time constant of 5 мс, then the pair locked), so the sum of the momenta is the same at every moment. Friction is left
+ * out. Cart 1 starts 0,5 м from the left end, cart 2 at 1,6 м; the run stops when a cart reaches an end of the track.
+ * Results: elastic υ₁' = ((m₁ − m₂)υ₁ + 2m₂υ₂)/(m₁ + m₂), υ₂' = ((m₂ − m₁)υ₂ + 2m₁υ₁)/(m₁ + m₂); stuck
+ * υ' = (m₁υ₁ + m₂υ₂)/(m₁ + m₂). Examples: 1 кг at 2 м/с into 1 кг at rest — spring 0 and 2 м/с, plasticine 1 м/с;
+ * 2 кг at 3 м/с into 1 кг at rest — spring 1 and 4 м/с, plasticine 2 м/с.
+ * Arrows ride on the carts: velocity blue (10 px per м/с), momentum violet (8 px per кг·м/с, the largest sum 12 кг·м/с
+ * is 96 px). Under the track the
+ * momenta are laid tip to tail from a mark: the end of the last arrow (the sum) does not move during the whole run. The
+ * motion is slowed 3 times. The readout gives p₁, p₂ and their sum before and after the impact as calculations.
+ */
+import IrdStyles from './IrdStyles.astro';
+---
+
+<IrdStyles />
+<figure class="g7 g7--stack ird not-content" data-ird-clab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 190" role="img" aria-label="Две тележки на гладких рельсах. Синие стрелки — скорости, фиолетовые — импульсы тележек; под рельсами импульсы сложены друг за другом">
+			<rect class="ird-track" x="38" y="104" width="286" height="4" rx="1"></rect>
+			<line class="ird-track-line" x1="38" y1="108" x2="324" y2="108"></line>
+			<rect class="ird-load" x="34" y="88" width="4" height="20"></rect>
+			<rect class="ird-load" x="324" y="88" width="4" height="20"></rect>
+			<g data-carts></g>
+			<g data-arrows></g>
+			<g data-sum></g>
+			<text class="t-small" x="180" y="186" text-anchor="middle" data-msg></text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Чем тележки сталкиваются" data-mode>
+				<button type="button" class="g7__btn" aria-pressed="true" data-m="spring">Пружина</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="clay">Пластилин</button>
+			</div>
+			<div class="ird-sliders">
+				<label class="g7__slider"><span>Масса <i>m</i><sub>1</sub></span><output data-o="m1"></output><input type="range" min="0.5" max="2" step="0.5" value="1" data-in="m1" aria-label="Масса первой тележки, килограммы" /></label>
+				<label class="g7__slider"><span>Скорость <i>υ</i><sub>1</sub></span><output data-o="v1"></output><input type="range" min="-3" max="3" step="0.5" value="2" data-in="v1" aria-label="Скорость первой тележки, метры в секунду" /></label>
+				<label class="g7__slider"><span>Масса <i>m</i><sub>2</sub></span><output data-o="m2"></output><input type="range" min="0.5" max="2" step="0.5" value="1" data-in="m2" aria-label="Масса второй тележки, килограммы" /></label>
+				<label class="g7__slider"><span>Скорость <i>υ</i><sub>2</sub></span><output data-o="v2"></output><input type="range" min="-3" max="3" step="0.5" value="0" data-in="v2" aria-label="Скорость второй тележки, метры в секунду" /></label>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пуск</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+			<ul class="g7__lines" data-calc></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Скорость вправо считается положительной, влево — отрицательной. Синие стрелки — скорости тележек, фиолетовые — их импульсы; под рельсами импульсы сложены друг за другом, конец последней стрелки показывает их сумму. Трение не учитывается, движение замедлено в 3&nbsp;раза.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ird .ird-sliders {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.6rem 1rem;
+	}
+	.ird .g7__side {
+		display: grid;
+		gap: 0.75rem;
+	}
+	.ird .ird-clay {
+		fill: hsl(140, 45%, 50%);
+		stroke: hsl(140, 40%, 32%);
+		stroke-width: 0.8;
+	}
+	.ird .ird-pin {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.ird .ird-zero {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+</style>
+
+<script>
+	import { loop, k, tex } from '../g7/kit';
+	import { el, f1, label, newArrow } from './ird';
+
+	const num = (v: number, d = 2) => {
+		const r = Math.round(v * 10 ** d) / 10 ** d;
+		const s = (Math.abs(r) < 1e-9 ? 0 : r).toFixed(d).replace(/\.?0+$/, '');
+		return s.replace('-', '−').replace('.', ',');
+	};
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-ird-clab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const PXM = 106; // px per метр
+		const X0 = 38; // the left end of the track, px
+		const LEN = 2.7; // м
+		const TY = 104; // the top of the rails
+		const W = 0.3; // a cart's body, м
+		const SPR = 0.1; // the spring, м
+		const KS = 30000; // Н/м
+		const SLOW = 3;
+		const VA = 10; // px per м/с
+		const PA = 8; // px per кг·м/с
+		const SY = 140; // the sum strip
+		const SX = 180; // its zero mark
+		let mode: 'spring' | 'clay' = 'spring';
+		const val = { m1: 1, v1: 2, m2: 1, v2: 0 };
+
+		// carts: body, weights (one block per 0,5 кг), wheels, mass label; cart 1 has the spring or the pin, cart 2 the
+		// plasticine
+		const cartsG = $('[data-carts]');
+		const mkCart = (kind: 'a' | 'b') => {
+			const g = el('g');
+			cartsG.append(g);
+			return g;
+		};
+		const gA = mkCart('a');
+		const gB = mkCart('b');
+		const w = W * PXM;
+		const drawCart = (g: SVGGElement, kind: 'a' | 'b', m: number, mass: string) => {
+			g.replaceChildren();
+			g.append(el('rect', { class: `ird-cart ird-cart--${kind}`, x: 0, y: -26, width: f1(w), height: 16, rx: 2 }));
+			const blocks = Math.round(m / 0.5);
+			for (let i = 0; i < blocks; i++) {
+				const col = i % 4;
+				const row = Math.floor(i / 4);
+				g.append(el('rect', { class: 'ird-load', x: f1(2 + col * 7.9), y: -26 - 6 * (row + 1), width: 7, height: 5.4, rx: 1 }));
+			}
+			for (const x of [7, w - 7]) {
+				g.append(el('circle', { class: 'ird-wheel', cx: f1(x), cy: -5, r: 5 }));
+				g.append(el('circle', { class: 'ird-hub', cx: f1(x), cy: -5, r: 1.4 }));
+			}
+			const t = el('text', { class: 't-small ird-mass', x: f1(w / 2), y: -14.5, 'text-anchor': 'middle' });
+			t.textContent = mass;
+			g.append(t);
+			const extra = el('path', { class: kind === 'a' ? (mode === 'spring' ? 'ird-spring' : 'ird-pin') : 'ird-clay', d: '' });
+			g.append(extra);
+			return extra;
+		};
+		let springA: SVGPathElement;
+		let clayB: SVGPathElement;
+		const SPRPX = SPR * PXM;
+		const setSpring = (sq: number) => {
+			if (mode === 'spring') {
+				const L = SPRPX - sq;
+				let d = `M${f1(w)} -18 h1`;
+				const n = 7;
+				for (let i = 1; i <= n; i++) d += ` L${f1(w + 1 + ((L - 2) * (i - 0.5)) / n)} ${i % 2 ? -22 : -14}`;
+				d += ` L${f1(w + L - 1)} -18 h1 M${f1(w + L)} -23 V-13`;
+				springA.setAttribute('d', d);
+				clayB.setAttribute('d', '');
+			} else {
+				springA.setAttribute('d', `M${f1(w)} -18 H${f1(w + SPRPX * 0.6)}`);
+				// the lump on cart 2's left side, pressed flat by `sq` px
+				const t = Math.max(1.5, SPRPX * 0.4 - sq);
+				clayB.setAttribute('d', `M0 -24 Q${f1(-t)} -24 ${f1(-t)} -18 Q${f1(-t)} -12 0 -12 Z`);
+			}
+		};
+		const redraw = () => {
+			springA = drawCart(gA, 'a', val.m1, `${num(val.m1, 1)} кг`);
+			clayB = drawCart(gB, 'b', val.m2, `${num(val.m2, 1)} кг`);
+		};
+
+		const ar = $('[data-arrows]');
+		const vA = newArrow(ar, 'blue');
+		const vB = newArrow(ar, 'blue');
+		const pA = newArrow(ar, 'violet');
+		const pB = newArrow(ar, 'violet');
+		const sum = $('[data-sum]');
+		sum.append(el('line', { class: 'ird-zero', x1: SX, x2: SX, y1: SY - 9, y2: SY + 9 }));
+		const s1 = newArrow(sum, 'violet');
+		const s2 = newArrow(sum, 'violet');
+		const tick = el('path', { class: 'ink', d: '' });
+		sum.append(tick);
+		label(sum, 14, SY + 4, [['p', '1'], ' + ', ['p', '2']], { class: 't-small' });
+		const sumTxt = el('text', { class: 't-small t-num', x: 346, y: SY + 22, 'text-anchor': 'end' });
+		sum.append(sumTxt);
+		const msg = $<SVGTextElement>('[data-msg]');
+
+		// state (SI units, positions of the left edges of the bodies)
+		let x1 = 0;
+		let x2 = 0;
+		let u1 = 0;
+		let u2 = 0;
+		let stuck = false;
+		let met = false;
+		let apart = false;
+		let running = false;
+		let done = false;
+		let after = 0; // real seconds since the carts parted or stuck
+		const gap = () => x2 - (x1 + W + SPR); // < 0: in contact (the spring, or the pin 0,06 м + the lump 0,04 м)
+		const reset = () => {
+			x1 = 0.5;
+			x2 = 1.6;
+			u1 = val.v1;
+			u2 = val.v2;
+			stuck = false;
+			met = false;
+			apart = false;
+			running = false;
+			done = false;
+			after = 0;
+			msg.textContent = '';
+			redraw();
+			calc();
+			show();
+		};
+		const show = () => {
+			const s = Math.max(0, -gap()) * PXM;
+			setSpring(s);
+			const xa = X0 + x1 * PXM;
+			const xb = X0 + x2 * PXM;
+			gA.setAttribute('transform', `translate(${f1(xa)} ${TY})`);
+			gB.setAttribute('transform', `translate(${f1(xb)} ${TY})`);
+			const top = TY - 26 - 6 * Math.ceil(Math.max(val.m1, val.m2) / 2) - 8;
+			const ca = xa + w / 2;
+			const cb = xb + w / 2;
+			vA(ca, top, ca + u1 * VA, top);
+			vB(cb, top, cb + u2 * VA, top);
+			pA(ca, top - 14, ca + val.m1 * u1 * PA, top - 14);
+			pB(cb, top - 14, cb + val.m2 * u2 * PA, top - 14);
+			const p1 = val.m1 * u1;
+			const p2 = val.m2 * u2;
+			s1(SX, SY, SX + p1 * PA, SY);
+			s2(SX + p1 * PA, SY, SX + (p1 + p2) * PA, SY);
+			tick.setAttribute('d', `M${f1(SX + (p1 + p2) * PA)} ${SY - 7} V${SY + 7}`);
+			sumTxt.textContent = `сумма ${num(p1 + p2)} кг·м/с`;
+		};
+		const par = (v: number, d = 2) => (v < 0 ? `(${num(v, d)})` : num(v, d));
+		const line = (tx: string, cls = '') => `<li${cls ? ` class="${cls}"` : ''}>${k(tex(tx))}</li>`;
+		const calc = (after = false) => {
+			const { m1, m2, v1, v2 } = val;
+			const p = m1 * v1 + m2 * v2;
+			let h = `<li class="is-text">До удара:</li>`;
+			h += line(`p_1 = m_1\\upsilon_1 = ${num(m1, 1)}\\cdot ${par(v1, 1)} = ${num(m1 * v1)}~\\text{кг·м/с}`);
+			h += line(`p_2 = m_2\\upsilon_2 = ${num(m2, 1)}\\cdot ${par(v2, 1)} = ${num(m2 * v2)}~\\text{кг·м/с}`);
+			h += line(`p_1 + p_2 = ${num(p)}~\\text{кг·м/с}`, 'is-key');
+			if (after) {
+				h += `<li class="is-text">После удара:</li>`;
+				if (stuck) {
+					h += line(`\\upsilon' = ${num(u1)}~\\text{м/с}`);
+					h += line(`(m_1 + m_2)\\upsilon' = ${num(m1 + m2, 1)}\\cdot ${par(u1)} = ${num((m1 + m2) * u1)}~\\text{кг·м/с}`, 'is-key');
+				} else {
+					h += line(`p_1' = ${num(m1, 1)}\\cdot ${par(u1)} = ${num(m1 * u1)}~\\text{кг·м/с}`);
+					h += line(`p_2' = ${num(m2, 1)}\\cdot ${par(u2)} = ${num(m2 * u2)}~\\text{кг·м/с}`);
+					h += line(`p_1' + p_2' = ${num(m1 * u1 + m2 * u2)}~\\text{кг·м/с}`, 'is-key');
+				}
+			}
+			$('[data-calc]').innerHTML = h;
+		};
+		// one step of the physics, dt real seconds
+		const step = (dt: number) => {
+			const { m1, m2 } = val;
+			const n = 40;
+			const h = dt / n;
+			for (let i = 0; i < n; i++) {
+				if (stuck) {
+					x1 += u1 * h;
+					x2 += u2 * h;
+					continue;
+				}
+				const s = -gap();
+				let F = 0; // the force on cart 2 (to the right); cart 1 gets −F
+				if (s > 0) {
+					met = true;
+					if (mode === 'spring') F = KS * s;
+					else {
+						const mu = (m1 * m2) / (m1 + m2);
+						const rel = u1 - u2;
+						if (rel > 0) F = (mu * rel) / 0.005;
+						if (rel <= 1e-4) {
+							// stuck: the common speed exactly, from the speeds before the impact
+							const v = (m1 * val.v1 + m2 * val.v2) / (m1 + m2);
+							u1 = v;
+							u2 = v;
+							stuck = true;
+							continue;
+						}
+					}
+				} else if (met && !apart) {
+					// the spring has let go: the speeds of an elastic impact exactly (the stepping above leaves an error of
+					// about 0,01 м/с), from the speeds before the impact
+					apart = true;
+					const { v1, v2 } = val;
+					u1 = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
+					u2 = ((m2 - m1) * v2 + 2 * m1 * v1) / (m1 + m2);
+				}
+				u1 -= (F / m1) * h;
+				u2 += (F / m2) * h;
+				x1 += u1 * h;
+				x2 += u2 * h;
+			}
+			if (met && (apart || stuck)) after += dt;
+			// the ends of the track, or 1,5 с after the impact
+			// (the carts stop 3 см short of the end stops, so they are never drawn over them)
+			if (x1 <= 0.03 || x2 + W >= LEN - 0.03 || after > 1.5) {
+				x1 = Math.max(0.03, x1);
+				x2 = Math.min(LEN - 0.03 - W, x2);
+				finish();
+			}
+		};
+		const finish = () => {
+			running = false;
+			done = true;
+			const go = $<HTMLButtonElement>('[data-go]');
+			go.disabled = true;
+			if (met && (apart || stuck)) {
+				calc(true);
+				msg.textContent = '';
+			} else if (!met) msg.textContent = 'Тележки не встретились: задайте другие скорости';
+		};
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			step(dt / SLOW);
+			show();
+			return running;
+		});
+		for (const inp of fig.querySelectorAll<HTMLInputElement>('[data-in]')) {
+			const key = inp.dataset.in as keyof typeof val;
+			const out = $<HTMLOutputElement>(`[data-o="${key}"]`);
+			const upd = () => {
+				val[key] = +inp.value;
+				out.textContent = key[0] === 'm' ? `${num(val[key], 1)} кг` : `${num(val[key], 1)} м/с`;
+			};
+			upd();
+			inp.addEventListener('input', () => {
+				upd();
+				$<HTMLButtonElement>('[data-go]').disabled = false;
+				reset();
+			});
+		}
+		for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-mode] button'))
+			b.addEventListener('click', () => {
+				for (const o of fig.querySelectorAll('[data-mode] button')) o.setAttribute('aria-pressed', String(o === b));
+				mode = b.dataset.m as 'spring' | 'clay';
+				$<HTMLButtonElement>('[data-go]').disabled = false;
+				reset();
+			});
+		$('[data-go]').addEventListener('click', () => {
+			if (done) return;
+			running = true;
+			wake();
+		});
+		$('[data-reset]').addEventListener('click', () => {
+			$<HTMLButtonElement>('[data-go]').disabled = false;
+			reset();
+		});
+		reset();
+	}
+</script>

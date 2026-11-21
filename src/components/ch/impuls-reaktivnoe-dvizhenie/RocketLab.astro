@@ -1,0 +1,196 @@
+---
+/**
+ * Model: a rocket at rest in space burns all its fuel at once. The reader sets the shell's mass M (100…1000 кг, step
+ * 100), the mass of the gas m_г (10…500 кг, step 10) and the speed of the gas υ_г (500…3000 м/с, step 100, in the frame
+ * where the rocket was at rest). «Пуск»: the gas leaves backward at υ_г, the shell goes forward at υ = m_г·υ_г / M
+ * (the momentum of the system stays zero: Mυ − m_гυ_г = 0). Examples: M = 500, m_г = 100, υ_г = 2000 → 400 м/с;
+ * m_г = 200 → 800 м/с; υ_г = 1000 → 200 м/с; M = 100, m_г = 500, υ_г = 2000 → 10 000 м/с:
+ * a very light shell flies faster than its own gas.
+ * Drawing: the shell and the gas cloud move away from the start mark for 2,5 s of the animation; their paths are to one
+ * scale, chosen for each run so that the faster of the two goes 100 px (so the time shown differs from run to run and
+ * is not printed). The sizes of the rocket and the cloud are not to scale; the cloud grows with m_г.
+ * Under it the two momenta are drawn from one mark, violet, to a fixed scale (1 px per 10 000 кг·м/с, the largest
+ * 1 500 000 кг·м/с is 150 px): always equal and opposite. The readout shows the calculation after «Пуск».
+ */
+import IrdStyles from './IrdStyles.astro';
+---
+
+<IrdStyles />
+<figure class="g7 g7--stack ird not-content" data-ird-rlab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 200" role="img" aria-label="Ракета в космосе. После пуска всё топливо сгорает сразу: облако газа летит назад, ракета — вперёд. Под ними фиолетовые стрелки — импульс ракеты и импульс газа, равные и противоположные">
+			<rect class="ird-space" x="0" y="0" width="360" height="128" rx="6"></rect>
+			<g data-stars></g>
+			<line class="ird-sep" x1="180" y1="10" x2="180" y2="120"></line>
+			<g data-gas></g>
+			<g data-rocket>
+				<path class="ird-hull" d="M-31 -8 H20 Q34 -8 42 0 Q34 8 20 8 H-31 Z"></path>
+				<rect class="ird-fuel" data-fuel x="-26" y="-5" width="36" height="10" rx="2"></rect>
+				<rect class="ird-nozzle" x="-36" y="-5" width="6" height="10" rx="1"></rect>
+				<path class="ird-fin" d="M-31 -8 L-36 -17 L-22 -8 Z M-31 8 L-36 17 L-22 8 Z"></path>
+				<circle class="ird-window" cx="22" cy="0" r="3.4"></circle>
+			</g>
+			<text class="t-small" x="8" y="14" data-clock></text>
+			<line class="ird-zero" x1="180" y1="146" x2="180" y2="166"></line>
+			<g data-p></g>
+		</svg>
+		<div class="g7__side">
+			<div class="ird-sliders ird-sliders--3">
+				<label class="g7__slider"><span>Масса ракеты <i>M</i></span><output data-o="M"></output><input type="range" min="100" max="1000" step="100" value="500" data-in="M" aria-label="Масса ракеты без топлива, килограммы" /></label>
+				<label class="g7__slider"><span>Масса газа <i>m</i><sub>г</sub></span><output data-o="m"></output><input type="range" min="10" max="500" step="10" value="100" data-in="m" aria-label="Масса газа, килограммы" /></label>
+				<label class="g7__slider"><span>Скорость газа <i>υ</i><sub>г</sub></span><output data-o="u"></output><input type="range" min="500" max="3000" step="100" value="2000" data-in="u" aria-label="Скорость газа, метры в секунду" /></label>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пуск</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+			<ul class="g7__lines" data-calc></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Ракета сначала покоится, всё топливо сгорает сразу. Пути ракеты и газа нарисованы в одном масштабе: за одно и то же время каждый проходит путь, пропорциональный своей скорости. Фиолетовые стрелки — импульс ракеты и импульс газа, их масштаб не меняется. Ракета и облако газа нарисованы не в масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ird .ird-sliders--3 {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+	@container (max-width: 34rem) {
+		.ird .ird-sliders--3 {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	.ird .ird-fuel {
+		fill: hsl(32, 80%, 58%);
+		opacity: 0.55;
+	}
+</style>
+
+<script>
+	import { loop, k, tex } from '../g7/kit';
+	import { el, f1, label, newArrow } from './ird';
+
+	const big = (v: number) => {
+		const r = Math.round(v);
+		return String(r).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+	};
+	const texBig = (v: number) => big(v).replace(/ /g, '\\,');
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-ird-rlab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const X0 = 180;
+		const Y = 66;
+		const RUN = 2.5; // s of animation
+		const PATH = 100; // px for the faster body (the rocket's nose and the cloud stay inside the scene)
+		const PA = 1 / 10000; // px per кг·м/с
+		const val = { M: 500, m: 100, u: 2000 };
+		// stars
+		const st = $('[data-stars]');
+		for (let i = 0; i < 40; i++) {
+			const h = (k2: number) => {
+				const v = Math.sin(i * 12.9898 + k2 * 78.233) * 43758.5453;
+				return v - Math.floor(v);
+			};
+			st.append(el('circle', { class: 'ird-star', cx: f1(h(1) * 360), cy: f1(h(2) * 124 + 2), r: f1(0.3 + h(3) * 0.8) }));
+		}
+		const rocket = $<SVGGElement>('[data-rocket]');
+		const fuel = $('[data-fuel]');
+		const gasG = $('[data-gas]');
+		const puffs = Array.from({ length: 26 }, (_, i) => {
+			const h = (k2: number) => {
+				const v = Math.sin(i * 7.77 + k2 * 31.3) * 43758.5453;
+				return v - Math.floor(v);
+			};
+			const c = el('circle', { class: 'ird-gas', r: 3 });
+			gasG.append(c);
+			return { c, dx: (h(1) - 0.5) * 16, dy: (h(2) - 0.5) * 14, s: 0.8 + 0.4 * h(3) };
+		});
+		const clock = $<SVGTextElement>('[data-clock]');
+		const pg = $('[data-p]');
+		const aR = newArrow(pg, 'violet');
+		const aG = newArrow(pg, 'violet');
+		const lR = label(pg, X0 + 6, 186, ['импульс ракеты'], { class: 't-small t-violet' });
+		const lG = label(pg, X0 - 6, 186, ['импульс газа'], { class: 't-small t-violet', 'text-anchor': 'end' });
+		let t = 0;
+		let running = false;
+		let fired = false;
+		const v = () => (val.m * val.u) / val.M;
+		const show = () => {
+			const vr = v();
+			const fast = Math.max(vr, val.u);
+			const sc = PATH / (fast * RUN); // px per (м/с · s of animation): the faster body goes PATH px in RUN
+			const tt = fired ? Math.min(t, RUN) : 0;
+			const xr = X0 + vr * tt * sc;
+			rocket.setAttribute('transform', `translate(${f1(xr)} ${Y})`);
+			fuel.setAttribute('visibility', fired ? 'hidden' : 'visible');
+			const xg = X0 - 36 - val.u * tt * sc;
+			const spread = fired ? 0.4 + Math.min(1, tt / RUN) * 1.2 : 0;
+			const size = Math.sqrt(val.m / 100);
+			for (const p of puffs) {
+				p.c.setAttribute('visibility', fired ? 'visible' : 'hidden');
+				p.c.setAttribute('cx', f1(xg + p.dx * spread));
+				p.c.setAttribute('cy', f1(Y + p.dy * spread));
+				p.c.setAttribute('r', f1(2.5 * p.s * (0.6 + 0.5 * size)));
+				p.c.setAttribute('opacity', f1(0.85 - 0.3 * (tt / RUN)));
+			}
+			const p = fired ? val.m * val.u : 0;
+			aR(X0, 156, X0 + p * PA, 156);
+			aG(X0, 156, X0 - p * PA, 156);
+			lR.setAttribute('visibility', fired ? 'visible' : 'hidden');
+			lG.setAttribute('visibility', fired ? 'visible' : 'hidden');
+			clock.textContent = fired ? 'Пути газа и ракеты за одно и то же время' : 'Ракета с топливом покоится';
+		};
+		const calc = () => {
+			const { M, m, u } = val;
+			const vr = v();
+			const vtxt = Number.isInteger(vr) ? texBig(vr) : vr.toFixed(1).replace('.', '{,}');
+			const line = (s: string, cls = '') => `<li${cls ? ` class="${cls}"` : ''}>${k(s)}</li>`;
+			let h = line(`\\upsilon = \\dfrac{m_\\text{г}\\upsilon_\\text{г}}{M} = \\dfrac{${m}\\cdot ${texBig(u)}}{${M}} = ${vtxt}~\\text{м/с}`, 'is-key');
+			h += line(`p_\\text{ракеты} = M\\upsilon = ${M}\\cdot ${vtxt} = ${texBig(M * vr)}~\\text{кг·м/с}`);
+			h += line(`p_\\text{газа} = m_\\text{г}\\upsilon_\\text{г} = ${m}\\cdot ${texBig(u)} = ${texBig(m * u)}~\\text{кг·м/с}`);
+			h += `<li class="is-text">Импульсы направлены в разные стороны, их сумма равна нулю, как до пуска.</li>`;
+			$('[data-calc]').innerHTML = h;
+		};
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			t += dt;
+			if (t >= RUN) running = false;
+			show();
+			return running;
+		});
+		const reset = () => {
+			t = 0;
+			fired = false;
+			running = false;
+			$('[data-calc]').innerHTML = '';
+			$<HTMLButtonElement>('[data-go]').disabled = false;
+			show();
+		};
+		for (const inp of fig.querySelectorAll<HTMLInputElement>('[data-in]')) {
+			const key = inp.dataset.in as keyof typeof val;
+			const out = $<HTMLOutputElement>(`[data-o="${key}"]`);
+			const upd = () => {
+				val[key] = +inp.value;
+				out.textContent = key === 'u' ? `${big(val.u)} м/с` : `${val[key]} кг`;
+			};
+			upd();
+			inp.addEventListener('input', () => {
+				upd();
+				reset();
+			});
+		}
+		$('[data-go]').addEventListener('click', () => {
+			if (fired) return;
+			fired = true;
+			running = true;
+			t = 0;
+			$<HTMLButtonElement>('[data-go]').disabled = true;
+			calc();
+			wake();
+		});
+		$('[data-reset]').addEventListener('click', reset);
+		reset();
+		void tex;
+	}
+</script>

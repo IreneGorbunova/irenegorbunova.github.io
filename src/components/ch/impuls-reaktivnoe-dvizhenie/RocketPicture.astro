@@ -1,0 +1,175 @@
+---
+/**
+ * Picture: a rocket far from planets throws gas back and moves forward. Drawn in the frame where the rocket with its
+ * fuel was at rest. The rocket is 800 кг with 200 кг of fuel; the engine burns 20 кг/с for 10 с and throws the gas
+ * back at 1500 м/с relative to the rocket. Its speed υ = 1500 · ln(800 / (800 − 20t)) м/с grows to 431 м/с; it moves
+ * 2,05 км during the burn. At every moment the momentum of all the gas thrown out equals the rocket's momentum and is
+ * opposite to it (600 кг · 431 м/с = 259 000 кг·м/с at the end): the sum stays zero, as before the start.
+ * Positions are to one scale (0,039 px per метр: the rocket goes 80 px, each puff of gas flies back at its own speed,
+ * 1500 − υ at the moment it left), but the rocket and the puffs are drawn far larger than to scale. Arrows: the
+ * rocket's velocity blue (0,093 px per м/с), the momenta violet (the rocket's from its nose, the gas's from its nozzle,
+ * 0,23 px per 1000 кг·м/с, 60 px at the end). Under the rocket the two momenta are laid from one point: they cancel.
+ * The 10 с of the burn are shown in 4 с (time sped up 2,5 times); the caption says so.
+ */
+import IrdStyles from './IrdStyles.astro';
+
+const stars = Array.from({ length: 46 }, (_, i) => {
+	const r = (k: number) => {
+		const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+		return v - Math.floor(v);
+	};
+	return { x: r(1) * 360, y: r(2) * 150, s: 0.4 + r(3) * 0.9 };
+});
+---
+
+<IrdStyles />
+<figure class="g7 g7--pic ird not-content" data-ird-rocket>
+	<div class="g7__grid" style="grid-template-columns: minmax(0, 1fr)">
+		<svg class="g7__svg" viewBox="0 0 360 214" role="img" aria-label="Ракета в космосе включает двигатель: газ вылетает из сопла назад, ракета разгоняется вперёд. Фиолетовые стрелки — импульс ракеты и импульс выброшенного газа: они равны по величине и направлены в противоположные стороны, их сумма остаётся равной нулю. Синяя стрелка — скорость ракеты">
+			<rect class="ird-space" x="0" y="0" width="360" height="150" rx="6"></rect>
+			{stars.map((s) => <circle class="ird-star" cx={s.x.toFixed(1)} cy={s.y.toFixed(1)} r={s.s.toFixed(2)} opacity={(0.4 + s.s / 2).toFixed(2)}></circle>)}
+			<line class="ird-sep" data-start x1="0" y1="18" x2="0" y2="140"></line>
+			<g data-gas></g>
+			<g data-rocket>
+				<path class="ird-gas" data-flame d=""></path>
+				<path class="ird-gas-core" data-core d=""></path>
+				<rect class="ird-nozzle" x="-36" y="-5" width="6" height="10" rx="1"></rect>
+				<path class="ird-hull" d="M-31 -8 H20 Q34 -8 42 0 Q34 8 20 8 H-31 Z"></path>
+				<path class="ird-fin" d="M-31 -8 L-36 -17 L-22 -8 Z M-31 8 L-36 17 L-22 8 Z"></path>
+				<circle class="ird-window" cx="18" cy="0" r="3.4"></circle>
+				<path class="ird-fin" d="M-6 -2 H8 V2 H-6 Z" opacity="0.8"></path>
+			</g>
+			<g data-arrows></g>
+			<text class="t-small" x="8" y="14" data-clock></text>
+			<!-- the sum of the momenta under the picture -->
+			<g data-sum></g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Ракета с топливом сначала покоится. Двигатель выбрасывает газ назад, и ракета разгоняется вперёд. Фиолетовые стрелки — импульс ракеты и импульс всего выброшенного газа: они всё время равны по величине и направлены противоположно, их сумма остаётся нулём. Синяя стрелка — скорость ракеты. Расстояния в одном масштабе, ракета и облачка газа нарисованы намного крупнее; 10&nbsp;с работы двигателя показаны за 4&nbsp;с.
+		<button type="button" class="g7__btn g7__again" data-again>Повторить</button>
+	</figcaption>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { el, f1, label, newArrow, setLabel } from './ird';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-ird-rocket]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const U = 1500; // м/с, gas relative to the rocket
+		const M0 = 800; // кг with the fuel
+		const Q = 20; // кг/с
+		const TB = 10; // с of burn
+		const PXM = 0.039; // px per метр
+		const VA = 0.093; // px per м/с
+		const PA = 0.23 / 1000; // px per кг·м/с
+		const X0 = 120; // the rocket's center at rest
+		const Y = 82;
+		const SPEED = 2.5; // shown time = real / 2,5
+		const PRE = 1.2; // shown seconds before the start
+		const HOLD = 3.5;
+		const CYCLE = PRE + TB / SPEED + HOLD;
+		const v = (t: number) => U * Math.log(M0 / (M0 - Q * Math.min(t, TB)));
+		// position: x(t) = ∫υ dt, tabulated
+		const N = 2000;
+		const xs = [0];
+		for (let i = 1; i <= N; i++) {
+			const a = ((i - 1) / N) * TB;
+			const b = (i / N) * TB;
+			xs.push(xs[i - 1] + ((v(a) + v(b)) / 2) * (b - a));
+		}
+		const x = (t: number) => {
+			if (t >= TB) return xs[N] + v(TB) * (t - TB);
+			const k = (t / TB) * N;
+			const i = Math.floor(k);
+			return xs[i] + (xs[Math.min(N, i + 1)] - xs[i]) * (k - i);
+		};
+		$('[data-start]').setAttribute('x1', String(X0));
+		$('[data-start]').setAttribute('x2', String(X0));
+		const rocket = $<SVGGElement>('[data-rocket]');
+		const flame = $<SVGPathElement>('[data-flame]');
+		const core = $<SVGPathElement>('[data-core]');
+		const clock = $<SVGTextElement>('[data-clock]');
+		// puffs of gas: one every 0,1 с of the burn; each leaves the nozzle at υ − 1500 м/с
+		const gasG = $('[data-gas]');
+		const puffs = Array.from({ length: 100 }, (_, i) => {
+			const te = (i + 0.5) * 0.1;
+			const c = el('circle', { class: 'ird-gas', r: 2.4 });
+			gasG.append(c);
+			const h = Math.sin(i * 12.9898) * 43758.5453;
+			const dy = (h - Math.floor(h) - 0.5) * 2.4;
+			return { te, c, dy };
+		});
+		const ar = $('[data-arrows]');
+		const aV = newArrow(ar, 'blue');
+		const aPr = newArrow(ar, 'violet');
+		const aPg = newArrow(ar, 'violet');
+		const lV = label(ar, 0, 0, [['υ']], { class: 't-small t-blue' });
+		const lPr = label(ar, 0, 0, ['импульс ракеты'], { class: 't-small t-violet' });
+		const lPg = label(ar, 0, 0, ['импульс газа'], { class: 't-small t-violet', 'text-anchor': 'end' });
+		// the sum strip
+		const sum = $('[data-sum]');
+		const SY = 182;
+		const SX = 220;
+		label(sum, 8, SY + 4, ['Сумма импульсов:'], { class: 't-small' });
+		const s1 = newArrow(sum, 'violet');
+		const s2 = newArrow(sum, 'violet');
+		sum.append(el('circle', { cx: SX, cy: SY, r: 2.5, class: 'ird-dot' }));
+		const tot = label(sum, SX, SY + 24, [], { class: 't-small t-num', 'text-anchor': 'middle' });
+		let t = 0;
+		const show = () => {
+			const tr = Math.max(0, (t - PRE) * SPEED); // real seconds since the start
+			const burning = tr > 0 && tr < TB;
+			const xr = X0 + x(tr) * PXM;
+			rocket.setAttribute('transform', `translate(${f1(xr)} ${Y})`);
+			const fl = burning ? 14 + 3 * Math.sin(t * 40) : 0;
+			flame.setAttribute('d', fl ? `M-35 -4.5 Q${f1(-36 - fl * 0.6)} -6 ${f1(-36 - fl)} 0 Q${f1(-36 - fl * 0.6)} 6 -35 4.5 Z` : '');
+			core.setAttribute('d', fl ? `M-35 -2.5 Q${f1(-36 - fl * 0.3)} -3 ${f1(-36 - fl * 0.55)} 0 Q${f1(-36 - fl * 0.3)} 3 -35 2.5 Z` : '');
+			for (const p of puffs) {
+				const on = tr >= p.te;
+				p.c.setAttribute('visibility', on ? 'visible' : 'hidden');
+				if (!on) continue;
+				const xe = X0 + x(p.te) * PXM - 36; // where it left the nozzle
+				const ve = v(p.te) - U; // its velocity, м/с (negative: back)
+				const age = tr - p.te;
+				const px = xe + ve * age * PXM;
+				p.c.setAttribute('cx', f1(px));
+				p.c.setAttribute('cy', f1(Y + p.dy * (1 + age * 2.5)));
+				p.c.setAttribute('r', f1(2.2 + age * 1.6));
+				p.c.setAttribute('opacity', f1(Math.max(0, 0.85 - age * 0.22)));
+			}
+			const vr = v(tr);
+			const mr = M0 - Q * Math.min(tr, TB);
+			const p = mr * vr;
+			aV(xr + 44, Y - 22, xr + 44 + vr * VA, Y - 22);
+			aPr(xr + 44, Y, xr + 44 + p * PA, Y);
+			aPg(xr - 38, Y + 26, xr - 38 - p * PA, Y + 26);
+			lV.setAttribute('x', f1(xr + 46 + vr * VA));
+			lV.setAttribute('y', f1(Y - 18));
+			lV.setAttribute('visibility', vr > 1 ? 'visible' : 'hidden');
+			lPr.setAttribute('x', f1(xr + 44));
+			lPr.setAttribute('y', f1(Y + 18));
+			lPg.setAttribute('x', f1(xr - 38));
+			lPg.setAttribute('y', f1(Y + 44));
+			lPr.setAttribute('visibility', p > 1000 ? 'visible' : 'hidden');
+			lPg.setAttribute('visibility', p > 1000 ? 'visible' : 'hidden');
+			s1(SX, SY, SX + p * PA, SY);
+			s2(SX, SY, SX - p * PA, SY);
+			setLabel(tot, p > 1000 ? [['p', 'р'], ' + ', ['p', 'г'], ' = 0'] : ['0: всё покоится']);
+			setLabel(clock, tr > 0 ? [`Двигатель работает ${Math.min(tr, TB).toFixed(1).replace('.', ',')} с`, tr >= TB ? ' — выключен' : ''] : ['Двигатель выключен']);
+		};
+		const wake = loop(fig, (dt) => {
+			t += dt;
+			if (t >= CYCLE) t = 0;
+			show();
+			return true;
+		});
+		$('[data-again]').addEventListener('click', () => {
+			t = 0;
+			show();
+			wake();
+		});
+		show();
+	}
+</script>
