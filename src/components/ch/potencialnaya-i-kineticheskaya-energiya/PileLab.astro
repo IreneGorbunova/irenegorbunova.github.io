@@ -1,48 +1,97 @@
 ---
 /**
- * «Копёр»: a weight (100…500 кг) is lifted to a height (0,5…3 м) above a pile and dropped. The ground resists the
- * pile with a constant force of 100 кН, so the pile goes down until the work against this force equals the work
- * spent on lifting the weight: depth = g·m·h / 100 000 Н (0,5…14,7 см). The extra descent of the weight together
- * with the pile adds less than 5 % and is neglected. The fall is played in real time; the picture is to scale,
- * 50 px per metre; the depth is also shown on a ruler in centimetres (12 px per centimetre).
+ * «Копёр»: a winch winds a rope over the block at the top of the mast and lifts the weight (100…500 кг) to a height
+ * of 0,5…3 м above the head of the pile; the gripper opens and the weight falls on the pile. The ground resists the
+ * pile with a constant force of 100 кН, so at each blow the pile goes down until the work against this force equals
+ * the work spent on lifting the weight: depth = g·m·h / 100 000 Н (0,49…14,7 см). The extra descent of the weight
+ * together with the pile adds less than 5 % and is neglected. The blows add up: the pile sinks further at each one,
+ * until it has gone 80 см in («Новая свая» starts again).
+ * The scene is to scale, 50 px per metre: the pile is 44 см thick, the weight a steel block 44 × 30 см whose height
+ * grows with its mass (4,9 px for 100 кг, 24 px for 500 кг). The lifting (1,5 м/с) and the fall are in real time; the
+ * pile's going in takes about 0,01 с in reality and is slowed to 0,3 с.
+ * The window on the right shows the head of the pile 20 times larger (10 px per centimetre) next to a scale fixed to
+ * the mast, so that even 0,49 см is seen; between blows it moves down only when the next blow would not fit.
  */
 import G7Styles from '../g7/G7Styles.astro';
 
-const G = 250; // the ground
-const TOP = 200; // the top of the pile before the blow: 1 м above the ground
-const M = 50;
-const R0 = 60; // the ruler: where 0 см is
-const CM = 12;
+const M = 50; // px per metre in the scene
+const G = 270; // the ground
+const CX = 110; // the axis of the pile and of the weight
+const PW = 22; // the pile, 0,44 м
+const PULLEY = { x: 102, y: 22, r: 8 };
+const DRUM = { x: 34, y: 252, r: 10 };
+// the window: x 214…350, y 40…252; the right edge of the pile at x = 286, 10 px per centimetre
+const W = { x: 214, y: 40, w: 136, h: 212 };
+const uid = `pil${Math.random().toString(36).slice(2, 8)}`;
 ---
 
 <G7Styles />
-<figure class="g7 pil not-content" data-pil>
+<figure class="g7 g7--wide pil not-content" data-pil>
 	<div class="g7__grid">
-		<svg class="g7__svg" viewBox="0 0 320 320" role="img" aria-label="Груз копра падает на сваю и вбивает её в грунт; справа линейка показывает, на сколько сантиметров ушла свая" data-svg>
-			<rect class="pil__ground" x="0" y={G} width="320" height="70"></rect>
-			<path class="pil__frame" d={`M66 ${G} V8 H174 V${G}`}></path>
+		<svg class="g7__svg" viewBox="0 0 360 330" role="img" aria-label="Лебёдка поднимает груз копра, груз падает на сваю и вбивает её в грунт; справа голова сваи увеличена в 20 раз рядом со шкалой в сантиметрах" data-svg>
+			<defs>
+				<clipPath id={uid}><rect x={W.x} y={W.y} width={W.w} height={W.h} rx="8"></rect></clipPath>
+			</defs>
+			<rect class="pil__ground" x="0" y={G} width="210" height={330 - G}></rect>
+			<line class="pil__surface" x1="0" x2="210" y1={G} y2={G}></line>
+			<text class="t-small" x="200" y={G + 16} text-anchor="end">грунт</text>
+			<!-- the pile -->
 			<g data-pile>
-				<rect class="pil__pile" x="109" y="0" width="22" height="130"></rect>
+				<rect class="pil__pile" x={CX - PW / 2} y="0" width={PW} height="100"></rect>
+				<path class="pil__grain" d={`M${CX - 5} 6 V96 M${CX + 4} 3 V90`}></path>
 			</g>
-			<line class="ln-dash" x1="92" x2="148" y1={TOP} y2={TOP}></line>
-			<rect class="pil__weight" data-weight x="92" width="56" rx="3"></rect>
-			{[0, 1, 2, 3].map((m) => (
-				<>
-					<line class="ln" x1="178" x2="186" y1={TOP - m * M} y2={TOP - m * M} />
-					<text class="t-small t-num" x="190" y={TOP - m * M + 4}>{m} м</text>
-				</>
-			))}
-			<text class="t-small" x="282" y="44" text-anchor="middle">глубина, см</text>
-			<line class="ln" x1="270" x2="270" y1={R0} y2={R0 + 15 * CM}></line>
-			{Array.from({ length: 16 }, (_, c) => (
-				<>
-					<line class="ln" x1={c % 5 === 0 ? 261 : 265} x2="270" y1={R0 + c * CM} y2={R0 + c * CM} />
-					{c % 5 === 0 && <text class="t-small t-num" x="257" y={R0 + c * CM + 4} text-anchor="end">{c}</text>}
-				</>
-			))}
-			<g data-ptr>
-				<path class="pil__ptr" d="M272 0 l9 -5 v10 Z"></path>
-				<text class="t-strong t-num" x="284" y="4" data-pv></text>
+			<!-- the mast with the block on top -->
+			<path class="pil__frame" d={`M84 ${G} V10 H140 V${G} M84 ${G - 60} L70 ${G} M140 ${G - 60} L154 ${G}`}></path>
+			<line class="pil__frame" x1={PULLEY.x} x2={PULLEY.x} y1="10" y2={PULLEY.y}></line>
+			<!-- the winch: a drum turned by a motor -->
+			<rect class="pil__motor" x="4" y={DRUM.y - 8} width="16" height="16" rx="2"></rect>
+			<path class="pil__stand" d={`M${DRUM.x - 9} ${G} L${DRUM.x} ${DRUM.y} L${DRUM.x + 9} ${G} Z`}></path>
+			<circle class="pil__drum" cx={DRUM.x} cy={DRUM.y} r={DRUM.r}></circle>
+			<g data-drum>
+				<path class="pil__spoke" d={`M${-DRUM.r + 2} 0 H${DRUM.r - 2} M0 ${-DRUM.r + 2} V${DRUM.r - 2}`}></path>
+			</g>
+			<text class="t-small" x="4" y={G + 16}>лебёдка</text>
+			<path class="pil__rope" data-rope></path>
+			<circle class="pil__pulley" cx={PULLEY.x} cy={PULLEY.y} r={PULLEY.r}></circle>
+			<g data-pulley><path class="pil__spoke" d="M-5 0 H5 M0 -5 V5"></path></g>
+			<!-- the weight with its lug, and the gripper on the rope -->
+			<g data-weight>
+				<rect class="pil__lug" x={CX - 1} y="-6" width="2" height="6"></rect>
+				<rect class="pil__lug" x={CX - 4} y="-9" width="8" height="3.5" rx="1"></rect>
+				<rect class="pil__weight" x={CX - PW / 2} y="0" width={PW} rx="1.5" data-wbody></rect>
+			</g>
+			<g data-grip>
+				<rect class="pil__grip" x={CX - 7} y="-22" width="14" height="7" rx="1.5"></rect>
+				<path class="pil__jaw" data-jaw="-1"></path>
+				<path class="pil__jaw" data-jaw="1"></path>
+			</g>
+			<!-- the height of the weight above the head -->
+			<g data-hdim>
+				<path class="ln" data-hline></path>
+				<text class="t-small t-num t-halo" x="157" data-htext></text>
+			</g>
+			<!-- the magnifier -->
+			<path class="pil__ray" data-rays></path>
+			<circle class="pil__lens" r="9" cx={CX + PW / 2} data-lens></circle>
+			<text class="t-small" x={W.x + W.w / 2} y={W.y - 8} text-anchor="middle">увеличено в 20 раз, шкала в см</text>
+			<rect class="pil__win" x={W.x} y={W.y} width={W.w} height={W.h} rx="8"></rect>
+			<g clip-path={`url(#${uid})`}>
+				<g data-zpile>
+					<rect class="pil__pile" x={W.x - 20} y="0" width={286 - W.x + 20} height="400"></rect>
+					<path class="pil__grain" d="M228 12 V400 M246 4 V400 M262 18 V400 M276 8 V400"></path>
+				</g>
+				<g data-zweight>
+					<rect class="pil__weight" x={W.x - 20} y="-500" width={286 - W.x + 20} height="500"></rect>
+				</g>
+				<g data-zscale></g>
+				<g data-was>
+					<line class="pil__was" x1={W.x} x2="320" y1="0" y2="0"></line>
+					<text class="t-small t-halo" x={W.x + 6} y="-5">до удара</text>
+				</g>
+				<g data-zdim>
+					<path class="pil__dim" data-zdl></path>
+					<text class="t-strong t-num t-halo" x="282" text-anchor="end" data-zdt></text>
+				</g>
 			</g>
 		</svg>
 		<div class="g7__side">
@@ -56,17 +105,21 @@ const CM = 12;
 				<output data-oh></output>
 				<input type="range" min="0.5" max="3" step="0.5" value="1.5" data-h aria-label="Высота груза над сваей, метры" />
 			</label>
-			<button type="button" class="g7__btn g7__btn--go" data-go>Отпустить груз</button>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Поднять и отпустить груз</button>
+				<button type="button" class="g7__btn" data-new>Новая свая</button>
+			</div>
 			<ul class="g7__read" aria-live="polite">
-				<li><span>Работа, затраченная на подъём груза</span><b data-a0></b></li>
-				<li class="is-key"><span>Свая ушла в грунт на</span><b data-d></b></li>
+				<li><span>Работа на подъём груза</span><b data-a0></b></li>
+				<li class="is-key"><span>Этот удар: свая ушла на</span><b data-d></b></li>
 				<li class="is-key"><span>Работа груза при ударе</span><b data-a1></b></li>
+				<li class="is-warm"><span data-ntext>Всего свая ушла на</span><b data-s></b></li>
 			</ul>
 			<ul class="g7__read" data-log aria-label="Прошлые удары"></ul>
 		</div>
 	</div>
 	<figcaption class="g7__caption">
-		Грунт сопротивляется свае с постоянной силой 100&nbsp;кН. Работа груза при ударе равна этой силе, умноженной на глубину, на которую ушла свая. Прошлые удары записываются в список.
+		Грунт сопротивляется свае с постоянной силой 100&nbsp;кН, поэтому работа груза при ударе равна этой силе, умноженной на глубину. Удары складываются; погружение сваи замедлено примерно в 30 раз.
 	</figcaption>
 </figure>
 
@@ -74,101 +127,313 @@ const CM = 12;
 	.pil__ground {
 		fill: var(--g7-ground);
 	}
+	.pil__surface {
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+	}
 	.pil__frame {
 		fill: none;
 		stroke: var(--g7-line);
 		stroke-width: 3;
+		stroke-linejoin: round;
 	}
 	.pil__pile {
 		fill: var(--g7-wood);
 		stroke: var(--g7-wood-dark);
 		stroke-width: 1.2;
 	}
+	.pil__grain {
+		fill: none;
+		stroke: var(--g7-wood-dark);
+		stroke-width: 0.8;
+		opacity: 0.7;
+	}
 	.pil__weight {
 		fill: var(--g7-steel-dark);
 		stroke: var(--g7-ink);
 		stroke-width: 1.2;
 	}
-	.pil__ptr {
+	.pil__lug,
+	.pil__grip {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.pil__jaw {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.pil__rope {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 1.4;
+	}
+	.pil__pulley,
+	.pil__drum {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.pil__spoke {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.pil__motor {
 		fill: var(--g7-blue);
+		opacity: 0.8;
+		stroke: var(--g7-ink);
+	}
+	.pil__stand {
+		fill: var(--g7-faint);
+		stroke: var(--g7-line);
+	}
+	.pil__lens {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 1.6;
+	}
+	.pil__ray {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+		opacity: 0.7;
+	}
+	.pil__win {
+		fill: var(--g7-paper);
+		stroke: var(--g7-gold);
+		stroke-width: 1.6;
+	}
+	.pil__was {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 4;
+	}
+	.pil__dim {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.pil__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 1;
 	}
 </style>
 
 <script>
-	import { fmt, fmtInt, loop } from '../g7/kit';
+	import { el, fmt, fmtInt, loop } from '../g7/kit';
 
-	const TOP = 200;
 	const M = 50;
-	const R0 = 60;
-	const CM = 12;
+	const HEAD0 = 220; // the head of the pile before the first blow: 1 м above the ground
+	const CX = 110;
+	const PW = 22;
+	const PULLEY = { x: 102, y: 22, r: 8 };
+	const DRUM = { x: 34, y: 252, r: 10 };
+	const W = { x: 214, y: 40, w: 136, h: 212 };
+	const K = 10; // px per centimetre in the window
+	const SHOW = 4; // cm of the scale above the head when the window is moved
 	const RES = 100000; // Н
+	const V = 1.5; // м/с, the winch
+	const SINK = 0.3; // с, the slowed going in
+	const FULL = 0.8; // м: the pile is driven
+	const f1 = (v: number) => v.toFixed(1);
+
 	for (const root of document.querySelectorAll<HTMLElement>('[data-pil]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
 		const mIn = q<HTMLInputElement>('[data-m]');
 		const hIn = q<HTMLInputElement>('[data-h]');
-		const weight = q<SVGRectElement>('[data-weight]');
-		const pile = q<SVGGElement>('[data-pile]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		const fresh = q<HTMLButtonElement>('[data-new]');
 		const log = q<HTMLUListElement>('[data-log]');
-		let t = -1;
+		const zscale = q<SVGGElement>('[data-zscale]');
+
+		let S = 0; // м: how far the pile has gone in
+		let S0 = 0; // м: the same before the current blow
+		let Y0 = 0; // см: the depth shown SHOW см below the top of the window
+		let panFrom = 0;
+		let panTo = 0;
+		let n = 0; // blows
+		let last: { E: number; d: number } | null = null;
+		let phase: 'idle' | 'lift' | 'open' | 'fall' | 'sink' | 'back' | 'close' = 'idle';
+		let t = 0;
+		let wy = 0; // м: the bottom of the weight above the head
+		let gy = 0; // м: the gripper above the head of the pile, when it is not on the weight
+		let hooked = true;
+		let jaw = 0; // 0 closed, 1 open
+
 		const params = () => {
 			const m = Number(mIn.value);
 			const h = Number(hIn.value);
 			const E = 9.8 * m * h;
-			return { m, h, E, depth: E / RES };
+			return { m, h, E, d: E / RES };
 		};
-		/** `time` < 0: before the blow; returns true when the pile has stopped. */
-		const draw = (time: number) => {
-			const { m, h, E, depth } = params();
-			const size = 12 + m * 0.04; // px: how tall the weight is drawn
-			const tFall = Math.sqrt((2 * h) / 9.8);
-			let fallen = 0;
-			let sunk = 0;
-			if (time >= 0) {
-				fallen = Math.min(h, 4.9 * time * time);
-				// after the blow the pile and the weight go down together and stop within a quarter of a second
-				if (time > tFall) sunk = depth * Math.min(1, (time - tFall) / 0.25);
+		const size = (m: number) => (m / (7800 * 0.44 * 0.3)) * M; // px: the height of the steel block
+
+		// the scale in the window: a tick every 0,5 см, numbers every 5 см
+		for (let c = -10; c <= 100; c += 0.5) {
+			const whole = Number.isInteger(c);
+			const long = whole && c % 5 === 0;
+			const y = c * K;
+			zscale.append(el('line', { class: 'pil__tick', x1: long ? 330 : whole ? 335 : 340, x2: 346, y1: y, y2: y }));
+			if (long && c >= 0) zscale.append(el('text', { class: 't-small t-num', x: 326, y: y + 4, 'text-anchor': 'end' }, String(c)));
+		}
+		zscale.append(el('line', { class: 'pil__tick', x1: 346, x2: 346, y1: -100, y2: 1000 }));
+
+		const draw = () => {
+			const { m, h } = params();
+			const head = HEAD0 + S * M;
+			const sz = size(m);
+			const wt = head - wy * M - sz; // the top of the weight
+			q('[data-pile]').setAttribute('transform', `translate(0 ${f1(head)})`);
+			q('[data-wbody]').setAttribute('height', f1(sz));
+			q('[data-weight]').setAttribute('transform', `translate(0 ${f1(wt)})`);
+			// the gripper: on the lug of the weight, or where it was left
+			const gripY = hooked ? wt : head - gy * M - sz;
+			q('[data-grip]').setAttribute('transform', `translate(0 ${f1(gripY)})`);
+			for (const s of [-1, 1]) {
+				const a = jaw * 0.7;
+				const x0 = CX + s * 5;
+				const x1 = x0 + s + s * Math.sin(a) * 10.5;
+				const y1 = -15 + Math.cos(a) * 10.5;
+				q(`[data-jaw="${s}"]`).setAttribute('d', `M${x0} -15 L${f1(x1)} ${f1(y1)} L${f1(x1 - s * (4 - 3 * jaw))} ${f1(y1)}`);
 			}
-			const done = time >= tFall + 0.25;
-			weight.setAttribute('height', size.toFixed(1));
-			weight.setAttribute('y', (TOP - h * M - size + (fallen + sunk) * M).toFixed(1));
-			pile.setAttribute('transform', `translate(0 ${(TOP + sunk * M).toFixed(1)})`);
-			q('[data-ptr]').setAttribute('transform', `translate(0 ${(R0 + sunk * 100 * CM).toFixed(1)})`);
-			q('[data-pv]').textContent = done ? fmt(depth * 100, 2) : '';
-			q('[data-om]').textContent = `${m} кг`;
-			q('[data-oh]').textContent = `${fmt(h, 1)} м`;
-			q('[data-a0]').textContent = `${fmtInt(E)} Дж`;
-			q('[data-d]').textContent = done ? `${fmt(depth * 100, 2)} см` : '—';
-			q('[data-a1]').textContent = done ? `${fmtInt(E)} Дж` : '—';
-			return time > tFall + 0.3;
+			// the rope: from the gripper up to the block, over it and down to the drum
+			const ropeTop = gripY - 22;
+			const dx = DRUM.x - (PULLEY.x - PULLEY.r);
+			const dy = DRUM.y - PULLEY.y;
+			const len = Math.hypot(dx, dy);
+			const tx = DRUM.x - (DRUM.r * dy) / len;
+			const ty = DRUM.y + (DRUM.r * dx) / len;
+			q('[data-rope]').setAttribute('d', `M${CX} ${f1(ropeTop)} V${PULLEY.y} A${PULLEY.r} ${PULLEY.r} 0 0 0 ${PULLEY.x - PULLEY.r} ${PULLEY.y} L${f1(tx)} ${f1(ty)}`);
+			// the drum and the block turn with the rope
+			const wound = 300 - ropeTop; // px of rope wound in, up to a constant
+			q('[data-drum]').setAttribute('transform', `translate(${DRUM.x} ${DRUM.y}) rotate(${f1((-wound / DRUM.r) * (180 / Math.PI))})`);
+			q('[data-pulley]').setAttribute('transform', `translate(${PULLEY.x} ${PULLEY.y}) rotate(${f1((-wound / PULLEY.r) * (180 / Math.PI))})`);
+			// the height to which the weight is lifted
+			const top = head - h * M;
+			q('[data-hline]').setAttribute('d', `M150 ${f1(head)} V${f1(top)} M146 ${f1(head)} H154 M146 ${f1(top)} H154`);
+			q('[data-htext]').setAttribute('y', f1((head + top) / 2 + 4));
+			q('[data-htext]').textContent = `${fmt(h, 1)}\u00a0м`;
+			// the magnifier
+			q('[data-lens]').setAttribute('cy', f1(head));
+			q('[data-rays]').setAttribute('d', `M${CX + PW / 2 + 6} ${f1(head - 7)} L${W.x} ${W.y + 10} M${CX + PW / 2 + 6} ${f1(head + 7)} L${W.x} ${W.y + W.h - 10}`);
+			// the window: depths in centimetres below the first position of the head
+			const zy = (c: number) => W.y + (c - Y0 + SHOW) * K;
+			q('[data-zpile]').setAttribute('transform', `translate(0 ${f1(zy(S * 100))})`);
+			q('[data-zweight]').setAttribute('transform', `translate(0 ${f1(zy(S * 100 - wy * 100))})`);
+			zscale.setAttribute('transform', `translate(0 ${f1(zy(0))})`);
+			const was = q<SVGGElement>('[data-was]');
+			was.style.display = n > 0 || phase !== 'idle' ? '' : 'none';
+			was.setAttribute('transform', `translate(0 ${f1(zy(S0 * 100))})`);
+			const dd = (S - S0) * 100;
+			const zd = q<SVGGElement>('[data-zdim]');
+			zd.style.display = dd > 0.01 ? '' : 'none';
+			if (dd > 0.01) {
+				const y0 = zy(S0 * 100);
+				const y1 = zy(S * 100);
+				q('[data-zdl]').setAttribute('d', `M300 ${f1(y0)} V${f1(y1)} M295 ${f1(y0)} H305 M295 ${f1(y1)} H305`);
+				q('[data-zdt]').setAttribute('y', f1(Math.max(y1 + 18, (y0 + y1) / 2 + 5)));
+				q('[data-zdt]').textContent = `${fmt(dd, 2)}\u00a0см`;
+			}
 		};
+
+		const readouts = () => {
+			const { m, h, E } = params();
+			q('[data-om]').textContent = `${m}\u00a0кг`;
+			q('[data-oh]').textContent = `${fmt(h, 1)}\u00a0м`;
+			q('[data-a0]').textContent = `${fmtInt(E)}\u00a0Дж`;
+			q('[data-d]').textContent = last ? `${fmt(last.d * 100, 2)}\u00a0см` : '—';
+			q('[data-a1]').textContent = last ? `${fmtInt(last.E)}\u00a0Дж` : '—';
+			q('[data-s]').textContent = `${fmt(S * 100, 2)}\u00a0см`;
+			q('[data-ntext]').textContent = n ? `Всего за ${n} ${n % 10 === 1 && n % 100 !== 11 ? 'удар' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'удара' : 'ударов'} свая ушла на` : 'Всего свая ушла на';
+			const busy = phase !== 'idle';
+			const full = S >= FULL - 1e-9;
+			go.disabled = busy || full;
+			go.textContent = full ? 'Свая забита' : 'Поднять и отпустить груз';
+			fresh.disabled = busy;
+			mIn.disabled = busy;
+			hIn.disabled = busy;
+		};
+
 		const wake = loop(root, (dt) => {
-			if (t < 0) return false;
+			if (phase === 'idle') return false;
+			const { m, h, E, d } = params();
 			t += dt;
-			if (draw(t)) {
-				const { m, h, depth } = params();
-				const key = `${m}-${h}`;
-				if (!log.querySelector(`[data-key="${key}"]`)) {
+			if (phase === 'lift') {
+				const T = h / V;
+				const u = Math.min(1, t / T);
+				wy = h * u;
+				Y0 = panFrom + (panTo - panFrom) * (u * u * (3 - 2 * u));
+				if (u >= 1) (phase = 'open'), (t = 0);
+			} else if (phase === 'open') {
+				jaw = Math.min(1, t / 0.25);
+				if (t >= 0.35) (hooked = false), (gy = h), (phase = 'fall'), (t = 0);
+			} else if (phase === 'fall') {
+				wy = Math.max(0, h - 4.9 * t * t);
+				if (wy <= 0) (phase = 'sink'), (t = 0);
+			} else if (phase === 'sink') {
+				const u = Math.min(1, t / SINK);
+				// a constant resisting force: a constant deceleration
+				const s = d * (1 - (1 - u) * (1 - u));
+				S = S0 + s;
+				gy = h + s; // the gripper stays where it was left
+				if (u >= 1) {
+					n++;
+					last = { E, d };
 					const li = document.createElement('li');
-					li.dataset.key = key;
-					li.innerHTML = `<span>${m} кг с высоты ${fmt(h, 1)} м</span><b>${fmt(depth * 100, 2)} см</b>`;
+					li.innerHTML = `<span>Удар ${n}: ${m} кг, ${fmt(h, 1)} м</span><b>${fmt(d * 100, 2)} см</b>`;
 					log.prepend(li);
-					while (log.children.length > 4) log.lastElementChild!.remove();
+					while (log.children.length > 3) log.lastElementChild!.remove();
+					phase = 'back';
+					t = 0;
 				}
-				t = -1;
-				return false;
+			} else if (phase === 'back') {
+				gy = Math.max(0, h + d - 3 * t);
+				if (gy <= 0) (hooked = true), (phase = 'close'), (t = 0);
+			} else if (phase === 'close') {
+				jaw = Math.max(0, 1 - t / 0.2);
+				if (t >= 0.25) (jaw = 0), (phase = 'idle');
 			}
-			return true;
+			draw();
+			if (phase === 'idle' || phase === 'back') readouts();
+			return phase !== 'idle';
 		});
-		q('[data-go]').addEventListener('click', () => {
+
+		go.addEventListener('click', () => {
+			if (phase !== 'idle') return;
+			const { d } = params();
+			S0 = S;
+			panFrom = Y0;
+			// move the window only when this blow would not fit in it
+			panTo = (S + d) * 100 - Y0 + SHOW > W.h / K - 1.5 ? S * 100 : Y0;
+			phase = 'lift';
 			t = 0;
-			draw(0);
+			readouts();
 			wake();
+		});
+		fresh.addEventListener('click', () => {
+			S = S0 = Y0 = 0;
+			n = 0;
+			last = null;
+			wy = 0;
+			hooked = true;
+			jaw = 0;
+			log.replaceChildren();
+			draw();
+			readouts();
 		});
 		for (const i of [mIn, hIn])
 			i.addEventListener('input', () => {
-				t = -1;
-				draw(-1);
+				last = null;
+				draw();
+				readouts();
 			});
-		draw(-1);
+		draw();
+		readouts();
 	}
 </script>
