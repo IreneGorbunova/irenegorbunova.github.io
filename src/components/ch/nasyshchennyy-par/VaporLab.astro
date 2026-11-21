@@ -1,0 +1,293 @@
+---
+/**
+ * Model «Пар над водой под поршнем»: a closed cylinder with water at the bottom and only its vapour above (no air),
+ * at a constant temperature (a thermostat). A flat kinetic model: the vapour molecules are dots flying freely with
+ * one speed (120 px/s at 20 °C, ∝ √T) and bouncing off the walls and the piston; a dot that hits the water is caught
+ * (condensation). The water lets molecules out at a constant rate per unit of its surface (evaporation), in
+ * directions spread as cos θ, as the flux of a gas would be. The rate is set so that at equilibrium, when as many
+ * dots come back as leave (flux n·υ/π per unit length in a flat gas), the density of dots is that of saturated
+ * vapour: 60 dots in the full volume at 20 °C, and ρ_н(t)/ρ_н(20 °C) times more at other temperatures (2,96 times
+ * at 40 °C, 7,5 times at 60 °C). The readouts turn the density of dots into г/м³ by this scale (60 dots in the full
+ * volume = 17,2 г/м³) and give the pressure p = ρRT/M; they are averaged over the last 5 s. The volume of vapour:
+ * 2 л with the piston up, 0,75 л at the lowest. Temperatures 20, 40, 60 °C: ρ_н = 17,2; 50,9; 129 г/м³,
+ * p_н = 2,33; 7,36; 19,9 кПа.
+ * The graph under the cylinder shows the density of vapour at each moment (the dots in the volume now, means over
+ * 0,1 s) for the last 20 s, on a scale of 0 … 2,2·ρ_н(t); the dashed line is ρ_н(t). The 5 s means of the readouts hide
+ * a short jump, the graph shows it. Checked by a replica of this loop in python (60 frames/s, 20 runs): squeezing 2 → 1 л
+ * (the piston moves 60 px/s, 1,4 s) lifts the density to about twice, 35 г/м³ on average at its peak (31–39: few
+ * dots), when the piston stops; the extra vapour then condenses, and the 5 s readout 20 s later is 17–18 г/м³,
+ * 2,3–2,4 кПа. After switching 20 → 40 or 60 °C the vapour fills up in about 20 s; 30 s after the switch the readouts
+ * are 7,1–7,3 кПа and 19,4–19,9 кПа (single runs 6,8–7,7 and 18,4–19,9; the browser showed 7,32 and 19,9). At a fixed temperature the long-run
+ * means agree with ρ_н and p_н within 2 %.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 not-content" data-vaporlab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 352" role="img" aria-label="Цилиндр с водой и паром под поршнем: молекулы пара вылетают из воды и возвращаются в неё. Под ним график плотности пара за последние 20 секунд">
+			<rect class="vl-vap" x="40" y="44" width="220" height="166"></rect>
+			<g data-dots></g>
+			<path class="vl-water" d="M40 210 H260 V240 H40 Z"></path>
+			<path class="vl-surf" d="M40 210 H260"></path>
+			<g data-liq></g>
+			<g data-piston>
+				<rect class="vl-piston" x="40" y="-12" width="220" height="12"></rect>
+				<rect class="vl-rod" x="146" y="-220" width="8" height="208"></rect>
+			</g>
+			<path class="vl-wall" d="M36 30 V244 H264 V30"></path>
+			<text class="t-small" x="270" y="226">вода</text>
+			<text class="t-small" x="270" y="120">пар</text>
+			<!-- the graph: the density of vapour at each moment, the last 20 s -->
+			<text class="t-small" x="44" y="268">плотность пара, г/м³</text>
+			<path class="ln" d="M44 274 V336 H290"></path>
+			<path class="ln-dash vl-sat" d="M44 309.6 H290"></path>
+			<path class="ln-dash" d="M44 283.3 H290"></path>
+			<text class="t-small" x="38" y="340" text-anchor="end">0</text>
+			<text class="t-small" x="38" y="313.6" text-anchor="end" data-g1>17</text>
+			<text class="t-small" x="38" y="287.3" text-anchor="end" data-g2>34</text>
+			<path class="ln-dash vl-sat" d="M196 264.5 H214"></path>
+			<text class="t-small vl-satlbl" x="290" y="268" text-anchor="end">насыщенный</text>
+			<text class="t-small" x="44" y="349">20&nbsp;с назад</text>
+			<text class="t-small" x="290" y="349" text-anchor="end">сейчас</text>
+			<path class="vl-graph" data-graph></path>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">Объём пара <output data-out-v>2&nbsp;л</output><input type="range" min="0.75" max="2" step="0.25" value="2" data-v /></label>
+			<div class="g7__row">
+				<span class="g7__label">Температура</span>
+				<div class="g7__seg" data-t>
+					<button type="button" class="g7__btn" aria-pressed="true" data-tt="20">20&nbsp;°C</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-tt="40">40&nbsp;°C</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-tt="60">60&nbsp;°C</button>
+				</div>
+			</div>
+			<ul class="g7__read">
+				<li>Вылетает из воды за 1&nbsp;с <b data-out>—</b></li>
+				<li>Возвращается в воду за 1&nbsp;с <b data-in>—</b></li>
+				<li class="is-warm">Плотность пара <b data-rho>—</b></li>
+				<li class="is-key">Давление пара <b data-p>—</b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Плоская модель: точки — молекулы пара, воздуха в цилиндре нет, температура поддерживается постоянной. Числа молекул в модели в миллиарды миллиардов раз меньше, движение сильно замедлено; показания усреднены за 5&nbsp;с, а график показывает плотность пара в каждый момент.</figcaption>
+</figure>
+
+<style is:global>
+	[data-vaporlab] .vl-vap {
+		fill: color-mix(in oklab, var(--g7-blue) 5%, var(--g7-paper));
+	}
+	[data-vaporlab] .vl-water {
+		fill: var(--g7-water);
+	}
+	[data-vaporlab] .vl-surf {
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.4;
+	}
+	[data-vaporlab] .vl-liq {
+		fill: var(--g7-blue);
+		opacity: 0.45;
+	}
+	[data-vaporlab] .vl-dot {
+		fill: var(--g7-blue);
+	}
+	[data-vaporlab] .vl-piston {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	[data-vaporlab] .vl-rod {
+		fill: var(--g7-steel-dark);
+	}
+	[data-vaporlab] .vl-graph {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+	[data-vaporlab] .vl-sat {
+		stroke: var(--g7-gold);
+	}
+	[data-vaporlab] .vl-satlbl {
+		fill: var(--g7-gold);
+	}
+	[data-vaporlab] .vl-wall {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+</style>
+
+<script>
+	import { loop, fmt, fmtInt, segment, rng } from '../g7/kit';
+	import { rhoSat } from './psat';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const XL = 40;
+	const XR = 260;
+	const SURF = 210;
+	const YTOP = 44; // the piston's face at 2 л
+	const HMAX = SURF - YTOP; // 166 px = 2 л
+	const N20 = 60; // dots in the full volume at 20 °C
+	const RD = 2.3;
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-vaporlab]')) {
+		const dotsG = fig.querySelector<SVGGElement>('[data-dots]')!;
+		const piston = fig.querySelector<SVGGElement>('[data-piston]')!;
+		const inV = fig.querySelector<HTMLInputElement>('[data-v]')!;
+		const outV = fig.querySelector('[data-out-v]')!;
+		const oOut = fig.querySelector('[data-out]')!;
+		const oIn = fig.querySelector('[data-in]')!;
+		const oRho = fig.querySelector('[data-rho]')!;
+		const oP = fig.querySelector('[data-p]')!;
+		const graph = fig.querySelector<SVGPathElement>('[data-graph]')!;
+		const g1 = fig.querySelector('[data-g1]')!;
+		const g2 = fig.querySelector('[data-g2]')!;
+		// the graph: 20 s on 44 … 290 px, 0 … 2,2·ρ_н(t) on 336 … 278 px; a point every 0,1 s
+		const GX0 = 44;
+		const GX1 = 290;
+		const GY0 = 336;
+		const GY1 = 278;
+		let hist: number[] = [];
+		let binSum = 0;
+		let binN = 0;
+		let binT = 0;
+		const scaleG = () => {
+			g1.textContent = fmtInt(rhoSat(T));
+			g2.textContent = fmtInt(2 * rhoSat(T));
+		};
+		const drawG = () => {
+			const top = 2.2 * rhoSat(T);
+			graph.setAttribute(
+				'd',
+				hist
+					.map((r, i) => {
+						const x = GX1 - ((hist.length - 1 - i) * (GX1 - GX0)) / 199;
+						const y = GY0 - (Math.min(r, top) / top) * (GY0 - GY1);
+						return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+					})
+					.join(''),
+			);
+		};
+		// molecules of the water, drawn still
+		const liq = fig.querySelector<SVGGElement>('[data-liq]')!;
+		const rand = rng(3);
+		for (let i = 0; i < 70; i++) {
+			const c = document.createElementNS(NS, 'circle');
+			c.setAttribute('class', 'vl-liq');
+			c.setAttribute('cx', (XL + 4 + rand() * (XR - XL - 8)).toFixed(1));
+			c.setAttribute('cy', (SURF + 4 + rand() * 24).toFixed(1));
+			c.setAttribute('r', String(RD));
+			liq.append(c);
+		}
+		let T = 20;
+		let face = YTOP; // the piston's face, px
+		// 2 л ↔ HMAX, 0,75 л ↔ HMAX·0,375
+		const faceFor = (V: number) => SURF - (HMAX * V) / 2;
+		const speed = () => 120 * Math.sqrt((T + 273) / 293);
+		const W = XR - XL - 2 * RD; // the width the dots' centres can take
+		const nEq = () => (N20 / ((HMAX - 2 * RD) * W)) * (rhoSat(T) / rhoSat(20)); // dots per px²
+		type D = { x: number; y: number; vx: number; vy: number; e: SVGCircleElement };
+		let dots: D[] = [];
+		const add = (x: number, y: number, a: number) => {
+			const e = document.createElementNS(NS, 'circle');
+			e.setAttribute('class', 'vl-dot');
+			e.setAttribute('r', String(RD));
+			dotsG.append(e);
+			const v = speed();
+			dots.push({ x, y, vx: v * Math.sin(a), vy: -v * Math.cos(a), e });
+		};
+		const fill = () => {
+			dotsG.replaceChildren();
+			dots = [];
+			const n = Math.round(nEq() * (SURF - face - 2 * RD) * W);
+			for (let i = 0; i < n; i++) add(XL + RD + Math.random() * (XR - XL - 2 * RD), face + RD + Math.random() * (SURF - face - 2 * RD), Math.random() * 2 * Math.PI);
+		};
+		let log: { t: number; out: number; in: number; n: number; h: number }[] = [];
+		let clock = 0;
+		segment(fig.querySelector('[data-t]')!, (b) => {
+			T = Number(b.dataset.tt);
+			const v = speed();
+			for (const d of dots) {
+				const k = v / Math.hypot(d.vx, d.vy);
+				d.vx *= k;
+				d.vy *= k;
+			}
+			log = [];
+			scaleG();
+			drawG();
+		});
+		inV.addEventListener('input', () => {
+			outV.textContent = `${fmt(Number(inV.value), 2).replace(/0$/, '').replace(/,0$/, '')}\u00a0л`;
+			log = [];
+		});
+		fill();
+		scaleG();
+		let emitAcc = 0;
+		loop(fig, (dt) => {
+			clock += dt;
+			// the piston moves to its place at 60 px/s
+			const goal = faceFor(Number(inV.value));
+			face += Math.max(-60 * dt, Math.min(60 * dt, goal - face));
+			piston.setAttribute('transform', `translate(0 ${face.toFixed(1)})`);
+			const v = speed();
+			// evaporation: n_eq·υ/π per px of the surface per second
+			emitAcc += ((nEq() * v) / Math.PI) * W * dt;
+			let out = 0;
+			while (emitAcc >= 1) {
+				emitAcc -= 1;
+				const a = Math.asin(2 * Math.random() - 1);
+				add(XL + RD + Math.random() * (XR - XL - 2 * RD), SURF - RD, a);
+				out++;
+			}
+			let back = 0;
+			for (let i = dots.length - 1; i >= 0; i--) {
+				const d = dots[i];
+				d.x += d.vx * dt;
+				d.y += d.vy * dt;
+				if (d.x < XL + RD) (d.x = 2 * (XL + RD) - d.x), (d.vx = Math.abs(d.vx));
+				if (d.x > XR - RD) (d.x = 2 * (XR - RD) - d.x), (d.vx = -Math.abs(d.vx));
+				if (d.y < face + RD) {
+					d.y = face + RD;
+					d.vy = Math.abs(d.vy);
+				}
+				if (d.y >= SURF - RD && d.vy > 0) {
+					d.e.remove();
+					dots.splice(i, 1);
+					back++;
+					continue;
+				}
+				d.e.setAttribute('cx', d.x.toFixed(1));
+				d.e.setAttribute('cy', d.y.toFixed(1));
+			}
+			log.push({ t: clock, out, in: back, n: dots.length, h: SURF - face });
+			// the density now, г/м³, into the graph
+			binSum += ((dots.length / ((SURF - face - 2 * RD) * W)) / (N20 / ((HMAX - 2 * RD) * W))) * rhoSat(20);
+			binN++;
+			binT += dt;
+			if (binT >= 0.1) {
+				hist.push(binSum / binN);
+				if (hist.length > 200) hist = hist.slice(-200);
+				binSum = binN = binT = 0;
+				drawG();
+			}
+			while (log.length && log[0].t < clock - 5) log.shift();
+			const span = log.length > 1 ? log[log.length - 1].t - log[0].t + dt : 0;
+			if (span > 0.8) {
+				const so = log.reduce((s, q) => s + q.out, 0) / span;
+				const si = log.reduce((s, q) => s + q.in, 0) / span;
+				const dens = log.reduce((s, q) => s + q.n / ((q.h - 2 * RD) * W), 0) / log.length;
+				const rho = (dens / (N20 / ((HMAX - 2 * RD) * W))) * rhoSat(20);
+				const p = (rho / 1000 / 0.018) * 8.31 * (T + 273) / 1000;
+				oOut.textContent = fmtInt(so);
+				oIn.textContent = fmtInt(si);
+				oRho.textContent = `${fmt(rho, rho < 100 ? 1 : 0)}\u00a0г/м³`;
+				oP.textContent = `${fmt(p, p < 10 ? 2 : 1)}\u00a0кПа`;
+			} else {
+				oOut.textContent = oIn.textContent = oRho.textContent = oP.textContent = '…';
+			}
+			return true;
+		});
+	}
+</script>

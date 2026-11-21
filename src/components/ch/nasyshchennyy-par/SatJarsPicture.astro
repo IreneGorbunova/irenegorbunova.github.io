@@ -1,0 +1,113 @@
+---
+/**
+ * Picture «Насыщенный пар при нагревании»: three closed jars with water and its saturated vapour (no air) at 20, 60
+ * and 100 °C. The number of dots is proportional to the density of saturated vapour (psat.ts): ρ_н = 17,2; 129; 588 г/м³,
+ * 4 dots per 17,2 г/м³ give 4, 30 and 137 dots. Pressures p_н = 2,33; 19,9; 101 кПа: from 20 to 100 °C the density grows
+ * 34 times and the pressure 43 times, because p = ρRT/M and T grows 1,27 times as well. The dots fly with speeds
+ * ∝ √T (30 px/s at 20 °C, slowed down enormously) and bounce off the walls and the lid; a dot that reaches the water
+ * is caught and another leaves the water at once at a random place, so the number stays fixed (dynamic equilibrium).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import { psat, rhoSat } from './psat';
+
+const fmtP = (p: number) => (p < 10 ? p.toFixed(1) : Math.round(p).toString()).replace('.', ',');
+const jars = [20, 60, 100].map((t, i) => ({
+	t,
+	x: 10 + i * 118,
+	n: Math.round((4 * rhoSat(t)) / rhoSat(20)),
+	p: fmtP(psat(t)),
+	rho: Math.round(rhoSat(t)),
+}));
+---
+
+<G7Styles />
+<figure class="g7 g7--pic not-content" data-satjars>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 214" role="img" aria-label="Три закрытых сосуда с водой и паром при 20, 60 и 100 градусах. Чем горячее, тем больше молекул пара над водой: давление пара 2,3, 20 и 101 килопаскаль">
+			{
+				jars.map((j, i) => (
+					<g>
+						<rect class="sj-vap" x={j.x} y="14" width="104" height="116"></rect>
+						<rect class="sj-water" x={j.x} y="130" width="104" height="22"></rect>
+						<path class="sj-surf" d={`M${j.x} 130 h104`}></path>
+						<g data-jar={i} data-x={j.x} data-n={j.n} data-t={j.t}></g>
+						<path class="sj-wall" d={`M${j.x - 2} 12 h108 v142 h-108 Z`}></path>
+						<text class="t-strong" x={j.x + 52} y="172" text-anchor="middle">{j.t}&nbsp;°C</text>
+						<text class="t-small" x={j.x + 52} y="188" text-anchor="middle"><tspan class="t-i">p</tspan> = {j.p}&nbsp;кПа</text>
+						<text class="t-small" x={j.x + 52} y="204" text-anchor="middle"><tspan class="t-i">ρ</tspan> = {j.rho}&nbsp;г/м³</text>
+					</g>
+				))
+			}
+		</svg>
+	</div>
+	<figcaption class="g7__caption">Закрытые сосуды с водой и её насыщенным паром, воздуха нет. Число точек пропорционально плотности пара: от 20 до 100&nbsp;°C она растёт в 34&nbsp;раза, а давление — в 43&nbsp;раза, потому что молекулы ещё и летают быстрее. Движение сильно замедлено.</figcaption>
+</figure>
+
+<style is:global>
+	[data-satjars] .sj-vap {
+		fill: color-mix(in oklab, var(--g7-blue) 5%, var(--g7-paper));
+	}
+	[data-satjars] .sj-water {
+		fill: var(--g7-water);
+	}
+	[data-satjars] .sj-surf {
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.4;
+	}
+	[data-satjars] .sj-wall {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	[data-satjars] .sj-dot {
+		fill: var(--g7-blue);
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const R = 1.8;
+	const TOP = 14 + R;
+	const SURF = 130 - R;
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-satjars]')) {
+		type D = { x: number; y: number; vx: number; vy: number; e: SVGCircleElement };
+		const jars = Array.from(fig.querySelectorAll<SVGGElement>('[data-jar]')).map((g) => {
+			const x0 = Number(g.dataset.x) + R;
+			const x1 = Number(g.dataset.x) + 104 - R;
+			const v = 30 * Math.sqrt((Number(g.dataset.t) + 273) / 293);
+			const dots: D[] = Array.from({ length: Number(g.dataset.n) }, () => {
+				const e = document.createElementNS(NS, 'circle');
+				e.setAttribute('class', 'sj-dot');
+				e.setAttribute('r', String(R));
+				g.append(e);
+				const a = Math.random() * 2 * Math.PI;
+				return { x: x0 + Math.random() * (x1 - x0), y: TOP + Math.random() * (SURF - TOP), vx: v * Math.cos(a), vy: v * Math.sin(a), e };
+			});
+			return { x0, x1, v, dots };
+		});
+		loop(fig, (dt) => {
+			for (const j of jars)
+				for (const d of j.dots) {
+					d.x += d.vx * dt;
+					d.y += d.vy * dt;
+					if (d.x < j.x0) (d.x = 2 * j.x0 - d.x), (d.vx = Math.abs(d.vx));
+					if (d.x > j.x1) (d.x = 2 * j.x1 - d.x), (d.vx = -Math.abs(d.vx));
+					if (d.y < TOP) (d.y = 2 * TOP - d.y), (d.vy = Math.abs(d.vy));
+					if (d.y > SURF) {
+						// caught by the water; another molecule leaves it, directions spread as cos θ
+						const a = Math.asin(2 * Math.random() - 1);
+						d.x = j.x0 + Math.random() * (j.x1 - j.x0);
+						d.y = SURF;
+						d.vx = j.v * Math.sin(a);
+						d.vy = -j.v * Math.cos(a);
+					}
+					d.e.setAttribute('cx', d.x.toFixed(1));
+					d.e.setAttribute('cy', d.y.toFixed(1));
+				}
+			return true;
+		});
+	}
+</script>

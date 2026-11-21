@@ -1,0 +1,161 @@
+---
+/**
+ * Model «Точка росы»: the curve of the pressure of saturated water vapour p_н(t) from −5 to 35 °C (psat.ts; below
+ * 0 °C over supercooled water, close to the values over ice) and a point for the air of a room: its temperature t and
+ * the partial pressure of the water vapour in it p = φ·p_н(t). The relative humidity is the height of the point
+ * divided by the height of the curve above it. «Охлаждать воздух» moves the point left at a constant p (the air is
+ * cooled at a constant pressure, the amount of vapour stays the same) until it meets the curve at the dew point
+ * t_р = the temperature with p_н(t_р) = p; cooled further, the point slides down the curve and the extra vapour turns
+ * into dew. Example: 22 °C and 50 %: p = 1,32 кПа, t_р = 11 °C.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import { psat } from './psat';
+
+const X0 = 40;
+const X1 = 330;
+const Y0 = 220;
+const Y1 = 22;
+const x = (t: number) => X0 + ((t + 5) / 40) * (X1 - X0);
+const y = (p: number) => Y0 - (p / 6) * (Y0 - Y1);
+const curve: string[] = [];
+for (let t = -5; t <= 35.001; t += 0.5) curve.push(`${x(t).toFixed(1)} ${y(psat(t)).toFixed(1)}`);
+const under = `M${x(-5)} ${Y0} L${curve.join(' L')} L${x(35)} ${Y0} Z`;
+---
+
+<G7Styles />
+<figure class="g7 not-content" data-dewlab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 254" role="img" aria-label="График давления насыщенного водяного пара от температуры и точка, изображающая воздух в комнате; при охлаждении точка движется влево до кривой — до точки росы">
+			<path class="dl-under" d={under}></path>
+			<path class="ln" d={`M${X0} ${Y1 - 6} V${Y0} H${X1 + 6}`}></path>
+			{[1, 2, 3, 4, 5, 6].map((p) => <g><path class="ln-dash" d={`M${X0} ${y(p)} H${X1}`} /><text class="t-small" x={X0 - 6} y={y(p) + 4} text-anchor="end">{p}</text></g>)}
+			{[0, 10, 20, 30].map((t) => <text class="t-small" x={x(t)} y={Y0 + 15} text-anchor="middle">{t}</text>)}
+			<text class="t-small" x={X0 + 6} y={Y1 - 8}><tspan class="t-i">p</tspan>, кПа</text>
+			<text class="t-small" x={X1 + 4} y={Y0 + 28} text-anchor="end"><tspan class="t-i">t</tspan>, °C</text>
+			<polyline class="dl-curve" points={curve.join(' ')}></polyline>
+			<text class="t-small t-halo" x={x(17)} y={y(4.8)}>насыщенный пар</text>
+			<line class="dl-sat" data-sat></line>
+			<line class="dl-path" data-path></line>
+			<line class="dl-drop" data-drop></line>
+			<circle class="dl-dew" data-dew r="4.5"></circle>
+			<circle class="dl-air" data-air r="6"></circle>
+			<text class="t-small t-halo" data-dewlab-t></text>
+			<text class="t-strong t-halo" data-msg x={x(-3)} y={Y1 + 14}></text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">Температура воздуха <output data-out-t>22 °C</output><input type="range" min="5" max="35" step="1" value="22" data-t /></label>
+			<label class="g7__slider">Относительная влажность <output data-out-f>50 %</output><input type="range" min="10" max="100" step="5" value="50" data-f /></label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-cool>Охлаждать воздух</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+			<ul class="g7__read">
+				<li><span>Давление насыщенного пара <i>p</i><sub>н</sub></span> <b data-ps>—</b></li>
+				<li class="is-key"><span>Парциальное давление пара <i>p</i></span> <b data-pp>—</b></li>
+				<li class="is-warm"><span>Точка росы <i>t</i><sub>р</sub></span> <b data-td>—</b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Синяя линия — давление насыщенного водяного пара (табличные данные), точка — воздух в комнате. Под линией пар ненасыщенный.</figcaption>
+</figure>
+
+<style is:global>
+	[data-dewlab] .dl-under {
+		fill: color-mix(in oklab, var(--g7-blue) 10%, transparent);
+	}
+	[data-dewlab] .dl-curve {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 3;
+	}
+	[data-dewlab] .dl-sat,
+	[data-dewlab] .dl-drop {
+		stroke: var(--g7-line);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	[data-dewlab] .dl-path {
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+		stroke-dasharray: 5 3;
+	}
+	[data-dewlab] .dl-air {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	[data-dewlab] .dl-dew {
+		fill: var(--g7-paper);
+		stroke: var(--g7-blue);
+		stroke-width: 2;
+	}
+</style>
+
+<script>
+	import { loop, fmt, fmtInt } from '../g7/kit';
+	import { psat, tSat } from './psat';
+
+	const X0 = 40;
+	const X1 = 330;
+	const Y0 = 220;
+	const Y1 = 22;
+	const x = (t: number) => X0 + ((t + 5) / 40) * (X1 - X0);
+	const y = (p: number) => Y0 - (p / 6) * (Y0 - Y1);
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-dewlab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const inT = $<HTMLInputElement>('[data-t]');
+		const inF = $<HTMLInputElement>('[data-f]');
+		const air = $<SVGCircleElement>('[data-air]');
+		const dew = $<SVGCircleElement>('[data-dew]');
+		const sat = $<SVGLineElement>('[data-sat]');
+		const path = $<SVGLineElement>('[data-path]');
+		const drop = $<SVGLineElement>('[data-drop]');
+		const dlab = $<SVGTextElement>('[data-dewlab-t]');
+		const msg = $<SVGTextElement>('[data-msg]');
+		let cooling = false;
+		let tNow = 22; // the temperature of the air while it is cooled
+		const set = (e: Element, a: Record<string, number | string>) => {
+			for (const [k, v] of Object.entries(a)) e.setAttribute(k, typeof v === 'number' ? v.toFixed(1) : v);
+		};
+		const draw = () => {
+			const t0 = Number(inT.value);
+			const f = Number(inF.value) / 100;
+			const p0 = f * psat(t0);
+			const td = tSat(p0);
+			const t = cooling ? tNow : t0;
+			const p = t >= td ? p0 : psat(t); // below the dew point the extra vapour has condensed
+			$('[data-out-t]').textContent = `${t0}\u00a0°C`;
+			$('[data-out-f]').textContent = `${inF.value}\u00a0%`;
+			set(air, { cx: x(t), cy: y(p) });
+			set(dew, { cx: x(td), cy: y(p0) });
+			set(sat, { x1: x(t), x2: x(t), y1: y(p), y2: y(psat(t)) });
+			set(path, { x1: x(Math.max(td, t)), x2: x(t0), y1: y(p0), y2: y(p0) });
+			set(drop, { x1: x(td), x2: x(td), y1: y(p0), y2: Y0 });
+			set(dlab, { x: x(td) - 4, y: Y0 - 6, 'text-anchor': 'end' });
+			dlab.textContent = `${fmtInt(td)}\u00a0°C`;
+			$('[data-ps]').textContent = `${fmt(psat(t), 2)}\u00a0кПа`;
+			$('[data-pp]').textContent = `${fmt(p, 2)}\u00a0кПа`;
+			$('[data-td]').textContent = `${fmtInt(td)}\u00a0°C`;
+			const phi = Math.min(100, (p / psat(t)) * 100);
+			msg.textContent = cooling ? (t < td - 0.2 ? `${fmtInt(t)} °C: выпадает роса` : `${fmtInt(t)} °C, φ = ${fmtInt(phi)} %`) : `φ = ${fmtInt(phi)} %`;
+		};
+		inT.addEventListener('input', () => ((cooling = false), draw()));
+		inF.addEventListener('input', () => ((cooling = false), draw()));
+		$('[data-reset]').addEventListener('click', () => ((cooling = false), draw()));
+		$('[data-cool]').addEventListener('click', () => {
+			cooling = true;
+			tNow = Number(inT.value);
+		});
+		draw();
+		loop(fig, (dt) => {
+			if (!cooling) return true;
+			const td = tSat((Number(inF.value) / 100) * psat(Number(inT.value)));
+			const stop = Math.max(-5, td - 5);
+			if (tNow > stop) {
+				tNow = Math.max(stop, tNow - 4 * dt); // 4 °C per second of the model
+				draw();
+			}
+			return true;
+		});
+	}
+</script>
