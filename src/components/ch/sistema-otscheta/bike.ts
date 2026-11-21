@@ -103,7 +103,7 @@ export const bike = (g: SVGGElement, s: number, o: BikeOpts = {}) => {
 				{ x: GRIP.x * s, y: -GRIP.y * s },
 				{ x: (GRIP.x - 1) * s, y: -(GRIP.y - 1) * s },
 			],
-			head: -0.35,
+			head: -0.26, // the head up toward the road, within 40° of the leaning body
 		});
 	};
 };

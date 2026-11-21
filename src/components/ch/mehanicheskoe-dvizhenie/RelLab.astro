@@ -4,9 +4,10 @@
  * station attendant. The reader chooses the body relative to which the motion is looked at: the platform (the
  * carriage rolls to the right, 4 м/с on the picture's scale of 12 px per metre) or the carriage (the platform, the
  * tree and the attendant go to the left at the same speed). The table says for each body whether it moves or is at
- * rest relative to the chosen one.
+ * rest relative to the chosen one. The passenger and the attendant are drawn with the shared people kit (travelers.ts).
  */
 import G7Styles from '../g7/G7Styles.astro';
+import KitStyles from '@components/people/PeopleStyles.astro';
 
 const windows = [16, 62, 108];
 const ROWS = [
@@ -19,6 +20,7 @@ const ROWS = [
 ---
 
 <G7Styles />
+<KitStyles />
 <figure class="g7 rell not-content" data-rell>
 	<div class="g7__grid">
 		<svg class="g7__svg" viewBox="0 0 360 200" role="img" aria-label="Вагон с пассажиром едет мимо платформы с деревом и дежурным" data-svg>
@@ -30,9 +32,9 @@ const ROWS = [
 					<rect class="rell__door" x="42" y="104" width="16" height="26"></rect>
 					<rect class="rell__trunk" x="147" y="96" width="6" height="34"></rect>
 					<circle class="rell__crown" cx="150" cy="84" r="20"></circle>
-					<circle class="rell__head" cx="236" cy="96" r="6"></circle>
-					<path class="rell__guard" d="M228 130 V110 q0 -8 8 -8 q8 0 8 8 V130 Z"></path>
-					<path class="rell__flag" d="M246 108 L258 98 M258 98 l10 4 l-10 4 z"></path>
+					<!-- the attendant (the shared people kit) holds the flag's stick -->
+					<g data-attendant></g>
+					<path class="rell__flag" d="M246 110 L258 98 M258 98 l10 4 l-10 4 z"></path>
 				</g>
 			</g>
 			<rect class="rell__platform" x="0" y="130" width="360" height="10"></rect>
@@ -42,8 +44,7 @@ const ROWS = [
 				<rect class="rell__car" x="0" y="118" width="152" height="56" rx="7"></rect>
 				{windows.map((x) => <rect class="rell__win" x={x} y="126" width="30" height="24" rx="3" />)}
 				<rect class="rell__bag" x="112" y="128" width="20" height="9" rx="2"></rect>
-				<circle class="rell__head" cx="78" cy="136" r="6.5"></circle>
-				<path class="rell__man" d="M69 150 q9 -9 18 0 z"></path>
+				<g data-passenger></g>
 				<circle class="rell__wheel" cx="30" cy="178" r="8"></circle>
 				<circle class="rell__wheel" cx="122" cy="178" r="8"></circle>
 			</g>
@@ -84,14 +85,6 @@ const ROWS = [
 	.rell__crown {
 		fill: hsl(120, 42%, 40%);
 	}
-	.rell__head {
-		fill: hsl(26, 55%, 72%);
-		stroke: hsl(20, 40%, 40%);
-		stroke-width: 0.8;
-	}
-	.rell__guard {
-		fill: color-mix(in oklab, var(--ig-vx) 50%, var(--sl-color-gray-4));
-	}
 	.rell__flag {
 		fill: var(--g7-red);
 		stroke: var(--g7-ink);
@@ -121,9 +114,6 @@ const ROWS = [
 		stroke: var(--g7-ink);
 		stroke-width: 0.8;
 	}
-	.rell__man {
-		fill: var(--g7-red);
-	}
 	.rell__wheel {
 		fill: var(--sl-color-gray-3);
 		stroke: var(--g7-ink);
@@ -136,6 +126,7 @@ const ROWS = [
 
 <script>
 	import { loop, segment } from '../g7/kit';
+	import { attendant, passenger } from './travelers';
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-rell]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
@@ -143,9 +134,14 @@ const ROWS = [
 		const train = q<SVGGElement>('[data-train]');
 		// the ground scenery repeats every 360 px, so that it can pass by endlessly
 		const rep = q<SVGGElement>('[data-repeat]');
+		// the people (the shared people kit): the attendant, 40 px tall, his hand round the flag's stick; the passenger
+		// seated in the middle window, the head of radius 6,5 px. Drawn once, before the scenery is copied.
+		attendant(q<SVGGElement>('[data-attendant]'), 241, 130, 40, { x: 247.5, y: 108.75 });
+		passenger(q<SVGGElement>('[data-passenger]'), { x: 78, y: 136 }, 6.5, [62, 126, 30, 24]);
 		for (const dx of [-360, 360]) {
 			const c = rep.cloneNode(true) as SVGGElement;
 			c.setAttribute('transform', `translate(${dx} 0)`);
+			for (const e of c.querySelectorAll('[data-person]')) e.removeAttribute('data-person'); // a copy of the drawing, not a figure
 			ground.append(c);
 		}
 		let view = 'ground';

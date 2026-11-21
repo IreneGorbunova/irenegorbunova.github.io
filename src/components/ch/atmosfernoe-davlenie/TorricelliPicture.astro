@@ -4,7 +4,7 @@
  * full of mercury, is closed with a finger, turned over, lowered into a dish of mercury, and the finger is taken away:
  * the column sinks (with a few damped swings) to 760 mm above the mercury in the dish, with emptiness above it. To
  * scale: 0,2 px per mm (the tube 200 px, the column 152 px). Arrows: the air presses on the mercury in the dish.
- * A hand (people.ts) grips the tube near its open end and closes the opening with the thumb; it turns the tube over
+ * A hand (the shared people kit, kitArm.ts) grips the tube near its open end and closes the opening with the thumb; it turns the tube over
  * with it, takes the thumb away under the mercury and lets the tube go once the column has settled. The tube is drawn
  * 7 cm thick instead of about 1 cm, and the hand is drawn to the tube, so both are about five times larger than the
  * scale of the lengths. The tube and the arm are clipped to the picture above the step bar.
@@ -16,7 +16,6 @@
  * drawn thicker (the caption says so).
  */
 import AtmStyles from './AtmStyles.astro';
-import { fist, limb } from './people';
 
 const uid = Math.random().toString(36).slice(2, 8);
 const gHg = `aph-${uid}`;
@@ -26,12 +25,6 @@ const SURF = 232; // mercury in the dish without the tube
 const RISE = (14 * 12 + 10 * 32) / (136 - 14); // the final rise of the level in the dish, 4 px
 const K = 0.2; // px per mm
 const ticks = Array.from({ length: 10 }, (_, k) => k * 100);
-// the hand in its own coordinates (mirrored along the tube: y' = 200 − y in the tube), fingers 14…44 from the open end
-const FW = 7.5;
-const grip = fist(7, 14, FW, null);
-const arm =
-	limb(`M${grip.wrist.x.toFixed(1)} ${grip.wrist.y} L${(grip.wrist.x + 70).toFixed(1)} ${grip.wrist.y + 2}`, 17) +
-	limb(`M${(grip.wrist.x + 62).toFixed(1)} ${grip.wrist.y + 2} L${(grip.wrist.x + 260).toFixed(1)} ${grip.wrist.y + 6}`, 24, 'ah-sleeve-b-s');
 ---
 
 <AtmStyles />
@@ -77,13 +70,8 @@ const arm =
 				<rect class="ap-vacuum" x="-5" y="2" width="10" height="198"></rect>
 				<rect x="-5" y="0" width="10" height="200" fill={`url(#${gHg})`} data-hg></rect>
 				<path class="ap-glass ap-tube" d="M-7 200 V7 a7 7 0 0 1 14 0 V200"></path>
-				<g data-hand>
-					<g transform="translate(0 200) scale(1 -1)">
-						<g set:html={arm + grip.svg}></g>
-						<path class="ah-outline" stroke-width={(FW * 1.05 + 1.8).toFixed(1)} data-thumb-o></path>
-						<path class="ah-skin-s" stroke-width={(FW * 1.05).toFixed(1)} data-thumb></path>
-					</g>
-				</g>
+				<!-- the hand (the shared people kit) round the tube near its open end, the thumb over the opening -->
+				<g data-hand></g>
 			</g>
 			</g>
 			<path class="ap-glass" d={`M110 216 V252 q0 6 6 6 H244 q6 0 6 -6 V216`}></path>
@@ -130,11 +118,15 @@ const arm =
 
 <script>
 	import { scene } from '@components/intro/scene';
-	import { thumbPath } from './people';
+	import { blendShape, handShape, ROLL } from '@components/people/hand';
+	import { coverShape, kitArm } from './kitArm';
 
-	const FW = 7.5;
-	// the root of the thumb of fist(7, 14, 7,5) (people.ts)
-	const ROOT = { x: 7 + 0.3 * FW + 0.6 * FW, y: 14 - 0.2 * FW };
+	// the hand: drawn 75 px long (the tube, 14 px with its glass, is drawn as thick as a finger is long would be: both
+	// are enlarged), the fingers round the tube, the thumb over the opening (coverShape) or beside it
+	const LH = 75;
+	const D_TUBE = 14 / LH;
+	const GRIP = handShape('grip', D_TUBE);
+	const COVER = coverShape(D_TUBE);
 
 	const ease = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
 	const STEPS = [
@@ -149,8 +141,10 @@ const arm =
 		const tube = $<SVGGElement>('[data-tube]');
 		const hg = $<SVGRectElement>('[data-hg]');
 		const hand = $<SVGGElement>('[data-hand]');
-		const thumbO = $<SVGPathElement>('[data-thumb-o]');
-		const thumbS = $<SVGPathElement>('[data-thumb]');
+		// in the tube's coordinates: the opening at y = 200, the grip's center COVER.endZ·LH inside it; the right hand from
+		// the side of +x, the back of the hand to the viewer, the thumb toward the opening
+		const hold = kitArm(hand, { Lh: LH, side: 'R', sleeve: 'ah-kit-red', reach: 300 });
+		const AT = { x: 0, y: 200 - COVER.endZ * LH };
 		const late = $<SVGGElement>('[data-late]');
 		const step = $<SVGTextElement>('[data-step]');
 		const dish = $<SVGRectElement>('[data-dish]');
@@ -167,10 +161,7 @@ const arm =
 			const on = ease(x / 0.08);
 			const offF = ease((x - 0.49) / 0.07);
 			const cover = on * (1 - offF);
-			const tip = { x: 15 + (-3 - 15) * cover, y: 9 + (-3 - 9) * cover };
-			const d = thumbPath(ROOT, tip, FW);
-			thumbO.setAttribute('d', d);
-			thumbS.setAttribute('d', d);
+			hold({ at: AT, pose: 'grip', d: D_TUBE, shape: blendShape(GRIP, COVER.shape, cover), dir: Math.PI, roll: ROLL.backViewer });
 			const away = ease((x - 0.78) / 0.06);
 			hand.setAttribute('transform', `translate(${(60 * away).toFixed(1)} 0)`);
 			hand.style.opacity = String(1 - away);

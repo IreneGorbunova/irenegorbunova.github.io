@@ -13,6 +13,7 @@
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
 
 const uid = Math.random().toString(36).slice(2, 8);
 const gGlow = `oi-glow-${uid}`;
@@ -22,17 +23,12 @@ const CELLS = [52, 92, 132];
 // Bathroom tiles
 const TILES_X = Array.from({ length: 15 }, (_, k) => 24 * (k + 1));
 const TILES_Y = [24, 48, 72, 96, 120, 144];
-// Drops on the back of the hand (local coordinates, fingertip at 0,0)
-const WET = [
-	[-58, -9],
-	[-42, -10],
-	[-27, -7],
-	[-14, -4],
-	[-50, 2],
-];
+// Drops on the back of the hand (five of them; placed on the hand by the script)
+const WET = [0, 1, 2, 3, 4];
 const FALL = [-46, -30, -16];
 ---
 
+<PeopleStyles />
 <IntroFrame data-ohmintro>
 	<div class="intro__card" data-scene="torch">
 		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Вечер, комната. Фонарик на столе светит на стену. Батарейки садятся: свет тускнеет, нить лампочки становится тёмно-красной. Старые батарейки вынимают, вставляют новые — и фонарик снова светит ярко">
@@ -135,15 +131,10 @@ const FALL = [-46, -30, -16];
 				<rect class="oi-prong" x="6" y="2" width="7" height="2"></rect>
 				<rect class="oi-plug" x="-8" y="-7" width="15" height="14" rx="4"></rect>
 			</g>
-			<!-- the hand, palm down; the fingertips at (0, 0) -->
-			<g data-hand>
-				<rect class="oi-sleeve" x="-600" y="-15" width="532" height="30" rx="6"></rect>
-				<path class="oi-skin" d="M -72 -13 C -54 -16 -30 -13 -10 -7 Q 3 -3 1 2 Q -1 6 -9 6 L -36 7 C -50 9 -62 13 -72 13 Z"></path>
-				<path class="oi-skin" d="M -58 6 Q -44 4 -32 9 Q -36 14 -46 13 Q -54 12 -58 6 Z"></path>
-				<path class="oi-line" d="M -36 0 H -12 M -36 -5 H -16"></path>
-				<g data-wet>
-					{WET.map(([x, y]) => <ellipse class="oi-wet" cx={x} cy={y} rx="2" ry="2.6" />)}
-				</g>
+			<!-- the forearm and the hand (people kit), the drops on its back -->
+			<g data-hand></g>
+			<g data-wet>
+				{WET.map(() => <ellipse class="oi-wet" rx="2" ry="2.6" />)}
 			</g>
 		</svg>
 		<div class="intro__foot">
@@ -156,7 +147,6 @@ const FALL = [-46, -30, -16];
 <style is:global>
 	[data-ohmintro] {
 		--oi-night: var(--sl-color-black);
-		--oi-skin: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-4));
 		--oi-wall: color-mix(in srgb, var(--ig-vx) 12%, var(--sl-color-gray-5));
 		--oi-tile: color-mix(in srgb, var(--ig-vx) 18%, var(--sl-color-gray-5));
 		--oi-hot: color-mix(in oklab, var(--ig-vy) 75%, var(--sl-color-gray-3));
@@ -164,7 +154,6 @@ const FALL = [-46, -30, -16];
 	}
 	:root[data-theme='light'] [data-ohmintro] {
 		--oi-night: var(--sl-color-white);
-		--oi-skin: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-5));
 		--oi-wall: color-mix(in srgb, var(--ig-vx) 10%, var(--sl-color-gray-6));
 		--oi-tile: color-mix(in srgb, var(--ig-vx) 14%, var(--sl-color-gray-6));
 		--oi-plastic: var(--sl-color-gray-3);
@@ -351,28 +340,12 @@ const FALL = [-46, -30, -16];
 	.oi-prong {
 		fill: var(--sl-color-gray-3);
 	}
-	.oi-skin {
-		fill: var(--oi-skin);
-		stroke: var(--sl-color-gray-2);
-		stroke-width: 1.4;
-		stroke-linejoin: round;
-	}
-	.oi-line {
-		fill: none;
-		stroke: var(--sl-color-gray-2);
-		stroke-width: 1;
-		stroke-linecap: round;
-		opacity: 0.6;
-	}
-	.oi-sleeve {
-		fill: color-mix(in srgb, var(--ig-vy) 35%, var(--sl-color-gray-5));
-		stroke: var(--sl-color-gray-3);
-		stroke-width: 1;
-	}
 </style>
 
 <script>
 	import { scene, clamp } from '@components/intro/scene';
+	import { armHand } from '../elektricheskiy-tok/armHand';
+	import { blendShape, contactLocal, handShape, type HandPose } from '@components/people/hand';
 
 	const smooth = (a: number, b: number, x: number) => {
 		const t = clamp((x - a) / (b - a));
@@ -426,8 +399,7 @@ const FALL = [-46, -30, -16];
 		{
 			const card = root.querySelector<HTMLElement>('[data-scene="hands"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
-			const hand = $<SVGGElement>('[data-hand]');
-			const wet = $<SVGGElement>('[data-wet]');
+			const wet = [...card.querySelectorAll<SVGEllipseElement>('[data-wet] ellipse')];
 			const stream = $<SVGRectElement>('[data-stream]');
 			const tap = $<SVGRectElement>('[data-tap]');
 			const falls = [...card.querySelectorAll<SVGEllipseElement>('[data-falls] ellipse')];
@@ -438,61 +410,76 @@ const FALL = [-46, -30, -16];
 			const air = [...card.querySelectorAll<SVGPathElement>('[data-air] path')];
 			const dryer = $<SVGGElement>('[data-dryer]');
 			const RUN = 9;
-			const SINK = { x: 118, y: 140 }; // fingertips under the stream
-			const TOWEL = { x: 202, y: 92 };
+			const SINK = { x: 118, y: 140 }; // under the stream
 			const PLUG0 = { x: 206, y: 169 }; // the plug lying on the counter (its centre)
 			const SOCKET = { x: 315, y: 85 };
-			const AWAY = { x: 10, y: 270 };
-			const SHOULDER = { x: -200, y: 260 };
-			const GRIP = { x: 9, y: 2 }; // the plug's centre from the fingertips
-			/** The fingertips' place that puts the held plug's centre at `t` (the hand is turned towards the shoulder). */
-			const tipFor = (t: { x: number; y: number }) => {
-				let tip = { x: t.x - GRIP.x, y: t.y - GRIP.y };
-				for (let k = 0; k < 3; k++) {
-					const a = Math.atan2(tip.y - SHOULDER.y, tip.x - SHOULDER.x);
-					tip = { x: t.x - (GRIP.x * Math.cos(a) - GRIP.y * Math.sin(a)), y: t.y - (GRIP.x * Math.sin(a) + GRIP.y * Math.cos(a)) };
-				}
-				return tip;
-			};
-			const AT_PLUG = tipFor(PLUG0);
-			const AT_SOCKET = tipFor(SOCKET);
-			const path: [number, { x: number; y: number }][] = [
-				[0, SINK],
-				[0.3, SINK],
-				[0.37, TOWEL],
-				[0.53, TOWEL],
-				[0.6, AT_PLUG],
-				[0.63, AT_PLUG],
-				[0.74, AT_SOCKET],
-				[0.77, AT_SOCKET],
-				[0.92, AWAY],
-				[1, AWAY],
+			const AWAY = { x: 10, y: 300 };
+			// the right arm of a person standing below the picture (people kit): the shoulder follows the hand from
+			// below the bottom edge, the elbow comes from the bones of fixed length
+			const LH = 62;
+			const arm = armHand($<SVGGElement>('[data-hand]'), { Lh: LH, sleeve: 'color-mix(in srgb, var(--ig-vy) 45%, var(--sl-color-gray-5))' });
+			const PLUG_OFF = 7; // the plug's centre in front of the pinch
+			type Key = { x: number; at: { x: number; y: number }; pose: HandPose; roll: number; dir: number };
+			const D = Math.PI / 180;
+			// the target is the contact point of the pose: the middle of a flat palm, or the pinch
+			const keys: Key[] = [
+				{ x: 0, at: AWAY, pose: 'relaxed', roll: -0.4, dir: -30 * D },
+				{ x: 0.07, at: { x: 90, y: SINK.y }, pose: 'flat', roll: -0.7, dir: 0 },
+				{ x: 0.3, at: { x: 90, y: SINK.y }, pose: 'flat', roll: -0.7, dir: 0 },
+				{ x: 0.37, at: { x: 186, y: 100 }, pose: 'flat', roll: -Math.PI / 2, dir: -70 * D },
+				{ x: 0.53, at: { x: 186, y: 100 }, pose: 'flat', roll: -Math.PI / 2, dir: -70 * D },
+				{ x: 0.6, at: { x: PLUG0.x - PLUG_OFF, y: PLUG0.y }, pose: 'pinch', roll: -1.1, dir: -10 * D },
+				{ x: 0.63, at: { x: PLUG0.x - PLUG_OFF, y: PLUG0.y }, pose: 'pinch', roll: -1.1, dir: -10 * D },
+				{ x: 0.74, at: { x: SOCKET.x - PLUG_OFF, y: SOCKET.y }, pose: 'pinch', roll: -1.1, dir: -10 * D },
+				{ x: 0.77, at: { x: SOCKET.x - PLUG_OFF, y: SOCKET.y }, pose: 'pinch', roll: -1.1, dir: -10 * D },
+				{ x: 0.92, at: AWAY, pose: 'relaxed', roll: -0.4, dir: -30 * D },
+				{ x: 1, at: AWAY, pose: 'relaxed', roll: -0.4, dir: -30 * D },
 			];
-			const at = (x: number) => {
-				for (let k = 1; k < path.length; k++) {
-					const [x0, p0] = path[k - 1];
-					const [x1, p1] = path[k];
-					if (x <= x1) {
-						const t = smooth(x0, x1, x);
-						return { x: lerp(p0.x, p1.x, t), y: lerp(p0.y, p1.y, t) };
-					}
-				}
-				return AWAY;
+			const shapes = new Map(keys.map((k) => [k.pose, handShape(k.pose)]));
+			const DROPS: [number, number, number][] = [
+				[0.2, 0.06, 0.05],
+				[0.35, 0.065, -0.05],
+				[0.5, 0.06, 0.08],
+				[0.62, 0.06, -0.08],
+				[0.75, 0.05, 0.02],
+			];
+			/** The hand between two key frames: the target, the roll, the direction and the shape blended. */
+			const handAt = (x: number) => {
+				let k = 1;
+				while (k < keys.length - 1 && x > keys[k].x) k++;
+				const a = keys[k - 1];
+				const b = keys[k];
+				const t = smooth(a.x, b.x, x);
+				const sa = shapes.get(a.pose)!;
+				const sb = shapes.get(b.pose)!;
+				const ca = contactLocal(a.pose, sa);
+				const cb = contactLocal(b.pose, sb);
+				return {
+					at: { x: lerp(a.at.x, b.at.x, t), y: lerp(a.at.y, b.at.y, t) },
+					pose: t < 0.5 ? a.pose : b.pose,
+					shape: blendShape(sa, sb, t),
+					contact: ca.map((v, i) => lerp(v, cb[i], t)) as [number, number, number],
+					roll: lerp(a.roll, b.roll, t),
+					dir: lerp(a.dir, b.dir, t),
+				};
 			};
 			scene(card, RUN, (x) => {
 				const s = x * RUN; // seconds into the scene
-				const p = at(x);
-				let hx = p.x;
-				let hy = p.y;
+				const h = handAt(x);
+				let hx = h.at.x;
+				let hy = h.at.y;
 				// rubbing under the stream; wiping up and down on the towel
-				if (x < 0.3) hx += 3 * Math.sin(s * 11) * smooth(0, 0.04, x);
+				if (x < 0.3) hx += 3 * Math.sin(s * 11) * smooth(0.07, 0.1, x);
 				const wipe = smooth(0.37, 0.39, x) * (1 - smooth(0.51, 0.53, x));
 				hy += 16 * Math.sin((x - 0.37) * RUN * 5.5) * wipe;
-				// the arm comes from a shoulder below the left edge: the hand points away from it
-				const ang = (Math.atan2(hy - SHOULDER.y, hx - SHOULDER.x) * 180) / Math.PI;
-				hand.setAttribute('transform', `translate(${f1(hx)} ${f1(hy)}) rotate(${f1(ang)})`);
+				const r = arm.set({ ...h, at: { x: hx, y: hy }, shoulder: { x: hx - 130, y: 300 } });
+				wet.forEach((e, k) => {
+					const q = r.at(DROPS[k]);
+					e.setAttribute('cx', f1(q.x));
+					e.setAttribute('cy', f1(q.y - 1.5));
+				});
 				towel.setAttribute('transform', `skewX(${f2(2.5 * wipe * Math.sin((x - 0.37) * RUN * 5.5))})`);
-				wet.style.opacity = f2(1 - smooth(0.38, 0.52, x));
+				wet.forEach((e) => (e.style.opacity = f2(1 - smooth(0.38, 0.52, x))));
 				// the tap: open while washing
 				const on = 1 - smooth(0.27, 0.3, x);
 				stream.style.opacity = f2(on);
@@ -503,13 +490,12 @@ const FALL = [-46, -30, -16];
 					const show = x < 0.33 ? 1 : 0;
 					d.setAttribute('cx', f1(SINK.x + [-46, -30, -16][k]));
 					d.setAttribute('cy', f1(SINK.y + 9 + 22 * ph * ph));
-					d.style.opacity = f2(show * (1 - ph) * smooth(0.02, 0.06, x));
+					d.style.opacity = f2(show * (1 - ph) * smooth(0.07, 0.1, x));
 				});
 				// the plug: on the counter, then in the fingers, then in the socket
 				const held = x >= 0.63 && x < 0.77;
 				const inSocket = x >= 0.77;
-				const ar = Math.atan2(hy - SHOULDER.y, hx - SHOULDER.x);
-				const grip = { x: hx + GRIP.x * Math.cos(ar) - GRIP.y * Math.sin(ar), y: hy + GRIP.x * Math.sin(ar) + GRIP.y * Math.cos(ar) };
+				const grip = { x: r.got.x + PLUG_OFF, y: r.got.y };
 				const pg = inSocket ? SOCKET : held ? grip : PLUG0;
 				plug.setAttribute('transform', `translate(${f1(pg.x)} ${f1(pg.y)})`);
 				prongs.forEach((r) => (r.style.opacity = inSocket ? '0' : '1'));

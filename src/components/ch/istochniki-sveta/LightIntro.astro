@@ -18,6 +18,7 @@
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
 
 const uid = Math.random().toString(36).slice(2, 8);
 const g = (n: string) => `li-${n}-${uid}`;
@@ -74,6 +75,7 @@ const STREAMERS = [
 });
 ---
 
+<PeopleStyles />
 <IntroFrame data-lightintro>
 	<div class="intro__card" data-scene="street">
 		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Ночная улица. Под фонарём на столбе идёт человек, он удаляется от столба. Его тень на тротуаре становится всё длиннее">
@@ -121,16 +123,8 @@ const STREAMERS = [
 			<circle class="li-bulb" cx="70" cy="67" r="2.6"></circle>
 			<!-- the straight line from the lamp over the head to the tip of the shadow -->
 			<line class="li-ray" x1="70" y1="67" x2="70" y2="216" data-ray></line>
-			<!-- the man (local: feet at 0, 0, facing +x; 51 px = 1,7 m) -->
-			<g data-man>
-				<g data-leg2><path class="li-leg li-back" d="M 0 -25 V -2"></path><path class="li-shoe li-back" d="M -2 -3 H 4 Q 6 -3 6 -1 V 0 H -2 Z"></path></g>
-				<g data-arm2><path class="li-armm li-back" d="M 0 -40 V -24"></path></g>
-				<rect class="li-coat" x="-5.5" y="-43" width="11" height="21" rx="4"></rect>
-				<circle class="li-face" cx="0.8" cy="-46.6" r="4.4"></circle>
-				<path class="li-hair" d="M -3.6 -47 Q -4 -51.4 0.8 -51.2 Q 5 -51 5 -48.4 Q 1 -49.6 -3.6 -47 Z"></path>
-				<g data-leg1><path class="li-leg" d="M 0 -25 V -2"></path><path class="li-shoe" d="M -2 -3 H 4 Q 6 -3 6 -1 V 0 H -2 Z"></path></g>
-				<g data-arm1><path class="li-armm" d="M 0 -40 V -24"></path></g>
-			</g>
+			<!-- the man, 1,7 м = 51 px (people kit): he walks away from the post -->
+			<g data-man></g>
 		</svg>
 		<div class="intro__foot">
 			<p>Человек уходит от фонаря, и его тень на тротуаре становится всё длиннее, ведь <More term="свет фонаря идёт по прямым линиям">Тень кончается там, куда падает луч, прошедший над самой макушкой. Фонарь висит на высоте 5 м, человек ростом 1,7 м. В 2 м от столба его тень около 1 м, в 6 м — уже около 3 м: во сколько раз дальше от столба, во столько раз длиннее тень. Подробнее — в разделе <a href="#тень-и-полутень">«Тень и полутень»</a>.</More>.</p>
@@ -252,31 +246,6 @@ const STREAMERS = [
 		opacity: 0;
 	}
 	.li-leg,
-	.li-armm {
-		fill: none;
-		stroke: #3d4660;
-		stroke-width: 4.6;
-		stroke-linecap: round;
-	}
-	.li-armm {
-		stroke: #6a5546;
-		stroke-width: 3.6;
-	}
-	.li-shoe {
-		fill: #20263a;
-	}
-	.li-back {
-		filter: brightness(0.75);
-	}
-	.li-coat {
-		fill: #7a604b;
-	}
-	.li-face {
-		fill: #c99a7a;
-	}
-	.li-hair {
-		fill: #2b2420;
-	}
 	.li-moon {
 		fill: #2a3046;
 	}
@@ -294,11 +263,19 @@ const STREAMERS = [
 		stroke: currentColor;
 		stroke-width: 0.8;
 	}
+	/* the man's coat (people kit classes) */
+	[data-lightintro] .hm-shirt.li-coat {
+		fill: #7a604b;
+	}
+	[data-lightintro] .hm-limb.li-coat {
+		stroke: #7a604b;
+	}
 </style>
 
 <script>
 	import { scene, clamp } from '@components/intro/scene';
 	import { visibleFraction } from './sv';
+	import { figure, walk } from '@components/people';
 
 	const smooth = (a: number, b: number, x: number) => {
 		const t = clamp((x - a) / (b - a));
@@ -314,9 +291,9 @@ const STREAMERS = [
 		{
 			const card = root.querySelector<HTMLElement>('[data-scene="street"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
-			const man = $<SVGGElement>('[data-man]');
-			const legs = [$<SVGGElement>('[data-leg1]'), $<SVGGElement>('[data-leg2]')];
-			const arms = [$<SVGGElement>('[data-arm1]'), $<SVGGElement>('[data-arm2]')];
+			const S = 0.3; // px per см
+			const u = 170 * S;
+			const man = figure($<SVGGElement>('[data-man]'), { s: S, H: 170, shirt: 'li-coat', hair: 'short', clothes: 'indoor', prefix: 'hm', name: 'walker' });
 			const shadow = $<SVGPathElement>('[data-shadow]');
 			const ray = $<SVGLineElement>('[data-ray]');
 			const LX = 70; // the lamp: x, height above the pavement (px; 30 px = 1 m)
@@ -326,20 +303,30 @@ const STREAMERS = [
 			const h = 51; // 1,7 m
 			const X0 = LX + 30; // 1 m from the post
 			const X1 = LX + 180; // 6 m
-			const STRIDE = 22; // px per step (0,73 m)
+			const STEP = (X1 - X0) / 8; // px per step (0,63 м): eight steps, so he stops with both feet down
 			scene(card, 6, (x) => {
 				const s = smooth(0.08, 0.8, x);
 				const px = X0 + (X1 - X0) * s;
-				const ph = (Math.PI * (px - X0)) / STRIDE;
-				const moving = x > 0.08 && x < 0.8 ? 1 : 0;
-				const sw = 0.42 * Math.sin(ph) * (moving ? 1 : 0);
-				const bob = -1.2 * Math.abs(Math.sin(ph)) * moving;
-				man.setAttribute('transform', `translate(${f1(px)} ${f1(GY + bob)})`);
-				const deg = (sw * 180) / Math.PI;
-				legs[0].setAttribute('transform', `rotate(${f1(deg)} 0 -25)`);
-				legs[1].setAttribute('transform', `rotate(${f1(-deg)} 0 -25)`);
-				arms[0].setAttribute('transform', `rotate(${f1(-0.8 * deg)} 0 -40)`);
-				arms[1].setAttribute('transform', `rotate(${f1(0.8 * deg)} 0 -40)`);
+				// the walk: the foot on the ground stays put while the body passes over it
+				const w = walk(px - X0, STEP, X0 + STEP / 2, 0.05 * u);
+				const ank = 7 * S;
+				man.pose({
+					// the hip low enough for a leg of fixed length to reach both feet half a step away
+					hip: { x: px, y: GY - ank - 0.985 * Math.sqrt((0.475 * u) ** 2 - (STEP / 2) ** 2) + w.bob },
+					lean: 0.03,
+					ankles: [
+						{ x: w.feet[0].x, y: GY - ank - w.feet[0].up },
+						{ x: w.feet[1].x, y: GY - ank - w.feet[1].up },
+					],
+					feet: [w.feet[0].toe, w.feet[1].toe],
+					// (the loop starts him again at the post: the feet are declared planted only while the scene runs)
+					planted: [x > 0 && w.feet[0].planted, x > 0 && w.feet[1].planted],
+					hands: [
+						{ arm: [Math.PI / 2 - 0.35 * w.arm, 0.25 + 0.15 * Math.max(0, w.arm)], pose: 'relaxed' },
+						{ arm: [Math.PI / 2 + 0.35 * w.arm, 0.25 + 0.15 * Math.max(0, -w.arm)], pose: 'relaxed' },
+					],
+				});
+				const bob = w.bob;
 				// the tip of the shadow: where the line from the lamp over the top of the head meets the pavement
 				const top = h - bob;
 				const tip = LX + ((px + 0.8 - LX) * H) / (H - top);

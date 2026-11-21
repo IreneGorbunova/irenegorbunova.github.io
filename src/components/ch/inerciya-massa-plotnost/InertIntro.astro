@@ -2,14 +2,17 @@
 /**
  * Two short looping opening scenes of «Инерция. Масса. Плотность». No terms of the chapter in the pictures.
  * Bus: a bus rolls at 40 км/ч with a standing passenger and brakes hard. The passenger's body keeps moving and
- *   leans forward (up to 22°), then straightens when the bus has stopped. The speedometer shows the bus's speed.
+ *   leans forward (up to 22°: tipping about the feet by a third of it, the rest at the hips), holding the rail
+ *   overhead, then straightens when the bus has stopped. The passenger is drawn with the shared people kit. The speedometer shows the bus's speed.
  * Cubes: two cubes of the same size, wooden and iron, are put on the pans of a balance: the iron one goes down.
  *   (Iron is about eleven times denser than dry oak: 7,8 against 0,7 г/см³.)
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
+import KitStyles from '@components/people/PeopleStyles.astro';
 ---
 
+<KitStyles />
 <IntroFrame data-inertintro>
 	<div class="intro__card" data-scene="bus">
 		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Автобус резко тормозит, и стоящий пассажир наклоняется вперёд">
@@ -20,12 +23,8 @@ import More from '@components/More.astro';
 				<rect class="ii-bus" x="0" y="96" width="250" height="92" rx="12"></rect>
 				<rect class="ii-glass" x="14" y="108" width="222" height="48" rx="6"></rect>
 				<line class="ii-rail" x1="20" y1="116" x2="230" y2="116"></line>
-				<g data-man>
-					<path class="ii-leg" d="M-5 0 V-22 M5 0 V-22"></path>
-					<path class="ii-torso" d="M-8 -22 h16 v-22 h-16 Z"></path>
-					<circle class="ii-head" cx="0" cy="-52" r="7"></circle>
-					<path class="ii-arm" data-arm d="M4 -40 L10 -66"></path>
-				</g>
+				<!-- the passenger (the shared people kit) holds the rail -->
+				<g data-man></g>
 				<circle class="ii-wheel" cx="54" cy="190" r="15"></circle>
 				<circle class="ii-wheel" cx="196" cy="190" r="15"></circle>
 				<rect class="ii-stop" data-stop x="-2" y="150" width="6" height="14" rx="2"></rect>
@@ -100,21 +99,6 @@ import More from '@components/More.astro';
 		stroke: var(--sl-color-gray-2);
 		stroke-width: 2;
 	}
-	[data-inertintro] .ii-leg,
-	[data-inertintro] .ii-arm {
-		fill: none;
-		stroke: var(--sl-color-gray-1);
-		stroke-width: 4;
-		stroke-linecap: round;
-	}
-	[data-inertintro] .ii-torso {
-		fill: var(--ig-vx);
-	}
-	[data-inertintro] .ii-head {
-		fill: hsl(26, 55%, 72%);
-		stroke: hsl(20, 40%, 40%);
-		stroke-width: 0.8;
-	}
 	[data-inertintro] .ii-wheel {
 		fill: var(--sl-color-gray-2);
 		stroke: var(--sl-color-gray-1);
@@ -183,6 +167,7 @@ import More from '@components/More.astro';
 
 <script>
 	import { scene } from '@components/intro/scene';
+	import { figure } from '@components/people/body';
 
 	const ease = (u: number) => {
 		const t = Math.min(1, Math.max(0, u));
@@ -193,7 +178,33 @@ import More from '@components/More.astro';
 			const card = root.querySelector<HTMLElement>('[data-scene="bus"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
 			const marks = $<SVGGElement>('[data-marks]');
-			const man = $<SVGGElement>('[data-man]');
+			// the passenger: 1,85 м drawn 64 px (the bus's scale), feet at (120, 188) in the bus, the near hand round the
+			// rail (2 px thick, y = 116); the far arm hangs
+			const S = 64 / 185;
+			const U = 64;
+			const fig = figure($<SVGGElement>('[data-man]'), { s: S, H: 185, clothes: 'indoor', shirt: 'hm-blue', hair: 'short', name: 'passenger' });
+			const ANK = 188 - 7 * S;
+			const posePassenger = (deg: number) => {
+				// the whole body tips forward about the feet by a third of the lean, the rest bends at the hips
+				const a = (deg * Math.PI) / 180;
+				const t = a / 3;
+				const hh = 0.51 * U - 7 * S; // the legs nearly straight
+				fig.pose({
+					hip: { x: 120 + hh * Math.sin(t), y: ANK - hh * Math.cos(t) },
+					lean: a,
+					head: -0.4 * a,
+					ankles: [
+						{ x: 123, y: ANK },
+						{ x: 117, y: ANK },
+					],
+					feet: [0, 0],
+					planted: [true, true],
+					hands: [
+						{ at: { x: 126, y: 116 }, pose: 'grip', d: 2.5, contact: 'rail' },
+						{ arm: [Math.PI / 2 + 0.1 - a, 0.2], pose: 'relaxed' },
+					],
+				});
+			};
 			const stop = $<SVGRectElement>('[data-stop]');
 			const speed = $<SVGTextElement>('[data-speed]');
 			const bus = $<SVGGElement>('[data-bus]');
@@ -211,7 +222,7 @@ import More from '@components/More.astro';
 				marks.setAttribute('transform', `translate(${(-road).toFixed(1)} 0)`);
 				// the passenger leans forward while the bus slows down, and straightens after the stop
 				const lean = 22 * Math.sin(Math.PI * Math.min(1, Math.max(0, (x - 0.45) / 0.4)));
-				man.setAttribute('transform', `translate(120 188) rotate(${lean.toFixed(1)})`);
+				posePassenger(lean);
 				stop.style.opacity = x > 0.45 && x < 0.72 ? '1' : '0.25';
 			});
 		}

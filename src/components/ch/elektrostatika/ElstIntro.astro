@@ -419,7 +419,7 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 			$<SVGGElement>('[data-girl]').classList.add('hm-blond');
 			const boy = human($<SVGGElement>('[data-boy]'), { s: S, H: Hb, shirt: 'hm-blue', hair: 'short', dir: -1 });
 			const gx = 112;
-			const bx = 182;
+			const bx = 172; // close enough to hold the balloon over her head with his arm within reach
 			const ghip = { x: gx, y: FL - 0.505 * ug };
 			const bhip = { x: bx, y: FL - 0.505 * ub };
 			// centers of the heads (people.ts: 0,4 H above the hip joint, 0,015 H forward), radii 0,064 H
@@ -512,7 +512,7 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 					B = rubC(t);
 					hands = [
 						{ x: B.x - 9, y: B.y + 6 },
-						{ x: B.x + 9, y: B.y + 6 },
+						{ x: B.x - 3, y: B.y + 11 },
 					];
 				} else if (t < 3.3) {
 					const k = ease((t - 2.5) / 0.8);
@@ -521,22 +521,26 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 					B = { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k) - 10 * Math.sin(Math.PI * k) };
 					hands = [
 						{ x: B.x + 3, y: B.y + 16 },
-						{ x: lerp(B.x + 9, hang[1].x, k), y: lerp(B.y + 6, hang[1].y, k) },
+						// on the way down the far hand keeps out of the shoulder's way (an elbow bends 150° at most)
+						{ x: lerp(B.x - 3, hang[1].x - 0.06 * ub, k) - 16 * Math.sin(Math.PI * k), y: lerp(B.y + 11, hang[1].y, k) },
 					];
 				} else {
 					B = over(gapAt(t));
-					hands = [{ x: B.x + 3, y: B.y + 16 }, hang[1]];
+					// the far arm hangs below its shoulder, which has moved forward with the lean
+					hands = [{ x: B.x + 3, y: B.y + 16 }, { x: hang[1].x - 0.06 * ub, y: hang[1].y }];
 				}
 				balloon.setAttribute('transform', `translate(${B.x.toFixed(1)} ${B.y.toFixed(1)})`);
 				boy({
 					hip: bhip,
-					lean: t < 2.5 ? 0 : 0.06,
+					lean: t < 2.5 ? 0 : 0.06 + 0.16 * ease((t - 2.5) / 0.8),
 					ankles: [
 						{ x: bx - 0.02 * ub, y: FL - Ab },
 						{ x: bx + 0.03 * ub, y: FL - Ab },
 					],
 					feet: [0, 0],
 					hands,
+					// the far hand lets the balloon go and hangs relaxed
+					grips: [null, t >= 2.5 ? { pose: 'relaxed' } : null],
 					head: t < 2.5 ? -0.25 : 0.25,
 				});
 				// the pull ∝ 1/d², d from the balloon to the center of her head; full at the closest approach
@@ -558,9 +562,9 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 			const um = S * 166;
 			const uk = S * 128;
 			// seated: hip on the seat, thighs forward, feet on the floor
-			const seat = (x: number, y: number, u: number, hands: [{ x: number; y: number }, { x: number; y: number }], head: number): HumanPose => ({
+			const seat = (x: number, y: number, u: number, hands: [{ x: number; y: number }, { x: number; y: number }], head: number, lean = -0.12): HumanPose => ({
 				hip: { x, y },
-				lean: -0.12,
+				lean,
 				ankles: [
 					{ x: x + 0.3 * u, y: y + 0.2 * u },
 					{ x: x + 0.28 * u, y: y + 0.2 * u },
@@ -608,7 +612,8 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 				}
 				// the girl looks up after the flash
 				const look = t > 2.2 ? -0.35 * ease((t - 2.2) / 0.6) * (t < 4.8 ? 1 : 1 - ease((t - 4.8) / 0.8)) : 0;
-				mom(seat(206, 156, um, [{ x: 236, y: 141 }, { x: 234, y: 143 }], 0.05));
+				// the mother sits up, a little forward, so that her hands reach the steering wheel
+				mom(seat(208, 156, um, [{ x: 236, y: 141 }, { x: 234, y: 143 }], 0.05, 0.1));
 				kid(seat(152, 150, uk, [{ x: 166, y: 147 }, { x: 164, y: 148 }], look));
 			});
 		}

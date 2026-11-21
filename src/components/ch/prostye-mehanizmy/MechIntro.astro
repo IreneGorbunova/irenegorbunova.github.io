@@ -2,7 +2,8 @@
 /**
  * Two short looping opening scenes of «Простые механизмы. Рычаг, блок». No terms of the chapter in the pictures.
  * The people are those of «Давление в жидкости» (../davlenie-v-zhidkosti/personHome.ts: light clothes, adult
- * proportions); the girl is drawn with a head 1,3 times larger, as a child of six has (about 6 heads tall).
+ * proportions, drawn by the shared people kit); the girl is drawn by the kit with a child's proportions (about 6 heads
+ * tall). Sitting, both keep their hands flat on their thighs.
  *
  * Seesaw: a board 4,4 м long on a trestle 0,5 м high (60 px per metre). A girl of 20 кг (115 см) sits 2 м to the
  *   left of the axle, her father of 80 кг (180 см) 2 м to the right. His side is down: the end of the board rests on
@@ -342,6 +343,7 @@ import More from '@components/More.astro';
 	import { scene, clamp } from '@components/intro/scene';
 	import { el } from '../g7/kit';
 	import { person, joint, type Pt } from '../davlenie-v-zhidkosti/personHome';
+	import { figure } from '@components/people/body';
 
 	const ease = (u: number) => {
 		const t = clamp(u);
@@ -351,7 +353,7 @@ import More from '@components/More.astro';
 	const D = Math.PI / 180;
 	const fmtD = (v: number) => v.toFixed(1).replace('.', ',');
 
-	/** Makes the head of a person drawn by personHome `k` times larger (a child) and gives it a ponytail. */
+	/** Gives the head of a person drawn by the kit a ponytail (and, with k > 1, scales it about its center). */
 	const childHead = (g: SVGGElement, k: number) => {
 		const head = [...g.children].find((c) => c.tagName === 'g' && c.querySelector('.ph-hair')) as SVGGElement;
 		const r = Number(head.querySelector('circle')!.getAttribute('r'));
@@ -388,8 +390,9 @@ import More from '@components/More.astro';
 			const tagD = $<SVGTextElement>('[data-tag-dad]');
 			const gGirl = $<SVGGElement>('[data-girl]');
 			const gDad = $<SVGGElement>('[data-dad]');
-			const girl = person(gGirl, { s, H: 115, girth: 0.95, shirt: 'mc-pink' });
-			const kid = childHead(gGirl, 1.3);
+			// the girl is drawn by the kit with a child's proportions (about 6 heads), so her head needs no scaling
+			const girlFig = figure(gGirl, { s, H: 115, age: 'child', girth: 0.95, shirt: 'mc-pink', clothes: 'home', prefix: 'ph', legacy: true, name: 'home' });
+			const kid = childHead(gGirl, 1);
 			const dad = person(gDad, { s, H: 180, girth: 1.12, shirt: 'mc-blue' });
 			const uG = 115 * s;
 			const uD = 180 * s;
@@ -423,9 +426,11 @@ import More from '@components/More.astro';
 					const dir = { x: Math.cos(th), y: Math.sin(th) };
 					const knee = { x: hip.x + dir.x * 0.23 * uG, y: hip.y + dir.y * 0.23 * uG };
 					const ank = { x: knee.x + 0.03 * uG, y: knee.y + 0.225 * uG };
-					const hand = onBoard(th, -2 * K + 0.2 * uG, 6);
 					const lean = 0.22;
-					girl({ hip, lean, ankles: [ank, { x: ank.x - 3, y: ank.y - 1 }], feet: [0.5, 0.45], hands: [hand, { x: hand.x - 2, y: hand.y }], head: -0.05 });
+					// the hands lie flat on the thighs near the knees, the fingers toward the knees
+					const onThigh = (k: number, dx: number) => ({ x: hip.x + dir.x * k * 0.218 * uG + dir.y * 0.05 * uG + dx, y: hip.y + dir.y * k * 0.218 * uG - dir.x * 0.05 * uG });
+					const flat = (at: Pt) => ({ at, pose: 'flat' as const, dir: th + 0.1, contact: 'thigh' });
+					girlFig.pose({ hip, lean, ankles: [ank, { x: ank.x - 3, y: ank.y - 1 }], feet: [0.5, 0.45], hands: [flat(onThigh(0.72, 0)), flat(onThigh(0.68, -1))], head: -0.05, planted: [false, false] });
 					kid(lean);
 					tagG.setAttribute('x', f(hip.x));
 					tagG.setAttribute('y', f(hip.y - 0.66 * uG));
@@ -449,15 +454,20 @@ import More from '@components/More.astro';
 					const sh2 = 0.235 * uD;
 					const k0 = joint(hip, a0, th2, sh2, 1).j;
 					const k1 = joint(hip, a1, th2, sh2, 1).j;
+					// the hands lie flat on the thighs just before the knees, the fingers along the thighs
+					const thighAt = (h: Pt, k: Pt) => Math.atan2(k.y - h.y, k.x - h.x);
+					const onThighD = (h: Pt, k: Pt): Pt => {
+						const a = thighAt(h, k);
+						return { x: k.x - Math.cos(a) * 0.05 * uD + Math.sin(a) * 0.05 * uD, y: k.y - Math.sin(a) * 0.05 * uD - Math.cos(a) * 0.05 * uD };
+					};
+					const flatOn = (h: Pt, k: Pt) => ({ pose: 'flat' as const, dir: thighAt(h, k) + 0.1, contact: 'thigh' });
 					dad({
 						hip,
 						lean,
 						ankles: [a0, a1],
 						feet: [0.15 * lift, 0.15 * lift],
-						hands: [
-							{ x: k0.x - 0.02 * uD, y: k0.y - 0.035 * uD },
-							{ x: k1.x - 0.03 * uD, y: k1.y - 0.035 * uD },
-						],
+						hands: [onThighD(hip, k0), onThighD(hip, k1)],
+						grips: [flatOn(hip, k0), flatOn(hip, k1)],
 						head: 0.05,
 					});
 					tagD.setAttribute('x', f(hipW.x));

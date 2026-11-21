@@ -2,7 +2,8 @@
 /**
  * Two short looping opening scenes of «Физические величины и их измерение». No terms of the chapter in the pictures.
  * Height: every year the parents mark on the door frame how tall the child is: 122 см at 7, 133 см at 9, 151 см at
- *   12 (about the medians of the WHO growth charts). A book laid flat on the head touches the frame, a pencil line is
+ *   12 (about the medians of the WHO growth charts). The child is drawn with the shared people kit, in profile, its
+ *   back to the frame; before the tape measure comes it steps aside in three steps. A book laid flat on the head touches the frame, a pencil line is
  *   drawn under it. Then a tape measure rises from the floor along the frame and gives each mark in centimetres.
  *   Heights to scale: 1 px per centimetre, the floor at y = 216.
  * Stone: a stone on a thread is lowered into a measuring cylinder; the water rises from 60 мл to 85 мл as the
@@ -11,6 +12,7 @@
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
+import KitStyles from '@components/people/PeopleStyles.astro';
 
 const F = 216; // the floor
 const AGES = [
@@ -21,6 +23,7 @@ const AGES = [
 const ml = (v: number) => 208 - v * 1.6;
 ---
 
+<KitStyles />
 <IntroFrame data-velintro>
 	<div class="intro__card" data-scene="height">
 		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Ребёнок растёт, и каждый год на дверном косяке появляется отметка его роста: в 7, 9 и 12 лет. Потом рулетка показывает высоту отметок: 122, 133 и 151 сантиметр">
@@ -32,13 +35,8 @@ const ml = (v: number) => 208 - v * 1.6;
 			<rect class="ve-floor" x="0" y={F} width="360" height={240 - F}></rect>
 			{AGES.map((a, i) => <line class="ve-mark" data-mark={i} x1="162" x2="162" y1={F - a.h} y2={F - a.h} />)}
 			{AGES.map((a, i) => <text class="ve-age" data-age={i} x="192" y={F - a.h + 4} opacity="0">{a.age}</text>)}
-			<g data-kid>
-				<path class="ve-legs" d={`M134 ${F - 72} L132 ${F} M146 ${F - 72} L148 ${F}`}></path>
-				<path class="ve-shirt" d={`M125 ${F - 128} Q140 ${F - 133} 155 ${F - 128} L157 ${F - 70} H123 Z`}></path>
-				<path class="ve-arms" d={`M126 ${F - 124} L119 ${F - 82} M154 ${F - 124} L161 ${F - 82}`}></path>
-				<circle class="ve-skin" cx="140" cy={F - 141} r="10"></circle>
-				<path class="ve-hair" d={`M129.6 ${F - 142} A10.4 10.4 0 0 1 150.4 ${F - 142} Q140 ${F - 147} 129.6 ${F - 142} Z`}></path>
-			</g>
+			<!-- the child (the shared people kit), its back to the door frame; scaled as it grows -->
+			<g data-kid><g data-kidfig></g></g>
 			<rect class="ve-book" data-book x="122" y="0" width="54" height="5" rx="1" opacity="0"></rect>
 			<g data-tape opacity="0">
 				<rect class="ve-tape" data-band x="177" y={F} width="9" height="0"></rect>
@@ -129,26 +127,6 @@ const ml = (v: number) => 208 - v * 1.6;
 		font-weight: 700;
 		fill: var(--sl-color-white);
 	}
-	[data-velintro] .ve-legs,
-	[data-velintro] .ve-arms {
-		fill: none;
-		stroke: var(--sl-color-gray-2);
-		stroke-width: 7;
-		stroke-linecap: round;
-	}
-	[data-velintro] .ve-arms {
-		stroke: color-mix(in oklab, var(--ig-v) 34%, var(--sl-color-gray-3));
-		stroke-width: 5;
-	}
-	[data-velintro] .ve-shirt {
-		fill: var(--ig-vx);
-	}
-	[data-velintro] .ve-skin {
-		fill: color-mix(in oklab, var(--ig-v) 34%, var(--sl-color-gray-3));
-	}
-	[data-velintro] .ve-hair {
-		fill: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-5));
-	}
 	[data-velintro] .ve-book {
 		fill: var(--ig-vy);
 	}
@@ -205,6 +183,7 @@ const ml = (v: number) => 208 - v * 1.6;
 
 <script>
 	import { scene } from '@components/intro/scene';
+	import { figure } from '@components/people/body';
 
 	const ease = (u: number) => {
 		const t = Math.min(1, Math.max(0, u));
@@ -218,6 +197,44 @@ const ml = (v: number) => 208 - v * 1.6;
 			const H = [122, 133, 151];
 			const kid = $<SVGGElement>('[data-kid]');
 			const book = $<SVGRectElement>('[data-book]');
+			// the child at 12 (151 см, 1 px per см; the group is scaled down for the younger ages), facing left, the back
+			// of the head at the door frame; it steps aside to the left in three steps (near, far, near: feet together)
+			const fig = figure($<SVGGElement>('[data-kidfig]'), { s: 1, H: 151, age: 'teen', clothes: 'indoor', shirt: 'hm-blue', hair: 'short', dir: -1, name: 'child' });
+			const X0 = 150; // the hip joint while standing at the frame
+			const ANK = F - 7 * (151 / 172);
+			const poseKid = (D: number, p: number) => {
+				// p: 0…1 of the walk; three steps of equal time; D: how far it goes, px (in the group's units)
+				const k = Math.min(2, Math.floor(p * 3));
+				const e = ease(p * 3 - k);
+				const pos = [0, 0];
+				const lift = [0, 0];
+				if (p > 0) {
+					if (k === 0) pos[0] = (D / 2) * e;
+					if (k >= 1) pos[0] = D / 2;
+					if (k === 1) pos[1] = D * e;
+					if (k === 2) (pos[1] = D), (pos[0] = D / 2 + (D / 2) * e);
+					const sw = k === 1 ? 1 : 0;
+					if (p < 1) lift[sw] = 0.035 * 151 * Math.sin(Math.PI * e);
+				}
+				const swing = p > 0 && p < 1 ? (k === 1 ? 1 : 0) : -1;
+				const mid = (pos[0] + pos[1]) / 2;
+				const arm = p > 0 && p < 1 ? 0.25 * Math.sin(Math.PI * p * 3) : 0;
+				fig.pose({
+					// the hip goes a little lower while walking, so that the legs reach the feet half a step apart
+					hip: { x: X0 - mid, y: F - 74.5 + (p > 0 && p < 1 ? 4.5 * Math.sin(Math.PI * p) : 0) },
+					lean: 0.02,
+					ankles: [
+						{ x: X0 - 2 - pos[0], y: ANK - lift[0] },
+						{ x: X0 + 2 - pos[1], y: ANK - lift[1] },
+					],
+					feet: [lift[0] > 0.5 ? 0.15 : 0, lift[1] > 0.5 ? 0.15 : 0],
+					planted: [p < 1 && swing !== 0, p < 1 && swing !== 1], // after the walk it stands still (the loop then starts again from the frame)
+					hands: [
+						{ arm: [Math.PI / 2 - arm, 0.15], pose: 'relaxed' },
+						{ arm: [Math.PI / 2 + arm, 0.15], pose: 'relaxed' },
+					],
+				});
+			};
 			const marks = H.map((_, i) => $<SVGLineElement>(`[data-mark="${i}"]`));
 			const ages = H.map((_, i) => $<SVGTextElement>(`[data-age="${i}"]`));
 			const AGE = ['7 лет', '9 лет', '12 лет'];
@@ -231,8 +248,10 @@ const ml = (v: number) => 208 - v * 1.6;
 				let h = H[0];
 				if (x > 0.15) h = H[0] + (H[1] - H[0]) * ease(u(x, 0.15, 0.25));
 				if (x > 0.42) h = H[1] + (H[2] - H[1]) * ease(u(x, 0.42, 0.52));
-				const away = 92 * ease(u(x, 0.66, 0.74));
-				kid.setAttribute('transform', `translate(${(140 - away).toFixed(1)} ${F}) scale(${(h / 151).toFixed(4)}) translate(-140 -${F})`);
+				// it steps aside by 92 px (at 12, the group at full size) in 0,72 с
+				// the group grows about the point between the feet, so that they stay where they stand
+				kid.setAttribute('transform', `translate(${X0} ${F}) scale(${(h / 151).toFixed(4)}) translate(-${X0} -${F})`);
+				poseKid(92, u(x, 0.66, 0.74));
 				let bookOn = 0;
 				T.forEach((t0, i) => {
 					const on = u(x, t0, t0 + 0.04) * (1 - u(x, t0 + 0.11, t0 + 0.13));

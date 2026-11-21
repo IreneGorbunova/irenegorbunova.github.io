@@ -7,8 +7,8 @@
  *   end. The boy lets go without warning; the ruler falls freely, h = g t²/2 with g = 9,8 м/с², and the girl's
  *   fingers close after her reaction time 0,20 с, when the ruler has fallen 19,6 см (≈ 20 см, 39 px). The clock in
  *   the corner counts real seconds; the scene runs ten times slower than real time.
- *   The hands are drawn by the scene itself (palm, two fingers behind the ruler, the thumb in front): the boy pinches
- *   the top end between the thumb and the index finger and opens them; the girl's thumb closes on the ruler.
+ *   The people and their hands come from the people kit; the parts of the fingers behind the ruler are drawn behind
+ *   it: the boy holds the top end in his fingers and opens them; the girl's open hand closes on the ruler.
  * Paper: a girl (160 см, 1,35 px per centimeter) holds a tennis ball (58 г, 6,7 см) and a sheet of paper at
  *   shoulder height, 1,31 м above the floor, and lets both go. The ball falls in 0,52 с (air drag changes it by less
  *   than 0,01 с). The flat sheet sways and sinks at about 0,75 м/с on average, landing after 1,8 с. In the second
@@ -38,16 +38,15 @@ const ticks = Array.from({ length: 31 }, (_, i) => i);
 			<rect class="sv-book sv-book--b" x="307" y="18" width="7" height="22"></rect>
 			<rect class="sv-book sv-book--c" x="315" y="12" width="9" height="28"></rect>
 			<rect class="sv-book sv-book--a" x="326" y="20" width="6" height="20" transform="rotate(12 329 40)"></rect>
-			<g data-boy></g>
-			<g data-girl></g>
-			<!-- the fingers behind the ruler -->
-			<g class="sv-back" data-back></g>
+			<!-- the parts of the fingers behind the ruler -->
+			<g data-back></g>
 			<g data-ruler>
 				<rect class="sv-ruler" x="-4" y="0" width="8" height="60" rx="0.8"></rect>
 				{ticks.map((i) => <line class="sv-tick" x1="-4" x2={i % 5 === 0 ? -0.5 : -2.2} y1={60 - 2 * i} y2={60 - 2 * i} />)}
 			</g>
-			<!-- the palms and the thumbs in front of the ruler -->
-			<g data-front></g>
+			<!-- the people (people kit) in front of the ruler: their hands hold it -->
+			<g data-boy></g>
+			<g data-girl></g>
 			<g data-mark opacity="0">
 				<path class="sv-bracket" d="M168 180 h-5 V219 h5"></path>
 				<text class="sv-num" x="159" y="204" text-anchor="end">≈ 20&nbsp;см</text>
@@ -138,32 +137,6 @@ const ticks = Array.from({ length: 31 }, (_, i) => i);
 		stroke: var(--sl-color-gray-5);
 		stroke-width: 0.5;
 	}
-	[data-svintro] .sv-fing-o {
-		fill: none;
-		stroke: var(--hm-line);
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	[data-svintro] .sv-fing {
-		fill: none;
-		stroke: var(--hm-skin);
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	[data-svintro] .sv-palm {
-		fill: var(--hm-skin);
-		stroke: var(--hm-line);
-		stroke-width: 0.8;
-		stroke-linejoin: round;
-	}
-	[data-svintro] .sv-nail {
-		fill: color-mix(in oklab, var(--hm-skin) 55%, white);
-		stroke: var(--hm-line);
-		stroke-width: 0.4;
-	}
-	[data-svintro] .sv-back {
-		filter: brightness(0.82);
-	}
 	[data-svintro] .sv-bracket {
 		fill: none;
 		stroke: var(--ig-v);
@@ -224,6 +197,7 @@ const ticks = Array.from({ length: 31 }, (_, i) => i);
 <script>
 	import { scene } from '@components/intro/scene';
 	import { human, ANKLE, type HumanPose } from '../mehanicheskaya-rabota/people';
+	import { figure, handShape, blendShape } from '@components/people';
 
 	const fmt2 = (v: number) => v.toFixed(2).replace('.', ',');
 	const G = 9.8;
@@ -236,20 +210,19 @@ const ticks = Array.from({ length: 31 }, (_, i) => i);
 			const FLOOR = 410; // the floor, 85 см below the frame
 			const boyG = $<SVGGElement>('[data-boy]');
 			const girlG = $<SVGGElement>('[data-girl]');
-			const boy = human(boyG, { s: S, H: 172, shirt: 'hm-blue', hair: 'short' });
-			const girl = human(girlG, { s: S, H: 162, shirt: 'hm-red', hair: 'pony', dir: -1 });
-			// people.ts draws the near hand as the last element of the person; these scenes draw their own hands
-			const hideHand = (g: SVGGElement) => {
-				const last = g.firstElementChild?.lastElementChild as SVGElement | null;
-				if (last) last.style.display = 'none';
-			};
+			// strict kit figures (people.ts's look): their near hands hold the ruler, the far parts of the fingers behind it
+			const boy = figure(boyG, { s: S, H: 172, shirt: 'hm-blue', hair: 'short', clothes: 'indoor', prefix: 'hm', name: 'human' });
+			const girl = figure(girlG, { s: S, H: 162, shirt: 'hm-red', hair: 'pony', dir: -1, clothes: 'indoor', prefix: 'hm', name: 'human' });
+			const back = $<SVGGElement>('[data-back]');
+			boy.backLayer(0, back.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'g')));
+			girl.backLayer(0, back.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'g')));
 			const ruler = $<SVGGElement>('[data-ruler]');
 			const mark = $<SVGGElement>('[data-mark]');
 			const clock = $('[data-clock]');
 			const RX = 180; // the ruler's axis
 			const TOP = 120; // the ruler's top end before the drop
 			const HAND = 180; // the girl's fingers, at the zero mark
-			const stand = (H: number, x: number, dir: 1 | -1, hands: [{ x: number; y: number }, { x: number; y: number }], palms?: [number | null, number | null]): HumanPose => {
+			const stand = (H: number, x: number, dir: 1 | -1) => {
 				const u = S * H;
 				const a = ANKLE * S * Math.min(1, H / 172);
 				return {
@@ -258,94 +231,33 @@ const ticks = Array.from({ length: 31 }, (_, i) => i);
 					ankles: [
 						{ x: x + dir * 0.02 * u, y: FLOOR - a },
 						{ x: x - dir * 0.04 * u, y: FLOOR - a },
-					],
-					feet: [0, 0],
-					hands,
-					palms,
+					] as [{ x: number; y: number }, { x: number; y: number }],
+					feet: [0, 0] as [number, number],
 				};
 			};
-			// Hands at 2 px per см, seen from the side: a palm, two fingers behind the ruler (darker), the thumb in front
-			// of it. The boy pinches the top end between the thumb and the index finger, then opens them. The girl's open
-			// hand waits with the fingers behind the ruler and the thumb short of it, then the thumb presses the ruler.
-			const NS = 'http://www.w3.org/2000/svg';
-			const mk = (parent: Element, tag: string, cls: string, w?: number) => {
-				const e = document.createElementNS(NS, tag);
-				e.setAttribute('class', cls);
-				if (w) e.setAttribute('stroke-width', String(w));
-				parent.append(e);
-				return e;
-			};
-			const finger = (parent: Element, w: number) => {
-				const o = mk(parent, 'path', 'sv-fing-o', w + 1.2);
-				const p = mk(parent, 'path', 'sv-fing', w);
-				return (d: string) => (o.setAttribute('d', d), p.setAttribute('d', d));
-			};
-			const back = $('[data-back]');
-			const front = $('[data-front]');
-			const bIndex = finger(back, 3.4);
-			const bMiddle = finger(back, 3.4);
-			const gIndex = finger(back, 3.2);
-			const gMiddle = finger(back, 3.2);
-			const bPalm = mk(front, 'path', 'sv-palm');
-			const bThumb = finger(front, 3.8);
-			const bNail = mk(front, 'ellipse', 'sv-nail');
-			const gPalm = mk(front, 'path', 'sv-palm');
-			const gThumb = finger(front, 3.6);
-			const gNail = mk(front, 'ellipse', 'sv-nail');
-			const P = (dx: number, dy: number, y0: number) => `${RX + dx} ${y0 + dy}`;
-			const hands = (held: boolean, caught: boolean) => {
-				const T = (dx: number, dy: number) => P(dx, dy, TOP);
-				bPalm.setAttribute('d', `M${T(-17, 4)} L${T(-6, 0.5)} Q${T(-2.5, 6)} ${T(-6, 12.5)} L${T(-17, 14)} Z`);
-				if (held) {
-					bIndex(`M${T(-6, 2.5)} Q${T(5, 0.5)} ${T(6, 6)}`);
-					bMiddle(`M${T(-6, 7)} Q${T(4, 6)} ${T(5, 10.5)}`);
-					bThumb(`M${T(-12, 12)} Q${T(-5, 10.5)} ${T(2, 7)}`);
-					bNail.setAttribute('cx', String(RX + 0.6));
-					bNail.setAttribute('cy', String(TOP + 7.5));
-				} else {
-					bIndex(`M${T(-6, 2.5)} Q${T(1, -1)} ${T(7, -3)}`);
-					bMiddle(`M${T(-6, 7)} Q${T(1, 5)} ${T(7, 4)}`);
-					bThumb(`M${T(-12, 12)} Q${T(-6, 16)} ${T(-1, 18)}`);
-					bNail.setAttribute('cx', String(RX - 2.2));
-					bNail.setAttribute('cy', String(TOP + 17.4));
-				}
-				bNail.setAttribute('rx', '1.3');
-				bNail.setAttribute('ry', '0.9');
-				const Hh = (dx: number, dy: number) => P(dx, dy, HAND);
-				gPalm.setAttribute('d', `M${Hh(18, -2)} L${Hh(7, -4.5)} Q${Hh(3.5, 2)} ${Hh(7, 8.5)} L${Hh(18, 9)} Z`);
-				if (caught) {
-					gIndex(`M${Hh(7, -2.5)} Q${Hh(-5, -4)} ${Hh(-6, 1)}`);
-					gMiddle(`M${Hh(7, 1.5)} Q${Hh(-5, 1)} ${Hh(-6, 5.5)}`);
-					gThumb(`M${Hh(12, 8)} Q${Hh(4, 6.5)} ${Hh(-2, 3)}`);
-					gNail.setAttribute('cx', String(RX - 0.6));
-					gNail.setAttribute('cy', String(HAND + 3.6));
-				} else {
-					gIndex(`M${Hh(7, -2.5)} Q${Hh(-3, -10)} ${Hh(-9, -7)}`);
-					gMiddle(`M${Hh(7, 1.5)} Q${Hh(-2, -3)} ${Hh(-8, -1)}`);
-					gThumb(`M${Hh(12, 8)} Q${Hh(8, 13)} ${Hh(5.5, 10.5)}`);
-					gNail.setAttribute('cx', String(RX + 6.3));
-					gNail.setAttribute('cy', String(HAND + 11));
-				}
-				gNail.setAttribute('rx', '1.2');
-				gNail.setAttribute('ry', '0.9');
-			};
+			// the hand shapes (people kit): the ruler is 3 мм thick; the girl's hand waits open around it
+			const D = Math.PI / 180;
+			const HOLD = handShape('grip', (0.6 * S) / 36);
+			const OPEN = handShape('grip', (6.6 * S) / 36);
+			// the far hands hang
+			const hangB = { at: { x: 98, y: 236 }, pose: 'relaxed' as const };
+			const hangG = { at: { x: 266, y: 236 }, pose: 'relaxed' as const };
 			const REL = 1; // scene seconds before the boy lets go
 			const SLOW = 10;
 			const TR = 0.2; // the girl's reaction time, s
 			scene(card, 4, (x) => {
 				const ts = x * 4;
 				const tr = Math.min(TR, Math.max(0, (ts - REL) / SLOW)); // real seconds of the fall
-				const held = ts < REL;
 				const caught = tr >= TR;
 				const drop = (G * tr * tr) / 2; // м
 				const y0 = TOP + drop * 100 * S;
 				ruler.setAttribute('transform', `translate(${RX} ${y0.toFixed(1)})`);
-				// the arms end at the wrists; the hands are drawn below (people.ts's own near hand is hidden)
-				boy(stand(172, 82, 1, [{ x: RX - 15, y: TOP + 9 }, { x: 98, y: 236 }]));
-				girl(stand(162, 282, -1, [{ x: RX + 16, y: HAND + 3 }, { x: 266, y: 236 }]));
-				hideHand(boyG);
-				hideHand(girlG);
-				hands(held, caught);
+				// the boy opens his fingers just as he lets go (0,15 с of the scene); the girl closes hers once her reaction
+				// time has passed (in 0,15 с of the scene); the grip axis is the ruler (the thumb up, the fingers across it)
+				const open = Math.min(1, Math.max(0, (ts - REL + 0.1) / 0.15));
+				const close = Math.min(1, Math.max(0, (ts - REL - TR * SLOW) / 0.15));
+				boy.pose({ ...stand(172, 82, 1), hands: [{ at: { x: RX, y: TOP + 8 }, pose: 'grip', shape: blendShape(HOLD, OPEN, open), d: 0.6 + 6 * open, dir: 0, roll: -Math.PI / 2, contact: 'ruler' }, hangB] });
+				girl.pose({ ...stand(162, 282, -1), hands: [{ at: { x: RX, y: HAND + 3 }, pose: 'grip', shape: blendShape(OPEN, HOLD, close), d: 6.6 - 6 * close, dir: Math.PI, roll: -Math.PI / 2, contact: 'ruler' }, hangG] });
 				mark.setAttribute('opacity', caught ? '1' : '0');
 				clock.textContent = `${fmt2(tr)} с`;
 			});
@@ -403,14 +315,16 @@ const ticks = Array.from({ length: 31 }, (_, i) => i);
 					feet: [0, 0],
 					hands: hold
 						? [
-								{ x: BX - 1, y: Y0 - 6 },
-								{ x: PX - 15, y: Y0 - 2 },
+								{ x: BX + 1, y: Y0 },
+								{ x: PX - 14, y: Y0 },
 							]
 						: [
 								{ x: BX - 6, y: Y0 - 4 },
 								{ x: PX - 19, y: Y0 + 1 },
 							],
-					palms: hold ? undefined : [0.15, 0.15],
+					// the near hand holds the ball from above, the far one pinches the sheet's edge; then both open (the
+					// wrists straight)
+					grips: hold ? [{ pose: 'grip', d: 6.7 }, { pose: 'pinch' }] : [{ pose: 'open' }, { pose: 'open' }],
 					head: 0.35,
 				};
 			};

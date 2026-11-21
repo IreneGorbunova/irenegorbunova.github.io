@@ -24,6 +24,7 @@
  *   pipe); the drops fly with υ₀ = √(2g·6,3 м) ≈ 11 м/с in real time.
  */
 import G7Styles from '../g7/G7Styles.astro';
+import KitStyles from '@components/people/PeopleStyles.astro';
 
 const uid = Math.random().toString(36).slice(2, 8);
 const f = (v: number) => v.toFixed(1);
@@ -68,6 +69,7 @@ const FN = { tankL: 26, tankR: 92, tankTop: 44, level: 56, tankBot: 84, nozzleX:
 ---
 
 <G7Styles />
+<KitStyles />
 <figure class="g7 g7--pic zwh not-content" data-zh-where>
 	<div class="g7__grid is-two">
 		<!-- 1. teapot -->
@@ -85,8 +87,6 @@ const FN = { tankL: 26, tankR: 92, tankTop: 44, level: 56, tankBot: 84, nozzleX:
 			<path class="zwh__cup" d="M184 160 H218 L214 186 Q213 190 209 190 H193 Q189 190 188 186 Z"></path>
 			<path class="zwh__cup-h" d="M218 166 Q228 166 226 175 Q224 182 215 182"></path>
 			<path class="zwh__stream" data-potstream></path>
-			<path class="zwh__sleeve" data-sleeve></path>
-			<path class="zwh__arm" data-arm></path>
 			<g data-pot>
 				<path class="zwh__pot-handle" d={`M${TC - 30} ${TB - 60} Q${TC - 60} ${TB - 64} ${TC - 58} ${TB - 40} Q${TC - 56} ${TB - 22} ${TC - 32} ${TB - 22}`}></path>
 				<path class="zwh__pot" data-pot-out-ch></path>
@@ -98,13 +98,9 @@ const FN = { tankL: 26, tankR: 92, tankTop: 44, level: 56, tankBot: 84, nozzleX:
 				</g>
 				<path class="zwh__pot" d={`M${TC - 19} ${TB - TOP} H${TC + 19} V${TB - TOP - 3} Q${TC + 15} ${TB - TOP - 14} ${TC} ${TB - TOP - 15} Q${TC - 15} ${TB - TOP - 14} ${TC - 19} ${TB - TOP - 3} Z`}></path>
 				<ellipse class="zwh__pot" cx={TC} cy={TB - TOP - 17} rx="5" ry="3.5"></ellipse>
-				<!-- the hand grips the handle: the back of the hand outside, four fingers curled round the bar, the thumb on top -->
-				<g class="zwh__fist">
-					<rect x={TC - 70} y={TB - 56} width="15" height="25" rx="6"></rect>
-					{[0, 1, 2, 3].map((i) => <ellipse cx={TC - 54} cy={TB - 52 + 6 * i} rx="5" ry="3.3" />)}
-					<ellipse cx={TC - 58} cy={TB - 58} rx="7.5" ry="3.2" transform={`rotate(-12 ${TC - 58} ${TB - 58})`}></ellipse>
-				</g>
 			</g>
+			<!-- the hand (the shared people kit) grips the handle: the back of the hand outside, the fingers round the bar -->
+			<g data-pothand></g>
 			<line class="zwh__level" data-potlevel x1="40" x2="200" y1="0" y2="0"></line>
 			<text class="t-small zwh__note" x="120" y="214" text-anchor="middle">вода в носике и в чайнике —</text>
 			<text class="t-small zwh__note" x="120" y="228" text-anchor="middle">всегда на одном уровне</text>
@@ -320,18 +316,8 @@ const FN = { tankL: 26, tankR: 92, tankTop: 44, level: 56, tankBot: 84, nozzleX:
 		stroke-width: 6;
 		stroke-linecap: round;
 	}
-	.zwh__fist,
-	.zwh__arm {
-		fill: var(--g7-skin);
-		stroke: var(--g7-ink);
-		stroke-width: 1;
-		stroke-linejoin: round;
-	}
-	.zwh__sleeve {
-		fill: var(--g7-blue);
-		stroke: var(--g7-ink);
-		stroke-width: 1;
-		stroke-linejoin: round;
+	.zwh-kit-sleeve {
+		stroke: var(--g7-blue);
 	}
 	.zwh__cup {
 		fill: color-mix(in srgb, var(--sl-color-white) 12%, transparent);
@@ -497,6 +483,8 @@ const FN = { tankL: 26, tankR: 92, tankTop: 44, level: 56, tankBot: 84, nozzleX:
 
 <script>
 	import { el, loop } from '../g7/kit';
+	import { ROLL } from '@components/people/hand';
+	import { kitArm } from '../atmosfernoe-davlenie/kitArm';
 
 	type Pt = { x: number; y: number };
 	const f = (v: number) => v.toFixed(1);
@@ -580,9 +568,10 @@ const FN = { tankL: 26, tankR: 92, tankTop: 44, level: 56, tankBot: 84, nozzleX:
 		const potLevel = pot.querySelector<SVGLineElement>('[data-potlevel]')!;
 		const potStream = pot.querySelector<SVGPathElement>('[data-potstream]')!;
 		const cupWater = pot.querySelector<SVGPathElement>('[data-cupwater]')!;
-		const arm = pot.querySelector<SVGPathElement>('[data-arm]')!;
-		const sleeve = pot.querySelector<SVGPathElement>('[data-sleeve]')!;
-		const WRIST = { x: TC - 66, y: TB - 46 }; // where the forearm meets the back of the hand
+		// the hand: 15 см (70 px), the forearm 25 см (90 px) from the upper left; the grip on the handle's bar (6 px)
+		const hold = kitArm(pot.querySelector<SVGGElement>('[data-pothand]')!, { Lh: 70, fore: 90, side: 'R', sleeve: 'zwh-kit-sleeve' });
+		const GRIP = { x: TC - 58, y: TB - 44 };
+		const FORE = Math.atan2(-0.53, -0.85); // the forearm's direction from the wrist, fixed in the picture
 		const world = (p: Pt, th: number, lift: number): Pt => {
 			const c = Math.cos(th);
 			const s = Math.sin(th);
@@ -627,14 +616,9 @@ const FN = { tankL: 26, tankR: 92, tankTop: 44, level: 56, tankBot: 84, nozzleX:
 			const cw = CUP.bot - cupFill;
 			cupWater.setAttribute('d', cupFill > 0.3 ? `M${f(CUP.l + 1 + (188 - cw) * 0.15)} ${f(cw)} H${f(CUP.r - 1 - (188 - cw) * 0.15)} L${CUP.r - 3} ${CUP.bot} H${CUP.l + 3} Z` : '');
 			potStream.setAttribute('d', spilling ? `M${f(lip.x)} ${f(lip.y)} Q${f(lip.x + 4)} ${f(lip.y + 4)} ${f(lip.x + 5)} ${f(cw)}` : '');
-			// the forearm (25 см, 115 px) comes from the upper left to the wrist; a sleeve covers its far half
-			const w = world(WRIST, th, lift);
-			const ux = -0.85;
-			const uy = -0.53;
-			const band = (a: number, b: number, wa: number, wb: number) =>
-				`M${f(w.x + ux * a - uy * wa)} ${f(w.y + uy * a + ux * wa)} L${f(w.x + ux * b - uy * wb)} ${f(w.y + uy * b + ux * wb)} L${f(w.x + ux * b + uy * wb)} ${f(w.y + uy * b - ux * wb)} L${f(w.x + ux * a + uy * wa)} ${f(w.y + uy * a - ux * wa)} Z`;
-			arm.setAttribute('d', band(-2, 70, 5, 6.5));
-			sleeve.setAttribute('d', band(58, 130, 8, 9));
+			// the fingers across the bar, turning with the teapot; the wrist bends by the rest (within ±70°)
+			const bend = Math.atan2(Math.sin(FORE - Math.PI - th), Math.cos(FORE - Math.PI - th));
+			hold({ at: world(GRIP, th, lift), pose: 'grip', d: 6 / 70, dir: th, roll: ROLL.backViewer, bend });
 		};
 
 		// ---------- 2. the gauge glass ----------

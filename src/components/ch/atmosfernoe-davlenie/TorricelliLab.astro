@@ -4,7 +4,7 @@
  * Left: the altitude scene (drag the marker); middle: the tube in a dish with a ruler
  * (equal scales on both axes, so a tilted tube keeps its true geometry); right: an aneroid
  * barometer with a pressure scale and an altitude scale (as in an altimeter).
- * Pressure vs altitude: standard atmosphere (see physics.ts). In «Повторить опыт» a hand (people.ts) closes the
+ * Pressure vs altitude: standard atmosphere (see physics.ts). In «Повторить опыт» a hand (the shared people kit, kitArm.ts) closes the
  * open end with the thumb while the tube is turned over.
  * The scale of the tube scene is fixed for each liquid: it is chosen once so that the tube fits
  * even at the largest tilt (45°), and tilting never zooms. A tilted tube has a faint ghost of the
@@ -734,7 +734,9 @@ const fmtH = (h: number) =>
 		approach,
 		reducedMotion,
 	} from './physics';
-	import { fist, limb, standing } from './people';
+	import { ROLL } from '@components/people/hand';
+	import { figure } from '@components/people/body';
+	import { coverShape, kitArm } from './kitArm';
 
 	const NS = 'http://www.w3.org/2000/svg';
 	const ALT_MIN = -1500; // bottom of the scene (ground below the Dead Sea)
@@ -1073,16 +1075,13 @@ const fmtH = (h: number) =>
 		const glass = el('path', { class: 'atm__glass' }, tube);
 		const shine = el('line', { class: 'atm__glass-shine' }, tube);
 		const finger = el('g', {}, tube);
-		// a hand (people.ts) grips the tube at its open end and closes it with the thumb; the forearm goes to the right
+		// a hand (the shared people kit, kitArm.ts) grips the tube near its open end (y = 0; the tube goes to −y) and
+		// closes the opening with the thumb; the back of the right hand to the viewer, the forearm to the right
 		{
-			const FW = 7.5;
-			const grip = fist(7, 14, FW, { x: -3, y: -3 });
-			const w = grip.wrist;
-			const hand = el('g', { transform: 'scale(1 -1)' }, finger);
-			hand.innerHTML =
-				limb(`M${w.x.toFixed(1)} ${w.y} L${(w.x + 70).toFixed(1)} ${w.y + 2}`, 17) +
-				limb(`M${(w.x + 62).toFixed(1)} ${w.y + 2} L${(w.x + 260).toFixed(1)} ${w.y + 6}`, 24, 'ah-sleeve-b-s') +
-				grip.svg;
+			const LH = 75;
+			const d = tubeOuter / LH;
+			const cover = coverShape(d);
+			kitArm(finger, { Lh: LH, side: 'R', sleeve: 'ah-kit-red', reach: 300 })({ at: { x: 0, y: -cover.endZ * LH }, pose: 'grip', d, shape: cover.shape, dir: Math.PI, roll: ROLL.backViewer });
 		}
 		const dishLiquid = el('path', {}, tubeSvg);
 		const dishFront = el('path', { class: 'atm__glass' }, tubeSvg);
@@ -1208,13 +1207,28 @@ const fmtH = (h: number) =>
 			// a person 1,6 m tall, true scale
 			const hP = 1.6 * scale;
 			const xP = TW - 16;
-			// drawn as a person (people.ts), facing the tube; redrawn only when its size changes
+			// drawn as a person (the shared people kit), facing the tube; redrawn only when its size changes
 			const key = `${hP.toFixed(1)}|${xP}|${tableY}`;
 			if (key !== personKey) {
 				personKey = key;
-				// drawn 170 px tall and scaled down, so that its outlines shrink with it
+				// drawn 170 px tall by the shared people kit (facing left) and scaled down, so that its outlines shrink with it
 				const k = hP / 170;
-				person.innerHTML = `<g transform="translate(${r1(xP)} ${r1(tableY)}) scale(${(-k).toFixed(4)} ${k.toFixed(4)})">${standing(170)}</g>`;
+				person.replaceChildren();
+				const pg = el('g', { transform: `translate(${r1(xP)} ${r1(tableY)}) scale(${k.toFixed(4)})` }, person);
+				figure(pg as SVGGElement, { s: 1, H: 170, clothes: 'indoor', shirt: 'ah-kit-red', hair: 'short', dir: -1, name: 'scale-person' }).pose({
+					hip: { x: 0, y: -0.515 * 170 },
+					lean: 0,
+					ankles: [
+						{ x: -4, y: -7 },
+						{ x: 4, y: -7 },
+					],
+					feet: [0, 0],
+					planted: [true, true],
+					hands: [
+						{ arm: [Math.PI / 2 - 0.05, 0.15], pose: 'relaxed' },
+						{ arm: [Math.PI / 2 + 0.05, 0.15], pose: 'relaxed' },
+					],
+				});
 			}
 			set(personText, { x: xP, y: r1(tableY - hP - 6) });
 			// a mercury barometer at the same scale

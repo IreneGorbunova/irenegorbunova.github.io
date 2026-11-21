@@ -7,7 +7,7 @@
  *
  * Лодка — the numbers of task 1 of the chapter: a boy of 40 кг jumps from a boat of 80 кг at rest onto a pier with a
  *   horizontal speed of 2 м/с; the boat gets 1 м/с away from the shore (40 · 2 = 80 · 1). Side view, 40 px per метр,
- *   the boat 3 м long, the boy 1,5 м tall. The boy's jump: up 2,95 м/с, so that he lands after 0,5 с on the pier,
+ *   the boat 3 м long, the boy 1,5 м tall (the shared people kit). The boy's jump: up 2,95 м/с, so that he lands after 0,5 с on the pier,
  *   0,25 м above the boat's floor (apex 0,44 м); in 0,5 с he moves 1 м forward and the boat 0,5 м back. The
  *   resistance of the water over half a second is small and is neglected. The motion of 0,5 с is slowed four times.
  * Пушка — a toy spring cannon on a cart instead of a rifle: nobody aims at anything, and a cart on wheels can really
@@ -18,6 +18,7 @@
  *   neglected. The motion of 0,1 с is slowed twenty times.
  */
 import G7Styles from '../g7/G7Styles.astro';
+import KitStyles from '@components/people/PeopleStyles.astro';
 
 const WY = 180; // water level (a) and table (b)
 // (a) boat, 40 px per м
@@ -31,6 +32,7 @@ const BALL0 = CART0 + 55;
 ---
 
 <G7Styles />
+<KitStyles />
 <figure class="g7 g7--pic rcl not-content" data-rcl>
 	<div class="g7__grid is-two">
 		<svg class="g7__svg" viewBox="0 0 240 282" role="img" aria-label="Мальчик массой 40 килограммов прыгает из лодки массой 80 килограммов на причал со скоростью 2 метра в секунду, а лодка отплывает от берега со скоростью 1 метр в секунду">
@@ -44,14 +46,7 @@ const BALL0 = CART0 + 55;
 			<rect class="rcl__plank" x={PIER + 2} y={WY - 7} width="5" height="45"></rect>
 			<text class="t-small" x="214" y={WY + 14} text-anchor="middle">берег</text>
 			<!-- the boy (drawn before the boat: its side hides his feet) -->
-			<g data-boy>
-				<g data-pose>
-					<path class="rcl__limb" d="M-3 0 L-2 -26 M3 0 L2 -26"></path>
-					<rect class="rcl__boy" x="-6" y="-48" width="12" height="23" rx="3"></rect>
-					<path class="rcl__limb" d="M2 -44 L4 -28" data-arm></path>
-					<circle class="rcl__head" cx="0" cy="-54" r="6"></circle>
-				</g>
-			</g>
+			<g data-boy><g data-pose></g></g>
 			<g data-boat>
 				<path class="rcl__boat" d={hull}></path>
 				<line class="rcl__rim" x1="0" x2="120" y1="-12" y2="-12"></line>
@@ -140,21 +135,6 @@ const BALL0 = CART0 + 55;
 		stroke-width: 2.4;
 		stroke-linecap: round;
 	}
-	.rcl__boy {
-		fill: var(--g7-blue);
-	}
-	.rcl__limb {
-		fill: none;
-		stroke: var(--g7-ink);
-		stroke-width: 3.5;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	.rcl__head {
-		fill: var(--g7-skin);
-		stroke: var(--g7-ink);
-		stroke-width: 0.8;
-	}
 	.rcl__ball {
 		fill: var(--g7-blue);
 		stroke: var(--g7-ink);
@@ -203,6 +183,7 @@ const BALL0 = CART0 + 55;
 
 <script>
 	import { fmt, fmtTrim, loop } from '../g7/kit';
+	import { figure } from '@components/people/body';
 
 	const WY = 180;
 	const G = 9.8;
@@ -237,7 +218,33 @@ const BALL0 = CART0 + 55;
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
 		const boy = q<SVGGElement>('[data-boy]');
 		const pose = q<SVGGElement>('[data-pose]');
-		const arm = q<SVGPathElement>('[data-arm]');
+		// the boy, 1,5 м (the shared people kit, a teenager's proportions), drawn in his group with the feet at (0, 0)
+		const S = SA / 100;
+		const H = 150;
+		const U = S * H;
+		const ANK = -7 * S * (H / 172);
+		const kid = figure(pose, { s: S, H, age: 'teen', clothes: 'indoor', shirt: 'hm-blue', hair: 'short', name: 'boy' });
+		/** c: the crouch before the push (0…1), a: the tuck in the air (0…1) */
+		const poseBoy = (c: number, a: number, planted: boolean) => {
+			const hipY = -(0.505 * U - 0.13 * U * c);
+			const lift = 0.09 * U * a; // the feet come up under him in the air
+			const arm = Math.PI / 2 + 0.05 + 0.7 * c - 1.6 * a; // the arms swing back, then forward
+			kid.pose({
+				hip: { x: -0.03 * U * c, y: hipY },
+				lean: 0.25 * c + 0.12 * a,
+				head: -0.1 * c,
+				ankles: [
+					{ x: 2 + 0.02 * U * a, y: ANK - lift },
+					{ x: -2 + 0.01 * U * a, y: ANK - lift },
+				],
+				feet: [0.35 * a, 0.35 * a],
+				planted: [planted, planted],
+				hands: [
+					{ arm: [arm, 0.25 + 0.3 * a], pose: 'relaxed' },
+					{ arm: [arm + 0.15, 0.3 + 0.3 * a], pose: 'relaxed' },
+				],
+			});
+		};
 		const boat = q<SVGGElement>('[data-boat]');
 		const ball = q<SVGCircleElement>('[data-ball]');
 		const cannon = q<SVGGElement>('[data-cannon]');
@@ -257,10 +264,9 @@ const BALL0 = CART0 + 55;
 			const bx = BOY0 + SA * VBOY * ta;
 			const by = FEET - SA * (VUP * ta - (G * ta * ta) / 2);
 			boy.setAttribute('transform', `translate(${bx.toFixed(2)} ${by.toFixed(2)})`);
-			// a short crouch just before the jump, arms forward in the air
-			const crouch = u === 0 && before > 0.6 ? Math.sin((Math.PI * (before - 0.6)) / 0.4) * 0.08 : 0;
-			pose.setAttribute('transform', `scale(1 ${(1 - crouch).toFixed(3)})`);
-			arm.setAttribute('d', u > 0 && u < 1 ? 'M2 -44 L14 -50' : 'M2 -44 L4 -28');
+			// a short crouch just before the jump (the knees bend, the arms swing back), the arms forward in the air
+			const crouch = u === 0 && before > 0.6 ? Math.sin((Math.PI * (before - 0.6)) / 0.4) : 0;
+			poseBoy(crouch, Math.sin(Math.PI * u), u === 0 || u === 1);
 			const sx = BOAT0 - SA * VBOAT * ta;
 			boat.setAttribute('transform', `translate(${sx.toFixed(2)} ${WY})`);
 			brBoy.setAttribute('d', bracket(BOY0, bx, 87, false));

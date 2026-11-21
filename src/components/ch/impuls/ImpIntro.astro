@@ -13,6 +13,7 @@
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
 
 const uid = Math.random().toString(36).slice(2, 8);
 const mArrow = `ii-ar-${uid}`;
@@ -31,6 +32,7 @@ const WL = 172;
 const PIER = { x: 266, y: 150 };
 ---
 
+<PeopleStyles />
 <IntroFrame data-impintro>
 	<div class="intro__card" data-scene="billiards">
 		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Бильярдный стол, вид сверху. Кий ударяет белый шар, он катится к красному шару и ударяет его точно в центр. Белый шар останавливается на месте удара, а красный катится дальше с той же скоростью и падает в лузу">
@@ -82,12 +84,8 @@ const PIER = { x: 266, y: 150 };
 			<rect class="ii-deck" x={PIER.x} y={PIER.y} width={360 - PIER.x} height="8"></rect>
 			{[PIER.x + 26, PIER.x + 52, PIER.x + 78].map((x) => <line class="ii-plank" x1={x} y1={PIER.y + 1} x2={x} y2={PIER.y + 7} />)}
 			<!-- the boy -->
-			<g data-boy>
-				<path class="ii-leg" data-legs></path>
-				<line class="ii-torso" data-torso></line>
-				<path class="ii-arm" data-arms></path>
-				<circle class="ii-skin" data-headc r="6.5"></circle>
-			</g>
+			<!-- the boy (people kit) -->
+			<g data-boy></g>
 			<!-- the boat -->
 			<g data-boat>
 				<path class="ii-hull-in" d="M 4 -18 L 116 -18 L 112 -8 L 8 -8 Z"></path>
@@ -208,32 +206,11 @@ const PIER = { x: 266, y: 150 };
 		stroke: var(--sl-color-gray-3);
 		stroke-width: 3;
 	}
-	.ii-leg,
-	.ii-arm,
-	.ii-torso {
-		fill: none;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	.ii-leg {
-		stroke: color-mix(in oklab, var(--ig-vx) 70%, var(--sl-color-gray-3));
-		stroke-width: 5.5;
-	}
-	.ii-torso {
-		stroke: var(--ig-v);
-		stroke-width: 9;
-	}
-	.ii-arm {
-		stroke: color-mix(in oklab, var(--ig-v) 25%, var(--sl-color-gray-2));
-		stroke-width: 3.6;
-	}
-	.ii-skin {
-		fill: color-mix(in oklab, var(--ig-v) 25%, var(--sl-color-gray-2));
-	}
 </style>
 
 <script>
 	import { scene } from '@components/intro/scene';
+	import { figure } from '@components/people';
 
 	const ease = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
 	const f1 = (v: number) => v.toFixed(1);
@@ -305,10 +282,10 @@ const PIER = { x: 266, y: 150 };
 			const card = root.querySelector<HTMLElement>('[data-scene="boat"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
 			const boat = $<SVGGElement>('[data-boat]');
-			const legs = $<SVGPathElement>('[data-legs]');
-			const arms = $<SVGPathElement>('[data-arms]');
-			const torso = $<SVGLineElement>('[data-torso]');
-			const head = $<SVGCircleElement>('[data-headc]');
+			// the boy: 1,6 м at 40 px per м (people kit)
+			const S = 0.4;
+			const u = 160 * S;
+			const fig = figure($<SVGGElement>('[data-boy]'), { s: S, H: 160, age: 'teen', shirt: 'hm-gold', hair: 'short', clothes: 'indoor', prefix: 'hm', name: 'boy' });
 			const water = $<SVGPathElement>('[data-water]');
 			const surf = $<SVGPathElement>('[data-surf]');
 			const vBoy = $<SVGLineElement>('[data-vboy]');
@@ -354,25 +331,27 @@ const PIER = { x: 266, y: 150 };
 				}
 				return { x: x3 + U * TF * K, y: DECK, c: 0.5 * Math.sin(Math.PI * Math.min(1, (t - t4) / 0.5)), fly: 0 };
 			};
+			// x, y: between the feet on the floor; c: how deep he crouches; fly: 0…1…0 over the flight
 			const drawBoy = (x: number, y: number, c: number, fly: number) => {
-				const hip = y - 30 + 11 * c;
-				const knee = [x + 3 + 9 * c, (y + hip) / 2 + 2];
-				legs.setAttribute('d', `M ${f1(x - 4)} ${f1(y)} L ${f1(knee[0] - 4)} ${f1(knee[1])} L ${f1(x - 1)} ${f1(hip)} M ${f1(x + 5)} ${f1(y)} L ${f1(knee[0] + 2)} ${f1(knee[1])} L ${f1(x + 1)} ${f1(hip)}`);
-				const lean = 6 * c + 4 * fly; // the body leans forward
-				const sh = [x + lean - 1, hip - 22];
-				torso.setAttribute('x1', f1(x - 1));
-				torso.setAttribute('y1', f1(hip));
-				torso.setAttribute('x2', f1(sh[0]));
-				torso.setAttribute('y2', f1(sh[1]));
-				head.setAttribute('cx', f1(sh[0] + 2));
-				head.setAttribute('cy', f1(sh[1] - 9));
-				// arms: down and back while crouching, forward and up in the flight
-				const swing = -0.9 * c + 2.1 * fly;
-				const ex = sh[0] + 12 * Math.sin(swing);
-				const ey = sh[1] + 12 * Math.cos(swing);
-				const hx = ex + 10 * Math.sin(swing + 0.5);
-				const hy = ey + 10 * Math.cos(swing + 0.5);
-				arms.setAttribute('d', `M ${f1(sh[0])} ${f1(sh[1] + 2)} L ${f1(ex)} ${f1(ey)} L ${f1(hx)} ${f1(hy)}`);
+				const ank = 7 * S;
+				// the hip joint comes down by up to 0,2 of the height in the crouch; the body leans forward
+				const hip = { x: x - 2 - 4 * c, y: y - 0.505 * u + 0.2 * u * c - 0.04 * u * fly };
+				// the arms swing down and back while he crouches, forward and up in the flight
+				const swing = Math.PI / 2 + 0.9 * c - 2.1 * fly;
+				fig.pose({
+					hip,
+					lean: 0.45 * c + 0.25 * fly,
+					head: -0.2 * c,
+					ankles: [
+						{ x: x + 3, y: y - ank - 0.12 * u * fly },
+						{ x: x - 3, y: y - ank - 0.1 * u * fly },
+					],
+					feet: [0.3 * fly, 0.35 * fly],
+					hands: [
+						{ arm: [swing, 0.35], pose: 'relaxed' },
+						{ arm: [swing + 0.15, 0.45], pose: 'relaxed' },
+					],
+				});
 			};
 			const arrowAt = (ln: SVGLineElement, x: number, y: number, len: number) => {
 				ln.setAttribute('x1', f1(x));

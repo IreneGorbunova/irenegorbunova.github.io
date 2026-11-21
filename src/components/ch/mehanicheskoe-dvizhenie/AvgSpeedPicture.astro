@@ -10,11 +10,13 @@
  * path (50 px per km, as the route itself) and the time (130 px per hour).
  * Scales: the lengths along the route are to scale, 50 px per km (the hill path is measured along the slope). The
  * height of the hill is exaggerated (the slope is drawn at 22°; a real path of 2,5 км climbed in an hour is about 7°),
- * and the walker is drawn far larger than the route. Time: 1 ч of the trip lasts 4 s of the animation (900 times
+ * and the walker (the shared people kit, 36 px for 1,75 м) is drawn far larger than the route; he walks with the kit's
+ * walk cycle (the foot on the ground stays put) and swims the crawl in the lake. Time: 1 ч of the trip lasts 4 s of the animation (900 times
  * faster). The picture plays once when it comes on screen; «Повторить» plays it again.
  */
 import katex from 'katex';
 import G7Styles from '../g7/G7Styles.astro';
+import KitStyles from '@components/people/PeopleStyles.astro';
 
 const k = (s: string) => katex.renderToString(s, { throwOnError: false });
 const G = 100; // the level of the road and of the lake
@@ -51,6 +53,7 @@ const numbers = k('= \\dfrac{2{,}5~\\text{км} + 1{,}5~\\text{км} + 2{,}5~\\t
 ---
 
 <G7Styles />
+<KitStyles />
 <figure class="g7 g7--pic g7--narrow avs not-content" data-avgspeed>
 	<svg class="g7__svg" viewBox="0 16 360 228" role="img" aria-label="Путник идёт по дороге, переплывает озеро и поднимается в гору. Ниже две полосы: весь путь 6,5 км и всё время 2,5 ч">
 		<path class="avs__ground" d={ground}></path>
@@ -72,12 +75,9 @@ const numbers = k('= \\dfrac{2{,}5~\\text{км} + 1{,}5~\\text{км} + 2{,}5~\\t
 				);
 			})
 		}
-		<g class="avs__man" data-man>
-			<path class="avs__legs" data-legs></path>
-			<path class="avs__arms" data-arms></path>
-			<path class="avs__body" data-body></path>
-			<circle class="avs__head" r="3.8" data-head></circle>
-		</g>
+		<!-- the walker and, in the lake, the swimmer: one person of the shared people kit in two outfits -->
+		<g data-man></g>
+		<g data-swimmer></g>
 		<path class="avs__water" d={water}></path>
 		<path class="avs__surf" d={`M${LAKE0 - 5} ${G} H${HILL0}`}></path>
 
@@ -176,25 +176,6 @@ const numbers = k('= \\dfrac{2{,}5~\\text{км} + 1{,}5~\\text{км} + 2{,}5~\\t
 	.g7__svg .avs__part--p3 .t-halo {
 		stroke: var(--g7-ground);
 	}
-	.avs__legs,
-	.avs__arms {
-		fill: none;
-		stroke: var(--g7-ink);
-		stroke-width: 2.4;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	.avs__body {
-		fill: none;
-		stroke: var(--g7-red);
-		stroke-width: 4.5;
-		stroke-linecap: round;
-	}
-	.avs__head {
-		fill: var(--g7-skin);
-		stroke: var(--g7-ink);
-		stroke-width: 1;
-	}
 	.avs__empty {
 		fill: none;
 		stroke: var(--g7-line);
@@ -238,6 +219,8 @@ const numbers = k('= \\dfrac{2{,}5~\\text{км} + 1{,}5~\\text{км} + 2{,}5~\\t
 
 <script>
 	import { fmt, loop } from '../g7/kit';
+	import { figure } from '@components/people/body';
+	import { walk } from '@components/people/motion';
 
 	const G = 100;
 	const PX = 50;
@@ -257,11 +240,15 @@ const numbers = k('= \\dfrac{2{,}5~\\text{км} + 1{,}5~\\text{км} + 2{,}5~\\t
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-avgspeed]')) {
 		const q = <E extends Element>(s: string) => root.querySelector<E>(s)!;
-		const man = q<SVGGElement>('[data-man]');
-		const legs = q<SVGPathElement>('[data-legs]');
-		const arms = q<SVGPathElement>('[data-arms]');
-		const body = q<SVGPathElement>('[data-body]');
-		const head = q<SVGCircleElement>('[data-head]');
+		// the walker: a grown-up of 1,75 м drawn 36 px tall (far larger than the route); steps of 0,35 of his height
+		const SC = 36 / 175;
+		const U = 36;
+		const STEP = 0.35 * U;
+		const ANK = 7 * SC;
+		const gMan = q<SVGGElement>('[data-man]');
+		const gSwim = q<SVGGElement>('[data-swimmer]');
+		const walker = figure(gMan, { s: SC, H: 175, clothes: 'indoor', shirt: 'hm-red', hair: 'short', name: 'walker' });
+		const swimmer = figure(gSwim, { s: SC, H: 175, clothes: 'swim', shirt: 'hm-red', name: 'swimmer' });
 		const sOut = q('[data-s]');
 		const tOut = q('[data-t]');
 		const fs = [1, 2, 3].map((i) => q(`[data-fs="${i}"]`));
@@ -269,44 +256,66 @@ const numbers = k('= \\dfrac{2{,}5~\\text{км} + 1{,}5~\\text{км} + 2{,}5~\\t
 		const labs = [1, 2, 3].map((i) => q(`[data-lab="${i}"]`));
 		const res = [...root.querySelectorAll('[data-res]')];
 
-		/** The walker: on the road and up the hill he walks upright (leaning on the hill), in the lake he swims. */
+		/**
+		 * The walker: on the road and up the hill he walks (the kit's walk cycle along the path: the foot on the ground
+		 * stays put, on the hill on the slope), in the lake he swims the crawl (the arms turn in turn, the legs kick).
+		 */
+		let lastA = -1; // the route position of the previous frame: a jump of the clock is not a slide
 		const pose = (part: number, d: number, still: boolean) => {
-			const phase = still ? 0 : (d * PX * 2 * Math.PI) / (part === 1 ? 16 : 22);
-			let x: number;
-			let y: number;
-			if (part === 2) {
-				x = X0 + d * PX;
-				y = G;
-				// freestyle: body along the surface, the arms turning, the legs kicking
-				const a = phase;
-				const arm = (b: number) => `M2 0.5 l${n(10 * Math.cos(b))} ${n(7 * Math.sin(b))}`;
-				legs.setAttribute('d', `M-7 1.5 L-15 ${n(1.5 + 2 * Math.sin(2 * a))} M-7 1.5 L-15 ${n(1.5 - 2 * Math.sin(2 * a))}`);
-				arms.setAttribute('d', `${arm(a)} ${arm(a + Math.PI)}`);
-				body.setAttribute('d', 'M-7 1.5 L2 0.5');
-				head.setAttribute('cx', '6.5');
-				head.setAttribute('cy', '-2.6');
-			} else {
-				const up = part === 3;
-				const r = up ? d - 4 : d;
-				x = up ? X0 + 4 * PX + r * PX * Math.cos(TH) : X0 + r * PX;
-				y = up ? G - r * PX * Math.sin(TH) : G;
-				const lean = up ? 4 : 1;
-				const sw = still ? 0 : (up ? 0.38 : 0.45) * Math.sin(phase);
-				const hip = { x: 0, y: -12.5 };
-				const foot = (b: number) => {
-					const fx = hip.x + 12.5 * Math.sin(b);
-					const ground = up ? -fx * Math.tan(TH) : 0; // the foot stays on the slope
-					return `M${n(hip.x)} ${n(hip.y)} L${n(fx)} ${n(Math.min(hip.y + 12.5 * Math.cos(b), ground))}`;
-				};
-				legs.setAttribute('d', `${foot(sw)} ${foot(-sw)}`);
-				const sh = { x: lean, y: -22 };
-				const hand = (b: number) => `M${n(sh.x)} ${n(sh.y)} l${n(9.5 * Math.sin(b) + (up ? 2 : 0))} ${n(9.5 * Math.cos(b))}`;
-				arms.setAttribute('d', `${hand(-0.8 * sw)} ${hand(0.8 * sw)}`);
-				body.setAttribute('d', `M0 -12.5 L${n(sh.x)} ${n(sh.y)}`);
-				head.setAttribute('cx', n(lean * 1.35));
-				head.setAttribute('cy', '-27');
+			const swim = part === 2;
+			gMan.style.display = swim ? 'none' : '';
+			gSwim.style.display = swim ? '' : 'none';
+			const a = d * PX; // px along the route from its start
+			const smooth = a >= lastA && a - lastA < 0.5 * STEP;
+			lastA = a;
+			if (swim) {
+				const x = X0 + a;
+				const ph = (a * 2 * Math.PI) / 22;
+				const kick = 0.18 * Math.sin(2 * ph);
+				swimmer.pose({
+					hip: { x: x - 0.3 * U, y: G + 1.5 },
+					lean: Math.PI / 2 - 0.08,
+					head: 0.2, // the face down in the water, as in the crawl
+					ankles: [
+						{ x: x - 0.75 * U, y: G + 2 },
+						{ x: x - 0.75 * U, y: G + 2 },
+					],
+					legs: [
+						[Math.PI - 0.05 + kick, 0.15],
+						[Math.PI - 0.05 - kick, 0.15],
+					],
+					feet: [-1.3, -1.3],
+					hands: [
+						{ arm: [ph - Math.PI / 2, 0.25], pose: 'flat', dir: ph - Math.PI / 2 },
+						{ arm: [ph + Math.PI / 2, 0.25], pose: 'flat', dir: ph + Math.PI / 2 },
+					],
+				});
+				return;
 			}
-			man.setAttribute('transform', `translate(${n(x)} ${n(y)}) scale(1.15)`);
+			const up = part === 3;
+			const along = up ? a - 4 * PX : a; // px along this straight piece
+			const P = (t: number) => (up ? { x: X0 + 4 * PX + t * Math.cos(TH), y: G - t * Math.sin(TH) } : { x: X0 + t, y: G });
+			const w = walk(along, STEP, 0.5 * STEP, 0.05 * U);
+			// standing still (before the start and at the top): the feet where the walk cycle has them, on the ground
+			const feet = still ? w.feet.map((f) => ({ ...f, up: 0, toe: 0, planted: true })) : w.feet;
+			const ank = feet.map((f) => {
+				const g = P(f.x);
+				return { x: g.x, y: g.y - ANK - f.up };
+			}) as [{ x: number; y: number }, { x: number; y: number }];
+			const h = P(along);
+			const sw = still ? 0 : w.arm;
+			walker.pose({
+				hip: { x: h.x, y: h.y - 0.465 * U + (still ? 0 : w.bob) + (up && !still ? 0.07 * U : 0) },
+				lean: up ? 0.2 : 0.04,
+				ankles: ank,
+				feet: [(up ? -TH : 0) + feet[0].toe, (up ? -TH : 0) + feet[1].toe],
+				// the feet are checked once the walker is a step into a piece (he reappears at the foot of the hill after the lake)
+				planted: [feet[0].planted && !still && smooth && along > STEP, feet[1].planted && !still && smooth && along > STEP],
+				hands: [
+					{ arm: [Math.PI / 2 - 0.35 * sw, 0.2 + 0.15 * Math.max(0, sw)], pose: 'relaxed' },
+					{ arm: [Math.PI / 2 + 0.35 * sw, 0.2 + 0.15 * Math.max(0, -sw)], pose: 'relaxed' },
+				],
+			});
 		};
 
 		/** Everything at the trip time th (hours, 0…2,5). */
