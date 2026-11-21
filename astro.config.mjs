@@ -93,7 +93,7 @@ export default defineConfig({
 					section('Динамика', '10-klass/dinamika', ['dinamika-zakony-nyutona', 'sily-v-mehanike']),
 					section('Законы сохранения', '10-klass/zakony-sohraneniya', ['impuls', 'mehanicheskaya-energiya']),
 					section('Статика', '10-klass/statika', ['ravnovesie-tel']),
-					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['osnovy-mkt', 'gazovye-zakony', 'nasyshchennyy-par', 'tverdye-tela']),
+					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['osnovy-mkt', 'gazovye-zakony', 'nasyshchennyy-par', 'tverdye-tela', 'osnovy-termodinamiki']),
 					section('Электродинамика', '10-klass/elektrodinamika', ['elektrostatika', 'kondensatory', 'zakony-postoyannogo-toka', 'tok-v-sredah']),
 				]),
 				grade(11, [

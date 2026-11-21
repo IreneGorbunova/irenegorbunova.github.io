@@ -1,0 +1,103 @@
+---
+/**
+ * Picture to «Необратимость процессов». Left, what happens: a cup of tea at 80 °C in a room at 22 °C cools, its
+ * temperature falling towards the room's as t = 22 + 58·e^(−τ/12 мин) (a typical cup cools to about 40 °C in 15–20
+ * minutes); the clock of the picture runs 40 minutes in 6 s. Steam rises while the tea is hot; red arrows show heat
+ * going from the tea to the air. Right, the same film run backwards: the tea would warm by itself from 22 to 80 °C by
+ * taking heat from the cooler air. Energy would be conserved, but this never happens — the panel is crossed out.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const cup = (x: number) => `M${x - 26} 92 L${x - 22} 138 Q${x} 146 ${x + 22} 138 L${x + 26} 92 Z`;
+---
+
+<G7Styles />
+<figure class="g7 g7--pic ir not-content" data-irrev>
+	<div class="g7__grid is-two">
+		{[0, 1].map((k) => (
+			<svg class="g7__svg" viewBox="0 0 180 190" role="img" aria-label={k === 0 ? 'Горячий чай в комнате остывает до температуры воздуха, теплота уходит от чая к воздуху' : 'Обратный процесс: чай сам нагревается, забирая теплоту у более холодного воздуха. Так не бывает'} data-panel={k}>
+				<text class="t-title" x="90" y="18" text-anchor="middle">{k === 0 ? 'так бывает' : 'так не бывает'}</text>
+				<g data-steam>
+					<path class="ir-steam" d="M80 82 q-6 -10 0 -20 q6 -10 0 -20" />
+					<path class="ir-steam" d="M98 82 q-6 -10 0 -20 q6 -10 0 -20" />
+				</g>
+				<path class="ir-cup" d={cup(90)} />
+				<ellipse class="ir-tea" cx="90" cy="92" rx="26" ry="5" />
+				<path class="ir-handle" d="M116 100 Q134 104 130 118 Q126 128 113 126" />
+				<rect class="ir-saucer" x="54" y="142" width="72" height="5" rx="2.5" />
+				<g data-heat>
+					<path class="ir-q" d="M50 112 H28 M34 106 L26 112 L34 118" />
+					<path class="ir-q" d="M130 76 L148 62 M140 62 L150 60 L147 70" />
+				</g>
+				<text class="t-strong t-num" data-temp x="90" y="172" text-anchor="middle">80 °C</text>
+				<text class="t-small" x="90" y="186" text-anchor="middle">в комнате 22&nbsp;°C</text>
+				{k === 1 && <path class="ir-cross" d="M20 30 L160 160 M160 30 L20 160" />}
+			</svg>
+		))}
+	</div>
+	<figcaption class="g7__caption">Слева горячий чай остывает: теплота уходит от него к более холодному воздуху (40&nbsp;минут показаны за 6&nbsp;секунд). Справа тот же фильм, пущенный назад: чай сам нагревается, забирая теплоту у холодного воздуха. Энергия при этом сохранялась бы, но так не бывает.</figcaption>
+</figure>
+
+<style is:global>
+	.ir-cup {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.ir-tea {
+		fill: color-mix(in oklab, var(--ig-v) 60%, var(--ig-vy));
+	}
+	.ir-handle {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 4;
+	}
+	.ir-saucer {
+		fill: var(--sl-color-gray-3);
+	}
+	.ir-steam {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.ir-q {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.ir-cross {
+		stroke: var(--g7-red);
+		stroke-width: 3;
+		opacity: 0.55;
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-irrev]')) {
+		const panels = [...root.querySelectorAll<SVGSVGElement>('[data-panel]')];
+		let t = 0;
+		loop(root, (dt) => {
+			t = (t + dt) % 8;
+			const tau = Math.min(6, t) * (40 / 6); // minutes
+			const temp = 22 + 58 * Math.exp(-tau / 12);
+			panels.forEach((sv, k) => {
+				// the right panel is the same film backwards
+				const T = k === 0 ? temp : 22 + 58 - (temp - 22);
+				sv.querySelector('[data-temp]')!.textContent = `${Math.round(T)} °C`;
+				const hot = (T - 22) / 58;
+				(sv.querySelector('[data-steam]') as SVGGElement).style.opacity = String(Math.max(0, hot - 0.2));
+				(sv.querySelector('[data-steam]') as SVGGElement).setAttribute('transform', `translate(0 ${(-(t * 6) % 8).toFixed(1)})`);
+				const heat = sv.querySelector('[data-heat]') as SVGGElement;
+				heat.style.opacity = String(Math.min(1, 0.25 + Math.abs(k === 0 ? temp - 22 : 80 - temp) / 40));
+				// arrows point out of the cup on the left and into it on the right
+				heat.setAttribute('transform', k === 0 ? '' : 'rotate(180 90 100)');
+			});
+			return true;
+		});
+	}
+</script>

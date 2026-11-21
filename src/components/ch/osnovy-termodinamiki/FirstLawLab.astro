@@ -1,0 +1,321 @@
+---
+/**
+ * Model «Газ под поршнем: куда идёт теплота». A monatomic ideal gas, ν = 0,0401 моль (νR = 1/3 Дж/К), starts at
+ * p₀ = 100 кПа, V₀ = 1 л, T₀ = 300 К, so U₀ = 3/2·νRT₀ = 150 Дж. Four processes, one slider each:
+ *   isochoric (V = 1 л): T from 300 to 600 К; A′ = 0, Q = ΔU = 0,5·ΔT Дж (150 Дж at 600 К);
+ *   isobaric (p = 100 кПа): T from 300 to 600 К, V = T/300 л; A′ = pΔV = ΔT/3 Дж, ΔU = 0,5·ΔT, Q = ΔU + A′
+ *     (at 600 К: 100, 150 and 250 Дж);
+ *   isothermal (T = 300 К): V from 0,5 to 2 л, p = 100/V кПа; ΔU = 0, Q = A′ = νRT·ln(V/V₀) = 100·ln V Дж
+ *     (+69,3 Дж at 2 л, −69,3 Дж at 0,5 л: the gas gives heat away);
+ *   adiabatic (no heat exchange): V from 0,5 to 2 л, T = 300·V^(−2/3), p = νRT/V; Q = 0, ΔU = A = −A′
+ *     (at 0,5 л: 476 К, 317,48 кПа, shown as 317 кПа, ΔU = +88 Дж; at 2 л: 189 К, ΔU = −56 Дж).
+ * Every number is computed from these formulas; the side bars show Q (red), A′ (blue) and ΔU (gold) to one scale,
+ * 0,22 px per Дж. The molecules are points whose speed grows as √T (slowed down billions of times); the gas column is
+ * 60 px per liter. Under the cylinder: a plate that heats (heat comes in) or cools (heat goes out), or thick
+ * insulating walls. The plate is labelled «нагревание» / «охлаждение»: the words «нагреватель» and «холодильник» are
+ * terms of «Тепловые двигатели», further down the chapter.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const BASE = 196;
+---
+
+<G7Styles />
+<figure class="g7 g7--wide fl not-content" data-firstlaw>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 300" role="img" aria-label="Газ под поршнем. Можно нагревать его при постоянном объёме или давлении, сжимать и расширять при постоянной температуре или без теплообмена. Справа график давления от объёма и столбики: количество теплоты, работа газа, изменение внутренней энергии">
+			<!-- the cylinder -->
+			<rect class="fl-insul" data-insul x="12" y="20" width="118" height={BASE - 14} rx="4"></rect>
+			<path class="fl-wall" d={`M22 24 V${BASE} H120 V24`}></path>
+			<rect class="fl-gas" data-gas x="24" y="100" width="94" height="96"></rect>
+			<g data-mols></g>
+			<g data-piston>
+				<rect class="fl-piston" x="24" y="-9" width="94" height="9"></rect>
+				<rect class="fl-rod" x="66" y="-60" width="10" height="51"></rect>
+			</g>
+			<rect class="fl-plate" data-plate x="16" y={BASE + 2} width="110" height="10" rx="2"></rect>
+			<g data-qarrow>
+				<line class="fl-q" x1="71" y1="234" x2="71" y2="214"></line>
+				<path class="fl-q-head" data-qhead d=""></path>
+				<text class="t-i t-red" x="80" y="232">Q</text>
+			</g>
+			<text class="t-small" data-platelab x="71" y="252" text-anchor="middle"></text>
+			<text class="t-small" data-tlab x="71" y="270" text-anchor="middle"></text>
+			<text class="t-small" data-plab x="71" y="286" text-anchor="middle"></text>
+			<!-- the p–V graph -->
+			<g data-ticks></g>
+			<path class="fl-axis" d="M172 14 V176 H350"></path>
+			<text class="t-i" x="178" y="22">p<tspan class="t-small" font-style="normal">, кПа</tspan></text>
+			<text class="t-i" x="350" y="170" text-anchor="end">V<tspan class="t-small" font-style="normal">, л</tspan></text>
+			<path class="fl-ghost" data-ghost d=""></path>
+			<path class="fl-path" data-path d=""></path>
+			<circle class="fl-start" data-start r="3"></circle>
+			<circle class="fl-dot" data-dot r="4.5"></circle>
+			<!-- the bars -->
+			<line class="fl-zero" x1="190" y1="262" x2="350" y2="262"></line>
+			<rect class="fl-bar fl-bar--q" data-bq x="200" width="34"></rect>
+			<rect class="fl-bar fl-bar--a" data-ba x="254" width="34"></rect>
+			<rect class="fl-bar fl-bar--u" data-bu x="308" width="34"></rect>
+			<text class="t-i t-red" x="217" y="296" text-anchor="middle">Q</text>
+			<text class="t-i t-blue" x="271" y="296" text-anchor="middle">A′</text>
+			<text class="t-i t-gold" x="325" y="296" text-anchor="middle">ΔU</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__label">Процесс</div>
+			<div class="g7__seg" data-mode>
+				<button type="button" class="g7__btn" aria-pressed="true" data-m="V">Изохорный</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="p">Изобарный</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="T">Изотермический</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="Q">Адиабатный</button>
+			</div>
+			<label class="g7__slider">
+				<span data-slabel>Температура <i>T</i></span>
+				<output data-sout>300 К</output>
+				<input type="range" data-s min="300" max="600" step="10" value="300" aria-label="Параметр процесса" />
+			</label>
+			<ul class="g7__read">
+				<li class="is-key"><span>теплота <i>Q</i></span> <b data-Q>0 Дж</b></li>
+				<li><span>работа газа <i>A</i>′</span> <b data-A>0 Дж</b></li>
+				<li class="is-warm"><span>изменение Δ<i>U</i></span> <b data-U>0 Дж</b></li>
+			</ul>
+			<p class="g7__note" data-eq></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Одноатомный газ, в начале 100&nbsp;кПа, 1&nbsp;л и 300&nbsp;К (внутренняя энергия 150&nbsp;Дж). Выберите процесс и двигайте ползунок: справа — график и столбики теплоты, работы газа и изменения внутренней энергии в одном масштабе.</figcaption>
+</figure>
+
+<style is:global>
+	.fl-wall {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+	}
+	.fl-insul {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 8;
+		stroke-dasharray: 3 3;
+		opacity: 0;
+	}
+	[data-firstlaw][data-mode='Q'] .fl-insul {
+		opacity: 1;
+	}
+	.fl-gas {
+		fill: color-mix(in oklab, var(--ig-vx) 16%, transparent);
+	}
+	.fl-mol {
+		fill: var(--g7-blue);
+	}
+	.fl-piston,
+	.fl-rod {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+	.fl-plate {
+		fill: var(--sl-color-gray-4);
+	}
+	.fl-plate.is-hot {
+		fill: var(--g7-red);
+	}
+	.fl-plate.is-cold {
+		fill: var(--g7-blue);
+	}
+	.fl-q {
+		stroke: var(--g7-red);
+		stroke-width: 3;
+	}
+	.fl-q-head {
+		fill: var(--g7-red);
+	}
+	.fl-axis {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.fl-tick {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.fl-ghost {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 3;
+	}
+	.fl-path {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.fl-start {
+		fill: var(--sl-color-gray-2);
+	}
+	.fl-dot {
+		fill: var(--g7-blue);
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+	}
+	.fl-zero {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.fl-bar--q {
+		fill: var(--g7-red);
+	}
+	.fl-bar--a {
+		fill: var(--g7-blue);
+	}
+	.fl-bar--u {
+		fill: var(--g7-gold);
+	}
+</style>
+
+<script>
+	import { el, fmt, fmtInt, loop, segment, rng } from '../g7/kit';
+
+	const nuR = 1 / 3; // Дж/К
+	const BASE = 196;
+	const PX = 60; // px per liter of the gas column
+	const X = (V: number) => 172 + (V / 2.2) * 172;
+	const Y = (p: number) => 176 - (p / 330) * 156;
+	const BAR = 0.22; // px per Дж
+	type St = { p: number; V: number; T: number; Q: number; A: number; dU: number };
+	// the state for a mode and a slider value (T in К for V and p, V in л for T and Q)
+	const state = (m: string, s: number): St => {
+		if (m === 'V') {
+			const T = s;
+			return { p: (nuR * T) / 1, V: 1, T, A: 0, dU: 0.5 * (T - 300), Q: 0.5 * (T - 300) };
+		}
+		if (m === 'p') {
+			const T = s;
+			const V = T / 300;
+			const A = 100 * (V - 1);
+			const dU = 0.5 * (T - 300);
+			return { p: 100, V, T, A, dU, Q: A + dU };
+		}
+		if (m === 'T') {
+			const V = s;
+			const A = 100 * Math.log(V);
+			return { p: 100 / V, V, T: 300, A, dU: 0, Q: A };
+		}
+		const V = s;
+		const T = 300 * Math.pow(V, -2 / 3);
+		const dU = 0.5 * (T - 300);
+		return { p: (nuR * T) / V, V, T, A: -dU, dU, Q: 0 };
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-firstlaw]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const slider = $<HTMLInputElement>('[data-s]');
+		const gas = $<SVGRectElement>('[data-gas]');
+		const piston = $<SVGGElement>('[data-piston]');
+		const plate = $<SVGRectElement>('[data-plate]');
+		const qArrow = $<SVGGElement>('[data-qarrow]');
+		const qHead = $<SVGPathElement>('[data-qhead]');
+		const pathEl = $<SVGPathElement>('[data-path]');
+		const ghost = $<SVGPathElement>('[data-ghost]');
+		const dot = $<SVGCircleElement>('[data-dot]');
+		const start = $<SVGCircleElement>('[data-start]');
+		const ticks = $<SVGGElement>('[data-ticks]');
+		for (const p of [100, 200, 300]) {
+			ticks.append(el('line', { class: 'fl-tick', x1: 172, y1: Y(p), x2: 350, y2: Y(p) }));
+			ticks.append(el('text', { class: 't-small', x: 168, y: Y(p) + 4, 'text-anchor': 'end' }, String(p)));
+		}
+		for (const V of [0.5, 1, 1.5, 2]) {
+			ticks.append(el('line', { class: 'fl-tick', x1: X(V), y1: 20, x2: X(V), y2: 176 }));
+			ticks.append(el('text', { class: 't-small', x: X(V), y: 189, 'text-anchor': 'middle' }, fmt(V, V % 1 ? 1 : 0)));
+		}
+		start.setAttribute('cx', String(X(1)));
+		start.setAttribute('cy', String(Y(100)));
+		let mode = 'V';
+		let cur = state('V', 300);
+		const setBar = (sel: string, v: number) => {
+			const r = $<SVGRectElement>(sel);
+			const h = Math.abs(v) * BAR;
+			r.setAttribute('y', String(v >= 0 ? 262 - h : 262));
+			r.setAttribute('height', String(Math.max(h, 0.8)));
+		};
+		const J = (v: number) => `${fmtInt(v)}\u00a0Дж`;
+		const show = () => {
+			const s = +slider.value;
+			cur = state(mode, s);
+			// the path from the start to the current state, and the whole slider range as a ghost
+			const range = mode === 'V' || mode === 'p' ? [300, 600] : [0.5, 2];
+			const line = (a: number, b: number) => {
+				let d = '';
+				for (let k = 0; k <= 40; k++) {
+					const st = state(mode, a + ((b - a) * k) / 40);
+					d += `${k ? 'L' : 'M'}${X(st.V).toFixed(1)} ${Y(st.p).toFixed(1)} `;
+				}
+				return d;
+			};
+			ghost.setAttribute('d', line(range[0], range[1]));
+			pathEl.setAttribute('d', line(mode === 'V' || mode === 'p' ? 300 : 1, s));
+			dot.setAttribute('cx', X(cur.V).toFixed(1));
+			dot.setAttribute('cy', Y(cur.p).toFixed(1));
+			// the cylinder
+			const h = PX * cur.V;
+			gas.setAttribute('y', (BASE - h).toFixed(1));
+			gas.setAttribute('height', h.toFixed(1));
+			piston.setAttribute('transform', `translate(0 ${(BASE - h).toFixed(1)})`);
+			const hot = cur.Q > 0.5;
+			const cold = cur.Q < -0.5;
+			plate.classList.toggle('is-hot', hot);
+			plate.classList.toggle('is-cold', cold);
+			qArrow.style.display = hot || cold ? '' : 'none';
+			qHead.setAttribute('d', hot ? 'M65 216 L71 205 L77 216 Z' : 'M65 232 L71 243 L77 232 Z');
+			$('[data-platelab]').textContent = mode === 'Q' ? 'теплоизоляция: Q = 0' : hot ? 'нагревание' : cold ? 'охлаждение' : '';
+			$('[data-tlab]').textContent = `T = ${fmtInt(cur.T)}\u00a0К`;
+			$('[data-sout]').textContent = mode === 'V' || mode === 'p' ? `${fmtInt(s)}\u00a0К` : `${fmt(s, 2)}\u00a0л`;
+			$('[data-plab]').textContent = `p = ${fmtInt(cur.p)}\u00a0кПа, V = ${fmt(cur.V, 2)}\u00a0л`;
+			$('[data-Q]').textContent = J(cur.Q);
+			$('[data-A]').textContent = J(cur.A);
+			$('[data-U]').textContent = J(cur.dU);
+			$('[data-eq]').textContent = `Q = ΔU + A′: ${J(cur.Q)} = ${J(cur.dU)} + ${J(cur.A).replace(/^−/, '(−')}${cur.A < -0.5 ? ')' : ''}`;
+			setBar('[data-bq]', cur.Q);
+			setBar('[data-ba]', cur.A);
+			setBar('[data-bu]', cur.dU);
+		};
+		segment($('[data-mode]'), (b) => {
+			mode = b.dataset.m!;
+			root.dataset.mode = mode;
+			const temp = mode === 'V' || mode === 'p';
+			slider.min = temp ? '300' : '0.5';
+			slider.max = temp ? '600' : '2';
+			slider.step = temp ? '10' : '0.05';
+			slider.value = temp ? '300' : '1';
+			$('[data-slabel]').innerHTML = temp ? 'Температура <i>T</i>' : 'Объём <i>V</i>';
+			show();
+		});
+		slider.addEventListener('input', show);
+		root.dataset.mode = 'V';
+		show();
+
+		// the molecules: 26 points in the gas column, speed ∝ √T
+		const g = $<SVGGElement>('[data-mols]');
+		const rnd = rng(9);
+		const mols = Array.from({ length: 26 }, () => {
+			const a = rnd() * 2 * Math.PI;
+			const v = 35 + rnd() * 30;
+			const c = el('circle', { class: 'fl-mol', r: 2.6 });
+			g.append(c);
+			return { c, x: 28 + rnd() * 86, f: rnd(), vx: v * Math.cos(a), vy: v * Math.sin(a) };
+		});
+		loop(root, (dt) => {
+			const k = Math.sqrt(cur.T / 300);
+			const h = PX * cur.V;
+			for (const m of mols) {
+				m.x += m.vx * k * dt;
+				// the height is kept as a fraction of the column, so the gas fills the cylinder whatever its volume
+				m.f += (m.vy * k * dt) / h;
+				if (m.x < 27 || m.x > 115) (m.vx = -m.vx), (m.x = Math.min(115, Math.max(27, m.x)));
+				if (m.f < 0.03 || m.f > 0.97) (m.vy = -m.vy), (m.f = Math.min(0.97, Math.max(0.03, m.f)));
+				m.c.setAttribute('cx', m.x.toFixed(1));
+				m.c.setAttribute('cy', (BASE - m.f * h).toFixed(1));
+			}
+			return true;
+		});
+	}
+</script>

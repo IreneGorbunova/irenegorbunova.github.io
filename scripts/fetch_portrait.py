@@ -3,6 +3,10 @@
 
     python3 scripts/fetch_portrait.py "File:Justus Sustermans - Portrait of Galileo Galilei, 1636.jpg" galileo "Галилео Галилей"
     python3 scripts/fetch_portrait.py "File:Emil_Lenz.jpg" lenz "Эмилий Ленц" "неизвестен"   # override a messy author
+    python3 scripts/fetch_portrait.py "File:Rudolf Clausius 01.jpg" clausius "Рудольф Клаузиус" --file ~/Clausius.jpg
+
+--file takes the picture from a local copy of that same Commons file (when upload.wikimedia.org refuses the download);
+the source, author and license still come from Commons.
 
 Saves public/portraits/<slug>.jpg (square crop, 480 px) and src/data/portraits/<slug>.json
 with the source page, author and license for the credits page. Refuses anything that is not
@@ -41,10 +45,16 @@ def artist(meta: dict) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) not in (4, 5):
+    argv = sys.argv[1:]
+    local = None
+    if '--file' in argv:
+        i = argv.index('--file')
+        local = Path(argv[i + 1]).expanduser()
+        del argv[i:i + 2]
+    if len(argv) not in (3, 4):
         sys.exit(__doc__)
-    title, slug, person = sys.argv[1], sys.argv[2], sys.argv[3]
-    author = sys.argv[4] if len(sys.argv) == 5 else None
+    title, slug, person = argv[0], argv[1], argv[2]
+    author = argv[3] if len(argv) == 4 else None
     if not title.startswith('File:'):
         title = 'File:' + title
     if not re.fullmatch(r'[a-z0-9-]+', slug):
@@ -63,7 +73,8 @@ def main() -> None:
     if not re.search(r'public domain|\bPD\b|CC0', license_name, re.I):
         sys.exit(f'REFUSED: license is "{license_name}", only public domain or CC0 are allowed')
 
-    img = Image.open(io.BytesIO(get(info['thumburl']))).convert('RGB')
+    raw = local.read_bytes() if local else get(info['thumburl'])
+    img = Image.open(io.BytesIO(raw)).convert('RGB')
     w, h = img.size
     side = min(w, h)
     top = 0  # tall portraits: keep the top part, where the face is

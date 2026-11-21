@@ -1,0 +1,134 @@
+---
+/**
+ * Picture to the definition of the adiabatic process. Two equal cylinders with thick insulating walls (no heat
+ * exchange, Q = 0), each with the same monatomic ideal gas as in the model «Газ под поршнем» above: 1 л, 100 кПа,
+ * 300 К (νR = 1/3 Дж/К, U = 150 Дж). Left: the piston is pushed in fast to 0,5 л; right: it is pulled out fast to 2 л.
+ * With no heat, ΔU = A, and for a monatomic ideal gas T·V^(2/3) stays the same, T = 300·V^(−2/3) К with V in liters:
+ * 476 К at 0,5 л (ΔU = +88 Дж, the gas heats) and 189 К at 2 л (ΔU = −56 Дж, the gas cools). The readout T follows
+ * this formula all along the stroke. The molecules are points whose speeds grow as √T (slowed down billions of times);
+ * the gas column is 60 px per liter; the tint of the gas (warm or cold) shows the temperature change. One loop lasts
+ * 6 s: 1 s at rest, the stroke in 1,2 s (in a real cylinder it may take hundredths of a second), 3 s holding, then the
+ * picture starts again.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const BASE = 168;
+const sides = [
+	{ x0: 34, V1: 0.5, title: 'газ быстро сжимают' },
+	{ x0: 210, V1: 2, title: 'газ быстро расширяется' },
+];
+---
+
+<G7Styles />
+<figure class="g7 g7--pic ad not-content" data-adiabat>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 228" role="img" aria-label="Два цилиндра с газом в толстой теплоизоляции. В левом поршень быстро вдвигают — газ нагревается с 300 до 476 кельвинов. В правом поршень быстро выдвигают — газ охлаждается до 189 кельвинов">
+			{sides.map((s) => (
+				<g data-side data-x0={s.x0} data-v1={s.V1}>
+					<rect class="ad-insul" x={s.x0 - 8} y="34" width="132" height={BASE - 34 + 12} rx="5" />
+					<path class="ad-wall" d={`M${s.x0} 38 V${BASE} H${s.x0 + 116} V38`} />
+					<rect class="ad-gas" data-gas x={s.x0 + 2} width="112" />
+					<rect class="ad-tint" data-tint x={s.x0 + 2} width="112" />
+					<g data-mols />
+					<g data-piston>
+						<rect class="ad-piston" x={s.x0 + 2} y="-8" width="112" height="8" />
+						<rect class="ad-rod" x={s.x0 + 53} y="-44" width="10" height="36" />
+					</g>
+					<text class="t-small" x={s.x0 + 58} y="202" text-anchor="middle">{s.title}</text>
+					<text class="t-title" x={s.x0 + 58} y="221" text-anchor="middle"><tspan class="t-i">T</tspan><tspan data-t> = 300&nbsp;К</tspan></text>
+				</g>
+			))}
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Газ в толстой теплоизоляции: теплообмена нет, <i>Q</i>&nbsp;=&nbsp;0. Вначале 1&nbsp;л при 300&nbsp;К. Сжатый вдвое, газ нагревается до 476&nbsp;К; расширившись вдвое, охлаждается до 189&nbsp;К. Скорости молекул замедлены в миллиарды раз, движение поршня — в десятки раз.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ad-insul {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 8;
+		stroke-dasharray: 3 3;
+	}
+	.ad-wall {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+	}
+	.ad-gas {
+		fill: color-mix(in oklab, var(--ig-vx) 16%, transparent);
+	}
+	.ad-tint.is-hot {
+		fill: var(--g7-red);
+	}
+	.ad-tint.is-cold {
+		fill: var(--g7-blue);
+	}
+	.ad-mol {
+		fill: var(--g7-blue);
+	}
+	.ad-piston,
+	.ad-rod {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+</style>
+
+<script>
+	import { el, fmtInt, loop, rng } from '../g7/kit';
+
+	const BASE = 168;
+	const PX = 60; // px per liter
+	const RUN = 6;
+	const f = (v: number) => v.toFixed(1);
+	for (const root of document.querySelectorAll<HTMLElement>('[data-adiabat]')) {
+		const sides = [...root.querySelectorAll<SVGGElement>('[data-side]')].map((g) => {
+			const x0 = +g.dataset.x0!;
+			const V1 = +g.dataset.v1!;
+			const rnd = rng(7);
+			const mg = g.querySelector<SVGGElement>('[data-mols]')!;
+			const mols = Array.from({ length: 18 }, () => {
+				const a = rnd() * 2 * Math.PI;
+				const v = 35 + rnd() * 30;
+				const c = el('circle', { class: 'ad-mol', r: 2.6 });
+				mg.append(c);
+				return { c, x: 6 + rnd() * 104, fy: 0.05 + rnd() * 0.9, vx: v * Math.cos(a), vy: v * Math.sin(a) };
+			});
+			const tint = g.querySelector<SVGRectElement>('[data-tint]')!;
+			tint.classList.add(V1 < 1 ? 'is-hot' : 'is-cold');
+			return { x0, V1, mols, gas: g.querySelector<SVGRectElement>('[data-gas]')!, tint, piston: g.querySelector<SVGGElement>('[data-piston]')!, tT: g.querySelector<SVGTSpanElement>('[data-t]')! };
+		});
+		let t = 0;
+		loop(root, (dt) => {
+			t = (t + dt) % RUN;
+			const s = Math.min(1, Math.max(0, (t - 1) / 1.2));
+			const e = 0.5 - 0.5 * Math.cos(Math.PI * s);
+			for (const sd of sides) {
+				const V = 1 + (sd.V1 - 1) * e;
+				const T = 300 * Math.pow(V, -2 / 3);
+				const h = PX * V;
+				const top = BASE - h;
+				for (const r of [sd.gas, sd.tint]) {
+					r.setAttribute('y', f(top));
+					r.setAttribute('height', f(h));
+				}
+				sd.tint.setAttribute('opacity', f(Math.min(0.4, (Math.abs(T - 300) / 180) * 0.4)));
+				sd.piston.setAttribute('transform', `translate(0 ${f(top)})`);
+				sd.tT.textContent = ` = ${fmtInt(T)} К`;
+				const k = Math.sqrt(T / 300);
+				for (const m of sd.mols) {
+					m.x += m.vx * k * dt;
+					m.fy += (m.vy * k * dt) / h;
+					if (m.x < 4 || m.x > 112) (m.vx = -m.vx), (m.x = Math.min(112, Math.max(4, m.x)));
+					if (m.fy < 0.04 || m.fy > 0.96) (m.vy = -m.vy), (m.fy = Math.min(0.96, Math.max(0.04, m.fy)));
+					m.c.setAttribute('cx', f(sd.x0 + m.x));
+					m.c.setAttribute('cy', f(BASE - m.fy * h));
+				}
+			}
+			return true;
+		});
+	}
+</script>
