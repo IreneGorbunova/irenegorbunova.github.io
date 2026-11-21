@@ -276,6 +276,40 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 		lines: [['gamma', 'alpha'], ['alpha', 'beta'], ['alpha', 'delta'], ['delta', 'lambda'], ['delta', 'zeta'], ['zeta', 'eps'], ['delta', 'eta'], ['eta', 'theta'], ['lambda', 'iota']],
 		art: { file: 'sky/aquila.webp', box: [-0.2684, -0.3446, 0.2644, 0.3125], plate: 'R' },
 	},
+	'canis-major': {
+		name: 'Большой Пёс',
+		fact: 'Сириус — самая яркая звезда ночного неба. Он так ярок потому, что близок: до него 8,6 светового года. В Древнем Египте по первому утреннему появлению Сириуса перед восходом Солнца ждали разлива Нила.',
+		center: { ra: 6.8, dec: -22 },
+		stars: [
+			{ id: 'alpha', name: 'Сириус', ra: 6.7525, dec: -16.716, mag: -1.46 }, // HR 2491
+			{ id: 'beta', name: 'Мирцам', ra: 6.3783, dec: -17.956, mag: 1.98 }, // HR 2294
+			{ id: 'iota', name: 'йота Большого Пса', ra: 6.9356, dec: -17.054, mag: 4.37 }, // HR 2596
+			{ id: 'gamma', name: 'гамма Большого Пса', ra: 7.0626, dec: -15.633, mag: 4.12 }, // HR 2657
+			{ id: 'omicron2', name: 'омикрон² Большого Пса', ra: 7.0504, dec: -23.833, mag: 3.02 }, // HR 2653
+			{ id: 'delta', name: 'Везен', ra: 7.1399, dec: -26.393, mag: 1.84 }, // HR 2693
+			{ id: 'eta', name: 'Алудра', ra: 7.4016, dec: -29.303, mag: 2.45 }, // HR 2827
+			{ id: 'sigma', name: 'сигма Большого Пса', ra: 7.0286, dec: -27.935, mag: 3.47 }, // HR 2646
+			{ id: 'eps', name: 'Адара', ra: 6.9771, dec: -28.972, mag: 1.50 }, // HR 2618
+			{ id: 'zeta', name: 'дзета Большого Пса', ra: 6.3386, dec: -30.063, mag: 3.02 }, // HR 2282
+		],
+		lines: [['alpha', 'beta'], ['alpha', 'iota'], ['iota', 'gamma'], ['alpha', 'omicron2'], ['omicron2', 'delta'], ['delta', 'eta'], ['delta', 'sigma'], ['sigma', 'eps'], ['eps', 'zeta']],
+		art: { file: 'sky/canis-major.webp', box: [-0.1803, -0.1883, 0.2284, 0.2845], plate: 'Ddd' },
+	},
+	'libra': {
+		name: 'Весы',
+		fact: 'Весы — единственное созвездие зодиака, которое изображает предмет, а не живое существо. Две самые яркие его звезды носят арабские имена «южная клешня» и «северная клешня»: в древности их считали клешнями соседнего Скорпиона.',
+		center: { ra: 15.3, dec: -19 },
+		stars: [
+			{ id: 'alpha2', name: 'Зубен эль Генуби', ra: 14.8480, dec: -16.042, mag: 2.75 }, // HR 5531
+			{ id: 'beta', name: 'Зубен эш Шемали', ra: 15.2834, dec: -9.383, mag: 2.61 }, // HR 5685
+			{ id: 'gamma', name: 'гамма Весов', ra: 15.5921, dec: -14.789, mag: 3.91 }, // HR 5787
+			{ id: 'sigma', name: 'сигма Весов', ra: 15.0678, dec: -25.282, mag: 3.29 }, // HR 5603
+			{ id: 'ups', name: 'ипсилон Весов', ra: 15.6171, dec: -28.135, mag: 3.58 }, // HR 5794
+			{ id: 'tau', name: 'тау Весов', ra: 15.6443, dec: -29.778, mag: 3.66 }, // HR 5812
+		],
+		lines: [['alpha2', 'beta'], ['beta', 'gamma'], ['gamma', 'alpha2'], ['alpha2', 'sigma'], ['gamma', 'ups'], ['ups', 'tau']],
+		art: { file: 'sky/libra.webp', box: [-0.2003, -0.3446, 0.1843, 0.0401], plate: 'HH' },
+	},
 	'pegasus': {
 		name: 'Пегас',
 		fact: 'У звезды 51 Пегаса в 1995 году нашли первую планету у звезды, похожей на Солнце. Саму планету не видно: её выдало покачивание звезды — звезда и планета обращаются вокруг общего центра масс. За это открытие Мишель Майор и Дидье Кело получили Нобелевскую премию 2019 года.',
@@ -317,6 +351,29 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 		],
 		lines: [['alpha', 'theta2'], ['theta2', 'gamma'], ['gamma', 'delta1'], ['delta1', 'eps'], ['eps', 'beta'], ['alpha', 'zeta'], ['gamma', 'lambda'], ['lambda', 'omicron'], ['lambda', 'xi']],
 		art: { file: 'sky/taurus.webp', box: [-0.2484, -0.2364, 0.4007, 0.3245], plate: 'CC' },
+	},
+	'draco': {
+		name: 'Дракон',
+		fact: 'Около 4800 лет назад, когда в Египте строили первые пирамиды, полярной звездой был Тубан из Дракона. Ось Земли медленно поворачивается, как ось волчка, и за 26 тысяч лет описывает круг, поэтому полюс мира переходит от звезды к звезде.',
+		center: { ra: 16.3, dec: 63 },
+		stars: [
+			{ id: 'gamma', name: 'Этамин', ra: 17.9434, dec: 51.489, mag: 2.23 }, // HR 6705
+			{ id: 'beta', name: 'Растабан', ra: 17.5072, dec: 52.301, mag: 2.79 }, // HR 6536
+			{ id: 'nu2', name: 'ню² Дракона', ra: 17.5378, dec: 55.173, mag: 4.87 }, // HR 6555
+			{ id: 'xi', name: 'Грумиум', ra: 17.8921, dec: 56.873, mag: 3.75 }, // HR 6688
+			{ id: 'delta', name: 'Альтаис', ra: 19.2093, dec: 67.662, mag: 3.07 }, // HR 7310
+			{ id: 'eps', name: 'эпсилон Дракона', ra: 19.8029, dec: 70.268, mag: 3.83 }, // HR 7582
+			{ id: 'chi', name: 'хи Дракона', ra: 18.3509, dec: 72.733, mag: 3.57 }, // HR 6927
+			{ id: 'zeta', name: 'дзета Дракона', ra: 17.1464, dec: 65.715, mag: 3.17 }, // HR 6396
+			{ id: 'eta', name: 'эта Дракона', ra: 16.3999, dec: 61.514, mag: 2.74 }, // HR 6132
+			{ id: 'theta', name: 'тета Дракона', ra: 16.0315, dec: 58.565, mag: 4.01 }, // HR 5986
+			{ id: 'iota', name: 'Эдасих', ra: 15.4155, dec: 58.966, mag: 3.29 }, // HR 5744
+			{ id: 'alpha', name: 'Тубан', ra: 14.0731, dec: 64.376, mag: 3.65 }, // HR 5291
+			{ id: 'kappa', name: 'каппа Дракона', ra: 12.5581, dec: 69.788, mag: 3.87 }, // HR 4787
+			{ id: 'lambda', name: 'лямбда Дракона', ra: 11.5234, dec: 69.331, mag: 3.84 }, // HR 4434
+		],
+		lines: [['gamma', 'beta'], ['beta', 'nu2'], ['nu2', 'xi'], ['xi', 'gamma'], ['xi', 'delta'], ['delta', 'eps'], ['delta', 'chi'], ['chi', 'zeta'], ['zeta', 'eta'], ['eta', 'theta'], ['theta', 'iota'], ['iota', 'alpha'], ['alpha', 'kappa'], ['kappa', 'lambda']],
+		art: { file: 'sky/draco.webp', box: [-0.4327, -0.6090, 0.4207, 0.2163], plate: 'B' },
 	},
 	'cassiopeia': {
 		name: 'Кассиопея',
@@ -374,25 +431,6 @@ export const CONSTELLATIONS: Record<string, Constellation> = {
 		lines: [['lambda', 'alpha'], ['lambda', 'gamma'], ['alpha', 'gamma'], ['alpha', 'zeta'], ['gamma', 'delta'], ['delta', 'eps'], ['eps', 'zeta'], ['zeta', 'kappa'], ['delta', 'beta'], ['gamma', 'pi3'], ['pi3', 'pi2'], ['pi3', 'pi4'], ['pi4', 'pi5'], ['alpha', 'mu'], ['mu', 'xi'], ['xi', 'nu']],
 		art: { file: 'sky/orion.webp', box: [-0.1923, -0.3686, 0.2404, 0.3125], plate: 'QQ' },
 	},
-	'canis-major': {
-		name: 'Большой Пёс',
-		fact: 'Сириус — самая яркая звезда ночного неба. Он так ярок потому, что близок: до него 8,6 светового года. В Древнем Египте по первому утреннему появлению Сириуса перед восходом Солнца ждали разлива Нила.',
-		center: { ra: 6.8, dec: -22 },
-		stars: [
-			{ id: 'alpha', name: 'Сириус', ra: 6.7525, dec: -16.716, mag: -1.46 }, // HR 2491
-			{ id: 'beta', name: 'Мирцам', ra: 6.3783, dec: -17.956, mag: 1.98 }, // HR 2294
-			{ id: 'iota', name: 'йота Большого Пса', ra: 6.9356, dec: -17.054, mag: 4.37 }, // HR 2596
-			{ id: 'gamma', name: 'гамма Большого Пса', ra: 7.0626, dec: -15.633, mag: 4.12 }, // HR 2657
-			{ id: 'omicron2', name: 'омикрон² Большого Пса', ra: 7.0504, dec: -23.833, mag: 3.02 }, // HR 2653
-			{ id: 'delta', name: 'Везен', ra: 7.1399, dec: -26.393, mag: 1.84 }, // HR 2693
-			{ id: 'eta', name: 'Алудра', ra: 7.4016, dec: -29.303, mag: 2.45 }, // HR 2827
-			{ id: 'sigma', name: 'сигма Большого Пса', ra: 7.0286, dec: -27.935, mag: 3.47 }, // HR 2646
-			{ id: 'eps', name: 'Адара', ra: 6.9771, dec: -28.972, mag: 1.50 }, // HR 2618
-			{ id: 'zeta', name: 'дзета Большого Пса', ra: 6.3386, dec: -30.063, mag: 3.02 }, // HR 2282
-		],
-		lines: [['alpha', 'beta'], ['alpha', 'iota'], ['iota', 'gamma'], ['alpha', 'omicron2'], ['omicron2', 'delta'], ['delta', 'eta'], ['delta', 'sigma'], ['sigma', 'eps'], ['eps', 'zeta']],
-		art: { file: 'sky/canis-major.webp', box: [-0.1803, -0.1883, 0.2284, 0.2845], plate: 'Ddd' },
-	},
 };
 
 /** The constellation of each sidebar section: «<grade label>/<section label>» → key. */
@@ -409,15 +447,18 @@ export const SECTION_SKY: Record<string, string> = {
 	'9 класс/Законы взаимодействия и движения тел': 'andromeda',
 	'9 класс/Механические колебания и волны. Звук': 'lyra',
 	'10 класс/Кинематика': 'aquila',
+	'10 класс/Динамика': 'canis-major',
+	'10 класс/Статика': 'libra',
 	'10 класс/Законы сохранения': 'pegasus',
 	'10 класс/Молекулярная физика и термодинамика': 'taurus',
+	'10 класс/Электродинамика': 'draco',
 	'11 класс/Электродинамика': 'cassiopeia',
 	'11 класс/Квантовая физика': 'bootes',
 	'11 класс/Строение Вселенной': 'orion',
 };
 
 /** Given in this order to sections that have no constellation yet (sections.ts warns at build time). */
-export const RESERVE: string[] = ['canis-major'];
+export const RESERVE: string[] = [];
 
 /** Gnomonic projection around the centre; x grows to the west (right), y grows to the south (down). */
 export const project = (c: Constellation, ra: number, dec: number): [number, number] => {

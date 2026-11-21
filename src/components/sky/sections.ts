@@ -1,6 +1,6 @@
 /** Sections of the sidebar and their chapters, for the constellations (constellations.ts). */
 import { stepsOf } from './steps';
-import { SECTION_SKY, RESERVE } from './constellations';
+import { CONSTELLATIONS, SECTION_SKY, RESERVE } from './constellations';
 
 type Route = App.Locals['starlightRoute'];
 type Item = Route['sidebar'][number];
@@ -47,8 +47,9 @@ export const skySections = (route: Route): SkySection[] => {
 			const name = `${g.label}/${s.label}`;
 			let key = SECTION_SKY[name];
 			if (!key) {
-				// reserve constellations in order; should they run out, they repeat
-				const pool = spare.length ? spare : RESERVE;
+				// reserve constellations in order; should they run out, they repeat; with no reserve at all, the
+				// constellations already in use repeat, so a new section never breaks the build
+				const pool = spare.length ? spare : RESERVE.length ? RESERVE : Object.keys(CONSTELLATIONS);
 				key = pool[nSpare++ % pool.length];
 				if (!warned.has(name)) {
 					warned.add(name);
