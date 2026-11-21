@@ -201,10 +201,11 @@ if (root) {
 		telView.style.clipPath = `inset(0 ${((1 - cut) * 100).toFixed(2)}% 0 0)`;
 		split.style.left = `${(picLeft + cut * sw).toFixed(1)}px`;
 		split.setAttribute('aria-valuenow', String(Math.round(cut * 100)));
-		// the grip follows the line, but never onto the window or the buttons
+		// the grip always stays on the line; where the line crosses the window or the buttons, the grip rises above the
+		// band instead of covering them
 		const gx = picLeft + cut * sw;
-		const gc = laneR - laneL >= 44 ? Math.min(laneR - 22, Math.max(laneL + 22, gx)) : gx;
-		grip.style.transform = `translateX(${(gc - gx).toFixed(1)}px)`;
+		const free = laneR - laneL < 44 || (gx >= laneL + 22 && gx <= laneR - 22);
+		grip.style.transform = free ? '' : 'translateY(calc(-1 * (var(--ts-bot) / 2 + 26px)))';
 		// the words about the left view stay on its side of the line (the left view is empty then)
 		const room = cut * sw - 32;
 		nothing.style.width = `${Math.max(0, Math.min(240, room)).toFixed(0)}px`;
@@ -487,6 +488,11 @@ if (root) {
 		return { x: e.clientX - r.left, y: e.clientY - r.top };
 	};
 	let dragLine = false;
+	// the line keeps 22 px from the picture's edges, so its grip is always whole
+	const clampCut = (c: number) => {
+		const m = sw > 88 ? 22 / sw : 0;
+		return Math.min(1 - m, Math.max(m, c));
+	};
 	split.addEventListener('pointerdown', (e) => {
 		dragLine = true;
 		split.setPointerCapture(e.pointerId);
@@ -495,7 +501,7 @@ if (root) {
 	});
 	split.addEventListener('pointermove', (e) => {
 		if (!dragLine) return;
-		cut = Math.min(1, Math.max(0, local(e).x / sw));
+		cut = clampCut(local(e).x / sw);
 		paint();
 	});
 	const endLine = () => (dragLine = false);
@@ -503,7 +509,7 @@ if (root) {
 	split.addEventListener('pointercancel', endLine);
 	split.addEventListener('keydown', (e) => {
 		if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
-		cut = e.key === 'Home' ? 0 : e.key === 'End' ? 1 : Math.min(1, Math.max(0, cut + (e.key === 'ArrowLeft' ? -0.05 : 0.05)));
+		cut = clampCut(e.key === 'Home' ? 0 : e.key === 'End' ? 1 : cut + (e.key === 'ArrowLeft' ? -0.05 : 0.05));
 		e.preventDefault();
 		e.stopPropagation();
 		paint();
