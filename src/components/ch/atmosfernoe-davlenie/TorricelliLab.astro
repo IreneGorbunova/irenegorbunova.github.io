@@ -9,6 +9,12 @@
  * The scale of the tube scene is fixed for each liquid: it is chosen once so that the tube fits
  * even at the largest tilt (45°), and tilting never zooms. A tilted tube has a faint ghost of the
  * upright tube beside it, with the column of the same vertical height, so the equal heights show.
+ * The liquid that leaves the tube goes into the dish, and the tube pushes some aside as it goes in, so the level in the
+ * dish rises a little (volume conservation for a round tube and dish: the dish's cross-section is DISH_RATIO = 40 times
+ * the tube's inner one, the glass wall counts as (14/9)² of it). The column height, the ruler's zero and the level
+ * line are all counted from the risen surface, as a real barometer sets its zero to the cup. At sea level the mercury
+ * rises about 2,5 px, at 10 km about 7 px. The drawn dish is about ten times wider than the bore (about 100 times the
+ * cross-section), so the rise is shown about 2,5 times larger than in such a dish; the caption says it is enlarged.
  */
 import { pressureAt, MMHG } from './physics';
 import AtmStyles from './AtmStyles.astro';
@@ -172,6 +178,8 @@ const fmtH = (h: number) =>
 		Высоты гор — в масштабе, ширина условная. Давление рассчитано для стандартной атмосферы: так оно
 		меняется с высотой в среднем, а в каждый день ещё зависит от погоды. В опыте с водой над столбом
 		на самом деле собирается водяной пар, поэтому настоящий столб воды примерно на 0,2&nbsp;м ниже.
+		Жидкость, вытекшая из трубки, немного поднимает уровень в чашке (на рисунке подъём увеличен), а высоту
+		столба отсчитывают от этого нового уровня.
 	</figcaption>
 </figure>
 
@@ -736,6 +744,7 @@ const fmtH = (h: number) =>
 	const SUB = 8; // px of the tube under the surface in the dish
 	const TUBE_LEN = { hg: 1, water: 12 }; // metres above the surface
 	const ZETA = { hg: 0.3, water: 0.45 }; // damping of the column oscillations
+	const DISH_RATIO = 40; // the dish's cross-section over the tube's inner one (the rise is enlarged, see the header)
 
 	type Liquid = 'hg' | 'water';
 
@@ -808,6 +817,7 @@ const fmtH = (h: number) =>
 		let alpha = 0;
 		let scale = 300; // px per metre (animated)
 		let y = 0.76; // column height above the surface, m (vertical)
+		let rise = 0; // how much the liquid in the dish stands above its level without the tube, px
 		let v = 0;
 		let needleDeg = 0;
 		let phase: 'before' | 'run' | 'done' = 'before';
@@ -1094,14 +1104,33 @@ const fmtH = (h: number) =>
 			// the tube stands in the left part of the dish: more room to tilt it to the right
 			dX = dC - dW / 2 + 20;
 			set(table, { x1: XR - 4, x2: TW, y1: tableY, y2: tableY });
-			const dTop = tableY - 28;
+			const dTop = tableY - 34;
 			const dish = `M${dC - dW / 2} ${dTop}V${tableY - 6}q0 6 6 6H${dC + dW / 2 - 6}q6 0 6 -6V${dTop}`;
 			dishBack.setAttribute('d', dish + 'Z');
 			dishFront.setAttribute('d', dish);
+			dishKey = '';
+			drawDish();
+		};
+		// the liquid in the dish, its surface raised by `rise`
+		let dishKey = '';
+		const drawDish = () => {
+			const s = r1(ySurf - rise);
+			const key = `${s}|${dC}|${dW}|${tableY}`;
+			if (key === dishKey) return;
+			dishKey = key;
 			dishLiquid.setAttribute(
 				'd',
-				`M${dC - dW / 2 + 1} ${ySurf}V${tableY - 6}q0 5 5 5H${dC + dW / 2 - 6}q5 0 5 -5V${ySurf}Z`,
+				`M${dC - dW / 2 + 1} ${s}V${tableY - 6}q0 5 5 5H${dC + dW / 2 - 6}q5 0 5 -5V${s}Z`,
 			);
+		};
+		// the rise of the dish level (px) from the conservation of the liquid: `imm0` is how deep the open end stands
+		// below the level without the tube (vertical, px), `col` the column above the surface along the tube (px), or
+		// null while the tube is full. AREA = (outer/inner)² counts the glass wall.
+		const AREA = (tubeOuter / tubeInner) ** 2;
+		const dishRise = (imm0: number, ca: number, Lpx: number, col: number | null) => {
+			if (imm0 <= 0) return 0;
+			if (col === null) return (AREA * imm0) / ca / (DISH_RATIO - AREA / ca);
+			return Math.max(0, (Lpx - col + ((AREA - 1) * imm0) / ca) / (DISH_RATIO - (AREA - 1) / ca));
 		};
 
 		// one scale per liquid: the upright tube fits in height, the tube at the largest tilt fits in width
@@ -1204,7 +1233,7 @@ const fmtH = (h: number) =>
 
 		const stepColumn = (dt: number) => {
 			const H = heq();
-			const top = TUBE_LEN[liquid] * Math.cos(alpha);
+			const top = TUBE_LEN[liquid] * Math.cos(alpha) - rise / scale;
 			const c2 = Math.cos(alpha) ** 2;
 			const steps = Math.ceil(dt / 0.004);
 			const h = dt / steps;
@@ -1296,6 +1325,8 @@ const fmtH = (h: number) =>
 					`translate(${r1(cx)} ${r1(cy)}) scale(1 ${k.toFixed(4)}) translate(0 ${r1(Lpx / 2)})`,
 				);
 				if (t < RUN.open[0]) {
+					// the full tube pushes the liquid in the dish aside as it goes in
+					rise = fFlip >= 1 ? dishRise(cy + Lpx / 2 - ySurf, 1, Lpx, null) : 0;
 					// the tube is full (or filling from the closed end)
 					const u1 = Lpx * (1 - fFill);
 					liquidPath.setAttribute('d', liquidShape(u1, Lpx + 10, false, fFill < 1));
@@ -1323,11 +1354,13 @@ const fmtH = (h: number) =>
 				showLevel = true;
 			}
 
+			drawDish();
+			ruler.setAttribute('transform', `translate(0 ${r1(-rise)})`);
 			// level line and its value
-			const lvl = ySurf - y * scale;
+			const lvl = ySurf - rise - y * scale;
 			level.style.visibility = pill.style.visibility = pillText.style.visibility = showLevel ? 'visible' : 'hidden';
 			if (showLevel) {
-				const tipX = dX + (y / Math.max(Math.cos(alpha), 0.05)) * scale * Math.sin(alpha);
+				const tipX = dX + (rise + y * scale) * Math.tan(alpha);
 				set(level, { x1: XR, x2: r1(tipX), y1: r1(lvl), y2: r1(lvl) });
 				const label = liquid === 'hg' ? fmt(y * 1000) : fmt(y, 2);
 				const pw = Math.max(34, 10 + 7.2 * label.length);
@@ -1337,7 +1370,7 @@ const fmtH = (h: number) =>
 			}
 			// ruler numbers hidden by the value pill fade out
 			for (const t of rulerLabels.children as HTMLCollectionOf<SVGTextElement>) {
-				const ty = Number(t.getAttribute('y')) - 4;
+				const ty = Number(t.getAttribute('y')) - 4 - rise;
 				t.style.opacity = showLevel && Math.abs(ty - lvl) < 15 ? '0.15' : '1';
 			}
 			// the ghost: the same tube upright, its column as high as the air holds it (or the tilted column, while it
@@ -1349,9 +1382,9 @@ const fmtH = (h: number) =>
 				ghost.setAttribute('transform', `translate(${r1(dX)} ${r1(ySurf + SUB)})`);
 				const o = tubeOuter / 2;
 				ghostGlass.setAttribute('d', `M${-o} 0V${r1(-Lpx + o)}A${o} ${o} 0 0 1 ${o} ${r1(-Lpx + o)}V0`);
-				const fullT = y >= TUBE_LEN[liquid] * Math.cos(alpha) - 1e-4;
+				const fullT = y >= TUBE_LEN[liquid] * Math.cos(alpha) - rise / scale - 1e-4;
 				const gH = fullT ? Math.min(heq(), TUBE_LEN[liquid]) : y;
-				const gTop = Math.max(-Lpx + 2, -SUB - gH * scale);
+				const gTop = Math.max(-Lpx + 2, -SUB - rise - gH * scale);
 				set(ghostLiq, { y: r1(gTop), height: r1(-gTop - 2), class: liquid === 'hg' ? 'atm__ghost-hg' : 'atm__ghost-water' });
 				set(ghostText, { y: r1(-Lpx - 6) });
 			}
@@ -1369,8 +1402,15 @@ const fmtH = (h: number) =>
 				'transform',
 				`translate(${r1(dX - SUB * sa)} ${r1(ySurf + SUB * ca)}) rotate(${((alpha * 180) / Math.PI).toFixed(2)})`,
 			);
-			const lenPx = SUB + (y / Math.max(ca, 0.05)) * scale;
+			// the liquid that left the tube raises the level in the dish; the column is counted from that level
+			const col = (y / Math.max(ca, 0.05)) * scale;
+			rise = dishRise(SUB * ca, ca, Lpx, col);
+			let lenPx = SUB + rise / ca + col;
 			const full = lenPx >= Lpx - 0.5;
+			if (full) {
+				rise = dishRise(SUB * ca, ca, Lpx, null);
+				lenPx = Lpx;
+			}
 			liquidPath.setAttribute('d', liquidShape(-4, full ? Lpx + 10 : lenPx, !full, false));
 			const gap = Lpx - lenPx;
 			if (gap > 46) {
@@ -1397,7 +1437,8 @@ const fmtH = (h: number) =>
 			// kPa from the reading in mm that is shown, so that the numbers agree with each other
 			outPkpa.textContent = fmt(roundTo(Math.round(p / MMHG) * MMHG, 100) / 1000, 1);
 			altOut.value = `${fmt(Math.round(altTarget))} м`;
-			const L = TUBE_LEN[liquid];
+			// the part of the tube above the risen surface in the dish
+			const L = TUBE_LEN[liquid] - rise / scale / Math.cos(alpha);
 			const full = H / Math.cos(alpha) >= L - 1e-3;
 			const mOrMm = (h: number) => (liquid === 'hg' ? `${fmt(h * 1000)} мм` : `${fmt(h, 2)} м`);
 			if (full) {
@@ -1443,7 +1484,7 @@ const fmtH = (h: number) =>
 			let s = `На высоте ${fmt(Math.round(altTarget))} м столб ${name} — ${val}`;
 			if (Math.abs(altTarget) < 1) s += ': это нормальное атмосферное давление.';
 			else s += altTarget > 0 ? `, на ${diff} ниже, чем у моря.` : `, на ${diff} выше, чем у моря.`;
-			const L = TUBE_LEN[liquid];
+			const L = TUBE_LEN[liquid] - rise / scale / Math.cos(alphaTarget);
 			if (H / Math.cos(alphaTarget) >= L) {
 				const top = L * Math.cos(alphaTarget);
 				const topS = liquid === 'hg' ? `${fmt(top * 1000)} мм` : `${fmt(top, 2)} м`;
@@ -1479,7 +1520,7 @@ const fmtH = (h: number) =>
 				if (runT > RUN.open[1] + 3) finishRun();
 			} else if (phase === 'done') {
 				if (motionOff) {
-					y = Math.min(heq(), TUBE_LEN[liquid] * Math.cos(alpha));
+					y = Math.min(heq(), TUBE_LEN[liquid] * Math.cos(alpha) - rise / scale);
 					v = 0;
 				} else stepColumn(dt);
 			}
