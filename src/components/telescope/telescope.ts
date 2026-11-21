@@ -47,10 +47,6 @@ if (root) {
 	const fullBtn = $('[data-ts-full]');
 	// the window of the field of view is 132 px wide, smaller on a phone: measured, so that its scale stays true
 	let EYE_PX = 132;
-	// the free stretch of the band below the picture, between the window and the buttons: the grip of the line stays
-	// in it (stage pixels)
-	let laneL = 0;
-	let laneR = 0;
 	let picLeft = 0; // the picture's box from the stage's left edge
 
 	let scope = data.scopes[1];
@@ -201,11 +197,6 @@ if (root) {
 		telView.style.clipPath = `inset(0 ${((1 - cut) * 100).toFixed(2)}% 0 0)`;
 		split.style.left = `${(picLeft + cut * sw).toFixed(1)}px`;
 		split.setAttribute('aria-valuenow', String(Math.round(cut * 100)));
-		// the grip always stays on the line; where the line crosses the window or the buttons, the grip rises above the
-		// band instead of covering them
-		const gx = picLeft + cut * sw;
-		const free = laneR - laneL < 44 || (gx >= laneL + 22 && gx <= laneR - 22);
-		grip.style.transform = free ? '' : 'translateY(calc(-1 * (var(--ts-bot) / 2 + 26px)))';
 		// the words about the left view stay on its side of the line (the left view is empty then)
 		const room = cut * sw - 32;
 		nothing.style.width = `${Math.max(0, Math.min(240, room)).toFixed(0)}px`;
@@ -582,15 +573,16 @@ if (root) {
 	// the picture is fitted into its box; the line starts at the box's top edge and runs down into the band below
 	const layout = () => {
 		// A wide frame (the whole screen on a computer, a phone held sideways) keeps the window and the buttons in the
-		// columns beside the picture and only the grip's lane below it, when the picture comes out larger that way.
+		// columns beside the picture, when the picture comes out larger that way.
 		fitTags();
 		const top = stage.querySelector<HTMLElement>('.ts-band--top')!.offsetHeight;
 		const W = stage.clientWidth;
 		const H = stage.clientHeight - top;
+		// (both layouts keep the grip's track below; the narrow one also has the band with the window and the buttons)
 		const side = eyeGlass.offsetWidth + 20 + zoomBox.offsetWidth + 20;
-		const lane = 56;
 		const band = eyeGlass.offsetWidth + 20;
-		stage.classList.toggle('is-wide', Math.min(W - side, H - lane) > Math.min(W, H - band) + 8);
+		const T = stage.querySelector<HTMLElement>('.ts-track')!.offsetHeight;
+		stage.classList.toggle('is-wide', Math.min(W - side, H - T) > Math.min(W, H - band - T) + 8);
 		const r = pic.getBoundingClientRect();
 		sw = r.width;
 		sh = r.height;
@@ -599,8 +591,6 @@ if (root) {
 		const x0 = st.left + stage.clientLeft;
 		stage.style.setProperty('--ts-split-top', `${(r.top - st.top - stage.clientTop).toFixed(1)}px`);
 		picLeft = r.left - x0;
-		laneL = eye.getBoundingClientRect().right - x0 + 8;
-		laneR = zoomBox.getBoundingClientRect().left - x0 - 8;
 		paint();
 	};
 	const ro = new ResizeObserver(layout);
