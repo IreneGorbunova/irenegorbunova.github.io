@@ -1,0 +1,333 @@
+---
+/**
+ * Model «Лодка переплывает реку»: one motion seen from two bodies of reference — the bank and a raft that floats with
+ * the water. The river is 60 м wide and flows to the right at υ₂ (0…3 м/с); the boat moves relative to the water at
+ * υ₁ (1…4 м/с) with its nose turned upstream by the angle α (−60…60°, negative: downstream) from the line across.
+ * Relative to the bank the boat moves with υ = υ₁ + υ₂ (vectors): υx = υ₂ − υ₁ sin α along the bank, υy = υ₁ cos α
+ * across; it reaches the far bank after t = 60 м / υy and is carried down by υx · t. Relative to the raft the boat moves
+ * with υ₁ only, the banks with −υ₂.
+ * Scales: 2,5 px per metre (the river 150 px wide); arrows 20 px per м/с. The boat (4 м) and the raft (3 м) are drawn
+ * twice their size. The clock of the model runs 5 times faster than a real one. Start: υ₁ = 2 м/с, υ₂ = 1,5 м/с,
+ * α = 0: υ = 2,5 м/с, t = 30 с, carried 45 м. At α ≈ 49° (sin α = 0,75) the boat lands opposite its start.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const TOP = 54; // the far bank's edge, px
+const BOT = 204; // the near bank's edge
+---
+
+<G7Styles />
+<figure class="g7 g7--wide not-content" data-riverlab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 258" role="img" aria-label="Лодка переплывает реку, течение сносит её. Движение можно смотреть с берега или с плота, который плывёт по течению">
+			<rect class="rv-water" x="0" y={TOP} width="360" height={BOT - TOP}></rect>
+			<rect class="rv-bank" x="0" y="0" width="360" height={TOP}></rect>
+			<rect class="rv-bank" x="0" y={BOT} width="360" height={258 - BOT}></rect>
+			<line class="rv-edge" x1="0" y1={TOP} x2="360" y2={TOP}></line>
+			<line class="rv-edge" x1="0" y1={BOT} x2="360" y2={BOT}></line>
+			<g data-shore></g>
+			<g data-ripples></g>
+			<path class="rv-start" data-start d=""></path>
+			<path class="rv-trail" data-trail d=""></path>
+			<g data-raft>
+				<rect class="rv-raft" x="-7.5" y="-7.5" width="15" height="15" rx="1.5"></rect>
+				<path class="rv-log" d="M-7.5 -2.5 H7.5 M-7.5 2.5 H7.5"></path>
+				<path class="rv-mast" d="M0 0 V-16"></path>
+				<path class="rv-flag" d="M0 -16 L9 -13 L0 -10 Z"></path>
+			</g>
+			<g data-boat>
+				<path class="rv-boat" d="M0 -10 Q5 -4 4.5 6 L3.5 10 H-3.5 L-4.5 6 Q-5 -4 0 -10 Z"></path>
+				<path class="rv-seat" d="M-4 1 H4 M-3.5 5 H3.5"></path>
+			</g>
+			<g data-vecs>
+				<path class="arrow arrow--blue" data-v1 d=""></path>
+				<path class="head--blue" data-v1h d=""></path>
+				<path class="arrow arrow--green" data-v2 d=""></path>
+				<path class="head--green" data-v2h d=""></path>
+				<path class="arrow arrow--red" data-v d=""></path>
+				<path class="head--red" data-vh d=""></path>
+				<text class="t-i t-blue t-halo rv-lab" data-l1 text-anchor="middle">υ<tspan baseline-shift="sub" font-size="10">1</tspan></text>
+				<text class="t-i t-green t-halo rv-lab" data-l2>υ<tspan baseline-shift="sub" font-size="10">2</tspan></text>
+				<text class="t-i t-red t-halo rv-lab" data-l>υ</text>
+			</g>
+			<text class="t-small t-halo" x="8" y="16" data-view>вид с берега</text>
+			<text class="t-strong t-num t-halo" x="352" y="16" text-anchor="end" data-clock>t = 0 с</text>
+			<path class="rv-flow" d="M282 236 H330 M324 231 L331 236 L324 241"></path>
+			<text class="t-small" x="278" y="240" text-anchor="end">течение</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row">
+				<span class="g7__label">Смотрим</span>
+				<div class="g7__seg" role="group" aria-label="Система отсчёта" data-frame>
+					<button type="button" class="g7__btn" aria-pressed="true" data-f="bank">с берега</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-f="raft">с плота</button>
+				</div>
+			</div>
+			<label class="g7__slider"><span>Скорость лодки относительно воды <i>υ</i><sub>1</sub></span><output data-o1></output><input type="range" min="1" max="4" step="0.5" value="2" data-s1 aria-label="Скорость лодки относительно воды" /></label>
+			<label class="g7__slider"><span>Скорость течения <i>υ</i><sub>2</sub></span><output data-o2></output><input type="range" min="0" max="3" step="0.5" value="1.5" data-s2 aria-label="Скорость течения" /></label>
+			<label class="g7__slider"><span>Нос лодки повёрнут против течения на <i>α</i></span><output data-oa></output><input type="range" min="-60" max="60" step="1" value="0" data-sa aria-label="Угол поворота лодки" /></label>
+			<ul class="g7__read">
+				<li class="rv-red"><span>Скорость относительно берега <i>υ</i></span><b data-rv></b></li>
+				<li><span>Время переправы</span><b data-rt></b></li>
+				<li class="is-warm"><span>Снос вдоль берега</span><b data-rd></b></li>
+			</ul>
+			<button type="button" class="g7__btn g7__btn--go g7__again" data-go>Плыть заново</button>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Ширина реки 60&nbsp;м. Синяя стрелка — скорость лодки относительно воды, зелёная — скорость течения, красная — скорость
+		лодки относительно берега. Плот плывёт вместе с водой. Река нарисована в масштабе, лодка и плот увеличены вдвое; часы
+		модели идут в 5 раз быстрее настоящих.
+	</figcaption>
+</figure>
+
+<style is:global>
+	[data-riverlab] .rv-water {
+		fill: color-mix(in oklab, var(--ig-vx) 24%, var(--g7-paper));
+	}
+	[data-riverlab] .rv-bank {
+		fill: color-mix(in oklab, var(--g7-green) 16%, var(--g7-paper));
+	}
+	[data-riverlab] .rv-edge {
+		stroke: color-mix(in oklab, var(--ig-v) 40%, var(--sl-color-gray-4));
+		stroke-width: 2;
+	}
+	[data-riverlab] .rv-tree {
+		fill: color-mix(in oklab, var(--g7-green) 45%, var(--g7-paper));
+		stroke: color-mix(in oklab, var(--g7-green) 60%, var(--g7-ink));
+		stroke-width: 0.6;
+	}
+	[data-riverlab] .rv-post {
+		fill: var(--g7-wood);
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	[data-riverlab] .rv-ripple {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-vx) 55%, var(--sl-color-white));
+		stroke-width: 1;
+		stroke-linecap: round;
+		opacity: 0.6;
+	}
+	[data-riverlab] .rv-start {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	[data-riverlab] .rv-trail {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+		stroke-dasharray: 5 3;
+	}
+	[data-riverlab] .rv-raft {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	[data-riverlab] .rv-log {
+		stroke: var(--g7-wood-dark);
+		stroke-width: 0.8;
+	}
+	[data-riverlab] .rv-mast {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	[data-riverlab] .rv-flag {
+		fill: var(--g7-red);
+	}
+	[data-riverlab] .rv-boat {
+		fill: var(--g7-paper);
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	[data-riverlab] .rv-seat {
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1.4;
+	}
+	[data-riverlab] .rv-flow {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	[data-riverlab] .g7__read li.rv-red {
+		box-shadow: inset 3px 0 0 var(--g7-red);
+		background: color-mix(in oklab, var(--ig-vy) 14%, var(--sl-color-gray-6));
+	}
+	[data-riverlab] .g7__svg .rv-lab {
+		font-weight: 700;
+	}
+</style>
+
+<script>
+	import { fmt, fmtTrim, loop, segment } from '../g7/kit';
+
+	const TOP = 54;
+	const BOT = 204;
+	const K = 2.5; // px per metre
+	const VK = 20; // px per м/с
+	const WIDTH = 60; // м
+	const SPEED = 5; // model seconds per real second
+	const HOLD = 2.5; // real seconds on the far bank
+	const BX = 130; // the boat's start, px
+	const RX = 70; // the raft's start
+	const RY = 128;
+
+	const arrow = (x0: number, y0: number, x1: number, y1: number) => {
+		const L = Math.hypot(x1 - x0, y1 - y0);
+		if (L < 2) return ['', ''];
+		const ux = (x1 - x0) / L;
+		const uy = (y1 - y0) / L;
+		const bx = x1 - ux * 7;
+		const by = y1 - uy * 7;
+		return [`M${x0.toFixed(1)} ${y0.toFixed(1)} L${bx.toFixed(1)} ${by.toFixed(1)}`, `M${x1.toFixed(1)} ${y1.toFixed(1)} L${(bx - uy * 4).toFixed(1)} ${(by + ux * 4).toFixed(1)} L${(bx + uy * 4).toFixed(1)} ${(by - ux * 4).toFixed(1)} Z`];
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-riverlab]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const s1 = q<HTMLInputElement>('[data-s1]');
+		const s2 = q<HTMLInputElement>('[data-s2]');
+		const sa = q<HTMLInputElement>('[data-sa]');
+		const shore = q<SVGGElement>('[data-shore]');
+		const ripples = q<SVGGElement>('[data-ripples]');
+		let frame: 'bank' | 'raft' = 'bank';
+		let t = 0; // model time, s
+		let hold = 0;
+
+		// trees on the far bank, posts and trees on the near bank: every 40 px, repeated round the width
+		const NS = 'http://www.w3.org/2000/svg';
+		const shoreItems: { g: SVGGElement; x: number }[] = [];
+		for (let i = 0; i < 10; i++) {
+			for (const far of [true, false]) {
+				const g = document.createElementNS(NS, 'g');
+				const x = i * 40 + (far ? 10 : 30);
+				if (far || i % 2) {
+					const c = document.createElementNS(NS, 'circle');
+					c.setAttribute('class', 'rv-tree');
+					c.setAttribute('r', String(far ? 9 : 8));
+					c.setAttribute('cy', String(far ? TOP - 20 : BOT + 26));
+					g.append(c);
+				} else {
+					const r = document.createElementNS(NS, 'rect');
+					r.setAttribute('class', 'rv-post');
+					r.setAttribute('x', '-2');
+					r.setAttribute('y', String(BOT + 4));
+					r.setAttribute('width', '4');
+					r.setAttribute('height', '10');
+					g.append(r);
+				}
+				shore.append(g);
+				shoreItems.push({ g, x });
+			}
+		}
+		const rippleItems: { p: SVGPathElement; x: number; y: number }[] = [];
+		for (let i = 0; i < 24; i++) {
+			const p = document.createElementNS(NS, 'path');
+			p.setAttribute('class', 'rv-ripple');
+			p.setAttribute('d', 'M-6 0 Q-3 -2.5 0 0 Q3 2.5 6 0');
+			ripples.append(p);
+			rippleItems.push({ p, x: (i * 97) % 360, y: TOP + 12 + ((i * 53) % (BOT - TOP - 24)) });
+		}
+		const wrap = (x: number) => ((x % 400) + 400) % 400 - 20;
+
+		const state = () => {
+			const v1 = Number(s1.value);
+			const v2 = Number(s2.value);
+			const a = (Number(sa.value) * Math.PI) / 180;
+			const vx = v2 - v1 * Math.sin(a);
+			const vy = v1 * Math.cos(a);
+			return { v1, v2, a, vx, vy, T: WIDTH / vy };
+		};
+
+		const show = () => {
+			const { v1, v2, a, vx, vy, T } = state();
+			const tm = Math.min(t, T);
+			const cam = (time: number) => (frame === 'raft' ? v2 * time * K : 0); // how far the camera has drifted, px
+			const c = cam(tm);
+			// the bank and the water
+			for (const it of shoreItems) it.g.setAttribute('transform', `translate(${wrap(it.x - c).toFixed(1)} 0)`);
+			for (const r of rippleItems) r.p.setAttribute('transform', `translate(${wrap(r.x + v2 * tm * K - c).toFixed(1)} ${r.y})`);
+			// the raft floats with the water
+			q('[data-raft]').setAttribute('transform', `translate(${(RX + v2 * tm * K - c).toFixed(1)} ${RY})`);
+			// the boat
+			const bx = BX + vx * tm * K - c;
+			const by = BOT - vy * tm * K;
+			q('[data-boat]').setAttribute('transform', `translate(${bx.toFixed(1)} ${by.toFixed(1)}) rotate(${((-a * 180) / Math.PI).toFixed(1)})`);
+			// the trail, every 0,5 s of the model, in the chosen frame
+			let d = '';
+			const n = Math.ceil(tm / 0.5);
+			for (let i = 0; i <= n; i++) {
+				const ti = Math.min(tm, i * 0.5);
+				const x = BX + vx * ti * K - cam(ti);
+				const y = BOT - vy * ti * K;
+				d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `;
+			}
+			q('[data-trail]').setAttribute('d', tm > 0 ? d : '');
+			// the point opposite the start, on the bank
+			const sx = BX - (frame === 'raft' ? c : 0);
+			q('[data-start]').setAttribute('d', `M${sx.toFixed(1)} ${BOT} V${TOP}`);
+			// the vectors at the boat: υ₁ along the nose, υ₂ from its tip, υ from the boat
+			const e1 = { x: bx - v1 * Math.sin(a) * VK, y: by - v1 * Math.cos(a) * VK };
+			const e2 = { x: e1.x + v2 * VK, y: e1.y };
+			const [l1, h1] = arrow(bx, by, e1.x, e1.y);
+			const [l2, h2] = arrow(e1.x, e1.y, e2.x, e2.y);
+			const [l, h] = arrow(bx, by, e2.x, e2.y);
+			q('[data-v1]').setAttribute('d', l1);
+			q('[data-v1h]').setAttribute('d', h1);
+			q('[data-v2]').setAttribute('d', l2);
+			q('[data-v2h]').setAttribute('d', h2);
+			q('[data-v]').setAttribute('d', l);
+			q('[data-vh]').setAttribute('d', h);
+			const lab = (sel: string, x: number, y: number, on: boolean) => {
+				const e = q(sel);
+				e.setAttribute('x', x.toFixed(1));
+				e.setAttribute('y', y.toFixed(1));
+				e.setAttribute('opacity', on ? '1' : '0');
+			};
+			// υ₁ is written beside the middle of its arrow, on the side away from υ₂ and υ
+			const L1 = Math.hypot(e1.x - bx, e1.y - by) || 1;
+			const nx = (e1.y - by) / L1;
+			const ny = -(e1.x - bx) / L1;
+			lab('[data-l1]', (bx + e1.x) / 2 + nx * 13 - 2, (by + e1.y) / 2 + ny * 13 + 4, v1 > 0);
+			lab('[data-l2]', (e1.x + e2.x) / 2 - 4, e1.y - 6, v2 > 0);
+			lab('[data-l]', (bx + e2.x) / 2 + 6, (by + e2.y) / 2 + 12, Math.hypot(vx, vy) > 0.2);
+			q('[data-view]').textContent = frame === 'raft' ? 'вид с плота' : 'вид с берега';
+			q('[data-clock]').textContent = `t = ${fmt(tm, 0)} с`;
+			// the readouts
+			q('[data-o1]').textContent = `${fmtTrim(v1, 1)} м/с`;
+			q('[data-o2]').textContent = `${fmtTrim(v2, 1)} м/с`;
+			q('[data-oa]').textContent = `${fmt(Number(sa.value), 0)}°`;
+			q('[data-rv]').textContent = `${fmtTrim(Math.hypot(vx, vy), 2)} м/с`;
+			q('[data-rt]').textContent = `${fmtTrim(T, 1)} с`;
+			const drift = vx * T;
+			q('[data-rd]').textContent = Math.abs(drift) < 0.5 ? 'около 0 м' : `${fmt(Math.abs(drift), 0)} м ${drift > 0 ? 'по течению' : 'против течения'}`;
+		};
+
+		const wake = loop(root, (dt) => {
+			const { T } = state();
+			if (t < T) t = Math.min(T, t + dt * SPEED);
+			else if ((hold += dt) > HOLD) {
+				t = 0;
+				hold = 0;
+			}
+			show();
+			return true;
+		});
+		const restart = () => {
+			t = 0;
+			hold = 0;
+			show();
+			wake();
+		};
+		for (const s of [s1, s2, sa]) s.addEventListener('input', restart);
+		q('[data-go]').addEventListener('click', restart);
+		segment(q('[data-frame]'), (btn) => {
+			frame = btn.dataset.f as 'bank' | 'raft';
+			show();
+		});
+		show();
+	}
+</script>

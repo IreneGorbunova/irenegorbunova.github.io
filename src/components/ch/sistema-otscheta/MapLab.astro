@@ -1,0 +1,333 @@
+---
+/**
+ * Model «Координаты и проекции перемещения»: a park with straight alleys every 100 м (8 × 6 blocks, 0,4 px per metre).
+ * The pupil drags the start (hollow) and the end (filled) of a walk; both snap to the crossings of the alleys. The
+ * origin of the axes is at the main entrance or at the fountain (x to the east, y to the north). Shown: the
+ * displacement s (gold arrow), its projections s_x (blue, on the axis Ox) and s_y (red, on Oy) with the dashed
+ * perpendiculars, and the shortest walk along the alleys (green dots).
+ * Readouts, computed as in the text: x₀, y₀, x, y; s_x = x − x₀; s_y = y − y₀; s = √(s_x² + s_y²); the path along the
+ * alleys |s_x| + |s_y|. Start: from (100; 100) to (400; 500) from the entrance: s_x = 300 м, s_y = 400 м, s = 500 м,
+ * path 700 м. Moving the origin changes the coordinates, not the projections. Nothing is exaggerated.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const K = 40; // px per 100 м
+const OX = 22; // the entrance, px
+const OY = 262;
+const NX = 8;
+const NY = 6;
+const X = (i: number) => OX + i * K;
+const Y = (j: number) => OY - j * K;
+// trees in the blocks (fixed pseudo-random)
+let seed = 7;
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const trees: [number, number, number][] = [];
+for (let i = 0; i < NX; i++)
+	for (let j = 0; j < NY; j++) {
+		if ((i === 3 || i === 4) && (j === 2 || j === 3)) continue; // the square round the fountain
+		if (i >= 5 && j <= 1) continue; // the pond
+		for (let n = 0; n < 3; n++) trees.push([X(i) + 9 + rnd() * 22, Y(j + 1) + 9 + rnd() * 22, 3 + rnd() * 2.5]);
+	}
+---
+
+<G7Styles />
+<figure class="g7 g7--wide not-content" data-maplab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 352 296" role="img" aria-label="План парка с аллеями через 100 метров. Можно перетаскивать начало и конец прогулки; показаны вектор перемещения и его проекции на оси">
+			<rect class="mp-grass" x={OX} y={Y(NY)} width={NX * K} height={NY * K}></rect>
+			<path class="mp-pond" d={`M${X(5) + 8} ${Y(2) + 10} Q${X(6.5)} ${Y(2) - 2} ${X(8) - 8} ${Y(2) + 12} Q${X(8) - 2} ${Y(1)} ${X(7.6)} ${Y(0) - 8} Q${X(6.4)} ${Y(0) - 2} ${X(5) + 10} ${Y(0) - 10} Q${X(5) + 2} ${Y(1)} ${X(5) + 8} ${Y(2) + 10} Z`}></path>
+			{trees.map(([x, y, r]) => <circle class="mp-tree" cx={x.toFixed(1)} cy={y.toFixed(1)} r={r.toFixed(1)} />)}
+			<path class="mp-alley" d={[...Array.from({ length: NX + 1 }, (_, i) => `M${X(i)} ${Y(0)} V${Y(NY)}`), ...Array.from({ length: NY + 1 }, (_, j) => `M${X(0)} ${Y(j)} H${X(NX)}`)].join(' ')}></path>
+			<!-- the fountain and the entrance -->
+			<circle class="mp-fount" cx={X(4)} cy={Y(3)} r="12"></circle>
+			<circle class="mp-water" cx={X(4)} cy={Y(3)} r="8"></circle>
+			<path class="mp-jet" d={`M${X(4)} ${Y(3)} v-6 M${X(4) - 4} ${Y(3) + 1} l-2 -4 M${X(4) + 4} ${Y(3) + 1} l2 -4`}></path>
+			<path class="mp-gate" d={`M${OX - 9} ${OY + 6} V${OY - 6} M${OX + 9} ${OY + 6} V${OY - 6} M${OX - 11} ${OY - 7} Q${OX} ${OY - 15} ${OX + 11} ${OY - 7}`}></path>
+			<text class="t-small" x={OX + 12} y={OY + 16}>вход</text>
+			<text class="t-small" x={X(4) + 15} y={Y(3) - 9}>фонтан</text>
+			<!-- the axes and their marks are drawn by the script -->
+			<g data-axes></g>
+			<path class="mp-route" data-route d=""></path>
+			<path class="mp-drop" data-drops d=""></path>
+			<line class="mp-proj mp-proj--x" data-px x1="0" y1="0" x2="0" y2="0"></line>
+			<line class="mp-proj mp-proj--y" data-py x1="0" y1="0" x2="0" y2="0"></line>
+			<path class="arrow arrow--gold" data-sline d=""></path>
+			<path class="head--gold" data-shead d=""></path>
+			<g class="drag" data-pt="a">
+				<circle class="mp-hit" r="17"></circle>
+				<circle class="mp-a" r="7"></circle>
+			</g>
+			<g class="drag" data-pt="b">
+				<circle class="mp-hit" r="17"></circle>
+				<circle class="mp-b" r="7"></circle>
+			</g>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row">
+				<span class="g7__label">Начало координат:</span>
+				<div class="g7__seg" role="group" aria-label="Где начало координат" data-origin>
+					<button type="button" class="g7__btn" aria-pressed="true" data-o="gate">у входа</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-o="fount">у фонтана</button>
+				</div>
+			</div>
+			<ul class="g7__read">
+				<li><span><span class="mp-key mp-key--a"></span> Начало</span><b data-ra></b></li>
+				<li><span><span class="mp-key mp-key--b"></span> Конец</span><b data-rb></b></li>
+			</ul>
+			<ul class="g7__lines" data-calc></ul>
+			<button type="button" class="g7__btn g7__again" data-swap>Поменять начало и конец</button>
+			<p class="g7__note">Перетаскивайте кружки по перекрёсткам аллей.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Аллеи парка идут через 100&nbsp;м, ось <i>Ox</i> направлена на восток, ось <i>Oy</i> — на север. Золотая стрелка —
+		перемещение, синий и красный отрезки — его проекции на оси, зелёный пунктир — кратчайший путь по аллеям. План
+		нарисован в масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	[data-maplab] .mp-grass {
+		fill: color-mix(in oklab, var(--g7-green) 12%, var(--g7-paper));
+	}
+	[data-maplab] .mp-tree {
+		fill: color-mix(in oklab, var(--g7-green) 38%, var(--g7-paper));
+	}
+	[data-maplab] .mp-pond {
+		fill: var(--g7-water);
+		stroke: var(--g7-water-edge);
+		stroke-width: 0.8;
+	}
+	[data-maplab] .mp-alley {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-4));
+		stroke-width: 4;
+	}
+	[data-maplab] .mp-fount {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	[data-maplab] .mp-water {
+		fill: var(--g7-water-edge);
+		opacity: 0.6;
+	}
+	[data-maplab] .mp-jet,
+	[data-maplab] .mp-gate {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+	[data-maplab] .mp-axis {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	[data-maplab] .mp-axhead {
+		fill: var(--g7-ink);
+	}
+	[data-maplab] .mp-route {
+		fill: none;
+		stroke: var(--g7-green);
+		stroke-width: 3;
+		stroke-dasharray: 1 6;
+		stroke-linecap: round;
+	}
+	[data-maplab] .mp-drop {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	[data-maplab] .mp-proj {
+		stroke-width: 6;
+		stroke-linecap: round;
+		opacity: 0.85;
+	}
+	[data-maplab] .mp-proj--x {
+		stroke: var(--g7-blue);
+	}
+	[data-maplab] .mp-proj--y {
+		stroke: var(--g7-red);
+	}
+	[data-maplab] .mp-hit {
+		fill: transparent;
+	}
+	[data-maplab] .mp-a {
+		fill: var(--g7-paper);
+		stroke: var(--g7-gold);
+		stroke-width: 3;
+	}
+	[data-maplab] .mp-b {
+		fill: var(--g7-gold);
+		stroke: var(--g7-paper);
+		stroke-width: 2;
+	}
+	[data-maplab] .mp-key {
+		display: inline-block;
+		width: 0.7em;
+		height: 0.7em;
+		border-radius: 50%;
+		vertical-align: -0.05em;
+		border: 2px solid var(--g7-gold);
+	}
+	[data-maplab] .mp-key--b {
+		background: var(--g7-gold);
+	}
+	[data-maplab] .g7__lines .is-x {
+		box-shadow: inset 3px 0 0 var(--g7-blue);
+	}
+	[data-maplab] .g7__lines .is-y {
+		box-shadow: inset 3px 0 0 var(--g7-red);
+	}
+	[data-maplab] .g7__lines .is-s {
+		box-shadow: inset 3px 0 0 var(--g7-gold);
+	}
+	[data-maplab] .g7__lines .is-path {
+		box-shadow: inset 3px 0 0 var(--g7-green);
+	}
+</style>
+
+<script>
+	import { drag, el, fmtInt, k, segment, svgPoint } from '../g7/kit';
+
+	const K = 40;
+	const OX = 22;
+	const OY = 262;
+	const NX = 8;
+	const NY = 6;
+	const ORIGINS = { gate: { i: 0, j: 0 }, fount: { i: 4, j: 3 } };
+	const X = (i: number) => OX + i * K;
+	const Y = (j: number) => OY - j * K;
+	const n = (v: number) => fmtInt(v); // «−300»
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-maplab]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('svg');
+		const axes = q<SVGGElement>('[data-axes]');
+		const pts = { a: { i: 1, j: 1 }, b: { i: 4, j: 5 } };
+		let origin: keyof typeof ORIGINS = 'gate';
+
+		const drawAxes = () => {
+			const o = ORIGINS[origin];
+			axes.replaceChildren();
+			const add = (tag: 'path' | 'text' | 'line', attrs: Record<string, string | number>, text?: string) => axes.append(el(tag, attrs, text));
+			add('path', { class: 'mp-axis', d: `M${X(0) - 8} ${Y(o.j)} H${X(NX) + 10} M${X(o.i)} ${Y(0) + 8} V${Y(NY) - 10}` });
+			add('path', { class: 'mp-axhead', d: `M${X(NX) + 16} ${Y(o.j)} l-7 -3.5 v7 Z M${X(o.i)} ${Y(NY) - 16} l-3.5 7 h7 Z` });
+			add('text', { class: 't-small t-num', x: X(o.i) - 4, y: Y(o.j) + 12, 'text-anchor': 'end' }, 'O');
+			const xl = el('text', { x: X(NX) + 2, y: Y(o.j) - 7, 'text-anchor': 'end' });
+			xl.innerHTML = '<tspan class="t-i">x</tspan>, м';
+			axes.append(xl);
+			const yl = el('text', { x: X(o.i) + 7, y: Y(NY) - 6 });
+			yl.innerHTML = '<tspan class="t-i">y</tspan>, м';
+			axes.append(yl);
+			// numbers every 200 м along each axis
+			for (let i = 0; i <= NX; i++) {
+				const v = (i - o.i) * 100;
+				if (v === 0 || v % 200) continue;
+				add('text', { class: 't-small t-num t-halo', x: X(i), y: Y(o.j) + 13, 'text-anchor': 'middle' }, n(v));
+			}
+			for (let j = 0; j <= NY; j++) {
+				const v = (j - o.j) * 100;
+				if (v === 0 || v % 200) continue;
+				add('text', { class: 't-small t-num t-halo', x: X(o.i) - 4, y: Y(j) + 4, 'text-anchor': 'end' }, n(v));
+			}
+		};
+
+		const show = () => {
+			const o = ORIGINS[origin];
+			const { a, b } = pts;
+			const ax = X(a.i);
+			const ay = Y(a.j);
+			const bx = X(b.i);
+			const by = Y(b.j);
+			for (const key of ['a', 'b'] as const) q(`[data-pt="${key}"]`).setAttribute('transform', `translate(${X(pts[key].i)} ${Y(pts[key].j)})`);
+			// the displacement arrow
+			const L = Math.hypot(bx - ax, by - ay);
+			const line = q('[data-sline]');
+			const head = q('[data-shead]');
+			if (L > 1) {
+				const ux = (bx - ax) / L;
+				const uy = (by - ay) / L;
+				const ex = bx - ux * 8;
+				const ey = by - uy * 8;
+				line.setAttribute('d', `M${ax} ${ay} L${(ex - ux * 6).toFixed(1)} ${(ey - uy * 6).toFixed(1)}`);
+				head.setAttribute('d', `M${(bx - ux * 7).toFixed(1)} ${(by - uy * 7).toFixed(1)} L${(ex - ux * 6 - uy * 5).toFixed(1)} ${(ey - uy * 6 + ux * 5).toFixed(1)} L${(ex - ux * 6 + uy * 5).toFixed(1)} ${(ey - uy * 6 - ux * 5).toFixed(1)} Z`);
+			} else {
+				line.setAttribute('d', '');
+				head.setAttribute('d', '');
+			}
+			// the projections on the axes through the origin, and the perpendiculars to them
+			const xo = Y(o.j);
+			const yo = X(o.i);
+			const px = q('[data-px]');
+			px.setAttribute('x1', String(ax));
+			px.setAttribute('x2', String(bx));
+			px.setAttribute('y1', String(xo));
+			px.setAttribute('y2', String(xo));
+			const py = q('[data-py]');
+			py.setAttribute('x1', String(yo));
+			py.setAttribute('x2', String(yo));
+			py.setAttribute('y1', String(ay));
+			py.setAttribute('y2', String(by));
+			q('[data-drops]').setAttribute('d', `M${ax} ${ay} V${xo} M${bx} ${by} V${xo} M${ax} ${ay} H${yo} M${bx} ${by} H${yo}`);
+			q('[data-route]').setAttribute('d', L > 1 ? `M${ax} ${ay} H${bx} V${by}` : '');
+			// numbers
+			const x0 = (a.i - o.i) * 100;
+			const y0 = (a.j - o.j) * 100;
+			const x1 = (b.i - o.i) * 100;
+			const y1 = (b.j - o.j) * 100;
+			const sx = x1 - x0;
+			const sy = y1 - y0;
+			const s = Math.hypot(sx, sy);
+			q('[data-ra]').textContent = `x₀ = ${n(x0)} м, y₀ = ${n(y0)} м`;
+			q('[data-rb]').textContent = `x = ${n(x1)} м, y = ${n(y1)} м`;
+			const p = (v: number) => (v < 0 ? `(${n(v)})` : n(v));
+			const sTex = n(Math.round(s));
+			const lines: [string, string][] = [
+				['is-x', `s_x = x - x_0 = ${n(x1)} - ${p(x0)} = ${n(sx)}~\\text{м}`],
+				['is-y', `s_y = y - y_0 = ${n(y1)} - ${p(y0)} = ${n(sy)}~\\text{м}`],
+				['is-s', `s = \\sqrt{s_x^2 + s_y^2} ${Number.isInteger(s) ? '=' : '\\approx'} ${sTex}~\\text{м}`],
+				['is-path', `\\text{путь по аллеям: } ${n(Math.abs(sx) + Math.abs(sy))}~\\text{м}`],
+			];
+			q('[data-calc]').innerHTML = lines.map(([c, t]) => `<li class="${c}">${k(t.replace(/−/g, '-').replace(/\u202f/g, '\\,'))}</li>`).join('');
+		};
+
+		for (const key of ['a', 'b'] as const) {
+			const h = q(`[data-pt="${key}"]`);
+			drag(h, svg, {
+				move: (p) => {
+					const i = Math.max(0, Math.min(NX, Math.round((p.x - OX) / K)));
+					const j = Math.max(0, Math.min(NY, Math.round((OY - p.y) / K)));
+					if (i !== pts[key].i || j !== pts[key].j) {
+						pts[key] = { i, j };
+						show();
+					}
+				},
+			});
+		}
+		// a tap on the map moves the nearer point
+		svg.addEventListener('click', (e) => {
+			if ((e.target as Element).closest('[data-pt]')) return;
+			const p = svgPoint(svg, e);
+			const i = Math.max(0, Math.min(NX, Math.round((p.x - OX) / K)));
+			const j = Math.max(0, Math.min(NY, Math.round((OY - p.y) / K)));
+			const da = Math.hypot(pts.a.i - i, pts.a.j - j);
+			const db = Math.hypot(pts.b.i - i, pts.b.j - j);
+			pts[da < db ? 'a' : 'b'] = { i, j };
+			show();
+		});
+		segment(q('[data-origin]'), (btn) => {
+			origin = btn.dataset.o as keyof typeof ORIGINS;
+			drawAxes();
+			show();
+		});
+		q('[data-swap]').addEventListener('click', () => {
+			[pts.a, pts.b] = [pts.b, pts.a];
+			show();
+		});
+		drawAxes();
+		show();
+	}
+</script>

@@ -89,7 +89,7 @@ export default defineConfig({
 					section('Механические колебания и волны. Звук', '9-klass/kolebaniya-i-volny', ['mayatnik']),
 				]),
 				grade(10, [
-					section('Кинематика', '10-klass/kinematika', ['brosok-pod-uglom']),
+					section('Кинематика', '10-klass/kinematika', ['sistema-otscheta', 'brosok-pod-uglom']),
 					section('Законы сохранения', '10-klass/zakony-sohraneniya', ['impuls']),
 					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['gazovye-zakony']),
 				]),
