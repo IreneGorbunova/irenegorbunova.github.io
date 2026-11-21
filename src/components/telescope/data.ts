@@ -10,7 +10,9 @@
  *    electronic cameras go much deeper with long exposures);
  *  - `fov`: its true field of view, arc seconds (for a camera: the frame); `mag`: the magnification used;
  *  - `how`: the eye at the eyepiece, a black-and-white photographic plate, an electronic camera, an infrared camera;
- *  - `chroma`: the colored fringes of a single lens.
+ *  - `chroma`: the colored fringes of a single lens;
+ *  - `aside`: a telescope of our days that stands beside the historical line: «Пройти 400 лет» walks from the eye to
+ *    Webb and leaves it out.
  * An object is a picture (public/telescope/, NASA and ESA, public domain) whose width on the sky is `width` arc
  * seconds; `see` says how much of a faint object each telescope shows, from 0 (nothing) to 1 (everything in the
  * picture): the surface brightness of a nebula or a galaxy, not only the diameter, decides it, so these are set by
@@ -30,6 +32,7 @@ export interface Scope {
 	mag?: number;
 	how: How;
 	chroma?: boolean;
+	aside?: boolean;
 	text: string;
 }
 export const HOW: Record<How, string> = {
@@ -164,6 +167,27 @@ export const SCOPES: Scope[] = [
 		how: 'ir',
 		text: 'Зеркало 6,5 м из 18 позолоченных сегментов, охлаждённое до −230 °C. Телескоп видит инфракрасный свет: он проходит сквозь пыль и приходит от самых далёких галактик, свет которых растянут расширением Вселенной.',
 	},
+	// A school or amateur reflector of our days: a Newtonian with a 150 mm mirror and a 1200 mm focal length (the
+	// common «6-inch Dobsonian») and the 25 mm eyepiece that comes with it: 1200 / 25 = 48×; a Plössl eyepiece shows
+	// about 50° of apparent field, so the true field is 50° / 48 ≈ 1,04° = 3750″. Diffraction gives 138″ / 150 =
+	// 0,92″, the eye at 48× tells 60″ / 48 = 1,25″ apart, and the air above a school yard blurs to 1–2″: 2″. Faintest
+	// stars under a dark sky: 2 + 5 lg 150 = 12,9 ≈ 13ᵐ. No clock drive. Herschel found Uranus in 1781 with a reflector
+	// of almost the same size (6,2 inches = 157 mm, the «seven-foot» telescope).
+	{
+		id: 'school',
+		name: 'Школьный телескоп',
+		short: 'Школьный',
+		year: 'наши дни',
+		where: 'школа, астрономический кружок, дом',
+		d: 150,
+		theta: 2,
+		mlim: 13,
+		fov: 3750,
+		mag: 48,
+		how: 'visual',
+		aside: true,
+		text: 'Зеркало 15 см, труба длиной 1,2 м на простой подставке, без мотора: такой телескоп бывает в школе, в астрономическом кружке и дома. Почти такой же — с зеркалом 15,7 см — был у Уильяма Гершеля, когда он открыл Уран. Окуляр увеличивает в 48 раз. Зеркало различило бы детали в 0,9″, но дрожание воздуха размывает их до 1–2″. Самые слабые звёзды видны под тёмным загородным небом.',
+	},
 ];
 
 export interface Target {
@@ -185,8 +209,17 @@ export interface Target {
 	 *  telescope whose `mlim` is smaller does not show the body at all (Neptune is invisible to the eye) */
 	vmag?: number;
 	/** telescopes that are never pointed at the object: Hubble and Webb keep away from the Sun (Hubble at least 50°,
-	 *  Webb 85°), so Mercury, Venus (Webb) and the Moon (Webb, seen from L2 next to the Sun) are out of their reach */
+	 *  Webb 85°), so Mercury, Venus (Webb) and the Moon (Webb, seen from L2 next to the Sun) are out of their reach;
+	 *  the large night telescopes are never turned to the Sun either */
 	never?: string[];
+	/** the words on the frame for those telescopes, when the reason is not the nearness of the Sun */
+	neverWhy?: string;
+	/** a warning that stays on the frame while the object is chosen (the Sun) */
+	warn?: string;
+	/** a star field with the unresolved glow of the Milky Way: the stars follow `mlim` as for 'stars', and the glow is
+	 *  a second, smoothed layer. Its brightness in an eyepiece falls as the square of the exit pupil (d / mag) over the
+	 *  eye's 7 mm: at 20× Galileo's tube leaves 2 % of it, and the glow falls apart into stars */
+	glow?: boolean;
 	where?: string;
 	/** how much each telescope shows of a faint object, 0…1 */
 	see?: Record<string, number>;
@@ -197,6 +230,8 @@ export interface Target {
 	notes: Record<string, string>;
 	credit: string;
 	source: string;
+	/** the name of the site the source link leads to (Wikimedia Commons when not given) */
+	site?: string;
 }
 
 export const TARGETS: Target[] = [
@@ -221,9 +256,46 @@ export const TARGETS: Target[] = [
 			newton: 'Изображение чистое, без цветной каймы по краю диска.',
 			hubble: '«Хаббл» различил бы на Луне детали от 90 м. Этот снимок такой резкости не передаёт: одна его точка — около 2 км.',
 			webb: '«Уэбб» на Луну не смотрит: из его точки в космосе Луна и Земля видны рядом с Солнцем, за солнечным экраном телескопа.',
+			school: 'Вся Луна помещается в поле зрения. Видны кратеры от 4 км, горные цепи, а вдоль границы света и тени — длинные тени гор. Полная Луна в окуляре слепит.',
 		},
 		credit: 'NASA / GSFC / Arizona State University',
 		source: 'https://commons.wikimedia.org/wiki/File:LRO_WAC_Nearside_Mosaic.jpg',
+	},
+	{
+		// SDO / HMI continuum, 9 May 2024 12:00 UTC: the disc is 3769 of 4096 px; the Sun was 1,0096 au away, so the
+		// disc was 1900″ across and 1″ was 732 km; the frame (3840 px around the disc) is 1936″ wide. The large group
+		// of spots is active region 13664 (the great geomagnetic storm of 10–11 May 2024).
+		id: 'sun',
+		name: 'Солнце',
+		file: 'sun',
+		w: 1800,
+		h: 1800,
+		width: 1936,
+		kind: 'bright',
+		km: 732,
+		vmag: -26.7,
+		never: ['rosse', 'hooker', 'bta', 'hubble', 'webb'],
+		neverWhy: 'Этот телескоп на Солнце не наводят',
+		warn: 'Опасно! Не смотрите на Солнце в телескоп, бинокль или фотоаппарат без специального солнечного фильтра, надетого перед объективом: можно ослепнуть навсегда.',
+		where: 'на Солнце',
+		size: 'Поперечник диска — 32′, почти как у Луны; до Солнца 150 млн км. Большая группа пятен справа внизу — шириной больше 200 тысяч км, в 15 с лишним раз больше Земли',
+		ref: 'Обсерватория SDO, 9 мая 2024 года',
+		about: 'Ближайшая звезда. Тёмные пятна — места, где сильное магнитное поле мешает горячему газу подниматься из глубины: они холоднее остальной поверхности на 1500–2000 градусов. Солнце здесь — только через солнечный фильтр.',
+		notes: {
+			eye: 'Только через специальные очки для солнечных затмений: ровный диск. Самые большие группы пятен, как эта в мае 2024 года, видны и так; китайские летописцы записывали такие пятна больше 2000 лет назад. Без таких очков на Солнце смотреть нельзя.',
+			galileo: 'Пятна на Солнце Галилей заметил в конце 1610 года, а с весны 1612 года зарисовывал их день за днём, направляя изображение Солнца из трубы на лист бумаги. Этот способ придумал его ученик Бенедетто Кастелли. По движению пятен Галилей понял, что Солнце вращается.',
+			newton: 'Через солнечный фильтр видны пятна: тёмная середина и серая полутень вокруг неё. Края диска темнее середины.',
+			herschel: 'Гершель подолгу смотрел на Солнце через тёмные стёкла. В 1800 году, пропуская солнечный свет через призму, он открыл невидимые инфракрасные лучи — те, в которых теперь работает «Уэбб».',
+			rosse: 'На Солнце такие большие ночные телескопы не наводят: огромное зеркало собрало бы столько солнечного тепла, что телескоп был бы испорчен.',
+			hooker: 'Сам телескоп на Солнце не наводили. Для Солнца на той же горе построили отдельные солнечные башни, и в 1908 году Джордж Хейл обнаружил в них, что солнечные пятна — места сильного магнитного поля.',
+			bta: 'Ночной телескоп: на Солнце его не наводят.',
+			hubble: '«Хаббл» на Солнце никогда не наводят: его свет сжёг бы приборы. Телескоп держится от Солнца не ближе чем на 50°.',
+			webb: 'Солнце всегда остаётся за огромным теплозащитным экраном «Уэбба»: телескоп охлаждён до −230 °C и смотреть на Солнце не может.',
+			school: 'Только с солнечным фильтром, надетым на трубу спереди! Видны пятна с полутенью, их группы и светлые прожилки у края диска. День за днём пятна смещаются: Солнце вращается.',
+		},
+		credit: 'NASA / SDO и научная группа HMI',
+		source: 'https://sdo.gsfc.nasa.gov/assets/img/browse/2024/05/09/20240509_120000_4096_HMIIC.jpg',
+		site: 'NASA SDO',
 	},
 	{
 		id: 'mercury',
@@ -247,6 +319,7 @@ export const TARGETS: Target[] = [
 			herschel: 'Фаза видна ясно, но подробностей на диске нет: планета всегда низко над горизонтом, и воздух сильно размывает её.',
 			hubble: '«Хаббл» на Меркурий не наводят: он слишком близко к Солнцу, и его свет мог бы повредить приборы.',
 			webb: '«Уэбб» тоже не может смотреть на Меркурий: он прячется от Солнца за экраном и видит только ту часть неба, что в стороне от Солнца.',
+			school: 'Крошечная фаза, как у маленькой Луны. Подробностей нет: планета всегда низко, в дымке зари.',
 		},
 		credit: 'NASA / Johns Hopkins University Applied Physics Laboratory / Carnegie Institution of Washington',
 		source: 'https://commons.wikimedia.org/wiki/File:Mercury_in_true_color.jpg',
@@ -273,6 +346,7 @@ export const TARGETS: Target[] = [
 			herschel: 'Ровный белый диск: деталей нет, потому что видны только облака. В 1761 году Михаил Ломоносов в небольшой телескоп по ободку света вокруг диска Венеры на фоне Солнца понял, что у неё есть атмосфера.',
 			hubble: 'В видимом свете облака почти однородны. Их узоры проявляются в ультрафиолете.',
 			webb: '«Уэбб» не может смотреть на Венеру: на небе она никогда не отходит от Солнца дальше чем на 47°.',
+			school: 'Фаза видна отчётливо: Венера бывает и полукругом, и узким серпом. Облака без подробностей.',
 		},
 		credit: 'NASA, обработка Рикардо Нунеса',
 		source: 'https://commons.wikimedia.org/wiki/File:Venus-real_color.jpg',
@@ -297,6 +371,7 @@ export const TARGETS: Target[] = [
 			newton: 'Диск без цветной каймы; на нём едва угадывается тёмное пятно.',
 			herschel: 'Гершель следил за полярными шапками: они растут и тают, значит, на Марсе есть времена года.',
 			hubble: 'Полярные шапки, облака, тёмные области и огромные потухшие вулканы. Самые мелкие детали — меньше 20 км.',
+			school: 'Маленький оранжевый кружок. Когда Марс ближе всего к Земле, на нём видны белая полярная шапка и тёмные области.',
 		},
 		credit: 'NASA, Hubble Heritage Team (STScI / AURA)',
 		source: 'https://commons.wikimedia.org/wiki/File:Mars_Hubble.jpg',
@@ -321,6 +396,7 @@ export const TARGETS: Target[] = [
 			newton: 'Диск без цветной каймы; на нём угадываются две тёмные полосы.',
 			herschel: 'Полосы облаков видны уверенно. Большое красное пятно без перерывов наблюдают только с 1830 года; было ли оно видно при Гершеле, неизвестно.',
 			hubble: 'Вихри, вплетённые в полосы, и Большое красное пятно — ураган размером больше Земли.',
+			school: 'Две тёмные полосы на диске и четыре спутника — посмотрите на поле зрения внизу слева. Большое красное пятно бледное и видно не всегда.',
 		},
 		credit: 'NASA, ESA, A. Simon (Goddard Space Flight Center)',
 		source: 'https://commons.wikimedia.org/wiki/File:Jupiter_and_its_shrunken_Great_Red_Spot.jpg',
@@ -345,6 +421,7 @@ export const TARGETS: Target[] = [
 			newton: 'Придатки по бокам уже похожи на кольцо, но щель между кольцом и шаром планеты едва различима.',
 			herschel: 'В кольце видна тёмная щель Кассини, открытая в 1675 году.',
 			hubble: 'Несколько колец, разделённых тёмными щелями, полосы облаков на шаре и тень планеты на кольцах.',
+			school: 'Кольцо отделено от шара тёмной щелью, рядом — звёздочка Титана, самого большого спутника. В спокойную ночь в кольце видна щель Кассини.',
 		},
 		credit: 'NASA, ESA, E. Karkoschka (University of Arizona)',
 		source: 'https://commons.wikimedia.org/wiki/File:Saturn_HST_2004-03-22.jpg',
@@ -369,6 +446,7 @@ export const TARGETS: Target[] = [
 			newton: 'По-прежнему звезда: диск в 3,7″ меньше того, что различает телескоп.',
 			herschel: '13 марта 1781 года Уильям Гершель заметил «звезду» с заметным диском, которая медленно смещалась. Он решил, что это комета; оказалось — новая планета. Тот телескоп был втрое меньше этого; в этот телескоп диск виден уверенно.',
 			hubble: 'Виден зеленовато-голубой диск, тонкие кольца и светлые облака.',
+			school: 'Крошечный зеленовато-голубой кружок, а не точка. Почти таким же телескопом Гершель в 1781 году открыл Уран.',
 		},
 		credit: 'NASA / JPL-Caltech',
 		source: 'https://commons.wikimedia.org/wiki/File:Uranus2.jpg',
@@ -394,9 +472,43 @@ export const TARGETS: Target[] = [
 			herschel: 'Едва заметный голубоватый кружок. Но чтобы его найти, нужно знать, куда смотреть.',
 			rosse: 'В 1846 году Иоганн Галле в Берлине нашёл Нептун за одну ночь там, где указал расчёт Урбена Леверье. Через 17 дней Уильям Лассел в свой 60-сантиметровый телескоп открыл его спутник Тритон.',
 			hubble: 'Синий диск со светлыми облаками и тёмными пятнами-бурями.',
+			school: 'Голубоватая звёздочка; с окуляром посильнее — крошечный кружок. Чтобы её найти, нужна звёздная карта.',
 		},
 		credit: 'NASA / JPL',
 		source: 'https://commons.wikimedia.org/wiki/File:Neptune_Full.jpg',
+	},
+	{
+		// A TESS full-frame image (sector 14, camera 1, CCD 1, 24 Jul 2019), Cygnus at l = 73°, b = +1,5°: 1798 of its
+		// 2048 px (the corner near the edge of the camera carries scattered light), 37 027″ ≈ 10,3° wide, made 1400 px.
+		// The picture is coded so that a star's brightness follows its magnitude on the 'stars' scale of telescope.ts
+		// (assets_src/telescope_tx/milkyway.py): the eye keeps the stars down to 6ᵐ (a few dozen in this frame),
+		// Galileo's tube down to 8,5ᵐ. TESS sees red light; V ≈ T + 0,7 for the stars of the field.
+		id: 'milkyway',
+		name: 'Млечный Путь',
+		file: 'milkyway',
+		w: 1400,
+		h: 1400,
+		width: 37027,
+		kind: 'stars',
+		glow: true,
+		size: 'Ширина кадра — 10°, двадцать лунных дисков: участок Млечного Пути в созвездии Лебедя',
+		ref: 'Спутник TESS, 2019 год',
+		about: 'Наша Галактика изнутри: полоса слабого света через всё небо. Тёмные провалы в ней — облака пыли, которые заслоняют звёзды за ними.',
+		notes: {
+			eye: 'Слабая светлая полоса с тёмными провалами и несколько десятков звёзд. Видна только вдали от городских огней.',
+			galileo: 'В 1610 году в «Звёздном вестнике» Галилей написал, что Млечный Путь — множество звёзд, собранных вместе. Труба увеличивает в 20 раз, свечение в ней становится намного темнее, а звёзд видно в десять с лишним раз больше, чем глазом. Но основную часть свечения дают звёзды, слишком слабые даже для его трубы.',
+			newton: 'Звёзд ещё больше, но слабое свечение между ними по-прежнему не разделено на звёзды.',
+			herschel: 'Гершель подсчитывал звёзды в поле зрения в сотнях направлений — «черпал» небо — и в 1785 году нарисовал первую карту формы Млечного Пути: сплющенный диск из звёзд.',
+			rosse: 'В поле зрения больше сотни звёзд, но и это лишь малая часть звёзд Галактики.',
+			hooker: 'На фотопластинке с долгой выдержкой — тысячи звёзд. Тёмные провалы оказались не пустотой, а облаками пыли, которые заслоняют звёзды за ними.',
+			bta: 'Звёзд в кадре столько, что слабые сливаются друг с другом.',
+			hubble: 'В 2004 году «Хаббл» семь суток следил за крошечным участком Млечного Пути в сторону центра Галактики и измерял блеск 180 000 звёзд, отыскивая у них планеты.',
+			webb: 'Инфракрасный свет проходит сквозь пыль: «Уэбб» видит звёзды и за тёмными облаками, даже в самом центре Галактики, куда глазу не заглянуть.',
+			school: 'Поле зрения усыпано звёздами, а свечение между ними почти пропадает. Весь Млечный Путь удобнее рассматривать в бинокль.',
+		},
+		credit: 'NASA / MIT / TESS (архив MAST; звёзды кадра перерисованы по их блеску)',
+		source: 'https://archive.stsci.edu/missions/tess/ffi/s0014/2019/205/1-1/tess2019205002929-s0014-1-1-0150-s_ffic.fits',
+		site: 'MAST',
 	},
 	{
 		id: 'pleiades',
@@ -415,6 +527,7 @@ export const TARGETS: Target[] = [
 			herschel: 'Звёзд уже сотни.',
 			hooker: 'На фотопластинке проступает голубая дымка — пыль, которая отражает свет звёзд.',
 			bta: 'В скоплении больше тысячи звёзд, а голубая дымка — пыль, сквозь которую оно сейчас проходит.',
+			school: 'Скопление шириной около 2° в поле зрения целиком не помещается, зато видны десятки звёзд. Целиком Плеяды лучше смотреть в бинокль.',
 		},
 		credit: 'NASA, ESA, AURA / Caltech, Palomar Observatory',
 		source: 'https://commons.wikimedia.org/wiki/File:Pleiades_large.jpg',
@@ -427,7 +540,7 @@ export const TARGETS: Target[] = [
 		h: 1800,
 		width: 1800,
 		kind: 'faint',
-		see: { eye: 0.12, galileo: 0.2, newton: 0.27, herschel: 0.55, rosse: 0.68, hooker: 0.88, bta: 1, hubble: 1, webb: 1 },
+		see: { eye: 0.12, galileo: 0.2, newton: 0.27, herschel: 0.55, rosse: 0.68, hooker: 0.88, bta: 1, hubble: 1, webb: 1, school: 0.45 },
 		size: 'Ширина кадра — 30′, как у лунного диска; до туманности 1300 световых лет',
 		ref: '«Хаббл», 2006 год',
 		about: 'Облако газа и пыли, в котором рождаются звёзды. Его видно глазом как туманное пятнышко в «мече» Ориона.',
@@ -437,9 +550,40 @@ export const TARGETS: Target[] = [
 			herschel: 'Гершель видел светящееся облако с четырьмя звёздами в середине — Трапецией. Глаз в окуляре не различает цвета слабого света, поэтому туманность серая.',
 			hooker: 'Фотопластинка накапливает свет: проявляются слабые края облака.',
 			hubble: 'Около трёх тысяч звёзд, многие ещё окружены дисками пыли, из которых получатся планеты.',
+			school: 'Яркое облако с «крыльями» и четыре звезды Трапеции в середине. Туманность серая, иногда чуть зеленоватая: цвет слабого света глаз почти не различает.',
 		},
 		credit: 'NASA, ESA, M. Robberto (STScI / ESA), Hubble Space Telescope Orion Treasury Project Team',
 		source: 'https://commons.wikimedia.org/wiki/File:Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg',
+	},
+	{
+		// The Hubble PHAT + PHAST mosaic (2025): 10 552 px at 0,8″ = 8442″ ≈ 2,3° wide, made 1800 px. The galaxy is
+		// about 3,2° × 1° (190′ × 60′), V = 3,4, 2,5 million light years away (765 kpc).
+		id: 'andromeda',
+		name: 'Туманность Андромеды',
+		file: 'andromeda',
+		w: 1800,
+		h: 421,
+		width: 8442,
+		kind: 'faint',
+		see: { eye: 0.3, galileo: 0.32, newton: 0.36, herschel: 0.5, rosse: 0.58, hooker: 0.9, bta: 1, hubble: 1, webb: 1, school: 0.42 },
+		size: 'Ширина кадра — 2,3°, больше четырёх лунных дисков; вся галактика — около 3° на 1°. Её блеск — 3,4ᵐ, до неё 2,5 млн световых лет',
+		ref: '«Хаббл», мозаика 2025 года',
+		about: 'Ближайшая к нам большая галактика, соседка Млечного Пути. Её видно глазом: это одно из самых далёких тел, доступных глазу, — свет от неё идёт 2,5 миллиона лет.',
+		notes: {
+			eye: 'Слабое вытянутое туманное пятнышко в созвездии Андромеды. Оно записано как «маленькое облачко» в «Книге неподвижных звёзд» персидского астронома ас-Суфи, 964 год.',
+			galileo: 'Галилей о ней не писал. В декабре 1612 года в похожую трубу её рассмотрел Симон Мариус: «как пламя свечи сквозь роговую пластинку». В поле зрения помещается только яркая середина.',
+			newton: 'Яркое ядро в туманном овале. Звёзд в нём не видно.',
+			herschel: 'Яркое ядро в длинном туманном веретене. Отдельных звёзд не видно: самые яркие звёзды галактики на пределе даже для этого телескопа.',
+			rosse: 'В поле зрения — лишь кусочек галактики. В 1847 году Джордж Бонд в Гарварде заметил в туманности две тёмные полосы: это пыль в диске галактики.',
+			hooker: 'В октябре 1923 года Эдвин Хаббл нашёл на фотопластинке этого телескопа в туманности Андромеды звезду-цефеиду и по ней измерил расстояние. Туманность оказалась далеко за пределами Млечного Пути — другой галактикой.',
+			bta: 'Кадр камеры — 6′: на нём только малая часть галактики, зато видны её отдельные звёзды и шаровые звёздные скопления.',
+			hubble: 'Мозаика из 600 кадров «Хаббла», снятых за 10 лет: на ней около 200 миллионов звёзд.',
+			webb: 'Кадр «Уэбба» — 2,2′: чтобы снять всю галактику, понадобились бы тысячи кадров. В инфракрасном свете пыль не заслоняет звёзд.',
+			school: 'Вытянутое туманное пятно с ярким центром; целиком в поле зрения оно не помещается. Рядом видны её спутники — маленькие галактики M32 и M110.',
+		},
+		credit: 'NASA, ESA, B. Williams, Z. Chen (University of Washington), L. C. Johnson (Northwestern University); обработка J. DePasquale (STScI)',
+		source: 'https://science.nasa.gov/asset/hubble/hubble-m31-phatphast-mosaic/',
+		site: 'NASA',
 	},
 	{
 		id: 'm51',
@@ -449,7 +593,7 @@ export const TARGETS: Target[] = [
 		h: 1249,
 		width: 574,
 		kind: 'faint',
-		see: { eye: 0, galileo: 0, newton: 0.06, herschel: 0.2, rosse: 0.5, hooker: 0.86, bta: 1, hubble: 1, webb: 1 },
+		see: { eye: 0, galileo: 0, newton: 0.06, herschel: 0.2, rosse: 0.5, hooker: 0.86, bta: 1, hubble: 1, webb: 1, school: 0.15 },
 		size: 'Ширина кадра — 9,6′, до галактики около 28 млн световых лет',
 		ref: '«Хаббл», 2005 год',
 		about: 'Спиральная галактика в созвездии Гончих Псов. Её открыл в 1773 году Шарль Мессье как туманное пятно.',
@@ -461,6 +605,7 @@ export const TARGETS: Target[] = [
 			rosse: 'Весной 1845 года лорд Росс впервые разглядел спиральные ветви и зарисовал их. Это была первая «спиральная туманность».',
 			hooker: 'Фотопластинка показывает спираль во всех подробностях. В 1920-е годы на этом телескопе доказали, что спиральные туманности — далёкие галактики.',
 			hubble: 'В розовых облаках вдоль спиральных ветвей рождаются звёзды.',
+			school: 'Под тёмным небом — два туманных пятнышка рядом: середины двух галактик. Спиральных ветвей не видно, а в городе галактику не видно вовсе.',
 		},
 		credit: 'NASA, ESA',
 		source: 'https://commons.wikimedia.org/wiki/File:Messier51_sRGB.jpg',
@@ -473,7 +618,7 @@ export const TARGETS: Target[] = [
 		h: 1241,
 		width: 122,
 		kind: 'faint',
-		see: { eye: 0, galileo: 0, newton: 0.05, herschel: 0.5, rosse: 0.68, hooker: 0.9, bta: 1, hubble: 1, webb: 1 },
+		see: { eye: 0, galileo: 0, newton: 0.05, herschel: 0.5, rosse: 0.68, hooker: 0.9, bta: 1, hubble: 1, webb: 1, school: 0.4 },
 		size: 'Ширина кадра — 2′, кольцо около 1′ в поперечнике; до туманности примерно 2500 световых лет',
 		ref: '«Хаббл», 1998 год',
 		about: 'Оболочка газа, сброшенная умирающей звездой, в созвездии Лиры. Её открыли в 1779 году в телескоп с объективом в несколько сантиметров.',
@@ -484,6 +629,7 @@ export const TARGETS: Target[] = [
 			herschel: 'Гершель видел светлое кольцо с тёмной серединой и назвал его «дырявой туманностью».',
 			hooker: 'На фотопластинке в центре кольца видна слабая звезда — остывающее ядро, сбросившее оболочку.',
 			hubble: 'Цвета — свечение разных газов: гелия в середине, кислорода и азота по краям.',
+			school: 'Маленькое серое колечко, похожее на колечко дыма. Звезды в середине не видно: она слабее 15ᵐ.',
 		},
 		credit: 'The Hubble Heritage Team (AURA / STScI / NASA)',
 		source: 'https://commons.wikimedia.org/wiki/File:M57_The_Ring_Nebula.JPG',
@@ -496,7 +642,7 @@ export const TARGETS: Target[] = [
 		h: 1800,
 		width: 386,
 		kind: 'faint',
-		see: { eye: 0, galileo: 0, newton: 0.04, herschel: 0.3, rosse: 0.52, hooker: 0.85, bta: 1, hubble: 1, webb: 1 },
+		see: { eye: 0, galileo: 0, newton: 0.04, herschel: 0.3, rosse: 0.52, hooker: 0.85, bta: 1, hubble: 1, webb: 1, school: 0.2 },
 		size: 'Ширина кадра — 6,4′, до туманности 6500 световых лет',
 		ref: '«Хаббл», 2005 год',
 		about: 'Остаток звезды, взрыв которой видели в 1054 году. Газ до сих пор разлетается со скоростью 1500 км/с.',
@@ -508,6 +654,7 @@ export const TARGETS: Target[] = [
 			rosse: 'В 1844 году лорд Росс в свой прежний, 91-сантиметровый телескоп зарисовал у туманности светлые отростки, похожие на ноги краба. Отсюда её название.',
 			hooker: 'По фотографиям разных лет заметили, что туманность расширяется, и вычислили, когда произошёл взрыв.',
 			hubble: 'Оранжевые волокна — остатки звезды. Голубое свечение внутри создаёт пульсар: нейтронная звезда, которая вращается 30 раз в секунду.',
+			school: 'Слабое овальное пятно. Его видно только под тёмным небом.',
 		},
 		credit: 'NASA, ESA, J. Hester, A. Loll (Arizona State University)',
 		source: 'https://commons.wikimedia.org/wiki/File:Crab_Nebula.jpg',
@@ -520,7 +667,7 @@ export const TARGETS: Target[] = [
 		h: 1877,
 		width: 266,
 		kind: 'faint',
-		see: { eye: 0, galileo: 0, newton: 0, herschel: 0.08, rosse: 0.18, hooker: 0.6, bta: 0.85, hubble: 1, webb: 1 },
+		see: { eye: 0, galileo: 0, newton: 0, herschel: 0.08, rosse: 0.18, hooker: 0.6, bta: 0.85, hubble: 1, webb: 1, school: 0.04 },
 		size: 'Ширина кадра — 4,4′, до туманности около 6500 световых лет; высота левого столпа — примерно 4 световых года',
 		ref: '«Хаббл», 2014 год',
 		about: 'Колонны холодного газа и пыли в туманности Орёл. Внутри них рождаются звёзды, а свет соседних горячих звёзд понемногу их разрушает.',
@@ -532,6 +679,7 @@ export const TARGETS: Target[] = [
 			rosse: 'Свечение чуть заметнее, но тёмные столпы на его фоне глазу не видны.',
 			hooker: 'На фотографиях с долгой выдержкой проступают тёмные «хоботы слона».',
 			hubble: 'Самый знаменитый снимок «Хаббла», впервые сделанный в 1995 году.',
+			school: 'Звёздное скопление в слабом свечении туманности. Столпов не видно.',
 		},
 		credit: 'NASA, ESA, Hubble Heritage Team (STScI / AURA)',
 		source: 'https://commons.wikimedia.org/wiki/File:Pillars_of_creation_2014_HST_WFC3-UVIS_full-res_denoised.jpg',
@@ -544,7 +692,7 @@ export const TARGETS: Target[] = [
 		h: 1009,
 		width: 574,
 		kind: 'faint',
-		see: { eye: 0, galileo: 0, newton: 0.05, herschel: 0.38, rosse: 0.58, hooker: 0.88, bta: 1, hubble: 1, webb: 1 },
+		see: { eye: 0, galileo: 0, newton: 0.05, herschel: 0.38, rosse: 0.58, hooker: 0.88, bta: 1, hubble: 1, webb: 1, school: 0.28 },
 		size: 'Ширина кадра — 9,6′, до галактики около 30 млн световых лет',
 		ref: '«Хаббл», 2003 год',
 		about: 'Галактика в созвездии Девы, повёрнутая к нам почти ребром. Тёмная полоса — кольцо пыли в её диске.',
@@ -555,6 +703,7 @@ export const TARGETS: Target[] = [
 			herschel: 'Вытянутое туманное пятно. В 1784 году Гершель заметил у него тёмную полосу.',
 			hooker: 'В 1912–1913 годах Весто Слайфер в обсерватории Лоуэлла (США) впервые измерил у этой туманности огромную скорость удаления — около 1000 км/с. Позже такие измерения привели к открытию расширения Вселенной.',
 			hubble: 'Вокруг галактики видны около двух тысяч шаровых звёздных скоплений.',
+			school: 'Вытянутое пятно с ярким центром. Под очень тёмным небом угадывается тёмная полоса.',
 		},
 		credit: 'NASA / ESA, Hubble Heritage Team (STScI / AURA)',
 		source: 'https://commons.wikimedia.org/wiki/File:M104_ngc4594_sombrero_galaxy_hi-res.jpg',
@@ -567,7 +716,7 @@ export const TARGETS: Target[] = [
 		h: 1837,
 		width: 144,
 		kind: 'faint',
-		see: { eye: 0, galileo: 0, newton: 0, herschel: 0, rosse: 0, hooker: 0.25, bta: 0.62, hubble: 0.88, webb: 1 },
+		see: { eye: 0, galileo: 0, newton: 0, herschel: 0, rosse: 0, hooker: 0.25, bta: 0.62, hubble: 0.88, webb: 1, school: 0 },
 		size: 'Ширина кадра — 2,4′: участок неба размером с песчинку на вытянутой руке',
 		ref: '«Джеймс Уэбб», 2022 год',
 		about: 'Скопление галактик в созвездии Летучей Рыбы. Свет от него шёл 4,6 млрд лет, а от галактик на заднем плане — больше 13 млрд.',
@@ -581,6 +730,7 @@ export const TARGETS: Target[] = [
 			bta: 'Из Архыза это место неба тоже не видно. Телескоп такого размера в Южном полушарии показывает сотни галактик скопления, но слабые сливаются с фоном неба.',
 			hubble: 'Тысячи галактик. Дуги — изображения далёких галактик, искажённые тяготением скопления.',
 			webb: 'Первый научный снимок «Уэбба»: 12,5 часа выдержки. Красные точки — галактики, свет которых вышел, когда Вселенной было меньше миллиарда лет.',
+			school: 'Пустое место на небе: даже самые яркие галактики скопления намного слабее того, что видит этот телескоп. К тому же из России это место неба не видно.',
 		},
 		credit: 'NASA, ESA, CSA, STScI',
 		source: 'https://commons.wikimedia.org/wiki/File:Webb%27s_First_Deep_Field.jpg',

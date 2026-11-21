@@ -3,7 +3,8 @@
 // What the telescope does to the picture follows from its numbers (./data.ts):
 //   - the smallest detail `theta` blurs it (a Gaussian blur whose width on the screen is theta in the frame's scale);
 //   - its depth cuts the faint parts off (levels), the eye at the eyepiece and a photographic plate take the color;
-//   - a single lens adds colored fringes (the red and the blue image differ in size).
+//   - a single lens adds colored fringes (the red and the blue image differ in size);
+//   - the Milky Way keeps its unresolved glow in a second, smoothed layer, as bright as the exit pupil allows.
 // The round window at the bottom shows the telescope's true field of view: how large the object looked in it.
 
 import type { Scope, Target } from './data';
@@ -32,6 +33,8 @@ if (root) {
 	const eyeImg = $<HTMLImageElement>('[data-ts-eye-img]');
 	const eyeDot = $('[data-ts-eye-dot]');
 	const eyeMoons = $('[data-ts-eye-moons]');
+	const eyeGlow = $<HTMLImageElement>('[data-ts-eye-glow]');
+	const warn = $('[data-ts-warn]');
 	const info = $('.ts-info');
 	const targetStrip = $('.ts-targets');
 	const scopeStrip = $('.ts-scopes');
@@ -55,7 +58,9 @@ if (root) {
 	let shakeY = 0;
 	let drift = 0; // how far the sky has drifted in the eyepiece, arc seconds
 	const onGround = () => !['hubble', 'webb'].includes(scope.id);
-	const noDrive = () => ['galileo', 'newton', 'herschel', 'rosse'].includes(scope.id);
+	const noDrive = () => ['galileo', 'newton', 'herschel', 'rosse', 'school'].includes(scope.id);
+	// «Пройти 400 лет» is history: the school telescope of our days stands aside
+	const walk = data.scopes.filter((s) => !s.aside);
 
 	// ---------- numbers in words ----------
 	const num = (x: number, digits = 0) => x.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
@@ -120,6 +125,15 @@ if (root) {
 		return { filter: f.join(' ') || 'none', sigma, visible, color, fwhm, never };
 	};
 
+	/** The unresolved glow of the Milky Way: the picture smoothed over about half a degree (the light of its countless
+	 *  faint stars), seen without color. In an eyepiece its brightness is (exit pupil / 7 mm)², at most 1; the eye sees
+	 *  it in full; a camera has it in the picture already. */
+	const glowLook = (arcsecPerScreenPx: number, scale: number) => {
+		const share = scope.how === 'eye' ? 1 : scope.how === 'visual' ? Math.min(1, (scope.d / (scope.mag ?? 1) / 7) ** 2) : 0;
+		const sigma = Math.max(1800 / arcsecPerScreenPx / 2.355, 2) / scale;
+		return { share, filter: `blur(${Math.min(sigma, 90 / scale).toFixed(2)}px) brightness(2.4) saturate(0)` };
+	};
+
 	// ---------- the frame ----------
 	const fitScale = () => Math.min(sw / target.w, sh / target.h);
 	const maxZoom = () => Math.max(1, 1.6 / fitScale());
@@ -141,15 +155,25 @@ if (root) {
 			`translate(-50%, -50%) translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px) scale(${(s * k).toFixed(5)}) translate(${(-px).toFixed(2)}px, ${(-py).toFixed(2)}px)`;
 		refImg.style.transform = tf();
 		const look = looks(arcsecPerPx, s);
-		const chroma = Boolean(scope.chroma);
+		// (the fringes of a single lens are lost among the stars of the Milky Way; its second layer is the glow)
+		const chroma = Boolean(scope.chroma) && !target.glow;
 		telView.classList.toggle('is-chroma', chroma);
+		const gl = glowLook(arcsecPerPx, s);
+		const glow = Boolean(target.glow) && gl.share > 0.005;
+		telView.classList.toggle('is-glow', glow);
+		layers[1].style.opacity = glow ? gl.share.toFixed(3) : '';
 		const jx = shakeX / arcsecPerPx;
 		const jy = shakeY / arcsecPerPx;
 		telImgs.forEach((img, i) => {
 			// a single lens: the red image is a little larger than the green one, the blue one smaller and softer
 			const k = chroma ? [1.012, 1, 0.986][i] : 1;
 			img.style.transform = tf(k, jx, jy);
-			img.style.filter = chroma && i === 2 ? `${look.filter === 'none' ? '' : look.filter} blur(${(look.sigma * 0.9 + 1.2 / s).toFixed(2)}px)` : look.filter;
+			img.style.filter =
+				glow && i === 1
+					? gl.filter
+					: chroma && i === 2
+						? `${look.filter === 'none' ? '' : look.filter} blur(${(look.sigma * 0.9 + 1.2 / s).toFixed(2)}px)`
+						: look.filter;
 		});
 		// a blur wider than the frame: the telescope shows no disc at all, the planet is a point of light
 		const point = look.visible && target.kind === 'bright' && look.fwhm > Math.min(sw, sh) * 0.9;
@@ -157,7 +181,7 @@ if (root) {
 		telView.classList.toggle('is-point', point);
 		nothing.hidden = look.visible && !point;
 		nothing.textContent = look.never
-			? 'Этот телескоп сюда не наводят: на его небе этот объект слишком близко к Солнцу'
+			? (target.neverWhy ?? 'Этот телескоп сюда не наводят: на его небе этот объект слишком близко к Солнцу')
 			: point
 			? `${scope.id === 'eye' ? 'Глаз' : 'Этот телескоп'} не различает диска: планета видна как звезда. Так она выглядит в окне внизу`
 			: scope.id === 'eye'
@@ -179,6 +203,11 @@ if (root) {
 		eyeImg.hidden = dot || !el.visible;
 		eyeImg.style.transform = `translate(-50%, -50%) translate(${dx.toFixed(1)}px, 0) scale(${es.toFixed(6)})`;
 		eyeImg.style.filter = el.filter;
+		const eg = glowLook(scope.fov / EYE_PX, es);
+		eyeGlow.hidden = !target.glow || dot || !el.visible || eg.share <= 0.005;
+		eyeGlow.style.transform = eyeImg.style.transform;
+		eyeGlow.style.filter = eg.filter;
+		eyeGlow.style.opacity = eg.share.toFixed(3);
 		eyeDot.hidden = !(dot && target.kind === 'bright' && el.visible);
 		eyeDot.style.transform = `translate(${dx.toFixed(1)}px, 0)`;
 		eyeMoons.style.transform = `translate(${dx.toFixed(1)}px, 0)`;
@@ -202,7 +231,8 @@ if (root) {
 
 	// ---------- the words ----------
 	const describe = () => {
-		$('[data-ts-year]').textContent = scope.year === 'всегда' ? 'без телескопа' : `${scope.year} год · ${scope.where}`;
+		$('[data-ts-year]').textContent =
+			scope.year === 'всегда' ? 'без телескопа' : /^\d/.test(scope.year) ? `${scope.year} год · ${scope.where}` : `${scope.year} · ${scope.where}`;
 		$('[data-ts-name]').textContent = scope.name;
 		$('[data-ts-text]').textContent = scope.text;
 		const stat = (k: string, v: string, sub = '') => {
@@ -224,7 +254,9 @@ if (root) {
 				: c === 'eye'
 					? 'при слабом свете глаз различает только яркость, поэтому туманности и галактики в окуляре серые'
 					: scope.how === 'eye' || scope.how === 'visual'
-						? 'Луна и планеты яркие, их цвет глаз различает'
+						? target.id === 'sun'
+							? 'через фильтр Солнце белое или оранжевое, смотря по фильтру; цвет снимка справа условный'
+							: 'Луна и планеты яркие, их цвет глаз различает'
 						: '',
 		);
 		$('[data-ts-real-note]').textContent = !real
@@ -242,7 +274,9 @@ if (root) {
 		$('[data-ts-tag-l]').textContent = scope.id === 'eye' ? 'Глазом' : `${scope.short}, ${scope.year}`;
 		$('[data-ts-tag-r]').textContent = target.ref;
 		$('[data-ts-about]').textContent = `${target.about} ${target.size}.`;
-		$('[data-ts-credit]').innerHTML = `Снимок: ${target.credit}, общественное достояние. <a href="${target.source}">Wikimedia Commons</a>`;
+		$('[data-ts-credit]').innerHTML = `Снимок: ${target.credit}, общественное достояние. <a href="${target.source}">${target.site ?? 'Wikimedia Commons'}</a>`;
+		warn.textContent = target.warn ?? '';
+		warn.hidden = !target.warn;
 		for (const b of root.querySelectorAll<HTMLElement>('[data-scope]')) b.setAttribute('aria-pressed', String(b.dataset.scope === scope.id));
 		for (const b of root.querySelectorAll<HTMLElement>('[data-target]')) b.setAttribute('aria-pressed', String(b.dataset.target === target.id));
 	};
@@ -288,7 +322,7 @@ if (root) {
 		const src = `${data.base}telescope/${t.file}.webp`;
 		stage.classList.add('is-loading');
 		refImg.onload = () => stage.classList.remove('is-loading');
-		for (const img of [refImg, ...telImgs, eyeImg]) {
+		for (const img of [refImg, ...telImgs, eyeImg, eyeGlow]) {
 			img.width = t.w;
 			img.height = t.h;
 			img.src = src;
@@ -394,16 +428,16 @@ if (root) {
 			paint();
 		} else if (timer) stop();
 		else {
-			// from the eye to the newest telescope, a step every few seconds
-			let i = data.scopes.indexOf(scope) >= data.scopes.length - 1 ? 0 : data.scopes.indexOf(scope);
-			setScope(data.scopes[i]);
+			// from the eye to the newest telescope, a step every few seconds (the school telescope stands aside)
+			let i = walk.indexOf(scope) < 0 || walk.indexOf(scope) >= walk.length - 1 ? 0 : walk.indexOf(scope);
+			setScope(walk[i]);
 			play.setAttribute('aria-pressed', 'true');
 			play.querySelector('span')!.textContent = 'Остановить';
 			timer = window.setInterval(() => {
 				i++;
-				if (i >= data.scopes.length) return stop();
-				setScope(data.scopes[i]);
-				if (i === data.scopes.length - 1) stop();
+				if (i >= walk.length) return stop();
+				setScope(walk[i]);
+				if (i === walk.length - 1) stop();
 			}, 2600);
 		}
 	});
