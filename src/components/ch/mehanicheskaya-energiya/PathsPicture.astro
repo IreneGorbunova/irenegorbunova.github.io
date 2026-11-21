@@ -1,0 +1,155 @@
+---
+/**
+ * «Три пути с одной высоты»: three equal blocks start together from rest 5 м above the floor and slide without
+ * friction: straight down along a vertical guide, down a straight incline of 30° (10 м long) and down a concave arc
+ * of radius 10 м (from 60° at the top to level at the bottom, 8,66 м wide). The force of gravity does the same work
+ * mgh on each, so each reaches the floor at √(2gh) = 9,9 м/с; the times differ: 1,01 с, 2,02 с and 1,70 с
+ * (integrated here step by step: along the arc dυ/dt = g·sin φ). Scale 14 px per metre in both directions, the blocks
+ * (0,6 м) to scale. The clock runs twice slower than a real one; the counters show real seconds.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+const K = 14;
+const FL = 128;
+const TOP = FL - 5 * K;
+const XV = 66;
+const XI = 116;
+const XA = 262;
+const W = 8.66 * K;
+const arc = `M${XA} ${TOP} A${10 * K} ${10 * K} 0 0 0 ${(XA + W).toFixed(1)} ${FL}`;
+---
+
+<G7Styles />
+<figure class="g7 g7--pic pth not-content" data-pth>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 400 176" role="img" aria-label="Три одинаковых бруска соскальзывают без трения с высоты 5 метров: отвесно, по наклонной плоскости и по дуге. Внизу у всех одна и та же скорость 9,9 метра в секунду">
+			<rect class="pth__floor" x="0" y={FL} width="400" height={176 - FL}></rect>
+			<line class="ink" x1="0" x2="400" y1={FL} y2={FL}></line>
+			<line class="ln-dash" x1="10" x2="390" y1={TOP} y2={TOP}></line>
+			<path class="pth__dim" d={`M14 ${TOP + 2} V${FL - 2} M10 ${TOP + 7} L14 ${TOP + 1} L18 ${TOP + 7} M10 ${FL - 7} L14 ${FL - 1} L18 ${FL - 7}`}></path>
+			<text class="t-i" x="20" y={(TOP + FL) / 2 + 4}>h</text>
+			<text class="t-small" x="20" y={(TOP + FL) / 2 + 17}>5 м</text>
+			<!-- the guides -->
+			<line class="pth__guide" x1={XV - 6} x2={XV - 6} y1={TOP - 6} y2={FL}></line>
+			<path class="pth__guide" d={`M${XI} ${TOP} L${(XI + W).toFixed(1)} ${FL}`}></path>
+			<path class="pth__guide" d={arc}></path>
+			{[0, 1, 2].map((i) => (
+				<>
+					<rect class="pth__block" data-b={i} x="-4.2" y="-8.4" width="8.4" height="8.4" rx="1" />
+					<text class="t-small t-num" data-v={i} y={FL + 17} text-anchor="middle"></text>
+					<text class="t-small t-num" data-t={i} y={FL + 31} text-anchor="middle"></text>
+				</>
+			))}
+			<text class="t-small" x="390" y="16" text-anchor="end">работа силы тяжести везде <tspan class="t-i">mgh</tspan></text>
+		</svg>
+		<button type="button" class="g7__btn g7__again" data-again>Повторить</button>
+	</div>
+	<figcaption class="g7__caption">
+		Бруски скользят без трения. Высоты и пути — в масштабе. Движение показано вдвое медленнее, счётчики показывают настоящее время.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.g7__svg .pth__floor {
+		fill: var(--g7-ground);
+	}
+	.g7__svg .pth__guide {
+		fill: none;
+		stroke: var(--g7-steel);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.g7__svg .pth__dim {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.g7__svg .pth__block {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+</style>
+
+<script>
+	import { fmt, loop } from '../g7/kit';
+
+	const g = 9.8;
+	const H = 5;
+	const K = 14;
+	const FL = 128;
+	const TOP = FL - H * K;
+	const XV = 66;
+	const XI = 116;
+	const XA = 262;
+	const R = 10;
+	const CX = XA + R * Math.sin(Math.PI / 3) * K; // the arc's center, px
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pth]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const blocks = [0, 1, 2].map((i) => q<SVGRectElement>(`[data-b="${i}"]`));
+		const vs = [0, 1, 2].map((i) => q<SVGTextElement>(`[data-v="${i}"]`));
+		const ts = [0, 1, 2].map((i) => q<SVGTextElement>(`[data-t="${i}"]`));
+		// states: path covered (м) and speed, for the three
+		let t = 0;
+		let phi = Math.PI / 3; // the arc: angle from the vertical through the arc's center (60° at the top)
+		let va = 0;
+		const done = [false, false, false];
+		const tEnd = [0, 0, 0];
+		const reset = () => {
+			t = 0;
+			phi = Math.PI / 3;
+			va = 0;
+			done.fill(false);
+			tEnd.fill(0);
+		};
+		const place = (b: SVGRectElement, x: number, y: number, ang: number) => b.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ang.toFixed(1)})`);
+		const draw = () => {
+			// vertical
+			const tv = Math.min(t, Math.sqrt((2 * H) / g));
+			const dv = (g * tv * tv) / 2;
+			place(blocks[0], XV, TOP + dv * K, 0);
+			// incline: a = g sin 30°, path 10 м
+			const ai = g / 2;
+			const ti = Math.min(t, Math.sqrt((2 * 10) / ai));
+			const di = (ai * ti * ti) / 2;
+			place(blocks[1], XI + di * Math.cos(Math.PI / 6) * K, TOP + di * Math.sin(Math.PI / 6) * K, 30);
+			// arc: center at (CX, TOP + R·cos60° … ) — the bottom point is at angle 0, straight below the center
+			const cxp = CX;
+			const cyp = FL - R * K;
+			place(blocks[2], cxp - R * Math.sin(phi) * K, cyp + R * Math.cos(phi) * K, (phi * 180) / Math.PI);
+			const v = [g * tv, ai * ti, va];
+			const tt = [tv, ti, done[2] ? tEnd[2] : t];
+			[XV, XI + 8.66 * K, XA + 8.66 * K - 10].forEach((x, i) => {
+				vs[i].setAttribute('x', x.toFixed(1));
+				ts[i].setAttribute('x', x.toFixed(1));
+				vs[i].textContent = `υ = ${fmt(v[i], 1)} м/с`;
+				ts[i].textContent = `t = ${fmt(tt[i], 2)} с`;
+			});
+		};
+		const wake = loop(root, (dt) => {
+			const d = dt / 2; // twice slower
+			t += d;
+			// the arc, in small steps: dυ/dt = g sin φ, dφ/dt = −υ/R
+			const n = 40;
+			for (let i = 0; i < n && phi > 0; i++) {
+				const h = d / n;
+				va += g * Math.sin(phi) * h;
+				phi -= (va / R) * h;
+				if (phi <= 0) {
+					phi = 0;
+					done[2] = true;
+					tEnd[2] = t;
+					// the exact speed at the floor (the steps lose a little)
+					va = Math.sqrt(2 * g * H);
+				}
+			}
+			draw();
+			if (t > 3.2) reset();
+			return true;
+		});
+		q('[data-again]').addEventListener('click', () => {
+			reset();
+			wake();
+		});
+		draw();
+	}
+</script>

@@ -1,0 +1,393 @@
+---
+/**
+ * «Американские горки»: a cart with a child (100 кг together) is let go from rest at a height h₀ (4…19 м) on a track
+ * of smooth cosine pieces through the points (0 м; 20 м), (14; 0), (26; 12), (36; 0), (54; 20). The motion is
+ * integrated along the track (arc length s, steps of 1/400 с): dυ/dt = −g·sin θ, and with «трение» also a constant
+ * force 0,03·mg against the motion (friction of the wheels and air resistance together, simplified). The step gives
+ * the position and the direction of motion; the speed itself is taken from the energy balance after every step,
+ * |υ| = √(2(E₀ − Q − mgy)/m) (Q = 0 without friction), because a plain step slowly gains energy (+5 % in a minute).
+ * So E_п + E_к (+ Q) stays equal to the energy at the start to the last digit of the readouts. Without friction the
+ * cart never rises above h₀ and goes back and forth for ever; with friction the heat Q = 0,03·mg·(path) grows and
+ * the cart settles in a hollow. Readouts at the defaults: h₀ = 10 м, E = 9,8 кДж, 14,0 м/с at the lowest points;
+ * h₀ = 13 м: 4,4 м/с on the 12 м hump.
+ *
+ * Scales: 6,6 px per metre in both directions; the cart (1,6 м long, wheels 1,1 м apart) and the child in it
+ * (people.ts, 130 см tall, waving) are drawn four times larger, so that the child can be seen. The cart stands with both
+ * wheels on the rail (its center between them; the physics uses the point s itself). Real time. The bar at the top
+ * is the energy of the cart: potential mgh (from the lowest point of the track) blue, kinetic gold, the heat red;
+ * the bar's full length is the energy at the start, mgh₀, at every setting. The kinetic part is gold in both themes
+ * (the theme's --ig-v is orange in the light theme, so the light theme gets its own darker gold).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import PeopleStyles from '../mehanicheskaya-rabota/PeopleStyles.astro';
+
+const K = 6.6;
+const OX = 14;
+const GY = 206;
+const PTS: [number, number][] = [
+	[0, 20],
+	[14, 0],
+	[26, 12],
+	[36, 0],
+	[54, 20],
+];
+const yAt = (x: number) => {
+	for (let i = 0; i < PTS.length - 1; i++) {
+		const [x0, y0] = PTS[i];
+		const [x1, y1] = PTS[i + 1];
+		if (x <= x1) return y0 + ((y1 - y0) * (1 - Math.cos((Math.PI * (x - x0)) / (x1 - x0)))) / 2;
+	}
+	return PTS[PTS.length - 1][1];
+};
+let rail = '';
+for (let i = 0; i <= 270; i++) {
+	const x = (54 * i) / 270;
+	rail += `${i ? 'L' : 'M'}${(OX + x * K).toFixed(1)} ${(GY - yAt(x) * K).toFixed(1)} `;
+}
+// the cart is drawn four times larger than the track: 1 дм of the cart = 2,64 px; its paths are written in дм
+const DM = (4 * K) / 10;
+const dm = (d: string) => d.replace(/-?\d+(\.\d+)?/g, (n) => (Number(n) * DM).toFixed(2));
+const posts = Array.from({ length: 19 }, (_, i) => 1.5 + i * 2.9).map((x) => `M${(OX + x * K).toFixed(1)} ${GY} V${(GY - yAt(x) * K + 2).toFixed(1)}`).join(' ');
+---
+
+<G7Styles />
+<PeopleStyles />
+<figure class="g7 g7--stack trk not-content" data-trk>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 400 226" role="img" aria-label="Вагончик американских горок катится по трассе; полоса вверху показывает его потенциальную и кинетическую энергию" data-svg>
+			<rect class="trk__ground" x="0" y={GY} width="400" height={226 - GY}></rect>
+			<path class="trk__post" d={posts}></path>
+			<line class="trk__level" data-level x1="0" x2="400"></line>
+			<path class="trk__rail" d={rail}></path>
+			<g data-cart>
+				<!-- the chassis on its wheels, the seat back behind the child, the child, then the side wall in front -->
+				<path class="trk__frame-bar" d={dm('M-7 -2 H7')}></path>
+				<path class="trk__seat" d={dm('M-7.6 -2.4 L-8 -10 Q-7.9 -10.8 -7.1 -10.7 L-6.2 -10.4 Q-5.6 -10.1 -5.7 -9.4 L-5.4 -3 Z')}></path>
+				<g data-kid></g>
+				<path class="trk__cart" d={dm('M-8.2 -2.2 L-8.4 -5.4 Q-8.4 -6 -7.8 -6 L1.5 -6 Q4.5 -6 6.4 -7.4 L7.8 -8.4 Q8.8 -8.8 8.8 -7.8 L8.6 -4.2 Q8.4 -2.2 6.6 -2.2 Z')}></path>
+				<path class="trk__stripe" d={dm('M-8 -4.1 H8.4')}></path>
+				{[-5.5, 5.5].map((x) => (
+					<>
+						<circle class="trk__wheel" cx={x * DM} cy={-1.1 * DM} r={1.1 * DM} />
+						<circle class="trk__hub" cx={x * DM} cy={-1.1 * DM} r={0.35 * DM} />
+					</>
+				))}
+			</g>
+			<!-- the energy bar -->
+			<text class="t-small" x="8" y="18">энергия</text>
+			<rect class="trk__frame" x="130" y="7" width="262" height="14" rx="3"></rect>
+			<rect class="trk__ep" data-bp y="7" height="14"></rect>
+			<rect class="trk__ek" data-bk y="7" height="14"></rect>
+			<rect class="trk__q" data-bq y="7" height="14"></rect>
+			<text class="t-small" x="130" y="34"><tspan class="trk__lp">■</tspan> потенциальная <tspan class="trk__lk">■</tspan> кинетическая <tspan class="trk__lq" data-qkey>■ тепло</tspan></text>
+		</svg>
+		<div class="g7__side trk__side">
+			<label class="g7__slider">
+				<span>Высота старта <i>h</i><sub>0</sub></span>
+				<output data-oh></output>
+				<input type="range" min="4" max="19" step="1" value="10" data-h aria-label="Высота старта, метры" />
+			</label>
+			<div class="g7__seg" role="group" aria-label="Трение" data-fric>
+				<button type="button" class="g7__btn" aria-pressed="true" data-f="0">Без трения</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-f="0.03">С трением</button>
+			</div>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Пуск</button>
+			<ul class="g7__read" data-read aria-live="off"></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Трасса — в масштабе (6,6&nbsp;px на метр), вагончик с ребёнком нарисован вчетверо крупнее. Масса вагончика с ребёнком 100&nbsp;кг, <i>g</i>&nbsp;=&nbsp;9,8&nbsp;м/с². Высоты отсчитаны от нижней точки трассы, синий пунктир — уровень старта. Трение колёс и сопротивление воздуха вместе заменены одной постоянной силой 0,03&nbsp;<i>mg</i>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.trk__side {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		align-items: end;
+	}
+	.trk__side .g7__read {
+		grid-column: 1 / -1;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+	.trk__side .g7__btn--go {
+		justify-self: start;
+	}
+	@container (max-width: 36rem) {
+		.trk__side .g7__read {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+	.g7__svg .trk__ground {
+		fill: var(--g7-ground);
+	}
+	.g7__svg .trk__rail {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	.g7__svg .trk__post {
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.g7__svg .trk__level {
+		stroke: var(--g7-blue);
+		stroke-width: 1;
+		stroke-dasharray: 5 4;
+	}
+	.trk {
+		--trk-gold: var(--g7-gold);
+	}
+	:root[data-theme='light'] .trk {
+		--trk-gold: hsl(46, 92%, 44%);
+	}
+	.g7__svg .trk__cart {
+		fill: var(--g7-violet);
+		stroke: var(--g7-ink);
+		stroke-width: 0.7;
+		stroke-linejoin: round;
+	}
+	.g7__svg .trk__seat {
+		fill: color-mix(in oklab, var(--g7-violet) 55%, var(--sl-color-gray-5));
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+		stroke-linejoin: round;
+	}
+	.g7__svg .trk__stripe {
+		stroke: var(--sl-color-white);
+		stroke-width: 0.9;
+		opacity: 0.7;
+	}
+	.g7__svg .trk__frame-bar {
+		fill: none;
+		stroke: var(--g7-steel-dark);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+	}
+	.g7__svg .trk__hub {
+		fill: var(--g7-ink);
+	}
+	.g7__svg .trk__wheel {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	.g7__svg .trk__frame {
+		fill: none;
+		stroke: var(--g7-line);
+	}
+	.g7__svg .trk__ep {
+		fill: var(--g7-blue);
+	}
+	.g7__svg .trk__ek {
+		fill: var(--trk-gold);
+	}
+	.g7__svg .trk__q {
+		fill: var(--g7-red);
+	}
+	.g7__svg .trk__lp {
+		fill: var(--g7-blue);
+	}
+	.g7__svg .trk__lk {
+		fill: var(--trk-gold);
+	}
+	.g7__svg .trk__lq {
+		fill: var(--g7-red);
+	}
+</style>
+
+<script>
+	import { fmt, loop, segment } from '../g7/kit';
+	import { human } from '../mehanicheskaya-rabota/people';
+
+	const g = 9.8;
+	const M = 100;
+	const K = 6.6;
+	const OX = 14;
+	const GY = 206;
+	const PTS: [number, number][] = [
+		[0, 20],
+		[14, 0],
+		[26, 12],
+		[36, 0],
+		[54, 20],
+	];
+	const yAt = (x: number) => {
+		for (let i = 0; i < PTS.length - 1; i++) {
+			const [x0, y0] = PTS[i];
+			const [x1, y1] = PTS[i + 1];
+			if (x <= x1) return y0 + ((y1 - y0) * (1 - Math.cos((Math.PI * (x - x0)) / (x1 - x0)))) / 2;
+		}
+		return PTS[PTS.length - 1][1];
+	};
+	// the track as a table: x, y and the arc length s at 2700 points
+	const N = 2700;
+	const TX: number[] = [];
+	const TY: number[] = [];
+	const TS: number[] = [];
+	for (let i = 0; i <= N; i++) {
+		const x = (54 * i) / N;
+		TX.push(x);
+		TY.push(yAt(x));
+		TS.push(i ? TS[i - 1] + Math.hypot(x - TX[i - 1], TY[i] - TY[i - 1]) : 0);
+	}
+	const SMAX = TS[N];
+	const at = (s: number) => {
+		let lo = 0;
+		let hi = N;
+		while (hi - lo > 1) {
+			const mid = (lo + hi) >> 1;
+			if (TS[mid] <= s) lo = mid;
+			else hi = mid;
+		}
+		const w = (s - TS[lo]) / (TS[hi] - TS[lo] || 1);
+		const sin = (TY[hi] - TY[lo]) / (TS[hi] - TS[lo] || 1);
+		const cos = (TX[hi] - TX[lo]) / (TS[hi] - TS[lo] || 1);
+		return { x: TX[lo] + w * (TX[hi] - TX[lo]), y: TY[lo] + w * (TY[hi] - TY[lo]), sin, cos };
+	};
+	const sOfH = (h: number) => {
+		// on the first piece the height falls from 20 to 0
+		const x = (14 / Math.PI) * Math.acos((2 * h) / 20 - 1);
+		const i = Math.min(N - 1, Math.floor((x / 54) * N));
+		return TS[i] + ((x - TX[i]) / (TX[i + 1] - TX[i])) * (TS[i + 1] - TS[i]);
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-trk]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const hIn = q<HTMLInputElement>('[data-h]');
+		const cart = q<SVGGElement>('[data-cart]');
+		const level = q<SVGLineElement>('[data-level]');
+		const bp = q<SVGRectElement>('[data-bp]');
+		const bk = q<SVGRectElement>('[data-bk]');
+		const bq = q<SVGRectElement>('[data-bq]');
+		const qkey = q<SVGTSpanElement>('[data-qkey]');
+		const read = q<HTMLUListElement>('[data-read]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		// the child: 130 см at 26,4 px per метр (the cart's scale), sitting, one hand on the side of the cart, the other up; the side wall hides the legs
+		const D = (4 * K) / 10; // px per дм of the cart
+		const P = (x: number, y: number) => ({ x: x * D, y: y * D });
+		const pose = human(q<SVGGElement>('[data-kid]'), { s: D / 10, H: 130, shirt: 'hm-green', hair: 'pony' });
+		pose({
+			hip: P(-3.6, -3.4),
+			lean: -0.12,
+			ankles: [P(2.4, -2.6), P(2, -2.6)],
+			feet: [0, 0],
+			hands: [P(0.4, -6.4), P(-2.6, -11)],
+		});
+		let fr = 0;
+		let s = 0;
+		let v = 0;
+		let heat = 0;
+		let e0 = 0; // the energy at the start, Дж
+		let running = false;
+		const reset = () => {
+			s = sOfH(Number(hIn.value));
+			v = 0;
+			heat = 0;
+			e0 = M * g * at(s).y;
+		};
+		const draw = () => {
+			const h0 = Number(hIn.value);
+			q('[data-oh]').textContent = `${h0} м`;
+			const p = at(s);
+			// both wheels on the rail, 1,1 м apart on the cart drawn four times larger: ±2,2 м of the track
+			const pb = at(Math.max(0, s - 2.2));
+			const pf = at(Math.min(SMAX, s + 2.2));
+			const ang = (Math.atan2(-(pf.y - pb.y), pf.x - pb.x) * 180) / Math.PI;
+			cart.setAttribute('transform', `translate(${(OX + ((pb.x + pf.x) / 2) * K).toFixed(1)} ${(GY - ((pb.y + pf.y) / 2) * K).toFixed(1)}) rotate(${ang.toFixed(1)})`);
+			const ly = GY - h0 * K;
+			level.setAttribute('y1', ly.toFixed(1));
+			level.setAttribute('y2', ly.toFixed(1));
+			const E0 = e0;
+			const Ep = M * g * p.y;
+			const Ek = (M * v * v) / 2;
+			const Q = heat;
+			const W = 262;
+			const wp = (W * Ep) / E0;
+			const wk = (W * Ek) / E0;
+			const wq = fr > 0 ? Math.max(0, Math.min(W - wp - wk, (W * Q) / E0)) : 0;
+			bp.setAttribute('x', '130');
+			bp.setAttribute('width', wp.toFixed(1));
+			bk.setAttribute('x', (130 + wp).toFixed(1));
+			bk.setAttribute('width', Math.max(0, wk).toFixed(1));
+			bq.setAttribute('x', (130 + wp + wk).toFixed(1));
+			bq.setAttribute('width', wq.toFixed(1));
+			qkey.style.visibility = fr > 0 ? 'visible' : 'hidden';
+			const kJ = (e: number) => `${fmt(e / 1000, 1)} кДж`;
+			const rows: [string, string, string?][] = [
+				['высота <i>h</i>', `${fmt(p.y, 1)} м`],
+				['скорость <i>υ</i>', `${fmt(Math.abs(v), 1)} м/с`],
+				['<i>E</i><sub>п</sub> = <i>mgh</i>', kJ(Ep)],
+				['<i>E</i><sub>к</sub> = <i>mυ</i>²/2', kJ(Ek)],
+				['<i>E</i><sub>п</sub> + <i>E</i><sub>к</sub>', kJ(Ep + Ek), 'is-key'],
+			];
+			if (fr > 0) rows.push(['тепло', kJ(Q), 'is-warm']);
+			read.innerHTML = rows.map(([a, b, c]) => `<li${c ? ` class="${c}"` : ''}><span>${a}</span><b>${b}</b></li>`).join('');
+			go.textContent = running ? 'Стоп' : 'Пуск';
+		};
+		const step = (dt: number) => {
+			const p = at(s);
+			const sign = Math.sign(v);
+			let a = -g * p.sin;
+			if (fr > 0) {
+				if (Math.abs(v) < 1e-3 && Math.abs(g * p.sin) <= fr * g) {
+					v = 0;
+					return false; // held by friction
+				}
+				a -= fr * g * (sign || -Math.sign(p.sin));
+			}
+			const v1 = v + a * dt;
+			// friction stops the cart, it does not push it back
+			if (fr > 0 && sign !== 0 && Math.sign(v1) !== sign && Math.abs(g * p.sin) <= fr * g) {
+				v = 0;
+				return false;
+			}
+			const ds = ((v + v1) / 2) * dt;
+			if (fr > 0) heat += fr * M * g * Math.abs(ds);
+			s = Math.min(SMAX, Math.max(0, s + ds));
+			// the speed from the energy balance: E₀ = mgy + mυ²/2 + Q (the step alone would slowly gain energy)
+			const p1 = at(s);
+			const ek = e0 - heat - M * g * p1.y;
+			const dir = Math.sign(v1) || -Math.sign(p1.sin);
+			v = ek > 0 ? dir * Math.sqrt((2 * ek) / M) : 0;
+			return true;
+		};
+		const wake = loop(root, (dt) => {
+			if (!running) return false;
+			const n = Math.max(1, Math.round(dt * 400));
+			for (let i = 0; i < n; i++) {
+				if (!step(dt / n)) {
+					running = false;
+					break;
+				}
+			}
+			// with friction the motion dies away; stop when nearly at rest at the bottom of a hollow
+			if (fr > 0 && Math.abs(v) < 0.02 && Math.abs(at(s).sin) < 0.01) running = false;
+			draw();
+			return running;
+		});
+		go.addEventListener('click', () => {
+			if (running) {
+				running = false;
+			} else {
+				if (Math.abs(v) < 1e-6) reset();
+				running = true;
+				wake();
+			}
+			draw();
+		});
+		hIn.addEventListener('input', () => {
+			running = false;
+			reset();
+			draw();
+		});
+		segment(q('[data-fric]'), (b) => {
+			fr = Number(b.dataset.f);
+			running = false;
+			reset();
+			draw();
+		});
+		reset();
+		draw();
+	}
+</script>
