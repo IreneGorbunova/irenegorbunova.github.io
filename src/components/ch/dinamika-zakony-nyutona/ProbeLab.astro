@@ -1,0 +1,257 @@
+---
+/**
+ * «Зонд в открытом космосе»: far from planets nothing acts on a probe but the thrust of its engine. Mass m 100…400 кг,
+ * thrust F 0…200 Н directed at the angle φ (0…180°, step 15°) to the x axis, initial speed υ₀ 0…3 м/с along x.
+ * The motion is computed exactly: a = F/m along the force, x = υ₀t + aₓt²/2, y = a_yt²/2. It plays for 8 с in real
+ * time, holds 1,5 с and repeats; a change of any control restarts it. Marks every second. Scale: 5 px per metre (a
+ * cell of the grid is 10 м); arrows: velocity 10 px per м/с (gold), force 0,4 px per newton (blue), acceleration
+ * 30 px per м/с² (green). The probe turns its nozzle against the force.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const stars = Array.from({ length: 60 }, (_, i) => ({ x: (i * 97.3) % 380, y: (i * 53.7 + (i % 7) * 13) % 240, r: i % 9 === 0 ? 1.1 : 0.6 }));
+---
+
+<G7Styles />
+<figure class="g7 g7--wide prb not-content" data-prb>
+	<div class="g7__grid">
+		<svg class="g7__svg prb__svg" viewBox="0 0 380 240" role="img" aria-label="Зонд в космосе под действием силы тяги двигателя: траектория, скорость, сила и ускорение" data-svg>
+			<defs>
+				{['blue', 'gold', 'green'].map((c) => <marker id={`pr-${uid}-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class={`prb__head--${c}`} d="M0,0 L10,5 L0,10 z" /></marker>)}
+			</defs>
+			<rect class="prb__space" x="0" y="0" width="380" height="240" />
+			{stars.map((s) => <circle class="prb__star" cx={s.x.toFixed(1)} cy={s.y.toFixed(1)} r={s.r} />)}
+			{Array.from({ length: 8 }, (_, i) => <line class="prb__grid" x1={25 + i * 50} x2={25 + i * 50} y1="0" y2="240" />)}
+			{Array.from({ length: 5 }, (_, i) => <line class="prb__grid" x1="0" x2="380" y1={20 + i * 50} y2={20 + i * 50} />)}
+			<text class="t-small" x="77" y="234">старт</text>
+			<path class="prb__track" data-track />
+			<g data-marks></g>
+			<g data-probe>
+				<g data-body>
+					<rect class="prb__panel" x="-4" y="-17" width="8" height="10" />
+					<rect class="prb__panel" x="-4" y="7" width="8" height="10" />
+					<rect class="prb__box" x="-7" y="-7" width="14" height="14" rx="2" />
+					<path class="prb__nozzle" d="M-7 -4 L-12 -6 L-12 6 L-7 4 Z" />
+					<path class="prb__flame" data-flame d="M-12 -4 L-24 0 L-12 4 Z" />
+				</g>
+			</g>
+			<line class="prb__arrow prb__arrow--gold" data-av marker-end={`url(#pr-${uid}-gold)`} />
+			<line class="prb__arrow prb__arrow--blue" data-af marker-end={`url(#pr-${uid}-blue)`} />
+			<line class="prb__arrow prb__arrow--green" data-aa marker-end={`url(#pr-${uid}-green)`} />
+			<text class="t-i prb__lab prb__lab--gold" data-lv>υ</text>
+			<text class="t-i prb__lab prb__lab--blue" data-lf>F</text>
+			<text class="t-i prb__lab prb__lab--green" data-la>a</text>
+			<text class="t-strong t-num prb__time" x="372" y="18" text-anchor="end" data-time></text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Масса зонда <i>m</i></span>
+				<output data-om></output>
+				<input type="range" min="100" max="400" step="100" value="200" data-m aria-label="Масса зонда, килограммы" />
+			</label>
+			<label class="g7__slider">
+				<span>Сила тяги <i>F</i></span>
+				<output data-of></output>
+				<input type="range" min="0" max="200" step="25" value="100" data-f aria-label="Сила тяги, ньютоны" />
+			</label>
+			<label class="g7__slider">
+				<span>Направление силы (угол к оси <i>x</i>)</span>
+				<output data-op></output>
+				<input type="range" min="0" max="180" step="15" value="0" data-p aria-label="Угол силы к оси x, градусы" />
+			</label>
+			<label class="g7__slider">
+				<span>Начальная скорость <i>υ</i><sub>0</sub> (вдоль оси <i>x</i>)</span>
+				<output data-ov></output>
+				<input type="range" min="0" max="3" step="1" value="0" data-v aria-label="Начальная скорость, метры в секунду" />
+			</label>
+			<ul class="g7__lines" data-lines></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Вдали от планет на зонд действует только сила тяги его двигателя. Время настоящее, опыт длится 8&nbsp;с и повторяется. Точки — положения зонда через каждую секунду. Клетка — 10&nbsp;м. Стрелки: золотая — скорость, синяя — сила, зелёная — ускорение.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.prb {
+		--prb-space: hsl(232, 40%, 10%);
+	}
+	:root[data-theme='light'] .prb {
+		--prb-space: hsl(232, 35%, 18%);
+	}
+	.prb__space {
+		fill: var(--prb-space);
+	}
+	.prb__star {
+		fill: hsl(0, 0%, 100%);
+		opacity: 0.55;
+	}
+	.prb__grid {
+		stroke: hsl(220, 30%, 60%);
+		stroke-width: 0.5;
+		opacity: 0.25;
+	}
+	.prb .prb__svg text.t-small,
+	.prb .prb__svg .prb__time {
+		fill: hsl(220, 20%, 85%);
+	}
+	.prb__track {
+		fill: none;
+		stroke: hsl(45, 80%, 70%);
+		stroke-width: 1;
+		opacity: 0.6;
+	}
+	.prb__mark {
+		fill: hsl(45, 80%, 80%);
+	}
+	.prb__box {
+		fill: hsl(40, 70%, 62%);
+		stroke: hsl(40, 40%, 30%);
+		stroke-width: 1;
+	}
+	.prb__panel {
+		fill: hsl(215, 60%, 45%);
+		stroke: hsl(215, 40%, 75%);
+		stroke-width: 0.7;
+	}
+	.prb__nozzle {
+		fill: hsl(220, 8%, 60%);
+	}
+	.prb__flame {
+		fill: hsl(25, 95%, 60%);
+		opacity: 0.9;
+	}
+	.prb__arrow {
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.prb__arrow--gold {
+		stroke: hsl(45, 95%, 62%);
+	}
+	.prb__arrow--blue {
+		stroke: hsl(205, 95%, 66%);
+	}
+	.prb__arrow--green {
+		stroke: hsl(150, 70%, 60%);
+	}
+	.prb__head--gold {
+		fill: hsl(45, 95%, 62%);
+	}
+	.prb__head--blue {
+		fill: hsl(205, 95%, 66%);
+	}
+	.prb__head--green {
+		fill: hsl(150, 70%, 60%);
+	}
+	.prb .prb__svg .prb__lab {
+		font-size: 14px;
+		paint-order: stroke fill;
+		stroke: var(--prb-space);
+		stroke-width: 3px;
+	}
+	.prb .prb__svg .prb__lab--gold {
+		fill: hsl(45, 95%, 62%);
+	}
+	.prb .prb__svg .prb__lab--blue {
+		fill: hsl(205, 95%, 66%);
+	}
+	.prb .prb__svg .prb__lab--green {
+		fill: hsl(150, 70%, 60%);
+	}
+</style>
+
+<script>
+	import { fmt, fmtTrim, k, loop, tex, el } from '../g7/kit';
+
+	const K = 5; // px per metre
+	const O = { x: 75, y: 120 }; // the start
+	const RUN = 8;
+	const HOLD = 1.5;
+	// label offsets from the arrow tips, so that the three labels do not overlap when the arrows are parallel
+	const OFF: Record<string, [number, number]> = { '[data-lv]': [2, 15], '[data-lf]': [3, -6], '[data-la]': [-10, -8] };
+	for (const root of document.querySelectorAll<HTMLElement>('[data-prb]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const sm = q<HTMLInputElement>('[data-m]');
+		const sf = q<HTMLInputElement>('[data-f]');
+		const sp = q<HTMLInputElement>('[data-p]');
+		const sv = q<HTMLInputElement>('[data-v]');
+		const marks = q<SVGGElement>('[data-marks]');
+		let t = 0;
+		const par = () => {
+			const m = Number(sm.value);
+			const F = Number(sf.value);
+			const ph = (Number(sp.value) * Math.PI) / 180;
+			const v0 = Number(sv.value);
+			const a = F / m;
+			return { m, F, ph, v0, a, ax: a * Math.cos(ph), ay: a * Math.sin(ph) };
+		};
+		const pos = (p: ReturnType<typeof par>, s: number) => ({ x: p.v0 * s + 0.5 * p.ax * s * s, y: 0.5 * p.ay * s * s });
+		const scr = (r: { x: number; y: number }) => ({ x: O.x + r.x * K, y: O.y - r.y * K });
+		const arrow = (sel: string, lab: string, x0: number, y0: number, dx: number, dy: number) => {
+			const L = Math.hypot(dx, dy);
+			const c = L > 5 ? (L - 4) / L : 0;
+			const e = q<SVGLineElement>(sel);
+			e.setAttribute('x1', x0.toFixed(1));
+			e.setAttribute('y1', y0.toFixed(1));
+			e.setAttribute('x2', (x0 + dx * c).toFixed(1));
+			e.setAttribute('y2', (y0 + dy * c).toFixed(1));
+			e.style.visibility = L > 5 ? 'visible' : 'hidden';
+			const l = q<SVGTextElement>(lab);
+			const o = OFF[lab];
+			l.setAttribute('x', (x0 + dx + o[0]).toFixed(1));
+			l.setAttribute('y', (y0 + dy + o[1]).toFixed(1));
+			l.style.visibility = e.style.visibility;
+		};
+		const draw = () => {
+			const p = par();
+			const s = Math.min(t, RUN);
+			// the track and the marks of every second
+			let d = '';
+			for (let i = 0; i <= 80; i++) {
+				const c = scr(pos(p, (s * i) / 80));
+				d += `${i ? 'L' : 'M'}${c.x.toFixed(1)} ${c.y.toFixed(1)}`;
+			}
+			q('[data-track]').setAttribute('d', d);
+			marks.replaceChildren();
+			for (let i = 0; i <= Math.floor(s + 1e-9); i++) {
+				const c = scr(pos(p, i));
+				marks.append(el('circle', { class: 'prb__mark', cx: c.x.toFixed(1), cy: c.y.toFixed(1), r: 2 }));
+			}
+			const c = scr(pos(p, s));
+			const vx = p.v0 + p.ax * s;
+			const vy = p.ay * s;
+			const deg = p.F > 0 ? (-p.ph * 180) / Math.PI : vx || vy ? (-Math.atan2(vy, vx) * 180) / Math.PI : 0;
+			q('[data-probe]').setAttribute('transform', `translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${deg.toFixed(1)})`);
+			q<SVGElement>('[data-flame]').style.visibility = p.F > 0 && t <= RUN ? 'visible' : 'hidden';
+			arrow('[data-av]', '[data-lv]', c.x, c.y, vx * 10, -vy * 10);
+			arrow('[data-af]', '[data-lf]', c.x, c.y, p.F * 0.4 * Math.cos(p.ph), -p.F * 0.4 * Math.sin(p.ph));
+			arrow('[data-aa]', '[data-la]', c.x, c.y + 0, p.ax * 30, -p.ay * 30);
+			q('[data-time]').textContent = `t = ${fmt(s, 1)} с`;
+			const v = Math.hypot(vx, vy);
+			const n2 = (x: number) => tex(fmtTrim(x, 2));
+			q('[data-lines]').innerHTML = [
+				`<li class="is-key">${k(`a = \\dfrac{F}{m} = \\dfrac{${p.F}~\\text{Н}}{${p.m}~\\text{кг}} = ${n2(p.a)}~\\text{м/с}^2`)}</li>`,
+				`<li>${k(`a_x = ${n2(p.ax)}~\\text{м/с}^2,\\ a_y = ${n2(p.ay)}~\\text{м/с}^2`)}</li>`,
+				`<li>${k(`\\upsilon = ${tex(fmt(v, 2))}~\\text{м/с}`)}</li>`,
+			].join('');
+			q('[data-om]').textContent = `${p.m} кг`;
+			q('[data-of]').textContent = `${p.F} Н`;
+			q('[data-op]').textContent = `${sp.value}°`;
+			q('[data-ov]').textContent = `${p.v0} м/с`;
+		};
+		const wake = loop(root, (dt) => {
+			t += dt;
+			if (t > RUN + HOLD) t = 0;
+			draw();
+			return true;
+		});
+		for (const s of [sm, sf, sp, sv])
+			s.addEventListener('input', () => {
+				t = 0;
+				draw();
+				wake();
+			});
+		draw();
+	}
+</script>
