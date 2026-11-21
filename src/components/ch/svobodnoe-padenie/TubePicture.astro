@@ -1,0 +1,134 @@
+---
+/**
+ * «Трубка Ньютона»: two glass tubes 1 м long (170 px per metre) with a coin and a feather in each. On the left the
+ * tube is full of air, on the right the air has been pumped out. The tubes are turned over and the bodies fall
+ * from the top.
+ * Without air both bodies fall freely, h = g t²/2: 1 м in 0,45 с, side by side. In air the coin falls almost
+ * freely (its drag is negligible over 1 м), the feather sinks at about 0,55 м/с after a short speed-up and sways:
+ * it needs about 1,9 с. The animation runs four times slower than real time.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const TOP = 34;
+const PXM = 170;
+const BOT = TOP + PXM;
+const tubes = [
+	{ x: 90, k: 'air', label: 'с воздухом' },
+	{ x: 230, k: 'vac', label: 'воздух откачан' },
+];
+---
+
+<G7Styles />
+<figure class="g7 g7--pic g7--narrow svtube not-content" data-svtube>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 250" role="img" aria-label="Две стеклянные трубки с монетой и пером. В трубке с воздухом монета падает быстро, а перо медленно. В трубке без воздуха монета и перо падают рядом">
+			{tubes.map((t) => (
+				<g>
+					<text class="t-title" x={t.x} y="18" text-anchor="middle">{t.label}</text>
+					{t.k === 'air' && <rect class="svtube__air" x={t.x - 26} y={TOP - 6} width="52" height={PXM + 14} rx="18" />}
+					<rect class="svtube__glass" x={t.x - 26} y={TOP - 6} width="52" height={PXM + 14} rx="18" />
+					<rect class="svtube__cap" x={t.x - 29} y={BOT + 6} width="58" height="9" rx="2" />
+					<rect class="svtube__cap" x={t.x - 29} y={TOP - 13} width="58" height="9" rx="2" />
+					<g data-coin={t.k}>
+						<ellipse class="svtube__coin" rx="9" ry="2.6" />
+						<ellipse class="svtube__coin-top" cy="-0.8" rx="7" ry="1.6" />
+					</g>
+					<g data-feather={t.k}>
+						<path class="svtube__vane" d="M-17 0 Q-6 -6 12 -2 Q4 4 -17 0 Z" />
+						<path class="svtube__shaft" d="M-19 0.6 Q-2 -1.2 15 -1.6" />
+					</g>
+				</g>
+			))}
+			<!-- the hose to the pump -->
+			<path class="svtube__hose" d={`M259 ${BOT + 10} q22 0 26 14 v8`}></path>
+			<text class="t-small" x="285" y="246" text-anchor="middle">к насосу</text>
+			<!-- the scale -->
+			<path class="ln" d={`M160 ${TOP} V${BOT} M155 ${TOP} h10 M155 ${BOT} h10 M157 ${TOP + PXM / 2} h6`}></path>
+			<text class="t-small" x="160" y={TOP + PXM / 2 - 6} text-anchor="middle">1&nbsp;м</text>
+			<text class="t-small t-num" x="160" y={BOT + 34} text-anchor="middle" data-t>0,00&nbsp;с</text>
+		</svg>
+		<button type="button" class="g7__btn g7__again" data-again>Повторить</button>
+	</div>
+	<figcaption class="g7__caption">Трубку переворачивают, и монета с пером падают с верхнего конца. Анимация замедлена в 4 раза; внизу — время от начала падения.</figcaption>
+</figure>
+
+<style is:global>
+	.svtube__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2;
+	}
+	.svtube__air {
+		fill: color-mix(in oklab, var(--ig-vx) 10%, transparent);
+	}
+	.svtube__cap {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.svtube__coin {
+		fill: color-mix(in oklab, var(--ig-v) 70%, var(--sl-color-gray-3));
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	.svtube__coin-top {
+		fill: color-mix(in oklab, var(--ig-v) 85%, var(--sl-color-white));
+	}
+	.svtube__vane {
+		fill: color-mix(in oklab, var(--sl-color-white) 80%, var(--ig-vx));
+		stroke: var(--g7-line);
+		stroke-width: 0.6;
+	}
+	.svtube__shaft {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 0.9;
+	}
+	.svtube__hose {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.svtube .g7__grid {
+		max-width: 24rem;
+	}
+	.svtube .g7__again {
+		justify-self: center;
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+
+	const TOP = 34;
+	const PXM = 170;
+	const G = 9.8;
+	const SLOW = 4;
+	const RUN = 2.1 * SLOW;
+	// the feather in air: speeds up to 0,55 м/с within the first 0,1 с, then sinks evenly
+	const VF = 0.55;
+	const feather = (t: number) => {
+		const t0 = VF / G;
+		return t < t0 ? (G * t * t) / 2 : (VF * t0) / 2 + VF * (t - t0);
+	};
+	for (const root of document.querySelectorAll<HTMLElement>('[data-svtube]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const time = $('[data-t]');
+		const put = (sel: string, x: number, depth: number, dy: number, rot = 0) => {
+			const y = TOP + Math.min(1, depth) * PXM - (depth >= 1 ? dy : 0);
+			$(sel).setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(1)})`);
+		};
+		scene(root as HTMLElement, RUN, (x) => {
+			const t = (x * RUN) / SLOW;
+			const free = (G * t * t) / 2;
+			put('[data-coin="vac"]', 216, free, 2.6);
+			put('[data-feather="vac"]', 238, free, 2.5);
+			put('[data-coin="air"]', 76, free, 2.6);
+			const f = feather(t);
+			const sway = f < 1 ? Math.sin(2 * Math.PI * 0.9 * t) : 0;
+			put('[data-feather="air"]', 98 + 6 * sway, f, 2.5, 14 * sway);
+			time.textContent = `${t.toFixed(2).replace('.', ',')} с`;
+		});
+	}
+</script>

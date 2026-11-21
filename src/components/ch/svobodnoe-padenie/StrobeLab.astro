@@ -1,0 +1,187 @@
+---
+/**
+ * «Снимок со вспышками»: a ball falls from rest in a tall tube from which the air has been pumped out; a flash lights
+ * it every Δt (0,1 or 0,2 с), and every lit position stays on the picture, as on a photograph with a stroboscope.
+ * Five intervals are shown. Physics: h = g t²/2 with g = 9,8 (Земля), 3,7 (Марс) or 1,62 м/с² (Луна); the mass
+ * (10 г or 1 кг) changes nothing. The paths in successive intervals are g Δt²/2 · (1, 3, 5, 7, 9).
+ * The ruler is to scale; its full length is chosen from 0,1 … 5 м to fit the whole fall (the numbers on it change).
+ * The ball is drawn larger than to scale. The animation runs two times slower than real time.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const TOP = 26;
+const LEN = 240;
+const X = 120;
+---
+
+<G7Styles />
+<figure class="g7 strobe not-content" data-strobe>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 290" role="img" aria-label="Положения падающего шара через равные промежутки времени и пути за каждый промежуток" data-svg>
+			<rect class="strobe__tube" x={X - 22} y={TOP - 12} width="44" height={LEN + 24} rx="10"></rect>
+			<g data-ruler></g>
+			<g data-ghosts></g>
+			<g data-brackets></g>
+			<g data-ball>
+				<circle class="strobe__ball" r="7" data-ballc></circle>
+				<circle class="strobe__shine" cx="-2.2" cy="-2.4" r="2" data-shine></circle>
+			</g>
+			<text class="t-small" x={X} y="284" text-anchor="middle" data-clock></text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row">
+				<span class="g7__label">Где падает</span>
+				<div class="g7__seg" data-planet>
+					<button type="button" class="g7__btn" aria-pressed="true" data-g="9.8">Земля</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-g="3.7">Марс</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-g="1.62">Луна</button>
+				</div>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Шар</span>
+				<div class="g7__seg" data-mass>
+					<button type="button" class="g7__btn" aria-pressed="true" data-m="0.01">10&nbsp;г</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-m="1">1&nbsp;кг</button>
+				</div>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Вспышки через</span>
+				<div class="g7__seg" data-step>
+					<button type="button" class="g7__btn" aria-pressed="false" data-dt="0.1">0,1&nbsp;с</button>
+					<button type="button" class="g7__btn" aria-pressed="true" data-dt="0.2">0,2&nbsp;с</button>
+				</div>
+			</div>
+			<button type="button" class="g7__btn g7__btn--go" data-go>Отпустить шар</button>
+			<ul class="g7__read" aria-live="polite" data-rows></ul>
+			<ul class="g7__read">
+				<li class="is-warm"><span>Отношение путей</span><b data-ratio>—</b></li>
+				<li><span>Скорость в конце</span><b data-v>—</b></li>
+				<li class="is-key"><span>Ускорение <i>a</i> = 2<i>h</i>/<i>t</i><sup>2</sup></span><b data-a>—</b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Воздух из трубы откачан. Вспышка освещает шар через равные промежутки времени, и на снимке остаются все его положения. Шар нарисован крупнее, чем в масштабе линейки; анимация замедлена вдвое.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.strobe__tube {
+		fill: color-mix(in oklab, var(--ig-vx) 6%, transparent);
+		stroke: var(--g7-glass);
+		stroke-width: 1.5;
+	}
+	.strobe__ball {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.strobe__shine {
+		fill: var(--sl-color-white);
+		opacity: 0.6;
+	}
+	.strobe__ghost {
+		fill: color-mix(in oklab, var(--g7-steel) 60%, transparent);
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.strobe__br {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 1.5;
+	}
+	.g7__svg .strobe__s {
+		font-size: 11px;
+		font-weight: 600;
+		fill: var(--g7-gold);
+	}
+</style>
+
+<script>
+	import { el, fmt, loop, segment } from '../g7/kit';
+
+	const TOP = 26;
+	const LEN = 240;
+	const X = 120;
+	const N = 5;
+	const SLOW = 2;
+	const SCALES = [0.1, 0.2, 0.5, 1, 2, 5];
+	const nice = (v: number) => (v >= 1 ? fmt(v, v % 1 ? 1 : 0) : fmt(v, v < 0.1 ? 3 : 2).replace(/0+$/, '').replace(/,$/, ''));
+	const sv = (v: number) => fmt(v, v < 0.1 ? 4 : 3);
+	for (const root of document.querySelectorAll<HTMLElement>('[data-strobe]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		let g = 9.8;
+		let dt = 0.2;
+		let m = 0.01;
+		let t = -1;
+		const ruler = $('[data-ruler]');
+		const ghosts = $('[data-ghosts]');
+		const brackets = $('[data-brackets]');
+		const ball = $('[data-ball]');
+		const rows = $('[data-rows]');
+		let full = 5; // м, the ruler
+		const py = (h: number) => TOP + (h / full) * LEN;
+		const build = () => {
+			const total = (g * (N * dt) ** 2) / 2;
+			full = SCALES.find((s) => s >= total * 1.02) ?? 5;
+			ruler.replaceChildren();
+			const x0 = X - 70;
+			ruler.append(el('line', { class: 'ln', x1: x0, x2: x0, y1: TOP, y2: TOP + LEN }));
+			for (let i = 0; i <= 10; i++) {
+				const y = TOP + (i / 10) * LEN;
+				ruler.append(el('line', { class: 'ln', x1: x0, x2: x0 + (i % 2 ? 5 : 9), y1: y, y2: y }));
+				if (i % 2 === 0) ruler.append(el('text', { class: 't-small t-num', x: x0 - 4, y: y + 3.5, 'text-anchor': 'end' }, `${nice((full * i) / 10)} м`));
+			}
+			const r = m > 0.5 ? 7 : 4.5;
+			$('[data-ballc]').setAttribute('r', String(r));
+			$('[data-shine]').setAttribute('r', String(r * 0.28));
+			t = -1;
+			draw();
+		};
+		const draw = () => {
+			const tt = Math.max(0, t);
+			const k = t < 0 ? 0 : Math.min(N, Math.floor(tt / dt + 1e-9));
+			const h = (g * Math.min(tt, N * dt) ** 2) / 2;
+			ball.setAttribute('transform', `translate(${X} ${py(h).toFixed(1)})`);
+			ghosts.replaceChildren();
+			brackets.replaceChildren();
+			rows.replaceChildren();
+			const r = m > 0.5 ? 7 : 4.5;
+			const s: number[] = [];
+			for (let i = 0; i <= k; i++) {
+				const hi = (g * (i * dt) ** 2) / 2;
+				ghosts.append(el('circle', { class: 'strobe__ghost', cx: X, cy: py(hi).toFixed(1), r }));
+				if (i > 0) {
+					const hp = (g * ((i - 1) * dt) ** 2) / 2;
+					s.push(hi - hp);
+					const y1 = py(hp);
+					const y2 = py(hi);
+					brackets.append(el('path', { class: 'strobe__br', d: `M${X + 26} ${y1.toFixed(1)} h5 V${y2.toFixed(1)} h-5` }));
+					if (y2 - y1 > 11) brackets.append(el('text', { class: 'strobe__s t-num', x: X + 36, y: ((y1 + y2) / 2 + 4).toFixed(1) }, `${sv(hi - hp)} м`));
+					const li = document.createElement('li');
+					li.innerHTML = `<span>Путь за ${i}-й промежуток</span><b>${sv(hi - hp)} м</b>`;
+					rows.append(li);
+				}
+			}
+			$('[data-clock]').textContent = t < 0 ? '' : `t = ${fmt(Math.min(tt, N * dt), 2)} с`;
+			const done = k === N;
+			$('[data-ratio]').textContent = s.length > 1 ? s.map((v) => fmt(v / s[0], 0)).join(' : ') : '—';
+			$('[data-v]').textContent = done ? `${fmt(g * N * dt, 2)} м/с` : '—';
+			$('[data-a]').textContent = done ? `${fmt((2 * ((g * (N * dt) ** 2) / 2)) / (N * dt) ** 2, 2)} м/с²` : '—';
+		};
+		const wake = loop(root, (d) => {
+			if (t < 0) return false;
+			t += d / SLOW;
+			draw();
+			return t < N * dt;
+		});
+		segment($('[data-planet]'), (b) => ((g = Number(b.dataset.g)), build()));
+		segment($('[data-mass]'), (b) => ((m = Number(b.dataset.m)), build()));
+		segment($('[data-step]'), (b) => ((dt = Number(b.dataset.dt)), build()));
+		$('[data-go]').addEventListener('click', () => {
+			t = 0;
+			wake();
+		});
+		build();
+	}
+</script>
