@@ -1,0 +1,225 @@
+---
+/**
+ * Lines of the field strength, traced at build time along the real field (Runge — Kutta steps of 1,5 px):
+ * 1) charges +q and −q: E ∝ q/r² summed; 16 lines leave «+», most end on «−»; at two points of one line the gold
+ *    arrows of E lie along the tangent;
+ * 2) charges +q and +q: the same tracing, the lines go off to the sides and never cross;
+ * 3) two long parallel plates seen edge-on, +σ and −σ: each plate is 31 charged threads (a field ∝ 1/r of each, since
+ *    the plates are long), 11 lines leave the inner face of «+»; between the plates they are straight, parallel and
+ *    evenly spaced — the field is uniform; at the edges they bulge outward, as real lines do.
+ * Static picture, no script. Colors: «+» red, «−» blue, lines gray, E gold.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+type P = { x: number; y: number };
+type Src = { x: number; y: number; q: number; d2?: boolean };
+const W = 200;
+const H = 150;
+
+const field = (srcs: Src[], p: P): P => {
+	let ex = 0;
+	let ey = 0;
+	for (const s of srcs) {
+		const dx = p.x - s.x;
+		const dy = p.y - s.y;
+		const r2 = dx * dx + dy * dy + 1e-6;
+		const k = s.d2 ? s.q / r2 : s.q / (r2 * Math.sqrt(r2));
+		ex += k * dx;
+		ey += k * dy;
+	}
+	return { x: ex, y: ey };
+};
+const dir = (srcs: Src[], p: P): P => {
+	const e = field(srcs, p);
+	const n = Math.hypot(e.x, e.y) || 1;
+	return { x: e.x / n, y: e.y / n };
+};
+const trace = (srcs: Src[], start: P, stop: (p: P) => boolean): P[] => {
+	const pts = [start];
+	let p = start;
+	const h = 1.5;
+	for (let i = 0; i < 700; i++) {
+		const k1 = dir(srcs, p);
+		const k2 = dir(srcs, { x: p.x + (h / 2) * k1.x, y: p.y + (h / 2) * k1.y });
+		const k3 = dir(srcs, { x: p.x + (h / 2) * k2.x, y: p.y + (h / 2) * k2.y });
+		const k4 = dir(srcs, { x: p.x + h * k3.x, y: p.y + h * k3.y });
+		p = { x: p.x + (h / 6) * (k1.x + 2 * k2.x + 2 * k3.x + k4.x), y: p.y + (h / 6) * (k1.y + 2 * k2.y + 2 * k3.y + k4.y) };
+		pts.push(p);
+		if (stop(p) || p.x < -5 || p.x > W + 5 || p.y < -5 || p.y > H + 5) break;
+	}
+	return pts;
+};
+const path = (pts: P[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+// a small arrowhead in the middle of a line, pointing along it
+const mid = (pts: P[], at = 0.5) => {
+	const i = Math.max(1, Math.min(pts.length - 2, Math.floor(pts.length * at)));
+	const a = pts[i];
+	const b = pts[i + 1];
+	const n = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+	const ux = (b.x - a.x) / n;
+	const uy = (b.y - a.y) / n;
+	const tx = a.x + ux * 3;
+	const ty = a.y + uy * 3;
+	return `M${tx.toFixed(1)} ${ty.toFixed(1)} L${(tx - ux * 6 - uy * 3).toFixed(1)} ${(ty - uy * 6 + ux * 3).toFixed(1)} L${(tx - ux * 6 + uy * 3).toFixed(1)} ${(ty - uy * 6 - ux * 3).toFixed(1)} Z`;
+};
+const len = (pts: P[]) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : 0), 0);
+
+// 1) +q and −q
+const dip: Src[] = [
+	{ x: 62, y: 72, q: 1 },
+	{ x: 138, y: 72, q: -1 },
+];
+const near = (s: Src, r: number) => (p: P) => Math.hypot(p.x - s.x, p.y - s.y) < r;
+const lines1 = Array.from({ length: 16 }, (_, k) => {
+	const a = (k * 2 * Math.PI) / 16 + Math.PI / 16;
+	return trace(dip, { x: 62 + 10 * Math.cos(a), y: 72 + 10 * Math.sin(a) }, near(dip[1], 9));
+});
+// the tangent arrows of E on the line that leaves upward (k = 12: about −79°)
+const tl = lines1[12];
+const tangents = [0.3, 0.62].map((f) => {
+	const i = Math.floor(tl.length * f);
+	const p = tl[i];
+	const e = field(dip, p);
+	const n = Math.hypot(e.x, e.y);
+	// the length here shows only the direction: 28 px
+	const ux = e.x / n;
+	const uy = e.y / n;
+	const end = { x: p.x + ux * 28, y: p.y + uy * 28 };
+	const bx = end.x - ux * 7;
+	const by = end.y - uy * 7;
+	return {
+		p,
+		line: `M${p.x.toFixed(1)} ${p.y.toFixed(1)} L${bx.toFixed(1)} ${by.toFixed(1)}`,
+		head: `M${end.x.toFixed(1)} ${end.y.toFixed(1)} L${(bx - uy * 3.5).toFixed(1)} ${(by + ux * 3.5).toFixed(1)} L${(bx + uy * 3.5).toFixed(1)} ${(by - ux * 3.5).toFixed(1)} Z`,
+		lab: { x: end.x + ux * 4 + 3, y: end.y + uy * 4 + 4 },
+	};
+});
+
+// 2) +q and +q
+const two: Src[] = [
+	{ x: 66, y: 72, q: 1 },
+	{ x: 134, y: 72, q: 1 },
+];
+const lines2 = two.flatMap((s) =>
+	Array.from({ length: 16 }, (_, k) => {
+		const a = (k * 2 * Math.PI) / 16 + Math.PI / 16;
+		return trace(two, { x: s.x + 10 * Math.cos(a), y: s.y + 10 * Math.sin(a) }, () => false);
+	}),
+);
+
+// 3) plates at x = 70 (+) and x = 130 (−), from y = 22 to y = 122
+const plates: Src[] = [];
+for (let i = 0; i <= 30; i++) {
+	const y = 22 + (100 * i) / 30;
+	plates.push({ x: 70, y, q: 1, d2: true }, { x: 130, y, q: -1, d2: true });
+}
+const lines3 = Array.from({ length: 11 }, (_, k) => {
+	const y = 22 + 10 * k;
+	return trace(plates, { x: 72.5, y }, (p) => p.x > 127.5 && p.x < 133 && p.y > 20 && p.y < 124);
+});
+
+const panels = [
+	{ lines: lines1, title: 'Разноимённые заряды' },
+	{ lines: lines2, title: 'Одноимённые заряды' },
+	{ lines: lines3, title: 'Две пластины' },
+];
+const sign = (x: number, y: number, plus: boolean) => (plus ? `M${x - 4} ${y} H${x + 4} M${x} ${y - 4} V${y + 4}` : `M${x - 4} ${y} H${x + 4}`);
+---
+
+<G7Styles />
+<figure class="g7 g7--pic lp not-content" data-lp>
+	<div class="g7__grid is-three">
+		{panels.map((pn, n) => (
+			<svg class="g7__svg" viewBox={`0 0 ${W} ${H + 22}`} role="img" aria-label={`Линии напряжённости: ${pn.title.toLowerCase()}`}>
+				<g>
+					{pn.lines.map((l) => (
+						<path class="lp__line" d={path(l)} />
+					))}
+					{pn.lines.filter((l) => len(l) > 30).map((l) => (
+						<path class="lp__tip" d={mid(l, n === 2 ? 0.5 : 0.45)} />
+					))}
+				</g>
+				{n === 0 && (
+					<>
+						{tangents.map((t) => (
+							<>
+								<path class="arrow arrow--gold" d={t.line} style="stroke-width:2.2" />
+								<path class="head--gold" d={t.head} />
+								<circle class="lp__pt" cx={t.p.x} cy={t.p.y} r="2.4" />
+								<text class="t-small t-gold t-halo" x={t.lab.x} y={t.lab.y}>E</text>
+							</>
+						))}
+						<circle class="lp__q is-plus" cx="62" cy="72" r="9" />
+						<path class="lp__sign" d={sign(62, 72, true)} />
+						<circle class="lp__q is-minus" cx="138" cy="72" r="9" />
+						<path class="lp__sign" d={sign(138, 72, false)} />
+					</>
+				)}
+				{n === 1 && (
+					<>
+						<circle class="lp__q is-plus" cx="66" cy="72" r="9" />
+						<path class="lp__sign" d={sign(66, 72, true)} />
+						<circle class="lp__q is-plus" cx="134" cy="72" r="9" />
+						<path class="lp__sign" d={sign(134, 72, true)} />
+					</>
+				)}
+				{n === 2 && (
+					<>
+						<rect class="lp__plate is-plus" x="65" y="20" width="5" height="104" rx="1.5" />
+						<rect class="lp__plate is-minus" x="130" y="20" width="5" height="104" rx="1.5" />
+						{[0, 1, 2, 3, 4].map((i) => (
+							<>
+								<path class="lp__sign lp__sign--p" d={`M58 ${32 + 20 * i} h6 M61 ${29 + 20 * i} v6`} />
+								<path class="lp__sign lp__sign--m" d={`M137 ${32 + 20 * i} h6`} />
+							</>
+						))}
+					</>
+				)}
+				<text class="t-title" x={W / 2} y={H + 16} text-anchor="middle">{pn.title}</text>
+			</svg>
+		))}
+	</div>
+	<figcaption class="g7__caption">Линии построены по настоящему полю зарядов. Касательная к линии в каждой точке направлена так же, как напряжённость <i>E</i> (золотые стрелки). Между пластинами линии параллельны и идут на равных расстояниях: поле однородно.</figcaption>
+</figure>
+
+<style is:global>
+	[data-lp] .lp__line {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.1;
+	}
+	[data-lp] .lp__tip {
+		fill: var(--sl-color-gray-2);
+	}
+	[data-lp] .lp__pt {
+		fill: var(--g7-gold);
+	}
+	[data-lp] .lp__q {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+	[data-lp] .is-plus {
+		fill: var(--g7-red);
+	}
+	[data-lp] .is-minus {
+		fill: var(--g7-blue);
+	}
+	[data-lp] .lp__sign {
+		fill: none;
+		stroke: var(--sl-color-black);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	[data-lp] .lp__sign--p {
+		stroke: var(--g7-red);
+		stroke-width: 1.6;
+	}
+	[data-lp] .lp__sign--m {
+		stroke: var(--g7-blue);
+		stroke-width: 1.6;
+	}
+	[data-lp] .lp__plate {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.8;
+	}
+</style>

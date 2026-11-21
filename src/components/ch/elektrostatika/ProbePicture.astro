@@ -1,0 +1,124 @@
+---
+/**
+ * The field of a point charge q₀ = 2 нКл, felt by a small positive probe charge. Scale: 36 px per сантиметр; the
+ * arrows of the field strength, 1,5 px per кН/Кл. E = k·q₀/r² with k = 9·10⁹ Н·м²/Кл²: at r = 2,5 см it is
+ * 28,8 кН/Кл (43 px), at 5 см 7,2 кН/Кл (11 px), at 7,5 см 3,2 кН/Кл (5 px) — the faint probes at r, 2r and 3r show
+ * the ratio 1 : 1/4 : 1/9. The bright probe moves from 2,5 см to 8 см and back in 8 s; the readout follows it.
+ * The buttons change the sign of q₀: the arrows turn toward the charge. Colors: «+» red, «−» blue, the field gold.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const SX = 28; // the source
+const Y = 64;
+const PX = 36;
+const K = 9e9;
+const ghosts = [2.5, 5, 7.5].map((r, i) => {
+	const E = (K * 2e-9) / (r / 100) ** 2 / 1000;
+	return { x: SX + r * PX, L: 1.5 * E, lab: ['r', '2r', '3r'][i], e: ['E', 'E/4', 'E/9'][i] };
+});
+---
+
+<G7Styles />
+<figure class="g7 g7--pic pp not-content" data-pp>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 130" role="img" aria-label="Точечный заряд и пробный заряд на разных расстояниях от него; стрелки напряжённости поля уменьшаются в 4 раза при удвоении расстояния" data-svg>
+			<line class="ln-dash" x1={SX} y1={Y} x2="336" y2={Y}></line>
+			{ghosts.map((g) => (
+				<g class="pp__ghost" data-ghost data-l={g.L.toFixed(1)} data-x={g.x}>
+					<path class="arrow arrow--gold" data-gl d={`M${g.x} ${Y} H${g.x + g.L - 5}`} />
+					<path class="head--gold" data-gh d={`M${g.x + g.L} ${Y} l-6 -3.5 v7 Z`} />
+					<circle class="pp__probe" cx={g.x} cy={Y} r="4" />
+					<text class="t-small" x={g.x} y={Y + 40} text-anchor="middle">{g.lab}</text>
+					<text class="t-small t-gold" x={g.x} y={Y + 26} text-anchor="middle" data-ge>{g.e}</text>
+				</g>
+			))}
+			<path class="arrow arrow--gold" data-al></path>
+			<path class="head--gold" data-ah></path>
+			<circle class="pp__probe pp__probe--live" data-probe cx="0" cy={Y} r="5"></circle>
+			<circle class="pp__src" data-src cx={SX} cy={Y} r="10"></circle>
+			<path class="pp__sign" data-sign></path>
+			<text class="t-strong t-halo" x={SX - 6} y={Y - 18} data-q0>q₀</text>
+			<text class="t-strong t-num t-halo" x="334" y="20" text-anchor="end" data-read></text>
+			<text class="t-small t-halo" x="334" y="36" text-anchor="end" data-rread></text>
+		</svg>
+		<div class="g7__row">
+			<div class="g7__seg" role="group" aria-label="Знак заряда" data-seg>
+				<button type="button" class="g7__btn" aria-pressed="true" data-s="1">Заряд q₀ = +2 нКл</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-s="-1">q₀ = −2 нКл</button>
+			</div>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Бледные пробные заряды стоят на расстояниях <i>r</i>, 2<i>r</i> и 3<i>r</i>: напряжённость там меньше в 4 и в 9 раз. Масштаб: 1&nbsp;см — 36&nbsp;px, стрелка 1,5&nbsp;px — 1&nbsp;кН/Кл.</figcaption>
+</figure>
+
+<style is:global>
+	[data-pp] .pp__ghost {
+		opacity: 0.45;
+	}
+	[data-pp] .pp__probe {
+		fill: color-mix(in oklab, var(--g7-red) 45%, var(--g7-paper));
+		stroke: var(--g7-red);
+		stroke-width: 1.2;
+	}
+	[data-pp] .pp__probe--live {
+		fill: var(--g7-red);
+	}
+	[data-pp] .pp__src {
+		fill: var(--g7-red);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+	[data-pp] .pp__src.is-minus {
+		fill: var(--g7-blue);
+	}
+	[data-pp] .pp__sign {
+		fill: none;
+		stroke: var(--sl-color-black);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { loop, segment } from '../g7/kit';
+	import { arrow, K } from './vec';
+
+	const SX = 28;
+	const Y = 64;
+	const PX = 36;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pp]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		let sgn = 1;
+		let t = 0;
+		const setSign = () => {
+			$('[data-src]').classList.toggle('is-minus', sgn < 0);
+			$('[data-sign]').setAttribute('d', sgn > 0 ? `M${SX - 5} ${Y} H${SX + 5} M${SX} ${Y - 5} V${Y + 5}` : `M${SX - 5} ${Y} H${SX + 5}`);
+			// the faint arrows turn too
+			for (const g of root.querySelectorAll<SVGGElement>('[data-ghost]')) {
+				const x = +g.dataset.x!;
+				const a = arrow(x, Y, x + sgn * +g.dataset.l!, Y, 6);
+				g.querySelector('[data-gl]')!.setAttribute('d', a.line);
+				g.querySelector('[data-gh]')!.setAttribute('d', a.head);
+			}
+		};
+		segment($('[data-seg]'), (b) => {
+			sgn = +b.dataset.s!;
+			setSign();
+		});
+		setSign();
+		loop(root, (dt) => {
+			t = (t + dt) % 8;
+			const r = 2.5 + 5.5 * (0.5 - 0.5 * Math.cos((2 * Math.PI * t) / 8)); // см
+			const x = SX + r * PX;
+			const E = (K * 2e-9) / (r / 100) ** 2; // Н/Кл
+			const L = (1.5 * E) / 1000;
+			const a = arrow(x, Y, x + sgn * L, Y, 7);
+			$('[data-al]').setAttribute('d', a.line);
+			$('[data-ah]').setAttribute('d', a.head);
+			$('[data-probe]').setAttribute('cx', x.toFixed(1));
+			$('[data-read]').textContent = `E = ${(E / 1000).toFixed(1).replace('.', ',')} кН/Кл`;
+			$('[data-rread]').textContent = `r = ${r.toFixed(1).replace('.', ',')} см`;
+			return true;
+		});
+	}
+</script>

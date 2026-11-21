@@ -94,6 +94,7 @@ export default defineConfig({
 					section('Законы сохранения', '10-klass/zakony-sohraneniya', ['impuls', 'mehanicheskaya-energiya']),
 					section('Статика', '10-klass/statika', ['ravnovesie-tel']),
 					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['osnovy-mkt', 'gazovye-zakony', 'nasyshchennyy-par', 'tverdye-tela']),
+					section('Электродинамика', '10-klass/elektrodinamika', ['elektrostatika']),
 				]),
 				grade(11, [
 					section('Электродинамика', '11-klass/elektrodinamika', ['elektromagnitnaya-indukciya']),
