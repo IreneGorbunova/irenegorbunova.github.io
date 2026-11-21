@@ -1,47 +1,83 @@
 ---
 /**
  * Two short looping opening scenes of «Механическая работа и мощность». No terms of the chapter in the pictures.
- * Push: a man pushes a wall with all his might, and nothing moves; then he pushes a crate with 200 Н and moves it
- *   3 м (40 px per metre). The counter of «сделанное» stays at zero for the wall and grows to 600 for the crate
- *   (200 Н · 3 м = 600 Дж).
- * Floors: a girl of 40 кг goes up 9 м (three floors) by the stairs in 30 с and, another time, by the lift in 6 с.
- *   The clock of the picture runs four times faster than a real one; the heights are to scale (16 px per metre).
+ *
+ * Push: two rows, one scale (0,5 px per centimeter). Above, a man (176 см) leans into a brick wall with both hands
+ *   flat on it, his back heel off the floor; he strains (a slight tremble), the wall does not move: its path is 0 м.
+ *   Below, the same man leans the same way into a crate 1 × 1 м and walks it 3 м forward with steps of 50 см
+ *   (0,6 м/с, real time); a gold strip on the floor shows the path in metres. (200 Н · 3 м = 600 Дж, in the popover.)
+ * Floors: a section of a house, 26 px per metre: storeys of 3 м, so the third floor is 6 м up. On the left, a stair
+ *   with two flights per storey (10 steps of 15 × 30 см each, landings 1,2 м); a girl (155 см, 40 кг) climbs it in
+ *   20 с, one step per foot, 2 steps per second, turning on the landings. On the right, the lift: a cabin
+ *   1,1 × 2,2 м on a cable from the winch carries the same girl up the same 6 м in 4 с. The clock of the picture runs
+ *   twice as fast as a real one; the heights and the people are to scale. Texts are 14 px (11 px on a 1280 screen).
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
+import PeopleStyles from './PeopleStyles.astro';
 
-const person = 'M0 -30 V-12 M0 -12 L-6 0 M0 -12 L6 0 M0 -26 L12 -22';
+// brick courses of a wall: rows 8 px, bricks 18 px, staggered
+const bricks = (x0: number, x1: number, y0: number, y1: number) => {
+	let d = '';
+	for (let y = y1 - 8, row = 0; y > y0; y -= 8, row++) {
+		d += `M${x0} ${y} H${x1} `;
+		for (let x = x0 + (row % 2 ? 9 : 0) + 9; x < x1; x += 18) d += `M${x} ${y} V${Math.min(y + 8, y1)} `;
+	}
+	return d;
+};
+
+// the house (see the header): K px per metre, the ground at G; flight j rises from y0 = G − 1,5·K·j
+const G = 222;
+const K = 26;
+const T = 0.3 * K; // a tread, 30 см
+const R = 0.15 * K; // a riser, 15 см
+const XL = 46; // the flights go from XL to XR, 3 м
+const XR = XL + 10 * T;
+const flights = Array.from({ length: 4 }, (_, j) => {
+	const y0 = G - 10 * R * j;
+	const right = j % 2 === 0;
+	let d = `M${right ? XL : XR} ${y0}`;
+	for (let i = 0; i < 10; i++) {
+		const x = right ? XL + T * (i + 1) : XR - T * (i + 1);
+		d += ` V${(y0 - R * (i + 1)).toFixed(1)} H${x.toFixed(1)}`;
+	}
+	d += ` V${(y0 - 10 * R + 4).toFixed(1)} L${right ? XL : XR} ${y0 + 4} Z`;
+	return { d, far: !right };
+});
+const storeys = [1, 2].map((k) => G - 3 * K * k);
+const mids = [0, 1].map((k) => G - 1.5 * K * (2 * k + 1));
+const SHAFT = 256; // the lift shaft, 1,6 м wide
+const CX = SHAFT + 21; // the cable
 ---
 
+<PeopleStyles />
 <IntroFrame data-rabintro>
 	<div class="intro__card" data-scene="push">
-		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Человек изо всех сил толкает стену, и она не движется. Потом он толкает ящик и сдвигает его на три метра">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Мужчина изо всех сил упирается руками в кирпичную стену, и она не движется. Ниже тот же мужчина толкает ящик и сдвигает его на три метра">
 			<rect class="rb-sky" x="0" y="0" width="360" height="240"></rect>
-			<rect class="rb-floor" x="0" y="200" width="360" height="40"></rect>
-			<line class="rb-sep" x1="150" y1="20" x2="150" y2="196"></line>
-			<rect class="rb-wall" x="96" y="90" width="26" height="110"></rect>
-			<g transform="translate(74 200)">
-				<circle class="rb-head" cx="0" cy="-37" r="7"></circle>
-				<path class="rb-body" d={person}></path>
-				<path class="rb-sweat" data-sweat d="M-12 -44 l-5 -6 M-14 -34 l-7 -1"></path>
-			</g>
-			<text class="rb-label" x="75" y="26" text-anchor="middle">толкает стену</text>
-			<text class="rb-num" x="75" y="46" text-anchor="middle" data-a1>0 Дж</text>
-			<g data-man>
-				<circle class="rb-head" cx="0" cy="-37" r="7"></circle>
-				<path class="rb-body" d={person}></path>
-			</g>
+			<!-- the wall row -->
+			<rect class="rb-wall" x="290" y="0" width="70" height="110"></rect>
+			<path class="rb-brick" d={bricks(290, 360, 0, 110)}></path>
+			<line class="rb-wall-edge" x1="290" y1="0" x2="290" y2="110"></line>
+			<rect class="rb-floor" x="0" y="110" width="360" height="15"></rect>
+			<g data-man1></g>
+			<text class="rb-label" x="12" y="24">толкает стену</text>
+			<text class="rb-small" x="284" y="121" text-anchor="end">путь 0&nbsp;м</text>
+			<!-- the crate row -->
+			<rect class="rb-floor" x="0" y="228" width="360" height="12"></rect>
+			<line class="rb-path" data-path x1="145" y1="231" x2="145" y2="231"></line>
+			<text class="rb-small" data-pathlab x="150" y="238.5"></text>
 			<g data-crate>
-				<rect class="rb-crate" x="0" y="-36" width="36" height="36" rx="2"></rect>
+				<rect class="rb-crate" x="0" y="-50" width="50" height="50" rx="2"></rect>
+				<path class="rb-plank" d="M0 -33 H50 M0 -17 H50 M3 -3 L47 -47"></path>
 			</g>
-			<line class="rb-path" data-path x1="196" y1="208" x2="196" y2="208"></line>
-			<text class="rb-label" x="255" y="26" text-anchor="middle">толкает ящик</text>
-			<text class="rb-num" x="255" y="46" text-anchor="middle" data-a2>0 Дж</text>
+			<g data-man2></g>
+			<text class="rb-label" x="12" y="146">толкает ящик</text>
 		</svg>
 		<div class="intro__foot">
 			<p>
-				Можно изо всех сил толкать стену и устать, а можно сдвинуть ящик. С точки зрения физики{' '}
-				<More term="работа совершена только во втором случае">
+				Можно изо всех сил толкать стену и устать, а можно толкнуть ящик — и{' '}
+				<More term="сдвинется только ящик">
 					В физике работа совершается, только когда под действием силы тело проходит какой-то путь. Стена не сдвинулась — пути нет, и работа равна нулю, сколько бы сил ни было потрачено. Ящик проехал три метра под действием силы 200&nbsp;Н: работа равна 600&nbsp;Дж. Об этом — в разделе{' '}
 					<a href="#механическая-работа">«Механическая работа»</a>.
 				</More>.
@@ -51,32 +87,45 @@ const person = 'M0 -30 V-12 M0 -12 L-6 0 M0 -12 L6 0 M0 -26 L12 -22';
 	</div>
 
 	<div class="intro__card" data-scene="floors">
-		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Девочка поднимается на девять метров по лестнице за 30 секунд, а на лифте за 6 секунд">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Девочка поднимается на третий этаж, на шесть метров, по лестнице за 20 секунд, а на лифте за 4 секунды">
 			<rect class="rb-sky" x="0" y="0" width="360" height="240"></rect>
-			<rect class="rb-floor" x="0" y="208" width="360" height="32"></rect>
-			<rect class="rb-house" x="30" y="14" width="300" height="194"></rect>
-			{[0, 1, 2].map((f) => <line class="rb-storey" x1="30" x2="330" y1={160 - f * 48} y2={160 - f * 48} />)}
-			<!-- the stairs: three flights -->
-			<path class="rb-stairs" d="M50 208 L130 160 L50 112 L130 64"></path>
-			<circle class="rb-girl" data-g1 cx="50" cy="204" r="6"></circle>
+			<rect class="rb-house" x="16" y="-2" width="302" height={G + 2}></rect>
+			<!-- floor slabs: the stairwell stays open -->
+			{storeys.map((y) => (
+				<>
+					<rect class="rb-slab" x="16" y={y} width={XL - 16} height="4" />
+					<rect class="rb-slab" x={XR + 4 * T} y={y} width={318 - XR - 4 * T} height="4" />
+				</>
+			))}
+			{mids.map((y) => <rect class="rb-slab" x={XR} y={y} width={4 * T} height="4" />)}
+			{flights.filter((fl) => fl.far).map((fl) => <path class="rb-flight rb-flight--far" d={fl.d} />)}
+			{flights.filter((fl) => !fl.far).map((fl) => <path class="rb-flight" d={fl.d} />)}
+			<!-- doors of the flats and the floor numbers -->
+			{[G, ...storeys].map((y) => <rect class="rb-door" x="176" y={y - 2.1 * K} width={0.9 * K} height={2.1 * K} rx="1" />)}
+			{[G, ...storeys].map((y, i) => <text class="rb-small" x={181 + 0.9 * K} y={y - 1.2 * K}>{i + 1}{' '}этаж</text>)}
 			<!-- the lift -->
-			<rect class="rb-shaft" x="236" y="18" width="44" height="190"></rect>
+			<rect class="rb-shaft" x={SHAFT} y="-2" width="42" height={G + 2}></rect>
+			<rect class="rb-winch" x={CX - 12} y="-3" width="24" height="10" rx="2"></rect>
+			<circle class="rb-drum" cx={CX} cy="3" r="3" data-drum></circle>
+			<line class="rb-cable" data-cable x1={CX} y1="6" x2={CX} y2="100"></line>
 			<g data-cabin>
-				<rect class="rb-cabin" x="238" y="-40" width="40" height="40" rx="2"></rect>
-				<circle class="rb-girl" cx="258" cy="-12" r="6"></circle>
+				<rect class="rb-cabin" x={CX - 0.55 * K} y={-2.2 * K} width={1.1 * K} height={2.2 * K} rx="1.5"></rect>
+				<g data-girl2></g>
+				<rect class="rb-cabin-floor" x={CX - 0.55 * K} y="-2" width={1.1 * K} height="2"></rect>
 			</g>
-			<path class="rb-axis" d="M306 208 V64 M302 208 h8 M302 64 h8"></path>
-			<text class="rb-small" x="314" y="140">9 м</text>
-			<text class="rb-label" x="50" y="229">по лестнице:</text>
-			<text class="rb-num" x="126" y="230" data-c1>0 с</text>
-			<text class="rb-label" x="216" y="229">на лифте:</text>
-			<text class="rb-num" x="272" y="230" data-c2>0 с</text>
+			<g data-girl1></g>
+			<g data-girl1l></g>
+			<path class="rb-axis" d={`M330 ${G} V${G - 6 * K} M325 ${G} h10 M325 ${G - 6 * K} h10`}></path>
+			<text class="rb-small" x="334" y={G - 3 * K + 5}>6&nbsp;м</text>
+			<rect class="rb-floor" x="0" y={G} width="360" height={240 - G}></rect>
+			<text class="rb-label" x="10" y="236">по лестнице: <tspan class="rb-num-in" data-c1>0&nbsp;с</tspan></text>
+			<text class="rb-label" x="200" y="236">на лифте: <tspan class="rb-num-in" data-c2>0&nbsp;с</tspan></text>
 		</svg>
 		<div class="intro__foot">
 			<p>
-				На четвёртый этаж можно подняться по лестнице за полминуты, а на лифте — за шесть секунд.{' '}
-				<More term="Работа одна и та же, а время разное">
-					И ноги, и мотор лифта поднимают девочку на одну и ту же высоту, то есть совершают одинаковую работу. Но мотор справляется в пять раз быстрее. Величину, которая показывает, как быстро совершается работа, называют мощностью. Об этом — в разделе{' '}
+				На третий этаж можно подняться по лестнице за 20 секунд, а на лифте — за четыре.{' '}
+				<More term="Высота одна и та же, а время разное">
+					И ноги девочки, и мотор лифта поднимают девочку на одну и ту же высоту: работа по подъёму девочки одна и та же. Но мотор справляется в пять раз быстрее. Величину, которая показывает, как быстро совершается работа, называют мощностью. Об этом — в разделе{' '}
 					<a href="#мощность">«Мощность»</a>.
 				</More>.
 			</p>
@@ -92,144 +141,286 @@ const person = 'M0 -30 V-12 M0 -12 L-6 0 M0 -12 L6 0 M0 -26 L12 -22';
 	[data-rabintro] .rb-floor {
 		fill: color-mix(in oklab, var(--ig-v) 22%, var(--sl-color-gray-5));
 	}
-	[data-rabintro] .rb-sep {
-		stroke: var(--sl-color-gray-5);
-		stroke-width: 1;
-		stroke-dasharray: 4 4;
-	}
 	[data-rabintro] .rb-wall {
-		fill: color-mix(in oklab, var(--ig-vy) 40%, var(--sl-color-gray-4));
-		stroke: var(--sl-color-gray-1);
+		fill: color-mix(in oklab, var(--ig-vy) 38%, var(--sl-color-gray-4));
+	}
+	[data-rabintro] .rb-brick {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-vy) 25%, var(--sl-color-gray-5));
 		stroke-width: 1;
 	}
-	[data-rabintro] .rb-head {
-		fill: hsl(26, 55%, 72%);
-		stroke: hsl(20, 40%, 40%);
-		stroke-width: 0.8;
-	}
-	[data-rabintro] .rb-body {
-		fill: none;
-		stroke: var(--sl-color-gray-1);
-		stroke-width: 3.5;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	[data-rabintro] .rb-sweat {
-		fill: none;
-		stroke: var(--ig-vx);
-		stroke-width: 2;
-		stroke-linecap: round;
+	[data-rabintro] .rb-wall-edge {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
 	}
 	[data-rabintro] .rb-label {
-		font-size: 11px;
+		font-size: 14px;
 		fill: var(--sl-color-gray-2);
 	}
 	[data-rabintro] .rb-num {
-		font-size: 14px;
+		font-size: 15px;
 		font-weight: 700;
 		fill: var(--sl-color-white);
 	}
+	[data-rabintro] .rb-num-in {
+		font-size: 15px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+	[data-rabintro] .rb-small {
+		font-size: 13px;
+		fill: var(--sl-color-gray-2);
+	}
 	[data-rabintro] .rb-crate {
-		fill: color-mix(in oklab, var(--ig-v) 55%, var(--sl-color-gray-4));
-		stroke: hsl(28, 50%, 26%);
+		fill: color-mix(in oklab, var(--ig-v) 46%, var(--sl-color-gray-4));
+		stroke: color-mix(in oklab, var(--ig-v) 34%, var(--sl-color-gray-6));
 		stroke-width: 1.5;
+	}
+	[data-rabintro] .rb-plank {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-v) 34%, var(--sl-color-gray-6));
+		stroke-width: 1.2;
 	}
 	[data-rabintro] .rb-path {
 		stroke: var(--ig-v);
-		stroke-width: 4;
+		stroke-width: 3;
 		stroke-linecap: round;
 	}
 	[data-rabintro] .rb-house {
 		fill: var(--sl-color-gray-6);
 		stroke: var(--sl-color-gray-4);
-		stroke-width: 1.5;
+		stroke-width: 1.2;
 	}
-	[data-rabintro] .rb-storey {
-		stroke: var(--sl-color-gray-5);
-		stroke-width: 1;
+	[data-rabintro] .rb-roof,
+	[data-rabintro] .rb-slab {
+		fill: var(--sl-color-gray-4);
 	}
-	[data-rabintro] .rb-stairs {
-		fill: none;
-		stroke: var(--sl-color-gray-2);
-		stroke-width: 3;
+	[data-rabintro] .rb-flight {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.6;
 		stroke-linejoin: round;
 	}
-	[data-rabintro] .rb-girl {
-		fill: var(--ig-vy);
-		stroke: var(--sl-color-gray-1);
-		stroke-width: 1;
+	[data-rabintro] .rb-flight--far {
+		fill: color-mix(in oklab, var(--sl-color-gray-3) 55%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-3);
+	}
+	[data-rabintro] .rb-door {
+		fill: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.8;
 	}
 	[data-rabintro] .rb-shaft {
 		fill: var(--sl-color-bg);
 		stroke: var(--sl-color-gray-3);
 		stroke-width: 1;
 	}
-	[data-rabintro] .rb-cabin {
-		fill: color-mix(in oklab, var(--ig-vx) 30%, var(--sl-color-gray-5));
+	[data-rabintro] .rb-winch {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	[data-rabintro] .rb-drum {
+		fill: var(--sl-color-gray-3);
 		stroke: var(--sl-color-gray-1);
-		stroke-width: 1.2;
+		stroke-width: 0.8;
+		stroke-dasharray: 3 2;
+	}
+	[data-rabintro] .rb-cable {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	[data-rabintro] .rb-cabin {
+		fill: color-mix(in oklab, var(--ig-vx) 22%, var(--sl-color-gray-6));
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.1;
+	}
+	[data-rabintro] .rb-cabin-floor {
+		fill: var(--sl-color-gray-1);
 	}
 	[data-rabintro] .rb-axis {
 		fill: none;
 		stroke: var(--sl-color-gray-3);
 		stroke-width: 1;
 	}
-	[data-rabintro] .rb-small {
-		font-size: 10px;
-		fill: var(--sl-color-gray-2);
-	}
 </style>
 
 <script>
 	import { scene } from '@components/intro/scene';
+	import { gait, human, type HumanPose } from './people';
 
 	const ease = (u: number) => {
 		const t = Math.min(1, Math.max(0, u));
 		return t * t * (3 - 2 * t);
 	};
+	const fmt1 = (v: number) => v.toFixed(1).replace('.', ',');
+	// the height of the ankle above the floor for a trainer turned toe down by `a` (people.ts: heel −7,5, toe 20, sole 7 см)
+	const ankleUp = (a: number) => Math.max(20 * Math.sin(a) + 7 * Math.cos(a), -7.5 * Math.sin(a) + 7 * Math.cos(a));
+
 	for (const root of document.querySelectorAll<HTMLElement>('[data-rabintro]')) {
 		{
 			const card = root.querySelector<HTMLElement>('[data-scene="push"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
-			const man = $<SVGGElement>('[data-man]');
-			const crate = $<SVGGElement>('[data-crate]');
+			const S = 0.5; // px per см
+			const H = 176;
+			const u = S * H;
+			const man1 = human($<SVGGElement>('[data-man1]'), { s: S, H, shirt: 'hm-blue', hair: 'short' });
+			const man2 = human($<SVGGElement>('[data-man2]'), { s: S, H, shirt: 'hm-blue', hair: 'short' });
+			// a pusher: hip low and 0,47 H behind the face he presses, body leaning 0,8 rad, both hands flat on the face
+			const push = (face: number, floor: number, handY: number, feet: { x: number; up: number }[], shake: number): HumanPose => {
+				const hip = { x: face - 0.47 * u + shake, y: floor - 0.445 * u };
+				const ank = feet.map((ft) => {
+					// the farther a foot is behind the hip, the more its heel lifts
+					const a = Math.min(0.55, Math.max(0, ((hip.x - ft.x) / (0.3 * u)) * 0.55));
+					return { p: { x: ft.x, y: floor - ankleUp(a) * S - ft.up }, a };
+				});
+				return {
+					hip,
+					lean: 0.8,
+					ankles: [ank[0].p, ank[1].p],
+					feet: [ank[0].a, ank[1].a],
+					hands: [
+						{ x: face - 0.9, y: handY },
+						{ x: face - 0.9, y: handY + 2 },
+					],
+					palms: [-Math.PI / 2, -Math.PI / 2],
+					head: -0.3,
+				};
+			};
 			const path = $<SVGLineElement>('[data-path]');
-			const a2 = $<SVGTextElement>('[data-a2]');
-			const sweat = $<SVGPathElement>('[data-sweat]');
+			const lab = $<SVGTextElement>('[data-pathlab]');
+			const crate = $<SVGGElement>('[data-crate]');
+			const STEP = 25; // px, a step of 50 см
+			const wallFeet = [
+				{ x: 290 - 0.77 * u, up: 0 },
+				{ x: 290 - 0.45 * u, up: 0 },
+			];
 			scene(card, 6, (x) => {
-				// the crate is pushed 3 м (120 px) evenly between 15 % and 85 % of the run
-				const u = Math.min(1, Math.max(0, (x - 0.15) / 0.7));
-				const dx = 120 * u;
-				man.setAttribute('transform', `translate(${(180 + dx).toFixed(1)} 200)`);
-				crate.setAttribute('transform', `translate(${(196 + dx).toFixed(1)} 200)`);
-				path.setAttribute('x2', (196 + dx).toFixed(1));
-				a2.textContent = `${Math.round(600 * u)} Дж`;
-				sweat.style.opacity = String(0.4 + 0.6 * Math.abs(Math.sin(x * 20)));
+				// above: the wall; the man strains (a tremble of half a pixel), nothing moves
+				const tr = x > 0 && x < 1 ? 0.5 * Math.sin(x * 6 * 2 * Math.PI * 9) : 0;
+				man1(push(290, 110, 110 - 0.62 * u, wallFeet, tr));
+				// below: the crate goes 3 м (150 px) between 10 % and 93 % of the run, evenly
+				const v = Math.min(1, Math.max(0, (x - 0.1) / 0.83));
+				const dx = 150 * v;
+				const face = 120 + dx;
+				crate.setAttribute('transform', `translate(${face.toFixed(1)} 228)`);
+				const ft = gait(dx, STEP, 120 - 0.77 * u + STEP, 2.5);
+				man2(push(face, 228, 228 - 0.62 * u, ft, 0));
+				path.setAttribute('x2', (145 + dx).toFixed(1));
+				lab.setAttribute('x', (150 + dx).toFixed(1));
+				lab.textContent = v > 0.02 ? `${fmt1(3 * v)} м` : '';
 			});
 		}
 		{
 			const card = root.querySelector<HTMLElement>('[data-scene="floors"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
-			const g1 = $<SVGCircleElement>('[data-g1]');
+			const G = 222;
+			const K = 26; // px per metre
+			const S = K / 100; // px per см
+			const H = 155;
+			const u = S * H;
+			const T = 0.3 * K; // a tread
+			const R = 0.15 * K; // a riser
+			const XL = 46;
+			const XR = XL + 10 * T;
+			const CX = 277;
+			const A = 7 * S * (155 / 172); // ankle above the tread, px
+			const gR = $<SVGGElement>('[data-girl1]');
+			const gL = $<SVGGElement>('[data-girl1l]');
+			const girlR = human(gR, { s: S, H, shirt: 'hm-red', hair: 'pony' });
+			const girlL = human(gL, { s: S, H, shirt: 'hm-red', hair: 'pony', dir: -1 });
+			const girl2 = human($<SVGGElement>('[data-girl2]'), { s: S, H, shirt: 'hm-red', hair: 'pony' });
 			const cabin = $<SVGGElement>('[data-cabin]');
-			const c1 = $<SVGTextElement>('[data-c1]');
-			const c2 = $<SVGTextElement>('[data-c2]');
-			const RUN = 7.5;
-			scene(card, RUN, (x) => {
-				const t = x * RUN * 4; // seconds of the story: 30 с in all
-				// the stairs: three flights of 3 м each, 10 с per flight
-				const s = Math.min(3, t / 10);
-				const f = Math.min(2, Math.floor(s));
-				const u = s - f;
-				const left = f % 2 === 0;
-				g1.setAttribute('cx', (left ? 50 + 80 * u : 130 - 80 * u).toFixed(1));
-				g1.setAttribute('cy', (204 - 48 * (f + u)).toFixed(1));
-				c1.textContent = `${Math.round(Math.min(30, t))} с`;
-				// the lift: 9 м in 6 с
-				const v = Math.min(1, t / 6);
-				cabin.setAttribute('transform', `translate(0 ${(208 - 144 * ease(v)).toFixed(1)})`);
-				c2.textContent = `${Math.min(6, t).toFixed(t < 6 ? 1 : 0).replace('.', ',')} с`;
+			const cable = $<SVGLineElement>('[data-cable]');
+			const drum = $<SVGCircleElement>('[data-drum]');
+			const c1 = $('[data-c1]');
+			const c2 = $('[data-c2]');
+
+			// The route along the stair in px of horizontal walking, 28 treads per storey: half a landing (2 treads), a
+			// flight (10), the mid landing there and back (2 + 2), a flight (10), half a landing (2). Returns the x, the
+			// tread under it (ys), the smooth slope line (yl) and the direction of walking.
+			const PER = 28 * T;
+			const END = 2 * PER;
+			const where = (c0: number) => {
+				const c = Math.min(END, Math.max(0, c0));
+				const k = Math.min(1, Math.floor(c / PER));
+				let l = c - k * PER;
+				const y0 = G - 20 * R * k;
+				if (l < 2 * T) return { x: XL - 2 * T + l, ys: y0, yl: y0, dir: 1 };
+				l -= 2 * T;
+				if (l < 10 * T) return { x: XL + l, ys: y0 - R * (Math.floor(l / T) + 1), yl: y0 - R * (l / T), dir: 1 };
+				l -= 10 * T;
+				if (l < 2 * T) return { x: XR + l, ys: y0 - 10 * R, yl: y0 - 10 * R, dir: 1 };
+				l -= 2 * T;
+				if (l < 2 * T) return { x: XR + 2 * T - l, ys: y0 - 10 * R, yl: y0 - 10 * R, dir: -1 };
+				l -= 2 * T;
+				if (l < 10 * T) return { x: XR - l, ys: y0 - 10 * R - R * (Math.floor(l / T) + 1), yl: y0 - 10 * R - R * (l / T), dir: -1 };
+				l -= 10 * T;
+				return { x: XL - l, ys: y0 - 20 * R, yl: y0 - 20 * R, dir: -1 };
+			};
+			const stand = (x0: number, floor: number): HumanPose => ({
+				hip: { x: x0, y: floor - 0.505 * u },
+				lean: 0,
+				ankles: [
+					{ x: x0 + 0.015 * u, y: floor - A },
+					{ x: x0 - 0.03 * u, y: floor - A },
+				],
+				feet: [0, 0],
+				hands: [
+					{ x: x0 + 0.03 * u, y: floor - 0.42 * u },
+					{ x: x0 - 0.01 * u, y: floor - 0.42 * u },
+				],
 			});
+			const RUN = 10;
+			scene(card, RUN, (x) => {
+				const t = x * 20; // seconds of the story
+				// the stairs: 2 storeys, 10 с each, the route walked evenly
+				const c = (Math.min(20, t) / 20) * END;
+				const body = where(c);
+				let pose: HumanPose;
+				let right = true;
+				if (c <= 0 || c >= END) {
+					pose = stand(XL - 2 * T, body.ys);
+				} else {
+					right = body.dir > 0;
+					// the feet: each stands on a tread, then steps two treads on
+					const feet = gait(c, T, 0.5 * T, 2.4).map((f) => {
+						if (f.swing <= 0) {
+							const w = where(f.from);
+							return { x: w.x, y: w.ys - A };
+						}
+						const a = where(f.from);
+						const b = where(f.to);
+						const w = where(f.x);
+						return { x: w.x, y: a.ys + (b.ys - a.ys) * f.e - f.up - A };
+					});
+					const low = Math.max(feet[0].y, feet[1].y);
+					const hipY = Math.max(body.yl - 0.52 * u, low - 0.465 * u);
+					const sw = Math.sin((c / T) * (Math.PI / 2));
+					pose = {
+						hip: { x: body.x, y: hipY },
+						lean: 0.14,
+						ankles: [feet[0], feet[1]],
+						feet: [0, 0],
+						hands: [
+							{ x: body.x + body.dir * 0.07 * u * sw, y: hipY + 0.09 * u },
+							{ x: body.x - body.dir * 0.07 * u * sw, y: hipY + 0.09 * u },
+						],
+					};
+				}
+				gR.style.display = right ? '' : 'none';
+				gL.style.display = right ? 'none' : '';
+				(right ? girlR : girlL)(pose);
+				c1.textContent = `${Math.round(Math.min(20, t))} с`;
+				// the lift: 6 м in 4 с, starting and stopping smoothly
+				const v = ease(t / 4);
+				const yc = G - 6 * K * v;
+				cabin.setAttribute('transform', `translate(0 ${yc.toFixed(1)})`);
+				cable.setAttribute('y2', (yc - 2.2 * K).toFixed(1));
+				drum.setAttribute('transform', `rotate(${(-v * 700).toFixed(0)} ${CX} 3)`);
+				c2.textContent = `${fmt1(Math.min(4, t))} с`;
+			});
+			girl2(stand(CX, -2));
 		}
 	}
 </script>
