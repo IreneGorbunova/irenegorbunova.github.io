@@ -1,0 +1,278 @@
+---
+/**
+ * «Кто как едет»: a straight four-lane road, axis Ox to the right; a bus (12 м) and a car (4,5 м) with the projections
+ * of their velocities on Ox relative to the road: bus υ_x −20…20 м/с (start 15), car υ_x −30…30 м/с (start 25), step 1.
+ * A vehicle with υ_x < 0 drives to the left in the upper lanes; the bus keeps to the outer lane, the car to the inner
+ * one. Three frames: «Дорога», «Автобус», «Автомобиль». The camera rides with the chosen body: it stands in the middle
+ * of the picture and everything else moves with its velocity relative to it, υ_x(body) − υ_x(frame). The road is a loop
+ * 72 м long (vehicles, trees every 12 м and lane dashes every 6 м wrap around), 5 px per м, real time.
+ * Arrows (1,6 px per м/с) show the velocities in the chosen frame: the car relative to the road — red (υ, the result),
+ * the bus relative to the road — green (υ₂, the moving frame), the car relative to the bus — blue (υ₁); other
+ * relative velocities are gray. The readouts give υ_x of the tree, the bus and the car in the chosen frame and the
+ * calculation by the formula υ₁ₓ = υₓ − υ₂ₓ for the car relative to the bus (negative numbers in brackets).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const trees = [0, 1, 2, 3, 4, 5];
+const Y = { top: 70, busL: 92, carL: 108, carR: 128, busR: 144, bottom: 162 };
+---
+
+<G7Styles />
+<figure class="g7 g7--stack rdl not-content" data-rdl>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 200" role="img" aria-label="Прямая дорога: по ней едут автобус и легковой автомобиль, вдоль дороги растут деревья. Камера едет вместе с выбранным телом" data-svg>
+			<defs>
+				{['red', 'green', 'blue', 'gray'].map((c) => (
+					<marker id={`rdl-${c}`} class={`rdl__head rdl__head--${c}`} viewBox="0 0 10 10" refX="1" refY="5" markerWidth="3" markerHeight="3" orient="auto-start-reverse">
+						<path d="M0,0 L10,5 L0,10 z"></path>
+					</marker>
+				))}
+			</defs>
+			<rect class="rdl__grass" x="0" y="0" width="360" height="200"></rect>
+			<g data-trees>{trees.map(() => <g class="rdl__tree"><rect x="-1.6" y="-14" width="3.2" height="14"></rect><circle cy="-19" r="9"></circle></g>)}</g>
+			<rect class="rdl__road" x="0" y={Y.top} width="360" height={Y.bottom - Y.top}></rect>
+			<path class="rdl__edge" d={`M0 ${Y.top + 2} H360 M0 ${Y.bottom - 2} H360 M0 ${(Y.carL + Y.carR) / 2 - 1.2} H360 M0 ${(Y.carL + Y.carR) / 2 + 1.2} H360`}></path>
+			<path class="rdl__dash" data-dash></path>
+			<g data-veh="bus">
+				{[0, 1].map(() => (
+					<g class="rdl__copy">
+						<rect class="rdl__bus" x="-30" y="-7" width="60" height="14" rx="3"></rect>
+						<path class="rdl__win" d="M-24 -5 h44 v3 h-44 Z M-24 2 h44 v3 h-44 Z"></path>
+						<path class="rdl__glass" d="M24 -6 h4 v12 h-4 Z"></path>
+					</g>
+				))}
+			</g>
+			<g data-veh="car">
+				{[0, 1].map(() => (
+					<g class="rdl__copy">
+						<rect class="rdl__car" x="-11.25" y="-4.5" width="22.5" height="9" rx="2.5"></rect>
+						<path class="rdl__glass" d="M3 -3.5 h4 v7 h-4 Z M-8 -3 h3 v6 h-3 Z"></path>
+					</g>
+				))}
+			</g>
+			<line class="rdl__arrow" data-arrow="bus"></line>
+			<line class="rdl__arrow" data-arrow="car"></line>
+			<line class="rdl__arrow" data-arrow="tree"></line>
+			<path class="rdl__axis" d="M14 186 H346"></path>
+			<path class="rdl__axis-head" d="M346 182 L354 186 L346 190 Z"></path>
+			<text class="t-i rdl__axis-t" x="340" y="180">x</text>
+			<text class="t-small rdl__frame-t" x="8" y="14" data-frame-t></text>
+		</svg>
+		<div class="g7__side">
+			<p class="g7__label">Камера едет вместе с телом отсчёта</p>
+			<div class="g7__seg" role="group" aria-label="Тело отсчёта" data-frame>
+				<button type="button" class="g7__btn" aria-pressed="true" data-f="road">Дорога</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-f="bus">Автобус</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-f="car">Автомобиль</button>
+			</div>
+			<label class="g7__slider">
+				<span>Автобус относительно дороги, <i>υ</i><sub>2<i>x</i></sub></span>
+				<output data-obus></output>
+				<input type="range" min="-20" max="20" step="1" value="15" data-bus aria-label="Проекция скорости автобуса относительно дороги, метры в секунду" />
+			</label>
+			<label class="g7__slider">
+				<span>Автомобиль относительно дороги, <i>υ</i><sub><i>x</i></sub></span>
+				<output data-ocar></output>
+				<input type="range" min="-30" max="30" step="1" value="25" data-car aria-label="Проекция скорости автомобиля относительно дороги, метры в секунду" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span data-hdr>Скорость относительно дороги:</span></li>
+				<li><span>дерево</span><b data-rtree></b></li>
+				<li><span>автобус</span><b data-rbus></b></li>
+				<li><span>автомобиль</span><b data-rcar></b></li>
+			</ul>
+			<ol class="g7__lines" data-calc aria-live="polite"></ol>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Камера едет вместе с выбранным телом, поэтому оно стоит на месте, а остальные тела движутся относительно него. Числа — проекции скоростей на ось <i>x</i>.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.rdl__grass {
+		fill: color-mix(in oklab, var(--g7-green) 22%, var(--sl-color-bg));
+	}
+	.rdl__tree rect {
+		fill: var(--g7-wood-dark);
+	}
+	.rdl__tree circle {
+		fill: color-mix(in oklab, var(--g7-green) 60%, var(--sl-color-gray-5));
+		stroke: var(--g7-ink);
+		stroke-width: 0.5;
+	}
+	.rdl__road {
+		fill: color-mix(in oklab, var(--g7-line) 40%, var(--sl-color-gray-6, var(--sl-color-bg)));
+	}
+	.rdl__edge,
+	.rdl__dash {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.rdl__bus {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 0.7;
+	}
+	.rdl__car {
+		fill: var(--g7-violet);
+		stroke: var(--g7-ink);
+		stroke-width: 0.7;
+	}
+	.rdl__win,
+	.rdl__glass {
+		fill: color-mix(in oklab, var(--ig-vx) 40%, var(--sl-color-gray-5));
+	}
+	.rdl__arrow {
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	.rdl__arrow.is-red {
+		stroke: var(--g7-red);
+	}
+	.rdl__arrow.is-green {
+		stroke: var(--g7-green);
+	}
+	.rdl__arrow.is-blue {
+		stroke: var(--g7-blue);
+	}
+	.rdl__arrow.is-gray {
+		stroke: var(--g7-line);
+	}
+	.rdl__head--red path {
+		fill: var(--g7-red);
+	}
+	.rdl__head--green path {
+		fill: var(--g7-green);
+	}
+	.rdl__head--blue path {
+		fill: var(--g7-blue);
+	}
+	.rdl__head--gray path {
+		fill: var(--g7-line);
+	}
+	.rdl__axis {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.rdl__axis-head,
+	.rdl__axis-t,
+	.rdl__frame-t {
+		fill: var(--g7-ink);
+	}
+</style>
+
+<script>
+	import { fmtTrim, k, loop, segment } from '../g7/kit';
+
+	const PX = 5; // px per м
+	const L = 72; // м, the loop
+	const KV = 1.6; // px per м/с
+	const Y = { busL: 92, carL: 108, carR: 128, busR: 144 };
+	const TREE_Y = 66;
+	const ms = (v: number) => `${fmtTrim(v, 0)}\u00a0м/с`;
+	const br = (v: number) => (v < 0 ? `(${fmtTrim(v, 0)}\\ \\text{м/с})` : `${fmtTrim(v, 0)}\\ \\text{м/с}`);
+	const tx = (s: string) => s.replace(/−/g, '-');
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rdl]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const busIn = $<HTMLInputElement>('[data-bus]');
+		const carIn = $<HTMLInputElement>('[data-car]');
+		const trees = [...root.querySelectorAll<SVGGElement>('[data-trees] > g')];
+		const bus = [...root.querySelectorAll<SVGGElement>('[data-veh="bus"] > g')];
+		const car = [...root.querySelectorAll<SVGGElement>('[data-veh="car"] > g')];
+		const dash = $<SVGPathElement>('[data-dash]');
+		const arrows = { bus: $<SVGLineElement>('[data-arrow="bus"]'), car: $<SVGLineElement>('[data-arrow="car"]'), tree: $<SVGLineElement>('[data-arrow="tree"]') };
+		let frame: 'road' | 'bus' | 'car' = 'road';
+		// positions relative to the road, м
+		let xb = 10;
+		let xc = -20;
+		let t = 0;
+		const wrap = (x: number) => ((((x + L / 2) % L) + L) % L) - L / 2; // into −L/2 … L/2
+
+		const read = () => {
+			const vb = +busIn.value;
+			const vc = +carIn.value;
+			const vf = frame === 'road' ? 0 : frame === 'bus' ? vb : vc;
+			$('[data-obus]').textContent = ms(vb);
+			$('[data-ocar]').textContent = ms(vc);
+			$('[data-hdr]').textContent = `Проекции скоростей относительно ${frame === 'road' ? 'дороги' : frame === 'bus' ? 'автобуса' : 'автомобиля'}:`;
+			$('[data-rtree]').textContent = ms(0 - vf);
+			$('[data-rbus]').textContent = ms(vb - vf);
+			$('[data-rcar]').textContent = ms(vc - vf);
+			$('[data-frame-t]').textContent = `Тело отсчёта: ${frame === 'road' ? 'дорога' : frame === 'bus' ? 'автобус' : 'автомобиль'}`;
+			const v1 = vc - vb;
+			$('[data-calc]').innerHTML =
+				`<li class="is-text">Автомобиль относительно автобуса:</li>` +
+				`<li>${k('\\upsilon_{1x} = \\upsilon_x - \\upsilon_{2x}')}</li>` +
+				`<li class="is-key">${k(tx(`\\upsilon_{1x} = ${br(vc)} - ${br(vb)} = ${fmtTrim(v1, 0)}\\ \\text{м/с}`))}</li>`;
+		};
+
+		const draw = () => {
+			const vb = +busIn.value;
+			const vc = +carIn.value;
+			const xf = frame === 'road' ? 0 : frame === 'bus' ? xb : xc;
+			const vf = frame === 'road' ? 0 : frame === 'bus' ? vb : vc;
+			const cx = 180;
+			const sx = (x: number) => cx + wrap(x - xf) * PX;
+			// trees every 12 м on the upper roadside, dashes every 6 м (3 м stroke) between the lanes of one direction
+			trees.forEach((g, i) => g.setAttribute('transform', `translate(${sx(i * 12).toFixed(1)} ${TREE_Y})`));
+			let d = '';
+			for (let i = 0; i < L / 6; i++) {
+				const x = sx(i * 6);
+				d += `M${x.toFixed(1)} 100 h15 M${x.toFixed(1)} 136 h15 `;
+			}
+			dash.setAttribute('d', d);
+			// vehicles, two copies each for the wrap
+			const place = (copies: SVGGElement[], x: number, v: number, lanes: [number, number]) => {
+				const s = sx(x);
+				const y = v < 0 ? lanes[0] : lanes[1];
+				const flip = v < 0 ? ' scale(-1 1)' : '';
+				copies[0].setAttribute('transform', `translate(${s.toFixed(1)} ${y})${flip}`);
+				copies[1].setAttribute('transform', `translate(${(s + (s < cx ? L * PX : -L * PX)).toFixed(1)} ${y})${flip}`);
+				return { s, y };
+			};
+			const pb = place(bus, xb, vb, [Y.busL, Y.busR]);
+			const pc = place(car, xc, vc, [Y.carL, Y.carR]);
+			// velocity arrows in the chosen frame
+			const arrow = (el: SVGLineElement, x: number, y: number, v: number, color: string) => {
+				if (Math.abs(v) < 0.5) {
+					el.setAttribute('visibility', 'hidden');
+					return;
+				}
+				el.setAttribute('visibility', 'visible');
+				el.setAttribute('x1', x.toFixed(1));
+				el.setAttribute('x2', (x + v * KV - Math.sign(v) * 3).toFixed(1));
+				el.setAttribute('y1', String(y));
+				el.setAttribute('y2', String(y));
+				el.setAttribute('class', `rdl__arrow is-${color}`);
+				el.setAttribute('marker-end', `url(#rdl-${color})`);
+			};
+			const carColor = frame === 'road' ? 'red' : frame === 'bus' ? 'blue' : 'gray';
+			const busColor = frame === 'road' ? 'green' : 'gray';
+			arrow(arrows.car, pc.s, pc.y < 118 ? Y.carL - 9 : Y.carR + 9, vc - vf, carColor);
+			arrow(arrows.bus, pb.s, pb.y < 118 ? Y.busL - 12 : Y.busR + 12, vb - vf, busColor);
+			// the tree arrow on the tree nearest to the middle, so that it is never cut by the edges
+			let tx0 = sx(0);
+			for (let i = 1; i < 6; i++) if (Math.abs(sx(i * 12) - cx) < Math.abs(tx0 - cx)) tx0 = sx(i * 12);
+			arrow(arrows.tree, tx0, TREE_Y - 34, -vf, 'gray');
+		};
+
+		loop(root, (dt) => {
+			t += dt;
+			xb = wrap(xb + +busIn.value * dt);
+			xc = wrap(xc + +carIn.value * dt);
+			draw();
+			return true;
+		});
+		segment($('[data-frame]'), (b) => {
+			frame = b.dataset.f as typeof frame;
+			read();
+			draw();
+		});
+		for (const i of [busIn, carIn]) i.addEventListener('input', read);
+		read();
+		draw();
+	}
+</script>
