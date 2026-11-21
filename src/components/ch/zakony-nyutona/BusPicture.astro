@@ -5,7 +5,11 @@
  * rolls almost without friction, so relative to the road it keeps 8 m/s; relative to the bus it moves forward with
  * 2,5 m/s²: 1,25 t² = 3,2 m in 1,6 s, reaching 4 m/s. Scale 55 px per metre, real time; the posts outside are 3 m
  * apart and slide back at the bus's speed. Ghosts show the toy car every 0,2 s of the braking (relative to the bus).
+ * Two passengers (people kit, 170 см at 0,55 px per см, true scale), facing the way the bus goes: one sits, one stands
+ * holding a pole. While the bus brakes their bodies tip forward (the seated one by up to 0,25 rad, the standing one,
+ * held by the pole, by 0,1 rad), easing in over 0,4 s; the feet stay planted.
  */
+import PeopleStyles from '@components/people/PeopleStyles.astro';
 import NzPicStyles from './NzPicStyles.astro';
 
 const uid = Math.random().toString(36).slice(2, 8);
@@ -21,6 +25,7 @@ const windows = [
 ---
 
 <NzPicStyles />
+<PeopleStyles />
 <figure class="nz-pic nz-pic--one bp not-content" data-buspic data-k={K} data-floor={FLOOR} data-x0={X0}>
 	<div class="nz-pic__grid">
 		<svg class="nz-pic__svg" viewBox="0 0 360 200" role="img" aria-label="Автобус изнутри. Автобус тормозит, а игрушечная машинка на полу катится вперёд. Относительно дороги её скорость не меняется, относительно автобуса — растёт">
@@ -54,10 +59,13 @@ const windows = [
 					<g>
 						<line class="bp-seat" x1={x + 24} y1="140" x2={x + 24} y2={FLOOR} />
 						<rect class="bp-seat-back" x={x} y="132" width="50" height="9" rx="3" />
-						<rect class="bp-seat-back" x={x + 42} y="100" width="9" height="40" rx="3" />
+						<rect class="bp-seat-back" x={x - 1} y="100" width="9" height="40" rx="3" />
 					</g>
 				))
 			}
+			<line class="bp-pole" x1="304" y1="12" x2="304" y2={FLOOR}></line>
+			<g data-person="sit"></g>
+			<g data-person="stand"></g>
 			<rect class="bp-floor" x="4" y={FLOOR} width="352" height="24"></rect>
 			<line class="bp-floor-line" x1="4" y1={FLOOR} x2="356" y2={FLOOR}></line>
 			<text class="bp-dir" x="300" y="183" text-anchor="end">движение автобуса →</text>
@@ -71,9 +79,9 @@ const windows = [
 			</g>
 			<!-- the bus brakes: its acceleration -->
 			<g data-brake opacity="0">
-				<path class="nz-ar nz-ar--a" d="M 210 112 L 152 112"></path>
-				<path class="nz-hd--a" d="M 144 112 L 154 107.5 L 154 116.5 Z"></path>
-				<text class="bp-alabel" x="214" y="116">автобус тормозит</text>
+				<path class="nz-ar nz-ar--a" d="M 166 116 L 108 116"></path>
+				<path class="nz-hd--a" d="M 100 116 L 110 111.5 L 110 120.5 Z"></path>
+				<text class="bp-alabel" x="134" y="108" text-anchor="middle">автобус тормозит</text>
 			</g>
 		</svg>
 	</div>
@@ -120,6 +128,11 @@ const windows = [
 	}
 	.bp-seat-back {
 		fill: var(--sl-color-gray-4);
+	}
+	.bp-pole {
+		stroke: hsl(45, 70%, 55%);
+		stroke-width: 3.2;
+		stroke-linecap: round;
 	}
 	.bp-floor {
 		fill: color-mix(in srgb, var(--sl-color-gray-4) 60%, var(--sl-color-bg));
@@ -191,6 +204,8 @@ const windows = [
 
 <script>
 	import { scene } from '@components/intro/scene';
+	import { figure } from '@components/people/body';
+	import { ease } from '@components/people/motion';
 
 	const NS = 'http://www.w3.org/2000/svg';
 	const V0 = 8; // m/s
@@ -212,6 +227,48 @@ const windows = [
 		const vRoad = root.querySelector<HTMLElement>('[data-vroad]')!;
 		const vRel = root.querySelector<HTMLElement>('[data-vrel]')!;
 		let shown = -1;
+		// the passengers: 170 см at 0,55 px per см
+		const PS = 0.55;
+		const u = 170 * PS;
+		const sit = figure(root.querySelector<SVGGElement>('[data-person="sit"]')!, { s: PS, H: 170, clothes: 'indoor', shirt: 'hm-green', name: 'seated passenger' });
+		const stand = figure(root.querySelector<SVGGElement>('[data-person="stand"]')!, { s: PS, H: 170, clothes: 'indoor', shirt: 'hm-gold', hair: 'pony', name: 'standing passenger' });
+		const ank = FLOOR - 7 * PS;
+		const pass = (tb: number) => {
+			const e = ease(tb / 0.4);
+			const sh = { x: 220, y: 128 };
+			const ls = 0.03 + 0.22 * e;
+			sit.pose({
+				hip: sh,
+				lean: ls,
+				head: 0.05,
+				ankles: [
+					{ x: 238, y: ank },
+					{ x: 233, y: ank - 1.5 },
+				],
+				feet: [0, 0],
+				planted: [true, true],
+				hands: [
+					// the hands rest in the lap, on top of the thighs
+					{ at: { x: sh.x + 0.14 * u, y: sh.y - 0.045 * u }, pose: 'relaxed', dir: 0.5, contact: 'lap' },
+					{ at: { x: sh.x + 0.1 * u, y: sh.y - 0.05 * u }, pose: 'relaxed', dir: 0.5, contact: 'lap' },
+				],
+			});
+			const hip = { x: 284, y: ank - 0.475 * u * 0.995 };
+			stand.pose({
+				hip,
+				lean: 0.02 + 0.08 * e,
+				ankles: [
+					{ x: 288, y: ank },
+					{ x: 276, y: ank - 1.5 },
+				],
+				feet: [0, 0],
+				planted: [true, true],
+				hands: [
+					{ at: { x: 304, y: 98 }, pose: 'grip', d: 3, dir: 0, roll: -Math.PI / 2, contact: 'pole' },
+					{ at: { x: hip.x - 0.02 * u, y: hip.y + 0.03 * u }, pose: 'relaxed' },
+				],
+			});
+		};
 
 		const draw = (x: number) => {
 			const t = x * (T1 + TB);
@@ -223,6 +280,7 @@ const windows = [
 			const off = ((busPath % STEP) + STEP) % STEP;
 			posts.forEach((p, i) => p.setAttribute('transform', `translate(${(40 + (i * STEP - off) * K).toFixed(2)} 0)`));
 			brake.setAttribute('opacity', tb > 0 ? '1' : '0');
+			pass(tb);
 			vBus.textContent = `${fmt(vb)} м/с`;
 			vRoad.textContent = `${fmt(V0)} м/с`;
 			vRel.textContent = `${fmt(A * tb)} м/с`;
