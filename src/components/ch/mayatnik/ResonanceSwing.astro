@@ -4,8 +4,13 @@
  * the resonance curve: the amplitude the swing settles to for each period of the pushes.
  * Side view, one scale (90 px per metre); the ropes are 2.5 m long, friction is small.
  * The curve is computed at build time with the same equations the live model uses.
+ * A girl of 8 (people kit, child, 128 см at 0,9 px per см) sits on the seat and holds the rope with both hands; she
+ * turns with the swing. The push is drawn as the arrow F only, with no person pushing: the pushes come at any moment of
+ * the swing (by the button or on a schedule), also where nobody standing behind could reach the seat.
+ * Colors of the forces in the chapter: the push F blue (--ig-vx), the force that pulls back amber (--ig-v), gravity red.
  */
 import { SWING, periodString, swingSteady } from './physics';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
 
 const uid = `rs-${Math.random().toString(36).slice(2, 8)}`;
 const S = 90;
@@ -35,6 +40,7 @@ const aTicks = [0.25, 0.5, 0.75, 1];
 const num = (v: number) => String(v).replace('.', ',');
 ---
 
+<PeopleStyles />
 <figure class="rs not-content" data-rsw>
 	<svg class="rs__scene" viewBox={`0 0 720 ${GROUND + 18}`} role="img" aria-label="Качели, которые раскачивают толчками">
 		<defs>
@@ -59,6 +65,7 @@ const num = (v: number) => String(v).replace('.', ',');
 		<path class="rs__arc" data-arc />
 		<g data-swing>
 			<line class="rs__rope" x1={PX} y1={PY} x2={PX} y2={PY + SWING.l * S} />
+			<g data-rider />
 			<rect class="rs__seat" x={PX - 17} y={PY + SWING.l * S - 2} width="34" height="7" rx="3" fill={`url(#${uid}-seat)`} />
 		</g>
 		<g class="rs__push" data-push>
@@ -179,7 +186,7 @@ const num = (v: number) => String(v).replace('.', ',');
 		-webkit-user-select: none;
 	}
 	.rs__frame line {
-		stroke: var(--sl-color-gray-4);
+		stroke: color-mix(in srgb, var(--ig-vx) 45%, var(--sl-color-gray-4));
 		stroke-width: 7;
 		stroke-linecap: round;
 	}
@@ -231,16 +238,16 @@ const num = (v: number) => String(v).replace('.', ',');
 		opacity: 1;
 	}
 	.rs__push line {
-		stroke: var(--ig-v);
+		stroke: var(--ig-vx);
 		stroke-width: 5;
 		stroke-linecap: round;
-		filter: drop-shadow(0 0 5px var(--ig-v));
+		filter: drop-shadow(0 0 5px var(--ig-vx));
 	}
 	.rs__head path {
-		fill: var(--ig-v);
+		fill: var(--ig-vx);
 	}
 	.rs__sym {
-		fill: var(--ig-v);
+		fill: var(--ig-vx);
 		font-family: var(--ig-font-math);
 		font-style: italic;
 		font-size: 20px;
@@ -276,7 +283,7 @@ const num = (v: number) => String(v).replace('.', ',');
 		font-style: normal;
 	}
 	.rs__band {
-		fill: color-mix(in srgb, var(--ig-v) 30%, transparent);
+		fill: color-mix(in srgb, var(--ig-vx) 30%, transparent);
 	}
 	.rs__trace {
 		fill: none;
@@ -481,6 +488,8 @@ const num = (v: number) => String(v).replace('.', ',');
 <script>
 	import { SWING, periodString, pushAcc, rk4t, swingAcc } from './physics';
 	import { animator, fmt, tex, tnum } from './util';
+	import { figure } from '@components/people/body';
+	import { ROLL } from '@components/people/hand';
 
 	const S = 90;
 	const PX = 360;
@@ -610,8 +619,33 @@ const num = (v: number) => String(v).replace('.', ',');
 			for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, typeof v === 'number' ? v.toFixed(2) : v);
 		};
 
+		// the girl on the seat, in the swing's own (unturned) coordinates: the rope at x = PX, the seat top at PY + L − 2
+		const girl = figure(q<SVGGElement>('[data-rider]'), { s: 0.9, H: 128, age: 'child', shirt: 'hm-gold', hair: 'pony', shorts: true, name: 'girl on the swing' });
+		const gu = 128 * 0.9;
+		const ghip = { x: PX - 0.04 * gu, y: PY + L - 2 - 0.07 * gu };
+		const gy = ghip.y - 0.2 * gu;
+		const sitGirl = () =>
+			girl.pose({
+				hip: ghip,
+				lean: -0.25,
+				ankles: [ghip, ghip],
+				legs: [
+					[0.05, 1.15],
+					[0.12, 1.3],
+				],
+				feet: [0.25, 0.3],
+				hands: [
+					{ at: { x: PX, y: gy }, pose: 'grip', d: 1.6, dir: -0.25, roll: ROLL.backViewer, contact: 'rope' },
+					{ at: { x: PX, y: gy - 3 }, pose: 'grip', d: 1.6, dir: -0.25, roll: ROLL.palmViewer, contact: 'rope' },
+				],
+			});
+
+		// the swing may stand still for a long time: pose her again when the model comes into view (fresh debug boxes)
+		new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && sitGirl()).observe(el.swing);
+
 		const drawScene = () => {
 			el.swing.setAttribute('transform', `rotate(${(-th / DEG).toFixed(3)} ${PX} ${PY})`);
+			sitGirl(); // posed after the turn is set, so the debug boxes of the hands are current
 			const a = thMax();
 			if (a > 0.3 * DEG) {
 				const x = L * Math.sin(a);
