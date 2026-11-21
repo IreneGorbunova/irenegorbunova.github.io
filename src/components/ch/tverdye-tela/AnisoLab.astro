@@ -1,0 +1,123 @@
+---
+/**
+ * Model to «Анизотропия»: one face of the rock-salt lattice (the same as in LatticePicture: ions alternate, the
+ * nearest ones 0,282 нм apart, 22 px here). The pupil picks a direction through the central ion; the ions that lie
+ * on that straight line light up, and the side panel gives the distance between neighbouring ions along it and their
+ * number per 1 нм. Along a row (0°): 0,282 нм, 3,5 per нм; at 45°: 0,282·√2 = 0,399 нм, 2,5 per нм; at 26,6°
+ * (two steps along, one across): 0,282·√5 = 0,631 нм, 1,6 per нм; at 18,4° (three and one): 0,282·√10 = 0,892 нм,
+ * 1,1 per нм. So the crystal is packed differently in different directions, and its properties differ with them.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const A = 22;
+const CX = 180;
+const CY = 112;
+const nodes: { x: number; y: number; i: number; j: number }[] = [];
+for (let i = -9; i <= 9; i++) for (let j = -6; j <= 6; j++) {
+	const x = CX + i * A;
+	const y = CY - j * A;
+	if (x > -6 && x < 366 && y > -6 && y < 232) nodes.push({ x, y, i, j });
+}
+const dirs = [
+	{ p: 1, q: 0, label: '0°' },
+	{ p: 3, q: 1, label: '18°' },
+	{ p: 2, q: 1, label: '27°' },
+	{ p: 1, q: 1, label: '45°' },
+];
+---
+
+<G7Styles />
+<figure class="g7 g7--wide an not-content" data-aniso>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 226" role="img" aria-label="Грань кристалла соли. Через центральный ион проведена прямая в выбранном направлении, ионы на этой прямой подсвечены. В разных направлениях ионы на прямой расположены с разной густотой">
+			<line class="an-line" data-line x1="0" y1="0" x2="0" y2="0"></line>
+			<g>
+				{nodes.map((n) => {
+					const cl = (n.i + n.j) % 2 === 0;
+					return <circle class={cl ? 'an-cl' : 'an-na'} cx={n.x} cy={n.y} r={cl ? 6.3 : 3.6} data-i={n.i} data-j={n.j} />;
+				})}
+			</g>
+			<g data-rings></g>
+			<circle class="an-center" cx={CX} cy={CY} r="9"></circle>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__label">Направление прямой</div>
+			<div class="g7__seg" data-dirs>
+				{dirs.map((d, k) => (
+					<button type="button" class="g7__btn" aria-pressed={k === 0 ? 'true' : 'false'} data-p={d.p} data-q={d.q}>
+						{d.label}
+					</button>
+				))}
+			</div>
+			<ul class="g7__read">
+				<li>соседние ионы на прямой — через <b data-dist>0,28 нм</b></li>
+				<li class="is-key">ионов на 1&nbsp;нм длины <b data-per>3,5</b></li>
+			</ul>
+			<p class="g7__note">Ионы натрия — маленькие, хлора — большие; расстояние между ближайшими 0,28&nbsp;нм.</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Грань кристалла поваренной соли. Выберите направление: ионы, которые лежат на прямой, подсвечены.</figcaption>
+</figure>
+
+<style is:global>
+	.an-na {
+		fill: var(--g7-violet);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.5;
+	}
+	.an-cl {
+		fill: var(--g7-green);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.5;
+		opacity: 0.85;
+	}
+	.an-line {
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+	}
+	.an-ring {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2.4;
+	}
+	.an-center {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+		stroke-dasharray: 2 2;
+	}
+</style>
+
+<script>
+	import { el, fmt, segment } from '../g7/kit';
+
+	const A = 22;
+	const CX = 180;
+	const CY = 112;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-aniso]')) {
+		const line = root.querySelector<SVGLineElement>('[data-line]')!;
+		const rings = root.querySelector<SVGGElement>('[data-rings]')!;
+		const ions = [...root.querySelectorAll<SVGCircleElement>('circle[data-i]')];
+		const dist = root.querySelector('[data-dist]')!;
+		const per = root.querySelector('[data-per]')!;
+		const show = (p: number, q: number) => {
+			const L = Math.hypot(p, q);
+			line.setAttribute('x1', String(CX - (p / L) * 420));
+			line.setAttribute('y1', String(CY + (q / L) * 420));
+			line.setAttribute('x2', String(CX + (p / L) * 420));
+			line.setAttribute('y2', String(CY - (q / L) * 420));
+			rings.replaceChildren();
+			for (const c of ions) {
+				const i = +c.dataset.i!;
+				const j = +c.dataset.j!;
+				// on the line through the center when (i, j) is a whole multiple of (p, q)
+				if (i * q === j * p) rings.append(el('circle', { class: 'an-ring', cx: c.getAttribute('cx')!, cy: c.getAttribute('cy')!, r: +c.getAttribute('r')! + 3 }));
+			}
+			const d = 0.282 * L;
+			dist.textContent = `${fmt(d, 2)} нм`;
+			per.textContent = fmt(1 / d, 1);
+		};
+		segment(root.querySelector('[data-dirs]')!, (b) => show(+b.dataset.p!, +b.dataset.q!));
+		show(1, 0);
+	}
+</script>

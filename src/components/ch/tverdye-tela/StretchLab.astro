@@ -1,0 +1,376 @@
+---
+/**
+ * Model «Растяжение проволоки»: a tensile test. A wire 1 мм thick (S = 0,785 мм²) and l₀ = 100 мм long is held in two
+ * grips; the pupil moves the lower grip with the slider (the elongation Δl is set, as in a real testing machine) and
+ * the model gives the force F = σS, the stress σ, the strain ε = Δl/l₀, and draws the point on the stress–strain
+ * diagram, leaving its trace.
+ *
+ * Materials (typical handbook values, rounded):
+ *   steel (low-carbon): E = 200 ГПа, elastic up to 250 МПа (ε = 0,125 %), then a yield plateau at 250 МПа up to
+ *     ε = 2 %, hardening to the strength limit 420 МПа at ε = 20 % (σ = 250 + 170·(1 − (1 − x)²)), then a neck forms,
+ *     the stress falls to 330 МПа and the wire breaks at ε = 30 %;
+ *   copper (annealed): E = 120 ГПа, elastic up to 70 МПа (ε = 0,058 %), hardening to 220 МПа at ε = 35 %
+ *     (σ = 70 + 150·(1 − (1 − x)^2,2)), a neck, the break at 190 МПа and ε = 45 %;
+ *   cast iron (gray): E = 110 ГПа, straight up to 150 МПа (ε = 0,136 %), then the slope falls off,
+ *     σ = 150 + E·(y − y²/0,0032), y = ε − 0,00136, and the bar breaks at 200 МПа, ε = 0,19 %, with no neck.
+ * Unloading and reloading go along a straight line of slope E: σ = E·(ε − ε_ост), ε_ост = ε_max − σ(ε_max)/E, and a
+ * wire pushed shorter than its new length goes slack (σ = 0). The maximum force: steel 330 Н, copper 173 Н, cast
+ * iron 157 Н.
+ *
+ * Drawing: the wire is drawn 1,5 px per мм along its length (an elongation below 0,5 мм is under a pixel and is seen
+ * only in the readouts) and 6 px thick (thickness exaggerated); its width shrinks as 1/√(1 + ε) (the volume stays the
+ * same) and, after the strength limit, in the middle (the neck). Two scales of the diagram: ε up to 0,5 % (the
+ * beginning, where Hooke's law holds) and up to 50 % (the whole test). Cast iron breaks at Δl = 0,19 мм, so it is
+ * tested on the fine scale (slider steps of 0,005 мм): at 0,190 мм it reads 199 МПа, at 0,195 мм it has broken at
+ * 200 МПа. The label «проволока 1 мм» stands below the lowest place of the lower crossbar.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const GX0 = 150;
+const GX1 = 350;
+const GY0 = 270;
+const GY1 = 26;
+---
+
+<G7Styles />
+<figure class="g7 g7--wide st not-content" data-stretch>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 312" role="img" aria-label="Испытательная машина растягивает проволоку. Справа график зависимости механического напряжения от относительного удлинения">
+			<!-- the machine -->
+			<rect class="st-frame" x="10" y="6" width="104" height="10" rx="2"></rect>
+			<rect class="st-col" x="12" y="6" width="7" height="292"></rect>
+			<rect class="st-col" x="105" y="6" width="7" height="292"></rect>
+			<rect class="st-grip" x="44" y="16" width="36" height="22" rx="3"></rect>
+			<path class="st-teeth" d="M50 38 v-6 M56 38 v-6 M62 38 v-6 M68 38 v-6 M74 38 v-6"></path>
+			<path class="st-wire" data-wire d=""></path>
+			<path class="st-wire st-wire--low" data-wire2 d=""></path>
+			<g data-low>
+				<rect class="st-cross" x="19" y="22" width="86" height="9" rx="2"></rect>
+				<rect class="st-grip" x="44" y="0" width="36" height="22" rx="3"></rect>
+				<path class="st-teeth" d="M50 0 v6 M56 0 v6 M62 0 v6 M68 0 v6 M74 0 v6"></path>
+			</g>
+			<g data-farrow>
+				<line class="st-force" x1="62" y1="0" x2="62" y2="18"></line>
+				<path class="st-force-head" d="M56 16 L62 27 L68 16 Z"></path>
+				<text class="t-i t-red" x="66" y="40">F</text>
+			</g>
+			<!-- below the lowest place of the lower crossbar (its bottom reaches y = 294 at Δl = 50 мм) -->
+			<text class="t-small" x="62" y="307" text-anchor="middle">проволока 1&nbsp;мм</text>
+			<!-- the diagram -->
+			<g data-ticks></g>
+			<path class="st-axis" d={`M${GX0} ${GY1 - 8} V${GY0} H${GX1 + 4}`}></path>
+			<text class="t-i" x={GX0 + 6} y={GY1 - 2}>σ<tspan class="t-small" font-style="normal">, МПа</tspan></text>
+			<text class="t-i" x={GX1 + 4} y={GY0 - 8} text-anchor="end">ε<tspan class="t-small" font-style="normal">, %</tspan></text>
+			<path class="st-trace" data-trace d=""></path>
+			<circle class="st-dot" data-dot r="4.5"></circle>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__label">Материал</div>
+			<div class="g7__seg" data-mat>
+				<button type="button" class="g7__btn" aria-pressed="true" data-m="steel">Сталь</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="copper">Медь</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="iron">Чугун</button>
+			</div>
+			<div class="g7__label">Масштаб графика</div>
+			<div class="g7__seg" data-scale>
+				<button type="button" class="g7__btn" aria-pressed="true" data-s="fine">ε до 0,5&nbsp;%</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-s="full">ε до 50&nbsp;%</button>
+			</div>
+			<label class="g7__slider">
+				<span>Удлинение Δ<i>l</i></span>
+				<output data-dlout>0&nbsp;мм</output>
+				<input type="range" min="0" max="0.5" step="0.005" value="0" data-dl aria-label="Удлинение проволоки" />
+			</label>
+			<ul class="g7__read">
+				<li><span>сила <i>F</i></span> <b data-F>0 Н</b></li>
+				<li class="is-key"><span>напряжение <i>σ</i></span> <b data-sig>0 МПа</b></li>
+				<li><span>относительное удлинение <i>ε</i></span> <b data-eps>0 %</b></li>
+				<li class="is-warm">остаётся без нагрузки <b data-res>0 мм</b></li>
+			</ul>
+			<p class="g7__note" data-state aria-live="polite"></p>
+			<div class="g7__row">
+				<button type="button" class="g7__btn" data-new>Новый образец</button>
+			</div>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Проволока толщиной 1&nbsp;мм и длиной <i>l</i><sub>0</sub> = 100&nbsp;мм. Двигайте нижний зажим ползунком и следите за точкой на графике. Удлинение меньше 0,5&nbsp;мм на рисунке не видно — смотрите на числа; толщина проволоки на рисунке преувеличена.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.st-frame,
+	.st-col,
+	.st-cross {
+		fill: var(--sl-color-gray-4);
+	}
+	.st-cross {
+		fill: var(--sl-color-gray-3);
+	}
+	.st-grip {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+	.st-teeth {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+	.st-wire {
+		fill: color-mix(in oklab, var(--ig-v) 40%, var(--sl-color-gray-2));
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	[data-stretch][data-mat='copper'] .st-wire {
+		fill: color-mix(in oklab, var(--ig-vy) 45%, var(--ig-v));
+	}
+	[data-stretch][data-mat='iron'] .st-wire {
+		fill: var(--sl-color-gray-3);
+	}
+	.st-force {
+		stroke: var(--g7-red);
+		stroke-width: 3;
+	}
+	.st-force-head {
+		fill: var(--g7-red);
+	}
+	.st-axis {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.st-tick {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.st-trace {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.st-dot {
+		fill: var(--g7-blue);
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+	}
+</style>
+
+<script>
+	import { el, fmt, fmtInt, segment } from '../g7/kit';
+
+	type Mat = { E: number; curve: (e: number) => number; brk: number; neck: number };
+	// σ in МПа as a function of the strain ε (a fraction) on first loading
+	const MATS: Record<string, Mat> = {
+		steel: {
+			E: 200000,
+			brk: 0.3,
+			neck: 0.2,
+			curve: (e) => {
+				if (e <= 0.00125) return 200000 * e;
+				if (e <= 0.02) return 250;
+				if (e <= 0.2) {
+					const x = (e - 0.02) / 0.18;
+					return 250 + 170 * (1 - (1 - x) ** 2);
+				}
+				return 420 - 90 * ((e - 0.2) / 0.1) ** 1.5;
+			},
+		},
+		copper: {
+			E: 120000,
+			brk: 0.45,
+			neck: 0.35,
+			curve: (e) => {
+				const ey = 70 / 120000;
+				if (e <= ey) return 120000 * e;
+				if (e <= 0.35) {
+					const x = (e - ey) / (0.35 - ey);
+					return 70 + 150 * (1 - (1 - x) ** 2.2);
+				}
+				return 220 - 30 * ((e - 0.35) / 0.1) ** 1.5;
+			},
+		},
+		iron: {
+			E: 110000,
+			brk: 0.0019086,
+			neck: 1,
+			curve: (e) => {
+				if (e <= 0.00136) return 110000 * e;
+				const y = e - 0.00136;
+				return 150 + 110000 * (y - (y * y) / 0.0032);
+			},
+		},
+	};
+	const S = Math.PI * 0.25; // мм², a wire 1 мм across
+	const L0 = 100; // мм
+	const GX0 = 150;
+	const GX1 = 350;
+	const GY0 = 270;
+	const GY1 = 26;
+	const f1 = (v: number) => v.toFixed(1);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-stretch]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const slider = $<HTMLInputElement>('[data-dl]');
+		const ticks = $<SVGGElement>('[data-ticks]');
+		const trace = $<SVGPathElement>('[data-trace]');
+		const dot = $<SVGCircleElement>('[data-dot]');
+		const wire = $<SVGPathElement>('[data-wire]');
+		const wire2 = $<SVGPathElement>('[data-wire2]');
+		const low = $<SVGGElement>('[data-low]');
+		const farrow = $<SVGGElement>('[data-farrow]');
+		let mat = MATS.steel;
+		let fine = true;
+		let eMax = 0; // the largest strain reached
+		let broken = false;
+		let eBreak = 0;
+		let e = 0;
+		let pts: [number, number][] = [[0, 0]];
+
+		const epsMax = () => (fine ? 0.005 : 0.5);
+		const X = (eps: number) => GX0 + ((GX1 - GX0) * Math.min(eps, epsMax())) / epsMax();
+		const Y = (s: number) => GY0 - ((GY0 - GY1) * s) / 450;
+		const residual = () => (eMax <= 0 ? 0 : Math.max(0, eMax - mat.curve(eMax) / mat.E));
+		const stress = (eps: number) => {
+			if (broken) return 0;
+			if (eps >= eMax) return mat.curve(eps);
+			return Math.max(0, mat.E * (eps - residual()));
+		};
+
+		const drawTicks = () => {
+			ticks.replaceChildren();
+			for (let s = 100; s <= 400; s += 100) {
+				ticks.append(el('line', { class: 'st-tick', x1: GX0, y1: Y(s), x2: GX1, y2: Y(s) }));
+				ticks.append(el('text', { class: 't-small', x: GX0 - 4, y: Y(s) + 4, 'text-anchor': 'end' }, String(s)));
+			}
+			const step = fine ? 0.001 : 0.1;
+			for (let k = 1; k <= 5; k++) {
+				const x = X(k * step);
+				ticks.append(el('line', { class: 'st-tick', x1: x, y1: GY1, x2: x, y2: GY0 }));
+				ticks.append(el('text', { class: 't-small', x, y: GY0 + 13, 'text-anchor': 'middle' }, fine ? fmt(k * 0.1, 1) : String(k * 10)));
+			}
+			ticks.append(el('text', { class: 't-small', x: GX0 - 4, y: GY0 + 13, 'text-anchor': 'end' }, '0'));
+		};
+
+		const drawWire = () => {
+			// the length on the picture: 150 px for l₀, 1,5 px per мм
+			const top = 38;
+			const eShow = broken ? eBreak : e;
+			const len = 150 * (1 + Math.max(e, broken ? eBreak - stressBack() : 0));
+			const w0 = 3 / Math.sqrt(1 + eShow);
+			const neck = mat.neck < 1 && eMax > mat.neck ? Math.min(1, (eMax - mat.neck) / (mat.brk - mat.neck)) : 0;
+			const mid = top + len / 2;
+			const wn = w0 * (1 - 0.55 * neck);
+			const half = (y0: number, y1: number) => `M${f1(62 - w0)} ${f1(y0)} L${f1(62 + w0)} ${f1(y0)} L${f1(62 + w0)} ${f1(y1)} L${f1(62 - w0)} ${f1(y1)} Z`;
+			if (!broken) {
+				const n = 18 * Math.max(neck, 0.05);
+				wire.setAttribute(
+					'd',
+					`M${f1(62 - w0)} ${top} L${f1(62 + w0)} ${top} L${f1(62 + w0)} ${f1(mid - n)} Q${f1(62 + wn)} ${f1(mid)} ${f1(62 + w0)} ${f1(mid + n)} L${f1(62 + w0)} ${f1(top + len)} L${f1(62 - w0)} ${f1(top + len)} L${f1(62 - w0)} ${f1(mid + n)} Q${f1(62 - wn)} ${f1(mid)} ${f1(62 - w0)} ${f1(mid - n)} Z`,
+				);
+				wire2.setAttribute('d', '');
+			} else {
+				// two pieces; the lower one hangs from the lower grip, a gap of 6 px between them
+				const lenB = 150 * (1 + eBreak - stressBack());
+				const midB = top + lenB / 2;
+				wire.setAttribute('d', half(top, midB - 3));
+				const lowY = top + 150 * (1 + e);
+				wire2.setAttribute('d', half(Math.max(midB + 3, lowY - lenB / 2 + 3), lowY));
+			}
+			const lowY = top + 150 * (1 + e);
+			low.setAttribute('transform', `translate(0 ${f1(lowY)})`);
+			const F = stress(e) * S;
+			farrow.setAttribute('transform', `translate(31 ${f1(lowY)})`);
+			farrow.style.opacity = F > 0.5 ? '1' : '0';
+		};
+		// the elastic part of the strain that goes away at the break
+		const stressBack = () => (broken ? mat.curve(eBreak) / mat.E : 0);
+
+		const show = () => {
+			const sig = stress(e);
+			const F = sig * S;
+			$('[data-F]').textContent = `${fmtInt(F)}\u00a0Н`;
+			$('[data-sig]').textContent = `${fmtInt(sig)}\u00a0МПа`;
+			$('[data-eps]').textContent = `${fmt(e * 100, fine ? 3 : 1)}\u00a0%`;
+			$('[data-dlout]').textContent = `${fmt(e * L0, fine ? 3 : 1)}\u00a0мм`;
+			const res = broken ? eBreak - stressBack() : residual();
+			$('[data-res]').textContent = `${fmt(res * L0, fine ? 3 : 1)}\u00a0мм`;
+			const st = $('[data-state]');
+			if (broken) st.textContent = `Проволока разорвалась при σ = ${fmtInt(mat.curve(eBreak))}\u00a0МПа.`;
+			else if (residual() * L0 > 0.0005) st.textContent = 'Деформация пластическая: без нагрузки проволока останется длиннее.';
+			else if (e > 0) st.textContent = 'Деформация упругая: без нагрузки проволока вернёт свою длину.';
+			else st.textContent = 'Проволока не растянута.';
+			let d = '';
+			let pen = false;
+			for (const [a, b] of pts) {
+				if (a > epsMax() * 1.0001) {
+					pen = false;
+					continue;
+				}
+				d += `${pen ? 'L' : 'M'}${f1(X(a))} ${f1(Y(b))} `;
+				pen = true;
+			}
+			trace.setAttribute('d', d);
+			dot.setAttribute('cx', f1(X(e)));
+			dot.setAttribute('cy', f1(Y(sig)));
+			dot.style.display = e > epsMax() + 1e-9 ? 'none' : '';
+			drawWire();
+		};
+
+		const setStrain = (target: number) => {
+			// walk in small steps so the trace follows the curve and a break is not jumped over
+			const n = Math.max(1, Math.ceil(Math.abs(target - e) / (fine ? 0.00002 : 0.002)));
+			const e0 = e;
+			for (let k = 1; k <= n; k++) {
+				const x = e0 + ((target - e0) * k) / n;
+				if (!broken && x > eMax) {
+					if (x >= mat.brk) {
+						eMax = mat.brk;
+						pts.push([mat.brk, mat.curve(mat.brk)]);
+						broken = true;
+						eBreak = mat.brk;
+						pts.push([mat.brk, 0]);
+						e = target;
+						break;
+					}
+					eMax = x;
+				}
+				e = x;
+				if (!broken) pts.push([x, stress(x)]);
+			}
+			show();
+		};
+
+		const reset = () => {
+			eMax = 0;
+			e = 0;
+			broken = false;
+			eBreak = 0;
+			pts = [[0, 0]];
+			slider.value = '0';
+			show();
+		};
+		const setScale = () => {
+			slider.max = fine ? '0.5' : '50';
+			slider.step = fine ? '0.005' : '0.1';
+			slider.value = String(Math.min(+slider.max, e * L0));
+			drawTicks();
+			show();
+		};
+		slider.addEventListener('input', () => setStrain(+slider.value / L0));
+		segment($('[data-mat]'), (b) => {
+			mat = MATS[b.dataset.m!];
+			root.dataset.mat = b.dataset.m!;
+			reset();
+		});
+		segment($('[data-scale]'), (b) => {
+			fine = b.dataset.s === 'fine';
+			setScale();
+		});
+		$('[data-new]').addEventListener('click', reset);
+		root.dataset.mat = 'steel';
+		setScale();
+	}
+</script>

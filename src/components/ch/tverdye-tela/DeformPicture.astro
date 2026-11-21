@@ -1,0 +1,126 @@
+---
+/**
+ * Picture to «Упругая и пластическая деформация»: what the atoms of a crystal do (a scheme; the displacements are
+ * greatly exaggerated: real elastic strains of metals are below 0,2 %, here the stretch is 15 %).
+ * Left, elastic: a block of 5 × 4 atoms fixed on the left is pulled by a force F to the right; every distance between
+ *   neighbours grows by the same 15 %, and when the force is removed, the atoms come back to their places.
+ * Right, plastic: a block of 6 × 4 atoms on a fixed base is pushed along its top by a larger force; the upper two rows
+ *   first lean (an elastic shear of up to 0,35 of the spacing), then slide over the lower rows by one whole spacing.
+ *   When the force is removed, only the lean goes away: the slide of one spacing stays, and a step remains at the
+ *   ends of the block. One loop: 1,4 s loading, 1 s holding, 1,2 s unloading, 1,6 s rest.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const A = 20;
+---
+
+<G7Styles />
+<figure class="g7 g7--pic df not-content" data-deform>
+	<div class="g7__grid is-two">
+		<svg class="g7__svg" viewBox="0 0 180 150" role="img" aria-label="Упругая деформация: сила растягивает кристалл, расстояния между атомами растут; силу убирают, и атомы возвращаются на свои места">
+			<text class="t-title" x="90" y="18" text-anchor="middle">упругая</text>
+			<rect class="df-wall" x="10" y="36" width="10" height={3 * A + 30}></rect>
+			<path class="df-hatch" d={Array.from({ length: 9 }, (_, k) => `M10 ${44 + k * 10} l10 -10`).join(' ')}></path>
+			<g data-el>
+				{Array.from({ length: 20 }, (_, k) => <circle class="df-atom" r="6" data-i={k % 5} data-j={Math.floor(k / 5)} />)}
+			</g>
+			<g data-fa>
+				<line class="df-force" x1="0" y1="0" x2="34" y2="0"></line>
+				<path class="df-force-head" d="M34 -5 L44 0 L34 5 Z"></path>
+				<text class="t-i t-red" x="22" y="-8" text-anchor="middle">F</text>
+			</g>
+			<text class="t-small" data-elnote x="90" y="142" text-anchor="middle"></text>
+		</svg>
+		<svg class="g7__svg" viewBox="0 0 180 150" role="img" aria-label="Пластическая деформация: большая сила сдвигает верхние ряды атомов по нижним на целое расстояние между ними; силу убирают, а сдвиг остаётся">
+			<text class="t-title" x="90" y="18" text-anchor="middle">пластическая</text>
+			<rect class="df-wall" x="8" y={46 + 3 * A + 8} width="164" height="10"></rect>
+			<path class="df-hatch" d={Array.from({ length: 15 }, (_, k) => `M${8 + k * 10} ${46 + 3 * A + 18} l10 -10`).join(' ')}></path>
+			<g data-pl>
+				{Array.from({ length: 20 }, (_, k) => <circle class="df-atom" r="6" data-i={k % 5} data-j={Math.floor(k / 5)} />)}
+			</g>
+			<g data-fp>
+				<line class="df-force" x1="0" y1="0" x2="34" y2="0"></line>
+				<path class="df-force-head" d="M34 -6 L46 0 L34 6 Z"></path>
+				<text class="t-i t-red" x="22" y="-8" text-anchor="middle">F</text>
+			</g>
+			<text class="t-small" data-plnote x="90" y="142" text-anchor="middle"></text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Схема, смещения атомов сильно преувеличены. Слева сила растягивает кристалл, а без неё атомы возвращаются на свои места. Справа большая сила сдвигает верхние ряды атомов на целое расстояние между ними — без силы этот сдвиг остаётся.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.df-wall {
+		fill: var(--sl-color-gray-4);
+	}
+	.df-hatch {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.df-atom {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.8;
+	}
+	.df-atom.is-top {
+		fill: color-mix(in oklab, var(--ig-v) 40%, var(--g7-steel));
+	}
+	.df-force {
+		stroke: var(--g7-red);
+		stroke-width: 3;
+	}
+	.df-force-head {
+		fill: var(--g7-red);
+	}
+</style>
+
+<script>
+	import { loop, ease } from '../g7/kit';
+
+	const A = 20;
+	const f = (v: number) => v.toFixed(1);
+	// the load over one loop of 5,2 s: rises 0…1,4, holds to 2,4, falls to 3,6, rest to 5,2
+	const load = (t: number) => (t < 1.4 ? ease(t / 1.4) : t < 2.4 ? 1 : t < 3.6 ? 1 - ease((t - 2.4) / 1.2) : 0);
+	for (const root of document.querySelectorAll<HTMLElement>('[data-deform]')) {
+		const el = [...root.querySelectorAll<SVGCircleElement>('[data-el] circle')];
+		const pl = [...root.querySelectorAll<SVGCircleElement>('[data-pl] circle')];
+		for (const c of pl) if (+c.dataset.j! < 2) c.classList.add('is-top');
+		const fa = root.querySelector<SVGGElement>('[data-fa]')!;
+		const fp = root.querySelector<SVGGElement>('[data-fp]')!;
+		const elNote = root.querySelector('[data-elnote]')!;
+		const plNote = root.querySelector('[data-plnote]')!;
+		let t = 0;
+		loop(root, (dt) => {
+			t = (t + dt) % 5.2;
+			const L = load(t);
+			// elastic: every spacing × (1 + 0,15 L)
+			const k = 1 + 0.15 * L;
+			for (const c of el) {
+				const i = +c.dataset.i!;
+				const j = +c.dataset.j!;
+				c.setAttribute('cx', f(30 + i * A * k));
+				c.setAttribute('cy', f(51 + j * A));
+			}
+			fa.setAttribute('transform', `translate(${f(30 + 4 * A * k + 9)} ${51 + 1.5 * A})`);
+			fa.style.opacity = f(L > 0.02 ? 1 : 0);
+			elNote.textContent = t > 3.6 ? 'силу убрали — атомы на местах' : '';
+			// plastic: the top two rows lean by up to 0,35 A, the slide of one spacing happens between 0,7 and 1,4 s and stays
+			const slide = t < 0.7 ? 0 : t < 1.4 ? ease((t - 0.7) / 0.7) : 1;
+			const lean = 0.35 * A * L;
+			for (const c of pl) {
+				const i = +c.dataset.i!;
+				const j = +c.dataset.j!;
+				const top = j < 2;
+				const x = 22 + i * A + (top ? slide * A + lean * (j === 0 ? 1 : 0.6) : lean * (j === 2 ? 0.25 : 0));
+				c.setAttribute('cx', f(x));
+				c.setAttribute('cy', f(46 + j * A));
+			}
+			fp.setAttribute('transform', `translate(${f(22 + 4 * A + slide * A + lean + 9)} 46)`);
+			fp.style.opacity = f(L > 0.02 ? 1 : 0);
+			plNote.textContent = t > 3.6 ? 'силу убрали — сдвиг остался' : '';
+			return true;
+		});
+	}
+</script>
