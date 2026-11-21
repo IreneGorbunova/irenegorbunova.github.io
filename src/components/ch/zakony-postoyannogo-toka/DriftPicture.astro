@@ -1,0 +1,120 @@
+---
+/**
+ * «Заряд через сечение»: a piece of a metal wire seen from the side, with its cross-section S (a gold ellipse). The free
+ * electrons (blue dots, about 50 in the visible piece) drift to the left, against the current (red arrow to the right),
+ * all with the same speed υ; their chaotic motion is only hinted at by a small jiggle. Every Δt = 4 с a cylinder of
+ * length υΔt to the right of the section is shaded and its electrons turn gold: during this Δt all of them, and only
+ * they, cross S, and the counter counts them. So the charge through S in Δt is q₀·n·S·υΔt, which gives I = q₀nυS.
+ * Symbolic speed: 18 px/с (υΔt = 72 px); a real drift is about 0,1 мм/с. The dots are far sparser than real electrons.
+ * Labels and the counter are 12 px (about 11 px on a 390 px phone).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 g7--pic pdr not-content" data-pdr>
+	<svg class="g7__svg" viewBox="0 0 360 170" role="img" aria-label="Кусок провода сбоку. Свободные электроны движутся влево, ток направлен вправо. Отмечен цилиндр длиной υΔt за сечением S: за время Δt все электроны из него проходят через сечение">
+		<defs>
+			<marker id="pdr-r" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="2.6" markerHeight="2.6" orient="auto"><path class="head--red" d="M0,0 L10,5 L0,10 z"></path></marker>
+			<marker id="pdr-b" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="2.6" markerHeight="2.6" orient="auto"><path class="head--blue" d="M0,0 L10,5 L0,10 z"></path></marker>
+			<clipPath id="pdr-clip"><rect x="14" y="52" width="332" height="56"></rect></clipPath>
+		</defs>
+		<rect class="pdr-wire" x="14" y="52" width="332" height="56"></rect>
+		<rect class="pdr-cyl" data-cyl x="200" y="52" width="72" height="56"></rect>
+		<ellipse class="pdr-far" cx="272" cy="80" rx="9" ry="28"></ellipse>
+		<g clip-path="url(#pdr-clip)" data-dots></g>
+		<ellipse class="pdr-sec" cx="200" cy="80" rx="9" ry="28"></ellipse>
+		<path class="pdr-edge" d="M14 52 H346 M14 108 H346"></path>
+		<text class="t-i t-gold" x="186" y="46">S</text>
+		<path class="ln" d="M200 118 v8 M272 118 v8 M200 122 H272"></path>
+		<text class="t-i" x="236" y="140" text-anchor="middle">υΔt</text>
+		<line class="arrow arrow--red" x1="40" y1="24" x2="104" y2="24" marker-end="url(#pdr-r)"></line>
+		<text x="40" y="14">направление тока</text>
+		<line class="arrow arrow--blue" x1="330" y1="140" x2="300" y2="140" marker-end="url(#pdr-b)"></line>
+		<text class="t-i t-blue" x="338" y="145">υ</text>
+		<text x="16" y="134">электроны</text>
+		<text class="t-num" x="16" y="160" data-count></text>
+	</svg>
+	<figcaption class="g7__caption">
+		За время <i>Δt</i> через сечение <i>S</i> проходят все свободные электроны из цилиндра длиной <i>υΔt</i> (они отмечены золотым), и только они. Скорость точек условная.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.pdr-wire {
+		fill: color-mix(in oklab, hsl(24, 60%, 60%) 22%, var(--g7-paper));
+	}
+	.pdr-edge {
+		fill: none;
+		stroke: hsl(24, 55%, 55%);
+		stroke-width: 1.4;
+	}
+	.pdr-cyl {
+		fill: color-mix(in oklab, var(--g7-gold) 22%, transparent);
+	}
+	.pdr-sec {
+		fill: color-mix(in oklab, var(--g7-gold) 30%, transparent);
+		stroke: var(--g7-gold);
+		stroke-width: 1.6;
+	}
+	.pdr-far {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.pdr-e {
+		fill: var(--g7-blue);
+	}
+	.pdr-e.is-in {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+</style>
+
+<script>
+	import { el, loop } from '../g7/kit';
+
+	const V = 18; // px/с
+	const DT = 4; // с
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pdr]')) {
+		const g = root.querySelector<SVGGElement>('[data-dots]')!;
+		const count = root.querySelector<SVGTextElement>('[data-count]')!;
+		let seed = 11;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		const W = 360; // the dots wrap round over this length
+		const dots = Array.from({ length: 52 }, () => {
+			const c = el('circle', { class: 'pdr-e', r: 2.6 });
+			g.append(c);
+			return { c, x0: rnd() * W, y: 58 + rnd() * 44, ph: rnd() * 6.3 };
+		});
+		const xAt = (d: { x0: number }, t: number) => {
+			let x = (d.x0 - V * t) % W;
+			if (x < 0) x += W;
+			return x;
+		};
+		let t = 0;
+		const draw = () => {
+			const t0 = Math.floor(t / DT) * DT;
+			let n = 0;
+			for (const d of dots) {
+				const xs = xAt(d, t0);
+				const x = xAt(d, t);
+				const marked = xs >= 200 && xs < 200 + V * DT;
+				const crossed = marked && x < 200;
+				if (crossed) n++;
+				d.c.setAttribute('class', marked && !crossed ? 'pdr-e is-in' : 'pdr-e');
+				d.c.setAttribute('cx', (x + 0.8 * Math.sin(7 * t + d.ph)).toFixed(1));
+				d.c.setAttribute('cy', (d.y + 1.2 * Math.sin(9 * t + 2 * d.ph)).toFixed(1));
+			}
+			count.textContent = `прошли через сечение за Δt: ${n}`;
+		};
+		draw();
+		loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+	}
+</script>
