@@ -1,6 +1,7 @@
 ---
 /**
- * Picture «Мяч, упавший на пол»: a basketball (0,6 кг, 24 см across) is let go with its bottom 1,5 м above the floor
+ * Model «Мяч, упавший на пол» (was the picture BouncePicture; Irina, 21 Nov 2026, asked for a model where the internal
+ * energy can be switched off): a basketball (0,6 кг, 24 см across) is let go with its bottom 1,5 м above the floor
  * and bounces three times. Beside it four bars show where its energy is at each moment, in one scale (the full bar
  * is 8,82 Дж = 9,8 Н/кг · 0,6 кг · 1,5 м, the energy it had at the start):
  *   potential energy g·m·h (h = the height of its bottom above the floor, the zero level),
@@ -11,6 +12,9 @@
  * squashed by 2 см at the first blow, and damping such that it keeps 70 % of its energy at each blow (a real
  * basketball: about 1,05 м after 1,5 м). The heights are 1,5 → 1,05 → 0,74 → 0,51 м. A blow lasts 0,012 с; gravity
  * is neglected during it (less than 1,5 % of the energy).
+ * The switch «Без потерь» makes the blow perfectly elastic (no damping): the ball keeps all its energy, comes back to
+ * 1,5 м every time and the bar of the internal energy stays at 0 (during a blow the elastic energy is then shown as
+ * 8,82 Дж minus the kinetic one, so rounding of the steps never shows a stray 0,01 Дж). «Заново» lets the ball go again.
  * Slowed: the flight twice, the blow 40 times; the squash is drawn three times larger. 120 px per metre.
  */
 import G7Styles from '../g7/G7Styles.astro';
@@ -29,7 +33,7 @@ const BARW = 174;
 ---
 
 <G7Styles />
-<figure class="g7 g7--pic g7--narrow bnc not-content" data-bounce>
+<figure class="g7 g7--stack g7--narrow bnc not-content" data-bounce>
 	<div class="g7__grid">
 		<svg class="g7__svg" viewBox="0 0 360 252" role="img" aria-label="Мяч падает на пол и подскакивает всё ниже; рядом полоски показывают его потенциальную, кинетическую энергию, энергию упругой деформации и энергию, ушедшую на нагревание">
 			<rect class="bnc__floor" x="0" y={FLOOR} width="176" height={252 - FLOOR}></rect>
@@ -62,9 +66,16 @@ const BARW = 174;
 			}
 			<text class="t-small" x={BAR0} y="236">сумма всё время 8,82 Дж</text>
 		</svg>
+		<div class="g7__row">
+			<div class="g7__seg" role="group" aria-label="Есть ли потери энергии при ударе" data-mode>
+				<button type="button" class="g7__btn" aria-pressed="true" data-keep="0.7">С потерями</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-keep="1">Без потерь</button>
+			</div>
+			<button type="button" class="g7__btn g7__btn--go" data-again>Заново</button>
+		</div>
 	</div>
 	<figcaption class="g7__caption">
-		Мяч массой 0,6&nbsp;кг отпустили с высоты 1,5&nbsp;м; полоски показывают, где его энергия; «внутренняя» — та часть, что при ударах идёт на нагревание мяча и пола. Полёт замедлен в 2 раза, удар о пол — в 40 раз, а сжатие мяча нарисовано втрое больше.
+		Мяч массой 0,6&nbsp;кг отпустили с высоты 1,5&nbsp;м; полоски показывают, где его энергия; «внутренняя» — та часть, что при ударах идёт на нагревание мяча и пола. «Без потерь» — так было бы, если бы мяч и пол совсем не нагревались. Полёт замедлен в 2 раза, удар о пол — в 40 раз, а сжатие мяча нарисовано втрое больше.
 	</figcaption>
 </figure>
 
@@ -118,7 +129,7 @@ const BARW = 174;
 </style>
 
 <script>
-	import { el, fmt, loop } from '../g7/kit';
+	import { el, fmt, loop, segment } from '../g7/kit';
 
 	const K = 120;
 	const FLOOR = 232;
@@ -131,10 +142,13 @@ const BARW = 174;
 	const E0 = g * m * H0;
 	const XMAX = 0.02; // м, the squash at the first blow
 	const k = (2 * E0) / (XMAX * XMAX);
-	const KEEP = 0.7; // the share of energy kept at a blow
-	const lnE = Math.log(Math.sqrt(KEEP));
-	const zeta = -lnE / Math.sqrt(Math.PI * Math.PI + lnE * lnE);
-	const c = 2 * zeta * Math.sqrt(k * m);
+	/** The damping that keeps the share `keep` of the energy at a blow (keep = 1: none). */
+	const damping = (keep: number) => {
+		if (keep >= 1) return 0;
+		const lnE = Math.log(Math.sqrt(keep));
+		const zeta = -lnE / Math.sqrt(Math.PI * Math.PI + lnE * lnE);
+		return 2 * zeta * Math.sqrt(k * m);
+	};
 	const SLOW_FLY = 2;
 	const SLOW_HIT = 40;
 	const SQUASH = 3;
@@ -159,6 +173,8 @@ const BARW = 174;
 		let contact = false;
 		let hold = -1;
 		const spin = 0.5; // the seam is turned a little
+		let lossless = false;
+		let c = damping(0.7);
 
 		const reset = () => {
 			y = H0;
@@ -172,14 +188,14 @@ const BARW = 174;
 		const markPeak = (h: number) => {
 			const yy = FLOOR - h * K;
 			peaks.append(el('line', { class: 'bnc__peak', x1: BX - 26, x2: BX + 26, y1: f1(yy), y2: f1(yy) }));
-			peaks.append(el('text', { class: 't-small t-num', x: BX + 30, y: f1(yy + 4) }, `${fmt(h, 2)}\u00a0м`));
+			peaks.append(el('text', { class: 't-small t-num t-halo', x: BX + 30, y: f1(yy + 4) }, `${fmt(h, 2)}\u00a0м`));
 		};
 
 		const draw = () => {
 			const Ep = contact ? 0 : g * m * Math.max(0, y);
 			const Ek = (m * v * v) / 2;
-			const Ee = contact ? (k * x * x) / 2 : 0;
-			const Eq = Math.max(0, E0 - Ep - Ek - Ee);
+			const Ee = contact ? (lossless ? Math.max(0, E0 - Ek) : (k * x * x) / 2) : 0;
+			const Eq = lossless ? 0 : Math.max(0, E0 - Ep - Ek - Ee);
 			const E = { p: Ep, k: Ek, e: Ee, q: Eq };
 			for (const key of ['p', 'k', 'e', 'q'] as const) {
 				bars[key].setAttribute('width', f1((BARW * E[key]) / E0));
@@ -233,6 +249,7 @@ const BARW = 174;
 					x -= v * h;
 					if (x <= 0 && v > 0) {
 						x = 0;
+						if (lossless) v = Math.sqrt(2 * g * H0); // exactly the speed it hit with
 						contact = false;
 						y = 0;
 						hits++;
@@ -241,6 +258,16 @@ const BARW = 174;
 			}
 			draw();
 			return true;
+		});
+		segment(q('[data-mode]'), (b) => {
+			lossless = b.dataset.keep === '1';
+			c = damping(Number(b.dataset.keep));
+			reset();
+			draw();
+		});
+		q('[data-again]').addEventListener('click', () => {
+			reset();
+			draw();
 		});
 		reset();
 		draw();
