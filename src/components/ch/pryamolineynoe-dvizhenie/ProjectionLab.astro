@@ -1,0 +1,216 @@
+---
+/**
+ * Model: displacement, its projection and the path. A straight road 800 м long (−400…400 м, 0,4 px per metre) with a
+ * bus stop at the origin O; a car drives from the start flag to the finish flag, optionally first to the turning mark
+ * at the right end of the road (400 м in the axis «вправо») and back. The displacement (gold arrow above the road) goes
+ * from the start to the finish; its projection is the thick gold segment on the axis, under dashed drops.
+ *   sₓ = x − x₀, s = |sₓ|; the path l = |x − x₀| without the turn, |400 − x₀| + |400 − x| with it (axis «вправо»).
+ * Flipping the axis («влево») keeps the origin and the flags on the road and changes the sign of every coordinate:
+ * the sliders show the new coordinates; sₓ changes sign, s and l do not; the turning mark is then at −400 м.
+ * Sliders x₀ and x: −300…300 м, step 50. The drive is sped up (about 320 м per second of animation, the caption says
+ * so); the car (4,4 м) is drawn 12 times larger than the scale of the road. During the drive every readout follows the car
+ * (x is its place now, sₓ and s the displacement so far, l the path so far); before it, x is the finish flag.
+ */
+import PdStyles from './PdStyles.astro';
+---
+
+<PdStyles />
+<figure class="g7 g7--stack pdm not-content" data-projlab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 172" role="img" aria-label="Прямая дорога с осью x. Автомобиль едет от зелёного флажка к красному; золотая стрелка над дорогой — перемещение, золотой отрезок на оси — его проекция">
+			<rect class="pdm-grass" x="0" y="0" width="360" height="112"></rect>
+			<rect class="pdm-road" x="0" y="72" width="360" height="26"></rect>
+			<line class="pdm-lane" x1="0" y1="85" x2="360" y2="85"></line>
+			<g data-turn></g>
+			<!-- the bus stop at the origin -->
+			<g transform="translate(180 72)">
+				<line class="pdm-pole" x1="0" y1="0" x2="0" y2="-26"></line>
+				<rect class="pl-sign" x="-7" y="-36" width="14" height="11" rx="2"></rect>
+				<text class="pl-sign-text" x="0" y="-27.5" text-anchor="middle">А</text>
+			</g>
+			<path class="pl-trace" data-trace d=""></path>
+			<g data-flags></g>
+			<g data-carwrap><g data-car></g></g>
+			<g data-arrow></g>
+			<path class="pdm-drop" data-drops d=""></path>
+			<g data-axis></g>
+			<line class="pdm-proj" data-proj x1="0" y1="138" x2="0" y2="138"></line>
+			<circle class="head--gold" data-proj0 cy="138" r="0"></circle>
+			<text class="t-small" x="180" y="168" text-anchor="middle" data-o>O — начало отсчёта (остановка)</text>
+		</svg>
+		<div class="pdm-ctrl">
+			<div class="g7__row" style="justify-content: space-between">
+				<label class="g7__slider" style="flex: 1 1 11rem"><span>Начальная координата <i>x</i><sub>0</sub></span><output data-o0></output><input type="range" min="-300" max="300" step="50" value="100" data-x0 aria-label="Начальная координата, метры" /></label>
+				<label class="g7__slider" style="flex: 1 1 11rem"><span>Конечная координата <i>x</i></span><output data-o1></output><input type="range" min="-300" max="300" step="50" value="300" data-x1 aria-label="Конечная координата, метры" /></label>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Ось направлена:</span>
+				<span class="g7__seg" data-dir><button type="button" class="g7__btn" aria-pressed="true" data-d="1">вправо</button><button type="button" class="g7__btn" aria-pressed="false" data-d="-1">влево</button></span>
+				<label class="pdm-check"><input type="checkbox" data-turnbox /> <span>С разворотом у конца дороги</span></label>
+				<button type="button" class="g7__btn g7__btn--go" data-go>Поехали</button>
+			</div>
+			<ul class="g7__lines" data-calc></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Золотая стрелка — перемещение автомобиля, золотой отрезок на оси — проекция перемещения <i>s<sub>x</sub></i>. Пройденный путь <i>l</i> отмечен серой линией вдоль дороги. Поездка ускорена; автомобиль нарисован в 12 раз крупнее, чем в масштабе дороги.
+	</figcaption>
+</figure>
+
+<style is:global>
+	[data-projlab] .pl-sign {
+		fill: var(--g7-blue);
+	}
+	[data-projlab] .pl-sign-text {
+		font-size: 9px !important;
+		font-weight: 700;
+		fill: var(--g7-paper) !important;
+	}
+	[data-projlab] .pl-trace {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0.8;
+	}
+</style>
+
+<script>
+	import { k, loop, segment } from '../g7/kit';
+	import { car } from '../ravnouskorennoe-dvizhenie/car';
+	import { axisX, el, f1, newArrow } from './pd';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-projlab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const K = 0.4; // px per metre
+		const X = (r: number) => 180 + r * K; // r: the place on the road, metres, in the axis «вправо»
+		const END = 400;
+		const SPEED = 320; // m per second of animation
+		const in0 = $<HTMLInputElement>('[data-x0]');
+		const in1 = $<HTMLInputElement>('[data-x1]');
+		const turnBox = $<HTMLInputElement>('[data-turnbox]');
+		const wrap = $<SVGGElement>('[data-carwrap]');
+		const pose = car($<SVGGElement>('[data-car]'), 0.048, 'cr-gold'); // 0,4 px per metre, ×12
+		const setArrow = newArrow($<SVGGElement>('[data-arrow]'), 'gold');
+		const flags = $<SVGGElement>('[data-flags]');
+		const trace = $<SVGPathElement>('[data-trace]');
+		const drops = $<SVGPathElement>('[data-drops]');
+		const proj = $<SVGLineElement>('[data-proj]');
+		const proj0 = $<SVGCircleElement>('[data-proj0]');
+		const calc = $<HTMLUListElement>('[data-calc]');
+		const turnG = $<SVGGElement>('[data-turn]');
+		let d: 1 | -1 = 1;
+		let r0 = 100;
+		let r1 = 300;
+		let drive = -1; // metres driven along the route; −1: standing at the start
+		// the turning mark at the right end of the road
+		turnG.append(el('line', { class: 'pdm-pole', x1: X(END) - 4, y1: 72, x2: X(END) - 4, y2: 50 }));
+		turnG.append(el('path', { class: 'ink', d: `M${X(END) - 13} 44 a6 6 0 1 1 9 5 m0 0 l-4 -5 m4 5 l-6 1` }));
+		const flag = (r: number, cls: string, up: number) => `<line class="pdm-pole" x1="${f1(X(r))}" y1="72" x2="${f1(X(r))}" y2="${48 - up}"></line><path class="${cls}" d="M${f1(X(r))} ${48 - up} l12 4 l-12 4 Z"></path>`;
+		const route = () => (turnBox.checked ? [r0, END, r1] : [r0, r1]);
+		const routeLen = () => {
+			const p = route();
+			let L = 0;
+			for (let i = 1; i < p.length; i++) L += Math.abs(p[i] - p[i - 1]);
+			return L;
+		};
+		const at = (m: number) => {
+			// the place and the direction after m metres along the route
+			const p = route();
+			for (let i = 1; i < p.length; i++) {
+				const L = Math.abs(p[i] - p[i - 1]);
+				if (m <= L || i === p.length - 1) {
+					const sg = Math.sign(p[i] - p[i - 1]) || 1;
+					return { r: p[i - 1] + sg * Math.min(m, L), sg, leg: i };
+				}
+				m -= L;
+			}
+			return { r: p[0], sg: 1, leg: 1 };
+		};
+		const num = (v: number) => String(v).replace('-', '−');
+		const draw = () => {
+			const x0 = d * r0;
+			const x1 = d * r1;
+			$<HTMLOutputElement>('[data-o0]').textContent = `${num(x0)} м`;
+			$<HTMLOutputElement>('[data-o1]').textContent = `${num(x1)} м`;
+			axisX($<SVGGElement>('[data-axis]'), { y: 138, xa: 12, xb: 348, X: (v) => X(d * v), from: -400, to: 400, step: 50, every: 100, dir: d });
+			flags.innerHTML = flag(r0, 'pdm-flag', 0) + flag(r1, 'pdm-flag pdm-flag--end', r1 === r0 ? 8 : 0);
+			// the car: at the start, driving, or at the finish
+			const L = routeLen();
+			const m = drive < 0 ? 0 : Math.min(drive, L);
+			const pos = at(m);
+			const sg = drive < 0 ? Math.sign(route()[1] - r0) || 1 : pos.sg;
+			wrap.setAttribute('transform', `translate(${f1(X(pos.r))} 96) scale(${sg} 1)`);
+			pose(0, 0, m * 100, false);
+			// the path driven so far (lower lane), with the turn
+			if (drive > 0) {
+				const p = route();
+				let s = `M${f1(X(p[0]))} 104`;
+				let left = m;
+				for (let i = 1; i < p.length && left > 0; i++) {
+					const Lg = Math.abs(p[i] - p[i - 1]);
+					const go = Math.min(left, Lg);
+					s += ` L${f1(X(p[i - 1] + Math.sign(p[i] - p[i - 1]) * go))} ${i % 2 ? 104 : 108}`;
+					if (go === Lg && i < p.length - 1) s += ` L${f1(X(p[i]))} 108`;
+					left -= go;
+				}
+				trace.setAttribute('d', s);
+			} else trace.setAttribute('d', '');
+			// the displacement and its projection: shown when the car has arrived (and before the drive)
+			const done = drive < 0 || drive >= L;
+			const shown = done ? r1 : pos.r;
+			setArrow(X(r0), 34, X(shown), 34, 9, 5);
+			drops.setAttribute('d', `M${f1(X(r0))} 34 V138 M${f1(X(shown))} 34 V138`);
+			proj.setAttribute('x1', f1(X(r0)));
+			proj.setAttribute('x2', f1(X(shown)));
+			proj0.setAttribute('cx', f1(X(r0)));
+			proj0.setAttribute('r', Math.abs(shown - r0) < 1 ? '3.5' : '0');
+			// during the drive every readout follows the car: x is where it is now, l the path driven so far
+			const xNow = Math.round(d * shown);
+			const sx = xNow - x0;
+			const l = drive < 0 ? L : Math.round(m);
+			calc.innerHTML = [
+				`<li>${k(`x_0 = ${x0}\\ \\text{м},\\quad x = ${xNow}\\ \\text{м}`)}</li>`,
+				`<li class="is-key">${k(`s_x = x - x_0 = ${xNow}\\ \\text{м} - ${x0 < 0 ? `(${x0}\\ \\text{м})` : `${x0}\\ \\text{м}`} = ${sx}\\ \\text{м}`)}</li>`,
+				`<li>${k(`s = |s_x| = ${Math.abs(sx)}\\ \\text{м}`)}</li>`,
+				`<li>${drive >= 0 && drive < L ? 'Путь растёт: ' : 'Путь: '}${k(`l = ${l}\\ \\text{м}`)}</li>`,
+			].join('');
+		};
+		segment($('[data-dir]'), (b) => {
+			d = Number(b.dataset.d) as 1 | -1;
+			in0.value = String(d * r0);
+			in1.value = String(d * r1);
+			draw();
+		});
+		const onInput = () => {
+			r0 = d * Number(in0.value);
+			r1 = d * Number(in1.value);
+			drive = -1;
+			draw();
+		};
+		in0.addEventListener('input', onInput);
+		in1.addEventListener('input', onInput);
+		turnBox.addEventListener('change', () => {
+			drive = -1;
+			draw();
+		});
+		let running = false;
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			drive += SPEED * dt;
+			if (drive >= routeLen()) {
+				drive = routeLen();
+				running = false;
+			}
+			draw();
+			return running;
+		});
+		$('[data-go]').addEventListener('click', () => {
+			drive = 0;
+			running = true;
+			wake();
+		});
+		draw();
+	}
+</script>

@@ -1,0 +1,152 @@
+---
+/**
+ * Model: uniform straight motion. A road from −400 to 400 м (0,4 px per metre, ticks every 100 м), a car with its
+ * velocity (blue arrow, 2 px per м/с), the graphs x(t) (green) and υₓ(t) (blue) for t from 0 to 20 с. Under υₓ(t) the
+ * rectangle from 0 to t is shaded: gold above the time axis (υₓ > 0), violet below (υₓ < 0); its area with a sign,
+ * υₓt, equals sₓ = x − x₀. Formulas: x = x₀ + υₓt. Sliders: x₀ −300…300 м (step 50), υₓ −20…20 м/с (step 1), t 0…20 с
+ * (step 0,5); «Старт / Пауза» runs the clock in real time. The road ends at ±400 м: when the car gets there the clock
+ * stops (the slider t cannot go further) and a note gives the moment, so the car, both graphs and the formulas always
+ * agree. The car (4,4 м) is drawn 12 times larger than the scale of the road.
+ */
+import PdStyles from './PdStyles.astro';
+---
+
+<PdStyles />
+<figure class="g7 g7--stack pdm not-content" data-unilab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 122" role="img" aria-label="Прямая дорога с осью x и автомобилем; синяя стрелка — скорость автомобиля">
+			<rect class="pdm-grass" x="0" y="0" width="360" height="82"></rect>
+			<rect class="pdm-road" x="0" y="44" width="360" height="26"></rect>
+			<line class="pdm-lane" x1="0" y1="57" x2="360" y2="57"></line>
+			<g data-carwrap><g data-car></g></g>
+			<g data-varrow></g>
+			<path class="pdm-drop" data-drop d=""></path>
+			<g data-axis></g>
+			<text class="t-small" x="8" y="14" data-note></text>
+		</svg>
+		<div class="pdm-graphs">
+			<div>
+				<p>Координата</p>
+				<svg class="g7__svg" viewBox="0 0 200 156" role="img" aria-label="График координаты от времени — прямая линия"><g data-xg></g><path class="pdm-curve pdm-curve--x" data-xl d=""></path><circle class="pdm-dot" data-xd r="3.6"></circle></svg>
+			</div>
+			<div>
+				<p>Проекция скорости</p>
+				<svg class="g7__svg" viewBox="0 0 200 156" role="img" aria-label="График проекции скорости от времени; площадь закрашенного прямоугольника равна проекции перемещения"><g data-vg></g><path class="pdm-area" data-area d=""></path><path class="pdm-curve pdm-curve--v" data-vl d=""></path><circle class="pdm-dot" data-vd r="3.6"></circle></svg>
+			</div>
+		</div>
+		<div class="pdm-ctrl">
+			<div class="g7__row">
+				<label class="g7__slider" style="flex: 1 1 10rem"><span>Начальная координата <i>x</i><sub>0</sub></span><output data-o0></output><input type="range" min="-300" max="300" step="50" value="-200" data-x0 aria-label="Начальная координата, метры" /></label>
+				<label class="g7__slider" style="flex: 1 1 10rem"><span>Проекция скорости <i>υ<sub>x</sub></i></span><output data-ov></output><input type="range" min="-20" max="20" step="1" value="15" data-v aria-label="Проекция скорости, метры в секунду" /></label>
+				<label class="g7__slider" style="flex: 1 1 10rem"><span>Время <i>t</i></span><output data-ot></output><input type="range" min="0" max="20" step="0.5" value="0" data-t aria-label="Время, секунды" /></label>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Старт</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+			<ul class="g7__lines" data-calc></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Синяя стрелка — скорость автомобиля. Площадь закрашенного прямоугольника под графиком скорости, взятая со знаком, равна проекции перемещения: золотая — со знаком «плюс», фиолетовая — со знаком «минус». Часы идут как настоящие; автомобиль нарисован в 12 раз крупнее, чем в масштабе дороги.
+	</figcaption>
+</figure>
+
+<script>
+	import { k, loop } from '../g7/kit';
+	import { car } from '../ravnouskorennoe-dvizhenie/car';
+	import { axisX, f1, fmt, graphFrame, newArrow } from './pd';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-unilab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const K = 0.4;
+		const X = (m: number) => 180 + m * K;
+		const TMAX = 20;
+		const inX = $<HTMLInputElement>('[data-x0]');
+		const inV = $<HTMLInputElement>('[data-v]');
+		const inT = $<HTMLInputElement>('[data-t]');
+		const go = $<HTMLButtonElement>('[data-go]');
+		const wrap = $<SVGGElement>('[data-carwrap]');
+		const pose = car($<SVGGElement>('[data-car]'), 0.048, 'cr-gold'); // ×12
+		const vArrow = newArrow($<SVGGElement>('[data-varrow]'), 'blue');
+		axisX($<SVGGElement>('[data-axis]'), { y: 96, xa: 12, xb: 348, X, from: -400, to: 400, step: 50, every: 100 });
+		const gx = graphFrame($<SVGGElement>('[data-xg]'), { x0: 40, y0: 14, w: 140, h: 120, t1: 20, tStep: 5, v0: -400, v1: 400, vStep: 100, vEvery: 200, vName: ['x'], vUnit: 'м' });
+		const gv = graphFrame($<SVGGElement>('[data-vg]'), { x0: 40, y0: 14, w: 140, h: 120, t1: 20, tStep: 5, v0: -20, v1: 20, vStep: 5, vEvery: 10, vName: ['υ', 'x'], vUnit: 'м/с' });
+		let t = 0;
+		let running = false;
+		const tex = (v: number, d = 1) => fmt(v, d).replace(',', '{,}').replace('−', '-').replace(/\{,\}0$/, '');
+		const par = (v: number) => (v < 0 ? `(${tex(v)})` : tex(v));
+		const draw = () => {
+			const x0 = Number(inX.value);
+			const v = Number(inV.value);
+			$<HTMLOutputElement>('[data-o0]').textContent = `${fmt(x0, 0)} м`;
+			$<HTMLOutputElement>('[data-ov]').textContent = `${fmt(v, 0)} м/с`;
+			// the road ends at ±400 м: the clock cannot go past the moment the car gets there
+			const tEdge = v === 0 ? TMAX : Math.min(TMAX, ((v > 0 ? 400 : -400) - x0) / v);
+			if (t > tEdge) t = tEdge;
+			if (Number(inT.value) !== t) inT.value = String(t);
+			$<HTMLOutputElement>('[data-ot]').textContent = `${fmt(t, 1)} с`;
+			const xLaw = x0 + v * t;
+			const x = xLaw;
+			const edge = tEdge < TMAX && t >= tEdge - 1e-9;
+			// the car faces its motion (to the right when standing)
+			const dir = v < 0 ? -1 : 1;
+			wrap.setAttribute('transform', `translate(${f1(X(x) + dir * 10.5)} 66) scale(${dir} 1)`);
+			pose(0, 0, x * 100, false);
+			const cy = 36;
+			vArrow(X(x), cy, X(x) + v * 2, cy, 8, 4.5);
+			$('[data-drop]').setAttribute('d', `M${f1(X(x))} 70 V96`);
+			$('[data-note]').textContent = edge ? `Дорога кончилась: автомобиль доехал до её конца за ${fmt(tEdge, 1)} с` : '';
+			// x(t) up to now
+			const P = (tt: number) => `${f1(gx.T(tt))} ${f1(gx.V(x0 + v * tt))}`;
+			$('[data-xl]').setAttribute('d', `M${P(0)} L${P(t)}`);
+			const xd = $<SVGCircleElement>('[data-xd]');
+			xd.setAttribute('cx', f1(gx.T(t)));
+			xd.setAttribute('cy', f1(gx.V(xLaw)));
+			// υx(t) and the rectangle under it
+			$('[data-vl]').setAttribute('d', `M${f1(gv.T(0))} ${f1(gv.V(v))} L${f1(gv.T(t))} ${f1(gv.V(v))}`);
+			const area = $<SVGPathElement>('[data-area]');
+			area.setAttribute('d', t > 0 && v !== 0 ? `M${f1(gv.T(0))} ${f1(gv.V(0))} V${f1(gv.V(v))} H${f1(gv.T(t))} V${f1(gv.V(0))} Z` : '');
+			area.classList.toggle('pdm-area--neg', v < 0);
+			const vd = $<SVGCircleElement>('[data-vd]');
+			vd.setAttribute('cx', f1(gv.T(t)));
+			vd.setAttribute('cy', f1(gv.V(v)));
+			const sx = v * t;
+			$('[data-calc]').innerHTML = [
+				`<li class="is-key">${k(`x = x_0 + \\upsilon_x t = ${tex(x0)}\\ \\text{м} + ${par(v)}\\ \\tfrac{\\text{м}}{\\text{с}} \\cdot ${tex(t)}\\ \\text{с} = ${tex(xLaw)}\\ \\text{м}`)}</li>`,
+				`<li>${k(`s_x = x - x_0 = ${tex(sx)}\\ \\text{м}`)}</li>`,
+				`<li>Площадь под графиком скорости: ${k(`\\upsilon_x t = ${par(v)}\\ \\tfrac{\\text{м}}{\\text{с}} \\cdot ${tex(t)}\\ \\text{с} = ${tex(sx)}\\ \\text{м}`)}</li>`,
+			].join('');
+			go.textContent = running ? 'Пауза' : 'Старт';
+		};
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			t = Math.min(TMAX, t + dt);
+			draw(); // draw() holds the clock at the end of the road and writes the note
+			// stop only at the end of the time range or of the road
+			if (t >= TMAX || $('[data-note]').textContent) {
+				running = false;
+				draw();
+			}
+			return running;
+		});
+		go.addEventListener('click', () => {
+			if (!running && (t >= TMAX || $('[data-note]').textContent)) t = 0;
+			running = !running;
+			draw();
+			wake();
+		});
+		$('[data-reset]').addEventListener('click', () => {
+			running = false;
+			t = 0;
+			draw();
+		});
+		inT.addEventListener('input', () => {
+			running = false;
+			t = Number(inT.value);
+			draw();
+		});
+		for (const i of [inX, inV]) i.addEventListener('input', draw);
+		draw();
+	}
+</script>

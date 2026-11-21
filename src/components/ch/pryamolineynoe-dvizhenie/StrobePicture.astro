@@ -1,0 +1,146 @@
+---
+/**
+ * Uniform and uniformly accelerated motion, as on a photograph with a flash every second (real time: 4 s of motion,
+ * 2 s of the end frame, loop). A car on a road above an axis Ox; a dot marks the front bumper every whole second, with
+ * the time above it and the speed at that moment; the gaps between the dots are written under the axis. The cars
+ * (4,4 м) are to the scale of the axis.
+ *   mode="uniform" (6,8 px per metre): υ = 10 м/с from x = 0: dots at 0, 10, 20, 30, 40 м, gaps 10 м; a velocity arrow
+ *     (blue, 4 px per м/с) on every dot, all equal.
+ *   mode="accel" (14,5 px per metre), two rows: speeding up from rest, a = 2 м/с²: x = t², dots at 0, 1, 4, 9, 16 м, gaps
+ *     1, 3, 5, 7 м, υ = 0, 2, 4, 6, 8 м/с; braking from 8 м/с with a = −2 м/с²: x = 8t − t², dots at 0, 7, 12, 15,
+ *     16 м, gaps 7, 5, 3, 1 м, υ = 8, 6, 4, 2, 0. The moving car carries its velocity (blue, 4 px per м/с) and its
+ *     acceleration (red, 12 px per м/с², the same length all the time: along the velocity when it speeds up, against
+ *     it when it brakes; it disappears when the braking car has stopped). Close dots get bare time numbers under a row
+ *     label «t, с:».
+ */
+import PdStyles from './PdStyles.astro';
+interface Props {
+	mode: 'uniform' | 'accel';
+}
+const { mode } = Astro.props;
+const rows =
+	mode === 'uniform'
+		? [{ K: 6.8, X0: 48, v0: 10, a: 0, title: 'едет равномерно: скорость всё время 10 м/с' }]
+		: [
+				{ K: 14.5, X0: 84, v0: 0, a: 2, title: 'разгоняется: скорость каждую секунду растёт на 2 м/с' },
+				{ K: 14.5, X0: 84, v0: 8, a: -2, title: 'тормозит: скорость каждую секунду падает на 2 м/с' },
+			];
+const ROW = 150;
+---
+
+<PdStyles />
+<figure class="g7 g7--pic pdm not-content" data-strobepic data-cfg={JSON.stringify({ rows, ROW })}>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox={`0 0 360 ${rows.length * ROW}`} role="img" aria-label={mode === 'uniform' ? 'Автомобиль едет равномерно: его положения через каждую секунду отмечены точками на равных расстояниях по 10 метров, скорость всё время 10 метров в секунду' : 'Вверху автомобиль разгоняется: расстояния между его положениями через каждую секунду 1, 3, 5, 7 метров. Внизу тормозит: 7, 5, 3, 1 метр'}>
+			{
+				rows.map((r, i) => (
+					<g transform={`translate(0 ${i * ROW})`} data-row={i}>
+						<text class="t-title" x="8" y="17">{r.title}</text>
+						<rect class="pdm-grass" x="0" y="64" width="360" height="30" opacity="0.6" />
+						<rect class="pdm-road" x="0" y="70" width="360" height="20" />
+						<g data-axis />
+						<g data-dots />
+						<g data-gaps />
+						<g data-carwrap>
+							<g data-car />
+						</g>
+						<g data-arrows />
+					</g>
+				))
+			}
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		{mode === 'uniform' ? 'Точки — положения переднего бампера автомобиля через каждую секунду; синие стрелки — его скорость.' : 'Точки — положения переднего бампера автомобиля через каждую секунду, числа над ними — скорость в эти моменты. Синяя стрелка — скорость автомобиля, красная — его ускорение.'} Автомобили нарисованы в масштабе оси, время идёт как на самом деле.
+	</figcaption>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { car } from '../ravnouskorennoe-dvizhenie/car';
+	import { axisX, el, f1, fmtTrim, newArrow } from './pd';
+
+	type Row = { K: number; X0: number; v0: number; a: number; title: string };
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-strobepic]')) {
+		const { rows } = JSON.parse(fig.dataset.cfg!) as { rows: Row[]; ROW: number };
+		const T = 4;
+		const HOLD = 2;
+		const VK = 4; // px per м/с
+		const AK = 12; // px per м/с²
+		const ROAD = 88; // the ground line of the cars
+		const AY = 104; // the axis
+		const parts = rows.map((r, i) => {
+			const g = fig.querySelector<SVGGElement>(`[data-row="${i}"]`)!;
+			const q = <T extends Element>(s: string) => g.querySelector<T>(s)!;
+			const X = (m: number) => r.X0 + m * r.K;
+			const xOf = (t: number) => r.v0 * t + (r.a * t * t) / 2;
+			const vOf = (t: number) => r.v0 + r.a * t;
+			const max = xOf(T);
+			axisX(q('[data-axis]'), { y: AY, xa: 6, xb: 348, X, from: r.K > 10 ? -4 : -5, to: Math.ceil((348 - r.X0) / r.K), step: r.K > 10 ? 1 : 5, every: r.K > 10 ? 2 : 10 });
+			const pose = car(q<SVGGElement>('[data-car]'), r.K / 100, 'cr-gold');
+			const wrap = q<SVGGElement>('[data-carwrap]');
+			const dots = [0, 1, 2, 3, 4].map((s) => {
+				const x = X(xOf(s));
+				const gg = el('g', { opacity: 0 });
+				gg.append(el('line', { class: 'ln-dash', x1: f1(x), y1: 30, x2: f1(x), y2: AY }));
+				gg.append(el('circle', { class: 'pdm-dot', cx: f1(x), cy: AY, r: 3.2 }));
+				const t1 = el('text', { class: 't-small', x: f1(x), y: 29, 'text-anchor': 'middle' });
+				t1.textContent = r.a === 0 ? `${s} с` : `${s}`; // close dots: bare numbers under the row label «t, с:»
+				const t2 = el('text', { class: 't-blue', x: f1(x + (r.a === 0 ? 2 : 0)), y: 44, 'text-anchor': r.a === 0 ? 'start' : 'middle', 'font-weight': 600 });
+				t2.textContent = r.a === 0 ? `${fmtTrim(vOf(s))} м/с` : fmtTrim(vOf(s));
+				gg.append(t1, t2);
+				if (r.a === 0) {
+					const ag = el('g', {});
+					gg.append(ag);
+					newArrow(ag, 'blue')(x, 52, x + vOf(s) * VK, 52, 8, 4.5);
+				}
+				q('[data-dots]').append(gg);
+				let gap: SVGGElement | null = null;
+				if (s > 0) {
+					const xa = X(xOf(s - 1));
+					gap = el('g', { opacity: 0 });
+					gap.append(el('path', { class: 'ln', d: `M${f1(xa)} 136 V142 M${f1(xa)} 139 H${f1(x)} M${f1(x)} 136 V142` }));
+					const tg = el('text', { class: 't-small t-gold', x: f1((xa + x) / 2), y: 134, 'text-anchor': 'middle', 'font-weight': 700 });
+					tg.textContent = `${fmtTrim(xOf(s) - xOf(s - 1))} м`;
+					gap.append(tg);
+					q('[data-gaps]').append(gap);
+				}
+				return { gg, gap };
+			});
+			if (r.a !== 0) {
+				const lab = el('text', { class: 't-small t-blue', x: 8, y: 44 });
+				lab.textContent = 'υ, м/с:';
+				const labT = el('text', { class: 't-small', x: 8, y: 29 });
+				labT.textContent = 't, с:';
+				q('[data-dots]').append(lab, labT);
+			}
+			const vArrow = r.a !== 0 ? newArrow(q('[data-arrows]'), 'blue') : null;
+			const aArrow = r.a !== 0 ? newArrow(q('[data-arrows]'), 'red') : null;
+			return (t: number) => {
+				const x = X(xOf(t));
+				wrap.setAttribute('transform', `translate(${f1(x)} ${ROAD})`);
+				pose(0, 0, xOf(t) * 100, r.a < 0 && vOf(t) > 0.01);
+				dots.forEach((d, s) => {
+					d.gg.setAttribute('opacity', t >= s - 1e-6 ? '1' : '0');
+					d.gap?.setAttribute('opacity', t >= s - 1e-6 ? '1' : '0');
+				});
+				if (vArrow && aArrow) {
+					const cx = x - 2.2 * r.K; // the middle of the car
+					vArrow(cx, 58, cx + vOf(t) * VK, 58, 8, 4.5);
+					// a car that has stopped has no acceleration any more
+					aArrow(cx, 52, vOf(t) > 1e-6 ? cx + r.a * AK : cx, 52, 7, 4);
+				}
+				return max;
+			};
+		});
+		let t = 0;
+		const draw = () => parts.forEach((p) => p(Math.min(t, T)));
+		draw();
+		loop(fig, (dt) => {
+			t += dt;
+			if (t > T + HOLD) t = 0;
+			draw();
+			return true;
+		});
+	}
+</script>
