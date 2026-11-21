@@ -90,7 +90,7 @@ export default defineConfig({
 				]),
 				grade(10, [
 					section('Кинематика', '10-klass/kinematika', ['sistema-otscheta', 'ravnouskorennoe-dvizhenie', 'svobodnoe-padenie', 'brosok-pod-uglom', 'dvizhenie-po-okruzhnosti']),
-					section('Динамика', '10-klass/dinamika', ['dinamika-zakony-nyutona']),
+					section('Динамика', '10-klass/dinamika', ['dinamika-zakony-nyutona', 'sily-v-mehanike']),
 					section('Законы сохранения', '10-klass/zakony-sohraneniya', ['impuls']),
 					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['gazovye-zakony']),
 				]),
