@@ -32,7 +32,12 @@ if (root) {
 	const eyeImg = $<HTMLImageElement>('[data-ts-eye-img]');
 	const eyeDot = $('[data-ts-eye-dot]');
 	const eyeMoons = $('[data-ts-eye-moons]');
-	const EYE_PX = 148;
+	const info = $('.ts-info');
+	const targetStrip = $('.ts-targets');
+	const scopeStrip = $('.ts-scopes');
+	const fullBtn = $('[data-ts-full]');
+	// the window of the field of view is 148 px wide, smaller on a phone: measured, so that its scale stays true
+	let EYE_PX = 148;
 
 	let scope = data.scopes[1];
 	let target = data.targets[0];
@@ -63,15 +68,16 @@ if (root) {
 		if (v < 1000) {
 			const d = v % 10;
 			const dd = v % 100;
-			return `в ${num(v)} ${d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? 'раза' : 'раз'}`;
+			return `в ${num(v)}\u00a0${d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? 'раза' : 'раз'}`;
 		}
-		if (v < 1e6) return `в ${num(v / 1e3, 1)} тыс. раз`;
-		if (v < 1e9) return `в ${num(v / 1e6, 0)} млн раз`;
-		return `в ${num(v / 1e9, 0)} млрд раз`;
+		if (v < 1e6) return `в ${num(v / 1e3, 1)}\u00a0тыс. раз`;
+		if (v < 1e9) return `в ${num(v / 1e6, 0)}\u00a0млн раз`;
+		return `в ${num(v / 1e9, 0)}\u00a0млрд раз`;
 	};
-	const diameter = (mm: number) => (mm < 10 ? `${num(mm)} мм` : mm < 1000 ? `${num(mm / 10, 1)} см` : `${num(mm / 1000, 2)} м`);
+	// a no-break space keeps a number with its unit
+	const diameter = (mm: number) => (mm < 10 ? `${num(mm)}\u00a0мм` : mm < 1000 ? `${num(mm / 10, 1)}\u00a0см` : `${num(mm / 1000, 2)}\u00a0м`);
 	const angle = (arcsec: number) => (arcsec >= 3600 ? `${num(arcsec / 3600, 1)}°` : arcsec >= 60 ? `${num(arcsec / 60, 1)}′` : `${num(arcsec, 2)}″`);
-	const length = (km: number) => (km >= 100 ? `${num(sig(km))} км` : km >= 1 ? `${num(sig(km), 1)} км` : `${num(sig(km * 1000))} м`);
+	const length = (km: number) => (km >= 100 ? `${num(sig(km))}\u00a0км` : km >= 1 ? `${num(sig(km), 1)}\u00a0км` : `${num(sig(km * 1000))}\u00a0м`);
 
 	// ---------- what the telescope does to the picture ----------
 	/** The CSS filter of the telescope's image; `scale` is screen pixels per pixel of the element (blur is set before
@@ -98,6 +104,10 @@ if (root) {
 			// the eye does not tell the colors of faint light
 			if (scope.how === 'eye' || scope.how === 'visual') sat = 0;
 		}
+		// a planet fainter than the telescope's faintest stars is not seen at all (Neptune for the eye); Hubble and Webb
+		// are never pointed close to the Sun (Mercury; Venus and the Moon for Webb)
+		const never = Boolean(target.never?.includes(scope.id));
+		if (never || (target.vmag !== undefined && target.vmag > scope.mlim)) visible = false;
 		// first what is too faint goes (out = (in − t) / (1 − t)), then the telescope blurs what is left
 		const f = [];
 		if (t > 0.005) f.push(`brightness(${(1 / (1 + t)).toFixed(3)})`, `contrast(${((1 + t) / (1 - t)).toFixed(3)})`);
@@ -107,7 +117,7 @@ if (root) {
 		if (sat !== 1) f.push(`saturate(${sat})`);
 		if (gain !== 1) f.push(`brightness(${gain.toFixed(2)})`);
 		const color = mono ? 'plate' : sat < 1 ? 'eye' : 'full';
-		return { filter: f.join(' ') || 'none', sigma, visible, color, fwhm };
+		return { filter: f.join(' ') || 'none', sigma, visible, color, fwhm, never };
 	};
 
 	// ---------- the frame ----------
@@ -124,6 +134,7 @@ if (root) {
 		if (!sw) return;
 		zoom = Math.min(maxZoom(), Math.max(1, zoom));
 		clampPan();
+		stage.classList.toggle('is-zoomed', zoom > 1.001);
 		const s = fitScale() * zoom;
 		const arcsecPerPx = target.width / target.w / s; // per screen pixel
 		const tf = (k = 1, jx = 0, jy = 0) =>
@@ -145,7 +156,9 @@ if (root) {
 		telView.classList.toggle('is-nothing', !look.visible || point);
 		telView.classList.toggle('is-point', point);
 		nothing.hidden = look.visible && !point;
-		nothing.textContent = point
+		nothing.textContent = look.never
+			? 'Этот телескоп сюда не наводят: на его небе этот объект слишком близко к Солнцу'
+			: point
 			? `${scope.id === 'eye' ? 'Глаз' : 'Этот телескоп'} не различает диска: планета видна как звезда. Так она выглядит в окне внизу`
 			: scope.id === 'eye'
 				? 'Глазом здесь ничего не видно'
@@ -166,7 +179,7 @@ if (root) {
 		eyeImg.hidden = dot || !el.visible;
 		eyeImg.style.transform = `translate(-50%, -50%) translate(${dx.toFixed(1)}px, 0) scale(${es.toFixed(6)})`;
 		eyeImg.style.filter = el.filter;
-		eyeDot.hidden = !(dot && target.kind === 'bright');
+		eyeDot.hidden = !(dot && target.kind === 'bright' && el.visible);
 		eyeDot.style.transform = `translate(${dx.toFixed(1)}px, 0)`;
 		eyeMoons.style.transform = `translate(${dx.toFixed(1)}px, 0)`;
 		// Jupiter's four moons: seen by every telescope, lost to the eye in the planet's glare
@@ -234,6 +247,40 @@ if (root) {
 		for (const b of root.querySelectorAll<HTMLElement>('[data-target]')) b.setAttribute('aria-pressed', String(b.dataset.target === target.id));
 	};
 
+	// ---------- the two strips ----------
+	// The chosen button is brought to the middle of its strip; only the strip scrolls, never the page (a page that
+	// jumped every step of «Пройти 400 лет» would pull the frame out of sight).
+	const reveal = (strip: HTMLElement, smooth = true) => {
+		const b = strip.querySelector<HTMLElement>('[aria-pressed="true"]');
+		if (!b) return;
+		const s = strip.getBoundingClientRect();
+		const r = b.getBoundingClientRect();
+		const left = strip.scrollLeft + r.left - s.left - (s.width - r.width) / 2;
+		strip.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' });
+	};
+	// the side where more is hidden fades out
+	const edges = (strip: HTMLElement) => {
+		const more = strip.scrollWidth - strip.clientWidth;
+		strip.classList.toggle('is-l', strip.scrollLeft > 2);
+		strip.classList.toggle('is-r', strip.scrollLeft < more - 2);
+	};
+	for (const strip of [targetStrip, scopeStrip]) {
+		strip.addEventListener('scroll', () => edges(strip), { passive: true });
+		// a mouse wheel turns the strip while there is more to see, then lets the page scroll on
+		strip.addEventListener(
+			'wheel',
+			(e) => {
+				if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+				const more = strip.scrollWidth - strip.clientWidth;
+				if (more < 2 || (e.deltaY < 0 && strip.scrollLeft <= 0) || (e.deltaY > 0 && strip.scrollLeft >= more - 1)) return;
+				e.preventDefault();
+				strip.scrollLeft += e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY;
+			},
+			{ passive: false },
+		);
+		new ResizeObserver(() => edges(strip)).observe(strip);
+	}
+
 	const setTarget = (t: Target) => {
 		target = t;
 		zoom = 1;
@@ -249,12 +296,14 @@ if (root) {
 		if (refImg.complete) stage.classList.remove('is-loading');
 		describe();
 		paint();
+		reveal(targetStrip);
 	};
 	const setScope = (s: Scope) => {
 		scope = s;
 		describe();
+		info.scrollTop = 0;
 		paint();
-		root.querySelector<HTMLElement>(`[data-scope="${s.id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+		reveal(scopeStrip);
 	};
 
 	// ---------- the whole screen ----------
@@ -271,10 +320,18 @@ if (root) {
 		}
 		root.classList.toggle('is-full', on);
 		document.documentElement.classList.toggle('ts-lock', on);
-		$('[data-ts-full]').setAttribute('aria-pressed', String(on));
+		fullBtn.setAttribute('aria-pressed', String(on));
+		const label = on ? 'Выйти из полноэкранного режима (Esc)' : 'На весь экран';
+		fullBtn.setAttribute('aria-label', label);
+		fullBtn.title = label;
+		// moving the element resets the strips' scroll: the chosen object and telescope are brought back into sight
+		requestAnimationFrame(() => {
+			reveal(targetStrip, false);
+			reveal(scopeStrip, false);
+		});
 		if (!on) stage.scrollIntoView({ block: 'nearest' });
 	};
-	$('[data-ts-full]').addEventListener('click', () => setFull(!root.classList.contains('is-full')));
+	fullBtn.addEventListener('click', () => setFull(!root.classList.contains('is-full')));
 	document.addEventListener('keydown', (e) => {
 		if (e.key === 'Escape' && root.classList.contains('is-full')) setFull(false);
 	});
@@ -447,6 +504,7 @@ if (root) {
 		const r = stage.getBoundingClientRect();
 		sw = r.width;
 		sh = r.height;
+		EYE_PX = eyeGlass.clientWidth || EYE_PX;
 		paint();
 	}).observe(stage);
 	setTarget(target);

@@ -5,6 +5,9 @@
  * best picture of today; a small window shows the telescope's true field of view (how large the object looked in
  * the eyepiece). Everything the telescope does to the picture follows from its numbers (./data.ts, ./telescope.ts).
  * The mirrors in the timeline are drawn to one scale, next to a person 1,7 m tall.
+ * On a phone the telescopes come right under the frame and the numbers after them, so that the frame stays in sight
+ * while one chooses; on a computer the frame has a fixed height and the numbers scroll beside it, so that nothing
+ * jumps when the telescope changes.
  */
 import { SCOPES, TARGETS, JUPITER_MOONS, HOW } from './data';
 
@@ -54,8 +57,9 @@ const first = TARGETS[0];
 				<p class="ts-eye__cap" data-ts-eye-cap></p>
 			</div>
 			<div class="ts-zoom">
-				<button type="button" data-ts-full aria-pressed="false" aria-label="На весь экран">
-					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+				<button type="button" data-ts-full aria-pressed="false" aria-label="На весь экран" title="На весь экран">
+					<svg class="ts-full-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+					<svg class="ts-full-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /></svg>
 				</button>
 				<button type="button" data-ts-zoom="in" aria-label="Крупнее">+</button>
 				<button type="button" data-ts-zoom="out" aria-label="Мельче">−</button>
@@ -68,7 +72,7 @@ const first = TARGETS[0];
 			<dl class="ts-stats">
 				<div data-ts-stat="d"><dt>Зеркало</dt><dd></dd></div>
 				<div data-ts-stat="light"><dt>Собирает света</dt><dd></dd></div>
-				<div data-ts-stat="theta"><dt>Различает детали от</dt><dd></dd></div>
+				<div data-ts-stat="theta"><dt>Различает детали&nbsp;от</dt><dd></dd></div>
 				<div data-ts-stat="mlim"><dt>Самые слабые звёзды</dt><dd></dd></div>
 				<div data-ts-stat="how"><dt>Как смотрят</dt><dd></dd></div>
 				<div data-ts-stat="color"><dt>Цвета</dt><dd></dd></div>
@@ -93,7 +97,7 @@ const first = TARGETS[0];
 					<svg viewBox="0 0 10 24" style={`height:${(1700 * PX_PER_MM).toFixed(1)}px`}><circle cx="5" cy="2.6" r="2.4" /><path d="M5 5.4v9M5 7.5L1.2 12M5 7.5l3.8 4.5M5 14.4L2 23M5 14.4L8 23" /></svg>
 				</span>
 				<span class="ts-scope__year">для масштаба</span>
-				<span class="ts-scope__name">человек, 1,7 м</span>
+				<span class="ts-scope__name">человек, 1,7&nbsp;м</span>
 			</div>
 			{
 				SCOPES.map((s, i) => (
@@ -139,6 +143,8 @@ const first = TARGETS[0];
 	}
 	.tscope {
 		--ts-sky: #000;
+		/* the frame's height on a computer: fixed, so that the picture keeps its scale from one telescope to the next */
+		--ts-h: clamp(28rem, calc(100vh - 10rem), 46rem);
 		color: var(--sl-color-white);
 	}
 	.tscope button {
@@ -157,6 +163,19 @@ const first = TARGETS[0];
 		margin-bottom: 0.75rem;
 		padding-bottom: 0.25rem;
 		overflow-x: auto;
+	}
+	/* a strip that scrolls fades out at the side where more is hidden */
+	.ts-targets.is-r,
+	.ts-scopes.is-r {
+		mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent);
+	}
+	.ts-targets.is-l,
+	.ts-scopes.is-l {
+		mask-image: linear-gradient(to left, #000 calc(100% - 3rem), transparent);
+	}
+	.ts-targets.is-l.is-r,
+	.ts-scopes.is-l.is-r {
+		mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
 	}
 	.ts-target {
 		flex: none;
@@ -208,9 +227,13 @@ const first = TARGETS[0];
 		min-height: 18rem;
 		overflow: hidden;
 		background: var(--ts-sky);
-		touch-action: none;
+		/* a finger moving up or down scrolls the page; once the picture is zoomed, it pans the picture */
+		touch-action: pan-y;
 		user-select: none;
 		-webkit-user-select: none;
+	}
+	.ts-stage.is-zoomed {
+		touch-action: none;
 	}
 	.ts-stage.is-drag {
 		cursor: grabbing;
@@ -440,6 +463,10 @@ const first = TARGETS[0];
 		stroke-linecap: round;
 		stroke-linejoin: round;
 	}
+	.ts-zoom button[aria-pressed='true'] .ts-full-on,
+	.ts-zoom button[aria-pressed='false'] .ts-full-off {
+		display: none;
+	}
 	.ts-zoom button[aria-pressed='true'] {
 		background: hsl(42, 90%, 62%);
 		color: hsl(232, 50%, 10%);
@@ -475,6 +502,7 @@ const first = TARGETS[0];
 	}
 	.tscope.is-full .ts-main {
 		min-height: 0;
+		grid-template-rows: minmax(0, 1fr);
 	}
 	.tscope.is-full .ts-stage {
 		aspect-ratio: auto;
@@ -483,7 +511,7 @@ const first = TARGETS[0];
 		height: 100%;
 	}
 	.tscope.is-full .ts-info {
-		overflow: auto;
+		max-height: none;
 	}
 	.tscope.is-full .ts-line {
 		margin: 0;
@@ -512,13 +540,24 @@ const first = TARGETS[0];
 		transform-origin: 50% 100%;
 	}
 	@media (max-width: 56rem) {
-		.tscope.is-full .ts-main {
-			grid-template-rows: minmax(0, 1fr);
-		}
 		.tscope.is-full .ts-info,
-		.tscope.is-full .ts-line__head,
 		.tscope.is-full .ts-realnote {
 			display: none;
+		}
+		/* «Как в жизни» and «Пройти 400 лет» stay at hand, in one short row above the telescopes */
+		.tscope.is-full .ts-line__head {
+			float: none;
+			flex-wrap: nowrap;
+			justify-content: flex-end;
+			margin: 0 0 0.2rem;
+		}
+		.tscope.is-full .ts-real,
+		.tscope.is-full .ts-play {
+			min-height: 34px;
+			padding: 0 0.8rem;
+		}
+		.tscope.is-full .ts-stage {
+			border-radius: 0.8rem;
 		}
 	}
 
@@ -539,7 +578,7 @@ const first = TARGETS[0];
 	.ts-info__name {
 		margin: 0.1rem 0 0.7rem;
 		font-family: var(--ig-font-display);
-		font-size: 2rem;
+		font-size: 1.8rem;
 		font-weight: 400;
 		line-height: 1.1;
 		color: var(--sl-color-white);
@@ -551,7 +590,7 @@ const first = TARGETS[0];
 	}
 	.ts-stats > div {
 		display: grid;
-		grid-template-columns: 8.2rem 1fr;
+		grid-template-columns: 7.6rem 1fr;
 		gap: 0.6rem;
 		padding: 0.3rem 0;
 		border-top: 1px dashed var(--sl-color-gray-5);
@@ -679,6 +718,12 @@ const first = TARGETS[0];
 		background: radial-gradient(circle at 35% 30%, hsl(45, 100%, 90%), hsl(42, 85%, 58%));
 		box-shadow: 0 0 10px hsl(42 90% 62% / 0.35);
 	}
+	.ts-scope.ts-scope--man {
+		flex-basis: 6.4rem;
+	}
+	.ts-scope--man .ts-scope__year {
+		white-space: nowrap;
+	}
 	.ts-scope--man svg {
 		display: block;
 		width: auto;
@@ -737,21 +782,64 @@ const first = TARGETS[0];
 		margin: 0.5rem 0 0;
 	}
 
-	/* beside the numbers the frame takes the whole height of the row */
+	/* beside the numbers: the frame has a fixed height and the numbers scroll, with a shadow where more is hidden */
 	@media (min-width: 56.01rem) {
+		.ts-main {
+			grid-template-rows: var(--ts-h);
+		}
 		.ts-stage {
 			aspect-ratio: auto;
-			min-height: min(78vh, 33rem);
+			height: 100%;
+			min-height: 0;
 			max-height: none;
 		}
+		.ts-info {
+			overflow-y: auto;
+			overscroll-behavior: contain;
+			scrollbar-width: thin;
+			background:
+				linear-gradient(var(--ig-surface) 30%, transparent) top / 100% 2.5rem no-repeat local,
+				linear-gradient(transparent, var(--ig-surface) 70%) bottom / 100% 2.5rem no-repeat local,
+				linear-gradient(color-mix(in srgb, var(--sl-color-gray-3) 30%, transparent), transparent) top / 100% 0.8rem no-repeat scroll,
+				linear-gradient(transparent, color-mix(in srgb, var(--sl-color-gray-3) 30%, transparent)) bottom / 100% 0.8rem no-repeat scroll,
+				var(--ig-surface);
+		}
 	}
+	/* on a phone: the objects, the frame, the telescopes, then the numbers */
 	@media (max-width: 56rem) {
+		.tscope {
+			display: flex;
+			flex-direction: column;
+		}
 		.ts-main {
-			grid-template-columns: minmax(0, 1fr);
+			display: contents;
+		}
+		.ts-stage {
+			order: 1;
+			border: 1px solid var(--sl-color-gray-5);
+			border-radius: 1rem;
+		}
+		.ts-line {
+			order: 2;
+		}
+		.ts-realnote {
+			order: 3;
 		}
 		.ts-info {
-			border-left: 0;
-			border-top: 1px solid var(--sl-color-gray-5);
+			order: 4;
+			margin-top: 0.9rem;
+			border: 1px solid var(--sl-color-gray-5);
+			border-radius: 1rem;
+			background: var(--ig-surface);
+		}
+		.ts-about {
+			order: 5;
+		}
+		.ts-credit {
+			order: 6;
+		}
+		.ts-how {
+			order: 7;
 		}
 	}
 	@media (max-width: 30rem) {
@@ -764,6 +852,13 @@ const first = TARGETS[0];
 		}
 		.ts-eye__cap {
 			font-size: 0.66rem;
+		}
+		/* the words «nothing is seen» go above the window of the field of view */
+		.ts-nothing,
+		.ts-view--tel.is-point .ts-nothing {
+			top: 2.4rem;
+			transform: none;
+			font-size: var(--sl-text-xs);
 		}
 		.ts-scope {
 			flex-basis: 4.6rem;
