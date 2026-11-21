@@ -28,10 +28,12 @@ interface Cluster {
 	x: number;
 	y: number;
 	el?: HTMLButtonElement;
+	/** The city under the star or under a circle whose discoveries share one place; empty for a mixed circle. */
+	city?: string;
 }
 
 const WORLD = 1000;
-const Y_TOP = 196; // about 72° N
+const Y_TOP = 166; // about 76° N: room above the northernmost stars (70° N) for the row of buttons
 const Y_BOTTOM = 700; // about 57° S
 const project = (lon: number, lat: number): [number, number] => [
 	((lon + 180) / 360) * WORLD,
@@ -43,6 +45,8 @@ const REGIONS: Record<string, [number, number, number, number]> = {
 	russia: [26, 49, 92, 64],
 };
 const CLUSTER_PX = 34;
+/** Stars nearer than this (world units, about 5–10 km) stand in one town: the Panthéon and the Observatory are Paris. */
+const TOWN = 0.3;
 
 const root = document.querySelector<HTMLElement>('[data-dmap]');
 if (root) {
@@ -159,18 +163,49 @@ if (root) {
 	const shown = () => all.filter((d) => (era === 'all' || eraOf(d.year) === era) && (!topics.size || topics.has(d.topic)));
 	const cityOf = (d: Item) => d.place.split(',')[0].replace(/ \(.*$/, '');
 
+	/** The difference a − b of two world x, the short way round the globe. */
+	const dx = (a: number, b: number) => a - b - Math.round((a - b) / WORLD) * WORLD;
+	const centre = (c: Cluster) => {
+		const x0 = c.items[0].x;
+		c.x = x0 + c.items.reduce((a, i) => a + dx(i.x, x0), 0) / c.items.length;
+		c.y = c.items.reduce((a, i) => a + i.y, 0) / c.items.length;
+	};
 	const cluster = () => {
 		// greedy: a star joins the first cluster nearer than CLUSTER_PX on the screen, else starts its own
 		const out: Cluster[] = [];
 		const r = CLUSTER_PX / k;
 		for (const d of shown()) {
-			const dx = (a: number, b: number) => a - b - Math.round((a - b) / WORLD) * WORLD; // the short way round
 			const c = out.find((c) => Math.hypot(dx(c.x, d.x), c.y - d.y) < r);
 			if (c) {
 				c.items.push(d);
-				c.x = c.items[0].x + c.items.reduce((a, i) => a + dx(i.x, c.items[0].x), 0) / c.items.length;
-				c.y = c.items.reduce((a, i) => a + i.y, 0) / c.items.length;
+				centre(c);
 			} else out.push({ items: [d], x: d.x, y: d.y });
+		}
+		// a cluster's centre drifts as stars join it and may come onto a neighbour: such circles would cover each
+		// other (Paris, London and Cambridge on a phone), so they merge until every two stand apart
+		for (let again = true; again; ) {
+			again = false;
+			for (let i = 0; i < out.length && !again; i++) {
+				for (let j = i + 1; j < out.length; j++) {
+					if (Math.hypot(dx(out[i].x, out[j].x), out[i].y - out[j].y) < r) {
+						out[i].items.push(...out[j].items);
+						out.splice(j, 1);
+						centre(out[i]);
+						again = true;
+						break;
+					}
+				}
+			}
+		}
+		for (const c of out) {
+			c.items.sort((a, b) => a.year - b.year);
+			const d = c.items[0];
+			// the circle is named after the name most of its stars carry, when they all stand in one town or when
+			// three quarters of them carry it (London with Slough)
+			const n = new Map<string, number>();
+			for (const i of c.items) n.set(cityOf(i), (n.get(cityOf(i)) ?? 0) + 1);
+			const [name, most] = [...n].sort((a, b) => b[1] - a[1])[0];
+			c.city = most >= 0.75 * c.items.length || c.items.every((i) => Math.hypot(dx(i.x, d.x), i.y - d.y) < TOWN) ? name : '';
 		}
 		clusters = out;
 		clusteredAt = k;
@@ -184,10 +219,11 @@ if (root) {
 					const d = c.items[0];
 					b.dataset.topic = d.topic;
 					b.setAttribute('aria-label', `${d.title}. ${d.who}, ${d.when}, ${d.place}`);
-					b.innerHTML = `<span class="dm-pin__star" aria-hidden="true"></span><span class="dm-pin__label">${cityOf(d)}</span>`;
+					b.innerHTML = `<span class="dm-pin__star" aria-hidden="true"></span><span class="dm-pin__label" aria-hidden="true">${esc(cityOf(d))}</span>`;
 				} else {
-					b.setAttribute('aria-label', `Открытий здесь: ${c.items.length}. Приблизить`);
+					b.setAttribute('aria-label', c.city ? `${c.city}: открытий здесь ${c.items.length}` : `Открытий рядом: ${c.items.length}. Приблизить`);
 					b.textContent = String(c.items.length);
+					b.insertAdjacentHTML('beforeend', `<span class="dm-pin__label" aria-hidden="true">${esc(c.city!)}</span>`);
 				}
 				b.addEventListener('click', () => {
 					if (dragged) return;
@@ -206,10 +242,54 @@ if (root) {
 			c.el!.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
 			c.el!.hidden = x < -40 || y < -40 || x > vw + 40 || y > vh + 40;
 		}
-		pins.classList.toggle('show-labels', k > kMin * 5);
+	};
+	// The names of the cities: shown when the map is close (and always at the chosen star), each to the right of its
+	// star or, when that place is taken, to the left; a name that would cover another name or a star is left out.
+	// The chosen star goes first, then the circles with more discoveries, then the single stars.
+	let labelsAll = false;
+	const measure = document.createElement('canvas').getContext('2d')!;
+	const layoutLabels = () => {
+		const cs = getComputedStyle(pins);
+		const fs = 0.78 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+		measure.font = `${fs}px ${cs.fontFamily}`;
+		const h = fs * 1.5;
+		const pad = fs * 0.77; // the label's padding, 0.3rem on each side
+		const all = (labelsAll = k > kMin * 5);
+		const pos = clusters.map((c) => [dx(c.x, cx) * k, (c.y - cy) * k]);
+		const rad = clusters.map((c) => (c.items.length > 1 ? 16 : 8));
+		const boxes: number[][] = [];
+		const free = (b: number[], own: number) =>
+			boxes.every((o) => b[0] >= o[2] || o[0] >= b[2] || b[1] >= o[3] || o[1] >= b[3]) &&
+			pos.every(([x, y], i) => i === own || b[0] >= x + rad[i] || x - rad[i] >= b[2] || b[1] >= y + rad[i] || y - rad[i] >= b[3]);
+		const order = clusters
+			.map((c, i) => i)
+			.sort((a, b) => Number(clusters[b].el!.classList.contains('is-sel')) - Number(clusters[a].el!.classList.contains('is-sel')) || clusters[b].items.length - clusters[a].items.length);
+		for (const i of order) {
+			const c = clusters[i];
+			const el = c.el!;
+			let side = '';
+			const sel = el.classList.contains('is-sel');
+			// a circle of several places that holds the chosen star is named by the chosen star's city
+			const text = c.city || (sel && selected ? cityOf(selected) : '');
+			if (c.items.length > 1) el.querySelector('.dm-pin__label')!.textContent = text;
+			if (text && (all || sel)) {
+				const w = measure.measureText(text).width + pad;
+				const off = c.items.length > 1 ? 14 : 12; // as in the CSS: the label starts 30 px from the button's edge
+				const [x, y] = pos[i];
+				const right = [x + off, y - h / 2, x + off + w, y + h / 2];
+				const left = [x - off - w, y - h / 2, x - off, y + h / 2];
+				if (free(right, i)) side = 'right';
+				else if (free(left, i)) side = 'left';
+				else if (sel) side = 'right'; // the chosen star is always named; it lies above its neighbours
+				if (side) boxes.push(side === 'right' ? right : left);
+			}
+			el.classList.toggle('has-label', !!side);
+			el.classList.toggle('dm-pin--left', side === 'left');
+		}
 	};
 	const markSelected = () => {
 		for (const c of clusters) c.el!.classList.toggle('is-sel', !!selected && c.items.includes(selected));
+		layoutLabels();
 	};
 
 	let raf = 0;
@@ -219,6 +299,7 @@ if (root) {
 			raf = 0;
 			clamp();
 			if (Math.abs(Math.log(k / clusteredAt)) > 0.04) cluster();
+			else if (k > kMin * 5 !== labelsAll) layoutLabels();
 			draw();
 			place();
 		});
@@ -244,7 +325,10 @@ if (root) {
 			cy = y0 + (ty - y0) * e;
 			render();
 			if (u < 1) fly = requestAnimationFrame(step);
-			else cx = ((cx % WORLD) + WORLD) % WORLD;
+			else {
+				cx = ((cx % WORLD) + WORLD) % WORLD;
+				clusteredAt = 0; // the last frame is clustered at the final scale
+			}
 		};
 		fly = requestAnimationFrame(step);
 	};
@@ -261,7 +345,12 @@ if (root) {
 
 	// ---------- the card ----------
 	const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+	/** The address carries the chosen discovery (/uchebnik/otkrytiya/#ohm), so the link can be shared. */
+	const setHash = (id: string) => {
+		if (location.hash.slice(1) !== id) history.replaceState(history.state, '', id ? `#${id}` : location.pathname + location.search);
+	};
 	const showIntro = () => {
+		setHash('');
 		selected = null;
 		markSelected();
 		root.classList.remove('has-card');
@@ -272,11 +361,15 @@ if (root) {
 	};
 	/** The card goes away altogether; the button «i» on the map brings the first one back. */
 	const closeCard = () => {
+		setHash('');
 		selected = null;
 		markSelected();
 		root.classList.remove('has-card');
+		const focused = card.contains(document.activeElement);
 		card.hidden = true;
 		paintList();
+		// the focus does not get lost with the card
+		if (focused) view.focus({ preventScroll: true });
 	};
 	const cardBody = card.querySelector<HTMLElement>('[data-dmap-body]')!;
 	const fillCard = (html: string) => {
@@ -287,8 +380,18 @@ if (root) {
 		root.classList.add('has-card');
 		card.scrollTop = 0;
 	};
+	/** The scale at which the star d parts from its nearest neighbour at another place. */
+	const partingScale = (d: Item) => {
+		let m = Infinity;
+		for (const o of shown()) {
+			const r = Math.hypot(dx(o.x, d.x), o.y - d.y);
+			if (r >= TOWN) m = Math.min(m, r);
+		}
+		return (CLUSTER_PX * 1.3) / m;
+	};
 	const select = (d: Item, flyThere: boolean) => {
 		selected = d;
+		setHash(d.id);
 		const list = shown();
 		const i = list.indexOf(d);
 		const prev = list[i - 1];
@@ -309,7 +412,8 @@ if (root) {
 			</div>`);
 		markSelected();
 		paintList();
-		if (flyThere) flyTo(d.x, d.y, Math.max(k, Math.min(kMin * 9, 60)));
+		// close enough that the chosen star is not hidden in a circle with its neighbours (but not closer than a region)
+		if (flyThere) flyTo(d.x, d.y, Math.max(k, Math.min(kMin * 9, 60), Math.min(partingScale(d), kMin * 24)));
 		card.hidden = false;
 	};
 	const openCluster = (c: Cluster) => {
@@ -327,7 +431,7 @@ if (root) {
 		selected = null;
 		fillCard(`
 			<button type="button" class="dm-card__close" data-close aria-label="Закрыть карточку">×</button>
-			<p class="dm-card__when">${esc(cityOf(c.items[0]))}</p>
+			<p class="dm-card__when">${esc(c.city || cityOf(c.items[0]))}</p>
 			<h3 class="dm-card__title">Открытий здесь: ${c.items.length}</h3>
 			<ul class="dm-card__list">${c.items
 				.map((d) => `<li><button type="button" class="dm-row" data-go="${d.id}"><span class="dm-dot" data-topic="${d.topic}"></span><span class="dm-row__when">${esc(d.when)}</span><span class="dm-row__title">${esc(d.title)}</span><span class="dm-row__who">${esc(d.who)}</span></button></li>`)
@@ -338,7 +442,26 @@ if (root) {
 		const t = (e.target as Element).closest<HTMLElement>('[data-go], [data-close]');
 		if (!t) return;
 		if ('close' in t.dataset) closeCard();
-		else if (t.dataset.go && byId.has(t.dataset.go)) select(byId.get(t.dataset.go)!, true);
+		else if (t.dataset.go && byId.has(t.dataset.go)) {
+			const had = t === document.activeElement;
+			const nav = [...card.querySelectorAll('.dm-card__nav .dm-btn')].indexOf(t);
+			select(byId.get(t.dataset.go)!, true);
+			// the card is drawn anew: the focus goes to the same button «Раньше» or «Позже» (or to the card's title)
+			if (had) {
+				const btns = [...card.querySelectorAll<HTMLButtonElement>('.dm-card__nav .dm-btn')];
+				const to = nav >= 0 ? (btns[nav].disabled ? btns[1 - nav] : btns[nav]) : card.querySelector<HTMLElement>('[data-close]');
+				to?.focus({ preventScroll: true });
+			}
+		}
+	});
+	// Escape closes the card first (when the focus is on the map or the map fills the screen), then the whole-screen view
+	document.addEventListener('keydown', (e) => {
+		if (e.key !== 'Escape' || e.defaultPrevented) return;
+		const full = root.classList.contains('is-full');
+		if (root.classList.contains('has-card') && (full || root.contains(document.activeElement))) closeCard();
+		else if (full) setFull(false);
+		else return;
+		e.preventDefault();
 	});
 
 	// the floating card is moved by its grip (a wide screen only: on a phone the card stands under the map)
@@ -431,9 +554,15 @@ if (root) {
 			home.remove();
 		}
 		root.classList.toggle('is-full', on);
+		// a card moved by hand comes back to its corner: the map has another size now
+		tx = ty = 0;
+		cardMoved = false;
+		card.style.transform = '';
 		document.documentElement.classList.toggle('dm-lock', on);
 		root.querySelector('[data-act="full"]')!.setAttribute('aria-pressed', String(on));
 		resize();
+		// moving the map in the page drops the focus: it comes back to the map, so the keys work at once
+		view.focus({ preventScroll: true });
 	};
 	root.addEventListener('click', (e) => {
 		const act = (e.target as Element).closest<HTMLElement>('[data-act]')?.dataset.act;
@@ -537,7 +666,6 @@ if (root) {
 		else if (e.key === 'ArrowDown') cy += step;
 		else if (e.key === '+' || e.key === '=') k *= 1.5;
 		else if (e.key === '-') k /= 1.5;
-		else if (e.key === 'Escape' && root.classList.contains('is-full')) setFull(false);
 		else return;
 		e.preventDefault();
 		render();

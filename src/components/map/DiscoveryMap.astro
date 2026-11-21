@@ -14,8 +14,10 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const entries = await getCollection('docs');
 const chapterOf = (slug?: string) => (slug ? entries.find((e) => /^uchebnik\/\d+-klass\//.test(e.id) && e.id.endsWith(`/${slug}`)) : undefined);
 const items = DISCOVERIES.map((d) => {
-	const ch = chapterOf(d.ch);
-	if (d.ch && !ch) throw new Error(`Карта открытий: нет главы «${d.ch}» (${d.id})`);
+	// `ch` is a chapter's slug, optionally with the anchor of the section that tells about the discovery
+	const [slug, anchor] = (d.ch ?? '').split('#');
+	const ch = chapterOf(slug || undefined);
+	if (slug && !ch) throw new Error(`Карта открытий: нет главы «${slug}» (${d.id})`);
 	return {
 		id: d.id,
 		year: d.year,
@@ -29,7 +31,7 @@ const items = DISCOVERIES.map((d) => {
 		text: d.text,
 		topic: d.topic,
 		topicLabel: TOPICS[d.topic],
-		href: ch ? `${base}${ch.id}/#кто-это-открыл` : '',
+		href: ch ? `${base}${ch.id}/#${anchor || 'кто-это-открыл'}` : '',
 		chapter: ch?.data.title ?? '',
 	};
 });
@@ -256,6 +258,7 @@ const places = new Set(items.map((d) => `${d.lat},${d.lon}`)).size;
 	.dmap__pins {
 		position: absolute;
 		inset: 0;
+		z-index: 0; /* the chosen star rises above its neighbours, never above the buttons */
 		pointer-events: none;
 	}
 	/* a star: a bright core in the color of its part of physics, with a glow; the button around it is 36 px */
@@ -272,6 +275,9 @@ const places = new Set(items.map((d) => `${d.lat},${d.lon}`)).size;
 		background: none;
 		pointer-events: auto;
 		color: var(--sl-color-white);
+	}
+	.dm-pin.is-sel {
+		z-index: 1;
 	}
 	.dm-pin[hidden] {
 		display: none;
@@ -301,6 +307,7 @@ const places = new Set(items.map((d) => `${d.lat},${d.lon}`)).size;
 	.dm-pin__label {
 		position: absolute;
 		left: 30px;
+		font-weight: 400;
 		top: calc(50% - 0.75em);
 		display: none;
 		padding: 0 0.3rem;
@@ -312,9 +319,13 @@ const places = new Set(items.map((d) => `${d.lat},${d.lon}`)).size;
 		color: var(--sl-color-white);
 		pointer-events: none;
 	}
-	.show-labels .dm-pin__label,
-	.dm-pin.is-sel .dm-pin__label {
+	/* which names are shown, and on which side, is decided by map.ts so that they never cover each other */
+	.dm-pin.has-label .dm-pin__label {
 		display: block;
+	}
+	.dm-pin--left .dm-pin__label {
+		left: auto;
+		right: 30px;
 	}
 	.dm-pin--many {
 		width: 32px;
@@ -414,10 +425,11 @@ const places = new Set(items.map((d) => `${d.lat},${d.lon}`)).size;
 	.dm-hint[hidden] {
 		display: none;
 	}
-	/* on a wide screen the card floats over the east of the map, where no discovery of the textbook was made */
+	/* on a wide screen the card floats in the south-east of the map: on the whole world that is the Indian Ocean,
+	   where no discovery was made, while a card at the top would hide Russia, India, China and Japan */
 	.dmap__card {
 		position: absolute;
-		top: 0.6rem;
+		bottom: 0.6rem;
 		right: 0.6rem;
 		width: 20.5rem;
 		max-height: calc(100% - 1.2rem);
@@ -660,9 +672,15 @@ const places = new Set(items.map((d) => `${d.lat},${d.lon}`)).size;
 		.dm-grip {
 			display: none;
 		}
+		/* a big cluster (Paris has more than 20 discoveries) scrolls inside the card instead of stretching the page */
+		.dm-card__list {
+			max-height: 50vh;
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
 		.dmap__card {
 			position: relative;
-			top: auto;
+			bottom: auto;
 			right: auto;
 			transform: none !important;
 			width: auto;
