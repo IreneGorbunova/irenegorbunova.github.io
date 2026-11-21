@@ -1,0 +1,252 @@
+---
+/**
+ * «Автомобиль на повороте» (model, real time). Top view of a flat 90° bend of radius R = 25 / 50 / 100 м (the middle
+ * of the lane), drawn always 140 px: the scale is 140/R px per metre, the same on both axes; the lane is 7 м wide to
+ * scale (at least 14 px). The car (mass 1,0 / 1,5 / 2,0 т) drives at a constant speed of 20…90 км/ч. To keep it on the
+ * circle the road must push it toward the center with F = mυ²/R; the greatest friction the road can give is
+ * F_тр max = μmg (dry asphalt μ = 0,7, wet 0,4, snow 0,2, ice 0,1; g = 9,8 м/с²).
+ *   F ≤ F_тр max: the car follows the bend; the orange arrow (friction on the car, toward the center) has the length F.
+ *   F > F_тр max: the car skids: the road gives only F_тр max toward the center, so the car moves on a circle of the
+ *     larger radius υ²/(μg), tangent to the lane at the start of the bend, and leaves the road to the outside (the
+ *     model stops it after a quarter of that circle or at the edge of the picture). Braking is ignored: a
+ *     simplification, as the header of the chapter's worked task says.
+ * Bars at the bottom left: «нужна сила» F (dashed) and «трение может дать» F_тр max (filled), scaled for each
+ * setting so that the longer of the two is 120 px (only their ratio matters; the numbers are in the calculation); the
+ * friction arrow on the car uses the same ratio, 70 px for the longer bar. A skidding car is stopped where it would
+ * leave the picture. The car is drawn 20 px long, not to scale; its blue velocity arrow has a fixed
+ * length (the speed is in the controls). The calculation below the picture uses υ in м/с = (км/ч)/3,6.
+ */
+import RdoStyles from './RdoStyles.astro';
+---
+
+<RdoStyles />
+<figure class="g7 rdo not-content" data-rdo-turn>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 300" role="img" aria-label="Вид сверху: автомобиль проходит поворот дороги; если сила трения недостаточна, его заносит наружу">
+			<rect class="rdo-grass" x="0" y="0" width="360" height="300"></rect>
+			<path class="rdo-surf rdo-surf--dry" data-road></path>
+			<path class="rdo-roadline" data-mid></path>
+			<circle class="rdo-center" r="2.4" data-c></circle>
+			<text class="t-small" data-clab>центр поворота</text>
+			<path class="rdo-skid" data-trace></path>
+			<g data-car>
+				<rect class="rdo-car" x="-10" y="-4.5" width="20" height="9" rx="2"></rect>
+				<rect class="rdo-glass" x="2" y="-3.5" width="3.6" height="7" rx="1"></rect>
+				<rect class="rdo-glass" x="-8" y="-3.3" width="2.6" height="6.6" rx="1"></rect>
+			</g>
+			<g data-arrows></g>
+			<g transform="translate(10 238)">
+				<text class="t-small" x="0" y="0">нужна сила</text>
+				<rect class="rdo-bar-need" x="0" y="5" height="10" data-bneed></rect>
+				<text class="t-small" x="0" y="31">трение может дать</text>
+				<rect class="rdo-bar-max" x="0" y="36" height="10" data-bmax></rect>
+			</g>
+		</svg>
+		<div class="rdo-ctrl">
+			<label class="g7__slider"><span>Скорость</span><output data-ov></output><input type="range" min="20" max="90" step="10" value="50" data-v aria-label="Скорость, километры в час" /></label>
+			<div class="g7__row">
+				<span class="g7__label">Радиус <i>R</i></span>
+				<span class="g7__seg" role="group" aria-label="Радиус поворота" data-r>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="25">25 м</button>
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="50">50 м</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="100">100 м</button>
+				</span>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Дорога</span>
+				<span class="g7__seg" role="group" aria-label="Дорога" data-mu>
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="0.7" data-k="dry">сухой асфальт</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="0.4" data-k="wet">мокрый асфальт</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="0.2" data-k="snow">снег</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="0.1" data-k="ice">лёд</button>
+				</span>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Масса</span>
+				<span class="g7__seg" role="group" aria-label="Масса автомобиля" data-m>
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="1000">1,0 т</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="1500">1,5 т</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="2000">2,0 т</button>
+				</span>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Поехали</button>
+				<button type="button" class="g7__btn" data-again>Повторить</button>
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite"></p>
+			<ul class="g7__lines" data-calc></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Вид сверху. Синяя стрелка — скорость автомобиля, оранжевая — сила трения колёс о дорогу, направленная к центру
+		поворота. Дорога и путь автомобиля — в одном масштабе, автомобиль нарисован крупнее. Время идёт как на самом деле.
+	</figcaption>
+</figure>
+
+<script>
+	import { f1, fmt, k, loop, newArrow, tex } from './rdo';
+
+	const G = 9.8;
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-turn]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const RPX = 140;
+		const C = { x: 300, y: 230 };
+		const BARLEN = 120; // the longer of the two bars, px
+		const ARRLEN = 70; // the friction arrow when the force equals the longer bar, px
+		const scaleN = () => 1 / Math.max(need(), fmax()); // parts of the longer bar per newton
+		let R = 50;
+		let mu = 0.7;
+		let road = 'dry';
+		let m = 1000;
+		let kmh = 50;
+		let t = 0;
+		let running = false;
+		const vArrow = newArrow(q('[data-arrows]'), 'blue');
+		const fArrow = newArrow(q('[data-arrows]'), 'orange');
+		const vms = () => kmh / 3.6;
+		const need = () => (m * vms() ** 2) / R;
+		const fmax = () => mu * m * G;
+		const K = () => RPX / R; // px per metre
+		/** Position along the planned path (lane middle): s in px from the start at the bottom edge. */
+		const Y0 = 284; // the car starts whole inside the picture
+		const ENTRY = Y0 - C.y; // px of straight road before the bend
+		const lanePath = () => `M${C.x - RPX} 300 V${C.y} A${RPX} ${RPX} 0 0 1 ${C.x} ${C.y - RPX} H360`;
+		const onLane = (s: number) => {
+			if (s <= ENTRY) return { x: C.x - RPX, y: Y0 - s, ux: 0, uy: -1 };
+			const arc = (Math.PI / 2) * RPX;
+			if (s <= ENTRY + arc) {
+				const a = Math.PI + (s - ENTRY) / RPX; // screen angle from C, clockwise
+				return { x: C.x + RPX * Math.cos(a), y: C.y + RPX * Math.sin(a), ux: -Math.sin(a), uy: Math.cos(a) };
+			}
+			return { x: C.x + (s - ENTRY - arc), y: C.y - RPX, ux: 1, uy: 0 };
+		};
+		const pathEnd = () => ENTRY + (Math.PI / 2) * RPX + 60;
+		const setup = () => {
+			const w = Math.max(14, 7 * K());
+			const rd = q('[data-road]');
+			rd.setAttribute('d', lanePath());
+			rd.setAttribute('stroke-width', f1(w));
+			rd.setAttribute('class', `rdo-surf rdo-surf--${road}`);
+			q('[data-mid]').setAttribute('d', '');
+			q('[data-c]').setAttribute('cx', String(C.x));
+			q('[data-c]').setAttribute('cy', String(C.y));
+			q('[data-clab]').setAttribute('x', String(C.x - 72));
+			q('[data-clab]').setAttribute('y', String(C.y + 16));
+			q('[data-ov]').textContent = `${kmh} км/ч`;
+			q('[data-bneed]').setAttribute('width', f1(need() * scaleN() * BARLEN));
+			q('[data-bmax]').setAttribute('width', f1(fmax() * scaleN() * BARLEN));
+			calc();
+			t = 0;
+			running = false;
+			q('[data-trace]').setAttribute('d', '');
+			q('[data-msg]').textContent = 'Нажмите «Поехали».';
+			draw();
+		};
+		const num = (x: number) => {
+			// three significant figures, thin spaces in thousands
+			const r = x >= 1000 ? Math.round(x / 10) * 10 : x >= 100 ? Math.round(x) : Math.round(x * 10) / 10;
+			return fmt(r, r >= 100 ? 0 : 1).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+		};
+		const calc = () => {
+			const ul = q('[data-calc]');
+			ul.replaceChildren();
+			const v = vms();
+			const vr = Math.round(v * 10) / 10; // the calculation uses υ as shown, to 0,1 м/с (no case near F = F_тр max changes side)
+			const lines = [
+				`\\upsilon = ${kmh}\\ \\text{км/ч} \\approx ${tex(fmt(v, 1))}\\ \\text{м/с}`,
+				`F = \\dfrac{m\\upsilon^2}{R} \\approx \\dfrac{${m}\\ \\text{кг}\\cdot(${tex(fmt(v, 1))}\\ \\text{м/с})^2}{${R}\\ \\text{м}} \\approx ${tex(num((m * vr * vr) / R))}\\ \\text{Н}`,
+				`F_{\\text{тр max}} = \\mu m g = ${tex(fmt(mu, 1))}\\cdot ${m}\\ \\text{кг}\\cdot 9{,}8\\ \\text{м/с}^2 \\approx ${tex(num(fmax()))}\\ \\text{Н}`,
+			];
+			for (const L of lines) {
+				const li = document.createElement('li');
+				li.innerHTML = k(L);
+				ul.append(li);
+			}
+		};
+		const skids = () => need() > fmax();
+		let trace = '';
+		let lastP: { x: number; y: number; ux: number; uy: number } | null = null;
+		const draw = () => {
+			const v = vms() * K(); // px per s
+			let s = v * t;
+			let p: { x: number; y: number; ux: number; uy: number };
+			let F = need();
+			let done = false;
+			let toC = { x: 0, y: 0 };
+			if (!skids() || s <= ENTRY) {
+				if (s >= pathEnd()) {
+					s = pathEnd();
+					done = true;
+				}
+				p = onLane(s);
+				const inBend = s > ENTRY && s < ENTRY + (Math.PI / 2) * RPX;
+				F = inBend ? need() : 0;
+				const l = Math.hypot(C.x - p.x, C.y - p.y) || 1;
+				toC = { x: (C.x - p.x) / l, y: (C.y - p.y) / l };
+			} else {
+				// the larger circle, tangent to the lane at the start of the bend
+				const RS = ((vms() ** 2 / (mu * G)) * K());
+				const CS = { x: C.x - RPX + RS, y: C.y };
+				const a = Math.PI + (s - ENTRY) / RS;
+				p = { x: CS.x + RS * Math.cos(a), y: CS.y + RS * Math.sin(a), ux: -Math.sin(a), uy: Math.cos(a) };
+				F = fmax();
+				toC = { x: -Math.cos(a), y: -Math.sin(a) };
+				if (a >= 1.5 * Math.PI) done = true;
+			}
+			// the car stays whole inside the picture: at the edge it is stopped where it was
+			const M = 14;
+			if (p.x < M || p.y < M || p.x > 360 - M || p.y > 300 - M) {
+				if (lastP) p = lastP;
+				done = true;
+			}
+			lastP = p;
+			q('[data-car]').setAttribute('transform', `translate(${f1(p.x)} ${f1(p.y)}) rotate(${((Math.atan2(p.uy, p.ux) * 180) / Math.PI).toFixed(1)})`);
+			vArrow(p.x + p.ux * 11, p.y + p.uy * 11, p.x + p.ux * 45, p.y + p.uy * 45, 8, 4.5);
+			const L = F * scaleN() * ARRLEN;
+			if (F > 0) fArrow(p.x + toC.x * 6, p.y + toC.y * 6, p.x + toC.x * (6 + L), p.y + toC.y * (6 + L), 8, 4.5);
+			else fArrow(0, 0, 0, 0);
+			if (running) {
+				trace += `${trace ? 'L' : 'M'}${f1(p.x)} ${f1(p.y)}`;
+				q('[data-trace]').setAttribute('d', trace);
+			}
+			const inBendNow = s > ENTRY;
+			if (running && inBendNow) q('[data-msg]').textContent = skids() ? 'Занесло: трения не хватает.' : 'Автомобиль проходит поворот.';
+			return !done;
+		};
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			t += dt;
+			running = draw();
+			return running;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			if (running) return;
+			t = 0;
+			trace = '';
+			lastP = null;
+			running = true;
+			q('[data-msg]').textContent = 'Автомобиль едет к повороту.';
+			wake();
+		});
+		q('[data-again]').addEventListener('click', setup);
+		q<HTMLInputElement>('[data-v]').addEventListener('input', (e) => {
+			kmh = Number((e.target as HTMLInputElement).value);
+			setup();
+		});
+		const seg = (sel: string, pick: (b: HTMLButtonElement) => void) => {
+			for (const b of fig.querySelectorAll<HTMLButtonElement>(`${sel} button`))
+				b.addEventListener('click', () => {
+					for (const o of fig.querySelectorAll(`${sel} button`)) o.setAttribute('aria-pressed', String(o === b));
+					pick(b);
+					setup();
+				});
+		};
+		seg('[data-r]', (b) => (R = Number(b.dataset.v)));
+		seg('[data-mu]', (b) => {
+			mu = Number(b.dataset.v);
+			road = b.dataset.k!;
+		});
+		seg('[data-m]', (b) => (m = Number(b.dataset.v)));
+		setup();
+	}
+</script>

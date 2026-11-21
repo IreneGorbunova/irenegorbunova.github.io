@@ -1,0 +1,184 @@
+---
+/**
+ * «Куда направлено изменение скорости» (picture, loop, no numbers): the school construction in three steps. A ball
+ * moves clockwise along a circle (radius R, drawn 110 px) with a constant speed. Points A and B are symmetric about the
+ * top point M; the arc AB is 90°, then 40°, then 10°. In each step: the ball runs from A to B carrying its velocity
+ * (blue, the same length 80 px everywhere, along the tangent); the velocities at A and B stay; the arrow υ_B is carried
+ * to A keeping its direction; the red dashed arrow Δυ goes from the tip of υ_A to the tip of the carried υ_B
+ * (|Δυ| = 2υ sin(AB/2): 113, 55, 14 px); a copy of Δυ is carried to M, where the thin dashed line M → O shows that it
+ * points to the center. The smaller the arc, the shorter Δυ and the more exactly it points to the center (the
+ * construction is exact for the middle M at any arc). The last step adds the solid red arrow a_ц at M, toward O.
+ * Each step lasts 5,6 с, the last one 7 с; then the picture starts again.
+ */
+import RdoStyles from './RdoStyles.astro';
+---
+
+<RdoStyles />
+<figure class="g7 g7--pic g7--narrow rdo not-content" data-rdo-dv>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 300" role="img" aria-label="Скорости шарика в точках A и B окружности равны по модулю и различны по направлению; их разность направлена к центру окружности">
+			<circle class="rdo-path" cx="170" cy="182" r="110"></circle>
+			<path class="rdo-arc" data-arc></path>
+			<line class="rdo-radius" x1="170" y1="182" data-rline></line>
+			<text class="t-small" data-rlab><tspan class="t-i">R</tspan></text>
+			<circle class="rdo-center" cx="170" cy="182" r="2.6"></circle>
+			<text class="t-small" x="176" y="198">O</text>
+			<line class="rdo-radius" x1="170" y1="72" x2="170" y2="182" data-mo></line>
+			<g data-marks></g>
+			<g data-arrows></g>
+			<g data-labels></g>
+			<circle class="rdo-steelball" r="5" data-ball></circle>
+			<text class="t-title" x="10" y="20" data-step></text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Скорость в точке B направлена иначе, чем в точке A. Изменение скорости Δ<i>υ</i> направлено к центру окружности —
+		туда же направлено и ускорение.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, f1, loop, newArrow } from './rdo';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-dv]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const O = { x: 170, y: 182 };
+		const R = 110;
+		const V = 80;
+		const STEPS = [90, 40, 10];
+		const DUR = [5.6, 5.6, 7];
+		const TOT = DUR.reduce((a, b) => a + b, 0);
+		const P = (a: number) => ({ x: O.x + R * Math.cos(a), y: O.y + R * Math.sin(a) });
+		const U = (a: number) => ({ x: -Math.sin(a), y: Math.cos(a) }); // clockwise on the screen
+		const ag = q('[data-arrows]');
+		const vMove = newArrow(ag, 'blue');
+		const vA = newArrow(ag, 'blue');
+		const vB = newArrow(ag, 'blue');
+		const vB2 = newArrow(ag, 'blue');
+		const mk = (cls: string) => {
+			const s = el('path', { class: `arrow arrow--red ${cls}` });
+			const h = el('path', { class: 'head--red' });
+			ag.append(s, h);
+			return { s, h };
+		};
+		const dvA = mk('rdo-dashed');
+		const dvM = mk('rdo-dashed');
+		const acc = mk('');
+		const arr = (o: { s: SVGPathElement; h: SVGPathElement }, x1: number, y1: number, x2: number, y2: number) => {
+			const dx = x2 - x1;
+			const dy = y2 - y1;
+			const L = Math.hypot(dx, dy);
+			if (L < 1.5) {
+				o.s.setAttribute('d', '');
+				o.h.setAttribute('d', '');
+				return;
+			}
+			const ux = dx / L;
+			const uy = dy / L;
+			const h = Math.min(8, L * 0.6);
+			const bx = x2 - ux * h;
+			const by = y2 - uy * h;
+			o.s.setAttribute('d', `M${f1(x1)} ${f1(y1)} L${f1(bx)} ${f1(by)}`);
+			o.h.setAttribute('d', `M${f1(x2)} ${f1(y2)} L${f1(bx - uy * 4.5)} ${f1(by + ux * 4.5)} L${f1(bx + uy * 4.5)} ${f1(by - ux * 4.5)} Z`);
+		};
+		const off = (o: { s: SVGPathElement; h: SVGPathElement }) => arr(o, 0, 0, 0, 0);
+		const lab = q('[data-labels]');
+		const text = (x: number, y: number, parts: string, cls = '') => {
+			const t = el('text', { x: f1(x), y: f1(y), class: cls, 'text-anchor': 'middle', 'font-weight': 600 });
+			t.innerHTML = parts;
+			lab.append(t);
+		};
+		const ease = (u: number) => {
+			const t = Math.min(1, Math.max(0, u));
+			return t * t * (3 - 2 * t);
+		};
+		const draw = (t: number) => {
+			let i = 0;
+			let tt = t;
+			while (i < 2 && tt >= DUR[i]) {
+				tt -= DUR[i];
+				i++;
+			}
+			const d = (STEPS[i] * Math.PI) / 180;
+			const aA = -Math.PI / 2 - d / 2;
+			const aB = -Math.PI / 2 + d / 2;
+			const A = P(aA);
+			const B = P(aB);
+			const M = P(-Math.PI / 2);
+			const uA = U(aA);
+			const uB = U(aB);
+			q('[data-step]').textContent = `Дуга AB = ${STEPS[i]}°`;
+			// the arc AB
+			const large = 0;
+			q('[data-arc]').setAttribute('d', `M${f1(A.x)} ${f1(A.y)} A${R} ${R} 0 ${large} 1 ${f1(B.x)} ${f1(B.y)}`);
+			// the ball from A to B in 1,2 s, then it stays at B
+			const k = ease(tt / 1.2);
+			const a = aA + (aB - aA) * k;
+			const p = P(a);
+			const u = U(a);
+			q('[data-ball]').setAttribute('cx', f1(p.x));
+			q('[data-ball]').setAttribute('cy', f1(p.y));
+			if (tt < 1.2) vMove(p.x, p.y, p.x + u.x * V, p.y + u.y * V, 9, 5);
+			else vMove(0, 0, 0, 0);
+			vA(A.x, A.y, A.x + uA.x * V, A.y + uA.y * V, 9, 5);
+			if (tt >= 1.2) vB(B.x, B.y, B.x + uB.x * V, B.y + uB.y * V, 9, 5);
+			else vB(0, 0, 0, 0);
+			// υ_B carried to A
+			const c = ease((tt - 1.8) / 1.0);
+			const S = { x: B.x + (A.x - B.x) * c, y: B.y + (A.y - B.y) * c };
+			if (tt >= 1.8) vB2(S.x, S.y, S.x + uB.x * V, S.y + uB.y * V, 9, 5);
+			else vB2(0, 0, 0, 0);
+			// Δυ from the tip of υ_A to the tip of the carried υ_B
+			const tipA = { x: A.x + uA.x * V, y: A.y + uA.y * V };
+			const tipB = { x: A.x + uB.x * V, y: A.y + uB.y * V };
+			const g = ease((tt - 2.9) / 0.7);
+			if (tt >= 2.9) arr(dvA, tipA.x, tipA.y, tipA.x + (tipB.x - tipA.x) * g, tipA.y + (tipB.y - tipA.y) * g);
+			else off(dvA);
+			// its copy carried to M
+			const m = ease((tt - 3.8) / 1.0);
+			const dvx = tipB.x - tipA.x;
+			const dvy = tipB.y - tipA.y;
+			const last = i === 2 && tt >= 5.0;
+			if (tt >= 3.8 && !last) {
+				const sx = tipA.x + (M.x - tipA.x) * m;
+				const sy = tipA.y + (M.y - tipA.y) * m;
+				arr(dvM, sx, sy, sx + dvx, sy + dvy);
+			} else off(dvM);
+			q('[data-mo]').setAttribute('opacity', tt >= 4.8 ? '1' : '0');
+			if (last) arr(acc, M.x, M.y, M.x, M.y + 48 * ease((tt - 5.0) / 0.6));
+			else off(acc);
+			// the radius to A, its label
+			const rl = q('[data-rline]');
+			rl.setAttribute('x2', f1(P(Math.PI * 0.8).x));
+			rl.setAttribute('y2', f1(P(Math.PI * 0.8).y));
+			q('[data-rlab]').setAttribute('x', f1((O.x + P(Math.PI * 0.8).x) / 2));
+			q('[data-rlab]').setAttribute('y', f1((O.y + P(Math.PI * 0.8).y) / 2 - 5));
+			// labels
+			lab.replaceChildren();
+			const mark = q('[data-marks]');
+			mark.replaceChildren();
+			// A and B are labeled inside the circle, 17 px from it along the radius, clear of the ball (5 px) and the arrows
+			for (const [pt, name, a] of [
+				[A, 'A', aA],
+				[B, 'B', aB],
+			] as const) {
+				mark.append(el('circle', { class: 'rdo-mark', cx: f1(pt.x), cy: f1(pt.y), r: 3 }));
+				text(pt.x - 17 * Math.cos(a), pt.y - 17 * Math.sin(a) + 4, name, 't-small');
+			}
+			mark.append(el('circle', { class: 'rdo-mark', cx: f1(M.x), cy: f1(M.y), r: 3 }));
+			text(M.x + 11, M.y - 7, 'M', 't-small');
+			text(tipA.x - 4 - 10 * uA.y, tipA.y - 6, '<tspan class="t-i">υ</tspan><tspan baseline-shift="sub" font-size="9">A</tspan>', 't-blue');
+			if (tt >= 1.2) text(B.x + uB.x * V + 12, B.y + uB.y * V + 4, '<tspan class="t-i">υ</tspan><tspan baseline-shift="sub" font-size="9">B</tspan>', 't-blue');
+			if (tt >= 3.6) text(tipA.x + dvx / 2 - 18, tipA.y + dvy / 2 + 4, 'Δ<tspan class="t-i">υ</tspan>', 't-red');
+			if (last && tt >= 5.6) text(M.x + 20, M.y + 44, '<tspan class="t-i">a</tspan><tspan baseline-shift="sub" font-size="9">ц</tspan>', 't-red');
+		};
+		let t = 0;
+		draw(0);
+		loop(fig, (dt) => {
+			t += dt;
+			if (t > TOT) t = 0;
+			draw(t);
+			return true;
+		});
+	}
+</script>

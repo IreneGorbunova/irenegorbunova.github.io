@@ -1,0 +1,161 @@
+---
+/**
+ * «Сила направлена к центру» (picture, three looping panels, top views, not to scale). In each panel a body moves along
+ * a circle with a constant speed; the blue arrow is its velocity (along the tangent, 40 px), the force on it points to
+ * the center of the circle and has the same length all the time (one color per force in the chapter: the thread's
+ * F_упр gold, friction F_тр orange, the Earth's attraction violet).
+ *   Нить: a puck on ice tied by a thread to a peg (radius 48 px, one turn in 2 с); after two turns the thread is cut
+ *     and the puck goes on in a straight line along the tangent with the same speed (no force any more), then the
+ *     panel starts again.
+ *   Трение колёс о дорогу: a car drives through a 90° bend of a road (radius 70 px) in 3 с; the friction of the road on
+ *     the tyres points to the center of the bend (marked).
+ *   Притяжение Земли: a satellite on a circular orbit (radius 52 px around an Earth of 26 px, one turn in 6 с, a slowed
+ *     and enlarged picture: a low orbit takes about 1,5 ч).
+ */
+import RdoStyles from './RdoStyles.astro';
+const stars = Array.from({ length: 22 }, (_, i) => ({ x: (i * 53) % 160, y: (i * 37 + 11) % 150, r: i % 3 ? 0.6 : 1 }));
+---
+
+<RdoStyles />
+<figure class="g7 g7--pic rdo not-content" data-rdo-forces>
+	<div class="g7__grid is-three">
+		<svg class="g7__svg" viewBox="0 0 160 170" role="img" aria-label="Шайба на нити движется по окружности; нить тянет её к центру; когда нить перерезана, шайба летит по прямой">
+			<rect class="rdo-ice" x="0" y="0" width="160" height="150"></rect>
+			<circle class="rdo-path" cx="80" cy="75" r="48" stroke-dasharray="3 3"></circle>
+			<line class="rdo-thread" x1="80" y1="75" data-thread></line>
+			<line class="rdo-straight" data-p1line></line>
+			<circle class="rdo-peg" cx="80" cy="75" r="4"></circle>
+			<g data-p1a></g>
+			<circle class="rdo-puck" r="6" data-puck></circle>
+			<text class="t-small" data-p1f></text>
+			<text x="80" y="165" text-anchor="middle" font-weight="600">Нить</text>
+		</svg>
+		<svg class="g7__svg" viewBox="0 0 160 170" role="img" aria-label="Автомобиль на повороте дороги; сила трения колёс о дорогу направлена к центру поворота">
+			<rect class="rdo-grass" x="0" y="0" width="160" height="150"></rect>
+			<path class="rdo-road" d="M0 40 H40 A70 70 0 0 1 110 110 V150" stroke-width="22"></path>
+			<path class="rdo-roadline" d="M0 40 H40 A70 70 0 0 1 110 110 V150"></path>
+			<line class="rdo-radius" x1="40" y1="110" data-p2rad></line>
+			<circle class="rdo-center" cx="40" cy="110" r="2.4"></circle>
+			<text class="t-small" x="30" y="124">центр</text>
+			<g data-p2car>
+				<rect class="rdo-car" x="-9" y="-4" width="18" height="8" rx="2"></rect>
+				<rect class="rdo-glass" x="1.5" y="-3" width="3.4" height="6" rx="1"></rect>
+			</g>
+			<g data-p2a></g>
+			<text x="80" y="165" text-anchor="middle" font-weight="600">Трение колёс о дорогу</text>
+		</svg>
+		<svg class="g7__svg" viewBox="0 0 160 170" role="img" aria-label="Спутник движется вокруг Земли по круговой орбите; сила притяжения Земли направлена к её центру">
+			<rect class="rdo-space" x="0" y="0" width="160" height="150"></rect>
+			{stars.map((s) => <circle class="rdo-star" cx={s.x} cy={s.y} r={s.r}></circle>)}
+			<circle class="rdo-orbit" cx="80" cy="75" r="52" style="stroke: hsl(220, 15%, 60%)"></circle>
+			<circle class="rdo-earth" cx="80" cy="75" r="26"></circle>
+			<path class="rdo-land" d="M66 62 q8 -8 16 -2 q6 6 -2 12 q-8 4 -14 -2 Z M84 80 q8 -2 10 6 q0 8 -8 9 q-6 -4 -2 -15 Z"></path>
+			<g data-p3sat>
+				<rect class="rdo-panel" x="-9" y="-2" width="6" height="4"></rect>
+				<rect class="rdo-panel" x="3" y="-2" width="6" height="4"></rect>
+				<rect class="rdo-sat" x="-3" y="-3" width="6" height="6"></rect>
+			</g>
+			<g data-p3a></g>
+			<text x="80" y="165" text-anchor="middle" font-weight="600">Притяжение Земли</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Во всех трёх случаях сила направлена к центру окружности, а скорость — по касательной. Синяя стрелка — скорость,
+		золотая — сила упругости нити, оранжевая — сила трения, фиолетовая — сила притяжения Земли. Не в масштабе.
+	</figcaption>
+</figure>
+
+<script>
+	import { f1, loop, newArrow } from './rdo';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-forces]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const VL = 40;
+		const FL = 30;
+		// ---- puck (counterclockwise on the screen: angle decreasing with y down)
+		const p1v = newArrow(q('[data-p1a]'), 'blue');
+		const p1f = newArrow(q('[data-p1a]'), 'gold');
+		const RP = 48;
+		const TP = 2;
+		const CUT = 2 * TP + 0.35; // the thread is cut a little after two turns
+		const FLY = 1.6;
+		const p1 = (t: number) => {
+			const tt = Math.min(t, CUT);
+			const a = -(2 * Math.PI * tt) / TP;
+			const p = { x: 80 + RP * Math.cos(a), y: 75 + RP * Math.sin(a) };
+			const u = { x: Math.sin(a), y: -Math.cos(a) };
+			const sp = (2 * Math.PI * RP) / TP; // px per s
+			const puck = q('[data-puck]');
+			const th = q('[data-thread]');
+			const line = q('[data-p1line]');
+			if (t < CUT) {
+				puck.setAttribute('cx', f1(p.x));
+				puck.setAttribute('cy', f1(p.y));
+				th.setAttribute('x2', f1(p.x));
+				th.setAttribute('y2', f1(p.y));
+				th.setAttribute('opacity', '1');
+				line.setAttribute('d', '');
+				p1v(p.x + u.x * 6, p.y + u.y * 6, p.x + u.x * (6 + VL), p.y + u.y * (6 + VL), 7, 4);
+				const c = { x: (80 - p.x) / RP, y: (75 - p.y) / RP };
+				p1f(p.x + c.x * 6, p.y + c.y * 6, p.x + c.x * (6 + FL), p.y + c.y * (6 + FL), 7, 4);
+				const lf = q('[data-p1f]');
+				lf.setAttribute('x', f1(p.x + c.x * 22 + u.x * -12 - 8));
+				lf.setAttribute('y', f1(p.y + c.y * 22 + u.y * -12 + 4));
+				lf.innerHTML = '<tspan class="t-i t-gold">F</tspan><tspan class="t-gold" baseline-shift="sub" font-size="8">упр</tspan>';
+			} else {
+				const d = sp * (t - CUT);
+				const q2 = { x: p.x + u.x * d, y: p.y + u.y * d };
+				puck.setAttribute('cx', f1(q2.x));
+				puck.setAttribute('cy', f1(q2.y));
+				// the cut thread: a short end left on the peg
+				th.setAttribute('x2', f1(80 + (p.x - 80) * 0.3));
+				th.setAttribute('y2', f1(75 + (p.y - 75) * 0.3));
+				line.setAttribute('d', `M${f1(p.x)} ${f1(p.y)} L${f1(p.x + u.x * 160)} ${f1(p.y + u.y * 160)}`);
+				p1v(q2.x + u.x * 6, q2.y + u.y * 6, q2.x + u.x * (6 + VL), q2.y + u.y * (6 + VL), 7, 4);
+				p1f(0, 0, 0, 0);
+				q('[data-p1f]').textContent = '';
+			}
+		};
+		// ---- car through the bend: center (40, 110), radius 70, from the top (heading right) to the right (heading down)
+		const p2v = newArrow(q('[data-p2a]'), 'blue');
+		const p2f = newArrow(q('[data-p2a]'), 'orange');
+		const T2 = 3;
+		const p2 = (t: number) => {
+			const k = Math.min(t, T2) / T2;
+			const a = -Math.PI / 2 + (Math.PI / 2) * k; // screen angle from the center, clockwise
+			const p = { x: 40 + 70 * Math.cos(a), y: 110 + 70 * Math.sin(a) };
+			const u = { x: -Math.sin(a), y: Math.cos(a) };
+			q('[data-p2car]').setAttribute('transform', `translate(${f1(p.x)} ${f1(p.y)}) rotate(${((Math.atan2(u.y, u.x) * 180) / Math.PI).toFixed(1)})`);
+			p2v(p.x + u.x * 10, p.y + u.y * 10, p.x + u.x * (10 + VL), p.y + u.y * (10 + VL), 7, 4);
+			const c = { x: -Math.cos(a), y: -Math.sin(a) };
+			p2f(p.x + c.x * 5, p.y + c.y * 5, p.x + c.x * (5 + FL), p.y + c.y * (5 + FL), 7, 4);
+			q('[data-p2rad]').setAttribute('x2', f1(p.x));
+			q('[data-p2rad]').setAttribute('y2', f1(p.y));
+		};
+		// ---- satellite: counterclockwise as seen from above the North Pole
+		const p3v = newArrow(q('[data-p3a]'), 'blue');
+		const p3f = newArrow(q('[data-p3a]'), 'violet');
+		const T3 = 6;
+		const p3 = (t: number) => {
+			const a = -(2 * Math.PI * t) / T3;
+			const p = { x: 80 + 52 * Math.cos(a), y: 75 + 52 * Math.sin(a) };
+			const u = { x: Math.sin(a), y: -Math.cos(a) };
+			q('[data-p3sat]').setAttribute('transform', `translate(${f1(p.x)} ${f1(p.y)}) rotate(${((a * 180) / Math.PI).toFixed(1)})`);
+			p3v(p.x + u.x * 7, p.y + u.y * 7, p.x + u.x * (7 + VL), p.y + u.y * (7 + VL), 7, 4);
+			const c = { x: -Math.cos(a), y: -Math.sin(a) };
+			p3f(p.x + c.x * 5, p.y + c.y * 5, p.x + c.x * (5 + 20), p.y + c.y * (5 + 20), 7, 4);
+		};
+		let t = 0;
+		const draw = () => {
+			p1(t % (CUT + FLY));
+			p2(t % (T2 + 0.8));
+			p3(t % T3);
+		};
+		draw();
+		loop(fig, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+	}
+</script>

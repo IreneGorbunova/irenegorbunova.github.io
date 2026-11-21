@@ -1,0 +1,232 @@
+---
+/**
+ * «Шарик в желобе» (model, real time). Top view of a smooth horizontal table 1,2 × 0,8 м (300 px per metre on both
+ * axes). A ball 2 см across rolls inside a curved gutter at a constant 0,5 м/с (friction neglected); where the gutter
+ * ends, nothing pushes the ball sideways any more and it goes on in a straight line along the tangent at the end point,
+ * with the same speed, until it stops at the table's rim.
+ *   «Окружность»: a gutter along a circle of radius 30 см (one turn 1,88 м, 3,8 с), starting at the mark «старт» at
+ *     the bottom, the ball going counterclockwise; the slider sets the arc of the gutter, 30…330° in steps of 30°
+ *     (marks every 30° around the circle). After the exit the radius to the exit point is drawn thin with a right-angle
+ *     mark: the straight path is perpendicular to the radius.
+ *   «Волна»: an S-shaped gutter of two half-circles of radius 20 см (1,26 м in all, 2,5 с); the slider picks the end at
+ *     one of 8 marked points (every 45° of turning).
+ * The blue arrow is the velocity (120 px per м/с, 60 px), along the tangent everywhere; «Показать скорость» hides it.
+ * The ball is drawn to scale (6 px); its trail stays until «Повторить».
+ */
+import RdoStyles from './RdoStyles.astro';
+---
+
+<RdoStyles />
+<figure class="g7 g7--stack rdo not-content" data-rdo-gutter>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 240" role="img" aria-label="Вид сверху на стол: шарик катится по изогнутому желобу и, выкатившись из него, движется по прямой — по касательной к желобу">
+			<rect class="rdo-table" x="0" y="0" width="360" height="240" rx="6"></rect>
+			<rect class="rdo-table-rim" x="3" y="3" width="354" height="234" rx="5"></rect>
+			<g data-marks></g>
+			<path class="rdo-ghostpath" data-ghost></path>
+			<path class="rdo-gutter" stroke-width="12" data-gut></path>
+			<path class="rdo-gutter-in" stroke-width="7" data-gutin></path>
+			<path class="rdo-trail" data-trail></path>
+			<path class="rdo-straight" data-straight></path>
+			<line class="rdo-radius" data-rad></line>
+			<path class="rdo-right" data-right></path>
+			<circle class="rdo-center" r="2.4" data-center></circle>
+			<g data-arrow></g>
+			<circle class="rdo-steelball" r="3" data-ball></circle>
+		</svg>
+		<div class="rdo-ctrl">
+			<div class="g7__row">
+				<span class="g7__seg" role="group" aria-label="Форма желоба" data-shape>
+					<button type="button" class="g7__btn" aria-pressed="true" data-s="circle">Окружность</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-s="wave">Волна</button>
+				</span>
+				<label class="rdo-check"><input type="checkbox" checked data-showv /> <span>Показать скорость</span></label>
+			</div>
+			<label class="g7__slider"><span>Где кончается желоб</span><output data-oend></output><input type="range" min="1" max="11" step="1" value="3" data-end aria-label="Где кончается желоб" /></label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пустить шарик</button>
+				<button type="button" class="g7__btn" data-again>Повторить</button>
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite">Нажмите «Пустить шарик».</p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Вид сверху. Шарик катится по желобу со скоростью 0,5&nbsp;м/с; синяя стрелка — его скорость. Трения нет. Время идёт
+		как на самом деле, стол и шарик нарисованы в одном масштабе.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, f1, loop, newArrow, rightMark } from './rdo';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-gutter]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const K = 300; // px per metre
+		const V = 0.5 * K; // px per s
+		const VA = 120 * 0.5; // arrow length, px
+		const EDGE = { x0: 9, y0: 9, x1: 351, y1: 231 }; // where the rim stops the ball's center
+		type Shape = { len: number; at: (s: number) => { x: number; y: number }; ends: number[]; label: (i: number) => string; center?: (s: number) => { x: number; y: number } };
+		// circle: center (180, 120), R = 90 px, start at the bottom, counterclockwise on the screen
+		const RC = 0.3 * K;
+		const circle: Shape = {
+			len: 2 * Math.PI * RC,
+			at: (s) => {
+				const a = Math.PI / 2 - s / RC; // screen angle (y down): from the bottom to the right and up, counterclockwise as seen
+				return { x: 180 + RC * Math.cos(a), y: 120 + RC * Math.sin(a) };
+			},
+			ends: Array.from({ length: 11 }, (_, i) => ((i + 1) / 12) * 2 * Math.PI * RC),
+			label: (i) => `${(i + 1) * 30}°`,
+			center: () => ({ x: 180, y: 120 }),
+		};
+		// wave: two half-circles of 60 px, left to right: the first over the top, the second under
+		const RW = 0.2 * K;
+		const half = Math.PI * RW;
+		const wave: Shape = {
+			len: 2 * half,
+			at: (s) => {
+				if (s <= half) {
+					const a = Math.PI + s / RW; // center (120, 120): from the left point over the top
+					return { x: 120 + RW * Math.cos(a), y: 120 + RW * Math.sin(a) };
+				}
+				const a = Math.PI - (s - half) / RW; // center (240, 120): under
+				return { x: 240 + RW * Math.cos(a), y: 120 + RW * Math.sin(a) };
+			},
+			ends: Array.from({ length: 8 }, (_, i) => ((i + 1) / 8) * 2 * half),
+			label: (i) => `${i + 1}`,
+			center: (s) => (s <= half ? { x: 120, y: 120 } : { x: 240, y: 120 }),
+		};
+		const shapes = { circle, wave };
+		let shape: Shape = circle;
+		const input = q<HTMLInputElement>('[data-end]');
+		const showV = q<HTMLInputElement>('[data-showv]');
+		const arrow = newArrow(q('[data-arrow]'), 'blue');
+		const path = (s0: number, s1: number, n = 90) => {
+			let d = '';
+			for (let i = 0; i <= n; i++) {
+				const p = shape.at(s0 + ((s1 - s0) * i) / n);
+				d += `${i ? 'L' : 'M'}${f1(p.x)} ${f1(p.y)}`;
+			}
+			return d;
+		};
+		const tangent = (s: number) => {
+			const a = shape.at(Math.max(0, s - 0.5));
+			const b = shape.at(Math.min(shape.len, s + 0.5));
+			const l = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+			return { x: (b.x - a.x) / l, y: (b.y - a.y) / l };
+		};
+		/** Distance along the direction u from p to the rim. */
+		const toRim = (p: { x: number; y: number }, u: { x: number; y: number }) => {
+			const c = [u.x > 1e-9 ? (EDGE.x1 - p.x) / u.x : u.x < -1e-9 ? (EDGE.x0 - p.x) / u.x : Infinity, u.y > 1e-9 ? (EDGE.y1 - p.y) / u.y : u.y < -1e-9 ? (EDGE.y0 - p.y) / u.y : Infinity];
+			return Math.max(0, Math.min(...c));
+		};
+		let sEnd = 0;
+		let t = 0;
+		let running = false;
+		const setup = () => {
+			const n = shape.ends.length;
+			input.max = String(n);
+			if (Number(input.value) > n) input.value = String(n);
+			const i = Number(input.value) - 1;
+			sEnd = shape.ends[i];
+			q('[data-oend]').textContent = shape === circle ? `дуга ${shape.label(i)}` : `точка ${shape.label(i)}`;
+			q('[data-ghost]').setAttribute('d', path(0, shape.len, 160));
+			q('[data-gut]').setAttribute('d', path(0, sEnd));
+			q('[data-gutin]').setAttribute('d', path(0, sEnd));
+			const marks = q('[data-marks]');
+			marks.replaceChildren();
+			const st = shape.at(0);
+			const tl = el('text', { class: 't-small rdo-tlab', x: f1(st.x - 4), y: f1(st.y + 18), 'text-anchor': 'end' });
+			tl.textContent = 'старт';
+			marks.append(el('line', { class: 'rdo-tick-w', 'stroke-width': 2.2, x1: f1(st.x), y1: f1(st.y - 9), x2: f1(st.x), y2: f1(st.y + 9) }), tl);
+			shape.ends.forEach((s, k) => {
+				const p = shape.at(s);
+				const c = shape.center!(s - 0.01);
+				const ux = (p.x - c.x) / Math.hypot(p.x - c.x, p.y - c.y);
+				const uy = (p.y - c.y) / Math.hypot(p.x - c.x, p.y - c.y);
+				marks.append(el('line', { class: 'rdo-tick-w', x1: f1(p.x + ux * 7), y1: f1(p.y + uy * 7), x2: f1(p.x + ux * 11), y2: f1(p.y + uy * 11) }));
+				const lab = el('text', { class: 't-small rdo-tlab', x: f1(p.x + ux * 19), y: f1(p.y + uy * 19 + 3.5), 'text-anchor': 'middle' });
+				lab.textContent = shape.label(k);
+				if (shape === wave || (k + 1) % 3 === 0) marks.append(lab);
+			});
+			reset();
+		};
+		const reset = () => {
+			running = false;
+			t = 0;
+			draw();
+			q('[data-msg]').textContent = 'Нажмите «Пустить шарик».';
+		};
+		const draw = () => {
+			const s = t * V;
+			let p;
+			let u;
+			const ex = shape.at(sEnd);
+			// the exit direction: the tangent at the end, from the gutter's side only
+			const eb = shape.at(sEnd - 1);
+			const ce = shape.center!(sEnd - 0.01);
+			const rr = Math.hypot(ex.x - ce.x, ex.y - ce.y) || 1;
+			let ue = { x: -(ex.y - ce.y) / rr, y: (ex.x - ce.x) / rr }; // perpendicular to the radius, the way the ball goes
+			if (ue.x * (ex.x - eb.x) + ue.y * (ex.y - eb.y) < 0) ue = { x: -ue.x, y: -ue.y };
+			const run = toRim(ex, ue);
+			if (s <= sEnd) {
+				p = shape.at(s);
+				u = tangent(s);
+				q('[data-trail]').setAttribute('d', path(0, s, Math.max(2, Math.round(s / 4))));
+				q('[data-straight]').setAttribute('d', '');
+			} else {
+				const d = Math.min(s - sEnd, run);
+				p = { x: ex.x + ue.x * d, y: ex.y + ue.y * d };
+				u = ue;
+				q('[data-trail]').setAttribute('d', `${path(0, sEnd)} L${f1(p.x)} ${f1(p.y)}`);
+				q('[data-straight]').setAttribute('d', `M${f1(ex.x)} ${f1(ex.y)} L${f1(ex.x + ue.x * run)} ${f1(ex.y + ue.y * run)}`);
+			}
+			const out = s > sEnd;
+			const c = shape.center!(Math.min(sEnd, shape.len) - 0.01);
+			const rad = q('[data-rad]');
+			if (out) {
+				rad.setAttribute('x1', f1(c.x));
+				rad.setAttribute('y1', f1(c.y));
+				rad.setAttribute('x2', f1(ex.x));
+				rad.setAttribute('y2', f1(ex.y));
+				const l = Math.hypot(c.x - ex.x, c.y - ex.y);
+				q('[data-right]').setAttribute('d', rightMark(ex, { x: (c.x - ex.x) / l, y: (c.y - ex.y) / l }, ue, 8));
+				q('[data-center]').setAttribute('cx', f1(c.x));
+				q('[data-center]').setAttribute('cy', f1(c.y));
+			}
+			rad.setAttribute('opacity', out ? '1' : '0');
+			q('[data-right]').setAttribute('opacity', out ? '1' : '0');
+			q('[data-center]').setAttribute('opacity', out ? '1' : '0');
+			const stopped = out && s - sEnd >= run;
+			q('[data-ball]').setAttribute('cx', f1(p.x));
+			q('[data-ball]').setAttribute('cy', f1(p.y));
+			if (showV.checked && !stopped) arrow(p.x + u.x * 3, p.y + u.y * 3, p.x + u.x * (3 + VA), p.y + u.y * (3 + VA), 8, 4.5);
+			else arrow(0, 0, 0, 0);
+			if (out) q('[data-msg]').textContent = stopped ? 'Шарик докатился до края стола.' : `Шарик вылетел из желоба в ${shape === circle ? 'конце дуги' : 'точке'} ${shape.label(Number(input.value) - 1)} и движется по прямой.`;
+			return !stopped;
+		};
+		for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-shape] button'))
+			b.addEventListener('click', () => {
+				for (const o of fig.querySelectorAll('[data-shape] button')) o.setAttribute('aria-pressed', String(o === b));
+				shape = shapes[b.dataset.s as 'circle' | 'wave'];
+				input.value = shape === circle ? '3' : '4';
+				setup();
+			});
+		input.addEventListener('input', setup);
+		showV.addEventListener('change', () => draw());
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			t += dt;
+			running = draw();
+			return running;
+		});
+		q('[data-go]').addEventListener('click', () => {
+			if (running) return;
+			if (t > 0) t = 0;
+			running = true;
+			q('[data-msg]').textContent = 'Шарик катится по желобу.';
+			wake();
+		});
+		q('[data-again]').addEventListener('click', reset);
+		setup();
+	}
+</script>

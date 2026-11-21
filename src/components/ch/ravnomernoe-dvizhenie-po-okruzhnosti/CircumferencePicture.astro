@@ -1,0 +1,91 @@
+---
+/**
+ * «Длина окружности» (picture, loop). A roll of adhesive tape of outer radius R (drawn 43 px) turns in place on the axle
+ * of a stand, one full turn counterclockwise in T = 3 с, and its tape runs off the bottom of the roll onto the floor to
+ * the right. Relative to the axle a point of the rim (the red mark on the roll's side, at radius R) goes round the
+ * circle 2πR = 6,28 R = 270 px in one turn, and exactly as much tape leaves the roll: the red mark on the tape's end,
+ * which started at the roll, ends 2πR from it. The end of the tape moves as fast as a point of the rim, υ = 2πR/T.
+ * Ticks every R under the strip (R … 6R) show that 2πR is a little more than six radii. The time is not to any real
+ * scale (only one turn matters); then 2,5 с of rest and a new start. Equal scales on both axes. (The thickness of the
+ * tape is neglected: the roll's radius does not shrink noticeably in one turn.)
+ */
+import RdoStyles from './RdoStyles.astro';
+---
+
+<RdoStyles />
+<figure class="g7 g7--pic rdo not-content" data-rdo-circum>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 178" role="img" aria-label="Рулон скотча вращается на оси; за один оборот с него сходит лента длиной 2πR — чуть больше шести радиусов">
+			<rect class="rdo-floor" x="0" y="122" width="360" height="56"></rect>
+			<rect class="rdo-tape" x="45" y="118.5" height="3.5" data-strip></rect>
+			<rect class="rdo-paint" y="117.5" width="3" height="5.5" data-tapemark></rect>
+			<g data-ticks></g>
+			<g data-roll transform="translate(45 75.5)">
+				<circle class="rdo-tape" r="43"></circle>
+				<circle class="rdo-core" r="29"></circle>
+				<circle class="rdo-hole" r="25"></circle>
+				<circle class="rdo-paint" r="3.6" cy="40.5" data-mark></circle>
+			</g>
+			<path class="rdo-stand" d="M42 72 L48 78 L12 120 L4 120 Z M0 119 H22 V122 H0 Z"></path>
+			<circle class="rdo-peg" cx="45" cy="75.5" r="4"></circle>
+			<line class="rdo-radius" x1="45" y1="75.5" data-rad></line>
+			<text class="t-small" data-rlab><tspan class="t-i">R</tspan></text>
+			<g data-bracket opacity="0">
+				<path class="ink" d="M45 158 V166 M315.2 158 V166 M45 162 H315.2"></path>
+				<text x="180" y="154" text-anchor="middle" font-weight="600">2π<tspan class="t-i">R</tspan> ≈ 6,28 <tspan class="t-i">R</tspan></text>
+			</g>
+			<text class="t-small" x="120" y="30" data-tlab></text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Рулон вращается на оси, и лента ложится на пол. За один оборот точка обода проходит длину окружности 2π<i>R</i> —
+		ровно столько ленты сходит с рулона. Если оборот длится <i>T</i>,
+		скорость точки обода <i>υ</i>&nbsp;=&nbsp;2π<i>R</i>/<i>T</i>.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, f1, loop } from './rdo';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-circum]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const R = 43;
+		const C = { x: 45, y: 75.5 }; // the axle
+		const T = 3;
+		const REST = 2.5;
+		const ticks = q('[data-ticks]');
+		for (let i = 0; i <= 6; i++) {
+			ticks.append(el('line', { class: 'ln', x1: C.x + i * R, y1: 124, x2: C.x + i * R, y2: 131 }));
+			const t = el('text', { class: 't-small', x: C.x + i * R, y: 142, 'text-anchor': 'middle' });
+			t.textContent = i === 0 ? '0' : i === 1 ? 'R' : `${i}R`;
+			ticks.append(t);
+		}
+		const draw = (t: number) => {
+			const phi = (2 * Math.PI * Math.min(t, T)) / T; // turned so far, counterclockwise: the bottom moves to the right
+			q('[data-roll]').setAttribute('transform', `translate(${C.x} ${C.y}) rotate(${((-phi * 180) / Math.PI).toFixed(1)})`);
+			const L = R * phi; // tape that has left the roll
+			q('[data-strip]').setAttribute('width', f1(L));
+			q('[data-tapemark]').setAttribute('x', f1(C.x + L - 3));
+			// the radius to the paint mark (screen angle: π/2 at the bottom, decreasing = counterclockwise)
+			const a = Math.PI / 2 - phi;
+			const mx = C.x + 40.5 * Math.cos(a);
+			const my = C.y + 40.5 * Math.sin(a);
+			const rad = q('[data-rad]');
+			rad.setAttribute('x2', f1(mx));
+			rad.setAttribute('y2', f1(my));
+			q('[data-rlab]').setAttribute('x', f1((C.x + mx) / 2 + 7 * Math.sin(a) - 3));
+			q('[data-rlab]').setAttribute('y', f1((C.y + my) / 2 - 7 * Math.cos(a) + 4));
+			const done = t >= T;
+			q('[data-bracket]').setAttribute('opacity', done ? '1' : '0');
+			q('[data-tlab]').textContent = done ? 'один оборот рулона — за время T' : '';
+		};
+		let t = 0;
+		draw(0);
+		loop(fig, (dt) => {
+			t += dt;
+			if (t > T + REST) t = 0;
+			draw(t);
+			return true;
+		});
+	}
+</script>

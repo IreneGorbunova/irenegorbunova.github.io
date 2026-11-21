@@ -1,0 +1,115 @@
+---
+/**
+ * «Криволинейные траектории» (picture, real time, loop). Two bodies move along curves and leave a trail; on each the
+ * blue velocity arrow, always along the trail (the tangent).
+ *   Ball: thrown at 9 м/с at 55° to the horizontal from the ground (air resistance neglected), g = 9,8 м/с²: flight
+ *     2 · 9 · sin 55° / 9,8 = 1,50 с, top 2,77 м, range 7,77 м. Scale 21 px per metre on both axes; velocity 4 px per
+ *     м/с (36 px at the start, 20,6 px at the top, where only the horizontal 5,16 м/с is left).
+ *   Car: a car (4,4 м) drives at a constant 10 м/с along an S-shaped road seen from above, 4 px per metre on both axes
+ *     (the road is about 45 м long, 4,5 с); velocity 3 px per м/с. The road is a cubic Bézier curve; the car is placed
+ *     by arc length, so its speed is the same everywhere and only the direction changes.
+ * After both have finished, the picture holds for 1,5 с and starts again.
+ */
+import RdoStyles from './RdoStyles.astro';
+const ROAD = 'M196 130 C 240 130 236 48 280 48 S 330 126 354 70';
+---
+
+<RdoStyles />
+<figure class="g7 g7--pic rdo not-content" data-rdo-curve data-road={ROAD}>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 150" role="img" aria-label="Слева мяч летит по дуге, справа автомобиль едет по извилистой дороге; синяя стрелка скорости всё время направлена вдоль траектории">
+			<text class="t-title" x="8" y="18">Брошенный мяч</text>
+			<rect class="rdo-ground" x="0" y="136" width="185" height="14"></rect>
+			<path class="rdo-trail" data-trail-ball></path>
+			<g data-ball-arrow></g>
+			<circle class="rdo-ball" r="4" data-ball></circle>
+			<line class="rdo-sep" x1="185" y1="6" x2="185" y2="144"></line>
+			<text class="t-title" x="194" y="18">Автомобиль на дороге</text>
+			<text class="t-small" x="194" y="32">вид сверху</text>
+			<rect class="rdo-grass" x="186" y="36" width="174" height="114" opacity="0.5"></rect>
+			<path class="rdo-road" d={ROAD} stroke-width="16"></path>
+			<path class="rdo-roadline" d={ROAD}></path>
+			<path class="rdo-trail" data-trail-car></path>
+			<g data-car>
+				<rect class="rdo-car" x="-8.8" y="-3.8" width="17.6" height="7.6" rx="2"></rect>
+				<rect class="rdo-glass" x="1.6" y="-3" width="3.4" height="6" rx="1"></rect>
+				<rect class="rdo-glass" x="-6.8" y="-2.8" width="2.4" height="5.6" rx="1"></rect>
+			</g>
+			<g data-car-arrow></g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Траектории — кривые линии. Синяя стрелка — скорость тела: в каждой точке она направлена вдоль траектории. Время
+		идёт как на самом деле.
+	</figcaption>
+</figure>
+
+<script>
+	import { f1, loop, newArrow } from './rdo';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-curve]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		// ---- ball
+		const KB = 21;
+		const X0 = 14;
+		const Y0 = 136;
+		const V0 = 9;
+		const ANG = (55 * Math.PI) / 180;
+		const G = 9.8;
+		const vx = V0 * Math.cos(ANG);
+		const vy = V0 * Math.sin(ANG);
+		const TB = (2 * vy) / G;
+		const ballAt = (t: number) => ({ x: X0 + vx * t * KB, y: Y0 - (vy * t - (G * t * t) / 2) * KB });
+		const ballArrow = newArrow(q('[data-ball-arrow]'), 'blue');
+		// ---- car: arc-length table of the road
+		const road = fig.querySelector<SVGPathElement>('.rdo-road')!;
+		const LEN = road.getTotalLength();
+		const KC = 4; // px per metre
+		const VC = 10; // м/с
+		const TC = LEN / KC / VC;
+		const carArrow = newArrow(q('[data-car-arrow]'), 'blue');
+		const HOLD = 1.5;
+		const T = Math.max(TB, TC) + HOLD;
+		const draw = (t: number) => {
+			// ball
+			const tb = Math.min(t, TB);
+			const b = ballAt(tb);
+			q('[data-ball]').setAttribute('cx', f1(b.x));
+			q('[data-ball]').setAttribute('cy', f1(b.y - 4));
+			let d = '';
+			for (let i = 0; i <= 40; i++) {
+				const p = ballAt((tb * i) / 40);
+				d += `${i ? 'L' : 'M'}${f1(p.x)} ${f1(p.y - 4)}`;
+			}
+			q('[data-trail-ball]').setAttribute('d', d);
+			if (t <= TB) ballArrow(b.x, b.y - 4, b.x + vx * 4, b.y - 4 - (vy - G * tb) * 4, 7, 4);
+			else ballArrow(0, 0, 0, 0);
+			// car
+			const s = Math.min(t, TC) * VC * KC;
+			const p = road.getPointAtLength(s);
+			const p2 = road.getPointAtLength(Math.min(LEN, s + 0.5));
+			const p1 = road.getPointAtLength(Math.max(0, s - 0.5));
+			const ux = p2.x - p1.x;
+			const uy = p2.y - p1.y;
+			const ul = Math.hypot(ux, uy) || 1;
+			const ang = (Math.atan2(uy, ux) * 180) / Math.PI;
+			q('[data-car]').setAttribute('transform', `translate(${f1(p.x)} ${f1(p.y)}) rotate(${ang.toFixed(1)})`);
+			let dc = '';
+			for (let i = 0; i <= 50; i++) {
+				const r = road.getPointAtLength((s * i) / 50);
+				dc += `${i ? 'L' : 'M'}${f1(r.x)} ${f1(r.y)}`;
+			}
+			q('[data-trail-car]').setAttribute('d', dc);
+			if (t <= TC) carArrow(p.x + (ux / ul) * 9, p.y + (uy / ul) * 9, p.x + (ux / ul) * (9 + VC * 3), p.y + (uy / ul) * (9 + VC * 3), 7, 4);
+			else carArrow(0, 0, 0, 0);
+		};
+		let t = 0;
+		draw(0);
+		loop(fig, (dt) => {
+			t += dt;
+			if (t > T) t = 0;
+			draw(t);
+			return true;
+		});
+	}
+</script>

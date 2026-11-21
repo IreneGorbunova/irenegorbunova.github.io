@@ -1,0 +1,108 @@
+---
+/**
+ * «Спутники на разных орбитах» (picture, endless, time sped up: 1 с of the animation = 1 ч). The Earth seen from above
+ * the North Pole (radius 6371 км) turns counterclockwise once in 23 ч 56 мин; three satellites on circular orbits in the
+ * plane of the equator, radii to scale (160 px for 42 171 км: 0,003794 px per км):
+ *   a space station, height 420 км (r = 6791 км, 25,8 px), period 2π√(r³/GM) = 92,8 мин (1,55 с here; drawn as a dot
+ *     with a short blur);
+ *   a GLONASS navigation satellite, height 19 100 км (r = 25 471 км, 96,6 px), period 11,24 ч ≈ 11 ч 15 мин (the real
+ *     orbit is slightly inclined; here it is drawn in the plane of the picture);
+ *   a geostationary communication satellite, height 35 800 км (r = 42 171 км, 160 px), period 23,94 ч = 23 ч 56 мин,
+ *     the same as the Earth's turn: the dish on the equator keeps facing it (dashed line).
+ * GM = 398 600 км³/с². The labels of the GLONASS and the communication satellites move with them (placed 30 and
+ * 40 px toward the center); the station's label stays in the corner with a leader to its orbit (it circles too fast). A counter shows the hours since midnight of the animation (0…23).
+ */
+import RdoStyles from './RdoStyles.astro';
+const stars = Array.from({ length: 50 }, (_, i) => ({ x: (i * 73 + 17) % 360, y: (i * 151 + 29) % 360, r: i % 4 ? 0.6 : 1.1 }));
+const K = 160 / 42171;
+const orbits = [6791, 25471, 42171].map((r) => r * K);
+---
+
+<RdoStyles />
+<figure class="g7 g7--pic g7--narrow rdo not-content" data-rdo-orbit>
+	<div class="g7__grid">
+		<svg class="g7__svg rdo-spacebox" viewBox="0 0 360 360" role="img" aria-label="Земля и три спутника на круговых орбитах разной высоты: чем выше орбита, тем дольше оборот; спутник на высоте 35 800 километров висит над одной точкой экватора">
+			<rect class="rdo-space" x="0" y="0" width="360" height="360"></rect>
+			{stars.map((s) => <circle class="rdo-star" cx={s.x} cy={s.y} r={s.r}></circle>)}
+			{orbits.map((r) => <circle class="rdo-orbit" cx="180" cy="180" r={r.toFixed(1)}></circle>)}
+			<line class="rdo-sight" data-sight></line>
+			<g data-earth>
+				<circle class="rdo-earth" cx="0" cy="0" r={(6371 * K).toFixed(1)}></circle>
+				<path class="rdo-land" d="M-14 -10 q6 -8 14 -6 q4 6 -2 10 q-6 2 -12 -4 Z M4 6 q8 -2 9 5 q-1 6 -7 5 q-4 -4 -2 -10 Z M-12 6 q4 0 4 5 q-4 2 -6 -1 Z"></path>
+				<circle cx="0" cy="0" r="1.6" fill="hsl(220, 25%, 90%)"></circle>
+				<path class="rdo-dish" d="M24.2 -3 L29 -4.5 L29 4.5 L24.2 3 Z"></path>
+			</g>
+			<path class="rdo-blur" data-blur></path>
+			<g data-sats></g>
+			<path class="rdo-lead" d="M46 42 L161 161"></path>
+			<g class="t-num">
+				<text x="8" y="22" class="t-small">станция</text>
+				<text x="8" y="36" class="t-small">420 км, 93 мин</text>
+				<g data-tag="geo"><text text-anchor="middle" class="t-small" y="-9">спутник связи</text><text text-anchor="middle" class="t-small" y="3">35 800 км</text><text text-anchor="middle" class="t-small" y="15">23 ч 56 мин</text></g>
+				<g data-tag="glo"><text text-anchor="middle" class="t-small" y="-9">ГЛОНАСС</text><text text-anchor="middle" class="t-small" y="3">19 100 км</text><text text-anchor="middle" class="t-small" y="15">11 ч 15 мин</text></g>
+				<text x="8" y="348" font-weight="600">прошло <tspan data-h>0</tspan> ч</text>
+			</g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Чем выше орбита, тем медленнее движется спутник и тем дольше длится оборот. Спутник на высоте 35&nbsp;800&nbsp;км
+		делает оборот за то же время, что и Земля, и висит над одной точкой экватора. Время ускорено: 1&nbsp;с — 1&nbsp;ч.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, f1, loop } from './rdo';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-orbit]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const K = 160 / 42171;
+		const GM = 398600.4418;
+		const sats = [6791, 25471, 42171].map((r, i) => {
+			const T = (2 * Math.PI * Math.sqrt(r ** 3 / GM)) / 3600; // hours
+			const g = el('g', {});
+			g.append(el('rect', { class: 'rdo-panel', x: -6, y: -1.5, width: 4, height: 3 }), el('rect', { class: 'rdo-panel', x: 2, y: -1.5, width: 4, height: 3 }), el('rect', { class: 'rdo-sat', x: -2, y: -2, width: 4, height: 4 }));
+			q('[data-sats]').append(g);
+			return { r: r * K, T, g, a0: [2.4, 0.9, 0][i] };
+		});
+		const TE = sats[2].T; // the Earth's turn equals the geostationary period (sidereal day)
+		const C = 180;
+		let t = 0; // hours
+		const draw = () => {
+			// counterclockwise on the screen: the angle decreases (y down)
+			const ae = -(2 * Math.PI * t) / TE;
+			q('[data-earth]').setAttribute('transform', `translate(${C} ${C}) rotate(${((ae * 180) / Math.PI).toFixed(2)})`);
+			for (const s of sats) {
+				const a = s.a0 - (2 * Math.PI * t) / s.T;
+				s.g.setAttribute('transform', `translate(${f1(C + s.r * Math.cos(a))} ${f1(C + s.r * Math.sin(a))}) rotate(${((a * 180) / Math.PI).toFixed(1)})`);
+			}
+			// the station's blur: the last 0,12 h of its path
+			const st = sats[0];
+			const a1 = st.a0 - (2 * Math.PI * t) / st.T;
+			const a0 = a1 + (2 * Math.PI * 0.12) / st.T;
+			q('[data-blur]').setAttribute('d', `M${f1(C + st.r * Math.cos(a0))} ${f1(C + st.r * Math.sin(a0))} A${f1(st.r)} ${f1(st.r)} 0 0 0 ${f1(C + st.r * Math.cos(a1))} ${f1(C + st.r * Math.sin(a1))}`);
+			// the dish (at the Earth's angle 0) and the geostationary satellite
+			const d = { x: C + 29 * Math.cos(ae), y: C + 29 * Math.sin(ae) };
+			const gs = sats[2];
+			const ag = gs.a0 - (2 * Math.PI * t) / gs.T;
+			const sight = q('[data-sight]');
+			sight.setAttribute('x1', f1(d.x));
+			sight.setAttribute('y1', f1(d.y));
+			sight.setAttribute('x2', f1(C + gs.r * Math.cos(ag)));
+			sight.setAttribute('y2', f1(C + gs.r * Math.sin(ag)));
+			q('[data-h]').textContent = String(Math.floor(t) % 24);
+			// the labels of the GLONASS and the communication satellites ride with them, toward the center of the picture
+			const tag = (name: string, sat: (typeof sats)[number], off: number) => {
+				const a = sat.a0 - (2 * Math.PI * t) / sat.T;
+				q(`[data-tag="${name}"]`).setAttribute('transform', `translate(${f1(C + (sat.r - off) * Math.cos(a))} ${f1(C + (sat.r - off) * Math.sin(a))})`);
+			};
+			tag('glo', sats[1], 30);
+			tag('geo', sats[2], 40);
+		};
+		draw();
+		loop(fig, (dt) => {
+			t += dt; // 1 s = 1 h
+			draw();
+			return true;
+		});
+	}
+</script>

@@ -1,0 +1,120 @@
+---
+/**
+ * «Стрелки часов» (picture, real time, no loop). A wall clock that shows the reader's own time: a smooth-sweep second
+ * hand (as in quiet quartz clocks, no ticking), the minute and hour hands in their real positions; they move too, the
+ * minute hand by 6° per minute, the hour hand by 0,5° per minute. The tip of the second hand moves evenly along a circle,
+ * one turn in T = 60 с (ν = 1/60 об/с); the minute hand makes one turn in 1 ч = 3600 с, the hour hand in 12 ч. The tip
+ * of the second hand leaves a fading arc (the last three quarters of a turn). The counters start when the page opens:
+ * the time t (minutes:seconds) and the number N of full turns of the second hand, so t/N = 60 с whenever N grows.
+ * No speeds on the picture.
+ */
+import RdoStyles from './RdoStyles.astro';
+const ticks = Array.from({ length: 60 }, (_, i) => i);
+---
+
+<RdoStyles />
+<figure class="g7 g7--pic g7--narrow rdo not-content" data-rdo-clock>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 380 230" role="img" aria-label="Настенные часы: секундная стрелка делает один оборот за 60 секунд, минутная — за час, часовая — за 12 часов">
+			<circle class="rdo-face" cx="115" cy="115" r="98"></circle>
+			{
+				ticks.map((i) => {
+					const a = (i * Math.PI) / 30;
+					const big = i % 5 === 0;
+					const r0 = big ? 82 : 88;
+					return <line class={big ? 'rdo-tick' : 'rdo-tick rdo-tick--s'} x1={(115 + r0 * Math.sin(a)).toFixed(1)} y1={(115 - r0 * Math.cos(a)).toFixed(1)} x2={(115 + 93 * Math.sin(a)).toFixed(1)} y2={(115 - 93 * Math.cos(a)).toFixed(1)} />;
+				})
+			}
+			{
+				[12, 3, 6, 9].map((n, i) => {
+					const a = (i * Math.PI) / 2;
+					return (
+						<text x={(115 + 70 * Math.sin(a)).toFixed(1)} y={(119 - 70 * Math.cos(a)).toFixed(1)} text-anchor="middle" font-weight="600">
+							{n}
+						</text>
+					);
+				})
+			}
+			<g data-arc></g>
+			<line class="rdo-hand" x1="115" y1="115" stroke-width="5" data-h></line>
+			<line class="rdo-hand" x1="115" y1="115" stroke-width="3.2" data-m></line>
+			<line class="rdo-hand rdo-hand--s" x1="115" y1="115" stroke-width="1.6" data-s></line>
+			<circle class="rdo-center" cx="115" cy="115" r="4"></circle>
+			<g class="t-num">
+				<text x="222" y="40" class="t-small">время</text>
+				<text x="222" y="58" font-weight="600"><tspan class="t-i">t</tspan> = <tspan data-t>0:00</tspan></text>
+				<text x="222" y="82" class="t-small">оборотов секундной</text>
+				<text x="222" y="98" class="t-small">стрелки</text>
+				<text x="222" y="116" font-weight="600"><tspan class="t-i">N</tspan> = <tspan data-n>0</tspan></text>
+				<text x="222" y="148" class="t-small">один оборот:</text>
+				<text x="222" y="165" class="t-small">секундная — за 60 с</text>
+				<text x="222" y="181" class="t-small">минутная — за 1 ч = 3600 с</text>
+				<text x="222" y="197" class="t-small">часовая — за 12 ч</text>
+			</g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Концы стрелок часов движутся по окружностям равномерно. Секундная стрелка делает один оборот за 60&nbsp;с,
+		минутная — за час, часовая — за 12&nbsp;часов.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, f1, loop } from './rdo';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-clock]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const C = 115;
+		const RS = 86; // length of the second hand, px
+		const now = new Date();
+		const start = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() + now.getMilliseconds() / 1000;
+		const hand = (line: Element, deg: number, r: number, back = 0) => {
+			const a = (deg * Math.PI) / 180;
+			line.setAttribute('x1', f1(C - back * Math.sin(a)));
+			line.setAttribute('y1', f1(C + back * Math.cos(a)));
+			line.setAttribute('x2', f1(C + r * Math.sin(a)));
+			line.setAttribute('y2', f1(C - r * Math.cos(a)));
+		};
+		// the fading trail: 27 short arcs of 10° behind the tip, more transparent the older they are
+		const arcG = q('[data-arc]');
+		const SEG = 27;
+		const segs = Array.from({ length: SEG }, () => {
+			const p = el('path', { class: 'rdo-trail' });
+			arcG.append(p);
+			return p;
+		});
+		const P = (deg: number) => {
+			const a = (deg * Math.PI) / 180;
+			return `${f1(C + RS * Math.sin(a))} ${f1(C - RS * Math.cos(a))}`;
+		};
+		let t = 0;
+		const draw = () => {
+			const s = start + t;
+			hand(q('[data-h]'), ((s / 43200) % 1) * 360, 50, 8);
+			hand(q('[data-m]'), ((s / 3600) % 1) * 360, 72, 10);
+			const sd = ((s / 60) % 1) * 360;
+			hand(q('[data-s]'), sd, RS, 16);
+			const done = Math.min(t * 6, SEG * 10); // degrees covered since the page opened, at most the trail's length
+			segs.forEach((p, i) => {
+				const a1 = sd - i * 10;
+				const a0 = a1 - 10;
+				if (i * 10 >= done) {
+					p.setAttribute('d', '');
+					return;
+				}
+				p.setAttribute('d', `M${P(Math.max(a0, sd - done))} A${RS} ${RS} 0 0 1 ${P(a1)}`);
+				p.setAttribute('opacity', (0.95 * (1 - i / SEG)).toFixed(2));
+			});
+			const whole = Math.floor(t + 1e-6);
+			q('[data-t]').textContent = `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+			q('[data-n]').textContent = String(Math.floor(t / 60 + 1e-9));
+		};
+		draw();
+		const t0 = performance.now();
+		loop(fig, () => {
+			t = (performance.now() - t0) / 1000; // wall time: the clock stays right while it is off screen
+			draw();
+			return true;
+		});
+	}
+</script>

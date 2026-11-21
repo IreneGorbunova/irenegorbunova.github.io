@@ -1,0 +1,218 @@
+---
+/**
+ * «Игрушечная железная дорога» (model, real time). Top view of a toy railway on a carpet, 140 px per metre on both
+ * axes. A circular track of radius R = 0,4 / 0,6 / 0,8 м (the middle line between the rails); a locomotive (16 см) with
+ * one car (14 см) runs counterclockwise at a constant speed set by the toy transformer, «ход» 1…5 = 0,2; 0,3; 0,4; 0,5;
+ * 0,6 м/с (not shown as numbers: the reader finds the speed). The blue arrow on the locomotive is its velocity along
+ * the tangent, 100 px per м/с.
+ * Stopwatch: «Старт» arms it, and it starts when the locomotive's front crosses the start line; «Стоп» lets it stop by
+ * itself the next time the front reaches the line, so the time t is exactly N full laps. The lap counter N adds one at
+ * every crossing after the start. After the stop the calculation in the chapter's form: T = t/N, ν = N/t, υ = 2πR/T,
+ * from t rounded to 0,1 с as shown (T and υ to three significant digits, ν to two or three).
+ * Periods: T = 2πR/υ, e.g. R = 0,6 м, ход 3 (0,4 м/с): 9,42 с; R = 0,4 м, ход 5: 4,19 с; R = 0,8 м, ход 1: 25,1 с.
+ * Changing R or «ход» resets the stopwatch.
+ */
+import RdoStyles from './RdoStyles.astro';
+const pat = Array.from({ length: 9 }, (_, i) => i * 45 - 20);
+---
+
+<RdoStyles />
+<figure class="g7 rdo not-content" data-rdo-train>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 280" role="img" aria-label="Вид сверху: игрушечный поезд едет по круглой железной дороге на ковре; на пути отмечена линия старта" data-svg>
+			<rect class="rdo-carpet" x="0" y="0" width="300" height="280"></rect>
+			{pat.map((x) => <path class="rdo-carpet-pat" d={`M${x} 0 L${x + 80} 280 M${x + 80} 0 L${x} 280`}></path>)}
+			<g data-track></g>
+			<g data-train></g>
+			<g data-arrow></g>
+		</svg>
+		<div class="rdo-ctrl">
+			<div class="g7__row">
+				<span class="g7__label">Радиус пути <i>R</i></span>
+				<span class="g7__seg" role="group" aria-label="Радиус пути" data-r>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="0.4">0,4 м</button>
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="0.6">0,6 м</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="0.8">0,8 м</button>
+				</span>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Ход поезда</span>
+				<span class="g7__seg" role="group" aria-label="Ход поезда" data-gear>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="1">1</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="2">2</button>
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="3">3</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="4">4</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="5">5</button>
+				</span>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-start>Старт</button>
+				<button type="button" class="g7__btn" data-stop>Стоп</button>
+				<button type="button" class="g7__btn" data-reset>Сброс</button>
+			</div>
+			<ul class="g7__read" aria-live="polite">
+				<li>Секундомер: <b data-t>0,0 с</b></li>
+				<li>Число оборотов: <b data-n>0</b></li>
+			</ul>
+			<p class="g7__msg" data-msg>Нажмите «Старт»: секундомер включится, когда поезд пересечёт линию старта.</p>
+			<ul class="g7__lines" data-calc></ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Вид сверху. Синяя стрелка — скорость локомотива. Секундомер включается и выключается, когда нос локомотива
+		пересекает линию старта, поэтому он показывает время целого числа оборотов. Время идёт как на самом деле.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, f1, fmt, k, loop, newArrow, tex } from './rdo';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-rdo-train]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const K = 140; // px per metre
+		const C = { x: 150, y: 140 };
+		const GAUGE = 0.035 * K; // half the distance between the rails
+		const SPEEDS = [0, 0.2, 0.3, 0.4, 0.5, 0.6];
+		let R = 0.6;
+		let v = 0.4;
+		let s = -0.12; // arc length of the locomotive's front from the start line, m (counterclockwise)
+		let state: 'idle' | 'armed' | 'run' | 'stopping' | 'done' = 'idle';
+		let t = 0;
+		let n = 0;
+		const arrow = newArrow(q('[data-arrow]'), 'blue');
+		// the start line at the bottom of the circle; counterclockwise on the screen = to the right at the bottom
+		const at = (sm: number) => {
+			const a = Math.PI / 2 - sm / R;
+			return { x: C.x + R * K * Math.cos(a), y: C.y + R * K * Math.sin(a), a };
+		};
+		const drawTrack = () => {
+			const g = q('[data-track]');
+			g.replaceChildren();
+			const rp = R * K;
+			const nS = Math.round((2 * Math.PI * R) / 0.04);
+			for (let i = 0; i < nS; i++) {
+				const a = (i / nS) * 2 * Math.PI;
+				g.append(el('line', { class: 'rdo-sleeper', x1: f1(C.x + (rp - GAUGE - 2) * Math.cos(a)), y1: f1(C.y + (rp - GAUGE - 2) * Math.sin(a)), x2: f1(C.x + (rp + GAUGE + 2) * Math.cos(a)), y2: f1(C.y + (rp + GAUGE + 2) * Math.sin(a)) }));
+			}
+			g.append(el('circle', { class: 'rdo-rail', cx: C.x, cy: C.y, r: f1(rp - GAUGE) }), el('circle', { class: 'rdo-rail', cx: C.x, cy: C.y, r: f1(rp + GAUGE) }));
+			g.append(el('line', { class: 'rdo-startline', x1: C.x, y1: f1(C.y + rp - GAUGE - 6), x2: C.x, y2: f1(C.y + rp + GAUGE + 6) }));
+			const lab = el('text', { class: 't-small', x: C.x, y: f1(C.y + rp + GAUGE + 17), 'text-anchor': 'middle' });
+			lab.textContent = 'старт';
+			g.append(lab);
+			g.append(el('circle', { class: 'rdo-center', cx: C.x, cy: C.y, r: 2 }));
+		};
+		const train = q('[data-train]');
+		const car = (len: number, cls: string, cab: boolean) => {
+			const g = el('g', {});
+			g.append(el('rect', { class: cls, x: f1(-len * K), y: -4.5, width: f1(len * K), height: 9, rx: 2 }));
+			if (cab) g.append(el('rect', { class: 'rdo-cab', x: f1(-len * K + 2), y: -3.5, width: 6, height: 7, rx: 1 }));
+			train.append(g);
+			return g;
+		};
+		const loco = car(0.16, 'rdo-loco', true);
+		const wagon = car(0.14, 'rdo-wagon', false);
+		/** Places a body whose front is at arc length sf and whose back is len behind it (a chord between the two). */
+		const place = (g: SVGGElement, sf: number, len: number) => {
+			const f = at(sf);
+			const b = at(sf - len);
+			const ang = (Math.atan2(f.y - b.y, f.x - b.x) * 180) / Math.PI;
+			g.setAttribute('transform', `translate(${f1(f.x)} ${f1(f.y)}) rotate(${ang.toFixed(1)})`);
+		};
+		const show = () => {
+			place(loco, s, 0.16);
+			place(wagon, s - 0.175, 0.14);
+			const f = at(s - 0.08);
+			const tx = Math.sin(f.a); // the tangent of the motion (d/ds of the position)
+			const ty = -Math.cos(f.a);
+			arrow(f.x, f.y, f.x + tx * v * 100, f.y + ty * v * 100, 8, 4.5);
+			q('[data-t]').textContent = `${fmt(t, 1)} с`;
+			q('[data-n]').textContent = String(n);
+		};
+		const calc = () => {
+			const ul = q('[data-calc]');
+			ul.replaceChildren();
+			if (state !== 'done' || n === 0) return;
+			const tr = Math.round(t * 10) / 10;
+			const T = tr / n;
+			const nu = n / tr;
+			const vv = (2 * Math.PI * R) / T;
+			const sig = (x: number) => (x >= 10 ? fmt(x, 1) : x >= 1 ? fmt(x, 2) : fmt(x, 3));
+			const lines = [
+				`T = \\dfrac{t}{N} = \\dfrac{${tex(fmt(tr, 1))}\\ \\text{с}}{${n}} \\approx ${tex(sig(T))}\\ \\text{с}`,
+				`\\nu = \\dfrac{N}{t} = \\dfrac{${n}}{${tex(fmt(tr, 1))}\\ \\text{с}} \\approx ${tex(sig(nu))}\\ \\text{с}^{-1}`,
+				`\\upsilon = \\dfrac{2\\pi R}{T} \\approx \\dfrac{2\\cdot 3{,}14\\cdot ${tex(fmt(R, 1))}\\ \\text{м}}{${tex(sig(T))}\\ \\text{с}} \\approx ${tex(sig(vv))}\\ \\text{м/с}`,
+			];
+			for (const L of lines) {
+				const li = document.createElement('li');
+				li.innerHTML = k(L);
+				ul.append(li);
+			}
+		};
+		const msg = (m: string) => (q('[data-msg]').textContent = m);
+		const reset = () => {
+			state = 'idle';
+			t = 0;
+			n = 0;
+			calc();
+			msg('Нажмите «Старт»: секундомер включится, когда поезд пересечёт линию старта.');
+			show();
+		};
+		const L = () => 2 * Math.PI * R;
+		loop(fig, (dt) => {
+			const s0 = s;
+			s += v * dt;
+			// crossings of the start line (s passes a whole number of laps)
+			const crossed = Math.floor(s / L()) > Math.floor(s0 / L());
+			if (state === 'run' || state === 'stopping') t += dt;
+			if (crossed) {
+				const over = (s - Math.floor(s / L()) * L()) / v; // time since the crossing
+				if (state === 'armed') {
+					state = 'run';
+					t = over;
+					msg('Секундомер идёт. Нажмите «Стоп», когда захотите остановить его на линии старта.');
+				} else if (state === 'run' || state === 'stopping') {
+					n += 1;
+					if (state === 'stopping') {
+						t -= over;
+						state = 'done';
+						msg('Секундомер остановлен на линии старта.');
+						calc();
+					}
+				}
+			}
+			show();
+			return true;
+		});
+		q('[data-start]').addEventListener('click', () => {
+			if (state === 'run' || state === 'stopping') return;
+			t = 0;
+			n = 0;
+			calc();
+			state = 'armed';
+			msg('Секундомер включится, когда нос локомотива пересечёт линию старта.');
+		});
+		q('[data-stop]').addEventListener('click', () => {
+			if (state === 'run') {
+				state = 'stopping';
+				msg('Секундомер остановится, когда нос локомотива дойдёт до линии старта.');
+			} else if (state === 'armed') reset();
+		});
+		q('[data-reset]').addEventListener('click', reset);
+		const seg = (sel: string, pick: (x: number) => void) => {
+			for (const b of fig.querySelectorAll<HTMLButtonElement>(`${sel} button`))
+				b.addEventListener('click', () => {
+					for (const o of fig.querySelectorAll(`${sel} button`)) o.setAttribute('aria-pressed', String(o === b));
+					pick(Number(b.dataset.v));
+					reset();
+				});
+		};
+		seg('[data-r]', (x) => {
+			s = (s / R) * x; // keep the angle
+			R = x;
+			drawTrack();
+		});
+		seg('[data-gear]', (x) => (v = SPEEDS[x]));
+		drawTrack();
+		reset();
+	}
+</script>
