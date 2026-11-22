@@ -1,0 +1,198 @@
+---
+/**
+ * «Летучая мышь находит мотылька» (picture next to the definition of echolocation; a looping scene of about 5 с, no
+ * numbers). Dusk over the tops of trees. A bat flies from the left toward a moth fluttering on the right. It sends short
+ * clicks: each is a thin gold arc in a cone of ±35° ahead of it, growing at 150 px/s. When an arc reaches the moth, a
+ * fainter arc comes back from the moth toward the bat; when that echo reaches the bat, the bat turns toward where the
+ * moth now is. The clicks come more often as the distance shrinks (the interval is proportional to the distance, from
+ * 0,5 с at the start to 0,1 с at the end: the «buzz» before a catch; real bats click about 10 times a second while
+ * searching and up to 100–200 times a second just before a catch). Time is slowed and not to one scale: the flight is
+ * slowed about 5 times, the sound about 100 times, so only the order of the events is true. At the catch the moth
+ * disappears; the picture holds 1 с and starts again.
+ */
+import ZvStyles from './ZvStyles.astro';
+const rnd = (i: number, k: number) => {
+	const r = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+	return r - Math.floor(r);
+};
+const stars = Array.from({ length: 18 }, (_, i) => ({ x: rnd(i, 1) * 360, y: rnd(i, 2) * 110, r: 0.5 + rnd(i, 3) * 0.7 }));
+let trees = 'M0 240 L0 200';
+for (let x = 0; x <= 360; x += 12) trees += ` L${x + 6} ${(186 + rnd(x, 5) * 18).toFixed(1)} L${x + 12} ${(200 + rnd(x, 6) * 10).toFixed(1)}`;
+trees += ' L360 240 Z';
+---
+
+<ZvStyles />
+<figure class="g7 g7--pic zv not-content" data-zv-bat>
+	<div class="g7__grid">
+		<svg class="g7__svg zv-dusk" viewBox="0 0 360 230" role="img" aria-label="Сумерки. Летучая мышь летит к мотыльку и посылает короткие ультразвуковые щелчки. Отражённые от мотылька щелчки возвращаются к ней, и она поворачивает к добыче. Чем ближе мотылёк, тем чаще щелчки">
+			<rect class="zv-dusk-sky" x="0" y="0" width="360" height="230"></rect>
+			{stars.map((s) => <circle class="zv-star" cx={s.x.toFixed(1)} cy={s.y.toFixed(1)} r={s.r.toFixed(2)} />)}
+			<circle class="zv-moon" cx="318" cy="34" r="12"></circle>
+			<path class="zv-trees" d={trees}></path>
+			<g data-arcs></g>
+			<g data-moth>
+				<ellipse class="zv-moth-w" cx="-3" cy="-2" rx="5" ry="3.5" data-mw1></ellipse>
+				<ellipse class="zv-moth-w" cx="3" cy="-2" rx="5" ry="3.5" data-mw2></ellipse>
+				<ellipse class="zv-moth-b" cx="0" cy="0" rx="1.4" ry="4"></ellipse>
+			</g>
+			<g data-bat>
+				<g data-wings>
+					<path class="zv-bat" d="M-2 -1 C-8 -14 -18 -16 -26 -10 C-22 -7 -21 -4 -22 0 C-18 -3 -14 -3 -12 0 C-10 -3 -6 -3 -4 1 Z"></path>
+					<path class="zv-bat" d="M2 -1 C8 -14 18 -16 26 -10 C22 -7 21 -4 22 0 C18 -3 14 -3 12 0 C10 -3 6 -3 4 1 Z"></path>
+				</g>
+				<ellipse class="zv-bat" cx="0" cy="1" rx="4" ry="6"></ellipse>
+				<path class="zv-bat" d="M-3 -4 L-3.5 -10 L-1 -6 L1 -6 L3.5 -10 L3 -4 Z"></path>
+			</g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Летучая мышь посылает короткие ультразвуковые щелчки и слышит их эхо от мотылька. Чем ближе добыча, тем чаще
+		щелчки. Показано замедленно.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.zv .zv-dusk-sky {
+		fill: hsl(235, 40%, 18%);
+	}
+	:root[data-theme='light'] .zv .zv-dusk-sky {
+		fill: hsl(235, 35%, 30%);
+	}
+	.zv .zv-star {
+		fill: white;
+		opacity: 0.7;
+	}
+	.zv .zv-moon {
+		fill: hsl(48, 80%, 85%);
+	}
+	.zv .zv-trees {
+		fill: hsl(160, 25%, 10%);
+	}
+	.zv .zv-bat {
+		fill: hsl(260, 15%, 6%);
+		stroke: hsl(260, 20%, 45%);
+		stroke-width: 0.6;
+	}
+	.zv .zv-moth-w {
+		fill: hsl(40, 35%, 78%);
+		opacity: 0.9;
+	}
+	.zv .zv-moth-b {
+		fill: hsl(35, 30%, 45%);
+	}
+	.zv .zv-click {
+		fill: none;
+		stroke: hsl(42, 90%, 62%);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.zv .zv-click--echo {
+		stroke-dasharray: 3 2.5;
+	}
+</style>
+
+<script>
+	import { el, loop } from './zv';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-zv-bat]')) {
+		const bat = fig.querySelector('[data-bat]')!;
+		const wings = fig.querySelector('[data-wings]')!;
+		const moth = fig.querySelector('[data-moth]')!;
+		const mw = [fig.querySelector('[data-mw1]')!, fig.querySelector('[data-mw2]')!];
+		const arcsG = fig.querySelector('[data-arcs]')!;
+		const C = 150; // px/s, the clicks
+		const VB = 52; // px/s, the bat
+		const CONE = (35 * Math.PI) / 180;
+		type Arc = { x: number; y: number; dir: number; born: number; echo: boolean; e: SVGPathElement; done?: boolean };
+		let arcs: Arc[] = [];
+		let t = 0;
+		let bx = 0;
+		let by = 0;
+		let head = 0; // heading, rad
+		let aim = 0;
+		let lastClick = 0;
+		let caught = -1;
+		const mothAt = (tt: number) => ({ x: 286 + 10 * Math.sin(tt * 0.9), y: 92 + 12 * Math.sin(tt * 1.7 + 1) });
+		const reset = () => {
+			arcs.forEach((a) => a.e.remove());
+			arcs = [];
+			t = 0;
+			bx = 30;
+			by = 150;
+			head = -0.25;
+			aim = -0.25;
+			lastClick = -1;
+			caught = -1;
+		};
+		reset();
+		const arcPath = (a: Arc, r: number, cone: number) => {
+			const x1 = a.x + r * Math.cos(a.dir - cone);
+			const y1 = a.y + r * Math.sin(a.dir - cone);
+			const x2 = a.x + r * Math.cos(a.dir + cone);
+			const y2 = a.y + r * Math.sin(a.dir + cone);
+			return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+		};
+		const step = (dt: number) => {
+			t += dt;
+			const m = mothAt(t);
+			if (caught < 0) {
+				head += (aim - head) * Math.min(1, dt * 3);
+				bx += VB * Math.cos(head) * dt;
+				by += VB * Math.sin(head) * dt + 6 * Math.cos(t * 9) * dt;
+				const d = Math.hypot(m.x - bx, m.y - by);
+				if (d < 9) caught = t;
+				// a click: the interval ∝ the distance, 0,5 s far, 0,1 s near
+				const gap = Math.max(0.1, Math.min(0.5, d / 480));
+				if (t - lastClick >= gap) {
+					const e = el('path', { class: 'zv-click' });
+					arcsG.append(e);
+					arcs.push({ x: bx + 8 * Math.cos(head), y: by + 8 * Math.sin(head), dir: head, born: t, echo: false, e });
+					lastClick = t;
+				}
+			} else if (t - caught > 1) {
+				reset();
+				return;
+			}
+			for (const a of arcs) {
+				const r = C * (t - a.born);
+				if (!a.echo) {
+					const dm = Math.hypot(m.x - a.x, m.y - a.y);
+					const ang = Math.atan2(m.y - a.y, m.x - a.x);
+					// the arc reaches the moth: an echo starts from it toward the bat
+					if (!a.done && caught < 0 && r >= dm && Math.abs(Math.atan2(Math.sin(ang - a.dir), Math.cos(ang - a.dir))) < CONE) {
+						a.done = true;
+						const e = el('path', { class: 'zv-click zv-click--echo' });
+						arcsG.append(e);
+						arcs.push({ x: m.x, y: m.y, dir: Math.atan2(by - m.y, bx - m.x), born: t, echo: true, e });
+					}
+					a.e.setAttribute('d', arcPath(a, r, CONE));
+					a.e.setAttribute('opacity', Math.max(0, 0.95 - r / 260).toFixed(2));
+				} else {
+					a.e.setAttribute('d', arcPath(a, r, 0.5));
+					a.e.setAttribute('opacity', Math.max(0, 0.6 - r / 400).toFixed(2));
+					// the echo reaches the bat: it turns toward the moth
+					if (!a.done && r >= Math.hypot(bx - a.x, by - a.y)) {
+						a.done = true;
+						aim = Math.atan2(m.y - by, m.x - bx);
+					}
+				}
+			}
+			arcs = arcs.filter((a) => {
+				const keep = C * (t - a.born) < 300;
+				if (!keep) a.e.remove();
+				return keep;
+			});
+			bat.setAttribute('transform', `translate(${bx.toFixed(2)} ${by.toFixed(2)}) rotate(${((head * 180) / Math.PI).toFixed(1)}) rotate(90)`);
+			wings.setAttribute('transform', `scale(1 ${(0.35 + 0.65 * Math.abs(Math.cos(t * 10))).toFixed(3)})`);
+			moth.setAttribute('transform', `translate(${m.x.toFixed(2)} ${m.y.toFixed(2)})`);
+			moth.setAttribute('opacity', caught < 0 ? '1' : '0');
+			const f = 0.3 + 0.7 * Math.abs(Math.sin(t * 22));
+			mw.forEach((w) => w.setAttribute('ry', (3.5 * f).toFixed(2)));
+		};
+		loop(fig, (dt) => {
+			step(dt);
+			return true;
+		});
+		step(0);
+	}
+</script>

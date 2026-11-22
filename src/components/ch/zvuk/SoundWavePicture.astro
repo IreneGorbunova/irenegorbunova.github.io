@@ -1,0 +1,185 @@
+---
+/**
+ * «Звуковая волна» (picture next to the definition; a looping animation). A loudspeaker (cabinet, magnet, a paper cone
+ * that moves as one piece) pushes the air back and forth. To the right, air as particles (9 rows, one every 9 px along
+ * x, a little off the grid). The cone moves as s0 = A·sin(2πνt); a layer of air at the distance x repeats it later by
+ * x/υ (zv.ts), so compressions and rarefactions run away from the loudspeaker while each particle only swings about its
+ * place: the red one, with the blue double arrow of its swing. Gray stripes behind the dots show the density
+ * 1/(1 − kA·cos φ). Labels «сгущение» and «разрежение» ride with the middles of the compressions (phase 2πn) and
+ * rarefactions (π + 2πn); the green bracket is λ. On the right a schematic ear (outer ear, ear canal, eardrum): the
+ * air in the canal and the eardrum swing in time with the arriving compressions (the eardrum as the layer of air at it).
+ * Picture: λ = 120 px, ν = 0,7 Гц, υ = 84 px/s, A = 12 px (kA = 0,63: the air in a compression about 4,4 times denser
+ * than in a rarefaction). In reality a tone of 343 Гц has λ = 343/343 = 1 м and the particles swing 343 times a second
+ * by far less than 1 мм: time is slowed about 500 times and the swing hugely exaggerated (the caption says so).
+ * «Пауза» freezes the picture.
+ */
+import ZvStyles from './ZvStyles.astro';
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<ZvStyles />
+<figure class="g7 g7--pic zv not-content" data-zv-wave>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 236" role="img" aria-label="Динамик толкает соседний воздух то вперёд, то назад. От него к уху бегут сгущения и разрежения воздуха, а каждая частица воздуха только колеблется на своём месте. Барабанная перепонка колеблется в такт">
+			<defs>
+			</defs>
+			<g data-speaker></g>
+			<g data-ear>
+				<path class="zv-skin" d="M316 30 Q340 28 352 50 Q360 66 360 110 L360 200 Q336 200 330 186 Q346 172 338 150 Q332 140 320 136 L320 92 Q332 88 336 76 Q340 56 316 50 Z"></path>
+				<path class="zv-skin-line" d="M322 46 Q334 50 332 66 M326 176 Q336 166 332 154"></path>
+				<rect class="zv-canal" x="318" y="98" width="30" height="24" rx="3"></rect>
+			</g>
+			<g data-bands></g>
+			<g data-air></g>
+			<path class="zv-drum" data-drum></path>
+			<text class="t-small zv-on-metal" x="352" y="46" text-anchor="end">ухо</text>
+			<line class="zv-axis" x1="346" y1="124" x2="346" y2="206"></line>
+			<text class="t-small" x="358" y="218" text-anchor="end">барабанная</text>
+			<text class="t-small" x="358" y="230" text-anchor="end">перепонка</text>
+			<g data-labels class="t-small"></g>
+			<g data-arrows></g>
+			<text class="t-small t-gold" x="300" y="14" text-anchor="end">направление распространения</text>
+			<path class="zv-lambda" data-lam></path>
+			<text class="t-green" text-anchor="middle" data-lamt><tspan class="t-i">λ</tspan></text>
+		</svg>
+	</div>
+	<div class="g7__row">
+		<button type="button" class="g7__btn" aria-pressed="false" data-pause>пауза</button>
+	</div>
+	<figcaption class="g7__caption">
+		Динамик толкает соседний воздух то вперёд, то назад. К уху бегут сгущения и разрежения, а каждая частица воздуха
+		(красная) только колеблется около своего места. Показано замедленно, смещения частиц сильно увеличены.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, loop, newAir, newArrow, newDouble, TAU } from './zv';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-zv-wave]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const LAM = 120;
+		const NU = 0.7;
+		const V = LAM * NU;
+		const A = 12;
+		const Y0 = 42; // top row of the air
+		const Y1 = 178; // bottom row
+		const X0 = 56; // rest position of the cone's front
+		const XD = 346; // the eardrum at rest
+
+		// ---- the loudspeaker: a cabinet, a magnet, a basket and a cone that moves as one piece
+		const spk = q<SVGGElement>('[data-speaker]');
+		const MID = (Y0 + Y1) / 2;
+		spk.append(
+			el('rect', { class: 'zv-wood', x: 0, y: 22, width: 16, height: 176, rx: 2 }),
+			el('rect', { class: 'zv-metal-dark', x: 16, y: MID - 16, width: 12, height: 32, rx: 2 }),
+			el('path', { class: 'zv-ink', d: `M28 ${MID - 12} L50 34 M28 ${MID + 12} L50 186` }),
+		);
+		const cone = el('g');
+		cone.append(
+			// the cone in section: a light paper cone, its rubber surround at the rim and a dust cap in the middle
+			el('path', { class: 'zv-cone', d: `M28 ${MID - 9} L49 38 L49 182 L28 ${MID + 9} Z` }),
+			el('path', { class: 'zv-surround', d: `M49 38 Q55 34 50 29 M49 182 Q55 186 50 191` }),
+			el('path', { class: 'zv-metal', d: `M28 ${MID - 9} Q36 ${MID} 28 ${MID + 9} Z` }),
+			el('rect', { class: 'zv-metal', x: 22, y: MID - 9, width: 8, height: 18, rx: 2 }),
+		);
+		spk.append(cone);
+
+		// ---- the air
+		// stripes behind the dots: darker where the air is denser
+		const bands = Array.from({ length: 43 }, (_, i) => { const r = el('rect', { class: 'zv-band', x: 58 + i * 6, y: Y0 - 6, width: 6.2, height: Y1 - Y0 + 12 }); q('[data-bands]').append(r); return r; });
+		const air = newAir(q('[data-air]'), { x0: 58, y0: Y0, w: 300, h: Y1 - Y0, dx: 9, rows: 9, r: 1.8, seed: 3, clip: [0, 362] });
+		// the ear canal holds the dots of the middle rows up to the eardrum; elsewhere the air ends at the ear
+		const inCanal = (y: number) => Math.abs(y - (Y0 + Y1) / 2) < 10;
+		const drum = q('[data-drum]');
+		// the red particle: the one nearest to (196, the middle row)
+		let red = air.pts[0];
+		for (const p of air.pts) if (Math.hypot(p.x - 196, p.y - MID) < Math.hypot(red.x - 196, red.y - MID)) red = p;
+		red.c.setAttribute('class', 'zv-red');
+		red.c.setAttribute('r', '4');
+		red.c.parentNode!.append(red.c);
+
+		const ag = q('[data-arrows]');
+		newArrow(ag, 'gold')(200, 24, 300, 24, 8, 4.5);
+		const dbl = newDouble(ag, 'blue');
+		const labels = q('[data-labels]');
+		const lab = Array.from({ length: 6 }, (_, i) => {
+			const t = el('text', { 'text-anchor': 'middle', class: 'zv-faint', y: 198 }, i % 2 ? 'разрежение' : 'сгущение');
+			labels.append(t);
+			return t;
+		});
+		const lam = q('[data-lam]');
+		const lamT = q('[data-lamt]');
+
+		let t = 0;
+		let paused = false;
+		const draw = () => {
+			const x0 = X0;
+			const s0 = A * Math.sin(TAU * NU * t);
+			cone.setAttribute('transform', `translate(${s0.toFixed(2)} 0)`);
+			const disp = (x: number) => A * Math.sin(TAU * NU * (t - (x - x0) / V));
+			air.set(disp, x0 + s0 + 2.5);
+			const sd = disp(XD) * 0.5; // the eardrum is held at its rim: its middle swings, shown at half the swing of the air
+			for (const p of air.pts) {
+				const x = p.x + disp(p.x);
+				if ((x > 314 && !inCanal(p.y)) || x > XD + sd - 2) p.c.style.display = 'none';
+			}
+			drum.setAttribute('d', `M${XD} ${MID - 12} Q${(XD + 2 * sd).toFixed(2)} ${MID} ${XD} ${MID + 12}`);
+			// relative density 1/(1 + ds/dx) = 1/(1 − kA·cos φ): shown as the opacity of the stripes
+			const kA = (TAU / LAM) * A;
+			bands.forEach((r, i) => {
+				const x = 58 + i * 6 + 3;
+				const c = Math.cos(TAU * NU * (t - (x - x0) / V));
+				r.setAttribute('opacity', (0.55 * Math.max(0, (1 / (1 - kA * c) - 1 / (1 + kA)) / (1 / (1 - kA) - 1 / (1 + kA)))).toFixed(3));
+			});
+			dbl(red.x - A, red.y - 12, red.x + A, red.y - 12);
+			// labels: middles of compressions (phase 2πn) and rarefactions (π + 2πn), the visible ones in order
+			const ph0 = NU * t; // phase / 2π at the source
+			const xs: { x: number; kind: number }[] = [];
+			for (let n = -1; n < 8; n++) {
+				for (const half of [0, 0.5]) {
+					// phase/2π at x is ph0 − (x − x0)/λ; = n − half … solve for x
+					const x = x0 + LAM * (ph0 - n + half) ;
+					if (x > 112 && x < (half ? 246 : 266)) xs.push({ x, kind: half ? 1 : 0 });
+				}
+			}
+			xs.sort((a, b) => a.x - b.x);
+			lab.forEach((tEl, i) => {
+				const m = xs[i];
+				if (!m) {
+					tEl.style.display = 'none';
+					return;
+				}
+				tEl.style.display = '';
+				tEl.textContent = m.kind ? 'разрежение' : 'сгущение';
+				tEl.setAttribute('x', m.x.toFixed(1));
+				tEl.setAttribute('y', m.kind ? '229' : '213');
+			});
+			// λ between the first two compressions
+			// λ between two neighboring compressions inside the air (60…330 px), whether or not they carry a label
+			const ph = NU * t;
+			let c1 = x0 + LAM * (ph - Math.floor(ph)); // the compression nearest to the cone, phase 2πn
+			while (c1 < 100) c1 += LAM;
+			if (c1 + LAM > 330) c1 -= LAM;
+			const cs = [{ x: c1 }, { x: c1 + LAM }];
+			if (cs.length >= 2) {
+				const a = cs[0].x;
+				const b = cs[1].x;
+				const y = Y1 + 8;
+				lam.setAttribute('d', `M${a.toFixed(1)} ${y - 4} V${y + 4} M${b.toFixed(1)} ${y - 4} V${y + 4} M${a.toFixed(1)} ${y} H${b.toFixed(1)}`);
+				lamT.setAttribute('x', ((a + b) / 2).toFixed(1));
+				lamT.setAttribute('y', String(y + 12));
+			}
+		};
+		const wake = loop(fig, (dt) => {
+			if (!paused) t += dt;
+			draw();
+			return !paused;
+		});
+		q<HTMLButtonElement>('[data-pause]').addEventListener('click', (e) => {
+			paused = !paused;
+			(e.currentTarget as HTMLElement).setAttribute('aria-pressed', String(paused));
+			wake();
+		});
+		draw();
+	}
+</script>

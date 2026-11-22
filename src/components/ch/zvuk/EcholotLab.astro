@@ -1,0 +1,331 @@
+---
+/**
+ * «Эхолот» (model after the formula s = υt/2: it calculates by it). A ship on the sea surface over a 600-м stretch of the
+ * sea in section: a shelf 20–40 м deep, a slope, a pit 180 м deep, a sunken ship lying at 120 м (its deck at 105 м) and
+ * a rise to 60 м. Scales: 0,55 px per м across, 0,8 px per м in depth (not equal: the depth is stretched, as on a
+ * chart). Under the hull an emitter (its depth is neglected). «Импульс» sends a short ultrasound pulse straight down
+ * at 1 500 м/с (sea water); the pulse goes down, reflects from the bottom (or the deck) and comes back; on screen this is
+ * slowed 20 times, the stopwatch shows the real time t to 0,001 с. Then the calculation appears:
+ * s = υt/2 with the speed set in the device («море 1500 м/с» or «озеро 1480 м/с»: the pulse itself always runs at
+ * 1 500 м/с, so the lake setting gives a depth 1,3 % too small), from the t shown (rounded to 0,001 с).
+ * The slider moves the ship (0…600 м, step 5 м). «Съёмка дна»: the ship moves along and pings every 20 м from where it
+ * stands to 600 м (slowed only 4 times), and each measured depth becomes a dot on the chart under the section; the
+ * profile of the bottom appears dot by dot.
+ */
+import ZvStyles from './ZvStyles.astro';
+const KX = 0.55;
+const KY = 0.8;
+const X0 = 22;
+const SURF = 36;
+// the bottom profile (м): distance, depth
+const PROFILE: [number, number][] = [
+	[0, 20],
+	[80, 28],
+	[150, 40],
+	[230, 150],
+	[260, 180],
+	[310, 180],
+	[345, 130],
+	[365, 120],
+	[440, 120],
+	[480, 90],
+	[540, 60],
+	[600, 60],
+];
+const SHIP: [number, number][] = [
+	[372, 120],
+	[378, 106],
+	[383, 105],
+	[418, 105],
+	[425, 110],
+	[428, 120],
+];
+const px = (m: number) => X0 + m * KX;
+const py = (d: number) => SURF + d * KY;
+const bottom = `M${px(0)} ${py(PROFILE[0][1])} ` + PROFILE.map(([x, d]) => `L${px(x).toFixed(1)} ${py(d).toFixed(1)}`).join(' ') + ` L${px(600)} ${py(200)} L${px(0)} ${py(200)} Z`;
+const wreck = SHIP.map(([x, d], i) => `${i ? 'L' : 'M'}${px(x).toFixed(1)} ${py(d).toFixed(1)}`).join(' ') + ' Z';
+const CH0 = 222; // the chart: depth 0 at its top
+const CK = 0.32; // px per м on the chart
+---
+
+<ZvStyles />
+<figure class="g7 g7--stack zv not-content" data-zv-echolot data-profile={JSON.stringify(PROFILE)} data-ship={JSON.stringify(SHIP)}>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 304" role="img" aria-label="Судно на поверхности моря и разрез моря с неровным дном. Эхолот посылает вниз ультразвуковой импульс; по времени, за которое импульс возвращается, вычисляется глубина. При съёмке дна измеренные глубины точка за точкой рисуют профиль дна">
+			<rect class="zv-sea" x={X0} y={SURF} width={600 * KX} height={200 * KY}></rect>
+			<path class="zv-seabed" d={bottom}></path>
+			<path class="zv-wreck" d={wreck}></path>
+			<line class="zv-wreck-mast" x1={px(400)} y1={py(105)} x2={px(396)} y2={py(92)}></line>
+			<line class="zv-surface" x1={X0} y1={SURF} x2={px(600)} y2={SURF}></line>
+			<!-- depth scale -->
+			{[0, 50, 100, 150, 200].map((d) => (
+				<g>
+					<line class="zv-axis" x1={X0 - 4} y1={py(d)} x2={X0} y2={py(d)}></line>
+					<text class="t-small zv-faint" x={X0 - 6} y={py(d) + 4} text-anchor="end" font-size="9.5">{d}</text>
+				</g>
+			))}
+			<text class="t-small zv-on-metal" x={X0 + 4} y={py(200) - 5} font-size="9.5">глубина, м</text>
+			<g data-pulse></g>
+			<g data-ship>
+				<path class="zv-hull" d="M-22 -2 H22 L16 6 H-16 Z"></path>
+				<rect class="zv-cabin" x="-8" y="-11" width="14" height="9" rx="1"></rect>
+				<rect class="zv-cabin" x="-3" y="-17" width="3" height="6"></rect>
+				<rect class="zv-emitter" x="-3" y="5" width="6" height="3" rx="1"></rect>
+			</g>
+			<text class="t-strong" x="356" y="16" text-anchor="end" data-watch>t = 0,000 с</text>
+			<!-- the chart of measured depths -->
+			<rect class="zv-chart" x={X0} y={CH0} width={600 * KX} height={200 * CK}></rect>
+			{[0, 100, 200].map((d) => (
+				<g>
+					<line class="zv-grid" x1={X0} y1={CH0 + d * CK} x2={px(600)} y2={CH0 + d * CK}></line>
+					<text class="t-small zv-faint" x={X0 - 6} y={CH0 + d * CK + 4} text-anchor="end" font-size="9.5">{d}</text>
+				</g>
+			))}
+			{[0, 200, 400, 600].map((m) => (
+				<text class="t-small zv-faint" x={px(m)} y={CH0 + 200 * CK + 12} text-anchor={m === 600 ? 'end' : 'middle'} font-size="9.5">{m === 600 ? '600 м' : m}</text>
+			))}
+			<text class="t-small" x={px(300)} y={CH0 - 4} text-anchor="middle">измеренные глубины</text>
+			<g data-dots></g>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>положение судна <output data-ox>100 м</output></span>
+				<input type="range" min="0" max="600" step="5" value="100" data-x />
+			</label>
+			<div class="zv-btns">
+				<button type="button" class="g7__btn g7__btn--go" data-ping>Импульс</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-survey>Съёмка дна</button>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">скорость звука в расчёте</span>
+				<div class="g7__seg" role="group" aria-label="Скорость звука в расчёте">
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="1500">море 1500 м/с</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="1480">озеро 1480 м/с</button>
+				</div>
+			</div>
+			<ul class="g7__lines" data-calc>
+				<li class="is-text">Нажмите «Импульс».</li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Импульс показан в 20 раз медленнее (при съёмке дна — в 4 раза), секундомер показывает настоящее время.</figcaption>
+</figure>
+
+<style is:global>
+	.zv .zv-sea {
+		fill: color-mix(in oklab, var(--ig-vx) 22%, var(--sl-color-bg));
+	}
+	.zv .zv-seabed {
+		fill: color-mix(in oklab, var(--g7-wood) 70%, var(--sl-color-gray-5));
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.zv .zv-wreck {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.zv .zv-wreck-mast {
+		stroke: var(--g7-steel-dark);
+		stroke-width: 1.4;
+	}
+	.zv .zv-surface {
+		stroke: color-mix(in oklab, var(--ig-vx) 70%, var(--sl-color-white));
+		stroke-width: 1.4;
+	}
+	.zv .zv-hull {
+		fill: hsl(355, 55%, 48%);
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.zv .zv-cabin {
+		fill: hsl(40, 30%, 92%);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.zv .zv-emitter {
+		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	.zv .zv-chart {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.8;
+	}
+	.zv .zv-depth-dot {
+		fill: var(--g7-gold);
+		stroke: var(--g7-paper);
+		stroke-width: 0.7;
+	}
+	.zv .zv-ping {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.zv .zv-ping--back {
+		stroke-dasharray: 4 2;
+	}
+	[data-zv-echolot] .g7__svg {
+		max-width: 42rem;
+		margin-inline: auto;
+	}
+	.zv .zv-btns {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+</style>
+
+<script>
+	import { el, loop, fmt, fmtTrim } from './zv';
+
+	const V_SEA = 1500;
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-zv-echolot]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const PROFILE = JSON.parse(fig.dataset.profile!) as [number, number][];
+		const SHIP = JSON.parse(fig.dataset.ship!) as [number, number][];
+		const KX = 0.55;
+		const KY = 0.8;
+		const X0 = 22;
+		const SURF = 36;
+		const CH0 = 222;
+		const CK = 0.32;
+		const lin = (pts: [number, number][], x: number) => {
+			for (let i = 1; i < pts.length; i++) {
+				const [x1, d1] = pts[i - 1];
+				const [x2, d2] = pts[i];
+				if (x >= x1 && x <= x2) return d1 + ((d2 - d1) * (x - x1)) / (x2 - x1);
+			}
+			return NaN;
+		};
+		/** The depth under the ship: the bottom, or the wreck where it is higher. */
+		const depthAt = (x: number) => {
+			const b = lin(PROFILE, x);
+			const w = lin(SHIP, x);
+			return Number.isNaN(w) ? b : Math.min(b, w);
+		};
+		const shipG = q('[data-ship]');
+		const pulseG = q('[data-pulse]');
+		const down = el('path', { class: 'zv-ping' });
+		const back = el('path', { class: 'zv-ping zv-ping--back' });
+		pulseG.append(down, back);
+		const watch = q('[data-watch]');
+		const calc = q('[data-calc]');
+		const dotsG = q('[data-dots]');
+		const sl = q<HTMLInputElement>('[data-x]');
+		const ox = q<HTMLOutputElement>('[data-ox]');
+		const bSurvey = q<HTMLButtonElement>('[data-survey]');
+
+		let x = 100; // м
+		let vCalc = 1500;
+		let ping: { t: number; d: number; slow: number } | null = null; // t: real time since the pulse
+		let survey = false;
+		let moveTo: number | null = null;
+		let lastTm: number | null = null; // the last measured time, to recompute with another speed
+
+		const drawShip = () => {
+			shipG.setAttribute('transform', `translate(${(X0 + x * KX).toFixed(2)} ${SURF})`);
+			ox.textContent = `${Math.round(x)} м`;
+		};
+		const arc = (cx: number, cy: number, r: number, upward: boolean) => {
+			if (r < 1) return '';
+			const a = (22 * Math.PI) / 180;
+			const s = upward ? -1 : 1;
+			return `M${(cx - r * Math.sin(a)).toFixed(1)} ${(cy + s * r * Math.cos(a)).toFixed(1)} A${r.toFixed(1)} ${r.toFixed(1)} 0 0 ${upward ? 1 : 0} ${(cx + r * Math.sin(a)).toFixed(1)} ${(cy + s * r * Math.cos(a)).toFixed(1)}`;
+		};
+		const showCalc = (t: number) => {
+			const tr = Math.round(t * 1000) / 1000;
+			const s = (vCalc * tr) / 2;
+			calc.innerHTML = `<li><i>t</i> = ${fmt(tr, 3)} с</li><li class="is-key"><i>s</i> = <i>υt</i>/2 = ${vCalc} м/с · ${fmt(tr, 3)} с / 2 = ${fmtTrim(s, 1)} м</li>`;
+			return s;
+		};
+		const firePing = (slow: number) => {
+			ping = { t: 0, d: depthAt(x), slow };
+		};
+		const finishPing = () => {
+			if (!ping) return;
+			const T = (2 * ping.d) / V_SEA;
+			lastTm = T;
+			const s = showCalc(T);
+			watch.textContent = `t = ${fmt(Math.round(T * 1000) / 1000, 3)} с`;
+			if (survey) {
+				const c = el('circle', { class: 'zv-depth-dot', cx: (X0 + x * KX).toFixed(1), cy: (CH0 + s * CK).toFixed(1), r: 2.4 });
+				dotsG.append(c);
+				if (x + 20 <= 600 + 1e-6) moveTo = x + 20;
+				else setSurvey(false);
+			}
+			ping = null;
+			down.setAttribute('d', '');
+			back.setAttribute('d', '');
+		};
+		const setSurvey = (on: boolean) => {
+			survey = on;
+			bSurvey.setAttribute('aria-pressed', String(on));
+			bSurvey.textContent = on ? 'Остановить съёмку' : 'Съёмка дна';
+			if (on) {
+				dotsG.replaceChildren();
+				x = Math.round(x / 20) * 20;
+				sl.value = String(x);
+				drawShip();
+				firePing(4);
+			} else moveTo = null;
+		};
+		const wake = loop(fig, (dt) => {
+			if (moveTo !== null) {
+				x = Math.min(moveTo, x + 80 * dt); // 80 м of screen motion per second
+				sl.value = String(Math.round(x));
+				drawShip();
+				if (x >= moveTo) {
+					moveTo = null;
+					if (survey) firePing(4);
+				}
+			}
+			if (ping) {
+				ping.t += dt / ping.slow;
+				const T = (2 * ping.d) / V_SEA;
+				const path = V_SEA * ping.t; // м travelled by the pulse
+				const cx = X0 + x * KX;
+				const cy = SURF + 8;
+				if (path <= ping.d) {
+					down.setAttribute('d', arc(cx, cy, path * KY, false));
+					back.setAttribute('d', '');
+				} else {
+					down.setAttribute('d', '');
+					back.setAttribute('d', arc(cx, SURF + ping.d * KY, (path - ping.d) * KY, true));
+				}
+				watch.textContent = `t = ${fmt(Math.min(ping.t, T), 3)} с`;
+				if (ping.t >= T) finishPing();
+			}
+			return ping !== null || moveTo !== null;
+		});
+		q('[data-ping]').addEventListener('click', () => {
+			if (survey) setSurvey(false);
+			lastTm = null;
+			firePing(20);
+			calc.innerHTML = '<li class="is-text">Импульс идёт…</li>';
+			wake();
+		});
+		bSurvey.addEventListener('click', () => {
+			setSurvey(!survey);
+			wake();
+		});
+		sl.addEventListener('input', () => {
+			if (survey) setSurvey(false);
+			ping = null;
+			down.setAttribute('d', '');
+			back.setAttribute('d', '');
+			x = Number(sl.value);
+			drawShip();
+		});
+		for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-v]')) {
+			b.addEventListener('click', () => {
+				vCalc = Number(b.dataset.v);
+				fig.querySelectorAll('[data-v]').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+				if (lastTm !== null && !ping) showCalc(lastTm);
+			});
+		}
+		drawShip();
+	}
+</script>

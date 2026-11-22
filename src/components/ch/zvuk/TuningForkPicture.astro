@@ -1,0 +1,172 @@
+---
+/**
+ * «Камертон отбрасывает шарик» (picture next to the definitions of a sound source and a tuning fork; a looping scene
+ * of 6 с, real time). A tuning fork (prongs 9 см long, drawn at 11 px per см) stands on its wooden resonator box; a
+ * light cork ball (radius 0,5 см) hangs on a thread 6 см long so that it just touches the outer side of the right prong.
+ * At 1,0 с a rubber mallet, swung by someone outside the picture, strikes the left prong. The prongs then vibrate at
+ * 440 Гц: far too fast to see, so they are drawn as a blur whose width is the swing; the real swing of a prong is about
+ * 0,1 мм, drawn as up to 4 px (about 4 times larger; the caption says the swing is exaggerated). The swing dies out as
+ * e^(−t/0,9 с). The ball is thrown off each time it touches the prong: it flies out on its thread (a pendulum of
+ * length l = 6 см swings out and back in π·√(l/g) = 0,25 с) by d = 1,4 см · e^(−t/0,9 с) and falls back; when d is
+ * under 0,1 см it rests on the prong again (about 2,4 с after the strike).
+ */
+import ZvStyles from './ZvStyles.astro';
+---
+
+<ZvStyles />
+<figure class="g7 g7--pic zv zv--narrow not-content" data-zv-fork>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 240" role="img" aria-label="Камертон на деревянном ящике. К ножке камертона прикасается лёгкий шарик на нити. Резиновый молоточек ударяет по ножке, и шарик несколько раз отскакивает от неё, пока колебания не затухнут">
+			<line class="zv-axis" x1="0" y1="216" x2="360" y2="216"></line>
+			<!-- the stand with the thread and the ball -->
+			<path class="zv-metal-dark" d="M246 216 v-3 h40 v3 Z"></path>
+			<rect class="zv-metal" x="262" y="18" width="5" height="195" rx="1.5"></rect>
+			<rect class="zv-metal" x="143" y="16" width="124" height="4" rx="1.5"></rect>
+			<line class="zv-thread" data-thread></line>
+			<circle class="zv-cork" r="5.5" data-ball></circle>
+			<!-- the resonator box: the open end toward the viewer is the dark face -->
+			<path class="zv-wood" d="M70 176 H200 L212 168 V208 L200 216 H70 Z"></path>
+			<path class="zv-wood-dark" d="M200 176 L212 168 V208 L200 216 Z"></path>
+			<rect class="zv-hole" x="74" y="180" width="122" height="32" rx="1"></rect>
+			<path class="zv-wood" d="M70 176 L82 168 H212 L200 176 Z"></path>
+			<!-- the fork -->
+			<g data-blur></g>
+			<path class="zv-metal" data-prong="L"></path>
+			<path class="zv-metal" data-prong="R"></path>
+			<path class="zv-metal" d="M118 150 Q118 166 131 166 Q144 166 144 150 H138 Q138 160 131 160 Q124 160 124 150 Z"></path>
+			<rect class="zv-metal-dark" x="128" y="165" width="6" height="8" rx="1"></rect>
+			<text class="t-small" x="164" y="80">шарик на нити</text>
+			<text class="t-small" x="94" y="112" text-anchor="end">камертон</text>
+			<line class="zv-axis" x1="96" y1="108" x2="116" y2="108"></line>
+			<text class="t-small" x="135" y="232" text-anchor="middle">резонаторный ящик</text>
+			<!-- the mallet: a handle and a rubber head, swung from outside the picture -->
+			<g data-mallet>
+				<line class="zv-handle" x1="0" y1="0" x2="-78" y2="0"></line>
+				<circle class="zv-rubber" cx="0" cy="0" r="6.5"></circle>
+			</g>
+					</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Звучащий камертон отбрасывает шарик: его ножки колеблются. Колебания ножек показаны сильно увеличенными.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.zv .zv-thread {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	.zv .zv-cork {
+		fill: hsl(35, 55%, 70%);
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	.zv .zv-handle {
+		stroke: var(--g7-wood);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.zv .zv-rubber {
+		fill: hsl(5, 55%, 50%);
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+</style>
+
+<script>
+	import { el, loop } from './zv';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-zv-fork]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const PX = 11; // px per см
+		const TIP = 52;
+		const BASE = 150;
+		const A0 = 4; // px, the drawn swing of the tips right after the strike
+		const TAU_D = 0.9; // s, the decay of the swing
+		const T_HIT = 1.0;
+		const RUN = 6;
+		const G = 980; // см/с²
+		const L = 6; // см, the thread
+		const HALF = Math.PI * Math.sqrt(L / G); // 0,246 s out and back
+		const D0 = 1.4; // см, the first throw
+		const PIV = { x: 149.5, y: 18 }; // the ball (radius 5,5 px) touches the right prong's outer side at x = 144
+		/** A prong between its inner and outer x at rest, bent by s at the tip (zero at the base). */
+		const prong = (xIn: number, xOut: number, s: number) => {
+			const bend = (y: number) => s * ((BASE - y) / (BASE - TIP)) ** 2;
+			const N = 10;
+			const a: string[] = [];
+			const b: string[] = [];
+			for (let i = 0; i <= N; i++) {
+				const y = TIP + ((BASE - TIP) * i) / N;
+				a.push(`${(xOut + bend(y)).toFixed(2)} ${y.toFixed(1)}`);
+				b.unshift(`${(xIn + bend(y)).toFixed(2)} ${y.toFixed(1)}`);
+			}
+			return `M${a.join(' L')} L${b.join(' L')} Z`;
+		};
+		const pL = q('[data-prong="L"]');
+		const pR = q('[data-prong="R"]');
+		const blurG = q('[data-blur]');
+		const blurs = [0, 1, 2, 3].map(() => {
+			const p = el('path', { class: 'zv-blur' });
+			blurG.append(p);
+			return p;
+		});
+		const thread = q('[data-thread]');
+		const ball = q('[data-ball]');
+		const mallet = q('[data-mallet]');
+		// the bounces: start times and heights
+		const bounces: { t0: number; d: number }[] = [];
+		for (let t = T_HIT; ; t += HALF) {
+			const d = D0 * Math.exp(-(t - T_HIT) / TAU_D);
+			if (d < 0.1) break;
+			bounces.push({ t0: t, d });
+		}
+		const draw = (t: number) => {
+			const env = t < T_HIT ? 0 : Math.exp(-(t - T_HIT) / TAU_D);
+			const a = A0 * env;
+			// at 440 Гц the eye sees only the range of the swing: a blur from −a to +a, the prong in the middle
+			pR.setAttribute('d', prong(138, 144, 0));
+			pL.setAttribute('d', prong(124, 118, 0));
+			blurs[0].setAttribute('d', prong(138, 144, a));
+			blurs[1].setAttribute('d', prong(138, 144, -a));
+			blurs[2].setAttribute('d', prong(124, 118, -a));
+			blurs[3].setAttribute('d', prong(124, 118, a));
+			blurG.setAttribute('opacity', a > 0.2 ? '1' : '0');
+			// the ball: out and back on its thread after each touch
+			let dx = 0;
+			const b = bounces.find((k) => t >= k.t0 && t < k.t0 + HALF);
+			if (b) dx = b.d * PX * Math.sin((Math.PI * (t - b.t0)) / HALF);
+			const th = Math.asin(Math.min(0.9, dx / (L * PX)));
+			const bx = PIV.x + L * PX * Math.sin(th);
+			const by = PIV.y + L * PX * Math.cos(th);
+			thread.setAttribute('x1', String(PIV.x));
+			thread.setAttribute('y1', String(PIV.y));
+			thread.setAttribute('x2', bx.toFixed(2));
+			thread.setAttribute('y2', by.toFixed(2));
+			ball.setAttribute('cx', bx.toFixed(2));
+			ball.setAttribute('cy', by.toFixed(2));
+			// the mallet swings in from the upper left on an arc around a point outside the picture, strikes, swings back
+			const pivot = { x: 20, y: -60 };
+			const R = Math.hypot(111.5 - pivot.x, 70 - pivot.y);
+			const hitAng = Math.atan2(70 - pivot.y, 111.5 - pivot.x);
+			let k: number; // 0 at the strike, 1 out of the picture
+			if (t < T_HIT - 0.45) k = 1;
+			else if (t < T_HIT) k = ((T_HIT - t) / 0.45) ** 2;
+			else if (t < T_HIT + 0.6) k = Math.sin(((t - T_HIT) / 0.6) * (Math.PI / 2));
+			else k = 1;
+			const ang = hitAng + k * 0.9;
+			const hx = pivot.x + R * Math.cos(ang);
+			const hy = pivot.y + R * Math.sin(ang);
+			const hd = (Math.atan2(hy - pivot.y, hx - pivot.x) * 180) / Math.PI;
+			mallet.setAttribute('transform', `translate(${hx.toFixed(2)} ${hy.toFixed(2)}) rotate(${hd.toFixed(1)})`);
+			mallet.style.display = k > 0.98 ? 'none' : '';
+		};
+		let t = 0;
+		loop(fig, (dt) => {
+			t = (t + dt) % RUN;
+			draw(t);
+			return true;
+		});
+		draw(0);
+	}
+</script>

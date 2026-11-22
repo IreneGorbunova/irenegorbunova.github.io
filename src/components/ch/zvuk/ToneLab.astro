@@ -1,0 +1,535 @@
+---
+/**
+ * «Генератор и осциллограф» (model; one component, two modes).
+ * A sound generator (a box with a frequency dial) drives a loudspeaker; the screen of an oscilloscope shows the
+ * displacement of the loudspeaker's cone against time over a fixed window, 1 division = 1 мс (window 10 мс), or
+ * 1 division = 10 мс when the window is switched to 100 мс. The trace is x(t) = A·sin(2πνt) (or the sum of harmonics in
+ * the timbre mode), drawn from 160 samples per period up to 12 000 points; with more than 150 periods in the window
+ * the oscillations merge into a band (as on a real screen) and a note says so. Below 8 Гц the cone is seen to move in
+ * real time; faster, it is drawn as a blur as wide as its swing.
+ *
+ * mode="pitch": the frequency slider is logarithmic, 5 Гц … 40 000 Гц (240 steps), rounded to two significant digits
+ *   and snapped to 220 Гц and 440 Гц when within 3 %; a number field takes any value 1…40 000 Гц. Readouts: ν, the
+ *   period T = 1/ν (мс below 0,1 с, else с), the number of oscillations in the window ν·t_окна, and the zone:
+ *   «инфразвук» (ν < 16 Гц), «слышимый звук» (16–20 000 Гц), «ультразвук» (> 20 000 Гц).
+ * mode="timbre": ν = 220 Гц fixed (the note «ля» of the small octave, 2,2 periods in 10 мс), an amplitude slider
+ *   0…1 (relative units) and four instruments, the amplitudes of the harmonics n·220 Гц (n = 1, 2, 3 …):
+ *   камертон 1; флейта 1, 0,45, 0,15, 0,05; кларнет 1, 0, 0,40, 0, 0,25, 0, 0,12 (odd only); скрипка 1/n, n = 1…10.
+ *   Each waveform is scaled so that its peak equals the amplitude slider (so the shapes differ, not the size); the
+ *   harmonics are drawn as a dot plot (a stem and a dot at each n·220 Гц) under the screen.
+ *
+ * The sound is real (Arsenii, 22 Nov 2026): «Послушать» plays the tone through WebAudio. It is off by default and never
+ * starts by itself: only a press of the button starts it (a user gesture), and the button then reads «Выключить звук».
+ * The tone follows the frequency slider (pitch mode) and the amplitude slider (timbre mode) live; the gain is at most
+ * 0,15 (pitch mode 0,12; timbre mode 0,15 × amplitude), with 50-мс fades in and out (no clicks). The timbre mode plays a
+ * PeriodicWave with the same harmonic amplitudes (WebAudio normalizes it to the same peak as the drawing). Outside
+ * 20 Гц – 20 000 Гц nothing plays and a note says that a person cannot hear it. The sound stops when the model leaves the
+ * screen, when the tab is hidden and when the page is left. All audio code is in the `audio` object of the script.
+ */
+import ZvStyles from './ZvStyles.astro';
+interface Props {
+	mode?: 'pitch' | 'timbre';
+}
+const { mode = 'pitch' } = Astro.props;
+const uid = Math.random().toString(36).slice(2, 8);
+const SX = 82; // the screen
+const SY = 16;
+const SW = 270;
+const SH = 150;
+---
+
+<ZvStyles />
+<figure class="g7 zv not-content" data-zv-tone={mode}>
+	<div class="g7__grid">
+		<div>
+			<svg class="g7__svg" viewBox={mode === 'pitch' ? '0 0 360 212' : '0 0 360 242'} role="img" aria-label={mode === 'pitch' ? 'Генератор звука, динамик и экран осциллографа: на экране — колебания мембраны динамика за 10 миллисекунд. Чем больше частота, тем больше колебаний умещается на экране' : 'Генератор, динамик и экран осциллографа: колебания звука одной частоты от камертона, флейты, кларнета и скрипки имеют разную форму, а под экраном показаны частоты и амплитуды обертонов'}>
+				<defs>
+					<clipPath id={`zv-scr-${uid}`}><rect x={SX} y={SY} width={SW} height={SH} rx="4"></rect></clipPath>
+				</defs>
+				<!-- the generator -->
+				<rect class="zv-gen" x="6" y="16" width="64" height="62" rx="5"></rect>
+				<rect class="zv-screen" x="12" y="22" width="52" height="16" rx="2"></rect>
+				<text class="zv-digits" x="61" y="34" text-anchor="end" data-gnu>440</text>
+				<circle class="zv-dialk" cx="26" cy="58" r="10"></circle>
+				<line class="zv-dialmark" x1="26" y1="58" data-gdial></line>
+				<circle class="zv-led" cx="54" cy="58" r="3.2" data-gled></circle>
+				<text class="t-small zv-faint" x="38" y="92" text-anchor="middle">генератор</text>
+				<path class="zv-cable" d="M38 78 V108 Q38 116 30 118 H22"></path>
+				<!-- the loudspeaker -->
+				<rect class="zv-wood" x="4" y="110" width="12" height="80" rx="2"></rect>
+				<rect class="zv-metal-dark" x="16" y="140" width="9" height="20" rx="2"></rect>
+				<g data-cone>
+					<path class="zv-cone" d="M25 143 L44 118 L44 182 L25 157 Z"></path>
+					<path class="zv-metal" d="M25 143 Q31 150 25 157 Z"></path>
+				</g>
+				<rect class="zv-blur" x="40" y="118" width="0" height="64" data-coneblur></rect>
+				<text class="t-small zv-faint" x="26" y="204" text-anchor="middle">динамик</text>
+				<path class="zv-cable" d="M70 40 H78"></path>
+				<!-- the oscilloscope screen -->
+				<rect class="zv-screen" x={SX} y={SY} width={SW} height={SH} rx="4"></rect>
+				<g data-grid></g>
+				<g clip-path={`url(#zv-scr-${uid})`}><path class="zv-screen-trace" data-trace></path><rect class="zv-screen-band" data-band x={SX} width={SW}></rect></g>
+				<text class="t-small zv-faint" x={SX + SW} y={SY + SH + 16} text-anchor="end" data-wlab>10 мс</text>
+				<path class="zv-lambda" d={`M${SX} ${SY + SH + 6} h${SW / 10} M${SX} ${SY + SH + 2} v8 M${SX + SW / 10} ${SY + SH + 2} v8`}></path>
+				<text class="t-small t-green" x={SX + SW / 10 + 4} y={SY + SH + 16} data-divlab>1 мс</text>
+				<text class="t-small zv-faint" x={SX + SW / 2} y={SY + SH + 16} text-anchor="middle">время →</text>
+				<text class="t-small zv-scr-note" x={SX + SW / 2} y={SY + 14} text-anchor="middle" data-scrnote></text>
+				{mode === 'timbre' && (
+					<g data-spec>
+						<line class="zv-axis" x1={SX} y1="226" x2={SX + SW} y2="226"></line>
+						<text class="t-small zv-faint" x={SX} y="198">обертоны: частоты, Гц, и амплитуды</text>
+					</g>
+				)}
+			</svg>
+		</div>
+		<div class="g7__side">
+			{mode === 'pitch' ? (
+				<>
+					<label class="g7__slider">
+						<span>частота <i>ν</i> <output data-onu>440 Гц</output></span>
+						<input type="range" min="0" max="240" step="1" data-nu />
+					</label>
+					<div class="zv-zones" aria-hidden="true">
+						<span data-zone="infra">инфразвук</span>
+						<span data-zone="aud">слышимый звук</span>
+						<span data-zone="ultra">ультразвук</span>
+					</div>
+					<label class="zv-num">точно: <input type="number" min="1" max="40000" step="1" value="440" data-nunum /> Гц</label>
+					<div class="g7__row">
+						<span class="g7__label">окно</span>
+						<div class="g7__seg" role="group" aria-label="Окно осциллографа">
+							<button type="button" class="g7__btn" aria-pressed="true" data-win="10">10 мс</button>
+							<button type="button" class="g7__btn" aria-pressed="false" data-win="100">100 мс</button>
+						</div>
+					</div>
+				</>
+			) : (
+				<>
+					<div class="g7__seg zv-inst" role="group" aria-label="Источник звука">
+						<button type="button" class="g7__btn" aria-pressed="true" data-inst="fork">камертон</button>
+						<button type="button" class="g7__btn" aria-pressed="false" data-inst="flute">флейта</button>
+						<button type="button" class="g7__btn" aria-pressed="false" data-inst="clar">кларнет</button>
+						<button type="button" class="g7__btn" aria-pressed="false" data-inst="violin">скрипка</button>
+					</div>
+					<label class="g7__slider">
+						<span>амплитуда <i>A</i> <output data-oamp>0,60</output></span>
+						<input type="range" min="0" max="1" step="0.05" value="0.6" data-amp />
+					</label>
+				</>
+			)}
+			<ul class="g7__read">
+				<li><span>частота <i>ν</i></span> <b data-rnu>440 Гц</b></li>
+				<li><span>период <i>T</i> = 1/<i>ν</i></span> <b data-rT>2,27 мс</b></li>
+				<li><span>колебаний в окне</span> <b data-rN>4,4</b></li>
+				{mode === 'pitch' && <li class="is-key" data-rzone>слышимый звук</li>}
+			</ul>
+			<div class="zv-listen">
+				<button type="button" class="g7__btn g7__btn--go" aria-pressed="false" data-listen>Послушать</button>
+				<span class="g7__note" data-snote>{mode === 'pitch' ? 'Звук настоящий. Не делайте громко; многие взрослые не слышат выше 15–17 кГц.' : 'Звук настоящий. Не делайте громко.'}</span>
+			</div>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		{mode === 'pitch'
+			? 'Экран показывает колебания мембраны динамика за 10 мс (или 100 мс). Кнопка «Послушать» включает настоящий звук этой частоты.'
+			: 'Частота у всех источников одна — 220 Гц, а форма колебаний разная: к основному тону добавляются обертоны. Кнопка «Послушать» включает настоящий звук.'}
+	</figcaption>
+</figure>
+
+<style is:global>
+	.zv .zv-gen {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.zv .zv-digits {
+		font-family: var(--__sl-font-mono, monospace);
+		font-size: 11px;
+		font-weight: 700;
+		fill: var(--g7-green);
+		font-variant-numeric: tabular-nums;
+	}
+	.zv .zv-dialk {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.zv .zv-dialmark {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.zv .zv-led {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--g7-ink);
+		stroke-width: 0.7;
+	}
+	.zv .zv-led.is-on {
+		fill: var(--g7-green);
+	}
+	.zv .zv-cable {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+	}
+	.zv .zv-screen-band {
+		fill: var(--g7-green);
+		opacity: 0.55;
+	}
+	.zv .zv-scr-note {
+		fill: var(--g7-green);
+	}
+	.zv .zv-spec-stem {
+		stroke: var(--g7-gold);
+		stroke-width: 1.4;
+	}
+	.zv .zv-spec-dot {
+		fill: var(--g7-gold);
+		stroke: var(--g7-paper);
+		stroke-width: 0.8;
+	}
+	.zv .zv-zones {
+		display: grid;
+		grid-template-columns: 1fr 2.3fr 1.2fr;
+		gap: 2px;
+		font-size: var(--sl-text-xs);
+		text-align: center;
+		margin-top: -0.3rem;
+	}
+	.zv .zv-zones span {
+		padding: 0.1rem 0.2rem;
+		border-radius: 0.4rem;
+		color: var(--sl-color-gray-3);
+		border: 1px solid var(--sl-color-gray-5);
+	}
+	.zv .zv-zones span.is-on {
+		color: var(--sl-color-black);
+		background: var(--g7-gold);
+		border-color: var(--g7-gold);
+		font-weight: 600;
+	}
+	.zv .zv-num {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.zv .zv-num input {
+		width: 6.5rem;
+		font: inherit;
+		padding: 0.15rem 0.4rem;
+		border-radius: 0.4rem;
+		border: 1px solid var(--sl-color-gray-4);
+		background: var(--sl-color-bg);
+		color: var(--sl-color-white);
+	}
+	.zv .zv-inst {
+		flex-wrap: wrap;
+	}
+	.zv .zv-listen {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.zv .zv-listen .g7__note {
+		margin: 0;
+		flex: 1 1 12rem;
+	}
+</style>
+
+<script>
+	import { el, loop, fmt, fmtTrim, fmtInt, TAU } from './zv';
+
+	type Mode = 'pitch' | 'timbre';
+	const INST: Record<string, number[]> = {
+		fork: [1],
+		flute: [1, 0.45, 0.15, 0.05],
+		clar: [1, 0, 0.4, 0, 0.25, 0, 0.12],
+		violin: Array.from({ length: 10 }, (_, i) => 1 / (i + 1)),
+	};
+	const NU_MIN = 5;
+	const NU_MAX = 40000;
+	const STEPS = 240;
+	/** Slider step → frequency: logarithmic, two significant digits, snapped to 220 and 440 Гц. */
+	const nuOf = (k: number) => {
+		const v = NU_MIN * (NU_MAX / NU_MIN) ** (k / STEPS);
+		for (const s of [220, 440]) if (Math.abs(v / s - 1) < 0.03) return s;
+		const p = 10 ** (Math.floor(Math.log10(v)) - 1);
+		return Math.round(v / p) * p;
+	};
+	const stepOf = (nu: number) => Math.round((STEPS * Math.log(nu / NU_MIN)) / Math.log(NU_MAX / NU_MIN));
+	const fmtNu = (nu: number) => `${nu >= 1000 ? fmtInt(nu) : fmtTrim(nu, 1)} Гц`;
+	/** The period: in мс below 0,1 с, with three significant digits. */
+	const fmtT = (nu: number) => {
+		const T = 1 / nu;
+		if (T >= 0.1) return `${fmtTrim(T, 2)} с`;
+		const ms = T * 1000;
+		const d = ms >= 10 ? 1 : ms >= 1 ? 2 : ms >= 0.1 ? 3 : 4;
+		return `${fmt(ms, d)} мс`;
+	};
+
+	/** All the sound of a model: one oscillator through one gain, created on the first press only. */
+	const makeAudio = () => {
+		let ctx: AudioContext | null = null;
+		let osc: OscillatorNode | null = null;
+		let gain: GainNode | null = null;
+		let on = false;
+		let heard = false; // the gain is (going) above 0: a new frequency may glide; from silence it is set at once
+		const FADE = 0.015; // time constant: about 50 мс to silence
+		return {
+			get on() {
+				return on;
+			},
+			start(nu: number, g: number, coeffs: number[] | null) {
+				const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+				if (!AC) return false;
+				if (!ctx) ctx = new AC();
+				void ctx.resume();
+				osc = ctx.createOscillator();
+				gain = ctx.createGain();
+				gain.gain.value = 0;
+				heard = false;
+				if (coeffs) {
+					const real = new Float32Array(coeffs.length + 1);
+					const imag = new Float32Array(coeffs.length + 1);
+					coeffs.forEach((c, i) => (imag[i + 1] = c));
+					osc.setPeriodicWave(ctx.createPeriodicWave(real, imag));
+				}
+				osc.frequency.value = nu;
+				osc.connect(gain).connect(ctx.destination);
+				osc.start();
+				on = true;
+				this.set(nu, g, coeffs);
+				return true;
+			},
+			set(nu: number, g: number, coeffs: number[] | null) {
+				if (!ctx || !osc || !gain) return;
+				const now = ctx.currentTime;
+				const audible = nu >= 20 && nu <= 20000;
+				if (audible) {
+					if (heard) osc.frequency.setTargetAtTime(nu, now, 0.02);
+					else osc.frequency.setValueAtTime(nu, now);
+				}
+				heard = audible;
+				if (coeffs && osc.type === 'custom') {
+					const real = new Float32Array(coeffs.length + 1);
+					const imag = new Float32Array(coeffs.length + 1);
+					coeffs.forEach((c, i) => (imag[i + 1] = c));
+					osc.setPeriodicWave(ctx.createPeriodicWave(real, imag));
+				}
+				gain.gain.setTargetAtTime(audible ? Math.min(0.15, g) : 0, now, FADE);
+			},
+			stop() {
+				if (!ctx || !osc || !gain) return;
+				const o = osc;
+				const now = ctx.currentTime;
+				gain.gain.cancelScheduledValues(now);
+				gain.gain.setTargetAtTime(0, now, FADE);
+				o.stop(now + 0.12);
+				osc = null;
+				gain = null;
+				on = false;
+			},
+		};
+	};
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-zv-tone]')) {
+		const mode = fig.dataset.zvTone as Mode;
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const SX = 82;
+		const SY = 16;
+		const SW = 270;
+		const SH = 150;
+		const MIDY = SY + SH / 2;
+		const AMP = 60; // px for amplitude 1
+		// the grid: 10 divisions along time, 6 along the displacement
+		const grid = q('[data-grid]');
+		for (let i = 1; i < 10; i++) grid.append(el('line', { class: 'zv-screen-grid', x1: SX + (SW * i) / 10, y1: SY, x2: SX + (SW * i) / 10, y2: SY + SH }));
+		for (let j = 1; j < 6; j++) grid.append(el('line', { class: 'zv-screen-grid', x1: SX, y1: SY + (SH * j) / 6, x2: SX + SW, y2: SY + (SH * j) / 6, opacity: j === 3 ? 1.6 : 1 }));
+		const trace = q('[data-trace]');
+		const band = q('[data-band]');
+		const scrNote = q('[data-scrnote]');
+		const cone = q('[data-cone]');
+		const coneBlur = q('[data-coneblur]');
+		const gnu = q('[data-gnu]');
+		const gdial = q('[data-gdial]');
+		const gled = q('[data-gled]');
+		const rnu = q('[data-rnu]');
+		const rT = q('[data-rT]');
+		const rN = q('[data-rN]');
+		const bListen = q<HTMLButtonElement>('[data-listen]');
+		const sNote = q('[data-snote]');
+		const noteText = sNote.textContent ?? '';
+
+		let nu = mode === 'pitch' ? 440 : 220;
+		let win = 0.01; // s
+		let amp = mode === 'pitch' ? 1 : 0.6;
+		let inst = 'fork';
+		const coeffs = () => (mode === 'timbre' ? INST[inst] : [1]);
+		/** The waveform scaled so that its peak is 1. */
+		let peak = 1;
+		const findPeak = () => {
+			const c = coeffs();
+			let m = 0;
+			for (let i = 0; i < 2000; i++) {
+				const ph = (TAU * i) / 2000;
+				let s = 0;
+				c.forEach((a, n) => (s += a * Math.sin((n + 1) * ph)));
+				m = Math.max(m, Math.abs(s));
+			}
+			peak = m || 1;
+		};
+		const wave = (ph: number) => {
+			let s = 0;
+			coeffs().forEach((a, n) => (s += a * Math.sin((n + 1) * ph)));
+			return s / peak;
+		};
+
+		const drawTrace = () => {
+			const periods = nu * win;
+			const A = AMP * amp;
+			if (periods > 150) {
+				trace.setAttribute('d', '');
+				band.setAttribute('y', (MIDY - A).toFixed(1));
+				band.setAttribute('height', (2 * A).toFixed(1));
+				scrNote.textContent = 'колебаний так много, что они сливаются';
+			} else {
+				band.setAttribute('height', '0');
+				scrNote.textContent = '';
+				const n = Math.min(12000, Math.max(400, Math.ceil(periods * 160)));
+				let d = '';
+				for (let i = 0; i <= n; i++) {
+					const t = (win * i) / n;
+					const x = SX + (SW * i) / n;
+					const y = MIDY - A * wave(TAU * nu * t);
+					d += `${i ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)}`;
+				}
+				trace.setAttribute('d', d);
+			}
+			q('[data-wlab]').textContent = `${fmtInt(win * 1000)} мс`;
+			q('[data-divlab]').textContent = `${fmtInt(win * 100)} мс`;
+		};
+		const drawSpec = () => {
+			const g = fig.querySelector('[data-spec]');
+			if (!g) return;
+			g.querySelectorAll('.zv-spec').forEach((e) => e.remove());
+			const c = coeffs();
+			for (let n = 1; n <= 10; n++) {
+				const x = SX + (SW * n * 220) / 2200 - 8;
+				const a = (c[n - 1] ?? 0) * amp;
+				const y = 226 - 34 * a;
+				const k = el('g', { class: 'zv-spec' });
+				k.append(el('line', { class: 'zv-axis', x1: x, y1: 224, x2: x, y2: 228 }));
+				if (a > 0.004) {
+					k.append(el('line', { class: 'zv-spec-stem', x1: x, y1: 226, x2: x, y2: y.toFixed(1) }));
+					k.append(el('circle', { class: 'zv-spec-dot', cx: x, cy: y.toFixed(1), r: 3 }));
+				}
+				// labels at the odd multiples only, so that they fit a phone
+				if (n % 2 === 1) k.append(el('text', { class: 't-small zv-faint', x, y: 238, 'text-anchor': 'middle', 'font-size': 9.5 }, fmtInt(n * 220)));
+				g.append(k);
+			}
+		};
+		const update = () => {
+			rnu.textContent = fmtNu(nu);
+			rT.textContent = fmtT(nu);
+			const N = nu * win;
+			rN.textContent = N >= 100 ? fmtInt(N) : fmtTrim(N, N < 1 ? 2 : 1);
+			gnu.textContent = nu >= 10000 ? `${fmtTrim(nu / 1000, 1)}к` : fmtInt(nu);
+			const da = ((-225 + (270 * Math.log(nu / NU_MIN)) / Math.log(NU_MAX / NU_MIN)) * Math.PI) / 180;
+			gdial.setAttribute('x2', (26 + 8 * Math.cos(da)).toFixed(2));
+			gdial.setAttribute('y2', (58 + 8 * Math.sin(da)).toFixed(2));
+			if (mode === 'pitch') {
+				const zone = nu < 16 ? 'infra' : nu <= 20000 ? 'aud' : 'ultra';
+				fig.querySelectorAll('[data-zone]').forEach((z) => z.classList.toggle('is-on', (z as HTMLElement).dataset.zone === zone));
+				q('[data-rzone]').textContent = { infra: 'инфразвук: человек его не слышит', aud: 'слышимый звук', ultra: 'ультразвук: человек его не слышит' }[zone];
+				q<HTMLOutputElement>('[data-onu]').textContent = fmtNu(nu);
+			} else {
+				q<HTMLOutputElement>('[data-oamp]').textContent = fmt(amp, 2);
+			}
+			drawTrace();
+			drawSpec();
+			// the sound
+			const audible = nu >= 20 && nu <= 20000;
+			sNote.textContent = audible ? noteText : nu >= 16 && nu < 20 ? 'Такую низкую частоту динамик почти не воспроизводит: звук не включается.' : 'Такую частоту человек не слышит: звук не включается.';
+			if (audio.on) audio.set(nu, (mode === 'pitch' ? 0.12 : 0.15) * amp, mode === 'timbre' ? coeffs() : null);
+			gled.classList.toggle('is-on', audio.on && audible);
+		};
+
+		// ---- sound
+		const audio = makeAudio();
+		const listen = (want: boolean) => {
+			if (want && !audio.on) {
+				if (!audio.start(nu, (mode === 'pitch' ? 0.12 : 0.15) * amp, mode === 'timbre' ? coeffs() : null)) return;
+			} else if (!want && audio.on) audio.stop();
+			bListen.textContent = audio.on ? 'Выключить звук' : 'Послушать';
+			bListen.setAttribute('aria-pressed', String(audio.on));
+			update();
+		};
+		bListen.addEventListener('click', () => listen(!audio.on));
+		new IntersectionObserver((es) => {
+			if (!es.some((e) => e.isIntersecting)) listen(false);
+		}).observe(fig);
+		document.addEventListener('visibilitychange', () => {
+			if (document.hidden) listen(false);
+		});
+		window.addEventListener('pagehide', () => listen(false));
+
+		// ---- controls
+		if (mode === 'pitch') {
+			const sl = q<HTMLInputElement>('[data-nu]');
+			const num = q<HTMLInputElement>('[data-nunum]');
+			sl.value = String(stepOf(nu));
+			sl.addEventListener('input', () => {
+				nu = nuOf(Number(sl.value));
+				num.value = String(nu);
+				update();
+			});
+			num.addEventListener('change', () => {
+				const v = Math.round(Number(num.value));
+				if (!(v >= 1)) return;
+				nu = Math.min(NU_MAX, v);
+				num.value = String(nu);
+				sl.value = String(Math.max(0, stepOf(nu)));
+				update();
+			});
+			for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-win]')) {
+				b.addEventListener('click', () => {
+					win = Number(b.dataset.win) / 1000;
+					fig.querySelectorAll('[data-win]').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+					update();
+				});
+			}
+		} else {
+			const sl = q<HTMLInputElement>('[data-amp]');
+			sl.addEventListener('input', () => {
+				amp = Number(sl.value);
+				update();
+			});
+			for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-inst]')) {
+				b.addEventListener('click', () => {
+					inst = b.dataset.inst!;
+					fig.querySelectorAll('[data-inst]').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+					findPeak();
+					update();
+				});
+			}
+		}
+
+		// the cone: real motion below 8 Гц, a blur above
+		let t = 0;
+		loop(fig, (dt) => {
+			t += dt;
+			const swing = 5 * amp;
+			if (nu < 8) {
+				cone.setAttribute('transform', `translate(${(swing * wave(TAU * nu * t)).toFixed(2)} 0)`);
+				coneBlur.setAttribute('width', '0');
+			} else {
+				cone.setAttribute('transform', '');
+				coneBlur.setAttribute('x', (44 - swing).toFixed(2));
+				coneBlur.setAttribute('width', (2 * swing).toFixed(2));
+			}
+			return true;
+		});
+		findPeak();
+		update();
+	}
+</script>
