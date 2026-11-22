@@ -1,0 +1,167 @@
+---
+/**
+ * «Следы в камере Вильсона»: a chamber seen from above, to scale 18 px per см: glass walls around a dark floor 20 см × 9 см
+ * (dark in both themes, as the black floor of a real chamber), a small α source on a holder at the left wall, in air
+ * full of vapor ready to condense.
+ * Tracks (real proportions): α particles of polonium-210 (5,3 МэВ) go straight and stop after 3,9 см of air (straggling
+ * ±0,1 см): short, thick, dense trails of droplets, about 70 px. Now and then a β particle (an electron of about 1 МэВ,
+ * range in air about 4 м) crosses the whole chamber and leaves it: a long, thin, sparse trail that wanders because the
+ * light electron is turned by the atoms it passes (a random walk of its direction). The source is drawn as emitting both,
+ * as a radium source does.
+ * Time: a new α track every 0,4–0,7 с, a β track every 2,4 с, all real time. A particle crosses the chamber in about
+ * 10⁻⁹ с; the droplets need a moment to grow, so a track appears in 0,15 с; it then fades in about 1,5 с as the vapor
+ * settles and the droplets fall out of the lit layer.
+ * Exaggerated: the droplets are drawn far larger and fewer than the real ones (about 0,01–0,1 мм each); the caption says
+ * so. The loop repeats every 12 с (seeded tracks).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import NucStyles from './NucStyles.astro';
+---
+
+<G7Styles />
+<NucStyles />
+<figure class="g7 g7--pic nucf ccp not-content" data-cloudpic>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 400 262" role="img" aria-label="Камера Вильсона сверху: от источника у левой стенки расходятся короткие толстые прямые следы альфа-частиц из капелек тумана; изредка через всю камеру проходит длинный тонкий извилистый след бета-частицы. Следы появляются и постепенно тают">
+			<!-- glass walls and the dark floor -->
+			<rect class="ccp-glass" x="10" y="16" width="380" height="178" rx="10"></rect>
+			<rect class="ccp-floor" x="16" y="22" width="368" height="166" rx="6"></rect>
+			<g data-tracks></g>
+			<!-- the source on a holder at the left wall -->
+			<rect class="ccp-holder" x="16" y="101" width="22" height="8" rx="2"></rect>
+			<circle class="ccp-src" cx="40" cy="105" r="3.5"></circle>
+			<!-- labels -->
+			<text class="t-small" x="16" y="12">стеклянная камера с парами спирта</text>
+			<path class="g7-lead ccp-lead" d="M40 112 L52 208"></path>
+			<text class="t-small" x="40" y="220">источник</text>
+			<!-- the scale bar: 5 см -->
+			<path class="ccp-bar" d="M290 204 V210 M290 207 H380 M380 204 V210"></path>
+			<text class="t-small" x="335" y="222" text-anchor="middle">5 см</text>
+			<!-- legend -->
+			<g class="ccp-key">
+				{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map((k) => <circle cx={62 + k * 2.1} cy={(234 + Math.sin(k * 2.3) * 1.2).toFixed(1)} r="1.6" />)}
+				{[0, 1, 2, 3, 4, 5, 6].map((k) => <circle cx={62 + k * 6} cy={(254 + 2.5 * Math.sin(k * 1.2)).toFixed(1)} r="0.9" />)}
+			</g>
+			<text x="106" y="238">α-частица: след короткий и толстый</text>
+			<text x="106" y="258">β-частица (электрон): след длинный и тонкий</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Вид сверху, масштаб верный: α-частицы пролетают в воздухе около 4&nbsp;см, электроны — метры и уходят из камеры. Капельки нарисованы гораздо крупнее настоящих. Следы появляются почти мгновенно и тают за пару секунд, когда капельки оседают.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ccp .ccp-glass {
+		fill: color-mix(in srgb, var(--ig-vx) 18%, var(--sl-color-gray-5));
+		stroke: color-mix(in srgb, var(--ig-vx) 40%, var(--sl-color-gray-3));
+		stroke-width: 1.5;
+	}
+	.ccp .ccp-floor {
+		fill: hsl(222, 30%, 9%);
+	}
+	.ccp .ccp-shine {
+		fill: none;
+		stroke: color-mix(in srgb, white 25%, transparent);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.ccp .ccp-holder {
+		fill: var(--sl-color-gray-3);
+	}
+	.ccp .ccp-src {
+		fill: var(--nuc-p);
+	}
+	.ccp .ccp-lead,
+	.ccp .ccp-bar {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.ccp [data-tracks] circle {
+		fill: hsl(210, 30%, 94%);
+	}
+	.ccp .ccp-key circle {
+		fill: var(--sl-color-gray-2);
+	}
+</style>
+
+<script>
+	import { loop, rng } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const K = 18; // px per см
+	const SRC = { x: 40, y: 105 };
+	const BOX = { x0: 16, y0: 22, x1: 384, y1: 188 };
+	const LOOP = 12;
+	const GROW = 0.15; // s for the droplets to appear along a track
+	const FADE0 = 0.8; // s after the start the fading begins
+	const FADE = 1.5; // s of fading
+	type Track = { t0: number; g: SVGGElement; drops: { c: SVGCircleElement; f: number }[] };
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-cloudpic]')) {
+		const holder = root.querySelector<SVGGElement>('[data-tracks]')!;
+		const R = rng(31);
+		const tracks: Track[] = [];
+		const inside = (x: number, y: number) => x > BOX.x0 + 2 && x < BOX.x1 - 2 && y > BOX.y0 + 2 && y < BOX.y1 - 2;
+		const add = (t0: number, pts: { x: number; y: number; r: number }[]) => {
+			const g = document.createElementNS(NS, 'g');
+			const drops = pts.map((p, i) => {
+				const c = document.createElementNS(NS, 'circle');
+				c.setAttribute('cx', p.x.toFixed(1));
+				c.setAttribute('cy', p.y.toFixed(1));
+				c.setAttribute('r', p.r.toFixed(2));
+				g.append(c);
+				return { c, f: i / Math.max(1, pts.length - 1) };
+			});
+			holder.append(g);
+			tracks.push({ t0, g, drops });
+		};
+		// α tracks: straight, 3,9 ± 0,1 см, dense and thick, into the half-plane in front of the source
+		for (let t = 0.1; t < LOOP; t += 0.4 + 0.3 * R()) {
+			const a = (R() * 2 - 1) * 1.35;
+			const L = (3.8 + 0.2 * R()) * K;
+			const pts = [];
+			for (let s = 4; s < L; s += 1.1) {
+				const w = 1.6 * (0.6 + 0.4 * (s / L)); // a little wider toward the end, where the α slows down and ionizes more
+				const off = (R() * 2 - 1) * w;
+				pts.push({ x: SRC.x + s * Math.cos(a) - off * Math.sin(a), y: SRC.y + s * Math.sin(a) + off * Math.cos(a), r: 0.9 + 0.7 * R() });
+			}
+			add(t, pts);
+		}
+		// β tracks: a random walk of the direction, sparse thin droplets, until the electron leaves the chamber
+		for (let t = 1.2; t < LOOP; t += 2.4) {
+			let a = (R() * 2 - 1) * 0.6;
+			let x = SRC.x + 4;
+			let y = SRC.y;
+			const pts = [];
+			for (let k = 0; k < 400 && inside(x, y); k++) {
+				a += (R() * 2 - 1) * 0.12;
+				x += 2 * Math.cos(a);
+				y += 2 * Math.sin(a);
+				if (k % 3 === 0) pts.push({ x: x + (R() - 0.5), y: y + (R() - 0.5), r: 0.6 + 0.3 * R() });
+			}
+			add(t, pts);
+		}
+		let t = 0;
+		const draw = () => {
+			for (const tr of tracks) {
+				// age within the loop (a track near the loop's start also shows the tail of the previous loop)
+				let age = t - tr.t0;
+				if (age < 0) age += LOOP;
+				const vis = age < FADE0 + FADE;
+				tr.g.style.display = vis ? '' : 'none';
+				if (!vis) continue;
+				tr.g.style.opacity = age < FADE0 ? '1' : String(Math.max(0, 1 - (age - FADE0) / FADE));
+				const grown = Math.min(1, age / GROW);
+				for (const d of tr.drops) d.c.style.opacity = d.f <= grown ? '1' : '0';
+			}
+		};
+		draw();
+		loop(root, (dt) => {
+			t = (t + dt) % LOOP;
+			draw();
+			return true;
+		});
+	}
+</script>

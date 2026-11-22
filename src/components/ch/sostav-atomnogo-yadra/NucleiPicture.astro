@@ -1,0 +1,96 @@
+---
+/**
+ * «Ядра из протонов и нейтронов»: the nuclei of hydrogen-1 (1 proton), helium-4 (2 protons, 2 neutrons), carbon-12
+ * (6 + 6) and uranium-238 (92 + 146), all at ONE scale, 7,5 px per фм (1 фм = 10⁻¹⁵ м), with a scale bar of 5·10⁻¹⁵ м.
+ * The nucleons are balls of radius 1 фм packed as in nucleus.ts, so the radii come out as measured, R ≈ 1,2·A^⅓ фм:
+ * helium 1,9 фм, carbon 2,7 фм, uranium 7,4 фм (about 1,5·10⁻¹⁴ м across). Protons in the color of positive charge with a
+ * «+», neutrons gray, as in grade 8 and in «Радиоактивность. Модели атома».
+ * The nuclei turn slowly (one turn in 40 s) only to show that they are balls; the caption says so. The real nucleons
+ * move inside the nucleus, which is not drawn.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import NucStyles from './NucStyles.astro';
+import { pack, outerRadius } from './nucleus';
+
+const K = 7.5;
+const items = [
+	{ name: 'Водород', A: 1, Z: 1, x: 42, p: '1 протон', nn: '0 нейтронов' },
+	{ name: 'Гелий', A: 4, Z: 2, x: 112, p: '2 протона', nn: '2 нейтрона' },
+	{ name: 'Углерод', A: 12, Z: 6, x: 186, p: '6 протонов', nn: '6 нейтронов' },
+	{ name: 'Уран', A: 238, Z: 92, x: 316, p: '92 протона', nn: '146 нейтронов' },
+].map((it) => {
+	const n = pack(it.A, it.Z);
+	return { ...it, n, R: outerRadius(n) };
+});
+const CY = 96;
+const uid = Math.random().toString(36).slice(2, 8);
+const gid = (s: string) => `nucp-${s}-${uid}`;
+---
+
+<G7Styles />
+<NucStyles />
+<figure class="g7 g7--pic nucf not-content" data-nucleipic>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 400 236" role="img" aria-label="Ядра водорода, гелия, углерода и урана в одном масштабе: ядро водорода — один протон, гелия — два протона и два нейтрона, углерода — шесть протонов и шесть нейтронов, урана — 92 протона и 146 нейтронов">
+			<defs>
+				<radialGradient id={gid('p')} cx="0.35" cy="0.32" r="0.75">
+					<stop offset="0" class="nuc-p0"></stop>
+					<stop offset="1" class="nuc-p1"></stop>
+				</radialGradient>
+				<radialGradient id={gid('n')} cx="0.35" cy="0.32" r="0.75">
+					<stop offset="0" class="nuc-n0"></stop>
+					<stop offset="1" class="nuc-n1"></stop>
+				</radialGradient>
+			</defs>
+			{
+				items.map((it) => (
+					<g>
+						<g data-nuc={JSON.stringify(it.n)} data-cx={it.x} data-cy={CY} />
+						<text class="t-title" x={it.x} y={CY + 78} text-anchor="middle">
+							{it.name}
+						</text>
+						<text x={it.x} y={CY + 95} text-anchor="middle" class="t-red">
+							{it.p}
+						</text>
+						<text x={it.x} y={CY + 110} text-anchor="middle">
+							{it.nn}
+						</text>
+					</g>
+				))
+			}
+			<!-- scale bar: 5 фм -->
+			<path class="nuc-bar" d={`M14 226 V220 M14 223 H${14 + 5 * K} M${14 + 5 * K} 226 V220`}></path>
+			<text class="t-small" x={14 + 5 * K + 6} y="227">5·10⁻¹⁵ м</text>
+			<!-- legend -->
+			<g transform="translate(214 222)">
+				<circle r="6" fill={`url(#${gid('p')})`}></circle>
+				<path class="nuc-plus" d="M-2.7 0 H2.7 M0 -2.7 V2.7" stroke-width="1.1"></path>
+				<text class="t-small" x="10" y="4">протон</text>
+				<circle cx="78" r="6" fill={`url(#${gid('n')})`}></circle>
+				<text class="t-small" x="88" y="4">нейтрон</text>
+			</g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Все ядра нарисованы в одном масштабе. Ядро урана — всего около 1,5·10⁻¹⁴&nbsp;м в поперечнике, а в нём 238 частиц. Ядра медленно поворачиваются, чтобы было видно: это шарики, а не плоские кружки.
+	</figcaption>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { drawNucleus, type Nucleon } from './nucleus';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-nucleipic]')) {
+		const grads = [...root.querySelectorAll('radialGradient')].map((g) => `url(#${g.id})`);
+		const fills: [string, string] = [grads[1], grads[0]];
+		const nuclei = [...root.querySelectorAll<SVGGElement>('[data-nuc]')].map((g) => ({ g, n: JSON.parse(g.dataset.nuc!) as Nucleon[], cx: +g.dataset.cx!, cy: +g.dataset.cy! }));
+		let t = 0;
+		const draw = () => nuclei.forEach((u) => drawNucleus(u.g, u.n, { k: 7.5, cx: u.cx, cy: u.cy, angle: (2 * Math.PI * t) / 40 + u.cx, fills }));
+		draw();
+		loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+	}
+</script>

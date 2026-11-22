@@ -1,0 +1,266 @@
+---
+/**
+ * «Соберите ядро»: protons (Z = 1 … 8) and neutrons (N = 0 … 10) added and removed with buttons, «Сброс» back to ¹H.
+ * Shows the nucleus as packed balls (nucleus.ts; 12 px per фм, it turns slowly; new balls fly in, removed ones fly
+ * out, the others glide to their new places in 0,45 с), the notation ᴬ_Z X with the Russian name of the element, the
+ * readouts Z, N, A = Z + N, a verdict and a chart N (across, 0 … 10) × Z (up, 1 … 8): stable nuclei filled with the
+ * text color, radioactive ones light accent, nuclei that do not exist dashed and empty; the current cell has a ring,
+ * its row (the isotopes of the element) is lit, with the list of mass numbers that exist. A tap on a cell builds that
+ * nucleus.
+ * Data: NUBASE 2020 ground states (half-lives rounded, written «половина таких ядер распадается за …»: a single nucleus has no fixed life); «нет» = unbound or living less than 10⁻¹⁵ с.
+ * Beryllium-8 exists for about 10⁻¹⁶ с and falls apart into two α particles: it is «нет» with its own note.
+ * No positrons or β⁺ anywhere (the text mentions «протон превращается в нейтрон» only in a popover).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import NucStyles from './NucStyles.astro';
+const uid = Math.random().toString(36).slice(2, 8);
+const gid = (s: string) => `nbl-${s}-${uid}`;
+---
+
+<G7Styles />
+<NucStyles />
+<figure class="g7 nucf nbl not-content" data-nbuilderlab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 400 344" role="img" aria-label="Ядро из протонов и нейтронов, его обозначение и таблица ядер: по горизонтали число нейтронов, по вертикали число протонов">
+			<defs>
+				<radialGradient id={gid('p')} cx="0.35" cy="0.32" r="0.75"><stop offset="0" class="nuc-p0"></stop><stop offset="1" class="nuc-p1"></stop></radialGradient>
+				<radialGradient id={gid('n')} cx="0.35" cy="0.32" r="0.75"><stop offset="0" class="nuc-n0"></stop><stop offset="1" class="nuc-n1"></stop></radialGradient>
+			</defs>
+			<g data-nuc></g>
+			<g class="nota">
+				<text class="nota-a" data-a x="262" y="56" text-anchor="end" style="font-size:22px">1</text>
+				<text class="nota-z" data-z x="262" y="92" text-anchor="end" style="font-size:22px">1</text>
+				<text class="nota-x" data-x x="266" y="84" style="font-size:40px">H</text>
+			</g>
+			<text class="t-title" data-name x="266" y="112">водород</text>
+			<!-- the chart -->
+			<g data-chart transform="translate(0 150)"></g>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row nbl__btns">
+				<button type="button" class="g7__btn nbl__p" data-d="p+">+ протон</button>
+				<button type="button" class="g7__btn nbl__p" data-d="p-">− протон</button>
+				<button type="button" class="g7__btn" data-d="n+">+ нейтрон</button>
+				<button type="button" class="g7__btn" data-d="n-">− нейтрон</button>
+				<button type="button" class="g7__btn" data-reset>Сброс</button>
+			</div>
+			<ul class="g7__read">
+				<li class="nbl-z"><span>Протонов <i>Z</i></span> <b data-rz>1</b></li>
+				<li><span>Нейтронов <i>N</i></span> <b data-rn>0</b></li>
+				<li class="nbl-a"><span>Нуклонов <i>A</i> = <i>Z</i> + <i>N</i></span> <b data-ra>1</b></li>
+			</ul>
+			<p class="g7__msg" data-verdict>стабильное ядро</p>
+			<p class="g7__note" data-iso></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Закрашенные клетки таблицы — стабильные ядра, полупрозрачные — радиоактивные, пунктирные — таких ядер нет; в клетке — массовое число. Нажмите на клетку, чтобы собрать это ядро. Для радиоактивных ядер указано время, за которое распадается половина ядер (округлено).
+	</figcaption>
+</figure>
+
+<style is:global>
+	.nbl .nbl__btns .g7__btn {
+		flex: 1 1 7rem;
+	}
+	.nbl .nbl__p {
+		border-color: color-mix(in srgb, var(--nuc-p) 70%, var(--sl-color-gray-4));
+	}
+	.nbl li.nbl-z {
+		box-shadow: inset 3px 0 0 var(--nuc-p);
+	}
+	.nbl li.nbl-a {
+		box-shadow: inset 3px 0 0 var(--sl-color-accent);
+	}
+	.nbl .nbl-cell {
+		cursor: pointer;
+	}
+	.nbl .nbl-cell rect {
+		stroke-width: 1;
+	}
+	.nbl .nbl-cell.is-st rect {
+		fill: var(--sl-color-white);
+		stroke: var(--sl-color-white);
+	}
+	.nbl .nbl-cell.is-ra rect {
+		fill: color-mix(in srgb, var(--sl-color-accent) 35%, transparent);
+		stroke: color-mix(in srgb, var(--sl-color-accent) 70%, transparent);
+	}
+	.nbl .nbl-cell.is-no rect {
+		fill: transparent;
+		stroke: var(--sl-color-gray-5);
+		stroke-dasharray: 2 2;
+	}
+	.nbl .nbl-cell text {
+		font-size: 9px;
+		pointer-events: none;
+	}
+	.nbl .nbl-cell.is-st text {
+		fill: var(--sl-color-black);
+	}
+	.nbl .nbl-row {
+		fill: color-mix(in srgb, var(--nuc-p) 14%, transparent);
+	}
+	.nbl .nbl-ring {
+		fill: none;
+		stroke: var(--nuc-p);
+		stroke-width: 2.4;
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { drawNucleus, pack, type Nucleon } from './nucleus';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const EL = ['', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O'];
+	const NAME = ['', 'водород', 'гелий', 'литий', 'бериллий', 'бор', 'углерод', 'азот', 'кислород'];
+	const NAME_G = ['', 'водорода', 'гелия', 'лития', 'бериллия', 'бора', 'углерода', 'азота', 'кислорода'];
+	// by Z: A → 'st' (stable), a half-life (radioactive) or absent (does not exist); NUBASE 2020
+	const DATA: Record<number, Record<number, string>> = {
+		1: { 1: 'st', 2: 'st', 3: '12 лет' },
+		2: { 3: 'st', 4: 'st', 6: '0,8 с', 8: '0,12 с' },
+		3: { 6: 'st', 7: 'st', 8: '0,8 с', 9: '0,18 с', 11: '0,009 с' },
+		4: { 7: '53 дня', 9: 'st', 10: '1,4 млн лет', 11: '14 с', 12: '0,02 с', 14: '0,004 с' },
+		5: { 8: '0,8 с', 10: 'st', 11: 'st', 12: '0,02 с', 13: '0,017 с', 14: '0,013 с', 15: '0,010 с' },
+		6: { 9: '0,13 с', 10: '19 с', 11: '20 мин', 12: 'st', 13: 'st', 14: '5700 лет', 15: '2,4 с', 16: '0,75 с' },
+		7: { 12: '0,011 с', 13: '10 мин', 14: 'st', 15: 'st', 16: '7 с', 17: '4,2 с' },
+		8: { 13: '0,009 с', 14: '71 с', 15: '2 мин', 16: 'st', 17: 'st', 18: 'st' },
+	};
+	const kind = (Z: number, N: number) => {
+		const v = DATA[Z]?.[Z + N];
+		return v === undefined ? 'no' : v === 'st' ? 'st' : 'ra';
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-nbuilderlab]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const grads = [...root.querySelectorAll('radialGradient')].map((g) => `url(#${g.id})`);
+		const fills: [string, string] = [grads[1], grads[0]];
+		const g = $<SVGGElement>('[data-nuc]');
+		let Z = 1;
+		let N = 0;
+		// the chart: x 62 + 28·N, y (from the top of the chart group) 8 + 17·(8 − Z)
+		const chart = $<SVGGElement>('[data-chart]');
+		const CW = 28;
+		const CH = 17;
+		const cx = (n: number) => 62 + CW * n;
+		const cy = (z: number) => 6 + CH * (8 - z);
+		const row = document.createElementNS(NS, 'rect');
+		row.setAttribute('class', 'nbl-row');
+		chart.append(row);
+		const cells: SVGGElement[] = [];
+		for (let z = 1; z <= 8; z++) {
+			const lab = document.createElementNS(NS, 'text');
+			lab.setAttribute('class', 't-small');
+			lab.setAttribute('x', '54');
+			lab.setAttribute('y', String(cy(z) + 12));
+			lab.setAttribute('text-anchor', 'end');
+			lab.textContent = `${z} ${EL[z]}`;
+			chart.append(lab);
+			for (let n = 0; n <= 10; n++) {
+				const c = document.createElementNS(NS, 'g');
+				c.setAttribute('class', `nbl-cell is-${kind(z, n)}`);
+				c.innerHTML = `<rect x="${cx(n) + 1.5}" y="${cy(z) + 1.5}" width="${CW - 3}" height="${CH - 3}" rx="2"></rect>` + (kind(z, n) !== 'no' ? `<text x="${cx(n) + CW / 2}" y="${cy(z) + 11.5}" text-anchor="middle">${z + n}</text>` : '');
+				c.addEventListener('click', () => set(z, n));
+				chart.append(c);
+				cells.push(c);
+			}
+		}
+		for (let n = 0; n <= 10; n++) {
+			const t = document.createElementNS(NS, 'text');
+			t.setAttribute('class', 't-small');
+			t.setAttribute('x', String(cx(n) + CW / 2));
+			t.setAttribute('y', String(cy(1) + CH + 12));
+			t.setAttribute('text-anchor', 'middle');
+			t.textContent = String(n);
+			chart.append(t);
+		}
+		const ax = document.createElementNS(NS, 'text');
+		ax.setAttribute('class', 't-small');
+		ax.setAttribute('x', String(cx(11)));
+		ax.setAttribute('y', String(cy(1) + CH + 26));
+		ax.setAttribute('text-anchor', 'end');
+		ax.innerHTML = 'число нейтронов <tspan class="t-i">N</tspan>';
+		chart.append(ax);
+		const az = document.createElementNS(NS, 'text');
+		az.setAttribute('class', 't-small');
+		az.setAttribute('x', '8');
+		az.setAttribute('y', String(cy(8) - 4));
+		az.innerHTML = '<tspan class="t-i">Z</tspan>';
+		chart.append(az);
+		const ring = document.createElementNS(NS, 'rect');
+		ring.setAttribute('class', 'nbl-ring');
+		ring.setAttribute('width', String(CW));
+		ring.setAttribute('height', String(CH));
+		ring.setAttribute('rx', '3');
+		chart.append(ring);
+
+		// the nucleus: balls glide from the old places to the new ones
+		const K = 12;
+		const C = { x: 112, y: 76 };
+		let cur: Nucleon[] = pack(1, 1);
+		let from: Nucleon[] = cur;
+		let to: Nucleon[] = cur;
+		let tw = 1;
+		let angle = 0;
+		const retarget = () => {
+			const next = pack(Z + N, Z, 3);
+			const old = cur;
+			const take = (list: Nucleon[], k: 0 | 1) => list.filter((q) => q[3] === k);
+			const op = take(old, 1);
+			const on = take(old, 0);
+			const np = take(next, 1);
+			const nn = take(next, 0);
+			// new balls come in from the left (protons) or the right (neutrons)
+			const start = (k: 0 | 1, i: number): Nucleon => [k ? -14 : 14, -4 + i * 1.5, 0, k];
+			from = [...np.map((_, i) => op[i] ?? start(1, i)), ...nn.map((_, i) => on[i] ?? start(0, i))];
+			to = [...np, ...nn];
+			tw = 0;
+		};
+		const ease = (u: number) => u * u * (3 - 2 * u);
+		const frame = () => {
+			const e = ease(Math.min(1, tw));
+			cur = to.map((q, i) => [from[i][0] + (q[0] - from[i][0]) * e, from[i][1] + (q[1] - from[i][1]) * e, from[i][2] + (q[2] - from[i][2]) * e, q[3]]);
+			drawNucleus(g, cur, { k: K, cx: C.x, cy: C.y, angle, tilt: 0.3, fills });
+		};
+		const set = (z: number, n: number) => {
+			Z = Math.max(1, Math.min(8, z));
+			N = Math.max(0, Math.min(10, n));
+			const A = Z + N;
+			$('[data-a]').textContent = String(A);
+			$('[data-z]').textContent = String(Z);
+			$('[data-x]').textContent = EL[Z];
+			$('[data-name]').textContent = NAME[Z];
+			$('[data-rz]').textContent = String(Z);
+			$('[data-rn]').textContent = String(N);
+			$('[data-ra]').textContent = String(A);
+			const k = kind(Z, N);
+			const v = DATA[Z]?.[A];
+			$('[data-verdict]').textContent = k === 'st' ? 'стабильное ядро' : k === 'ra' ? `радиоактивное: половина таких ядер распадается за ${v}` : Z === 4 && N === 4 ? 'такого ядра нет: оно сразу распадается на две α-частицы' : 'такого ядра нет: оно сразу разваливается';
+			$('[data-verdict]').classList.toggle('is-right', k === 'st');
+			const list = Object.keys(DATA[Z]).map(Number).sort((a, b) => a - b);
+			$('[data-iso]').textContent = `Изотопы ${NAME_G[Z]} в таблице: A = ${list.join(', ')}`;
+			row.setAttribute('x', String(cx(0)));
+			row.setAttribute('y', String(cy(Z)));
+			row.setAttribute('width', String(CW * 11));
+			row.setAttribute('height', String(CH));
+			ring.setAttribute('x', String(cx(N)));
+			ring.setAttribute('y', String(cy(Z)));
+			retarget();
+			wake();
+		};
+		root.querySelectorAll<HTMLButtonElement>('[data-d]').forEach((b) =>
+			b.addEventListener('click', () => {
+				const d = b.dataset.d!;
+				set(Z + (d === 'p+' ? 1 : d === 'p-' ? -1 : 0), N + (d === 'n+' ? 1 : d === 'n-' ? -1 : 0));
+			}),
+		);
+		$('[data-reset]').addEventListener('click', () => set(1, 0));
+		const wake = loop(root, (dt) => {
+			tw += dt / 0.45;
+			angle += (dt * 2 * Math.PI) / 30;
+			frame();
+			return true;
+		});
+		set(1, 0);
+	}
+</script>

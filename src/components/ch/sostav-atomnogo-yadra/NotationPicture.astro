@@ -1,0 +1,134 @@
+---
+/**
+ * «Как обозначают ядро»: left, the notation ᴬ_Z X written large (A in the accent color above, Z in the color of protons
+ * below, the symbol in the text color) with leader lines to «массовое число A — число нуклонов», «зарядовое число Z —
+ * число протонов», «символ химического элемента»; right, the nucleus itself (packed balls, nucleus.ts, turning slowly)
+ * with «протонов Z = …», «нейтронов N = A − Z = …». Three examples cycle every 4,5 с with a soft fade, or are chosen by
+ * three small buttons: ⁴₂He (2 + 2), ¹²₆C (6 + 6), ²³⁸₉₂U (92 + 146, every nucleon drawn). The nuclei are drawn at
+ * different scales so that each fits (14, 11 and 5,5 px per фм; the caption says so). At 390 px the two panels stack.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import NucStyles from './NucStyles.astro';
+import { pack } from './nucleus';
+
+const EX = [
+	{ A: 4, Z: 2, X: 'He', name: 'гелий', k: 14, n: pack(4, 2, 2) },
+	{ A: 12, Z: 6, X: 'C', name: 'углерод', k: 11, n: pack(12, 6, 2) },
+	{ A: 238, Z: 92, X: 'U', name: 'уран', k: 5.5, n: pack(238, 92, 2) },
+];
+const uid = Math.random().toString(36).slice(2, 8);
+const gid = (s: string) => `ntp-${s}-${uid}`;
+---
+
+<G7Styles />
+<NucStyles />
+<figure class="g7 g7--pic nucf ntp not-content" data-notationpic data-ex={JSON.stringify(EX)}>
+	<div class="g7__grid is-two">
+		<svg class="g7__svg" viewBox="0 0 236 170" role="img" aria-label="Обозначение ядра: сверху слева массовое число A — число нуклонов, снизу слева зарядовое число Z — число протонов, справа символ химического элемента">
+			<text class="t-small" x="10" y="20">массовое число <tspan class="t-i">A</tspan> —</text>
+			<text class="t-small" x="10" y="34">число нуклонов</text>
+			<path class="ntp-lead" d="M50 38 L70 58"></path>
+			<g data-fade>
+				<text class="nota-a" data-a x="88" y="76" text-anchor="end" style="font-size:30px">4</text>
+				<text class="nota-z" data-z x="88" y="114" text-anchor="end" style="font-size:30px">2</text>
+				<text class="nota-x" data-x x="92" y="104" style="font-size:54px">He</text>
+			</g>
+			<path class="ntp-lead" d="M70 118 L50 136"></path>
+			<text class="t-small" x="10" y="148">зарядовое число <tspan class="t-i">Z</tspan> —</text>
+			<text class="t-small" x="10" y="162">число протонов</text>
+			<path class="ntp-lead" data-lead-x d="M156 84 L174 84"></path>
+			<text class="t-small" x="177" y="80">символ</text>
+			<text class="t-small" x="177" y="93">элемента</text>
+		</svg>
+		<svg class="g7__svg" viewBox="0 0 220 170" role="img" aria-label="Само ядро: протоны и нейтроны, их число">
+			<defs>
+				<radialGradient id={gid('p')} cx="0.35" cy="0.32" r="0.75"><stop offset="0" class="nuc-p0"></stop><stop offset="1" class="nuc-p1"></stop></radialGradient>
+				<radialGradient id={gid('n')} cx="0.35" cy="0.32" r="0.75"><stop offset="0" class="nuc-n0"></stop><stop offset="1" class="nuc-n1"></stop></radialGradient>
+			</defs>
+			<g data-fade2>
+				<g data-nuc></g>
+				<text class="t-title" data-name x="110" y="132" text-anchor="middle">гелий</text>
+				<text class="ntp-z" data-cz x="110" y="148" text-anchor="middle">протонов Z = 2</text>
+				<text data-cn x="110" y="164" text-anchor="middle">нейтронов N = A − Z = 2</text>
+			</g>
+		</svg>
+	</div>
+	<div class="g7__row ntp__btns">
+		{EX.map((e, i) => <button type="button" class="g7__btn" aria-pressed={i === 0 ? 'true' : 'false'} data-pick={i}>{`${e.name}-${e.A}`}</button>)}
+	</div>
+	<figcaption class="g7__caption">Примеры меняются сами или по кнопкам. Ядра нарисованы в разном масштабе: на самом деле ядро урана примерно в 4 раза больше ядра гелия в поперечнике.</figcaption>
+</figure>
+
+<style is:global>
+	.ntp .ntp-lead {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.ntp .ntp-z {
+		fill: var(--nuc-p);
+	}
+	.ntp [data-fade],
+	.ntp [data-fade2] {
+		transition: opacity 0.35s;
+	}
+	.ntp .ntp__btns {
+		margin-top: 0.6rem;
+		justify-content: center;
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { drawNucleus, type Nucleon } from './nucleus';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-notationpic]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const EX = JSON.parse(root.dataset.ex!) as { A: number; Z: number; X: string; name: string; k: number; n: Nucleon[] }[];
+		const grads = [...root.querySelectorAll('radialGradient')].map((g) => `url(#${g.id})`);
+		const fills: [string, string] = [grads[1], grads[0]];
+		const g = $<SVGGElement>('[data-nuc]');
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-pick]')];
+		let cur = 0;
+		let t = 0;
+		let angle = 0;
+		const show = (i: number) => {
+			cur = i;
+			const e = EX[i];
+			$('[data-a]').textContent = String(e.A);
+			$('[data-z]').textContent = String(e.Z);
+			$('[data-x]').textContent = e.X;
+			$<SVGPathElement>('[data-lead-x]').setAttribute('d', `M${94 + e.X.length * 31} 84 L174 84`);
+			$('[data-name]').textContent = `${e.name}-${e.A}`;
+			$('[data-cz]').textContent = `протонов Z = ${e.Z}`;
+			$('[data-cn]').textContent = `нейтронов N = A − Z = ${e.A - e.Z}`;
+			btns.forEach((b, k) => b.setAttribute('aria-pressed', String(k === i)));
+			g.replaceChildren();
+			delete (g as unknown as { balls?: unknown }).balls;
+		};
+		const fade = (o: number) => {
+			$<SVGGElement>('[data-fade]').style.opacity = String(o);
+			$<SVGGElement>('[data-fade2]').style.opacity = String(o);
+		};
+		btns.forEach((b, k) =>
+			b.addEventListener('click', () => {
+				show(k);
+				t = 0;
+				fade(1);
+			}),
+		);
+		show(0);
+		loop(root, (dt) => {
+			t += dt;
+			angle += (dt * 2 * Math.PI) / 25;
+			if (t > 4.5 && t - dt <= 4.5) fade(0);
+			if (t > 4.9) {
+				show((cur + 1) % EX.length);
+				fade(1);
+				t = 0;
+			}
+			drawNucleus(g, EX[cur].n, { k: EX[cur].k, cx: 110, cy: 62, angle, tilt: 0.3, fills });
+			return true;
+		});
+	}
+</script>

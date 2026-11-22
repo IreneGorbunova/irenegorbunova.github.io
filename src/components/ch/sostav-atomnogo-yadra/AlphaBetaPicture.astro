@@ -1,0 +1,220 @@
+---
+/**
+ * «Что вылетает из ядра»: two looping panels (8,5 с each, real nuclei, not real time).
+ *   α: radium-226 (88 protons, 138 neutrons) → radon-222 + α particle. Two protons and two neutrons at the surface come
+ *      together and fly out as one particle (the helium-4 nucleus) with a red track; the rest recoils by 4/222 of the α
+ *      particle's path (momentum: 2,3 px while the α particle goes 128 px). The rows: A: 226 = 222 + 4, Z: 88 = 86 + 2.
+ *   β: carbon-14 (6 protons, 8 neutrons) → nitrogen-14 + electron. A neutron near the front turns into a proton (it
+ *      changes color and gets a «+»), an electron flies out with a blue track (faster than the α particle). The rows:
+ *      A: 14 = 14 + 0, Z: 6 = 7 + (−1). The antineutrino that also leaves is not drawn (the text names it in a popover);
+ *      the recoil of the nucleus in β decay is too small to draw.
+ * Scale: radium 4 px per фм, carbon 7 px per фм (the caption says carbon is drawn larger); nuclei packed as in
+ * nucleus.ts (radius ≈ 1,2·A^⅓ фм: 7,3 фм and 2,9 фм); the electron is drawn as a small ball (it has no size that could
+ * be drawn). Colors: protons and the α track --ig-vy, neutrons gray, the electron and its track --ig-vx; in the notation
+ * A accent, Z red. Independent of DecayPicture of «Радиоактивность. Модели атома» (charges only, plain discs).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import NucStyles from './NucStyles.astro';
+import Nota from './Nota.astro';
+import { pack, project, type Nucleon } from './nucleus';
+import { nuc, tex } from './tex';
+
+// both nuclei turned once into the screen frame (x right, y down, z toward the viewer)
+const turn = (n: Nucleon[]): Nucleon[] => n.map((p) => {
+	const q = project(p, 0.5, 0.3);
+	return [+q.x.toFixed(3), +q.y.toFixed(3), +q.z.toFixed(3), p[3]];
+});
+const ra = turn(pack(226, 88, 11));
+const c14 = turn(pack(14, 6, 5));
+// α: the two protons and two neutrons most to the right (and toward the viewer)
+const score = (p: Nucleon) => p[0] + 0.3 * p[2];
+const pick = (n: Nucleon[], kind: 0 | 1, m: number) =>
+	n.map((p, i) => ({ i, s: score(p), kind: p[3] })).filter((q) => q.kind === kind).sort((a, b) => b.s - a.s).slice(0, m).map((q) => q.i);
+const alpha = [...pick(ra, 1, 2), ...pick(ra, 0, 2)];
+// β: the neutron nearest the viewer, a little to the right of the middle
+const beta = c14.map((p, i) => ({ i, s: p[2] + 0.4 * p[0] - 0.4 * Math.abs(p[1]), kind: p[3] })).filter((q) => q.kind === 0).sort((a, b) => b.s - a.s)[0].i;
+const eqA = tex(`${nuc(226, 88, 'Ra')} \\to ${nuc(222, 86, 'Rn')} + ${nuc(4, 2, 'He')}`);
+const eqB = tex(`${nuc(14, 6, 'C')} \\to ${nuc(14, 7, 'N')} + {}^{\\htmlClass{nA}{0}}_{\\htmlClass{nZ}{-1}}e`);
+const uid = Math.random().toString(36).slice(2, 8);
+const gid = (s: string) => `dcaz-${s}-${uid}`;
+---
+
+<G7Styles />
+<NucStyles />
+<figure class="g7 g7--pic nucf dcaz not-content" data-decayaz>
+	<div class="g7__grid is-two">
+		<div class="dcaz__panel" data-kind="alpha" data-n={JSON.stringify(ra)} data-pick={JSON.stringify(alpha)}>
+			<svg class="g7__svg" viewBox="0 0 200 166" role="img" aria-label="Альфа-распад: из ядра радия-226 вылетают вместе два протона и два нейтрона — альфа-частица; остаётся ядро радона-222. Массовое число: 226 = 222 + 4, зарядовое: 88 = 86 + 2">
+				<defs>
+				<radialGradient id={gid('p')} cx="0.35" cy="0.32" r="0.75"><stop offset="0" class="nuc-p0"></stop><stop offset="1" class="nuc-p1"></stop></radialGradient>
+				<radialGradient id={gid('n')} cx="0.35" cy="0.32" r="0.75"><stop offset="0" class="nuc-n0"></stop><stop offset="1" class="nuc-n1"></stop></radialGradient>
+				<radialGradient id={gid('e')} cx="0.35" cy="0.32" r="0.75"><stop offset="0" class="nuc-e0"></stop><stop offset="1" class="nuc-e1"></stop></radialGradient>
+	</defs>
+				<g data-before><Nota x={56} y={26} A={226} Z={88} X="Ra" size={17} /><text class="t-small" x="80" y="26">радий</text></g>
+				<g data-after opacity="0"><Nota x={56} y={26} A={222} Z={86} X="Rn" size={17} /><text class="t-small" x="82" y="26">радон</text></g>
+				<path class="dcaz-track is-a" data-track d=""></path>
+				<g data-nuc></g>
+				<text class="t-small t-red" data-tag x="0" y="0" opacity="0">α-частица</text>
+				<g class="dcaz-rows" data-rows opacity="0">
+					<text x="14" y="136" class="is-a"><tspan class="t-i">A</tspan>: 226 = 222 + 4</text>
+					<text x="14" y="156" class="is-z"><tspan class="t-i">Z</tspan>: 88 = 86 + 2</text>
+				</g>
+			</svg>
+			<div class="dcaz__eq" set:html={eqA} />
+		</div>
+		<div class="dcaz__panel" data-kind="beta" data-n={JSON.stringify(c14)} data-pick={JSON.stringify([beta])}>
+			<svg class="g7__svg" viewBox="0 0 200 166" role="img" aria-label="Бета-распад: в ядре углерода-14 нейтрон превращается в протон, из ядра вылетает электрон; остаётся ядро азота-14. Массовое число: 14 = 14 + 0, зарядовое: 6 = 7 + (−1)">
+				<g data-before><Nota x={56} y={26} A={14} Z={6} X="C" size={17} /><text class="t-small" x="70" y="26">углерод</text></g>
+				<g data-after opacity="0"><Nota x={56} y={26} A={14} Z={7} X="N" size={17} /><text class="t-small" x="72" y="26">азот</text></g>
+				<path class="dcaz-track is-b" data-track d=""></path>
+				<g data-nuc></g>
+				<circle class="dcaz-ring" data-ring r="7" opacity="0"></circle>
+				<g data-el opacity="0">
+					<circle r="3.2" fill={`url(#${gid('e')})`}></circle>
+					<path class="nuc-plus" d="M-1.6 0 H1.6" stroke-width="0.9"></path>
+				</g>
+				<text class="t-small t-blue" data-tag x="0" y="0" opacity="0">электрон</text>
+				<g class="dcaz-rows" data-rows opacity="0">
+					<text x="14" y="136" class="is-a"><tspan class="t-i">A</tspan>: 14 = 14 + 0</text>
+					<text x="14" y="156" class="is-z"><tspan class="t-i">Z</tspan>: 6 = 7 + (−1)</text>
+				</g>
+			</svg>
+			<div class="dcaz__eq" set:html={eqB} />
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Слева α-распад, справа β-распад; распад замедлен, ядро углерода нарисовано крупнее, чем ядро радия. <i>A</i> — число нуклонов в ядре, <i>Z</i> — число протонов. Сумма <i>A</i> и сумма <i>Z</i> до распада и после одинаковы.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.dcaz__panel {
+		display: grid;
+		gap: 0.35rem;
+	}
+	.dcaz__eq {
+		text-align: center;
+		font-size: 1.05rem;
+		color: var(--sl-color-white);
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.dcaz .dcaz-track {
+		fill: none;
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.dcaz .dcaz-track.is-a {
+		stroke: color-mix(in srgb, var(--nuc-p) 75%, transparent);
+	}
+	.dcaz .dcaz-track.is-b {
+		stroke: color-mix(in srgb, var(--nuc-e) 80%, transparent);
+		stroke-width: 1.4;
+	}
+	.dcaz .dcaz-ring {
+		fill: none;
+		stroke: var(--nuc-g);
+		stroke-width: 1.4;
+	}
+	.dcaz .dcaz-rows text {
+		font-size: 13px;
+		font-variant-numeric: tabular-nums;
+		fill: var(--sl-color-white);
+	}
+	.dcaz .dcaz-rows text.is-a {
+		fill: var(--sl-color-accent);
+	}
+	.dcaz .dcaz-rows text.is-z {
+		fill: var(--nuc-p);
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { drawNucleus, type Nucleon } from './nucleus';
+
+	const K = 4; // px per фм (radium)
+	const KB = 7; // px per фм (carbon)
+	const C = { x: 66, y: 76 };
+	const RUN = 7;
+	const ease = (a: number, b: number, t: number) => {
+		const x = Math.min(1, Math.max(0, (t - a) / (b - a)));
+		return x * x * (3 - 2 * x);
+	};
+	for (const root of document.querySelectorAll<HTMLElement>('[data-decayaz]')) {
+		const gr = [...root.querySelectorAll('radialGradient')].slice(0, 2).map((g) => `url(#${g.id})`);
+		const fills: [string, string] = [gr[1], gr[0]];
+		const panels = [...root.querySelectorAll<HTMLElement>('.dcaz__panel')].map((el) => {
+			const $ = <T extends Element>(s: string) => el.querySelector<T>(s)!;
+			const n0 = JSON.parse(el.dataset.n!) as Nucleon[];
+			const pick = JSON.parse(el.dataset.pick!) as number[];
+			return { kind: el.dataset.kind!, n0, pick, g: $<SVGGElement>('[data-nuc]'), before: $<SVGGElement>('[data-before]'), after: $<SVGGElement>('[data-after]'), track: $<SVGPathElement>('[data-track]'), tag: $<SVGTextElement>('[data-tag]'), rows: $<SVGGElement>('[data-rows]'), ring: el.querySelector<SVGCircleElement>('[data-ring]'), el: el.querySelector<SVGGElement>('[data-el]') };
+		});
+		const drawAlpha = (p: (typeof panels)[0], t: number) => {
+			const R = Math.max(...p.n0.map((q) => Math.hypot(q[0], q[1], q[2]))) + 1;
+			// the α cluster: a tetrahedron of side 2 фм; its center first just outside the surface, then flying right
+			const tet = [
+				[1, 1, 1],
+				[-1, -1, 1],
+				[1, -1, -1],
+				[-1, 1, -1],
+			].map((v) => v.map((c) => c * 0.7071));
+			const gather = ease(0.8, 1.6, t);
+			const fly = t < 1.6 ? 0 : Math.min(1, ((t - 1.6) / 2.4) ** 1.5); // speeding up while pushed away
+			const cx = R + 1.2 + fly * 32;
+			const recoil = (-4 / 222) * fly * 32;
+			const shake = t > 0.4 && t < 1.6 ? 0.25 * Math.sin(t * 60) * ease(0.4, 0.9, t) : 0;
+			const n = p.n0.map((q, i): Nucleon => {
+				const k = p.pick.indexOf(i);
+				if (k < 0) return [q[0] + recoil + shake, q[1], q[2], q[3]];
+				const target = [cx + tet[k][0], tet[k][1], 2 + tet[k][2]];
+				const g = fly > 0 ? 1 : gather;
+				return [q[0] + (target[0] - q[0]) * g, q[1] + (target[1] - q[1]) * g, q[2] + (target[2] - q[2]) * g, q[3]];
+			});
+			drawNucleus(p.g, n, { k: K, cx: C.x, cy: C.y, angle: 0, tilt: 0, fills });
+			const x0 = C.x + (R + 1.2) * K;
+			const x1 = C.x + cx * K;
+			p.track.setAttribute('d', fly > 0 ? `M${x0.toFixed(1)} ${C.y} H${(x1 - 6).toFixed(1)}` : '');
+			p.track.style.opacity = String(1 - ease(5.6, 6.4, t));
+			p.tag.setAttribute('x', Math.min(150, x1 - 14).toFixed(1));
+			p.tag.setAttribute('y', String(C.y - 14));
+			p.tag.setAttribute('opacity', String(ease(1.8, 2.2, t) * (1 - ease(5.6, 6.4, t))));
+			p.before.setAttribute('opacity', String(1 - ease(2.0, 2.4, t)));
+			p.after.setAttribute('opacity', String(ease(2.0, 2.4, t)));
+			p.rows.setAttribute('opacity', String(ease(4.2, 4.8, t)));
+		};
+		const drawBeta = (p: (typeof panels)[0], t: number) => {
+			const i = p.pick[0];
+			const turned = t >= 1.7;
+			const shake = t > 0.4 && t < 1.7 ? 0.2 * Math.sin(t * 60) * ease(0.4, 0.9, t) : 0;
+			const n = p.n0.map((q, j): Nucleon => [q[0] + shake, q[1], q[2], j === i ? (turned ? 1 : 0) : q[3]]);
+			drawNucleus(p.g, n, { k: KB, cx: C.x, cy: C.y, angle: 0, tilt: 0, fills });
+			const s = { x: C.x + p.n0[i][0] * KB, y: C.y + p.n0[i][1] * KB };
+			const ring = p.ring!;
+			ring.setAttribute('cx', s.x.toFixed(1));
+			ring.setAttribute('cy', s.y.toFixed(1));
+			ring.setAttribute('opacity', String(ease(0.8, 1.2, t) * (1 - ease(2.2, 2.6, t))));
+			// the electron: out to the right and a little up, 0,9 s to the edge
+			const fly = Math.min(1, Math.max(0, (t - 1.7) / 0.9));
+			const e = { x: s.x + fly * (196 - s.x), y: s.y - fly * 30 };
+			p.el!.setAttribute('transform', `translate(${e.x.toFixed(1)} ${e.y.toFixed(1)})`);
+			p.el!.setAttribute('opacity', t >= 1.7 && fly < 1 ? '1' : '0');
+			p.track.setAttribute('d', t >= 1.7 ? `M${s.x.toFixed(1)} ${s.y.toFixed(1)} L${e.x.toFixed(1)} ${e.y.toFixed(1)}` : '');
+			p.track.style.opacity = String(1 - ease(4.2, 5.2, t));
+			p.tag.setAttribute('x', '128');
+			p.tag.setAttribute('y', String(C.y - 40));
+			p.tag.setAttribute('opacity', String(ease(2, 2.4, t) * (1 - ease(4.2, 5.2, t))));
+			p.before.setAttribute('opacity', String(1 - ease(1.8, 2.2, t)));
+			p.after.setAttribute('opacity', String(ease(1.8, 2.2, t)));
+			p.rows.setAttribute('opacity', String(ease(2.8, 3.4, t)));
+		};
+		let t = 0;
+		const draw = () => panels.forEach((p) => (p.kind === 'alpha' ? drawAlpha(p, t) : drawBeta(p, t)));
+		draw();
+		loop(root, (dt) => {
+			t = (t + dt) % (RUN + 1.5);
+			draw();
+			return true;
+		});
+	}
+</script>
