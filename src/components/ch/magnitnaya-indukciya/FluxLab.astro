@@ -1,0 +1,313 @@
+---
+/**
+ * «Рамка в магнитном поле»: a square wire frame on a vertical axis in a uniform magnetic field whose lines run
+ * horizontally from left to right. Two views side by side (stacked on a phone):
+ *   «Вид сверху»: the lines as horizontal gray lines with arrows, the frame seen edge-on as a segment of length a through
+ *     its axis, turned by the angle α (0° = the frame's plane perpendicular to the lines); the band of lines that pass
+ *     through the frame is lit, its width is the width of the frame's «shadow», a·cos α;
+ *   «Тень рамки»: a screen perpendicular to the lines, lit by light along them: the whole frame a × a (dashed), its
+ *     shadow a·cos α × a (filled), and the lines that pierce the shadow as dots.
+ * Convention of the drawing: one line = 1 мВб, so the lines' density is B/(1 мВб) per м² (500 per м² at 0,5 Тл,
+ * a spacing of 1/√(1000·B) м: 4,5 см at 0,5 Тл, 10 см at 0,1 Тл). The number of lit lines is Φ/(1 мВб) rounded; inside
+ * the shadow they are spread evenly, outside it the background lines keep the field's spacing.
+ * Physics: Φ = B·S_тени, S_тени = S·cos α (the full formula with cos is in grade 11; the text says «shadow»).
+ * Numbers: B = 0,5 Тл, a = 30 см: 0° → 45 мВб; 60° → 22,5 мВб; 90° → 0. B = 0,1 Тл, a = 10 см, 0° → 1 мВб.
+ * Scale: 6 px per см in both views (a = 30 см is 180 px). The frame turns smoothly to the chosen angle (0,4 с).
+ */
+---
+
+<figure class="flx not-content" data-flx>
+	<div class="flx__panels">
+		<div>
+			<svg class="flx__svg" viewBox="0 0 300 260" role="img" aria-label="Вид сверху: магнитные линии идут слева направо, рамка видна сбоку как отрезок, повёрнутый на заданный угол; выделены линии, проходящие через рамку" data-top></svg>
+			<p class="flx__cap">Вид сверху</p>
+		</div>
+		<div>
+			<svg class="flx__svg" viewBox="0 0 300 260" role="img" aria-label="Тень рамки на экране, перпендикулярном магнитным линиям: штриховой квадрат — вся рамка, закрашенный прямоугольник — её тень, точки — линии, проходящие через рамку" data-screen></svg>
+			<p class="flx__cap">Тень рамки на экране поперёк линий</p>
+		</div>
+	</div>
+	<div class="flx__read" data-read></div>
+	<div class="flx__ctrl">
+		<label class="flx__slider"><span><i>B</i> = <b data-bv>0,3</b>&nbsp;Тл</span><input type="range" min="0.1" max="0.5" step="0.1" value="0.3" data-b /></label>
+		<label class="flx__slider"><span>Угол поворота: <b data-av>0</b>°</span><input type="range" min="0" max="90" step="15" value="0" data-a /></label>
+		<div class="flx__seg" role="radiogroup" aria-label="Сторона рамки" data-seg>
+			<button type="button" role="radio" aria-checked="false" data-s="10"><i>a</i> = 10&nbsp;см</button>
+			<button type="button" role="radio" aria-checked="true" class="is-on" data-s="20">20&nbsp;см</button>
+			<button type="button" role="radio" aria-checked="false" data-s="30">30&nbsp;см</button>
+		</div>
+	</div>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = <K extends keyof SVGElementTagNameMap>(p: Element, tag: K, a: Record<string, string | number> = {}, text?: string) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		if (text !== undefined) e.textContent = text;
+		p.append(e);
+		return e;
+	};
+	const f = (v: number) => v.toFixed(1);
+	const fmt = (v: number, d: number) => v.toFixed(d).replace('.', ',');
+	const trim = (s: string) => (s.includes(',') ? s.replace(/0+$/, '').replace(/,$/, '') : s);
+	const K = 6; // px per см
+	const CX = 150;
+	const CY = 130;
+
+	document.querySelectorAll<HTMLElement>('[data-flx]').forEach((root) => {
+		const top = root.querySelector<SVGSVGElement>('[data-top]')!;
+		const scr = root.querySelector<SVGSVGElement>('[data-screen]')!;
+		const read = root.querySelector<HTMLElement>('[data-read]')!;
+		const bIn = root.querySelector<HTMLInputElement>('[data-b]')!;
+		const aIn = root.querySelector<HTMLInputElement>('[data-a]')!;
+		let side = 20;
+		let shown = 0; // the drawn angle, deg (follows the slider)
+		const draw = () => {
+			const B = Number(bIn.value);
+			const alpha = (shown * Math.PI) / 180;
+			const a = side;
+			const d = 100 / Math.sqrt(1000 * B); // см, the spacing of the lines
+			const w = a * Math.cos(alpha); // см, the shadow's width
+			// ---- top view
+			top.replaceChildren();
+			const n = Math.ceil(130 / (d * K));
+			for (let k = -n; k <= n; k++) {
+				const y = CY + k * d * K;
+				if (y < 6 || y > 254) continue;
+				const lit = Math.abs(k * d) <= w / 2 + 1e-9;
+				mk(top, 'path', { class: `flx__line${lit ? ' is-lit' : ''}`, d: `M8 ${f(y)}H292` });
+				for (const x of [40, 262]) mk(top, 'path', { class: `flx__head${lit ? ' is-lit' : ''}`, d: `M${x + 6} ${f(y)}L${x - 3} ${f(y - 4)}L${x - 3} ${f(y + 4)}Z` });
+			}
+			// the band of the shadow
+			mk(top, 'rect', { class: 'flx__band', x: 8, y: f(CY - (w / 2) * K), width: 284, height: f(w * K) });
+			// the frame edge-on: a segment through the axis, turned by α from the vertical (perpendicular to the lines)
+			const hx = (a / 2) * K * Math.sin(alpha);
+			const hy = (a / 2) * K * Math.cos(alpha);
+			mk(top, 'path', { class: 'flx__ref', d: `M${CX} ${f(CY - (a / 2) * K - 8)}V${f(CY + (a / 2) * K + 8)}` });
+			mk(top, 'path', { class: 'flx__frame', d: `M${f(CX - hx)} ${f(CY - hy)}L${f(CX + hx)} ${f(CY + hy)}` });
+			mk(top, 'circle', { class: 'flx__axis', cx: CX, cy: CY, r: 3.5 });
+			if (shown > 0.5) {
+				const R = 34;
+				mk(top, 'path', { class: 'flx__arc', d: `M${CX} ${CY - R}A${R} ${R} 0 0 0 ${f(CX - R * Math.sin(alpha))} ${f(CY - R * Math.cos(alpha))}` });
+				mk(top, 'text', { class: 'flx__albl', x: f(CX - 46 * Math.sin(alpha / 2) - 4), y: f(CY - 46 * Math.cos(alpha / 2)), 'text-anchor': 'middle' }, `${Math.round(shown)}°`);
+			}
+			// ---- the screen: the whole frame (dashed), the shadow (filled), the lines through it as dots
+			scr.replaceChildren();
+			const S = (a / 100) ** 2;
+			const Phi = B * S * Math.cos(alpha) * 1000; // мВб
+			const N = Math.round(Phi + 1e-9);
+			// background lines at the field's spacing (dim)
+			const nb = Math.ceil(130 / (d * K));
+			for (let i = -nb; i <= nb; i++)
+				for (let j = -nb; j <= nb; j++) {
+					const x = CX + i * d * K;
+					const y = CY + j * d * K;
+					if (x < 8 || x > 292 || y < 8 || y > 252) continue;
+					if (Math.abs(i * d) <= w / 2 && Math.abs(j * d) <= a / 2) continue;
+					mk(scr, 'circle', { class: 'flx__dot', cx: f(x), cy: f(y), r: 2 });
+				}
+			mk(scr, 'rect', { class: 'flx__whole', x: f(CX - (a / 2) * K), y: f(CY - (a / 2) * K), width: f(a * K), height: f(a * K) });
+			if (w > 0.01) mk(scr, 'rect', { class: 'flx__shadow', x: f(CX - (w / 2) * K), y: f(CY - (a / 2) * K), width: f(w * K), height: f(a * K) });
+			// N lit dots spread evenly in the shadow
+			if (N > 0 && w > 0.01) {
+				const W = w * K;
+				const H = a * K;
+				const rows = Math.max(1, Math.min(N, Math.round(Math.sqrt((N * H) / W))));
+				let left = N;
+				for (let r = 0; r < rows; r++) {
+					const inRow = Math.round(left / (rows - r));
+					left -= inRow;
+					const y = CY - H / 2 + ((r + 0.5) * H) / rows;
+					for (let c = 0; c < inRow; c++) {
+						const x = CX - W / 2 + ((c + 0.5) * W) / inRow;
+						mk(scr, 'circle', { class: 'flx__dot is-lit', cx: f(x), cy: f(y), r: 3 });
+					}
+				}
+			}
+			// readout
+			const st = trim(fmt(S, 4));
+			const sh = S * Math.cos(alpha);
+			read.innerHTML =
+				`<span><i>S</i> = ${st}&nbsp;м²</span>` +
+				`<span><i>S</i><sub>тени</sub> = ${trim(fmt(Math.abs(sh) < 1e-9 ? 0 : sh, 4))}&nbsp;м²</span>` +
+				`<span>Φ = <i>B</i>·<i>S</i><sub>тени</sub> = ${trim(fmt(Math.abs(Phi) < 1e-9 ? 0 : Phi, 2))}&nbsp;мВб</span>` +
+				`<span>линий через рамку: ${N}</span>`;
+			root.querySelector('[data-bv]')!.textContent = fmt(B, 1);
+			root.querySelector('[data-av]')!.textContent = aIn.value;
+		};
+		shown = Number(aIn.value);
+		draw();
+		const wake = loop(root, (dt) => {
+			const target = Number(aIn.value);
+			if (Math.abs(target - shown) < 0.05) {
+				shown = target;
+				draw();
+				return false;
+			}
+			shown += (target - shown) * Math.min(1, dt / 0.12);
+			draw();
+			return true;
+		});
+		bIn.addEventListener('input', () => draw());
+		aIn.addEventListener('input', () => {
+			root.querySelector('[data-av]')!.textContent = aIn.value;
+			wake();
+		});
+		const bs = [...root.querySelectorAll<HTMLButtonElement>('[data-seg] button')];
+		bs.forEach((b) =>
+			b.addEventListener('click', () => {
+				bs.forEach((x) => {
+					x.classList.toggle('is-on', x === b);
+					x.setAttribute('aria-checked', x === b ? 'true' : 'false');
+				});
+				side = Number(b.dataset.s);
+				draw();
+			}),
+		);
+	});
+</script>
+
+<style>
+	.flx {
+		--flx-w: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.flx__panels {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.6rem;
+	}
+	@media (max-width: 30rem) {
+		.flx__panels {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	.flx__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent);
+	}
+	.flx__cap {
+		margin: 0.35rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.flx__read {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1.25rem;
+		margin: 0.6rem 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.flx__read :global(i) {
+		font-family: var(--ig-font-math);
+	}
+	.flx__ctrl {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.flx__slider {
+		display: flex;
+		flex-direction: column;
+		min-width: 10rem;
+	}
+	.flx__slider i,
+	.flx__seg i {
+		font-family: var(--ig-font-math);
+	}
+	.flx__slider input {
+		accent-color: var(--sl-color-gray-2);
+	}
+	.flx__seg {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+	}
+	.flx__seg button {
+		padding: 0.35rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		cursor: pointer;
+	}
+	.flx__seg button.is-on {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-2);
+		background: var(--sl-color-gray-5);
+	}
+	.flx :global(.flx__line) {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.flx :global(.flx__head) {
+		fill: var(--sl-color-gray-3);
+	}
+	.flx :global(.flx__line.is-lit) {
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.flx :global(.flx__head.is-lit) {
+		fill: var(--sl-color-white);
+	}
+	.flx :global(.flx__band) {
+		fill: color-mix(in srgb, var(--sl-color-white) 7%, transparent);
+	}
+	.flx :global(.flx__ref) {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 4 4;
+	}
+	.flx :global(.flx__frame) {
+		stroke: var(--flx-w);
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.flx :global(.flx__axis) {
+		fill: var(--sl-color-white);
+	}
+	.flx :global(.flx__arc) {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.flx :global(.flx__albl) {
+		font-size: 12px;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+	}
+	.flx :global(.flx__dot) {
+		fill: var(--sl-color-gray-4);
+	}
+	.flx :global(.flx__dot.is-lit) {
+		fill: var(--sl-color-white);
+	}
+	.flx :global(.flx__whole) {
+		fill: none;
+		stroke: var(--flx-w);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 4;
+	}
+	.flx :global(.flx__shadow) {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 85%, transparent);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+</style>

@@ -1,0 +1,246 @@
+---
+/**
+ * Typical values of the magnetic induction on one vertical logarithmic ladder from 1 нТл to 100 Тл (one decade per
+ * 40 px), one column so it reads at 390 px. Each value is a dot (or a bar for a range) on the axis, a small drawn icon
+ * and a label; the labels are spread apart where the values crowd and joined to their marks by thin leader lines.
+ * Values (from the author's outline, checked): the interplanetary field near the Earth ≈ 5 нТл; the Moon's surface,
+ * local fields of magnetized rocks, from a few нТл up to 313 нТл (Apollo 16, 1972); the Earth at its surface
+ * 25–65 мкТл; a fridge magnet ≈ 5 мТл; a school bar magnet at its pole 0,01–0,1 Тл; a sunspot ≈ 0,3 Тл; a neodymium
+ * magnet at its surface 0,5–1 Тл; a hospital MRI scanner 1,5–3 Тл; the record steady field in a laboratory 45,5 Тл
+ * (2019). Static.
+ */
+const DEC = 40;
+const TOP = 22;
+const AXX = 64;
+const y = (b: number) => TOP + (2 - Math.log10(b)) * DEC;
+type Item = { lo: number; hi?: number; text: string[]; icon: string };
+const items: Item[] = [
+	{ lo: 45.5, text: ['рекорд постоянного поля', 'в лаборатории (2019) — 45,5 Тл'], icon: 'lab' },
+	{ lo: 1.5, hi: 3, text: ['томограф (МРТ) — 1,5–3 Тл'], icon: 'mri' },
+	{ lo: 0.5, hi: 1, text: ['неодимовый магнит', 'у поверхности — 0,5–1 Тл'], icon: 'neo' },
+	{ lo: 0.3, text: ['солнечное пятно — около 0,3 Тл'], icon: 'sun' },
+	{ lo: 0.01, hi: 0.1, text: ['школьный полосовой магнит', 'у полюса — 0,01–0,1 Тл'], icon: 'bar' },
+	{ lo: 0.005, text: ['магнит на холодильнике —', 'около 5 мТл'], icon: 'fridge' },
+	{ lo: 25e-6, hi: 65e-6, text: ['Земля у поверхности — 25–65 мкТл'], icon: 'earth' },
+	{ lo: 1e-9, hi: 313e-9, text: ['поверхность Луны — от единиц', 'до 313 нТл'], icon: 'moon' },
+	{ lo: 5e-9, text: ['межпланетное поле', 'у Земли — около 5 нТл'], icon: 'space' },
+];
+// the marks' heights and the labels spread apart (at least 15 px per line + 8 between labels), top to bottom
+const marks = items.map((it) => ({ ...it, ym: it.hi ? (y(it.lo) + y(it.hi)) / 2 : y(it.lo), h: it.text.length * 14 }));
+let next = 0;
+const placed = marks.map((m) => {
+	const ty = Math.max(m.ym - m.h / 2 + 4, next);
+	next = ty + m.h + 9;
+	return { ...m, ty };
+});
+const H = Math.max(TOP + 11 * DEC + 20, next + 10);
+const ticks = [
+	[100, '100 Тл'],
+	[10, '10 Тл'],
+	[1, '1 Тл'],
+	[0.1, '0,1 Тл'],
+	[0.01, '10 мТл'],
+	[0.001, '1 мТл'],
+	[1e-4, '0,1 мТл'],
+	[1e-5, '10 мкТл'],
+	[1e-6, '1 мкТл'],
+	[1e-7, '100 нТл'],
+	[1e-8, '10 нТл'],
+	[1e-9, '1 нТл'],
+] as [number, string][];
+const LX = 128; // the labels' left edge
+const IX = 108; // the icons' center
+---
+
+<figure class="isp not-content">
+	<svg class="isp__svg" viewBox={`0 0 340 ${H}`} role="img" aria-label="Шкала магнитной индукции от одного нанотесла до ста тесла: межпланетное поле, поверхность Луны, Земля, магнит на холодильнике, полосовой магнит, солнечное пятно, неодимовый магнит, томограф и рекорд лаборатории">
+		<path class="isp__axis" d={`M${AXX} ${TOP - 8} V${y(1e-9) + 8}`} />
+		{
+			ticks.map(([b, t]) => (
+				<g>
+					<path class="isp__tick" d={`M${AXX - 5} ${y(b)} H${AXX}`} />
+					<text class="isp__tl" x={AXX - 8} y={y(b) + 4} text-anchor="end">
+						{t}
+					</text>
+				</g>
+			))
+		}
+		{
+			placed.map((m, i) => {
+				const ly = m.ty + m.h / 2 - 4;
+				const bx = AXX + 6 + (i % 2) * 6;
+				return (
+					<g>
+						{m.hi ? <path class="isp__range" d={`M${bx} ${y(m.hi)} V${y(m.lo)}`} /> : <circle class="isp__dot" cx={bx} cy={m.ym} r="3.4" />}
+						<path class="isp__lead" d={`M${bx + 4} ${m.ym} C${bx + 14} ${m.ym} ${IX - 22} ${ly} ${IX - 13} ${ly}`} />
+						<g transform={`translate(${IX} ${ly})`} class={`isp__icon isp__icon--${m.icon}`}>
+							{m.icon === 'lab' && (
+								<>
+									<rect class="isp__i-steel" x="-9" y="-8" width="18" height="16" rx="2" />
+									<path class="isp__i-coil" d="M-6 -8 V8 M-2 -8 V8 M2 -8 V8 M6 -8 V8" />
+								</>
+							)}
+							{m.icon === 'mri' && (
+								<>
+									<circle class="isp__i-white" r="9" />
+									<circle class="isp__i-hole" r="4.5" />
+								</>
+							)}
+							{m.icon === 'neo' && (
+								<>
+									<ellipse class="isp__i-steel" cx="0" cy="2" rx="9" ry="4" />
+									<rect class="isp__i-steel" x="-9" y="-3" width="18" height="5" />
+									<ellipse class="isp__i-shine" cx="0" cy="-3" rx="9" ry="4" />
+								</>
+							)}
+							{m.icon === 'sun' && (
+								<>
+									<circle class="isp__i-sun" r="9" />
+									<circle class="isp__i-spot" cx="2.5" cy="-1.5" r="2.4" />
+								</>
+							)}
+							{m.icon === 'bar' && (
+								<>
+									<rect class="isp__i-n" x="-10" y="-4" width="10" height="8" />
+									<rect class="isp__i-s" x="0" y="-4" width="10" height="8" />
+								</>
+							)}
+							{m.icon === 'fridge' && (
+								<>
+									<rect class="isp__i-white" x="-6" y="-9" width="12" height="18" rx="1.5" />
+									<circle class="isp__i-red" cx="0" cy="-3" r="3" />
+								</>
+							)}
+							{m.icon === 'earth' && (
+								<>
+									<circle class="isp__i-sea" r="9" />
+									<path class="isp__i-land" d="M-6 -4 q4 -3 6 0 q2 3 -2 5 q-4 1 -4 -5 Z M2 3 q4 -2 5 2 q-3 3 -5 -2 Z" />
+								</>
+							)}
+							{m.icon === 'moon' && (
+								<>
+									<circle class="isp__i-moon" r="9" />
+									<circle class="isp__i-crater" cx="-3" cy="-2" r="2.2" />
+									<circle class="isp__i-crater" cx="3" cy="3" r="1.6" />
+								</>
+							)}
+							{m.icon === 'space' && (
+								<>
+									<circle class="isp__i-sun" cx="-5" cy="0" r="4" />
+									<circle class="isp__i-sea" cx="6" cy="0" r="2.4" />
+									<path class="isp__i-wind" d="M-1 -4 H4 M0 0 H3.4 M-1 4 H4" />
+								</>
+							)}
+						</g>
+						<text class="isp__lbl" x={LX} y={m.ty + 10}>
+							{m.text.map((s, k) => (
+								<tspan x={LX} dy={k ? 14 : 0}>
+									{s}
+								</tspan>
+							))}
+						</text>
+					</g>
+				);
+			})
+		}
+	</svg>
+</figure>
+
+<style>
+	.isp {
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.isp__svg {
+		display: block;
+		width: 100%;
+		max-width: 30rem;
+		height: auto;
+		margin-inline: auto;
+	}
+	.isp__axis {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.isp__tick {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.isp__tl {
+		font-size: 10px;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+	}
+	.isp__dot {
+		fill: var(--sl-color-gray-2);
+	}
+	.isp__range {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 4.5;
+		stroke-linecap: round;
+	}
+	.isp__lead {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.8;
+	}
+	.isp__lbl {
+		font-size: 11.5px;
+		fill: var(--sl-color-white);
+		font-family: var(--__sl-font);
+	}
+	.isp__i-steel {
+		fill: hsl(215, 8%, 55%);
+		stroke: hsl(215, 8%, 35%);
+		stroke-width: 0.6;
+	}
+	.isp__i-shine {
+		fill: hsl(215, 10%, 72%);
+		stroke: hsl(215, 8%, 40%);
+		stroke-width: 0.6;
+	}
+	.isp__i-coil {
+		stroke: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		stroke-width: 1.6;
+	}
+	.isp__i-white {
+		fill: hsl(210, 15%, 92%);
+		stroke: hsl(210, 10%, 55%);
+		stroke-width: 0.8;
+	}
+	.isp__i-hole {
+		fill: hsl(210, 15%, 30%);
+	}
+	.isp__i-sun {
+		fill: hsl(42, 95%, 58%);
+	}
+	.isp__i-spot {
+		fill: hsl(25, 60%, 22%);
+	}
+	.isp__i-n {
+		fill: var(--ig-vx);
+	}
+	.isp__i-s,
+	.isp__i-red {
+		fill: var(--ig-vy);
+	}
+	.isp__i-sea {
+		fill: hsl(205, 70%, 50%);
+	}
+	.isp__i-land {
+		fill: hsl(130, 40%, 45%);
+	}
+	.isp__i-moon {
+		fill: hsl(40, 6%, 70%);
+	}
+	.isp__i-crater {
+		fill: hsl(40, 6%, 55%);
+	}
+	.isp__i-wind {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.9;
+	}
+</style>

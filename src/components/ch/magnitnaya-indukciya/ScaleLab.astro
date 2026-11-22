@@ -1,0 +1,461 @@
+---
+/**
+ * «Магнит на весах»: a magnet lies on electronic scales; a straight copper rod held by a clamp stand passes through
+ * its gap without touching it. A current in the rod: the field pushes the rod up or down, and by Newton's third law
+ * the rod pushes the magnet the opposite way, so the reading of the scales (tared at I = 0) changes by Δm = F/g.
+ * Oblique view, x to the right, y up, z toward the viewer: (x, y, z) in см is drawn at
+ * (CX + K·(x − 0,42·z), CY − K·(y − 0,24·z)), K = 15 px per см.
+ * The magnet: a steel U-shaped yoke lying on the scales with its gap faces vertical; on the inner faces 1, 2 or 3 pairs
+ * of flat magnets in a row along the rod (each 2 см long), the N faces on the left, the S faces on the right, the gap
+ * 1 см: B points to the right (+x), uniform in the gap. «Магнит А»: B = 0,10 Тл, «Магнит Б»: B = 0,25 Тл (the value is
+ * not shown: the pupil finds it). The rod runs along z through the gap; the part in the field l = 2, 4 or 6 см.
+ * Physics: F = B·I·l; the direction from F = I·l × B: current toward us (⊙, +z): (+z) × (+x) = +y, the rod is pushed
+ * up, the magnet down, Δm > 0; away from us (⊗): Δm < 0. The scales show Δm = F/g rounded to 0,01 г (their
+ * resolution), g = 9,8 м/с²; the readout computes F = Δm·g from the shown Δm and F/(Il) from it, as one would in a lab
+ * (so at small currents the ratio carries the rounding of the scales: 0,5 А and 2 см give 0,10 г, F = 0,98 мН,
+ * F/(Il) = 0,098 ≈ 0,10 Н/(А·м)). Examples: А, 5 А, 6 см: Δm = 3,06 г, F = 30,0 мН; Б, 5 А, 6 см: 7,65 г, 75,0 мН.
+ * The display settles in about 0,5 с, as real scales do.
+ */
+---
+
+<figure class="scl not-content" data-scl>
+	<svg class="scl__svg" viewBox="0 0 520 300" role="img" aria-label="Подковообразный магнит лежит на электронных весах. Через зазор магнита, не касаясь его, проходит медный стержень, закреплённый в штативе. Когда по стержню идёт ток, показания весов меняются">
+		<g data-scene></g>
+	</svg>
+	<div class="scl__read" data-read></div>
+	<div class="scl__ctrl">
+		<label class="scl__slider"><span>Сила тока <i>I</i> = <b data-iv>0</b>&nbsp;А</span><input type="range" min="0" max="5" step="0.5" value="0" data-i /></label>
+		<button type="button" class="scl__btn" data-rev>Сменить направление тока</button>
+		<div class="scl__seg" role="radiogroup" aria-label="Длина части стержня в поле" data-lseg>
+			<button type="button" role="radio" aria-checked="true" class="is-on" data-n="1">1 пара магнитов</button>
+			<button type="button" role="radio" aria-checked="false" data-n="2">2 пары</button>
+			<button type="button" role="radio" aria-checked="false" data-n="3">3 пары</button>
+		</div>
+		<div class="scl__seg" role="radiogroup" aria-label="Магнит" data-mseg>
+			<button type="button" role="radio" aria-checked="true" class="is-on" data-m="A">Магнит А</button>
+			<button type="button" role="radio" aria-checked="false" data-m="B">Магнит Б</button>
+		</div>
+	</div>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = <K extends keyof SVGElementTagNameMap>(p: Element, tag: K, a: Record<string, string | number> = {}, text?: string) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		if (text !== undefined) e.textContent = text;
+		p.append(e);
+		return e;
+	};
+	const f = (v: number) => v.toFixed(1);
+	const fmt = (v: number, d: number) => v.toFixed(d).replace('.', ',').replace('-', '−');
+
+	const K = 15;
+	const CX = 300;
+	const CY = 196;
+	const AX = -0.42;
+	const AY = 0.24;
+	type P3 = [number, number, number];
+	const P = (x: number, y: number, z: number) => [CX + K * (x + z * AX), CY - K * (y - z * AY)];
+	const pt = (x: number, y: number, z: number) => P(x, y, z).map(f).join(' ');
+	const poly = (ps: P3[]) => 'M' + ps.map((p) => pt(...p)).join('L') + 'Z';
+	const box = (g: Element, cls: string, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) => {
+		mk(g, 'path', { class: `${cls} scl__f--right`, d: poly([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]]) });
+		mk(g, 'path', { class: `${cls} scl__f--top`, d: poly([[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]]) });
+		mk(g, 'path', { class: `${cls} scl__f--front`, d: poly([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]) });
+	};
+	const G = 9.8;
+	const BV = { A: 0.1, B: 0.25 };
+	const RY = 3.6; // см, the rod's height (the middle of the magnets)
+	const ZY = 3.5; // см, half the yoke's depth
+
+	document.querySelectorAll<HTMLElement>('[data-scl]').forEach((root) => {
+		const g = root.querySelector<SVGGElement>('[data-scene]')!;
+		const read = root.querySelector<HTMLElement>('[data-read]')!;
+		const iIn = root.querySelector<HTMLInputElement>('[data-i]')!;
+		const iv = root.querySelector<HTMLElement>('[data-iv]')!;
+		let toUs = true;
+		let n = 1;
+		let mag: 'A' | 'B' = 'A';
+		let shown = 0; // the scales' display, г
+		let t = 0;
+		const dm = () => {
+			const F = BV[mag] * Number(iIn.value) * 0.02 * n * (toUs ? 1 : -1);
+			return Math.round((F / G) * 1e5) / 100; // г, to 0,01 г
+		};
+		const dyn: Record<string, SVGElement> = {};
+		const build = () => {
+			g.replaceChildren();
+			// the table
+			mk(g, 'path', { class: 'scl__table', d: poly([[-19, -3, 8], [12, -3, 8], [12, -3, -12], [-19, -3, -12]]) });
+			// the clamp stand at the back left: base, post, arm along x to the rod's back end
+			box(g, 'scl__steel', -17, -11, -3, -2.4, -12, -7);
+			mk(g, 'path', { class: 'scl__post', d: `M${pt(-14, -2.4, -9.5)}L${pt(-14, 7, -9.5)}` });
+			mk(g, 'path', { class: 'scl__post scl__post--arm', d: `M${pt(-14, RY, -9.5)}L${pt(0, RY, -9.5)}` });
+			box(g, 'scl__clamp', -0.8, 0.8, RY - 0.8, RY + 0.8, -10.3, -8.7);
+			// the scales
+			box(g, 'scl__scale', -6, 6, -3, -0.6, -6, 6);
+			box(g, 'scl__pan', -5, 5, -0.6, 0, -5, 5);
+			const disp = P(1.6, -2.4, 6);
+			mk(g, 'rect', { class: 'scl__disp', x: f(disp[0]), y: f(disp[1] - 16), width: 64, height: 18, rx: 2 });
+			dyn.disp = mk(g, 'text', { class: 'scl__digits', x: f(disp[0] + 60), y: f(disp[1] - 2.5), 'text-anchor': 'end' }, '0,00 г');
+			// the yoke: a bottom plate and two side plates, the magnets on the inner faces
+			const back = mk(g, 'g', {});
+			const front = mk(g, 'g', {});
+			// we look from the right, the front and above: the left side (N) is farther than the gap, the right side (S)
+			// nearer, so the order is: bottom plate, left plate, N magnets, the lines and the rod, S magnets, right plate
+			box(back, 'scl__yoke', -2.6, 2.6, 0, 1.2, -ZY, ZY);
+			box(back, 'scl__yoke', -2.6, -1.3, 1.2, 5.4, -ZY, ZY);
+			const nm = n;
+			const z0 = -nm; // the magnets span z from −n to +n (2 см each)
+			for (let k = 0; k < nm; k++) {
+				const za = z0 + 2 * k;
+				box(back, `scl__mag scl__mag--n scl__mag--${mag}`, -1.3, -0.5, RY - 1.4, RY + 1.4, za, za + 2);
+			}
+			const lines = mk(back, 'g', {});
+			for (let k = 0; k < nm; k++) {
+				for (const dz of [0.5, 1.5]) {
+					for (const dy of [-0.9, 0, 0.9]) {
+						const z = z0 + 2 * k + dz;
+						mk(lines, 'path', { class: 'scl__bl', d: `M${pt(-0.5, RY + dy, z)}L${pt(0.5, RY + dy, z)}` });
+						const m = P(0.28, RY + dy, z);
+						mk(lines, 'path', { class: 'scl__bh', d: `M${f(m[0] + 3)} ${f(m[1])}L${f(m[0] - 1.5)} ${f(m[1] - 2.2)}L${f(m[0] - 1.5)} ${f(m[1] + 2.2)}Z` });
+					}
+				}
+			}
+			dyn.rod = mk(back, 'g', {});
+			for (let k = 0; k < nm; k++) {
+				const za = z0 + 2 * k;
+				box(front, `scl__mag scl__mag--s scl__mag--${mag}`, 0.5, 1.3, RY - 1.4, RY + 1.4, za, za + 2);
+			}
+			box(front, 'scl__yoke', 1.3, 2.6, 1.2, 5.4, -ZY, ZY);
+			const nl = P(-1.95, 4.5, ZY);
+			const sl = P(1.95, 4.5, ZY);
+			mk(front, 'text', { class: 'scl__pl scl__pl--n', x: f(nl[0]), y: f(nl[1] + 4), 'text-anchor': 'middle' }, 'N');
+			mk(front, 'text', { class: 'scl__pl scl__pl--s', x: f(sl[0]), y: f(sl[1] + 4), 'text-anchor': 'middle' }, 'S');
+			const ml = P(0, 0.35, ZY);
+			mk(front, 'text', { class: 'scl__ml', x: f(ml[0]), y: f(ml[1] + 3.5), 'text-anchor': 'middle' }, mag === 'A' ? 'А' : 'Б');
+			// the rod's front part (in front of the magnet) and the leads to the source with the ammeter
+			const fr = mk(g, 'g', {});
+			dyn.rodFront = fr;
+			const src = mk(g, 'g', {});
+			box(src, 'scl__src', -17, -10, -3, 0.5, 2, 7);
+			const sp = P(-13.5, -1.6, 7);
+			mk(src, 'text', { class: 'scl__lbl', x: f(sp[0]), y: f(sp[1]), 'text-anchor': 'middle' }, 'источник');
+			const am = P(-9, 2.2, 6);
+			mk(src, 'circle', { class: 'scl__am', cx: f(am[0]), cy: f(am[1]), r: 17 });
+			mk(src, 'text', { class: 'scl__amA', x: f(am[0]), y: f(am[1] + 13), 'text-anchor': 'middle' }, 'А');
+			dyn.needle = mk(src, 'path', { class: 'scl__needle' });
+			mk(src, 'path', { class: 'scl__lead', d: `M${pt(0, RY, 10)}Q${pt(-3, 6, 11)} ${pt(-8.2, 3.2, 6)}M${pt(-9.6, 1, 6)}L${pt(-10.5, 0.5, 5)}M${pt(-14, RY, -9.5)}Q${pt(-15, 0.5, -3)} ${pt(-15.5, 0.5, 2)}` });
+			dyn.am = mk(src, 'g', { 'data-c': `${am[0]},${am[1]}` });
+		};
+		const drawRod = () => {
+			const r = dyn.rod as SVGGElement;
+			const fr = dyn.rodFront as SVGGElement;
+			r.replaceChildren();
+			fr.replaceChildren();
+			const I = Number(iIn.value);
+			// the back part (behind the front magnets) and the front part (in front of the yoke)
+			mk(r, 'path', { class: 'scl__rod', d: `M${pt(0, RY, -9.5)}L${pt(0, RY, ZY)}` });
+			mk(fr, 'path', { class: 'scl__rod', d: `M${pt(0, RY, ZY)}L${pt(0, RY, 10)}` });
+			const c = P(0, RY, 10);
+			mk(fr, 'circle', { class: 'scl__cap', cx: f(c[0]), cy: f(c[1]), r: 4.2 });
+			if (I > 0) {
+				if (toUs) mk(fr, 'circle', { class: 'scl__dot', cx: f(c[0]), cy: f(c[1]), r: 1.8 });
+				else mk(fr, 'path', { class: 'scl__x', d: `M${f(c[0] - 2.4)} ${f(c[1] - 2.4)}l4.8 4.8M${f(c[0] + 2.4)} ${f(c[1] - 2.4)}l-4.8 4.8` });
+				for (let k = 0; k < 3; k++) {
+					const z = ((t * 2 + k * 6.5) % 19.5) - 9.5;
+					const zz = toUs ? z : -z - 2.5 + 0;
+					const a = P(0, RY, zz - (toUs ? 0.6 : -0.6));
+					const m = P(0, RY, zz);
+					const host = zz > ZY ? fr : r;
+					mk(host, 'path', { class: 'scl__chev', d: `M${f(a[0] - 2.5)} ${f(a[1] - 3)}L${f(m[0])} ${f(m[1])}L${f(a[0] + 3)} ${f(a[1] + 1.6)}` });
+				}
+				// the force on the rod (gold), up or down
+				const Fm = BV[mag] * I * 0.02 * n * 1000; // мН
+				const L = 8 + (Fm / 75) * 60;
+				const s = toUs ? -1 : 1; // screen y
+				const b = P(0, RY, 8.4);
+				mk(fr, 'path', { class: 'scl__F', d: `M${f(b[0])} ${f(b[1] + s * 5)}V${f(b[1] + s * (L - 6))}` });
+				mk(fr, 'path', { class: 'scl__Fh', d: `M${f(b[0])} ${f(b[1] + s * L)}L${f(b[0] - 5)} ${f(b[1] + s * (L - 9))}L${f(b[0] + 5)} ${f(b[1] + s * (L - 9))}Z` });
+				mk(fr, 'text', { class: 'scl__Fl', x: f(b[0] - 9), y: f(b[1] + s * L * 0.7 + 4), 'text-anchor': 'end' }, 'F');
+			}
+			// the ammeter's needle: 0…5 А over 100°
+			const [ax, ay] = (dyn.am as SVGGElement).getAttribute('data-c')!.split(',').map(Number);
+			const a = (-140 + (I / 5) * 100) * (Math.PI / 180);
+			dyn.needle.setAttribute('d', `M${f(ax)} ${f(ay + 6)}L${f(ax + 13 * Math.cos(a))} ${f(ay + 6 + 13 * Math.sin(a))}`);
+		};
+		const readout = () => {
+			const I = Number(iIn.value);
+			iv.textContent = fmt(I, 1).replace(',0', '');
+			const d = dm();
+			const l = 2 * n;
+			const F = Math.abs(d) * G; // мН from the shown Δm (г · м/с² = мН)
+			const ratio = I > 0 ? F / 1000 / (I * l * 0.01) : NaN;
+			read.innerHTML =
+				`<span>Весы: Δ<i>m</i> = ${fmt(d, 2)}&nbsp;г</span>` +
+				`<span><i>F</i> = |Δ<i>m</i>|·<i>g</i> = ${fmt(F, 1)}&nbsp;мН</span>` +
+				`<span><i>l</i> = ${l}&nbsp;см</span>` +
+				`<span><i>F</i>/(<i>Il</i>) = ${I > 0 ? fmt(ratio, 2) : '—'}&nbsp;Н/(А·м)</span>`;
+		};
+		build();
+		drawRod();
+		readout();
+		const wake = loop(root, (dt) => {
+			t += dt;
+			const target = dm();
+			shown += (target - shown) * Math.min(1, dt / 0.15);
+			if (Math.abs(target - shown) < 0.005) shown = target;
+			dyn.disp.textContent = `${fmt(Math.abs(shown) < 0.005 ? 0 : shown, 2)} г`;
+			drawRod();
+			return true;
+		});
+		const changed = () => {
+			readout();
+			drawRod();
+			wake();
+		};
+		iIn.addEventListener('input', changed);
+		root.querySelector('[data-rev]')!.addEventListener('click', () => {
+			toUs = !toUs;
+			changed();
+		});
+		const seg = (sel: string, pick: (b: HTMLButtonElement) => void) => {
+			const bs = [...root.querySelectorAll<HTMLButtonElement>(`${sel} button`)];
+			bs.forEach((b) =>
+				b.addEventListener('click', () => {
+					bs.forEach((x) => {
+						x.classList.toggle('is-on', x === b);
+						x.setAttribute('aria-checked', x === b ? 'true' : 'false');
+					});
+					pick(b);
+					build();
+					changed();
+				}),
+			);
+		};
+		seg('[data-lseg]', (b) => (n = Number(b.dataset.n)));
+		seg('[data-mseg]', (b) => (mag = b.dataset.m as 'A' | 'B'));
+	});
+</script>
+
+<style>
+	.scl {
+		--scl-i: var(--sl-color-green);
+		--scl-f: var(--ig-v);
+		--scl-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.scl__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.scl__read {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1.25rem;
+		margin: 0.4rem 0 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.scl__read :global(i) {
+		font-family: var(--ig-font-math);
+	}
+	.scl__ctrl {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		font-size: var(--sl-text-sm);
+	}
+	.scl__slider {
+		display: flex;
+		flex-direction: column;
+		min-width: 11rem;
+		color: var(--sl-color-gray-2);
+	}
+	.scl__slider i {
+		font-family: var(--ig-font-math);
+	}
+	.scl__slider input {
+		accent-color: var(--scl-i);
+	}
+	.scl__btn,
+	.scl__seg button {
+		padding: 0.35rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		cursor: pointer;
+	}
+	.scl__btn {
+		color: var(--sl-color-white);
+	}
+	.scl__seg {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+	}
+	.scl__seg button.is-on {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-2);
+		background: var(--sl-color-gray-5);
+	}
+	.scl :global(.scl__table) {
+		fill: color-mix(in srgb, var(--ig-v) 14%, var(--sl-color-gray-5));
+	}
+	.scl :global(.scl__f--top) {
+		filter: brightness(1.12);
+	}
+	.scl :global(.scl__f--right) {
+		filter: brightness(0.75);
+	}
+	.scl :global(.scl__steel),
+	.scl :global(.scl__clamp) {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.6;
+	}
+	.scl :global(.scl__post) {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.scl :global(.scl__post--arm) {
+		stroke-width: 3;
+	}
+	.scl :global(.scl__scale) {
+		fill: hsl(220, 10%, 80%);
+		stroke: hsl(220, 10%, 55%);
+		stroke-width: 0.6;
+	}
+	.scl :global(.scl__pan) {
+		fill: hsl(220, 8%, 70%);
+		stroke: hsl(220, 10%, 50%);
+		stroke-width: 0.6;
+	}
+	.scl :global(.scl__disp) {
+		fill: hsl(160, 25%, 16%);
+	}
+	.scl :global(.scl__digits) {
+		fill: hsl(150, 80%, 62%);
+		font-family: ui-monospace, monospace;
+		font-size: 12px;
+		font-weight: 700;
+	}
+	.scl :global(.scl__yoke) {
+		fill: hsl(215, 8%, 52%);
+		stroke: hsl(215, 8%, 32%);
+		stroke-width: 0.6;
+	}
+	.scl :global(.scl__mag) {
+		stroke: color-mix(in srgb, black 40%, transparent);
+		stroke-width: 0.6;
+	}
+	.scl :global(.scl__mag--n) {
+		fill: var(--ig-vx);
+	}
+	.scl :global(.scl__mag--s) {
+		fill: var(--ig-vy);
+	}
+	.scl :global(.scl__mag--B) {
+		filter: saturate(1.4) brightness(0.85);
+	}
+	.scl :global(.scl__pl) {
+		font-size: 12px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		fill: white;
+	}
+	.scl :global(.scl__ml) {
+		font-size: 11px;
+		font-weight: 700;
+		font-family: var(--__sl-font);
+		fill: white;
+	}
+	.scl :global(.scl__bl) {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.scl :global(.scl__bh) {
+		fill: var(--sl-color-gray-2);
+	}
+	.scl :global(.scl__rod) {
+		stroke: var(--scl-cu);
+		stroke-width: 6;
+	}
+	.scl :global(.scl__cap) {
+		fill: color-mix(in srgb, var(--scl-cu) 75%, white);
+		stroke: color-mix(in srgb, var(--scl-cu) 60%, black);
+		stroke-width: 0.7;
+	}
+	.scl :global(.scl__dot) {
+		fill: var(--scl-i);
+	}
+	.scl :global(.scl__x) {
+		stroke: var(--scl-i);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.scl :global(.scl__chev) {
+		fill: none;
+		stroke: var(--scl-i);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.scl :global(.scl__F) {
+		stroke: var(--scl-f);
+		stroke-width: 3;
+	}
+	.scl :global(.scl__Fh) {
+		fill: var(--scl-f);
+	}
+	.scl :global(.scl__Fl) {
+		fill: var(--scl-f);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-weight: 600;
+		font-size: 16px;
+	}
+	.scl :global(.scl__src) {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.6;
+	}
+	.scl :global(.scl__lbl) {
+		font-size: 10px;
+		fill: var(--sl-color-white);
+		font-family: var(--__sl-font);
+	}
+	.scl :global(.scl__am) {
+		fill: hsl(40, 20%, 92%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.scl :global(.scl__amA) {
+		font-size: 9px;
+		fill: hsl(220, 15%, 25%);
+		font-family: var(--__sl-font);
+	}
+	.scl :global(.scl__needle) {
+		stroke: hsl(0, 70%, 45%);
+		stroke-width: 1.3;
+		stroke-linecap: round;
+	}
+	.scl :global(.scl__lead) {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+	}
+</style>

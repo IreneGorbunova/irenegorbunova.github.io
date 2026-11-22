@@ -1,0 +1,174 @@
+---
+/**
+ * Lines of magnetic induction of a bar magnet (N blue, S red) with the vector B (purple: the theme's accent is gold in
+ * the dark theme, the color of the force in this chapter) at five points: each arrow is tangent
+ * to the line through its point and points the way of the line (from N round to S); its length is proportional to the
+ * field there (the same model as bar.ts: two point poles inside the bar), so the arrows are longer where the lines are
+ * denser, near the poles. At two points a small magnetic needle lies along B, its N end (blue) toward the arrow.
+ * A toggle «Показать векторы B» shows and hides the arrows (the needles stay). Static; no numbers.
+ * The arrow lengths: L = k·|B| with k chosen so the longest of the five is 46 px; the five points are chosen so the
+ * shortest is still about 9 px.
+ */
+import { along, field, headAt, lines, path, type Bar } from './bar';
+
+const W = 420;
+const H = 260;
+const bar: Bar = { n: { x: 160, y: 130 }, s: { x: 260, y: 130 } };
+const angs = [20, 38, 56, 76, 98, 124, 152, 180].flatMap((d) => (d === 180 ? [Math.PI] : [(d * Math.PI) / 180, (-d * Math.PI) / 180]));
+const traced = lines(bar, angs, { w: W, h: H }, 7, 7, 1.2);
+const ls = traced.map((pts) => {
+	const a = along(pts, 0.5);
+	return { d: path(pts), h: headAt(a.p, a.d, 8) };
+});
+const pts = [
+	{ x: 128, y: 100 },
+	{ x: 210, y: 68 },
+	{ x: 318, y: 160 },
+	{ x: 210, y: 222 },
+	{ x: 64, y: 118 },
+];
+const mags = pts.map((p) => field(bar, p));
+const kmax = Math.max(...mags.map((b) => Math.hypot(b.x, b.y)));
+const vecs = pts.map((p, i) => {
+	const b = mags[i];
+	const m = Math.hypot(b.x, b.y);
+	const L = (46 * m) / kmax;
+	const ux = b.x / m;
+	const uy = b.y / m;
+	const e = { x: p.x + ux * L, y: p.y + uy * L };
+	return { p, L, shaft: `M${p.x.toFixed(1)} ${p.y.toFixed(1)}L${(e.x - ux * 5).toFixed(1)} ${(e.y - uy * 5).toFixed(1)}`, head: headAt({ x: e.x - ux * 3, y: e.y - uy * 3 }, b, 9), lx: e.x + ux * 9, ly: e.y + uy * 9 + 4 };
+});
+// the needles at two points (along B, N end toward B)
+const needles = [
+	{ x: 340, y: 90 },
+	{ x: 150, y: 215 },
+].map((p) => {
+	const b = field(bar, p);
+	const a = (Math.atan2(b.y, b.x) * 180) / Math.PI;
+	return { p, a };
+});
+---
+
+<figure class="ilp not-content" data-ilp>
+	<svg class="ilp__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Линии магнитной индукции полосового магнита. В нескольких точках стрелками показан вектор магнитной индукции: он направлен по касательной к линии, у полюсов стрелки длиннее. Магнитные стрелки располагаются вдоль вектора B">
+		{ls.map((l) => <path class="ilp__line" d={l.d} />)}
+		<path class="ilp__line" d={`M${bar.s.x} 130 H${W}`} />
+		{ls.map((l) => <path class="ilp__head" d={l.h} />)}
+		<path class="ilp__head" d={headAt({ x: 360, y: 130 }, { x: -1, y: 0 }, 8)} />
+		<rect class="ilp__n" x="140" y="117" width="70" height="26" rx="3" />
+		<rect class="ilp__s" x="210" y="117" width="70" height="26" rx="3" />
+		<text class="ilp__pl" x="175" y="136" text-anchor="middle">N</text>
+		<text class="ilp__pl" x="245" y="136" text-anchor="middle">S</text>
+		{
+			needles.map(({ p, a }) => (
+				<g transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${a.toFixed(1)})`}>
+					<path class="ilp__needle-n" d="M0 -3.2 L14 0 L0 3.2 Z" />
+					<path class="ilp__needle-s" d="M0 -3.2 L-14 0 L0 3.2 Z" />
+					<circle class="ilp__pin" r="1.6" />
+				</g>
+			))
+		}
+		<g class="ilp__vecs" data-vecs>
+			{
+				vecs.map((v) => (
+					<g>
+						<circle class="ilp__pt" cx={v.p.x} cy={v.p.y} r="2.6" />
+						<path class="ilp__vec" d={v.shaft} />
+						<path class="ilp__vh" d={v.head} />
+						<text class="ilp__vl" x={v.lx.toFixed(1)} y={v.ly.toFixed(1)} text-anchor="middle">B</text>
+					</g>
+				))
+			}
+		</g>
+	</svg>
+	<label class="ilp__check"><input type="checkbox" checked data-show /> Показать векторы <i>B</i></label>
+</figure>
+
+<script>
+	document.querySelectorAll<HTMLElement>('[data-ilp]').forEach((root) => {
+		const box = root.querySelector<HTMLInputElement>('[data-show]')!;
+		const g = root.querySelector<SVGGElement>('[data-vecs]')!;
+		box.addEventListener('change', () => g.classList.toggle('is-off', !box.checked));
+	});
+</script>
+
+<style>
+	.ilp {
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ilp__svg {
+		display: block;
+		width: 100%;
+		max-width: 36rem;
+		height: auto;
+		margin-inline: auto;
+	}
+	.ilp__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ilp__check i {
+		font-family: var(--ig-font-math);
+	}
+	.ilp__check input {
+		accent-color: var(--sl-color-purple);
+	}
+	.ilp__line {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.ilp__head {
+		fill: var(--sl-color-gray-3);
+	}
+	.ilp__n {
+		fill: var(--ig-vx);
+	}
+	.ilp__s {
+		fill: var(--ig-vy);
+	}
+	.ilp__pl {
+		fill: white;
+		font-weight: 700;
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.ilp__needle-n {
+		fill: var(--ig-vx);
+	}
+	.ilp__needle-s {
+		fill: var(--ig-vy);
+	}
+	.ilp__pin {
+		fill: var(--sl-color-white);
+	}
+	.ilp__vecs.is-off {
+		display: none;
+	}
+	.ilp__pt {
+		fill: var(--sl-color-purple);
+	}
+	.ilp__vec {
+		stroke: var(--sl-color-purple);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.ilp__vh {
+		fill: var(--sl-color-purple);
+	}
+	.ilp__vl {
+		fill: var(--sl-color-purple);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-weight: 600;
+		font-size: 15px;
+	}
+</style>

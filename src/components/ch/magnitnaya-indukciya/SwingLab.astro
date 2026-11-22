@@ -1,0 +1,464 @@
+---
+/**
+ * «Проводник на качелях»: a light copper rod hangs on two thin leads from a horizontal axis and passes through the gap
+ * of a horseshoe magnet lying on its side (one pole above the other). Close the key: the field pushes the rod sideways
+ * and the swing settles at an angle.
+ * Oblique view, x to the right, y up, z toward the viewer: a point (x, y, z) in см is drawn at
+ * (CX + K·(x − 0,42·z), CY − K·(y − 0,24·z)), K = 17 px per см.
+ * The magnet: flat poles 5 см deep along z (z = −2,5…2,5 см) and 14,5 см long along x (x = −6,5…6 см, the bend at 6…8 см), the gap 3 см (y = −1,5…1,5 см), the
+ * bend on the right (x = 6…8 см), so the rod, which swings at most 15·sin 14,3° = 3,7 см either way, stays in the field; uniform field B = 0,10 Тл in the gap, drawn as gray
+ * vertical lines from the upper pole to the lower one (N blue, S red, as everywhere on the site).
+ * The rod: m = 10 г, 11 см long, the part in the field l = 5 см, the leads L = 15 см (the axis 15 см above the rod at
+ * rest). The source and the key lie on the table; the wires run to the feet of the two metal posts that hold the axis.
+ * Physics: F = B·I·l, horizontal; the direction from F = I·l × B (right-handed x, y, z): N on top (B down) and current
+ * away from us (⊗, −z) give F to the left; toward us (⊙) to the right; turning the magnet over reverses it.
+ * Motion: a pendulum φ'' = −(g/L)·sin φ + (F/(mL))·cos φ − 2γ·φ', g = 9,8 м/с², γ = 1,5 1/с (it settles in about
+ * 2 с; within 0,01° of tg θ = F/(mg) it is put exactly there), real time; the period 2π·√(L/g) = 0,78 с. At rest tg θ = F/(mg): I = 1…5 А gives F = 5…25 мН and
+ * θ = 2,9°; 5,8°; 8,7°; 11,5°; 14,3°.
+ * Not shown: the field just outside the gap (the leads are outside it), the force on the leads, the leads' mass.
+ */
+const uid = `swl-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<figure class="swl not-content" data-swl data-uid={uid}>
+	<svg class="swl__svg" viewBox="0 0 520 380" role="img" aria-label="Медный стержень висит на двух тонких проводах между полюсами подковообразного магнита. Когда ключ замкнут, по стержню идёт ток и стержень отклоняется в сторону">
+		<g data-scene></g>
+	</svg>
+	<div class="swl__read" data-read></div>
+	<div class="swl__ctrl">
+		<button type="button" class="swl__btn swl__btn--main" data-key>Замкнуть ключ</button>
+		<label class="swl__slider"><span>Сила тока <i>I</i> = <b data-iv>3</b>&nbsp;А</span><input type="range" min="1" max="5" step="1" value="3" data-i /></label>
+		<button type="button" class="swl__btn" data-rev>Сменить направление тока</button>
+		<button type="button" class="swl__btn" data-flip>Перевернуть магнит</button>
+		<label class="swl__check"><input type="checkbox" data-force /> Показать силу</label>
+	</div>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = <K extends keyof SVGElementTagNameMap>(p: Element, tag: K, a: Record<string, string | number> = {}) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		p.append(e);
+		return e;
+	};
+	const f = (v: number) => v.toFixed(1);
+	const fmt = (v: number, d = 1) => v.toFixed(d).replace('.', ',').replace('-', '−');
+
+	const K = 17;
+	const CX = 292;
+	const CY = 296;
+	const AX = -0.42;
+	const AY = 0.24;
+	type P3 = [number, number, number];
+	const P = (x: number, y: number, z: number) => [CX + K * (x + z * AX), CY - K * (y - z * AY)];
+	const pt = (x: number, y: number, z: number) => P(x, y, z).map(f).join(' ');
+	const poly = (ps: P3[]) => 'M' + ps.map((p) => pt(...p)).join('L') + 'Z';
+	const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) => ({
+		front: poly([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]),
+		top: poly([[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]]),
+		right: poly([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]]),
+	});
+
+	const B = 0.1; // Тл
+	const LF = 0.05; // м, the part of the rod in the field
+	const M = 0.01; // кг
+	const L = 0.15; // м
+	const G = 9.8;
+	const GAM = 1.5;
+	const PIV = 15; // см, the axis above the rod at rest
+	const ZR = 5.5; // см, the rod's ends (the leads)
+	const GP = 1.5; // см, half the gap
+	const TY = -2.8; // см, the table (the magnet's arms are 1,3 см thick)
+
+	document.querySelectorAll<HTMLElement>('[data-swl]').forEach((root) => {
+		const g = root.querySelector<SVGGElement>('[data-scene]')!;
+		const read = root.querySelector<HTMLElement>('[data-read]')!;
+		const keyBtn = root.querySelector<HTMLButtonElement>('[data-key]')!;
+		const iIn = root.querySelector<HTMLInputElement>('[data-i]')!;
+		const iv = root.querySelector<HTMLElement>('[data-iv]')!;
+		const showF = root.querySelector<HTMLInputElement>('[data-force]')!;
+		let closed = false;
+		let cur = -1; // +1: toward us (⊙), −1: away (⊗)
+		let nTop = true;
+		let phi = 0;
+		let om = 0;
+
+		// ---- the static parts
+		const layer = (cls = '') => mk(g, 'g', cls ? { class: cls } : {});
+		const table = layer();
+		mk(table, 'path', { class: 'swl__table', d: poly([[-17, TY, 7.5], [12, TY, 7.5], [12, TY, -8], [-17, TY, -8]]) });
+		const stand = layer();
+		// the П-frame of the axis: two posts at z = ±6 and the axis bar
+		const postF = mk(g, 'path', { class: 'swl__post', d: `M${pt(0, TY, 6)}L${pt(0, PIV + 0.6, 6)}` });
+		mk(stand, 'path', { class: 'swl__post', d: `M${pt(0, TY, -6)}L${pt(0, PIV + 0.6, -6)}` });
+		mk(stand, 'path', { class: 'swl__axis', d: `M${pt(0, PIV, -6.5)}L${pt(0, PIV, 6.5)}` });
+		// the source and the key on the table at the left, the wires to the posts
+		const src = box(-16.5, -11, TY, 0.7, -1, 3);
+		for (const k of ['right', 'top', 'front'] as const) mk(stand, 'path', { class: `swl__src swl__src--${k}`, d: src[k] });
+		const lbl = P(-13.75, -1.2, 3);
+		const st = mk(stand, 'text', { class: 'swl__lbl', x: f(lbl[0]), y: f(lbl[1]), 'text-anchor': 'middle' });
+		st.textContent = 'источник';
+		const wires = mk(stand, 'path', { class: 'swl__wire' });
+		// the wires lie on the table from the source and the key to the feet of the posts; the posts carry the current up
+		wires.setAttribute('d', `M${pt(-11.5, 0.7, 0)}Q${pt(-9, TY, -4)} ${pt(-4, TY, -6)}L${pt(0, TY, -6)}M${pt(-11, -1.6, 1.5)}Q${pt(-9, TY, 6.5)} ${pt(-5, TY, 6.4)}L${pt(0, TY, 6)}`);
+		const keyBase = P(-15.5, 0.7, 2.2);
+		mk(stand, 'circle', { class: 'swl__pin', cx: f(keyBase[0]), cy: f(keyBase[1]), r: 2.5 });
+		const keyLever = mk(stand, 'path', { class: 'swl__lever' });
+		const backLead = layer();
+		const bottomArm = layer();
+		const lines = layer();
+		const rodL = layer();
+		const topArm = layer();
+		const frontLead = layer();
+		frontLead.append(postF);
+		const marks = layer();
+		const leadB = mk(backLead, 'path', { class: 'swl__lead' });
+		const leadF = mk(frontLead, 'path', { class: 'swl__lead' });
+		const rod = mk(rodL, 'path', { class: 'swl__rod' });
+		const rodHi = mk(rodL, 'path', { class: 'swl__rod-hi' });
+		const chev = [0, 1, 2, 3].map(() => mk(rodL, 'path', { class: 'swl__chev' }));
+		const cap = mk(frontLead, 'ellipse', { class: 'swl__cap', rx: 4.6, ry: 4.6 });
+		const capMark = mk(frontLead, 'path', { class: 'swl__capmark' });
+		const fArrow = mk(marks, 'path', { class: 'swl__f' });
+		const fHead = mk(marks, 'path', { class: 'swl__fhead' });
+		const fLbl = mk(marks, 'text', { class: 'swl__flbl', 'text-anchor': 'middle' });
+		fLbl.textContent = 'F';
+		const plumb = mk(marks, 'path', { class: 'swl__plumb' });
+		const arc = mk(marks, 'path', { class: 'swl__arc' });
+
+		const drawMagnet = () => {
+			for (const a of [bottomArm, topArm, lines]) a.replaceChildren();
+			const top = nTop ? 'n' : 's';
+			const bot = nTop ? 's' : 'n';
+			const arm = (host: Element, y0: number, y1: number, c: string) => {
+				const b = box(-6.5, 8, y0, y1, -2.5, 2.5);
+				for (const k of ['right', 'top', 'front'] as const) mk(host, 'path', { class: `swl__mag swl__mag--${c} swl__face--${k}`, d: b[k] });
+			};
+			arm(bottomArm, TY, -GP, bot);
+			// the bend, the lower half with the lower pole's color
+			const b1 = box(6, 8, -GP, 0, -2.5, 2.5);
+			for (const k of ['right', 'front'] as const) mk(bottomArm, 'path', { class: `swl__mag swl__mag--${bot} swl__face--${k}`, d: b1[k] });
+			arm(topArm, GP, -TY, top);
+			const b2 = box(6, 8, 0, GP, -2.5, 2.5);
+			for (const k of ['right', 'front'] as const) mk(topArm, 'path', { class: `swl__mag swl__mag--${top} swl__face--${k}`, d: b2[k] });
+			const tp = P(4.6, (GP - TY) / 2, 2.5);
+			const bp = P(4.6, (TY - GP) / 2, 2.5);
+			const tl = mk(topArm, 'text', { class: 'swl__pole', x: f(tp[0]), y: f(tp[1] + 4.5), 'text-anchor': 'middle' });
+			tl.textContent = nTop ? 'N' : 'S';
+			const bl = mk(bottomArm, 'text', { class: 'swl__pole', x: f(bp[0]), y: f(bp[1] + 4.5), 'text-anchor': 'middle' });
+			bl.textContent = nTop ? 'S' : 'N';
+			// the field lines in the gap: columns over the pole faces
+			for (const z of [-1.5, 0.5, 2.2]) {
+				for (const x of [-5.6, -3.6, -1.6, 0.4, 2.4, 4.2, 5.6]) {
+					mk(lines, 'path', { class: 'swl__bline', d: `M${pt(x, GP, z)}L${pt(x, -GP, z)}` });
+					const m = P(x, 0.7 * (nTop ? -1 : 1), z);
+					const d = nTop ? 1 : -1;
+					mk(lines, 'path', { class: 'swl__bhead', d: `M${f(m[0])} ${f(m[1] + 3.5 * d)}L${f(m[0] - 2.6)} ${f(m[1] - 2 * d)}L${f(m[0] + 2.6)} ${f(m[1] - 2 * d)}Z` });
+				}
+			}
+		};
+
+		const force = () => (closed ? B * Number(iIn.value) * LF : 0) * cur * (nTop ? 1 : -1); // Н, along +x
+		let t = 0;
+		const draw = () => {
+			const I = Number(iIn.value);
+			iv.textContent = String(I);
+			// the rod at angle phi about the axis (0, PIV, z)
+			const rx = PIV * Math.sin(phi);
+			const ry = PIV * (1 - Math.cos(phi));
+			leadB.setAttribute('d', `M${pt(0, PIV, -ZR)}L${pt(rx, ry, -ZR)}`);
+			leadF.setAttribute('d', `M${pt(0, PIV, ZR)}L${pt(rx, ry, ZR)}`);
+			rod.setAttribute('d', `M${pt(rx, ry, -ZR)}L${pt(rx, ry, ZR)}`);
+			rodHi.setAttribute('d', `M${pt(rx, ry + 0.12, -ZR)}L${pt(rx, ry + 0.12, ZR)}`);
+			const c = P(rx, ry, ZR);
+			cap.setAttribute('cx', f(c[0]));
+			cap.setAttribute('cy', f(c[1]));
+			capMark.setAttribute('d', closed ? (cur > 0 ? `M${f(c[0] - 0.01)} ${f(c[1])}h0.02` : `M${f(c[0] - 2.6)} ${f(c[1] - 2.6)}l5.2 5.2M${f(c[0] + 2.6)} ${f(c[1] - 2.6)}l-5.2 5.2`) : '');
+			capMark.classList.toggle('is-dot', cur > 0);
+			chev.forEach((e, k) => {
+				if (!closed) {
+					e.setAttribute('d', '');
+					return;
+				}
+				const s = (((t * 2.2 + k * 2.25) % 9) + 9) % 9 - 4.5;
+				const z = cur > 0 ? s : -s;
+				const a = P(rx, ry, z - cur * 0.5);
+				const m = P(rx, ry, z);
+				e.setAttribute('d', `M${f(a[0] - 3)} ${f(a[1] - 3.5)}L${f(m[0])} ${f(m[1])}L${f(a[0] + 3.5)} ${f(a[1] + 2)}`);
+			});
+			// the key: the lever down on the contact when closed
+			const kb = keyBase;
+			const ang = closed ? -0.12 : -0.85;
+			keyLever.setAttribute('d', `M${f(kb[0])} ${f(kb[1])}L${f(kb[0] + 28 * Math.cos(ang))} ${f(kb[1] + 28 * Math.sin(ang))}`);
+			// the force arrow at the front of the rod
+			const F = force();
+			const fl = (Math.abs(F) / 0.025) * 4.2 * K;
+			const vis = showF.checked && Math.abs(F) > 1e-9;
+			const fs = P(rx, ry, ZR - 1.2);
+			const sx = Math.sign(F);
+			fArrow.setAttribute('d', vis ? `M${f(fs[0])} ${f(fs[1])}H${f(fs[0] + sx * (fl - 7))}` : '');
+			fHead.setAttribute('d', vis ? `M${f(fs[0] + sx * fl)} ${f(fs[1])}L${f(fs[0] + sx * (fl - 9))} ${f(fs[1] - 5)}L${f(fs[0] + sx * (fl - 9))} ${f(fs[1] + 5)}Z` : '');
+			fLbl.setAttribute('x', f(fs[0] + sx * (fl + 10)));
+			fLbl.setAttribute('y', f(fs[1] + 6));
+			fLbl.style.opacity = vis ? '1' : '0';
+			// the plumb line and the angle
+			const pv = P(0, PIV, ZR);
+			const deg = (phi * 180) / Math.PI;
+			plumb.setAttribute('d', Math.abs(deg) > 0.3 ? `M${f(pv[0])} ${f(pv[1])}L${f(pv[0])} ${f(pv[1] + PIV * K)}` : '');
+			const R = 5 * K;
+			arc.setAttribute('d', Math.abs(deg) > 0.3 ? `M${f(pv[0])} ${f(pv[1] + R)}A${R} ${R} 0 0 ${phi > 0 ? 0 : 1} ${f(pv[0] + R * Math.sin(phi))} ${f(pv[1] + R * Math.cos(phi))}` : '');
+			const Fm = Math.abs(F) * 1000;
+			const side = Math.abs(deg) < 0.05 ? '' : phi < 0 ? ' влево' : ' вправо';
+			read.innerHTML = closed
+				? `<span><i>I</i> = ${I}&nbsp;А, ток ${cur > 0 ? 'к нам ⊙' : 'от нас ⊗'}</span><span><i>F</i> = ${fmt(Fm, 0)}&nbsp;мН</span><span>угол отклонения ${fmt(Math.abs(deg))}°${side}</span>`
+				: `<span>Ключ разомкнут: тока нет</span><span><i>F</i> = 0</span><span>угол отклонения ${fmt(Math.abs(deg))}°${side}</span>`;
+		};
+
+		drawMagnet();
+		draw();
+		const wake = loop(root, (dt) => {
+			t += dt;
+			// the pendulum, in small steps
+			const n = 8;
+			const h = dt / n;
+			const F = force();
+			for (let k = 0; k < n; k++) {
+				const a = (-G / L) * Math.sin(phi) + (F / (M * L)) * Math.cos(phi) - 2 * GAM * om;
+				om += a * h;
+				phi += om * h;
+			}
+			// at rest within 0,01° the rod is put exactly at tg θ = F/(mg)
+			const eq = Math.atan(F / (M * G));
+			if (Math.abs(phi - eq) < 1.7e-4 && Math.abs(om) < 1e-3) {
+				phi = eq;
+				om = 0;
+			}
+			draw();
+			return true;
+		});
+		keyBtn.addEventListener('click', () => {
+			closed = !closed;
+			keyBtn.textContent = closed ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+			wake();
+		});
+		root.querySelector('[data-rev]')!.addEventListener('click', () => {
+			cur = -cur;
+			wake();
+		});
+		root.querySelector('[data-flip]')!.addEventListener('click', () => {
+			nTop = !nTop;
+			drawMagnet();
+			wake();
+		});
+		iIn.addEventListener('input', () => {
+			draw();
+			wake();
+		});
+		showF.addEventListener('change', () => draw());
+	});
+</script>
+
+<style>
+	.swl {
+		--swl-i: var(--sl-color-green);
+		--swl-f: var(--ig-v);
+		--swl-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.swl__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.swl__read {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1.25rem;
+		margin: 0.4rem 0 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.swl__read :global(i) {
+		font-family: var(--ig-font-math);
+	}
+	.swl__ctrl {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		font-size: var(--sl-text-sm);
+	}
+	.swl__btn {
+		padding: 0.35rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-white);
+		font: inherit;
+		cursor: pointer;
+	}
+	.swl__btn--main {
+		border-color: var(--swl-i);
+		background: color-mix(in srgb, var(--swl-i) 18%, transparent);
+	}
+	.swl__slider {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 11rem;
+		color: var(--sl-color-gray-2);
+	}
+	.swl__slider i {
+		font-family: var(--ig-font-math);
+	}
+	.swl__slider input {
+		accent-color: var(--swl-i);
+	}
+	.swl__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		color: var(--sl-color-gray-2);
+	}
+	.swl__check input {
+		accent-color: var(--swl-f);
+	}
+	.swl :global(.swl__table) {
+		fill: color-mix(in srgb, var(--ig-v) 14%, var(--sl-color-gray-5));
+	}
+	.swl :global(.swl__post) {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.swl :global(.swl__axis) {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3.5;
+		stroke-linecap: round;
+	}
+	.swl :global(.swl__src) {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.8;
+	}
+	.swl :global(.swl__src--top) {
+		fill: var(--sl-color-gray-3);
+	}
+	.swl :global(.swl__src--right) {
+		fill: var(--sl-color-gray-5);
+	}
+	.swl :global(.swl__lbl) {
+		font-size: 10px;
+		fill: var(--sl-color-white);
+		font-family: var(--__sl-font);
+	}
+	.swl :global(.swl__wire) {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+	}
+	.swl :global(.swl__pin) {
+		fill: var(--sl-color-gray-2);
+	}
+	.swl :global(.swl__lever) {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.swl :global(.swl__lead) {
+		stroke: var(--swl-cu);
+		stroke-width: 1.2;
+	}
+	.swl :global(.swl__rod) {
+		stroke: var(--swl-cu);
+		stroke-width: 9;
+		stroke-linecap: butt;
+	}
+	.swl :global(.swl__rod-hi) {
+		stroke: color-mix(in srgb, var(--swl-cu) 55%, white);
+		stroke-width: 2.5;
+		opacity: 0.6;
+	}
+	.swl :global(.swl__cap) {
+		fill: color-mix(in srgb, var(--swl-cu) 75%, white);
+		stroke: color-mix(in srgb, var(--swl-cu) 60%, black);
+		stroke-width: 0.8;
+	}
+	.swl :global(.swl__capmark) {
+		stroke: var(--swl-i);
+		stroke-width: 2;
+		stroke-linecap: round;
+		fill: none;
+	}
+	.swl :global(.swl__capmark.is-dot) {
+		stroke-width: 4.2;
+	}
+	.swl :global(.swl__chev) {
+		fill: none;
+		stroke: var(--swl-i);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.swl :global(.swl__mag--n) {
+		fill: var(--ig-vx);
+	}
+	.swl :global(.swl__mag--s) {
+		fill: var(--ig-vy);
+	}
+	.swl :global(.swl__mag) {
+		stroke: color-mix(in srgb, var(--sl-color-black) 40%, transparent);
+		stroke-width: 0.6;
+	}
+	.swl :global(.swl__face--top) {
+		filter: brightness(1.15);
+	}
+	.swl :global(.swl__face--right) {
+		filter: brightness(0.75);
+	}
+	.swl :global(.swl__pole) {
+		font-size: 14px;
+		font-weight: 700;
+		fill: white;
+		font-family: var(--__sl-font);
+	}
+	.swl :global(.swl__bline) {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.swl :global(.swl__bhead) {
+		fill: var(--sl-color-gray-2);
+	}
+	.swl :global(.swl__f) {
+		stroke: var(--swl-f);
+		stroke-width: 3.5;
+	}
+	.swl :global(.swl__fhead) {
+		fill: var(--swl-f);
+	}
+	.swl :global(.swl__flbl) {
+		fill: var(--swl-f);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-weight: 600;
+		font-size: 17px;
+	}
+	.swl :global(.swl__plumb) {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 4 4;
+	}
+	.swl :global(.swl__arc) {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+</style>

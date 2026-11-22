@@ -1,0 +1,234 @@
+---
+/**
+ * Uniform and non-uniform magnetic fields, four small panels (2 × 2; one column on a phone), static except a toggle:
+ *   a) a bar magnet (N blue, S red): curved lines, dense near the poles — non-uniform. The lines are traced at build
+ *      time from two point poles inside the bar (bar.ts), leaving the N pole at evenly spread angles;
+ *   b) a straight current toward us (⊙) seen end-on: circles round it, their radii in a geometric progression (×1,45),
+ *      so they get sparser outward as the field weakens (B ∝ 1/r); the arrows go counterclockwise — non-uniform;
+ *   c) a long coil cut along its axis: the wires on top carry the current toward us (⊙), at the bottom away (⊗); inside,
+ *      parallel and equally spaced lines going right (right-hand rule: the current turns round +x) — uniform; outside,
+ *      the lines return from the right end (N) to the left end (S);
+ *   d) a square patch of lines perpendicular to the page: a grid of ⊗ (the lines go away from us) or ⊙ (toward us),
+ *      with a toggle.
+ * No numbers; shapes are qualitative but true in direction and in where the lines are denser.
+ */
+import { along, headAt, lines, path, type Bar } from './bar';
+
+const W = 240;
+const H = 170;
+// a) the bar magnet
+const bar: Bar = { n: { x: 82, y: 85 }, s: { x: 158, y: 85 } };
+const angs = [24, 46, 72, 102, 136, 180].flatMap((d) => (d === 180 ? [Math.PI] : [(d * Math.PI) / 180, (-d * Math.PI) / 180]));
+const barLines = lines(bar, angs, { w: W, h: H }).map((pts) => ({ d: path(pts), h: headAt(along(pts, pts.length > 120 ? 0.5 : 0.35).p, along(pts, pts.length > 120 ? 0.5 : 0.35).d) }));
+// b) the straight current: radii in a geometric progression
+const radii = [20, 29, 42, 61, 88];
+const circHeads = radii.flatMap((r, i) => {
+	const out: string[] = [];
+	for (const a of [0.6 + i * 0.5, 0.6 + i * 0.5 + Math.PI]) {
+		// counterclockwise on the screen (y down): the direction (sin a, −cos a)·… at the point (cos a, sin a)
+		const p = { x: 120 + r * Math.cos(a), y: 85 + r * Math.sin(a) };
+		out.push(headAt(p, { x: Math.sin(a), y: -Math.cos(a) }, 7));
+	}
+	return out;
+});
+// c) the coil, cut along its axis: 7 turns from x = 50 to 190, radius 26
+const turns = Array.from({ length: 7 }, (_, k) => 54 + k * 22);
+const inside = [-14, 0, 14];
+const outside = [
+	{ h: 44, k: 70 },
+	{ h: 62, k: 100 },
+];
+// d) the grid
+const grid: { x: number; y: number }[] = [];
+for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) grid.push({ x: 45 + i * 30, y: 40 + j * 30 });
+---
+
+<figure class="fkp not-content" data-fkp>
+	<div class="fkp__grid">
+		<div class="fkp__cell">
+			<svg class="fkp__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Магнитные линии полосового магнита: изогнутые, густые у полюсов, редкие вдали">
+				{barLines.map((l) => <path class="fkp__line" d={l.d} />)}
+				<path class="fkp__line" d="M158 85 H236" />
+				{barLines.map((l) => <path class="fkp__head" d={l.h} />)}
+				<path class="fkp__head" d={headAt({ x: 205, y: 85 }, { x: -1, y: 0 })} />
+				<rect class="fkp__n" x="70" y="76" width="50" height="18" rx="2" />
+				<rect class="fkp__s" x="120" y="76" width="50" height="18" rx="2" />
+				<text class="fkp__pl" x="95" y="90" text-anchor="middle">N</text>
+				<text class="fkp__pl" x="145" y="90" text-anchor="middle">S</text>
+			</svg>
+			<p class="fkp__cap">Полосовой магнит: поле неоднородное</p>
+		</div>
+		<div class="fkp__cell">
+			<svg class="fkp__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Магнитные линии прямого тока, идущего к нам: окружности, которые редеют вдали от провода; направлены против часовой стрелки">
+				{radii.map((r) => <circle class="fkp__line" cx="120" cy="85" r={r} />)}
+				{circHeads.map((d) => <path class="fkp__head" d={d} />)}
+				<circle class="fkp__wire" cx="120" cy="85" r="9" />
+				<circle class="fkp__dot" cx="120" cy="85" r="3" />
+			</svg>
+			<p class="fkp__cap">Прямой ток (к нам): поле неоднородное</p>
+		</div>
+		<div class="fkp__cell">
+			<svg class="fkp__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Длинная катушка в разрезе: внутри магнитные линии параллельны и расположены с одинаковой густотой, снаружи они возвращаются от одного конца катушки к другому">
+				{
+					outside.flatMap(({ h, k }) =>
+						[-1, 1].map((s) => <path class="fkp__line" d={`M196 ${85 + s * 14} C${196 + k * 0.5} ${85 + s * 14} ${200} ${85 + s * h} 120 ${85 + s * h} C${40} ${85 + s * h} ${44 - k * 0.5} ${85 + s * 14} 44 ${85 + s * 14}`} />),
+					)
+				}
+				{outside.flatMap(({ h }) => [-1, 1].map((s) => <path class="fkp__head" d={headAt({ x: 120, y: 85 + s * h }, { x: -1, y: 0 })} />))}
+				{inside.map((y) => <path class="fkp__line" d={`M28 ${85 + y} H212`} />)}
+				{inside.map((y) => <path class="fkp__head" d={headAt({ x: 120, y: 85 + y }, { x: 1, y: 0 })} />)}
+				{
+					turns.map((x) => (
+						<g>
+							<circle class="fkp__wire" cx={x} cy="59" r="6" />
+							<circle class="fkp__dot" cx={x} cy="59" r="2" />
+							<circle class="fkp__wire" cx={x} cy="111" r="6" />
+							<path class="fkp__x" d={`M${x - 3.2} 107.8 l6.4 6.4 M${x + 3.2} 107.8 l-6.4 6.4`} />
+						</g>
+					))
+				}
+			</svg>
+			<p class="fkp__cap">Длинная катушка: внутри поле однородное</p>
+		</div>
+		<div class="fkp__cell">
+			<svg class="fkp__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Однородное поле, линии которого перпендикулярны рисунку: крестики — линии уходят от нас, точки — идут к нам" data-grid>
+				{
+					grid.map((p) => (
+						<g>
+							<circle class="fkp__ring" cx={p.x} cy={p.y} r="8" />
+							<path class="fkp__x fkp__x--g" d={`M${p.x - 4.5} ${p.y - 4.5} l9 9 M${p.x + 4.5} ${p.y - 4.5} l-9 9`} />
+							<circle class="fkp__dot fkp__dot--g" cx={p.x} cy={p.y} r="2.6" />
+						</g>
+					))
+				}
+			</svg>
+			<div class="fkp__tog" role="radiogroup" aria-label="Куда идут линии">
+				<button type="button" role="radio" aria-checked="true" class="is-on" data-v="away">⊗ от нас</button>
+				<button type="button" role="radio" aria-checked="false" data-v="to">⊙ к нам</button>
+			</div>
+			<p class="fkp__cap">Поле, перпендикулярное рисунку</p>
+		</div>
+	</div>
+</figure>
+
+<script>
+	document.querySelectorAll<HTMLElement>('[data-fkp]').forEach((root) => {
+		const svg = root.querySelector<SVGSVGElement>('[data-grid]')!;
+		const bs = [...root.querySelectorAll<HTMLButtonElement>('.fkp__tog button')];
+		bs.forEach((b) =>
+			b.addEventListener('click', () => {
+				bs.forEach((x) => {
+					x.classList.toggle('is-on', x === b);
+					x.setAttribute('aria-checked', x === b ? 'true' : 'false');
+				});
+				svg.classList.toggle('is-to', b.dataset.v === 'to');
+			}),
+		);
+	});
+</script>
+
+<style>
+	.fkp {
+		--fkp-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.fkp__grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.6rem;
+	}
+	@media (max-width: 30rem) {
+		.fkp__grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	.fkp__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent);
+	}
+	.fkp__cap {
+		margin: 0.3rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.fkp__tog {
+		display: flex;
+		justify-content: center;
+		gap: 0.3rem;
+		margin-top: 0.35rem;
+	}
+	.fkp__tog button {
+		padding: 0.2rem 0.7rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		cursor: pointer;
+	}
+	.fkp__tog button.is-on {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-2);
+		background: var(--sl-color-gray-5);
+	}
+	.fkp__line {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+	}
+	.fkp__head {
+		fill: var(--sl-color-gray-2);
+	}
+	.fkp__n {
+		fill: var(--ig-vx);
+	}
+	.fkp__s {
+		fill: var(--ig-vy);
+	}
+	.fkp__pl {
+		fill: white;
+		font-weight: 700;
+		font-size: 13px;
+		font-family: var(--__sl-font);
+	}
+	.fkp__wire {
+		fill: var(--fkp-cu);
+		stroke: color-mix(in srgb, var(--fkp-cu) 60%, black);
+		stroke-width: 0.8;
+	}
+	.fkp__dot {
+		fill: var(--sl-color-green);
+	}
+	.fkp__x {
+		stroke: var(--sl-color-green);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+	.fkp__ring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+	}
+	.fkp__x--g {
+		stroke: var(--sl-color-gray-2);
+	}
+	.fkp__dot--g {
+		fill: var(--sl-color-gray-2);
+		display: none;
+	}
+	.is-to .fkp__x--g {
+		display: none;
+	}
+	.is-to .fkp__dot--g {
+		display: inline;
+	}
+</style>

@@ -1,0 +1,286 @@
+---
+/**
+ * The right-hand rule for a coil: a coil of 7 turns on a cardboard tube, seen obliquely, with a toggle «Сменить
+ * направление тока». A right hand (people kit) grips the coil with the four fingers along the current in the turns;
+ * the thumb set out along the axis points to the coil's north end (N, blue); the other end is S (red). Gray lines:
+ * parallel inside the coil, arcs outside from N round to S.
+ * Geometry: the frame of the people kit (x right, y down, z to the viewer), orthographic. The axis of the coil is the
+ * thumb axis of the hand, W = (cos 34°; 0; −sin 34°): horizontal on the screen, its right end farther away, so a turn is
+ * an ellipse 0,56 as wide as tall. Current one way: the hand comes from below, the palm to us (turned by 34°), the
+ * fingers come over the coil toward us; the other way: the same right hand turned by 180° about the axis of its palm
+ * (a rotation, never a mirror image), coming from above, its thumb to the left.
+ * Physics: the current in each turn goes round the axis in the right-handed sense about the thumb (mi.ts ringBasis,
+ * pcross), and the field inside the coil points along the thumb; the lines leave the coil at its N end and come back
+ * into its S end. The outside lines are drawn as smooth arcs in the plane through the axis (their shape only shows the
+ * direction, as in a school drawing).
+ * Not to scale: the hand is large next to the coil; the green arrows on the turns move slowly only to show the
+ * direction.
+ */
+import PeopleStyles from '@components/people/PeopleStyles.astro';
+---
+
+<PeopleStyles />
+<figure class="crp not-content" data-crp>
+	<div class="crp__ctrl"><button type="button" class="crp__btn" data-rev>Сменить направление тока</button></div>
+	<svg class="crp__svg" viewBox="0 0 360 260" role="img" aria-label="Правая рука обхватывает катушку: четыре пальца направлены по току в витках, отставленный большой палец указывает на северный полюс катушки. Магнитные линии внутри катушки параллельны, снаружи идут от северного полюса к южному">
+		<g data-lines></g>
+		<g data-back></g>
+		<g data-arm></g>
+		<g data-handback></g>
+		<g data-tube></g>
+		<g data-front></g>
+		<g data-hand></g>
+		<g data-labels></g>
+	</svg>
+	<figcaption class="crp__legend">
+		<span><i class="crp__sw crp__sw--i"></i>ток в витках</span>
+		<span><i class="crp__sw crp__sw--b"></i>магнитные линии</span>
+	</figcaption>
+</figure>
+
+<script>
+	import { hand } from '@components/people/hand';
+	import { loop } from '../g7/kit';
+	import { basis, forearm, place, rodAxis, thumbAlong } from './grip';
+	import { head, ringBasis, ringDir, ringPath, ringPt, vadd, vmul, type V3 } from './mi';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = <K extends keyof SVGElementTagNameMap>(p: Element, tag: K, a: Record<string, string | number> = {}, text?: string) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		if (text !== undefined) e.textContent = text;
+		p.append(e);
+		return e;
+	};
+	const f = (v: number) => v.toFixed(1);
+
+	const EPS = 0.6;
+	const HANDS = {
+		r: { dir: -Math.PI / 2, roll: Math.PI / 2 - EPS }, // thumb to the right (and away)
+		l: { dir: Math.PI / 2, roll: Math.PI / 2 + EPS }, // thumb to the left (and toward us)
+	};
+	const W = basis('R', HANDS.r.dir, HANDS.r.roll).t;
+	const UP: V3 = [0, -1, 0];
+	const LH = 104;
+	const DC = 0.36; // the coil's diameter, parts of the hand length
+	const RC = (DC * LH) / 2;
+	const SHAPE = thumbAlong(DC);
+	const C: V3 = [176, 128, 0];
+	const HALF = 96; // half the coil's length along W
+	const N_TURNS = 7;
+
+	document.querySelectorAll<HTMLElement>('[data-crp]').forEach((root) => {
+		const svg = root.querySelector<SVGSVGElement>('svg')!;
+		const part = (k: string) => svg.querySelector<SVGGElement>(`[data-${k}]`)!;
+		let dir: 'r' | 'l' = 'r';
+		let t = 0;
+		let arrows: { c: V3; el: SVGPathElement; k: number }[] = [];
+
+		const build = () => {
+			svg.querySelectorAll('g').forEach((g) => g.replaceChildren());
+			arrows = [];
+			const T: V3 = dir === 'r' ? W : vmul(W, -1); // the thumb: the field inside, toward N
+			const { e1, e2 } = ringBasis(T, UP);
+			const at = (s: number, h = 0): V3 => vadd(vadd(C, vmul(W, s)), vmul(UP, h));
+			// the field lines in the plane of the axis and the screen's vertical: inside straight, outside arcs N → S
+			const lines = part('lines');
+			const nEnd = dir === 'r' ? HALF : -HALF; // s of the N end
+			for (const h of [-0.55, 0, 0.55]) {
+				const a = at(-HALF - 18, h * RC);
+				const b = at(HALF + 18, h * RC);
+				mk(lines, 'path', { class: 'crp__line crp__line--in', d: `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}` });
+			}
+			const sg = Math.sign(nEnd);
+			for (const side of [1, -1]) {
+				for (const [rho, k, hh] of [
+					[0.75, 40, 40],
+					[0.95, 80, 76],
+				]) {
+					const p0 = at(nEnd + sg * 18, side * rho * RC);
+					const c1 = at(nEnd + sg * (18 + k), side * (rho * RC + hh));
+					const c2 = at(-nEnd - sg * (18 + k), side * (rho * RC + hh));
+					const p3 = at(-nEnd - sg * 18, side * rho * RC);
+					mk(lines, 'path', { class: 'crp__line', d: `M${f(p0[0])} ${f(p0[1])}C${f(c1[0])} ${f(c1[1])} ${f(c2[0])} ${f(c2[1])} ${f(p3[0])} ${f(p3[1])}` });
+					// an arrowhead at the middle of the arc (the Bézier midpoint), pointing from N toward S
+					const mid = [(p0[0] + 3 * c1[0] + 3 * c2[0] + p3[0]) / 8, (p0[1] + 3 * c1[1] + 3 * c2[1] + p3[1]) / 8];
+					const tan = [c2[0] + p3[0] - p0[0] - c1[0], c2[1] + p3[1] - p0[1] - c1[1]];
+					mk(lines, 'path', { class: 'crp__head', d: head(mid[0], mid[1], tan[0], tan[1], 8) });
+				}
+			}
+			for (const s of [-HALF - 10, HALF + 10]) {
+				const p = at(s * 1.0 + sg * 0, 0.55 * RC);
+				mk(lines, 'path', { class: 'crp__head', d: head(p[0], p[1], T[0], T[1], 8) });
+			}
+			// the tube and the turns
+			const tube = part('tube');
+			const a = at(-HALF - 8);
+			const b = at(HALF + 8);
+			mk(tube, 'line', { class: 'crp__tube', x1: f(a[0]), y1: f(a[1]), x2: f(b[0]), y2: f(b[1]), 'stroke-width': f(2 * RC - 2) });
+			for (const e of [a, b]) mk(tube, 'path', { class: 'crp__tube-end', d: ringPath(e, e1, e2, RC - 1, true) + ringPath(e, e1, e2, RC - 1, false) });
+			for (let k = 0; k < N_TURNS; k++) {
+				const s = -HALF + ((k + 0.5) * 2 * HALF) / N_TURNS;
+				const c = at(s);
+				mk(part('back'), 'path', { class: 'crp__turn crp__turn--back', d: ringPath(c, e1, e2, RC, true) });
+				mk(part('front'), 'path', { class: 'crp__turn', d: ringPath(c, e1, e2, RC, false) });
+				arrows.push({ c, el: mk(part('front'), 'path', { class: 'crp__cur' }), k });
+			}
+			// the ends N and S
+			const lab = part('labels');
+			const pN = at(nEnd + sg * 40, -RC - 18);
+			const pS = at(-nEnd - sg * 40, -RC - 18);
+			mk(lab, 'circle', { class: 'crp__pole crp__pole--n', cx: f(pN[0]), cy: f(pN[1]), r: 11 });
+			mk(lab, 'text', { class: 'crp__pl', x: f(pN[0]), y: f(pN[1] + 5), 'text-anchor': 'middle' }, 'N');
+			mk(lab, 'circle', { class: 'crp__pole crp__pole--s', cx: f(pS[0]), cy: f(pS[1]), r: 11 });
+			mk(lab, 'text', { class: 'crp__pl', x: f(pS[0]), y: f(pS[1] + 5), 'text-anchor': 'middle' }, 'S');
+			// the hand round the middle of the coil
+			const H = HANDS[dir];
+			const grip = at(dir === 'r' ? -14 : 14);
+			const wrist = place('R', { x: grip[0], y: grip[1] }, H.dir, H.roll, LH, rodAxis(DC));
+			const arm = forearm(wrist, H.dir, LH);
+			mk(part('arm'), 'path', { class: 'hm-skin crp__arm', d: arm.skin });
+			mk(part('arm'), 'path', { class: 'crp__sleeve', d: arm.sleeve });
+			const h = hand(part('hand'), { cls: 'hm-skin', side: 'R', Lh: LH });
+			const palm = h.g.firstElementChild!; // hand.ts creates the palm first
+			h.setBack(part('handback'));
+			h.set({ wrist, dir: H.dir, roll: H.roll }, SHAPE, 'grip', rodAxis(DC));
+			// the palm lies behind the coil (the coil is on its palm side, toward us): move it to the back layer, so the
+			// coil and the fingers that come round its front are drawn over it
+			part('handback').prepend(palm);
+		};
+		const draw = () => {
+			const T: V3 = dir === 'r' ? W : vmul(W, -1);
+			const { e1, e2 } = ringBasis(T, UP);
+			for (const a of arrows) {
+				// the arrow rides along the front half of its turn (where z > center)
+				const th0 = Math.atan2(e2[2], e1[2]); // the angle of the front-most point
+				const th = th0 - 0.9 + ((t * 0.6 + a.k * 0.37) % 1.8);
+				const p = ringPt(a.c, e1, e2, RC, th);
+				const d = ringDir(e1, e2, th);
+				a.el.setAttribute('d', head(p[0], p[1], d[0], d[1], 7.5));
+			}
+		};
+		build();
+		draw();
+		const wake = loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+		root.querySelector('[data-rev]')!.addEventListener('click', () => {
+			dir = dir === 'r' ? 'l' : 'r';
+			build();
+			draw();
+			wake();
+		});
+	});
+</script>
+
+<style>
+	.crp {
+		--crp-i: var(--sl-color-green);
+		--crp-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.crp__ctrl {
+		margin-bottom: 0.5rem;
+	}
+	.crp__btn {
+		padding: 0.35rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-white);
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		cursor: pointer;
+	}
+	.crp__svg {
+		display: block;
+		width: 100%;
+		max-width: 40rem;
+		height: auto;
+		margin-inline: auto;
+	}
+	.crp__legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem 1.2rem;
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.crp__sw {
+		display: inline-block;
+		width: 1.4rem;
+		height: 0.2rem;
+		margin-right: 0.35rem;
+		vertical-align: middle;
+	}
+	.crp__sw--i {
+		background: var(--crp-i);
+	}
+	.crp__sw--b {
+		background: var(--sl-color-gray-2);
+	}
+	.crp :global(.crp__line) {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.crp :global(.crp__line--in) {
+		stroke-dasharray: 5 3;
+		opacity: 0.8;
+	}
+	.crp :global(.crp__head) {
+		fill: var(--sl-color-gray-2);
+	}
+	.crp :global(.crp__tube) {
+		stroke: color-mix(in srgb, var(--ig-v) 25%, var(--sl-color-gray-4));
+		opacity: 0.55;
+	}
+	.crp :global(.crp__tube-end) {
+		fill: color-mix(in srgb, var(--ig-v) 20%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+		opacity: 0.8;
+	}
+	.crp :global(.crp__turn) {
+		fill: none;
+		stroke: var(--crp-cu);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.crp :global(.crp__turn--back) {
+		stroke: color-mix(in srgb, var(--crp-cu) 60%, black);
+		stroke-width: 3;
+	}
+	.crp :global(.crp__cur) {
+		fill: var(--crp-i);
+		stroke: color-mix(in srgb, var(--crp-i) 50%, black);
+		stroke-width: 0.6;
+	}
+	.crp :global(.crp__pole--n) {
+		fill: var(--ig-vx);
+	}
+	.crp :global(.crp__pole--s) {
+		fill: var(--ig-vy);
+	}
+	.crp :global(.crp__pl) {
+		fill: white;
+		font-weight: 700;
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.crp :global(.crp__arm) {
+		stroke-width: 0.8;
+	}
+	.crp :global(.crp__sleeve) {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 80%, var(--ig-vx));
+		stroke: var(--hm-line);
+		stroke-width: 0.8;
+	}
+</style>

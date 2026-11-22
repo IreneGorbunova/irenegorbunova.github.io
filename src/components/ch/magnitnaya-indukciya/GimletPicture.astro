@@ -1,0 +1,443 @@
+---
+/**
+ * The direction of the magnetic lines of a straight current, two rules side by side (stacked on a narrow phone), with a
+ * toggle «Ток вверх» / «Ток вниз». One vertical wire, seen a little from above (by DELTA = 26°), the same in both
+ * panels:
+ *   left, «Правило буравчика»: a right-handed gimlet on the wire's axis, its tip along the current. The T-handle turns
+ *     about the axis and the gimlet screws forward; the handle's ends run along a magnetic line, and the white arrow of
+ *     its turn goes the same way as the arrows on the lines;
+ *   right, «Правило правой руки»: a right hand (people kit) grips the wire with the thumb along the current; the four
+ *     bent fingers come round the front of the wire in the direction of the lines.
+ * Geometry: the frame of the people kit (x right, y down, z to the viewer), orthographic. The wire's «up» is
+ * W = (0; −cos 26°; sin 26°), so a horizontal circle round it is an ellipse 0,44 as tall as wide, its front half the
+ * lower one. Current up: the hand's fingers point left, the palm faces us (turned by DELTA), the wire lies in front of
+ * the palm and the fingers come round its front from left to right. Current down: the same hand turned by 180° about the
+ * axis of its palm (a rotation, so it stays a right hand): fingers to the right, thumb down.
+ * Physics: B ∝ I × r (right-handed, mi.ts pcross): seen from above, the lines of an upward current go
+ * counterclockwise; in front of the wire they run to the right. The gimlet is right-handed: turning by α advances it by
+ * hα/2π (h = 12 px per turn), so its thread stays in place in space and only the shaft, the tip and the handle move;
+ * 2 turns in 6 s, then it fades back to the start.
+ * Not to scale: the hand is drawn large; the green chevrons of the current and the arrows on the lines move slowly
+ * only to show directions.
+ */
+import PeopleStyles from '@components/people/PeopleStyles.astro';
+const DIRS = [
+	{ d: 'u', t: 'Ток вверх' },
+	{ d: 'd', t: 'Ток вниз' },
+];
+---
+
+<PeopleStyles />
+<figure class="mig not-content" data-mig>
+	<div class="mig__dirs" role="radiogroup" aria-label="Куда течёт ток">
+		{
+			DIRS.map(({ d, t }, k) => (
+				<button type="button" class:list={['mig__dir', { 'is-on': k === 0 }]} role="radio" aria-checked={k === 0 ? 'true' : 'false'} data-dir={d}>
+					<svg class="mig__ico" viewBox="0 0 16 16" aria-hidden="true">
+						{d === 'u' ? <path d="M 8 14.5 V 2.5 M 3.8 6.6 L 8 2.2 L 12.2 6.6" /> : <path d="M 8 1.5 V 13.5 M 3.8 9.4 L 8 13.8 L 12.2 9.4" />}
+					</svg>
+					{t}
+				</button>
+			))
+		}
+	</div>
+	<div class="mig__panels">
+		<div class="mig__panel">
+			<svg class="mig__svg" viewBox="0 0 300 320" role="img" aria-label="Буравчик ввинчивается вдоль провода по направлению тока; его рукоятка поворачивается в ту же сторону, куда направлены магнитные линии" data-p="g">
+				<g data-back></g>
+				<g data-gimback></g>
+				<g data-wire></g>
+				<g data-gim></g>
+				<g data-front></g>
+				<g data-labels></g>
+			</svg>
+			<p class="mig__cap">Правило буравчика</p>
+		</div>
+		<div class="mig__panel">
+			<svg class="mig__svg" viewBox="0 0 300 320" role="img" aria-label="Правая рука обхватывает провод, большой палец отставлен по направлению тока, четыре согнутых пальца показывают направление магнитных линий" data-p="h">
+				<g data-back></g>
+				<g data-handback></g>
+				<g data-wire></g>
+				<g data-arm></g>
+				<g data-hand></g>
+				<g data-front></g>
+				<g data-labels></g>
+			</svg>
+			<p class="mig__cap">Правая рука (прямой провод)</p>
+		</div>
+	</div>
+	<figcaption class="mig__legend">
+		<span><i class="mig__sw mig__sw--i"></i>направление тока</span>
+		<span><i class="mig__sw mig__sw--b"></i>магнитные линии</span>
+	</figcaption>
+</figure>
+
+<script>
+	import { hand } from '@components/people/hand';
+	import { loop } from '../g7/kit';
+	import { basis, forearm, place, rodAxis, thumbAlong } from './grip';
+	import { head, ringBasis, ringDir, ringPath, ringPt, vadd, vmul, vnorm, type V3 } from './mi';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = <K extends keyof SVGElementTagNameMap>(p: Element, tag: K, a: Record<string, string | number> = {}) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		p.append(e);
+		return e;
+	};
+	const f = (v: number) => v.toFixed(1);
+	const set = (e: Element, a: Record<string, string>) => Object.entries(a).forEach(([k, v]) => e.setAttribute(k, v));
+
+	const DELTA = 0.45; // rad, how much we look from above
+	const HANDS = {
+		u: { dir: Math.PI, roll: Math.PI / 2 + DELTA },
+		d: { dir: 0, roll: Math.PI / 2 - DELTA },
+	};
+	const W = basis('R', HANDS.u.dir, HANDS.u.roll).t; // the wire's «up»: (0, −cos δ, sin δ)
+	const RIGHT: V3 = [1, 0, 0];
+	const LH = 112; // px, the hand
+	const DW = 0.14; // the wire's diameter, parts of the hand length
+	const RW = (DW * LH) / 2;
+	const SHAPE = thumbAlong(DW);
+	const C: V3 = [150, 160, 0]; // the middle of the wire in both panels
+	const HALF = 150 / Math.cos(DELTA) + 20; // half the wire's length along W, a bit beyond the panel
+
+	type Gim = { g: SVGGElement; shaft: SVGPathElement; thread: SVGPathElement; tip: SVGPathElement; handle: SVGLineElement; handleBack: SVGLineElement; turn: SVGPathElement; turnHead: SVGPathElement; knobs: SVGCircleElement[] };
+
+	document.querySelectorAll<HTMLElement>('[data-mig]').forEach((root) => {
+		let dir: 'u' | 'd' = 'u';
+		let t = 0;
+		const P = { g: root.querySelector<SVGSVGElement>('[data-p="g"]')!, h: root.querySelector<SVGSVGElement>('[data-p="h"]')! };
+		const part = (svg: SVGSVGElement, k: string) => svg.querySelector<SVGGElement>(`[data-${k}]`)!;
+		const rings: { c: V3; r: number; arrows: SVGPathElement[] }[] = [];
+		const chevrons: SVGPathElement[][] = [];
+		let gim: Gim;
+
+		const build = () => {
+			for (const svg of Object.values(P)) svg.querySelectorAll('g').forEach((g) => g.replaceChildren());
+			rings.length = 0;
+			chevrons.length = 0;
+			const I: V3 = dir === 'u' ? W : vmul(W, -1);
+			const { e1, e2 } = ringBasis(I, RIGHT);
+			const ring = (svg: SVGSVGElement, s: number, r: number) => {
+				const c = vadd(C, vmul(W, s));
+				mk(part(svg, 'back'), 'path', { class: 'mig__line mig__line--back', d: ringPath(c, e1, e2, r, true) });
+				mk(part(svg, 'front'), 'path', { class: 'mig__line', d: ringPath(c, e1, e2, r, false) });
+				rings.push({ c, r, arrows: [0, 1, 2].map(() => mk(part(svg, 'front'), 'path', { class: 'mig__head' })) });
+			};
+			for (const svg of [P.g, P.h]) {
+				const g = part(svg, 'wire');
+				const a = vadd(C, vmul(W, -HALF));
+				const b = vadd(C, vmul(W, HALF));
+				mk(g, 'line', { class: 'mig__wire', x1: f(a[0]), y1: f(a[1]), x2: f(b[0]), y2: f(b[1]), 'stroke-width': f(2 * RW) });
+				mk(g, 'line', { class: 'mig__wire-hi', x1: f(a[0] - RW * 0.45), y1: f(a[1]), x2: f(b[0] - RW * 0.45), y2: f(b[1]), 'stroke-width': f(RW * 0.5) });
+				chevrons.push([0, 1, 2, 3, 4, 5].map(() => mk(g, 'path', { class: 'mig__chev' })));
+				const lab = mk(part(svg, 'labels'), 'text', { class: 'mig__lbl mig__lbl--i mig__lbl--sym', x: 166, y: dir === 'u' ? 30 : 302 });
+				lab.textContent = 'I';
+			}
+			// the gimlet panel: a line at the handle's level and one more along the wire
+			ring(P.g, dir === 'u' ? -84 : 84, 64);
+			ring(P.g, dir === 'u' ? 100 : -100, 52);
+			const gg = part(P.g, 'gim');
+			gim = {
+				g: gg,
+				shaft: mk(gg, 'path', { class: 'mig__steel' }),
+				thread: mk(gg, 'path', { class: 'mig__thread' }),
+				tip: mk(gg, 'path', { class: 'mig__steel' }),
+				handleBack: mk(part(P.g, 'gimback'), 'line', { class: 'mig__handle mig__handle--back' }),
+				handle: mk(gg, 'line', { class: 'mig__handle' }),
+				turn: mk(part(P.g, 'front'), 'path', { class: 'mig__turn' }),
+				turnHead: mk(part(P.g, 'front'), 'path', { class: 'mig__turn-head' }),
+				knobs: [mk(gg, 'circle', { class: 'mig__knob', r: 5.5 }), mk(part(P.g, 'gimback'), 'circle', { class: 'mig__knob mig__handle--back', r: 5.5 })],
+			};
+			// the hand panel: lines above and below the hand
+			ring(P.h, 104, 54);
+			ring(P.h, -102, 54);
+			const H = HANDS[dir];
+			const grip = vadd(C, vmul(I, -8));
+			const wrist = place('R', { x: grip[0], y: grip[1] }, H.dir, H.roll, LH, rodAxis(DW));
+			const arm = forearm(wrist, H.dir, LH);
+			mk(part(P.h, 'arm'), 'path', { class: 'hm-skin mig__arm', d: arm.skin });
+			mk(part(P.h, 'arm'), 'path', { class: 'mig__sleeve', d: arm.sleeve });
+			const h = hand(part(P.h, 'hand'), { cls: 'hm-skin', side: 'R', Lh: LH });
+			h.setBack(part(P.h, 'handback'));
+			h.set({ wrist, dir: H.dir, roll: H.roll }, SHAPE, 'grip', rodAxis(DW));
+		};
+
+		const draw = () => {
+			const I: V3 = dir === 'u' ? W : vmul(W, -1);
+			const { e1, e2 } = ringBasis(I, RIGHT);
+			const spin = t * 0.9;
+			for (const r of rings) {
+				r.arrows.forEach((a, k) => {
+					const th = spin + (k * 2 * Math.PI) / 3 + 0.4;
+					const p = ringPt(r.c, e1, e2, r.r, th);
+					const d = ringDir(e1, e2, th);
+					a.setAttribute('d', head(p[0], p[1], d[0], d[1], 9));
+					a.classList.toggle('is-back', p[2] < r.c[2]);
+				});
+			}
+			// chevrons of the current along the wire
+			const d = vnorm([I[0], I[1], 0]);
+			for (const els of chevrons) {
+				els.forEach((e, k) => {
+					const L = 320;
+					const s = ((t * 24 + (k * L) / els.length) % L) - L / 2;
+					const x = C[0] + d[0] * s;
+					const y = C[1] + d[1] * s;
+					const q = RW * 0.75;
+					e.setAttribute('d', `M${f(x - d[1] * q - d[0] * q)} ${f(y + d[0] * q - d[1] * q)}L${f(x)} ${f(y)}L${f(x + d[1] * q - d[0] * q)} ${f(y - d[0] * q - d[1] * q)}`);
+					e.style.opacity = String(Math.max(0, Math.min(1, (L / 2 - Math.abs(s)) / 20)));
+				});
+			}
+			// the gimlet: 2 turns in 6 s, then 0,8 s fading back to the start
+			const u = t % 6.8;
+			const alpha = (Math.min(u, 6) / 6) * 4 * Math.PI;
+			const h = 12;
+			const adv = (h * alpha) / (2 * Math.PI);
+			const fade = (u < 0.4 ? u / 0.4 : u > 6 ? Math.max(0, 1 - (u - 6) / 0.6) : 1).toFixed(3);
+			for (const e of [gim.g, gim.handleBack, gim.knobs[1], gim.turn, gim.turnHead]) e.style.opacity = fade;
+			const sBack = -96 + adv; // along I
+			const sTip = 40 + adv;
+			const rs = 9;
+			const at = (s: number) => vadd(C, vmul(I, s));
+			const P0 = at(sBack);
+			const P1 = at(sTip);
+			const P2 = at(sTip + 26);
+			const pt = (p: V3, k: number) => `${f(p[0] - d[1] * k)} ${f(p[1] + d[0] * k)}`;
+			gim.shaft.setAttribute('d', `M${pt(P0, rs)}L${pt(P1, rs)}L${pt(P1, -rs)}L${pt(P0, -rs)}Z`);
+			gim.tip.setAttribute('d', `M${pt(P1, rs)}L${pt(P2, 0)}L${pt(P1, -rs)}Z`);
+			// the thread: a right-handed helix fixed in space (s = hψ/2π), its front half between the ends
+			let th = '';
+			let on = false;
+			for (let psi = 0; psi < 64 * Math.PI; psi += Math.PI / 16) {
+				const s = (h * psi) / (2 * Math.PI) - 190;
+				const off = vadd(vmul(e1, rs * Math.cos(psi)), vmul(e2, rs * Math.sin(psi)));
+				const p = vadd(at(s), off);
+				if (s > sBack + 16 && s < sTip && off[2] > 0) {
+					th += `${on ? 'L' : 'M'}${f(p[0])} ${f(p[1])}`;
+					on = true;
+				} else on = false;
+			}
+			gim.thread.setAttribute('d', th);
+			// the T-handle through the back end, turned by α about I (right-handed); its far half behind the wire
+			const R = 64;
+			const a0 = alpha + 0.5;
+			const A = ringPt(P0, e1, e2, R, a0);
+			const Bq = ringPt(P0, e1, e2, R, a0 + Math.PI);
+			const aFront = A[2] >= Bq[2];
+			const [nearE, farE] = aFront ? [A, Bq] : [Bq, A];
+			set(gim.handle, { x1: f(P0[0]), y1: f(P0[1]), x2: f(nearE[0]), y2: f(nearE[1]) });
+			set(gim.handleBack, { x1: f(P0[0]), y1: f(P0[1]), x2: f(farE[0]), y2: f(farE[1]) });
+			set(gim.knobs[0], { cx: f(nearE[0]), cy: f(nearE[1]) });
+			set(gim.knobs[1], { cx: f(farE[0]), cy: f(farE[1]) });
+			// the white arrow of the turn, just outside the handle's path, ahead of its front end
+			const front = aFront ? a0 : a0 + Math.PI;
+			let ta = '';
+			for (let k = 0; k <= 14; k++) {
+				const q = ringPt(P0, e1, e2, R + 11, front + 0.2 + (k / 14) * 1.0);
+				ta += `${k ? 'L' : 'M'}${f(q[0])} ${f(q[1])}`;
+			}
+			gim.turn.setAttribute('d', ta);
+			const qe = ringPt(P0, e1, e2, R + 11, front + 1.25);
+			const de = ringDir(e1, e2, front + 1.25);
+			gim.turnHead.setAttribute('d', head(qe[0], qe[1], de[0], de[1], 9));
+		};
+
+		build();
+		draw();
+		const wake = loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+		root.querySelectorAll<HTMLButtonElement>('.mig__dir').forEach((b) =>
+			b.addEventListener('click', () => {
+				dir = b.dataset.dir as 'u' | 'd';
+				root.querySelectorAll<HTMLButtonElement>('.mig__dir').forEach((x) => {
+					x.classList.toggle('is-on', x === b);
+					x.setAttribute('aria-checked', x === b ? 'true' : 'false');
+				});
+				t = 0;
+				build();
+				draw();
+				wake();
+			}),
+		);
+	});
+</script>
+
+<style>
+	.mig {
+		--mig-i: var(--sl-color-green);
+		--mig-b: var(--sl-color-gray-2);
+		--mig-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		--mig-steel: color-mix(in srgb, var(--sl-color-gray-3) 70%, var(--ig-vx));
+		--mig-steel-lo: color-mix(in srgb, var(--sl-color-gray-5) 70%, var(--ig-vx));
+		--mig-wood: color-mix(in oklab, var(--ig-vy) 25%, color-mix(in oklab, var(--ig-v) 55%, var(--sl-color-gray-4)));
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.mig__dirs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 0.5rem;
+	}
+	.mig__dir {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.3rem 0.75rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		cursor: pointer;
+	}
+	.mig__dir.is-on {
+		border-color: var(--mig-i);
+		color: var(--sl-color-white);
+		background: color-mix(in srgb, var(--mig-i) 18%, transparent);
+	}
+	.mig__ico {
+		width: 1rem;
+		height: 1rem;
+		fill: none;
+		stroke: var(--mig-i);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.mig__panels {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.6rem;
+	}
+	@media (max-width: 30rem) {
+		.mig__panels {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	.mig__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent);
+	}
+	.mig__cap {
+		margin: 0.35rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.mig__legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem 1.2rem;
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.mig__sw {
+		display: inline-block;
+		width: 1.4rem;
+		height: 0.2rem;
+		margin-right: 0.35rem;
+		vertical-align: middle;
+		border-radius: 1px;
+	}
+	.mig__sw--i {
+		background: var(--mig-i);
+	}
+	.mig__sw--b {
+		background: var(--mig-b);
+	}
+	.mig :global(.mig__line) {
+		fill: none;
+		stroke: var(--mig-b);
+		stroke-width: 1.7;
+	}
+	.mig :global(.mig__line--back) {
+		stroke-width: 1.3;
+		stroke-dasharray: 4 4;
+		opacity: 0.55;
+	}
+	.mig :global(.mig__head) {
+		fill: var(--mig-b);
+	}
+	.mig :global(.mig__head.is-back) {
+		opacity: 0.45;
+	}
+	.mig :global(.mig__wire) {
+		stroke: var(--mig-cu);
+	}
+	.mig :global(.mig__wire-hi) {
+		stroke: color-mix(in srgb, var(--mig-cu) 55%, white);
+		opacity: 0.55;
+	}
+	.mig :global(.mig__chev) {
+		fill: none;
+		stroke: var(--mig-i);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.mig :global(.mig__steel) {
+		fill: var(--mig-steel);
+		stroke: var(--mig-steel-lo);
+		stroke-width: 1;
+	}
+	.mig :global(.mig__thread) {
+		fill: none;
+		stroke: var(--mig-steel-lo);
+		stroke-width: 1.4;
+	}
+	.mig :global(.mig__handle) {
+		stroke: var(--mig-wood);
+		stroke-width: 9;
+		stroke-linecap: round;
+	}
+	.mig :global(.mig__knob) {
+		fill: var(--mig-wood);
+	}
+	.mig :global(.mig__handle--back) {
+		filter: brightness(0.8);
+	}
+	.mig :global(.mig__turn) {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+	}
+	.mig :global(.mig__turn-head) {
+		fill: var(--sl-color-white);
+	}
+	.mig :global(.mig__arm) {
+		stroke-width: 0.8;
+	}
+	.mig :global(.mig__sleeve) {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 80%, var(--ig-vx));
+		stroke: var(--hm-line);
+		stroke-width: 0.8;
+	}
+	.mig :global(.mig__lbl) {
+		font-size: 14px;
+		fill: var(--sl-color-gray-2);
+		font-family: var(--__sl-font);
+	}
+	.mig :global(.mig__lbl--i) {
+		fill: var(--mig-i);
+		font-weight: 600;
+	}
+	.mig :global(.mig__lbl--sym) {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 20px;
+	}
+</style>
