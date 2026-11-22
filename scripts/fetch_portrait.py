@@ -17,6 +17,7 @@ import io
 import json
 import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -73,7 +74,19 @@ def main() -> None:
     if not re.search(r'public domain|\bPD\b|CC0', license_name, re.I):
         sys.exit(f'REFUSED: license is "{license_name}", only public domain or CC0 are allowed')
 
-    raw = local.read_bytes() if local else get(info['thumburl'])
+    if local:
+        raw = local.read_bytes()
+    else:
+        try:
+            raw = get(info['thumburl'])
+        except urllib.error.HTTPError as e:
+            # upload.wikimedia.org refuses odd thumbnail widths with 429; the standard 330 px one is served from cache
+            if e.code != 429:
+                raise
+            q330 = urllib.parse.urlencode({'action': 'query', 'titles': title, 'prop': 'imageinfo', 'format': 'json',
+                                           'iiprop': 'url', 'iiurlwidth': 330})
+            p330 = next(iter(json.loads(get(f'{API}?{q330}'))['query']['pages'].values()))
+            raw = get(p330['imageinfo'][0]['thumburl'])
     img = Image.open(io.BytesIO(raw)).convert('RGB')
     w, h = img.size
     side = min(w, h)
