@@ -1,0 +1,354 @@
+---
+/**
+ * How energy gets out of the Sun: a wedge of 64° cut from the center to space. Radii TO SCALE (R☉ = 250 px): the core to
+ * 0,25 R☉, the radiative zone 0,25–0,7 R☉, the convective zone 0,7–1 R☉, the photosphere its thin bright rim. The
+ * atmosphere is drawn much thicker than life: the chromosphere (really about 2000 км, 0,003 R☉) as a pink band of 7 px,
+ * the corona (it reaches several R☉) as a pearly halo of 70 px. Temperatures: the core about 15 млн К (15,7 млн К in the
+ * standard solar model), the photosphere 5800 К (5772 К), the corona 1–2 млн К.
+ *
+ * Animation, a loop of 12 с, nothing in it at the real pace:
+ *   - in the core, small flashes where two dots merge (nuclear reactions);
+ *   - a packet of light wanders out of the core through the radiative zone in short zig-zag steps (a random walk with a
+ *     slight outward drift); in reality it takes 10⁴–10⁵ years for the energy to get through this zone;
+ *   - at 0,7 R☉ it gives its energy to the convection cells: hot (light) gas rises, cools (orange-red) at the top and
+ *     sinks; the cells turn in 6 с, in reality one turn takes weeks deep down and minutes at the top;
+ *   - the photosphere is covered by granules, the tops of the smallest cells (about 1000 км, here 4–6 px, so drawn
+ *     larger than the scale), which «boil» every few seconds (in reality they live 8–20 min);
+ *   - straight rays of light leave the photosphere into space (to the Earth they fly 8 мин 20 с).
+ */
+import ZgStyles from './ZgStyles.astro';
+
+const C = { x: 180, y: 336 };
+const R = 250;
+const HALF = (32 * Math.PI) / 180;
+const f1 = (v: number) => v.toFixed(1);
+const P = (r: number, a: number) => ({ x: C.x + r * Math.sin(a), y: C.y - r * Math.cos(a) });
+// a ring sector between radii r0 and r1 over the whole wedge
+const sector = (r0: number, r1: number, half = HALF) => {
+	const a = P(r1, -half);
+	const b = P(r1, half);
+	const c = P(r0, half);
+	const d = P(r0, -half);
+	return r0 > 0
+		? `M${f1(d.x)} ${f1(d.y)} L${f1(a.x)} ${f1(a.y)} A${r1} ${r1} 0 0 1 ${f1(b.x)} ${f1(b.y)} L${f1(c.x)} ${f1(c.y)} A${r0} ${r0} 0 0 0 ${f1(d.x)} ${f1(d.y)} Z`
+		: `M${C.x} ${C.y} L${f1(a.x)} ${f1(a.y)} A${r1} ${r1} 0 0 1 ${f1(b.x)} ${f1(b.y)} Z`;
+};
+const arc = (r: number, half = HALF) => {
+	const a = P(r, -half);
+	const b = P(r, half);
+	return `M${f1(a.x)} ${f1(a.y)} A${r} ${r} 0 0 1 ${f1(b.x)} ${f1(b.y)}`;
+};
+const lead = (r: number, a: number, x: number, y: number) => {
+	const p = P(r, a);
+	return `M${f1(p.x)} ${f1(p.y)} L${f1(x)} ${f1(y)}`;
+};
+---
+
+<ZgStyles />
+<figure class="zg not-content" data-zg-sun data-cx={C.x} data-cy={C.y} data-r={R} data-half={HALF}>
+	<svg class="zg__svg" viewBox="0 0 360 344" role="img" aria-label="Клин, вырезанный из Солнца от центра до поверхности. В ядре вспыхивают ядерные реакции; свет медленно, зигзагами, пробирается через зону излучения; в зоне конвекции горячий газ поднимается, остывает и опускается; с фотосферы свет уходит в космос. Над поверхностью — хромосфера и корона">
+		<defs>
+			<radialGradient id="zg-sun-body" cx={C.x} cy={C.y} r={R} gradientUnits="userSpaceOnUse">
+				<stop offset="0" stop-color="hsl(52, 100%, 92%)"></stop>
+				<stop offset="0.25" stop-color="hsl(46, 100%, 70%)"></stop>
+				<stop offset="0.7" stop-color="hsl(36, 95%, 58%)"></stop>
+				<stop offset="1" stop-color="hsl(26, 90%, 50%)"></stop>
+			</radialGradient>
+			<radialGradient id="zg-sun-corona" cx={C.x} cy={C.y} r={R + 80} gradientUnits="userSpaceOnUse">
+				<stop offset={(R / (R + 80)).toFixed(3)} stop-color="hsl(48, 70%, 92%)" stop-opacity="0.6"></stop>
+				<stop offset={((R + 30) / (R + 80)).toFixed(3)} stop-color="hsl(45, 50%, 85%)" stop-opacity="0.22"></stop>
+				<stop offset="1" stop-color="hsl(45, 50%, 85%)" stop-opacity="0"></stop>
+			</radialGradient>
+		</defs>
+		<rect class="zg-space" x="0" y="0" width="360" height="344" rx="8"></rect>
+		<path d={sector(R, R + 80, HALF + 0.04)} fill="url(#zg-sun-corona)"></path>
+		<path class="zg-sun-chromo" d={sector(R, R + 7)}></path>
+		<path d={sector(0, R)} fill="url(#zg-sun-body)"></path>
+		<path class="zg-sun-zone" d={sector(0.7 * R, R)}></path>
+		<path class="zg-sun-border" d={`${arc(0.25 * R)} ${arc(0.7 * R)}`}></path>
+		<g data-rays></g>
+		<g data-cells></g>
+		<g data-gran></g>
+		<path class="zg-sun-photo" d={arc(R)}></path>
+		<g data-walk></g>
+		<g data-core></g>
+		<path class="zg-sun-edge" d={`M${C.x} ${C.y} L${f1(P(R, -HALF).x)} ${f1(P(R, -HALF).y)} M${C.x} ${C.y} L${f1(P(R, HALF).x)} ${f1(P(R, HALF).y)}`}></path>
+		<!-- labels -->
+		<path class="zg-lead" d={lead(0.14 * R, 0.25, 262, 318)}></path>
+		<text x="266" y="314">ядро</text>
+		<text class="zg-small" x="266" y="327">15 млн К</text>
+		<path class="zg-lead" d={lead(0.47 * R, -0.3, 66, 232)}></path>
+		<text x="8" y="246">зона</text>
+		<text x="8" y="259">излучения</text>
+		<path class="zg-lead" d={lead(0.86 * R, 0.5, 316, 176)}></path>
+		<text x="300" y="190">зона</text>
+		<text x="300" y="203">конвекции</text>
+		<path class="zg-lead" d={lead(R, -0.5, 30, 98)}></path>
+		<text x="6" y="80">фотосфера,</text>
+		<text class="zg-small" x="6" y="92">5800 К</text>
+		<path class="zg-lead" d={lead(R + 4, 0.52, 318, 84)}></path>
+		<text x="284" y="80">хромосфера</text>
+		<text x="180" y="20" text-anchor="middle">корона, 1–2 млн К</text>
+	</svg>
+	<p class="zg__foot">Размеры слоёв Солнца — в масштабе; хромосфера и корона нарисованы толще. Всё движется в тысячи раз быстрее, чем на самом деле.</p>
+</figure>
+
+<style is:global>
+	.zg-sun-chromo {
+		fill: hsl(345, 75%, 66%);
+		opacity: 0.85;
+	}
+	.zg-sun-zone {
+		fill: hsl(20, 90%, 45%);
+		opacity: 0.18;
+	}
+	.zg-sun-border {
+		fill: none;
+		stroke: hsl(30, 60%, 30%);
+		stroke-width: 0.8;
+		stroke-dasharray: 3 3;
+		opacity: 0.7;
+	}
+	.zg-sun-photo {
+		fill: none;
+		stroke: hsl(50, 100%, 85%);
+		stroke-width: 2.4;
+	}
+	.zg-sun-edge {
+		stroke: hsl(30, 60%, 30%);
+		stroke-width: 0.6;
+		opacity: 0.6;
+	}
+	.zg-sun-ray {
+		stroke: hsl(52, 100%, 75%);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.zg-sun-gran {
+		fill: hsl(48, 100%, 80%);
+	}
+	.zg-sun-dot {
+		stroke: none;
+	}
+	.zg-sun-loop {
+		fill: none;
+		stroke: hsl(25, 70%, 35%);
+		stroke-width: 0.6;
+		opacity: 0.5;
+	}
+	.zg-sun-walk {
+		stroke: hsl(55, 100%, 92%);
+		stroke-width: 1.1;
+		stroke-linecap: round;
+	}
+	.zg-sun-photon {
+		fill: hsl(55, 100%, 97%);
+	}
+	.zg-sun-flash {
+		fill: hsl(55, 100%, 97%);
+	}
+	.zg-sun-nuc {
+		fill: hsl(200, 80%, 85%);
+	}
+</style>
+
+<script>
+	import { loop, NS, rng } from '@components/ch/g7/kit';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-zg-sun]')) {
+		const cx = +fig.dataset.cx!;
+		const cy = +fig.dataset.cy!;
+		const R = +fig.dataset.r!;
+		const HALF = +fig.dataset.half!;
+		const P = (r: number, a: number) => ({ x: cx + r * Math.sin(a), y: cy - r * Math.cos(a) });
+		const mk = <K extends keyof SVGElementTagNameMap>(parent: Element, tag: K, cls: string) => {
+			const e = document.createElementNS(NS, tag) as SVGElementTagNameMap[K];
+			e.setAttribute('class', cls);
+			parent.append(e);
+			return e;
+		};
+		const rand = rng(7);
+
+		// ---- rays: 9 directions, dashes flying out from the photosphere
+		const rays = fig.querySelector('[data-rays]')!;
+		const RAYS = Array.from({ length: 9 }, (_, i) => ({ a: -HALF + 0.06 + (i * (2 * HALF - 0.12)) / 8, ph: rand(), l: mk(rays, 'line', 'zg-sun-ray') }));
+
+		// ---- convection cells: 4 across the wedge, between 0,7 R and 0,985 R; dots go round, neighbors turn opposite ways
+		const cellsG = fig.querySelector('[data-cells]')!;
+		const NC = 4;
+		const r0 = 0.715 * R;
+		const r1 = 0.975 * R;
+		const cells = Array.from({ length: NC }, (_, i) => {
+			const a0 = -HALF + (i * 2 * HALF) / NC;
+			const a1 = -HALF + ((i + 1) * 2 * HALF) / NC;
+			const am = (a0 + a1) / 2;
+			const ha = ((a1 - a0) / 2) * 0.78;
+			const rm = (r0 + r1) / 2;
+			const hr = ((r1 - r0) / 2) * 0.8;
+			const at = (ph: number) => P(rm + hr * Math.sin(ph), am + ha * Math.cos(ph));
+			const loopPath = mk(cellsG, 'path', 'zg-sun-loop');
+			let d = '';
+			for (let k = 0; k <= 40; k++) {
+				const p = at((k / 40) * 2 * Math.PI);
+				d += `${k ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)} `;
+			}
+			loopPath.setAttribute('d', d + 'Z');
+			const dir = i % 2 ? 1 : -1;
+			const dots = Array.from({ length: 8 }, (_, k) => ({ ph: (k / 8) * 2 * Math.PI, c: mk(cellsG, 'circle', 'zg-sun-dot') }));
+			return { at, dir, dots, glow: 0 };
+		});
+		// color of a convection dot: hot rising gas light yellow, cooled gas at the top orange-red
+		const hot = (h: number) => `hsl(${(22 + 30 * h).toFixed(0)}, 100%, ${(55 + 30 * h).toFixed(0)}%)`;
+
+		// ---- granules along the photosphere
+		const granG = fig.querySelector('[data-gran]')!;
+		const NG = 34;
+		const gran = Array.from({ length: NG }, (_, i) => {
+			const a = -HALF + ((i + 0.5) * 2 * HALF) / NG;
+			const p = P(R - 3, a);
+			const e = mk(granG, 'ellipse', 'zg-sun-gran');
+			e.setAttribute('cx', p.x.toFixed(1));
+			e.setAttribute('cy', p.y.toFixed(1));
+			e.setAttribute('rx', '3.6');
+			e.setAttribute('ry', '2.4');
+			e.setAttribute('transform', `rotate(${((a * 180) / Math.PI).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
+			return { e, ph: rand() * 6, f: 0.8 + rand() * 0.8 };
+		});
+
+		// ---- the random walk of a packet of light from 0,25 R to 0,7 R, 7 с
+		const walkG = fig.querySelector('[data-walk]')!;
+		const WALK_T = 7;
+		const walkPts: { x: number; y: number }[] = [];
+		{
+			let r = 0.25 * R + 1;
+			let a = -0.12;
+			let p = P(r, a);
+			walkPts.push(p);
+			const wr = rng(11);
+			while (r < 0.7 * R && walkPts.length < 400) {
+				const th = wr() * 2 * Math.PI;
+				const step = 5;
+				let q = { x: p.x + step * Math.cos(th), y: p.y + step * Math.sin(th) };
+				// a slight drift outward
+				const ux = (q.x - cx) / Math.hypot(q.x - cx, q.y - cy);
+				const uy = (q.y - cy) / Math.hypot(q.x - cx, q.y - cy);
+				q = { x: q.x + 1.3 * ux, y: q.y + 1.3 * uy };
+				const rq = Math.hypot(q.x - cx, q.y - cy);
+				const aq = Math.atan2(q.x - cx, cy - q.y);
+				if (rq < 0.25 * R + 1 || Math.abs(aq) > HALF - 0.08) continue;
+				p = q;
+				r = rq;
+				a = aq;
+				walkPts.push(p);
+			}
+		}
+		const TRAIL = 14;
+		const trail = Array.from({ length: TRAIL }, () => mk(walkG, 'line', 'zg-sun-walk'));
+		const photon = mk(walkG, 'circle', 'zg-sun-photon');
+		photon.setAttribute('r', '2');
+		// the cell that takes the packet's energy
+		const endA = Math.atan2(walkPts[walkPts.length - 1].x - cx, cy - walkPts[walkPts.length - 1].y);
+		const takeCell = Math.min(NC - 1, Math.max(0, Math.floor(((endA + HALF) / (2 * HALF)) * NC)));
+
+		// ---- core: pairs of dots merge and flash, one every 0,5 с, 6 at a time
+		const coreG = fig.querySelector('[data-core]')!;
+		const FL = Array.from({ length: 6 }, (_, i) => {
+			const a = mk(coreG, 'circle', 'zg-sun-nuc');
+			const b = mk(coreG, 'circle', 'zg-sun-nuc');
+			const f = mk(coreG, 'circle', 'zg-sun-flash');
+			return { a, b, f, k: i, at: { x: 0, y: 0 }, ang: 0 };
+		});
+		const placeFlash = (s: (typeof FL)[number], n: number) => {
+			const fr = rng(100 + n);
+			const r = 0.2 * R * Math.sqrt(fr());
+			const a = (fr() * 2 - 1) * (HALF - 0.1);
+			s.at = P(r, a);
+			s.ang = fr() * Math.PI;
+		};
+
+		let t = 0;
+		const draw = () => {
+			// rays
+			for (const ray of RAYS) {
+				const q = (t * 0.45 + ray.ph) % 1;
+				const p0 = P(R + 2 + q * 90, ray.a);
+				const p1 = P(R + 2 + q * 90 + 12, ray.a);
+				ray.l.setAttribute('x1', p0.x.toFixed(1));
+				ray.l.setAttribute('y1', p0.y.toFixed(1));
+				ray.l.setAttribute('x2', p1.x.toFixed(1));
+				ray.l.setAttribute('y2', p1.y.toFixed(1));
+				ray.l.setAttribute('opacity', (1 - q).toFixed(2));
+			}
+			// the packet of light: its walk over WALK_T s, then 1 s rest, repeated
+			const cyc = WALK_T + 1;
+			const tw = t % cyc;
+			const n = walkPts.length - 1;
+			const pos = Math.min(n, (tw / WALK_T) * n);
+			const i0 = Math.floor(pos);
+			const fr = pos - i0;
+			const cur = i0 >= n ? walkPts[n] : { x: walkPts[i0].x + (walkPts[i0 + 1].x - walkPts[i0].x) * fr, y: walkPts[i0].y + (walkPts[i0 + 1].y - walkPts[i0].y) * fr };
+			photon.setAttribute('cx', cur.x.toFixed(1));
+			photon.setAttribute('cy', cur.y.toFixed(1));
+			photon.setAttribute('opacity', tw < WALK_T ? '1' : '0');
+			trail.forEach((l, k) => {
+				const j = i0 - k;
+				if (j < 1 || tw >= WALK_T + 0.6) {
+					l.setAttribute('opacity', '0');
+					return;
+				}
+				l.setAttribute('x1', walkPts[j - 1].x.toFixed(1));
+				l.setAttribute('y1', walkPts[j - 1].y.toFixed(1));
+				l.setAttribute('x2', walkPts[j].x.toFixed(1));
+				l.setAttribute('y2', walkPts[j].y.toFixed(1));
+				l.setAttribute('opacity', (0.8 * (1 - k / TRAIL)).toFixed(2));
+			});
+			// convection: one turn in 6 s; the cell that took the packet glows for a while
+			const glow = tw >= WALK_T - 0.2 ? Math.max(0, 1 - (tw - WALK_T + 0.2) / 1.4) : 0;
+			cells.forEach((c, i) => {
+				c.dots.forEach((d) => {
+					const ph = d.ph + c.dir * t * ((2 * Math.PI) / 6);
+					const p = c.at(ph);
+					// heated at the bottom of the cell (phase −π/2), hottest just after it, coolest just after the top
+					const h = 0.5 + 0.5 * Math.cos(ph - (-Math.PI / 2 + 0.6 * c.dir));
+					d.c.setAttribute('cx', p.x.toFixed(1));
+					d.c.setAttribute('cy', p.y.toFixed(1));
+					d.c.setAttribute('r', (i === takeCell ? 2.2 + 1.2 * glow : 2.2).toFixed(2));
+					d.c.style.fill = hot(Math.min(1, h + (i === takeCell ? 0.5 * glow : 0)));
+				});
+			});
+			// granules boil
+			for (const g of gran) g.e.setAttribute('opacity', (0.35 + 0.55 * (0.5 + 0.5 * Math.sin(t * g.f + g.ph))).toFixed(2));
+			// core flashes: each slot repeats every 3 s, shifted by 0,5 s
+			FL.forEach((s) => {
+				const per = 3;
+				const local = (t + s.k * 0.5) % per;
+				const n = Math.floor((t + s.k * 0.5) / per) * 6 + s.k;
+				if (local < 0.02 || s.at.x === 0) placeFlash(s, n);
+				const merge = Math.min(1, local / 0.8);
+				const d = 9 * (1 - merge);
+				const ux = Math.cos(s.ang);
+				const uy = Math.sin(s.ang);
+				for (const [c, sg] of [
+					[s.a, 1],
+					[s.b, -1],
+				] as const) {
+					c.setAttribute('cx', (s.at.x + sg * d * ux).toFixed(1));
+					c.setAttribute('cy', (s.at.y + sg * d * uy).toFixed(1));
+					c.setAttribute('r', '1.8');
+					c.setAttribute('opacity', merge < 1 ? '1' : '0');
+				}
+				const fl = local < 0.8 ? 0 : Math.max(0, 1 - (local - 0.8) / 0.6);
+				s.f.setAttribute('cx', s.at.x.toFixed(1));
+				s.f.setAttribute('cy', s.at.y.toFixed(1));
+				s.f.setAttribute('r', (2.5 + 7 * (1 - fl)).toFixed(1));
+				s.f.setAttribute('opacity', fl.toFixed(2));
+			});
+		};
+		draw();
+		loop(fig, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+	}
+</script>

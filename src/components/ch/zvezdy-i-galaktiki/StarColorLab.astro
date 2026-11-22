@@ -1,0 +1,227 @@
+---
+/**
+ * The model «Цвет и температура»: the reader sets the temperature of a star's surface (2500–40 000 К) and sees its
+ * color and how its light is spread over the wavelengths.
+ *
+ * Physics: the surface radiates like a black body, Planck's law B(λ, T) ∝ λ⁻⁵ / (exp(hc/λkT) − 1), hc/k = 1,4388·10⁻² м·К.
+ * The color of the disk is computed from this spectrum (blackbody.ts): CIE 1931 color matching functions (the multi-lobe Gaussian fit
+ * of Wyman, Sloan and Shirley, 2013) → XYZ → linear sRGB divided by that of a 6500 К black body (so it is white) → brightness
+ * normalized (the brightest channel = 1) → sRGB gamma, with a 6500 К black body as white. 3000 К orange-red, 5800 К
+ * warm yellowish white rgb(255 247 235), 10 000 К bluish white, 30 000 К blue-white: as in the tables of star colors.
+ * The graph: B(λ, T) over 50–2000 нм, each curve scaled to its own maximum (so the shape, not the brightness, is
+ * compared; a hotter star radiates far more from every square meter: σT⁴). The peak by Wien's law λ = 2,898·10⁻³ м·К / T:
+ * 3000 К → 966 нм, 5800 К → 500 нм, 9900 К → 293 нм, 30 000 К → 97 нм. Under the axis the visible band 380–760 нм in its
+ * colors, ultraviolet to the left, infrared to the right (the grade-9 chapter «Электромагнитные волны»).
+ * Color names by temperature: below 3700 К orange-red, 3700–5200 orange, 5200–6500 yellowish white, 6500–10 000 white,
+ * 10 000–20 000 bluish white, above 20 000 blue.
+ * Slider: logarithmic, steps of 100 К below 10 000 К and of 500 К above. Presets: Betelgeuse 3600, the Sun 5800,
+ * Sirius 9900, Rigel 12 000, Spica 25 000 К.
+ */
+import ZgStyles from './ZgStyles.astro';
+
+const PRESETS = [
+	{ name: 'Бетельгейзе', T: 3600 },
+	{ name: 'Солнце', T: 5800 },
+	{ name: 'Сириус', T: 9900 },
+	{ name: 'Ригель', T: 12000 },
+	{ name: 'Спика', T: 25000 },
+];
+// the graph frame
+const G = { x0: 34, x1: 348, y0: 214, y1: 112, l0: 50, l1: 2000 };
+const X = (l: number) => G.x0 + ((l - G.l0) / (G.l1 - G.l0)) * (G.x1 - G.x0);
+const ticks = [100, 380, 760, 1000, 1500, 2000];
+---
+
+<ZgStyles />
+<figure class="zg zg-col not-content" data-zg-color data-presets={JSON.stringify(PRESETS)} data-g={JSON.stringify(G)}>
+	<svg class="zg__svg" viewBox="0 0 360 250" role="img" aria-label="Звезда, цвет которой меняется с температурой поверхности, и график: как её излучение распределено по длинам волн, с отмеченным максимумом">
+		<defs>
+			<linearGradient id="zg-col-vis" x1={X(380)} x2={X(760)} y1="0" y2="0" gradientUnits="userSpaceOnUse">
+				<stop offset="0" stop-color="#7a00c8"></stop>
+				<stop offset="0.12" stop-color="#3b2dff"></stop>
+				<stop offset="0.27" stop-color="#00a6ff"></stop>
+				<stop offset="0.38" stop-color="#00e070"></stop>
+				<stop offset="0.52" stop-color="#b6ff00"></stop>
+				<stop offset="0.6" stop-color="#ffe600"></stop>
+				<stop offset="0.7" stop-color="#ff8a00"></stop>
+				<stop offset="0.84" stop-color="#ff2000"></stop>
+				<stop offset="1" stop-color="#8a0000"></stop>
+			</linearGradient>
+			<radialGradient id="zg-col-glow">
+				<stop data-gs offset="0.45" stop-opacity="0.55"></stop>
+				<stop data-gs offset="1" stop-opacity="0"></stop>
+			</radialGradient>
+			<clipPath id="zg-col-under"><path data-under d=""></path></clipPath>
+		</defs>
+		<rect class="zg-space" x="0" y="0" width="360" height="250" rx="8"></rect>
+		<!-- the star -->
+		<g data-star-g>
+			<circle cx="58" cy="54" r="48" fill="url(#zg-col-glow)"></circle>
+			<circle data-disk cx="58" cy="54" r="27"></circle>
+		</g>
+		<text class="zg-col-T" data-tval x="118" y="40">5800 К</text>
+		<text data-cname x="118" y="60">желтовато-белый</text>
+		<text class="zg-small" data-plabel x="118" y="78"></text>
+		<text class="zg-small" data-pname x="118" y="92"></text>
+		<!-- the graph -->
+		<text class="zg-small" x={G.x0} y={G.y1 - 8}>излучение по длинам волн</text>
+		<rect x={X(380)} y={G.y1} width={X(760) - X(380)} height={G.y0 - G.y1} fill="url(#zg-col-vis)" clip-path="url(#zg-col-under)" opacity="0.85"></rect>
+		<path class="zg-col-curve" data-curve d=""></path>
+		<path class="zg-col-axis" d={`M${G.x0} ${G.y1 - 2} V${G.y0} H${G.x1}`}></path>
+		<rect x={X(380)} y={G.y0 + 2} width={X(760) - X(380)} height="6" fill="url(#zg-col-vis)"></rect>
+		{
+			ticks.map((l) => (
+				<g>
+					<path class="zg-col-axis" d={`M${X(l).toFixed(1)} ${G.y0} v3`}></path>
+					<text class="zg-small" x={X(l).toFixed(1)} y={G.y0 + 19} text-anchor="middle">
+						{l}
+					</text>
+				</g>
+			))
+		}
+		<text class="zg-small" x={G.x1} y={G.y0 + 31} text-anchor="end">длина волны, нм</text>
+		<text class="zg-small" x={G.x0 + 2} y={G.y0 + 31}>ультрафиолет</text>
+		<text class="zg-small" x={X(1250)} y={G.y0 - 4} text-anchor="middle">инфракрасное</text>
+		<path class="zg-col-peak" data-peak d=""></path>
+		<circle class="zg-col-dot" data-pdot r="2.6"></circle>
+	</svg>
+	<div class="zg-col__ctl">
+		<label class="zg-col__row">
+			<span>Температура поверхности</span>
+			<input type="range" min="0" max="1000" step="1" value="300" data-slider aria-label="Температура поверхности звезды" />
+		</label>
+		<p class="zg__foot">Высота кривой у каждой звезды — до её собственного максимума: сравнивается форма, а не яркость.</p>
+		<div class="zg__btns">
+			{
+				PRESETS.map((p) => (
+					<button type="button" class="zg__btn" data-preset={p.T} aria-pressed="false">
+						{p.name}
+					</button>
+				))
+			}
+		</div>
+	</div>
+</figure>
+
+<style is:global>
+	.zg-col .zg-col-T {
+		font-size: 20px;
+		font-weight: 700;
+	}
+	.zg-col-curve {
+		fill: none;
+		stroke: var(--zg-ink);
+		stroke-width: 1.6;
+	}
+	.zg-col-axis {
+		fill: none;
+		stroke: var(--zg-ink2);
+		stroke-width: 0.9;
+	}
+	.zg-col-peak {
+		fill: none;
+		stroke: var(--zg-ink);
+		stroke-width: 0.8;
+		stroke-dasharray: 3 2;
+	}
+	.zg-col-dot {
+		fill: var(--zg-ink);
+	}
+	.zg-col__ctl {
+		max-width: 34rem;
+		margin: 0.6rem auto 0;
+	}
+	.zg-col__row {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.zg-col__row input {
+		flex: 1;
+		min-width: 0;
+		accent-color: var(--sl-color-accent);
+	}
+</style>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+	import { bbColor, planck, WIEN } from './blackbody';
+
+	const T0 = 2500;
+	const T1 = 40000;
+	const colorName = (T: number) =>
+		T < 3700 ? 'оранжево-красный' : T < 5200 ? 'оранжевый' : T < 6500 ? 'желтовато-белый' : T < 10000 ? 'белый' : T < 20000 ? 'голубовато-белый' : 'голубой';
+	// thousands are split by a space only from five digits on (5800 К, but 12 000 К), as in the text
+	const fmtInt = (v: number) => {
+		const t = Math.round(v).toString();
+		return t.length > 4 ? t.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0') : t;
+	};
+	const tOf = (v: number) => {
+		const T = T0 * Math.pow(T1 / T0, v / 1000);
+		return T < 10000 ? Math.round(T / 100) * 100 : Math.round(T / 500) * 500;
+	};
+	const vOf = (T: number) => (1000 * Math.log(T / T0)) / Math.log(T1 / T0);
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-zg-color]')) {
+		const G = JSON.parse(fig.dataset.g!) as { x0: number; x1: number; y0: number; y1: number; l0: number; l1: number };
+		const presets = JSON.parse(fig.dataset.presets!) as { name: string; T: number }[];
+		const X = (l: number) => G.x0 + ((l - G.l0) / (G.l1 - G.l0)) * (G.x1 - G.x0);
+		const q = <E extends Element>(s: string) => fig.querySelector<E>(s)!;
+		const slider = q<HTMLInputElement>('[data-slider]');
+		const disk = q<SVGCircleElement>('[data-disk]');
+		const btns = [...fig.querySelectorAll<HTMLButtonElement>('[data-preset]')];
+		let T = 5800;
+		let shown = -1;
+		let glowT = 0;
+		const draw = () => {
+			const col = bbColor(T);
+			disk.style.fill = col;
+			fig.querySelectorAll<SVGStopElement>('[data-gs]').forEach((st) => st.setAttribute('stop-color', col));
+			q('[data-tval]').textContent = `T = ${fmtInt(T)} К`;
+			q('[data-cname]').textContent = `цвет: ${colorName(T)}`;
+			const p = presets.find((s) => s.T === T);
+			q('[data-pname]').textContent = p ? `так светит ${p.name}` : '';
+			btns.forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.preset! === T)));
+			// the curve, scaled to its own maximum
+			const lmax = (WIEN / T) * 1e9;
+			const bmax = planck(lmax, T);
+			let d = '';
+			for (let l = G.l0; l <= G.l1; l += 5) {
+				const y = G.y0 - (planck(l, T) / bmax) * (G.y0 - G.y1);
+				d += `${l === G.l0 ? 'M' : 'L'}${X(l).toFixed(1)} ${y.toFixed(1)} `;
+			}
+			q('[data-curve]').setAttribute('d', d);
+			q('[data-under]').setAttribute('d', `${d}L${G.x1} ${G.y0} L${G.x0} ${G.y0} Z`);
+			const px = X(lmax);
+			q('[data-peak]').setAttribute('d', `M${px.toFixed(1)} ${G.y0} V${G.y1}`);
+			const dot = q<SVGCircleElement>('[data-pdot]');
+			dot.setAttribute('cx', px.toFixed(1));
+			dot.setAttribute('cy', String(G.y1));
+			const where = lmax < 380 ? 'ультрафиолет' : lmax > 760 ? 'инфракрасное' : 'видимый свет';
+			const lab = q<SVGTextElement>('[data-plabel]');
+			lab.textContent = `максимум излучения: ${fmtInt(lmax)} нм (${where})`;
+			shown = T;
+		};
+		slider.addEventListener('input', () => {
+			T = tOf(+slider.value);
+			draw();
+		});
+		btns.forEach((b) =>
+			b.addEventListener('click', () => {
+				T = +b.dataset.preset!;
+				slider.value = String(Math.round(vOf(T)));
+				draw();
+			}),
+		);
+		slider.value = String(Math.round(vOf(T)));
+		draw();
+		// the star shimmers a little
+		loop(fig, (dt) => {
+			glowT += dt;
+			disk.setAttribute('r', (27 + 0.6 * Math.sin(glowT * 2.3)).toFixed(2));
+			return shown >= 0;
+		});
+	}
+</script>

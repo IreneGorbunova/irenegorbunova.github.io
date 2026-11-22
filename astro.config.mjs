@@ -89,7 +89,7 @@ export default defineConfig({
 					section('Механические колебания и волны. Звук', '9-klass/kolebaniya-i-volny', ['mayatnik', 'volny-dlina-volny', 'zvuk']),
 					section('Электромагнитное поле', '9-klass/elektromagnitnoe-pole', ['magnitnaya-indukciya', 'yavlenie-elektromagnitnoy-indukcii', 'peremennyy-tok-transformator', 'elektromagnitnye-volny-svet']),
 					section('Строение атома и атомного ядра', '9-klass/atom-i-yadro', ['radioaktivnost-modeli-atoma', 'sostav-atomnogo-yadra', 'yadernye-reakcii']),
-					section('Строение и эволюция Вселенной', '9-klass/stroenie-vselennoy', ['planety-solnechnoy-sistemy']),
+					section('Строение и эволюция Вселенной', '9-klass/stroenie-vselennoy', ['planety-solnechnoy-sistemy', 'zvezdy-i-galaktiki']),
 				]),
 				grade(10, [
 					section('Кинематика', '10-klass/kinematika', ['sistema-otscheta', 'ravnouskorennoe-dvizhenie', 'svobodnoe-padenie', 'brosok-pod-uglom', 'dvizhenie-po-okruzhnosti']),

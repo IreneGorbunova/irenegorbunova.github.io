@@ -1,0 +1,531 @@
+---
+/**
+ * Two short looping opening scenes of «Звёзды и галактики» (grade 9). No terms of the chapter in the pictures or in
+ * the visible captions; each caption's popover names the notion and links to its section.
+ *
+ * Winter (winter.ts): 15 January 2026, 21:00, a village yard near Moscow; a girl points at the reddish star of Orion,
+ *   her father looks at it in 8× binoculars, and the round inset shows his view moving down to the bluish-white one.
+ *   The sky is the real sky of that place and moment (sky.ts, stars.ts). Real time.
+ * Siren (siren.ts): a city street; an ambulance with its siren on drives past a teenager and his mother. The sound
+ *   waves are drawn as circles around the points where the siren was; ahead of the car they crowd, behind it they
+ *   spread out. Exaggerated: the car is drawn 6 times faster relative to sound (said in the popover).
+ * People: the shared people kit.
+ */
+import IntroFrame from '@components/intro/IntroFrame.astro';
+import More from '@components/More.astro';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
+import { altAz, galToEq, julian, lstDeg, project, starColor, starR, type View } from './sky';
+import { WINTER, ORION } from './stars';
+
+const f1 = (v: number) => v.toFixed(1);
+const rnd = (i: number, k: number) => {
+	const r = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+	return r - Math.floor(r);
+};
+
+// ---- the winter sky: 15 January 2026, 21:00 Moscow time (18:00 UT), 55,75° N, 37,62° E
+const LAT = 55.75;
+const LST = lstDeg(julian(2026, 1, 15, 18), 37.62);
+const VIEW: View = { alt0: 0, az0: 150, k: 260, cx: 205, cy: 212 };
+const NAMES: Record<number, string> = { 2061: 'betelgeuse', 1713: 'rigel', 2491: 'sirius' };
+const winterStars = WINTER.map(([ra, dec, V, bv, hr]) => {
+	const { alt, az } = altAz(ra, dec, LAT, LST);
+	const p = project(alt, az, VIEW);
+	// scintillation grows with the air mass, about 1/sin(height)
+	const amp = Math.min(0.75, 0.1 / Math.max(0.12, Math.sin((alt * Math.PI) / 180)));
+	// stars brighter than 2,5m a little larger by magnitude (so Orion reads at a glance): 1,2 px at 2,5m + 0,9 px per
+	// magnitude, at most 4 px (Sirius)
+	const r = V < 2.5 ? Math.min(4, 1.2 + 0.9 * (2.5 - V)) : starR(V);
+	return { ...p, alt, V, r, c: starColor(bv), name: NAMES[hr], amp };
+}).filter((s) => s.alt > 0 && s.x > -4 && s.x < 364 && s.y > -4 && s.y < 205);
+const aimOf = (hr: number) => {
+	const s = WINTER.find((w) => w[4] === hr)!;
+	const { alt, az } = altAz(s[0], s[1], LAT, LST);
+	return JSON.stringify({ alt: +alt.toFixed(3), az: +az.toFixed(3) });
+};
+const orion = JSON.stringify(
+	ORION.map(([ra, dec, V, bv]) => {
+		const { alt, az } = altAz(ra, dec, LAT, LST);
+		return { alt: +alt.toFixed(3), az: +az.toFixed(3), V, c: starColor(bv, 2.2) };
+	}),
+);
+const INSET = { cx: 62, cy: 60, r: 48 };
+// the winter Milky Way: a faint band along the galactic equator, l = 140…250° (Auriga, Gemini, Monoceros, Canis Major)
+const bandEdge = (b: number) =>
+	Array.from({ length: 56 }, (_, i) => {
+		const l = 140 + i * 2;
+		const q = galToEq(l, b);
+		const { alt, az } = altAz(q.ra, q.dec, LAT, LST);
+		const p = project(alt, az, VIEW);
+		return `${f1(p.x)} ${f1(p.y)}`;
+	});
+const band = (w: number) => `M${bandEdge(w).join(' L')} L${bandEdge(-w).reverse().join(' L')} Z`;
+const halos = winterStars.filter((s) => s.V < 2.0);
+
+// ---- the village: houses, fence, birch
+const fence = Array.from({ length: 30 }, (_, i) => 128 + i * 8);
+// ---- the street (siren.ts): 0,25 px per см; the van 137,5 px long, 62,5 px high, wheels 0,36 м = 9 px
+const VAN_L = 137.5;
+const VAN_TOP = 199 - 62.5;
+const blocks = [
+	{ x: -6, w: 92, h: 118, c: 'a' },
+	{ x: 92, w: 70, h: 96, c: 'b' },
+	{ x: 168, w: 104, h: 128, c: 'c' },
+	{ x: 280, w: 86, h: 104, c: 'a' },
+];
+const winRows = (b: { x: number; w: number; h: number }) => {
+	const out: { x: number; y: number }[] = [];
+	for (let y = 166 - b.h + 10; y < 156; y += 14) for (let x = b.x + 8; x < b.x + b.w - 10; x += 13) out.push({ x, y });
+	return out;
+};
+const zebra = Array.from({ length: 6 }, (_, i) => 168 + i * 6.6);
+const birch = 'M22 205 L23 120 L21 92 M23 150 L12 128 M22 132 L32 112 M22 112 L14 96 M23 100 L30 84 M12 128 L6 120 M32 112 L38 104';
+---
+
+<PeopleStyles />
+<IntroFrame data-zgintro>
+	<div class="intro__card" data-scene="winter">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Зимний вечер во дворе деревенского дома. Девочка показывает рукой на созвездие на юге, её папа смотрит туда же в бинокль; в круглом окне — что видно в бинокль: красноватая звезда, затем голубовато-белая">
+			<defs>
+				<linearGradient id="zgw-sky" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" stop-color="hsl(228, 50%, 7%)"></stop>
+					<stop offset="0.7" stop-color="hsl(226, 38%, 12%)"></stop>
+					<stop offset="1" stop-color="hsl(232, 22%, 20%)"></stop>
+				</linearGradient>
+				<radialGradient id="zgw-win">
+					<stop offset="0" stop-color="hsl(40, 95%, 70%)"></stop>
+					<stop offset="1" stop-color="hsl(30, 85%, 50%)"></stop>
+				</radialGradient>
+				{
+					halos.map((s, i) => (
+						<radialGradient id={`zgw-h${i}`}>
+							<stop offset="0" stop-color={s.c} stop-opacity="0.55"></stop>
+							<stop offset="1" stop-color={s.c} stop-opacity="0"></stop>
+						</radialGradient>
+					))
+				}
+				<filter id="zgw-blur" filterUnits="userSpaceOnUse" x="-40" y="-40" width="440" height="320"><feGaussianBlur stdDeviation="9"></feGaussianBlur></filter>
+				<clipPath id="zgw-clip"><circle cx={INSET.cx} cy={INSET.cy} r={INSET.r}></circle></clipPath>
+			</defs>
+			<rect x="0" y="0" width="360" height="240" fill="url(#zgw-sky)"></rect>
+			<g class="zgw-milky" filter="url(#zgw-blur)">
+				<path d={band(9)}></path>
+				<path d={band(5)}></path>
+				<path d={band(2.5)}></path>
+			</g>
+			<!-- the stars of the real sky; the bright ones with a glow -->
+			{halos.map((s, i) => <circle cx={f1(s.x)} cy={f1(s.y)} r={(s.r * 3.2).toFixed(2)} fill={`url(#zgw-h${i})`}></circle>)}
+			{
+				winterStars.map((s) => (
+					<circle cx={f1(s.x)} cy={f1(s.y)} r={s.r.toFixed(2)} fill={s.c} data-zstar={s.name} data-tw={s.V < 3 ? s.amp.toFixed(2) : undefined}></circle>
+				))
+			}
+			<!-- the village: far roofs, two houses, smoke, the fence, the birch -->
+			<path class="zgw-far" d="M120 205 V196 L132 188 L144 196 V205 Z M300 205 V194 L316 184 L332 194 V205 Z M332 205 V198 H360 V205 Z"></path>
+			<g data-smoke-g>
+				{[0, 1, 2, 3].map((i) => <circle class="zgw-smoke" data-smoke data-x="283" data-y="150" cx="283" cy="150" r="2"></circle>)}
+			</g>
+			<path class="zgw-wall" d="M150 214 V180 H240 V214 Z"></path>
+			<path class="zgw-roof" d="M144 182 L195 156 L246 182 Z"></path>
+			<path class="zgw-snowroof" d="M143 182.5 L195 155 L247 182.5 L244 185 L195 160 L146 185 Z"></path>
+			<rect class="zgw-wall" x="252" y="186" width="80" height="28"></rect>
+			<path class="zgw-roof" d="M247 188 L292 166 L337 188 Z"></path>
+			<path class="zgw-snowroof" d="M246 188.5 L292 165 L338 188.5 L335 191 L292 170 L249 191 Z"></path>
+			<rect class="zgw-chimney" x="279" y="160" width="8" height="14"></rect>
+			<rect class="zgw-snowroof" x="278" y="158.5" width="10" height="3" rx="1"></rect>
+			<rect x="170" y="190" width="16" height="15" fill="url(#zgw-win)"></rect>
+			<rect x="206" y="190" width="16" height="15" class="zgw-dark"></rect>
+			<path class="zgw-frame" d="M170 190 h16 v15 h-16 Z M178 190 V205 M170 197 H186 M206 190 h16 v15 h-16 Z M214 190 V205 M206 197 H222"></path>
+			<rect x="268" y="196" width="14" height="12" fill="url(#zgw-win)"></rect>
+			<path class="zgw-frame" d="M268 196 h14 v12 h-14 Z M275 196 V208"></path>
+			<path class="zgw-glow" d="M164 214 L192 214 L198 232 L156 232 Z"></path>
+			<path class="zgw-rail" d="M124 200 H360 M124 210 H360"></path>
+			{fence.map((x) => <path class="zgw-picket" d={`M${x} 218 V197 L${x + 2.5} 194 L${x + 5} 197 V218 Z`}></path>)}
+			{fence.map((x) => <path class="zgw-snowcap" d={`M${x - 0.6} 196.4 Q${x + 2.5} 192 ${x + 5.6} 196.4 Z`}></path>)}
+			<!-- the snow of the yard -->
+			<path class="zgw-snow" d="M0 212 Q90 208 180 214 T360 214 V240 H0 Z"></path>
+			<path class="zgw-path" d="M0 232 Q120 226 220 230 T360 236 V240 H0 Z"></path>
+			<path class="zgw-birch" d={birch}></path>
+			<path class="zgw-birch-mark" d="M21.6 190 h2 M21.8 172 h2 M22 158 h2 M22.4 140 h2"></path>
+			<!-- the people: the father's binoculars between the back parts of his near hand and his body -->
+			<g class="zgw-people">
+				<g data-hfar class="pkw-far"></g>
+				<g data-back></g>
+				<g data-binoc>
+					<rect class="zgw-binoc" x="0" y={-3.5 * 0.42} width={17 * 0.42} height={7 * 0.42} rx="1"></rect>
+					<rect class="zgw-binoc-ring" x={13.5 * 0.42} y={-4 * 0.42} width={3.5 * 0.42} height={8 * 0.42} rx="0.8"></rect>
+					<rect class="zgw-binoc-ring" x="0" y={-2.6 * 0.42} width={1.6 * 0.42} height={5.2 * 0.42} rx="0.5"></rect>
+				</g>
+				<g data-dad class="zgw-dad"></g>
+				<g data-girl class="zgw-girl"></g>
+				<g data-hnear></g>
+				<g data-hgirl></g>
+			</g>
+			<g data-puff opacity="0"><circle class="zgw-breath" r="3"></circle><circle class="zgw-breath" cx="3" cy="-1" r="2.4"></circle></g>
+			<g data-puff opacity="0"><circle class="zgw-breath" r="3"></circle><circle class="zgw-breath" cx="3" cy="-1" r="2.4"></circle></g>
+			<!-- the view in the binoculars -->
+			<g data-inset-frame opacity="0">
+				<circle class="zgw-inset-bg" cx={INSET.cx} cy={INSET.cy} r={INSET.r}></circle>
+				<g clip-path="url(#zgw-clip)">
+					<g data-inset data-r={INSET.r} data-cx={INSET.cx} data-cy={INSET.cy} data-bet={aimOf(2061)} data-rig={aimOf(1713)} data-stars={orion}></g>
+				</g>
+				<circle class="zgw-inset-rim" cx={INSET.cx} cy={INSET.cy} r={INSET.r}></circle>
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>
+				Морозным вечером хорошо видно, что{' '}
+				<More term="звёзды разного цвета">
+					Цвет звезды говорит о температуре её поверхности: оранжево-красная Бетельгейзе — около 3600&nbsp;К, голубовато-белый Ригель — около 12&nbsp;000&nbsp;К. Раздел <a href="#цвет-и-температура">«Цвет и температура»</a>.
+				</More>: в созвездии Ориона одна яркая звезда красноватая, а другая голубовато-белая.
+			</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+	<div class="intro__card" data-scene="siren">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Городская улица днём. Мальчик с рюкзаком и его мама ждут у пешеходного перехода; мимо проезжает «скорая» с сиреной. От сирены расходятся круги звуковых волн: впереди машины они теснее, позади — реже; нотка над мальчиком сначала выше, потом ниже">
+			<rect class="zgs-sky" x="0" y="0" width="360" height="170"></rect>
+			{
+				blocks.map((b) => (
+					<g>
+						<rect class={`zgs-block zgs-block--${b.c}`} x={b.x} y={166 - b.h} width={b.w} height={b.h}></rect>
+						{winRows(b).map((w) => <rect class="zgs-win" x={w.x} y={w.y} width="7" height="8"></rect>)}
+					</g>
+				))
+			}
+			<path class="zgs-tree" d="M150 166 V140 M330 166 V136"></path>
+			<circle class="zgs-crown" cx="150" cy="128" r="16"></circle>
+			<circle class="zgs-crown zgs-crown--b" cx="140" cy="138" r="10"></circle>
+			<circle class="zgs-crown" cx="330" cy="124" r="17"></circle>
+			<circle class="zgs-crown zgs-crown--b" cx="342" cy="134" r="11"></circle>
+			<rect class="zgs-walk" x="0" y="160" width="360" height="7"></rect>
+			<rect class="zgs-road" x="0" y="167" width="360" height="39"></rect>
+			<path class="zgs-dash" d="M0 185.5 H360"></path>
+			{zebra.map((y, i) => <path class="zgs-zebra" d={`M${232 - i * 3} ${y} h44 l-2.6 4.4 h-44 Z`}></path>)}
+			<!-- the sound: crests around the points where the siren was -->
+			<g data-waves></g>
+			<!-- the van; its rear at x = 0 of the group -->
+			<g data-car>
+				<path class="zgs-van" d={`M2 ${VAN_TOP + 2} Q2 ${VAN_TOP} 6 ${VAN_TOP} H104 Q110 ${VAN_TOP} 113 ${VAN_TOP + 6} L124 ${VAN_TOP + 26} Q135 ${VAN_TOP + 29} 137 ${VAN_TOP + 34} L137.5 191 Q137.5 194 134 194 H4 Q2 194 2 191 Z`}></path>
+				<path class="zgs-glass" d={`M106 ${VAN_TOP + 5} L118 ${VAN_TOP + 25} H106 Z`}></path>
+				<rect class="zgs-glass" x="84" y={VAN_TOP + 6} width="17" height="17" rx="1.5"></rect>
+				<path class="zgs-stripe" d={`M2 ${VAN_TOP + 34} H137 V${VAN_TOP + 40} H2 Z`}></path>
+				<path class="zgs-cross" d={`M46 ${VAN_TOP + 14} h6 v6 h6 v6 h-6 v6 h-6 v-6 h-6 v-6 h6 Z`}></path>
+				<path class="zgs-door" d={`M60 ${VAN_TOP + 6} V191 M82 ${VAN_TOP + 4} V191 M104 ${VAN_TOP + 27} V191`}></path>
+				<rect class="zgs-bar" x="88" y={VAN_TOP - 4} width="22" height="4" rx="1"></rect>
+				<rect class="zgs-flash" data-flash x="89" y={VAN_TOP - 5} width="8" height="4" rx="1"></rect>
+				<rect class="zgs-flash" data-flash x="101" y={VAN_TOP - 5} width="8" height="4" rx="1"></rect>
+				<rect class="zgs-lamp" x="134" y="183" width="3.5" height="3" rx="1"></rect>
+				{
+					[25, 112].map((x) => (
+						<g transform={`translate(${x} 190)`}>
+							<path class="zgs-arch" d="M-12 1 A12 12 0 0 1 12 1"></path>
+							<g data-wheel>
+								<circle class="zgs-tyre" r="9"></circle>
+								<circle class="zgs-rim" r="4.5"></circle>
+								<path class="zgs-spoke" d="M-4.5 0 H4.5 M0 -4.5 V4.5"></path>
+							</g>
+						</g>
+					))
+				}
+			</g>
+			<rect class="zgs-curb" x="0" y="206" width="360" height="3"></rect>
+			<rect class="zgs-side" x="0" y="209" width="360" height="31"></rect>
+			<path class="zgs-tile" d="M0 220 H360 M0 232 H360"></path>
+			<!-- the traffic light at the crossing -->
+			<rect class="zgs-pole" x="331" y="150" width="2.6" height="80"></rect>
+			<rect class="zgs-box" x="326" y="140" width="12.6" height="24" rx="2"></rect>
+			<circle class="zgs-red" cx="332.3" cy="146" r="3.2"></circle>
+			<circle class="zgs-off" cx="332.3" cy="157" r="3.2"></circle>
+			<!-- the people: the backpack behind the boy -->
+			<g class="zgs-people">
+				<rect class="zgs-pack" data-pack rx="2"></rect>
+				<path class="zgs-strap" data-strap></path>
+				<g data-mom class="zgs-mom"></g>
+				<g data-boy class="zgs-boy"></g>
+			</g>
+			<!-- the pitch he hears -->
+			<path class="zgs-ref" data-pitch-ref></path>
+			<g data-pitch opacity="0">
+				<ellipse class="zgs-note" cx="0" cy="0" rx="3.4" ry="2.5" transform="rotate(-20)"></ellipse>
+				<path class="zgs-stem" d="M3 -1 V-14 Q7 -11 8 -6"></path>
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>
+				Пока «скорая» приближается, её сирена звучит выше, а когда проедет мимо —{' '}
+				<More term="звучит ниже">
+					Позади удаляющейся машины звуковые волны растянуты: длина волны больше, частота меньше, и звук ниже (волны на рисунке нарисованы с преувеличением). Так же растягивается свет галактик, которые удаляются от нас, — раздел <a href="#расширяющаяся-вселенная">«Расширяющаяся Вселенная»</a>.
+				</More>.
+			</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+</IntroFrame>
+
+<style is:global>
+	/* the winter night: the same in both themes */
+	[data-zgintro] .zgw-milky path {
+		fill: hsl(220, 30%, 80%);
+		fill-opacity: 0.026;
+	}
+	[data-zgintro] .zgw-far {
+		fill: hsl(225, 22%, 13%);
+	}
+	[data-zgintro] .zgw-wall {
+		fill: hsl(222, 20%, 16%);
+	}
+	[data-zgintro] .zgw-roof {
+		fill: hsl(222, 22%, 12%);
+	}
+	[data-zgintro] .zgw-snowroof,
+	[data-zgintro] .zgw-snowcap {
+		fill: hsl(215, 30%, 78%);
+	}
+	[data-zgintro] .zgw-chimney {
+		fill: hsl(10, 25%, 25%);
+	}
+	[data-zgintro] .zgw-smoke {
+		fill: hsl(220, 15%, 62%);
+	}
+	[data-zgintro] .zgw-dark {
+		fill: hsl(225, 25%, 9%);
+	}
+	[data-zgintro] .zgw-frame {
+		fill: none;
+		stroke: hsl(222, 20%, 30%);
+		stroke-width: 1.2;
+	}
+	[data-zgintro] .zgw-glow {
+		fill: hsl(38, 80%, 60%);
+		opacity: 0.1;
+	}
+	[data-zgintro] .zgw-rail {
+		stroke: hsl(25, 18%, 22%);
+		stroke-width: 1.6;
+	}
+	[data-zgintro] .zgw-picket {
+		fill: hsl(25, 20%, 25%);
+		stroke: hsl(25, 20%, 16%);
+		stroke-width: 0.6;
+	}
+	[data-zgintro] .zgw-snow {
+		fill: hsl(215, 28%, 70%);
+	}
+	[data-zgintro] .zgw-path {
+		fill: hsl(215, 22%, 60%);
+	}
+	[data-zgintro] .zgw-birch {
+		fill: none;
+		stroke: hsl(40, 15%, 82%);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	[data-zgintro] .zgw-birch-mark {
+		stroke: hsl(220, 20%, 15%);
+		stroke-width: 1.2;
+	}
+	[data-zgintro] .zgw-people {
+		filter: brightness(0.72) saturate(0.85);
+	}
+	[data-zgintro] .zgw-breath {
+		fill: hsl(210, 30%, 92%);
+	}
+	[data-zgintro] .zgw-binoc {
+		fill: hsl(215, 10%, 62%);
+		stroke: hsl(222, 35%, 10%);
+		stroke-width: 0.5;
+	}
+	[data-zgintro] .zgw-binoc-ring {
+		fill: hsl(215, 8%, 38%);
+		stroke: hsl(222, 35%, 10%);
+		stroke-width: 0.4;
+	}
+	[data-zgintro] .zgw-inset-bg {
+		fill: hsl(230, 45%, 5%);
+	}
+	[data-zgintro] .zgw-inset-rim {
+		fill: none;
+		stroke: hsl(220, 15%, 70%);
+		stroke-width: 2;
+	}
+	[data-zgintro] .zgw-dad {
+		--hm-wool: hsl(210, 25%, 38%);
+		--hm-scarf: hsl(45, 80%, 52%);
+	}
+	[data-zgintro] .zgw-girl {
+		--hm-wool: hsl(330, 55%, 60%);
+		--hm-scarf: hsl(190, 50%, 60%);
+	}
+	.pkw-coat.zw-coat-d,
+	.pkw-sleeve.zw-coat-d {
+		fill: hsl(205, 35%, 38%);
+		stroke: hsl(205, 35%, 38%);
+	}
+	.pkw-coat.zw-coat-g,
+	.pkw-sleeve.zw-coat-g {
+		fill: hsl(350, 55%, 55%);
+		stroke: hsl(350, 55%, 55%);
+	}
+	.pkw-coat:is(.zw-coat-d, .zw-coat-g) {
+		stroke: var(--hm-line);
+	}
+	.pkw-sleeve:is(.zw-coat-d, .zw-coat-g) {
+		fill: none;
+	}
+	/* the street by day: the same in both themes */
+	[data-zgintro] .zgs-sky {
+		fill: hsl(205, 60%, 78%);
+	}
+	[data-zgintro] .zgs-block--a {
+		fill: hsl(30, 30%, 78%);
+	}
+	[data-zgintro] .zgs-block--b {
+		fill: hsl(12, 35%, 70%);
+	}
+	[data-zgintro] .zgs-block--c {
+		fill: hsl(45, 30%, 82%);
+	}
+	[data-zgintro] .zgs-win {
+		fill: hsl(205, 35%, 52%);
+	}
+	[data-zgintro] .zgs-tree {
+		stroke: hsl(25, 30%, 30%);
+		stroke-width: 3;
+	}
+	[data-zgintro] .zgs-crown {
+		fill: hsl(110, 35%, 40%);
+	}
+	[data-zgintro] .zgs-crown--b {
+		fill: hsl(110, 35%, 34%);
+	}
+	[data-zgintro] .zgs-walk,
+	[data-zgintro] .zgs-side {
+		fill: hsl(30, 8%, 66%);
+	}
+	[data-zgintro] .zgs-tile {
+		stroke: hsl(30, 8%, 56%);
+		stroke-width: 0.8;
+	}
+	[data-zgintro] .zgs-road {
+		fill: hsl(220, 6%, 34%);
+	}
+	[data-zgintro] .zgs-dash {
+		stroke: hsl(0, 0%, 92%);
+		stroke-width: 1.4;
+		stroke-dasharray: 12 10;
+	}
+	[data-zgintro] .zgs-zebra {
+		fill: hsl(0, 0%, 92%);
+	}
+	[data-zgintro] .zgs-curb {
+		fill: hsl(0, 0%, 82%);
+	}
+	[data-zgintro] .zgs-wave {
+		fill: none;
+		stroke: hsl(215, 70%, 30%);
+		stroke-width: 1.1;
+	}
+	[data-zgintro] .zgs-van {
+		fill: hsl(0, 0%, 97%);
+		stroke: hsl(220, 10%, 40%);
+		stroke-width: 0.8;
+	}
+	[data-zgintro] .zgs-glass {
+		fill: hsl(205, 40%, 45%);
+	}
+	[data-zgintro] .zgs-stripe,
+	[data-zgintro] .zgs-cross {
+		fill: hsl(355, 75%, 50%);
+	}
+	[data-zgintro] .zgs-door {
+		stroke: hsl(220, 10%, 70%);
+		stroke-width: 0.7;
+	}
+	[data-zgintro] .zgs-bar {
+		fill: hsl(220, 10%, 30%);
+	}
+	[data-zgintro] .zgs-flash {
+		fill: hsl(215, 100%, 60%);
+	}
+	[data-zgintro] .zgs-lamp {
+		fill: hsl(48, 90%, 70%);
+	}
+	[data-zgintro] .zgs-arch {
+		fill: hsl(220, 10%, 25%);
+	}
+	[data-zgintro] .zgs-tyre {
+		fill: hsl(220, 10%, 15%);
+	}
+	[data-zgintro] .zgs-rim {
+		fill: hsl(220, 5%, 70%);
+	}
+	[data-zgintro] .zgs-spoke {
+		stroke: hsl(220, 10%, 35%);
+		stroke-width: 1;
+	}
+	[data-zgintro] .zgs-pole,
+	[data-zgintro] .zgs-box {
+		fill: hsl(220, 10%, 25%);
+	}
+	[data-zgintro] .zgs-red {
+		fill: hsl(0, 85%, 55%);
+	}
+	[data-zgintro] .zgs-off {
+		fill: hsl(120, 20%, 30%);
+	}
+	[data-zgintro] .zgs-pack {
+		fill: hsl(200, 60%, 40%);
+		stroke: hsl(222, 35%, 14%);
+		stroke-width: 0.6;
+	}
+	[data-zgintro] .zgs-strap {
+		fill: none;
+		stroke: hsl(200, 50%, 28%);
+		stroke-width: 1.2;
+	}
+	[data-zgintro] .zgs-ref {
+		stroke: hsl(222, 40%, 18%);
+		stroke-width: 0.8;
+		stroke-dasharray: 2 2;
+		opacity: 0.6;
+	}
+	[data-zgintro] .zgs-note {
+		fill: hsl(222, 40%, 18%);
+	}
+	[data-zgintro] .zgs-stem {
+		fill: none;
+		stroke: hsl(222, 40%, 18%);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+	}
+	.hm-shirt.zs-jacket-b,
+	.hm-limb.zs-jacket-b {
+		fill: hsl(150, 40%, 42%);
+		stroke: hsl(150, 40%, 42%);
+	}
+	.hm-shirt.zs-coat-m,
+	.hm-limb.zs-coat-m {
+		fill: hsl(280, 30%, 55%);
+		stroke: hsl(280, 30%, 55%);
+	}
+	.hm-shirt:is(.zs-jacket-b, .zs-coat-m) {
+		stroke: var(--hm-line);
+	}
+	.hm-limb:is(.zs-jacket-b, .zs-coat-m) {
+		fill: none;
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+	import { winterScene, RUN as WINTER_RUN } from './winter';
+	import { sirenScene, RUN as SIREN_RUN } from './siren';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-zgintro]')) {
+		const winter = root.querySelector<HTMLElement>('[data-scene="winter"]')!;
+		scene(winter, WINTER_RUN, winterScene(winter));
+		const siren = root.querySelector<HTMLElement>('[data-scene="siren"]')!;
+		scene(siren, SIREN_RUN, sirenScene(siren));
+	}
+</script>
