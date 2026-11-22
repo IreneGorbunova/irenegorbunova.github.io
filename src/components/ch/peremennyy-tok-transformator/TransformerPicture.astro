@@ -1,0 +1,262 @@
+---
+/**
+ * «Как устроен трансформатор»: a school scheme in slight perspective. A closed rectangular steel core of thin plates
+ * (the plates show as fine lines on its face and on its top and side edges), the primary winding on the left limb
+ * (6 drawn turns of thick wire) fed from a source «~», the secondary winding on the right limb (12 drawn turns of thin
+ * wire) feeding a lamp. Below: the schematic symbol of a transformer (two coils, two lines of the core between them).
+ * No numbers: the turns are only «fewer» and «more», so this one steps the voltage up.
+ * Animation, slowed so that one period lasts 2 с (50 Гц slowed 100 times). With a resistive load the currents in both
+ * windings follow the voltage, i ∝ sin ωt; the green arrows on the leads show them. Winding sense: the front halves of
+ * all turns run from lower left to upper right; a positive current enters the primary at its top lead (front halves
+ * carry it to the right, so its field in the left limb points up, by the right-hand rule) and, in the secondary, also
+ * enters at the top: the secondary current's field opposes the primary's (Lenz's rule), so the two currents go round
+ * the core in opposite senses. The flux arrows in the core (purple, the color of B in the electromagnetism chapters;
+ * gray lines would not read on a gray core) follow Φ ∝ −cos ωt: in a transformer the flux lags the currents by a
+ * quarter period — it is largest when the currents are zero and changes fastest, reversing, when they are largest,
+ * which is exactly when the induced current in the secondary is largest. The arrows' length follows |i| and |Φ|; all
+ * arrows reverse twice per period. The lamp's glow ripples between 85 and 100 % at twice the frequency (a hot filament
+ * cools only a little in 0,01 с).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const W = 440;
+const C = { x0: 120, x1: 316, y0: 52, y1: 226, w: 34 };
+const D = { x: 10, y: -7 }; // the depth of the core in the slight perspective
+const inner = { x0: C.x0 + C.w, x1: C.x1 - C.w, y0: C.y0 + C.w, y1: C.y1 - C.w };
+const lam = [7, 14, 21, 28].map((d) => `M${C.x0 + d} ${C.y0 + d}H${C.x1 - d}V${C.y1 - d}H${C.x0 + d}Z`).join('');
+const lamTop = [2, 4, 6, 8].map((k) => `M${C.x0 + (D.x * k) / 10} ${C.y0 + (D.y * k) / 10}H${C.x1 + (D.x * k) / 10}`).join('');
+const lamSide = [2, 4, 6, 8].map((k) => `M${C.x1 + (D.x * k) / 10} ${C.y0 + (D.y * k) / 10}V${C.y1 + (D.y * k) / 10}`).join('');
+const xl = C.x0 + C.w / 2;
+const xr = C.x1 - C.w / 2;
+const coil = (xc: number, n: number, y0: number, y1: number, half: number) =>
+	Array.from({ length: n }, (_, k) => {
+		const y = y0 + ((y1 - y0) * k) / (n - 1);
+		return { a: { x: xc - half, y: y + 3.5 }, b: { x: xc + half, y: y - 3.5 } };
+	});
+const prim = coil(xl, 6, 92, 186, 23);
+const sec = coil(xr, 12, 84, 194, 22);
+const back = (ts: { a: { x: number; y: number }; b: { x: number; y: number } }[]) => ts.slice(0, -1).map((t, k) => `M${t.b.x} ${t.b.y}L${ts[k + 1].a.x} ${ts[k + 1].a.y}`).join('');
+const src = { x: 48, y: 139 };
+const lamp = { x: 396, y: 139 };
+const pTop = prim[0].a;
+const pBot = { x: prim[5].a.x, y: prim[5].a.y + 9 }; // the end of the last turn comes out from behind the coil
+const sTop = { x: sec[0].b.x, y: sec[0].b.y - 8 };
+const sBot = sec[11].b;
+// the schematic symbol
+const sy = 306;
+const bumps = (dir: 1 | -1) => Array.from({ length: 4 }, () => `a4 4 0 0 ${dir > 0 ? 1 : 0} 0 8`).join('');
+---
+
+<G7Styles />
+<figure class="g7 g7--pic trf not-content" data-trf>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox={`0 0 ${W} 336`} role="img" aria-label="Трансформатор: замкнутый стальной сердечник из тонких пластин, на левой его части первичная обмотка с небольшим числом витков, подключённая к источнику переменного тока, на правой вторичная обмотка с большим числом витков, к ней подключена лампа. Стрелки тока в обмотках и стрелки магнитного потока в сердечнике меняют направление. Внизу условное обозначение трансформатора на схемах">
+			<text class="trf__lbl" x={(C.x0 + C.x1) / 2 + 5} y={C.y0 - 14} text-anchor="middle">Стальной сердечник</text>
+			<!-- the back halves of the turns -->
+			<path class="trf__back" d={back(prim)} stroke-width="3.4"></path>
+			<path class="trf__back" d={back(sec)} stroke-width="2.2"></path>
+			<!-- the core: top and side edges in perspective, then the face -->
+			<path class="trf__edge" d={`M${C.x0} ${C.y0}L${C.x0 + D.x} ${C.y0 + D.y}H${C.x1 + D.x}L${C.x1} ${C.y0}Z`}></path>
+			<path class="trf__edge2" d={`M${C.x1} ${C.y0}L${C.x1 + D.x} ${C.y0 + D.y}V${C.y1 + D.y}L${C.x1} ${C.y1}Z`}></path>
+			<path class="trf__lam" d={lamTop + lamSide}></path>
+			<path class="trf__core" d={`M${C.x0} ${C.y0}H${C.x1}V${C.y1}H${C.x0}Z M${inner.x0} ${inner.y0}V${inner.y1}H${inner.x1}V${inner.y0}Z`}></path>
+			<path class="trf__lam" d={lam}></path>
+			<g data-flux></g>
+			<!-- the primary circuit -->
+			<path class="trf__wire" d={`M${pTop.x} ${pTop.y}H${src.x}V${src.y - 15}M${src.x} ${src.y + 15}V${pBot.y}H${pBot.x}V${prim[5].a.y}`}></path>
+			{prim.map((t) => <path class="trf__turn" d={`M${t.a.x} ${t.a.y}L${t.b.x} ${t.b.y}`} stroke-width="5"></path>)}
+			<circle class="trf__src" cx={src.x} cy={src.y} r="15"></circle>
+			<path class="trf__tilde" d={`M${src.x - 8} ${src.y + 1} q4 -8 8 0 t8 0`}></path>
+			<!-- the secondary circuit -->
+			<path class="trf__wire" d={`M${sec[0].b.x} ${sec[0].b.y}V${sTop.y}H${lamp.x}V${lamp.y - 13}M${lamp.x} ${lamp.y + 13}V${sBot.y}H${sBot.x}`}></path>
+			{sec.map((t) => <path class="trf__turn" d={`M${t.a.x} ${t.a.y}L${t.b.x} ${t.b.y}`} stroke-width="3"></path>)}
+			<circle class="trf__glow" cx={lamp.x} cy={lamp.y} r="26" data-glow></circle>
+			<circle class="trf__bulb" cx={lamp.x} cy={lamp.y} r="13"></circle>
+			<path class="trf__fil" d={`M${lamp.x - 5} ${lamp.y + 8} L${lamp.x - 3} ${lamp.y - 5} l2 5 l2 -5 l2 5 l2 -5 L${lamp.x + 5} ${lamp.y + 8}`}></path>
+			<!-- current arrows -->
+			<path class="trf__i" d="" data-a="0"></path><path class="trf__ih" d="" data-h="0"></path>
+			<path class="trf__i" d="" data-a="1"></path><path class="trf__ih" d="" data-h="1"></path>
+			<path class="trf__i" d="" data-a="2"></path><path class="trf__ih" d="" data-h="2"></path>
+			<path class="trf__i" d="" data-a="3"></path><path class="trf__ih" d="" data-h="3"></path>
+			<!-- labels -->
+			<text class="trf__lbl" x={xl} y={C.y1 + 20} text-anchor="middle">Первичная обмотка,</text>
+			<text class="trf__lbl" x={xl} y={C.y1 + 36} text-anchor="middle"><tspan class="trf__it">N</tspan><tspan class="trf__sub">1</tspan>{' витков'}</text>
+			<text class="trf__lbl" x={xr + 8} y={C.y1 + 20} text-anchor="middle">Вторичная обмотка,</text>
+			<text class="trf__lbl" x={xr + 8} y={C.y1 + 36} text-anchor="middle"><tspan class="trf__it">N</tspan><tspan class="trf__sub">2</tspan>{' витков'}</text>
+			<!-- the schematic symbol -->
+			<path class="trf__sym" d={`M150 ${sy - 24}H178V${sy - 16}${bumps(1)}V${sy + 24}H150 M290 ${sy - 24}H262V${sy - 16}${bumps(-1)}V${sy + 24}H290`}></path>
+			<path class="trf__sym" d={`M215 ${sy - 20}V${sy + 20}M225 ${sy - 20}V${sy + 20}`}></path>
+			<text class="t-small" x="300" y={sy}>так трансформатор</text>
+			<text class="t-small" x="300" y={sy + 14}>изображают на схемах</text>
+		</svg>
+	</div>
+	<figcaption class="trf__cap">Токи в двух обмотках гасят магнитное действие друг друга, поэтому магнитный поток следует за напряжением с опозданием на четверть периода: он наибольший, когда токи равны нулю. Время замедлено в 100 раз: один период длится 2 с.</figcaption>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = <K extends keyof SVGElementTagNameMap>(p: Element, tag: K, a: Record<string, string | number> = {}) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		p.append(e);
+		return e;
+	};
+	const f = (v: number) => v.toFixed(1);
+	const C = { x0: 120, x1: 316, y0: 52, y1: 226, w: 34 };
+	const TVIS = 2;
+	const M = { x0: C.x0 + C.w / 2, x1: C.x1 - C.w / 2, y0: C.y0 + C.w / 2, y1: C.y1 - C.w / 2 };
+	const MW = M.x1 - M.x0;
+
+	document.querySelectorAll<HTMLElement>('[data-trf]').forEach((root) => {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const flux = $<SVGGElement>('[data-flux]');
+		const glow = $<SVGCircleElement>('[data-glow]');
+		const A = [0, 1, 2, 3].map((i) => ({ sh: $<SVGPathElement>(`[data-a="${i}"]`), hd: $<SVGPathElement>(`[data-h="${i}"]`) }));
+		// flux arrows: three on the top yoke (to the right = clockwise) and three on the bottom one (to the left)
+		const F = [0.2, 0.5, 0.8]
+			.flatMap((q) => [
+				{ x: M.x0 + q * MW, y: M.y0, dx: 1 },
+				{ x: M.x0 + q * MW, y: M.y1, dx: -1 },
+			])
+			.map((p) => ({ ...p, sh: mk(flux, 'path', { class: 'trf__f' }), hd: mk(flux, 'path', { class: 'trf__fh' }) }));
+		const arrow = (sh: SVGElement, hd: SVGElement, x: number, y: number, len: number) => {
+			if (Math.abs(len) < 3) {
+				sh.setAttribute('d', '');
+				hd.setAttribute('d', '');
+				return;
+			}
+			const d = Math.sign(len);
+			const x2 = x + len / 2;
+			sh.setAttribute('d', `M${f(x - len / 2)} ${f(y)}H${f(x2 - d * 6)}`);
+			hd.setAttribute('d', `M${f(x2 + d)} ${f(y)}L${f(x2 - d * 9)} ${f(y - 5)}L${f(x2 - d * 9)} ${f(y + 5)}Z`);
+		};
+		let t = 0;
+		const draw = () => {
+			const ph = (2 * Math.PI * t) / TVIS;
+			const i = Math.sin(ph);
+			const phi = -Math.cos(ph);
+			// primary: into the top lead (right), out of the bottom one (left); secondary: into its top lead (left)
+			arrow(A[0].sh, A[0].hd, 84, 95.5, 30 * i);
+			arrow(A[1].sh, A[1].hd, 84, 198.5, -30 * i);
+			arrow(A[2].sh, A[2].hd, 362, 72.5, -30 * i);
+			arrow(A[3].sh, A[3].hd, 362, 190.5, 30 * i);
+			for (const a of F) {
+				arrow(a.sh, a.hd, a.x, a.y, a.dx * 30 * phi);
+				a.sh.style.opacity = a.hd.style.opacity = (0.3 + 0.7 * Math.abs(phi)).toFixed(2);
+			}
+			glow.style.opacity = (0.85 + 0.15 * i * i).toFixed(2);
+		};
+		loop(root, (dt) => {
+			t = (t + dt) % TVIS;
+			draw();
+			return true;
+		});
+		draw();
+	});
+</script>
+
+<style is:global>
+	.trf .g7__svg {
+		max-width: 38rem;
+		margin-inline: auto;
+	}
+	.trf__core {
+		fill: color-mix(in oklab, var(--ig-vx) 10%, var(--sl-color-gray-5));
+		fill-rule: evenodd;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.trf__edge {
+		fill: color-mix(in oklab, var(--ig-vx) 10%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.trf__edge2 {
+		fill: color-mix(in oklab, var(--ig-vx) 8%, var(--sl-color-gray-6));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.trf__lam {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-opacity: 0.45;
+		stroke-width: 0.7;
+	}
+	.trf__wire {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.trf__turn {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-v) 62%, var(--sl-color-gray-3));
+		stroke-linecap: round;
+	}
+	.trf__back {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-v) 35%, var(--sl-color-gray-4));
+		stroke-linecap: round;
+	}
+	.trf__src,
+	.trf__bulb {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.8;
+	}
+	.trf__tilde,
+	.trf__fil {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.trf__glow {
+		fill: color-mix(in srgb, var(--ig-v) 55%, transparent);
+	}
+	.trf__i {
+		fill: none;
+		stroke: var(--sl-color-green);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.trf__ih {
+		fill: var(--sl-color-green);
+	}
+	.trf__f {
+		stroke: var(--sl-color-purple);
+		stroke-width: 3.4;
+		stroke-linecap: round;
+	}
+	.trf__fh {
+		fill: var(--sl-color-purple);
+	}
+	.trf .g7__svg .trf__lbl {
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-1);
+	}
+	.trf .trf__it {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 14px;
+	}
+	.trf .trf__sub {
+		font-size: 10px;
+		baseline-shift: sub;
+	}
+	.trf__sym {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+	.trf__cap {
+		margin-top: 0.5rem;
+		text-align: center;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+</style>

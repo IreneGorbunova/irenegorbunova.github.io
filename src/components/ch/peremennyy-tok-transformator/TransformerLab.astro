@@ -1,0 +1,464 @@
+---
+/**
+ * «Трансформатор на столе»: a transformer as in TransformerPicture (front view), a source with a key, the ammeter A₁
+ * and the voltmeter V₁ in the primary circuit, A₂ and V₂ in the secondary one, and a load «лампа» that can be switched
+ * on (a resistor of 100 Ом, the button «100 Ом»).
+ * Controls: the source «Сеть ~220 В» / «Источник ~12 В» / «Аккумулятор 12 В»; the key; N₁ = 100, 200, 500, 1000,
+ * 2000; N₂ = 50, 100, 200, 500, 1000, 2000, 4000 (the drawn turns grow with N: 100 → 4 … 2000 → 12, 4000 → 16; the
+ * label gives the real N); «Нагрузка: нет / лампа»; «Показать отношения» shows U₁/U₂ and N₁/N₂ (the tasks first make
+ * the pupil compute them).
+ * Physics, an ideal transformer (no losses — the caption says it): U₂ = U₁·N₂/N₁; with the load I₂ = U₂/100 Ом,
+ * without it I₂ = 0; I₁ = U₂·I₂/U₁ (so U₁I₁ = U₂I₂; without the load the small magnetizing current is shown as «≈ 0»).
+ * Readouts: effective values, three significant figures (В; А, or мА below 1 А).
+ * Direct current (the battery): the flux does not change, so U₂ = 0 and I₂ = 0. Only at the moments of closing and
+ * opening the flux changes: U₂ kicks to ±12·N₂/N₁ В and falls as e^(−t/τ), τ = 0,1 с (shown slower than a real
+ * transformer, whose kick lasts hundredths of a second); the primary current grows to I₁ = 12 В / R₁ with the same τ,
+ * where R₁ = 0,01 Ом per turn (N₁ = 100: 1 Ом, 12 А; N₁ = 1000: 10 Ом, 1,2 А) — nothing limits it but the wire,
+ * so the readout says «большой ток — обмотка греется» and the primary is tinted orange.
+ * Animation: alternating current slowed 100 times (one period in 2 с): the flux arrows in the core (purple) and the
+ * green current arrows on the bottom wires reverse; with the battery the flux arrows stand still. The load is a resistor
+ * (no lamp: a 100-Ом lamp would burn at 440 В and more). Above 1000 В on the secondary a sign «⚡ опасно».
+ * With the battery the primary current stops the moment the key opens; the kick of U₂ on opening is shown as
+ * «скачок» without a number (a real one is far larger than 12 В). Values below 0,5 мА and 0,01 В show as 0.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 g7--stack trl not-content" data-trl>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 440 262" role="img" aria-label="Трансформатор на столе: источник с ключом, амперметр и вольтметр в цепи первичной обмотки, амперметр, вольтметр и лампа в цепи вторичной обмотки">
+			<g data-scheme></g>
+		</svg>
+		<div class="trl__ctrl">
+			<div class="g7__row">
+				<span class="g7__label">Источник</span>
+				<div class="g7__seg" data-seg="src">
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="mains">Сеть ~220 В</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="lab">Источник ~12 В</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="bat">Аккумулятор 12 В</button>
+				</div>
+			</div>
+			<div class="g7__row">
+				<label class="g7__select">Витков в первичной обмотке <select data-n1>{[100, 200, 500, 1000, 2000].map((n) => <option value={n} selected={n === 1000}>{n}</option>)}</select></label>
+				<label class="g7__select">Витков во вторичной обмотке <select data-n2>{[50, 100, 200, 500, 1000, 2000, 4000].map((n) => <option value={n} selected={n === 100}>{n}</option>)}</select></label>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Нагрузка</span>
+				<div class="g7__seg" data-seg="load">
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="0">нет</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="1">100&nbsp;Ом</button>
+				</div>
+				<button type="button" class="g7__btn g7__btn--go" data-key>Замкнуть ключ</button>
+			</div>
+			<ul class="g7__read trl__read">
+				<li><span>Напряжение <i>U</i>₁</span> <b data-r="u1"></b></li>
+				<li><span>Сила тока <i>I</i>₁</span> <b data-r="i1"></b></li>
+				<li><span>Напряжение <i>U</i>₂</span> <b data-r="u2"></b></li>
+				<li><span>Сила тока <i>I</i>₂</span> <b data-r="i2"></b></li>
+			</ul>
+			<p class="g7__msg trl__msg" data-msg hidden></p>
+			<div class="g7__row">
+				<button type="button" class="g7__btn" data-ratio>Показать отношения</button>
+				<span class="trl__ratio" data-ratio-out hidden></span>
+			</div>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Трансформатор идеальный: потери энергии не учитываются. Нагрузка — резистор сопротивлением 100&nbsp;Ом. Переменный ток на рисунке замедлен в 100 раз.</figcaption>
+</figure>
+
+<script>
+	import { loop, el } from '../g7/kit';
+
+	const f = (v: number) => v.toFixed(1);
+	const C = { x0: 152, x1: 288, y0: 58, y1: 212, w: 30 };
+	const XL = C.x0 + C.w / 2;
+	const XR = C.x1 - C.w / 2;
+	const YT = 34; // top wires
+	const YB = 236; // bottom wires
+	const RL = 100; // Ом, the load
+	const TAU = 0.1; // с
+	const drawn = (n: number) => ({ 50: 3, 100: 4, 200: 5, 500: 7, 1000: 9, 2000: 12, 4000: 16 })[n as 50] ?? 8;
+	const sig3 = (v0: number) => {
+		const v = Number(v0.toPrecision(3)); // round first: 9,999… must become 10,0
+		const a = Math.abs(v);
+		if (a < 1e-9) return '0';
+		const d = Math.max(0, 2 - Math.floor(Math.log10(a)));
+		let s = v.toFixed(d);
+		if (a >= 1000) s = Math.round(Number(v.toPrecision(3))).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+		return s.replace('.', ',').replace('-', '−');
+	};
+	const volts = (v: number) => `${sig3(Math.abs(v) < 0.01 ? 0 : v)} В`;
+	const amps = (v: number) => (Math.abs(v) < 5e-4 ? '0 А' : Math.abs(v) < 1 ? `${sig3(v * 1000)} мА` : `${sig3(v)} А`);
+
+	document.querySelectorAll<HTMLElement>('[data-trl]').forEach((root) => {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const G = $<SVGGElement>('[data-scheme]');
+		const R = (k: string) => $<HTMLElement>(`[data-r="${k}"]`);
+		const msg = $<HTMLElement>('[data-msg]');
+		const keyBtn = $<HTMLButtonElement>('[data-key]');
+		const n1Sel = $<HTMLSelectElement>('[data-n1]');
+		const n2Sel = $<HTMLSelectElement>('[data-n2]');
+		const ratioBtn = $<HTMLButtonElement>('[data-ratio]');
+		const ratioOut = $<HTMLElement>('[data-ratio-out]');
+		let src: 'mains' | 'lab' | 'bat' = 'mains';
+		let load = false;
+		let closed = false;
+		let showRatio = false;
+		let t = 0;
+		let tSw = -10; // time of the last switching
+		// handles to the moving parts
+		let flux: { sh: SVGPathElement; hd: SVGPathElement; x: number; y: number; dx: number }[] = [];
+		let curA: { sh: SVGPathElement; hd: SVGPathElement; x: number; y: number; sgn: number }[] = [];
+		let prim: SVGGElement;
+		let glow: SVGCircleElement | null = null;
+		let v1t: SVGTextElement;
+		let v2t: SVGTextElement;
+		let a1t: SVGTextElement;
+		let a2t: SVGTextElement;
+		let v2c: SVGCircleElement;
+		let danger: SVGTextElement;
+
+		const meter = (x: number, y: number, letter: string, sub: string) => {
+			const c = el('circle', { class: 'trl__meter', cx: x, cy: y, r: 11 });
+			G.append(c);
+			const tx = el('text', { class: 'trl__ml', x, y: y + 4.5, 'text-anchor': 'middle' }, letter);
+			tx.append(el('tspan', { class: 'trl__msub', dy: 3 }, sub));
+			G.append(tx);
+			return c;
+		};
+		const coil = (xc: number, n: number, cls: string) => {
+			const g = el('g', { class: cls });
+			const y0 = 74;
+			const y1 = 196;
+			const pts = Array.from({ length: n }, (_, k) => {
+				const y = n === 1 ? (y0 + y1) / 2 : y0 + ((y1 - y0) * k) / (n - 1);
+				return { a: { x: xc - 21, y: y + 3 }, b: { x: xc + 21, y: y - 3 } };
+			});
+			const w = n > 12 ? 2.4 : n > 8 ? 3.2 : 4.2;
+			for (const p of pts) g.append(el('path', { class: 'trl__turn', d: `M${p.a.x} ${p.a.y}L${p.b.x} ${p.b.y}`, 'stroke-width': w }));
+			return { g, pts };
+		};
+		const build = () => {
+			G.replaceChildren();
+			const n1 = Number(n1Sel.value);
+			const n2 = Number(n2Sel.value);
+			// back halves are hidden by the core; the core
+			G.append(el('path', { class: 'trl__core', d: `M${C.x0} ${C.y0}H${C.x1}V${C.y1}H${C.x0}Z M${C.x0 + C.w} ${C.y0 + C.w}V${C.y1 - C.w}H${C.x1 - C.w}V${C.y0 + C.w}Z` }));
+			G.append(el('path', { class: 'trl__lam', d: [6, 12, 18, 24].map((d) => `M${C.x0 + d} ${C.y0 + d}H${C.x1 - d}V${C.y1 - d}H${C.x0 + d}Z`).join('') }));
+			const fg = el('g');
+			G.append(fg);
+			flux = [0.25, 0.5, 0.75].flatMap((q) => [
+				{ x: XL + q * (XR - XL), y: C.y0 + C.w / 2, dx: 1 },
+				{ x: XL + q * (XR - XL), y: C.y1 - C.w / 2, dx: -1 },
+			]).map((p) => ({ ...p, sh: fg.appendChild(el('path', { class: 'trl__f' })), hd: fg.appendChild(el('path', { class: 'trl__fh' })) }));
+			// primary circuit wires
+			const P = coil(XL, drawn(n1), 'trl__prim');
+			const S = coil(XR, drawn(n2), 'trl__sec');
+			const pTop = P.pts[0].a;
+			const pBot = P.pts[P.pts.length - 1].a;
+			const sTop = S.pts[0].b;
+			const sBot = S.pts[S.pts.length - 1].b;
+			const wires =
+				`M${pTop.x} ${pTop.y}H${pTop.x - 8}V${YT}H24V${130 - 14}M24 ${130 + 14}V${YB}H${pBot.x - 8}V${pBot.y}H${pBot.x}` +
+				`M92 ${YT}V${130 - 11}M92 ${130 + 11}V${YB}` +
+				`M${sTop.x} ${sTop.y}H${sTop.x + 8}V${YT}H${load ? 410 : 362}` +
+				`M${sBot.x} ${sBot.y}H${sBot.x + 8}V${YB}H${load ? 410 : 362}` +
+				`M362 ${YT}V${130 - 11}M362 ${130 + 11}V${YB}` +
+				(load ? `M410 ${YT}V116M410 144V${YB}` : '');
+			G.append(el('path', { class: 'trl__wire', d: wires }));
+			// the key on the top wire (x 40 … 62)
+			G.append(el('rect', { class: 'trl__gap', x: 41, y: YT - 3, width: 20, height: 6 }));
+			G.append(el('circle', { class: 'trl__pin', cx: 42, cy: YT, r: 2.2 }), el('circle', { class: 'trl__pin', cx: 60, cy: YT, r: 2.2 }));
+			G.append(el('path', { class: 'trl__blade', d: closed ? `M42 ${YT}L60 ${YT - 1}` : `M42 ${YT}L58 ${YT - 11}` }));
+			// the source
+			if (src === 'bat') {
+				G.append(el('rect', { class: 'trl__gap', x: 12, y: 122, width: 24, height: 16 }));
+				G.append(el('path', { class: 'trl__plate', d: `M12 125H36M18 135H30`, 'stroke-width': 2 }));
+				G.append(el('path', { class: 'trl__plate', d: `M18 135H30`, 'stroke-width': 4 }));
+				G.append(el('path', { class: 'trl__wire', d: `M24 116V125M24 135V144` }));
+				G.append(el('text', { class: 'trl__pm', x: 41, y: 124 }, '+'), el('text', { class: 'trl__pm', x: 41, y: 144 }, '−'));
+			} else {
+				G.append(el('circle', { class: 'trl__src', cx: 24, cy: 130, r: 14 }));
+				G.append(el('path', { class: 'trl__tilde', d: `M16 131 q4 -8 8 0 t8 0` }));
+			}
+			// the primary goes on top of its wires
+			prim = P.g;
+			G.append(P.g, S.g);
+			// meters
+			meter(116, YT, 'A', '1');
+			meter(92, 130, 'V', '1');
+			meter(338, YT, 'A', '2');
+			v2c = meter(362, 130, 'V', '2');
+			a1t = el('text', { class: 'trl__val', x: 116, y: YT - 16, 'text-anchor': 'middle' });
+			v1t = el('text', { class: 'trl__val', x: 92, y: 158, 'text-anchor': 'middle' });
+			a2t = el('text', { class: 'trl__val', x: 338, y: YT - 16, 'text-anchor': 'middle' });
+			v2t = el('text', { class: 'trl__val', x: 362, y: 158, 'text-anchor': 'middle' });
+			danger = el('text', { class: 'trl__danger', x: 362, y: 174, 'text-anchor': 'middle' }, '⚡ опасно');
+			G.append(a1t, v1t, a2t, v2t, danger);
+			// the lamp
+			glow = null;
+			if (load) {
+				// the load: a resistor of 100 Ом (a rectangle on the schemes)
+				G.append(el('rect', { class: 'trl__bulb', x: 404, y: 116, width: 12, height: 28, rx: 1 }), el('text', { class: 'trl__val', x: 413, y: 160, 'text-anchor': 'middle' }, '100 Ом'));
+			}
+			// labels
+			G.append(el('text', { class: 'trl__lbl', x: XL, y: 256, 'text-anchor': 'middle' }, `N₁ = ${n1}`));
+			G.append(el('text', { class: 'trl__lbl', x: XR, y: 256, 'text-anchor': 'middle' }, `N₂ = ${n2}`));
+			// current arrows on the bottom wires
+			curA = [
+				{ x: 60, y: YB, sgn: -1 },
+				{ x: 386, y: YB, sgn: 1 },
+			].map((p) => ({ ...p, sh: G.appendChild(el('path', { class: 'trl__i' })), hd: G.appendChild(el('path', { class: 'trl__ih' })) }));
+		};
+		const arrow = (sh: SVGPathElement, hd: SVGPathElement, x: number, y: number, len: number) => {
+			if (Math.abs(len) < 3) {
+				sh.setAttribute('d', '');
+				hd.setAttribute('d', '');
+				return;
+			}
+			const d = Math.sign(len);
+			const x2 = x + len / 2;
+			sh.setAttribute('d', `M${f(x - len / 2)} ${f(y)}H${f(x2 - d * 5)}`);
+			hd.setAttribute('d', `M${f(x2 + d)} ${f(y)}L${f(x2 - d * 8)} ${f(y - 4.5)}L${f(x2 - d * 8)} ${f(y + 4.5)}Z`);
+		};
+		// the state at time t
+		const state = () => {
+			const n1 = Number(n1Sel.value);
+			const n2 = Number(n2Sel.value);
+			const k = n2 / n1;
+			if (src !== 'bat') {
+				const U1 = src === 'mains' ? 220 : 12;
+				if (!closed) return { U1: 0, I1: 0, U2: 0, I2: 0, ac: true, phi: 0, i: 0, hot: false };
+				const U2 = U1 * k;
+				const I2 = load ? U2 / RL : 0;
+				const I1 = (U2 * I2) / U1;
+				return { U1, I1, U2, I2, ac: true, phi: 1, i: load ? 1 : 0, hot: false };
+			}
+			// battery
+			const R1 = 0.01 * n1;
+			const since = t - tSw;
+			const e = Math.exp(-since / TAU);
+			const grow = closed ? 1 - e : e; // the flux and the primary current, relative
+			const kick = (closed ? 1 : -1) * 12 * k * e * (since < 6 * TAU ? 1 : 0);
+			const U2 = kick;
+			const I2 = load ? U2 / RL : 0;
+			// the key is open: no current in the primary at once; the kick on opening is shown only as a jump (a real one is
+			// far larger than 12 В, so no number is given)
+			return { U1: closed ? 12 : 0, I1: closed ? (12 / R1) * grow : 0, U2, I2, ac: false, phi: grow, i: closed ? grow : 0, hot: closed && since > 2 * TAU, jump: !closed && Math.abs(U2) > 0.05 };
+		};
+		const draw = () => {
+			const s = state();
+			const ph = (2 * Math.PI * t) / 2;
+			const live = closed || !s.ac;
+			// flux: AC lags the voltage by a quarter period; DC grows and stays
+			const phi = s.ac ? (closed ? -Math.cos(ph) : 0) : s.phi;
+			for (const a of flux) {
+				arrow(a.sh, a.hd, a.x, a.y, a.dx * 26 * phi);
+				a.sh.style.opacity = a.hd.style.opacity = (0.3 + 0.7 * Math.abs(phi)).toFixed(2);
+			}
+			const ia = s.ac ? (closed && s.I1 > 0 ? Math.sin(ph) : 0) : s.I1 > 0.01 ? s.i : 0;
+			const i2a = s.ac ? (closed && s.I2 > 0 ? Math.sin(ph) : 0) : 0;
+			arrow(curA[0].sh, curA[0].hd, curA[0].x, curA[0].y, curA[0].sgn * 24 * ia);
+			arrow(curA[1].sh, curA[1].hd, curA[1].x, curA[1].y, curA[1].sgn * 24 * i2a);
+			prim.classList.toggle('is-hot', s.hot);
+			const P2 = Math.abs(s.U2 * s.I2);
+			if (glow) glow.style.opacity = Math.min(1, Math.sqrt(P2 / 100)).toFixed(2);
+			v1t.textContent = volts(s.U1);
+			a1t.textContent = s.ac && closed && !load ? '≈ 0 А' : amps(s.I1);
+			const jump = (s as { jump?: boolean }).jump;
+			v2t.textContent = jump ? 'скачок' : volts(s.U2);
+			a2t.textContent = jump ? 'скачок' : amps(s.I2);
+			v2c.classList.toggle('is-kick', !s.ac && Math.abs(s.U2) > 0.05);
+			danger.style.display = Math.abs(s.U2) > 1000 ? '' : 'none';
+			R('u1').textContent = volts(s.U1);
+			R('i1').textContent = a1t.textContent;
+			R('u2').textContent = jump ? 'скачок' : volts(s.U2);
+			R('i2').textContent = jump ? 'скачок' : amps(s.I2);
+			msg.hidden = !s.hot;
+			msg.textContent = s.hot ? 'Большой ток — обмотка греется. Магнитный поток в сердечнике не меняется, поэтому во вторичной обмотке тока нет.' : '';
+			if (showRatio) {
+				const n1 = Number(n1Sel.value);
+				const n2 = Number(n2Sel.value);
+				const r = (a: number, b: number) => (Math.abs(b) < 1e-9 ? '—' : sig3(a / b));
+				ratioOut.innerHTML = `<i>U</i>₁/<i>U</i>₂ = ${s.ac && closed ? r(s.U1, s.U2) : '—'};&ensp;<i>N</i>₁/<i>N</i>₂ = ${sig3(n1 / n2)}`;
+			}
+			void live;
+		};
+		const wake = loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+		const seg = (name: string, pick: (v: string) => void) => {
+			const btns = [...root.querySelectorAll<HTMLButtonElement>(`[data-seg="${name}"] button`)];
+			for (const b of btns)
+				b.addEventListener('click', () => {
+					for (const o of btns) o.setAttribute('aria-pressed', String(o === b));
+					pick(b.dataset.v!);
+					build();
+					draw();
+					wake();
+				});
+		};
+		seg('src', (v) => {
+			src = v as 'mains' | 'lab' | 'bat';
+			closed = false;
+			keyBtn.textContent = 'Замкнуть ключ';
+			tSw = -10;
+		});
+		seg('load', (v) => (load = v === '1'));
+		keyBtn.addEventListener('click', () => {
+			closed = !closed;
+			tSw = t;
+			keyBtn.textContent = closed ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+			build();
+			draw();
+		});
+		for (const sel of [n1Sel, n2Sel])
+			sel.addEventListener('change', () => {
+				build();
+				draw();
+			});
+		ratioBtn.addEventListener('click', () => {
+			showRatio = !showRatio;
+			ratioOut.hidden = !showRatio;
+			ratioBtn.textContent = showRatio ? 'Скрыть отношения' : 'Показать отношения';
+			draw();
+		});
+		build();
+		draw();
+	});
+</script>
+
+<style is:global>
+	.trl .g7__svg {
+		max-width: 38rem;
+		margin-inline: auto;
+	}
+	.trl__ctrl {
+		display: grid;
+		gap: 0.6rem;
+		margin-top: 0.4rem;
+	}
+	.trl__read {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.trl__read i,
+	.trl__ratio i {
+		font-family: var(--ig-font-math);
+	}
+	.trl__ratio {
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	@media (max-width: 30rem) {
+		.trl__read {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	.trl__core {
+		fill: color-mix(in oklab, var(--ig-vx) 10%, var(--sl-color-gray-5));
+		fill-rule: evenodd;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.trl__lam {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-opacity: 0.4;
+		stroke-width: 0.7;
+	}
+	.trl__turn {
+		stroke: color-mix(in oklab, var(--ig-v) 62%, var(--sl-color-gray-3));
+		stroke-linecap: round;
+	}
+	.trl__prim.is-hot .trl__turn {
+		stroke: var(--sl-color-orange);
+	}
+	.trl__wire {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+	.trl__gap {
+		fill: var(--g7-paper);
+	}
+	.trl__pin {
+		fill: var(--sl-color-gray-2);
+	}
+	.trl__blade {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	.trl__plate {
+		stroke: var(--sl-color-gray-1);
+	}
+	.trl .g7__svg .trl__pm {
+		font-size: 12px;
+		font-weight: 700;
+	}
+	.trl__src,
+	.trl__meter,
+	.trl__bulb {
+		fill: var(--g7-paper);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+	}
+	.trl__meter.is-kick {
+		stroke: var(--sl-color-green);
+		stroke-width: 3;
+	}
+	.trl__tilde,
+	.trl__fil {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.trl .g7__svg .trl__ml {
+		font-size: 12px;
+		font-weight: 700;
+		fill: var(--sl-color-gray-1);
+	}
+	.trl .g7__svg .trl__msub {
+		font-size: 8px;
+	}
+	.trl .g7__svg .trl__val {
+		font-size: 11.5px;
+		font-weight: 600;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.trl .g7__svg .trl__lbl {
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-1);
+	}
+	.trl .g7__svg .trl__danger {
+		font-size: 11px;
+		font-weight: 700;
+		fill: var(--sl-color-orange);
+	}
+	.trl__glow {
+		fill: color-mix(in srgb, var(--ig-v) 60%, transparent);
+	}
+	.trl__f {
+		stroke: var(--sl-color-purple);
+		stroke-width: 3.2;
+		stroke-linecap: round;
+	}
+	.trl__fh {
+		fill: var(--sl-color-purple);
+	}
+	.trl__i {
+		stroke: var(--sl-color-green);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.trl__ih {
+		fill: var(--sl-color-green);
+	}
+</style>

@@ -1,0 +1,335 @@
+---
+/**
+ * «Ток в лампе в замедленной съёмке»: a socket, a cord of two wires and a lamp; under them a scrolling graph of the
+ * current i(t) and a graph of the lamp's brightness.
+ * Physics: i = I·sin(2πνt), ν = 50 Гц (T = 20,0 мс) or 60 Гц (T = 16,7 мс); the current axis has no numbers, only the
+ * sign. The current changes its direction at every zero, t = k/(2ν): 2 times per period, 100 (120) times a second. The
+ * brightness: an LED lamp ∝ i² (its light follows the current: 0 at every zero, a flash at every |i| maximum); an
+ * incandescent lamp ripples between 85 and 100 % (0,85 + 0,15·sin²) — its hot filament cools only a little in 0,01 с.
+ * Both have their maxima at t = (2k + 1)/(4ν): 2 flashes per period, 100 (120) a second.
+ * The counters are computed from the model time, not frame by frame: changes of direction = ⌊2νt⌋, flashes =
+ * ⌊2νt + 1/2⌋, since «Сброс» (t = 0).
+ * The green dots in the wires are the current (not electrons): they move the way the current goes, their displacement
+ * ∝ −cos(2πνt) (the charge that has passed), so they move fastest when |i| is largest and stop at its zeros.
+ * The graphs: a window of the last 60 мс of model time (12 cells of 5 мс), the present at the right edge (until 60 мс
+ * have passed the window is 0–60 мс and the point moves to the right).
+ * «Замедление» ×10 / ×100 / ×1000 (default ×1000: one period of 20 мс lasts 20 с; ×100: 2 с; ×10: 0,2 с).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 g7--stack acl not-content" data-acl>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 440 330" role="img" aria-label="Розетка, шнур из двух проводов и лампа. Зелёные точки в проводах показывают ток: они движутся в одну сторону, замедляются, останавливаются и движутся обратно. Ниже графики силы тока и яркости лампы от времени">
+			<!-- the circuit -->
+			<rect class="acl__wall" x="14" y="16" width="40" height="84" rx="3"></rect>
+			<rect class="acl__plate" x="20" y="38" width="28" height="40" rx="6"></rect>
+			<circle class="acl__hole" cx="34" cy="50" r="2.6"></circle>
+			<circle class="acl__hole" cx="34" cy="66" r="2.6"></circle>
+			<path class="acl__plug" d="M50 40 h16 q6 0 6 6 v24 q0 6 -6 6 h-16 Z"></path>
+			<path class="acl__wire" d="M72 50 H300 V46 M300 72 V66 H72"></path>
+			<g data-dots></g>
+			<g data-lamp></g>
+			<text class="t-small" x="34" y="114" text-anchor="middle">розетка</text>
+			<!-- graphs -->
+			<g data-grid></g>
+			<path class="acl__axis" d="M52 128 V232 M52 180 H426 M52 244 V316 M52 316 H426"></path>
+			<text class="t-i" x="44" y="138" text-anchor="end">i</text>
+			<text class="acl__sign" x="44" y="157" text-anchor="end">+</text>
+			<text class="acl__sign" x="44" y="212" text-anchor="end">−</text>
+			<text class="t-small" x="56" y="254">яркость</text>
+			<text class="t-small" x="44" y="268" text-anchor="end">100 %</text>
+			<text class="t-small" x="44" y="319" text-anchor="end">0</text>
+			<path class="acl__curve" d="" data-icurve></path>
+			<path class="acl__bcurve" d="" data-bcurve></path>
+			<circle class="acl__dot" r="4.5" data-idot></circle>
+			<circle class="acl__bdot" r="4" data-bdot></circle>
+			<g data-tl></g>
+			<text class="t-small" x="426" y="194" text-anchor="end">t, мс</text>
+		</svg>
+		<div class="g7__side acl__side">
+			<div class="g7__row">
+				<span class="g7__label">Замедление</span>
+				<div class="g7__seg" data-seg="slow">
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="10">×10</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="100">×100</button>
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="1000">×1000</button>
+				</div>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Частота сети</span>
+				<div class="g7__seg" data-seg="nu">
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="50">50 Гц (Россия)</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="60">60 Гц (США)</button>
+				</div>
+			</div>
+			<div class="g7__row">
+				<span class="g7__label">Лампа</span>
+				<div class="g7__seg" data-seg="lamp">
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="led">светодиодная</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="inc">накаливания</button>
+				</div>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-pause>Пауза</button>
+				<button type="button" class="g7__btn" data-reset>Сброс</button>
+			</div>
+			<ul class="g7__read">
+				<li>Время (в модели) <b data-r="t"></b></li>
+				<li>Ток сменил направление <b data-r="z"></b></li>
+				<li>Вспышек лампы <b data-r="f"></b></li>
+				<li class="is-key">Период и частота <b data-r="T"></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Зелёные точки показывают направление тока. Время в модели замедлено: при ×1000 одна секунда на экране — это 1 мс.</figcaption>
+</figure>
+
+<script>
+	import { loop, el, set } from '../g7/kit';
+
+	const f = (v: number) => v.toFixed(1);
+	const fmt = (v: number, d: number) => v.toFixed(d).replace('.', ',');
+	// graph geometry
+	const GX0 = 52;
+	const GX1 = 422;
+	const WIN = 60; // мс
+	const PX = (GX1 - GX0) / WIN;
+	const IY = 180;
+	const IA = 44;
+	const BY = 316;
+	const BA = 52;
+	// the loop of wire for the dots: top wire (x 72 → 300 at y 50), down at the lamp, bottom wire back (y 66)
+	const LOOP = [
+		{ x: 72, y: 50 },
+		{ x: 300, y: 50 },
+		{ x: 300, y: 66 },
+		{ x: 72, y: 66 },
+	];
+	const SEG = [228, 16, 228, 16];
+	const PER = SEG.reduce((a, b) => a + b, 0);
+	const onLoop = (s: number) => {
+		s = ((s % PER) + PER) % PER;
+		for (let k = 0; k < 4; k++) {
+			if (s <= SEG[k]) {
+				const a = LOOP[k];
+				const b = LOOP[(k + 1) % 4];
+				const q = s / SEG[k];
+				return { x: a.x + (b.x - a.x) * q, y: a.y + (b.y - a.y) * q, vis: k === 0 || k === 2 };
+			}
+			s -= SEG[k];
+		}
+		return { x: 72, y: 50, vis: true };
+	};
+
+	document.querySelectorAll<HTMLElement>('[data-acl]').forEach((root) => {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const dotsG = $<SVGGElement>('[data-dots]');
+		const lampG = $<SVGGElement>('[data-lamp]');
+		const gridG = $<SVGGElement>('[data-grid]');
+		const tlG = $<SVGGElement>('[data-tl]');
+		const icurve = $<SVGPathElement>('[data-icurve]');
+		const bcurve = $<SVGPathElement>('[data-bcurve]');
+		const idot = $<SVGCircleElement>('[data-idot]');
+		const bdot = $<SVGCircleElement>('[data-bdot]');
+		const R = (k: string) => $<HTMLElement>(`[data-r="${k}"]`);
+		const pauseBtn = $<HTMLButtonElement>('[data-pause]');
+		const N = 22;
+		const dots = Array.from({ length: N }, (_, k) => ({ c: dotsG.appendChild(el('circle', { r: 2.6, class: 'acl__cdot' })), s0: (k * PER) / N }));
+		let slow = 1000;
+		let nu = 50;
+		let lamp: 'led' | 'inc' = 'led';
+		let t = 0; // мс of model time
+		let paused = false;
+
+		const drawLamp = () => {
+			lampG.replaceChildren();
+			if (lamp === 'led') {
+				// an LED bulb: a frosted dome, a white plastic neck, the base
+				lampG.append(
+					el('circle', { class: 'acl__halo', cx: 316, cy: 58, r: 46, 'data-halo': '' }),
+					el('rect', { class: 'acl__base', x: 292, y: 46, width: 12, height: 24, rx: 2 }),
+					el('path', { class: 'acl__neck', d: 'M304 44 h8 l6 -6 v40 l-6 -6 h-8 Z' }),
+					el('path', { class: 'acl__dome', d: 'M318 38 a22 22 0 1 1 0 40 Z', 'data-glass': '' }),
+				);
+			} else {
+				lampG.append(
+					el('circle', { class: 'acl__halo', cx: 322, cy: 58, r: 46, 'data-halo': '' }),
+					el('rect', { class: 'acl__base', x: 292, y: 46, width: 14, height: 24, rx: 2 }),
+					el('path', { class: 'acl__glass', d: 'M306 48 q6 -2 10 -10 a21 21 0 1 1 0 40 q-4 -8 -10 -10 Z', 'data-glass': '' }),
+					el('path', { class: 'acl__fil', d: 'M306 52 L322 52 l2 -3 l2 6 l2 -6 l2 6 l2 -3 M306 64 L334 64 L334 52', 'data-fil': '' }),
+				);
+			}
+		};
+		const bright = (s: number) => (lamp === 'led' ? s * s : 0.85 + 0.15 * s * s);
+
+		const draw = () => {
+			const w = (2 * Math.PI * nu) / 1000; // rad per мс
+			const s = Math.sin(w * t);
+			// the dots: displacement ∝ −cos (amplitude 14 px), clockwise positive
+			const disp = -14 * Math.cos(w * t);
+			for (const d of dots) {
+				const p = onLoop(d.s0 + disp);
+				set(d.c, { cx: f(p.x), cy: f(p.y) });
+				d.c.style.opacity = p.vis ? '1' : '0';
+			}
+			const b = bright(s);
+			const halo = lampG.querySelector<SVGElement>('[data-halo]');
+			if (halo) halo.style.opacity = f(b);
+			lampG.querySelector<SVGElement>('[data-glass]')?.style.setProperty('--acl-b', b.toFixed(2));
+			// the window
+			const t0 = Math.max(0, t - WIN);
+			const xOf = (tt: number) => GX0 + (tt - t0) * PX;
+			let di = '';
+			let db = '';
+			const n = 240;
+			for (let k = 0; k <= n; k++) {
+				const tt = t0 + ((Math.min(t, t0 + WIN) - t0) * k) / n;
+				const ss = Math.sin(w * tt);
+				di += `${k ? 'L' : 'M'}${f(xOf(tt))} ${f(IY - IA * ss)}`;
+				db += `${k ? 'L' : 'M'}${f(xOf(tt))} ${f(BY - BA * bright(ss))}`;
+			}
+			icurve.setAttribute('d', t > 0 ? di : '');
+			bcurve.setAttribute('d', t > 0 ? db : '');
+			set(idot, { cx: f(xOf(t)), cy: f(IY - IA * s) });
+			set(bdot, { cx: f(xOf(t)), cy: f(BY - BA * b) });
+			// grid lines every 5 мс of model time, labels every 10 мс
+			gridG.replaceChildren();
+			tlG.replaceChildren();
+			for (let g = Math.ceil(t0 / 5) * 5; g <= t0 + WIN + 1e-9; g += 5) {
+				const x = xOf(g);
+				gridG.append(el('line', { class: 'acl__grid', x1: f(x), x2: f(x), y1: 136, y2: 224 }), el('line', { class: 'acl__grid', x1: f(x), x2: f(x), y1: 262, y2: 316 }));
+				if (Math.round(g) % 10 === 0 && x > GX0 + 8) tlG.append(el('text', { class: 'acl__tl', x: f(x), y: 238, 'text-anchor': 'middle' }, String(Math.round(g))));
+			}
+			gridG.append(el('line', { class: 'acl__grid', x1: GX0, x2: GX1, y1: IY - IA, y2: IY - IA }), el('line', { class: 'acl__grid', x1: GX0, x2: GX1, y1: IY + IA, y2: IY + IA }), el('line', { class: 'acl__grid', x1: GX0, x2: GX1, y1: BY - BA, y2: BY - BA }));
+			// readouts
+			const ts = t / 1000;
+			R('t').textContent = `${fmt(t, 1)} мс`;
+			const nz = Math.floor(2 * nu * ts + 1e-9);
+			const m10 = nz % 10;
+			const m100 = nz % 100;
+			R('z').textContent = `${nz} ${m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'раза' : 'раз'}`;
+			R('f').textContent = String(Math.floor(2 * nu * ts + 0.5 + 1e-9));
+			R('T').innerHTML = `<i>T</i> = ${fmt(1000 / nu, 1)} мс, <i>ν</i> = ${nu} Гц`;
+		};
+		const wake = loop(root, (dt) => {
+			if (!paused) t += (dt * 1000) / slow;
+			draw();
+			return !paused;
+		});
+		const seg = (name: string, pick: (v: string) => void) => {
+			const btns = [...root.querySelectorAll<HTMLButtonElement>(`[data-seg="${name}"] button`)];
+			for (const b of btns)
+				b.addEventListener('click', () => {
+					for (const o of btns) o.setAttribute('aria-pressed', String(o === b));
+					pick(b.dataset.v!);
+					draw();
+				});
+		};
+		seg('slow', (v) => (slow = Number(v)));
+		seg('nu', (v) => {
+			nu = Number(v);
+			t = 0;
+		});
+		seg('lamp', (v) => {
+			lamp = v as 'led' | 'inc';
+			drawLamp();
+		});
+		pauseBtn.addEventListener('click', () => {
+			paused = !paused;
+			pauseBtn.textContent = paused ? 'Пуск' : 'Пауза';
+			if (!paused) wake();
+		});
+		$<HTMLButtonElement>('[data-reset]').addEventListener('click', () => {
+			t = 0;
+			draw();
+		});
+		drawLamp();
+		draw();
+	});
+</script>
+
+<style is:global>
+	.acl__wall {
+		fill: color-mix(in srgb, var(--ig-v) 10%, var(--sl-color-gray-5));
+	}
+	.acl__plate {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.acl__hole {
+		fill: var(--sl-color-gray-4);
+	}
+	.acl__plug {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.acl__wire {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.acl__cdot {
+		fill: var(--sl-color-green);
+	}
+	.acl__halo {
+		fill: color-mix(in srgb, var(--ig-v) 50%, transparent);
+	}
+	.acl__base {
+		fill: var(--sl-color-gray-3);
+	}
+	.acl__neck {
+		fill: var(--sl-color-gray-2);
+	}
+	.acl__dome,
+	.acl__glass {
+		fill: color-mix(in srgb, hsl(50, 100%, 80%) calc(var(--acl-b, 0) * 100%), var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.acl__fil {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.acl__axis {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+	}
+	.acl .g7__svg .acl__sign {
+		font-size: 16px;
+		font-weight: 700;
+	}
+	.acl__grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.acl__curve {
+		fill: none;
+		stroke: var(--sl-color-green);
+		stroke-width: 2.4;
+	}
+	.acl__bcurve {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.2;
+	}
+	.acl__dot {
+		fill: var(--sl-color-green);
+	}
+	.acl__bdot {
+		fill: var(--ig-v);
+	}
+	.acl .g7__svg .acl__tl {
+		font-size: 11px;
+		fill: var(--sl-color-gray-3);
+	}
+	.acl__side .g7__seg .g7__btn {
+		font-weight: 600;
+	}
+</style>
