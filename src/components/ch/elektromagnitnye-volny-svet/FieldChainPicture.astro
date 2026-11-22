@@ -1,0 +1,177 @@
+---
+/**
+ * «Цепочка полей» (picture, a looping animation, 6 с). A scheme, as in the textbooks: the real fields fill all space.
+ * Left panel: a bar magnet with its constant field B (purple arrow), no ring of E around it — a constant field does
+ * not make another one.
+ * Right: a vertical arrow B (purple) grows during the first 4 с. Around it a horizontal ring of E (red) appears; around
+ * the near-right part of that ring a vertical ring of B; around the right part of that ring a horizontal ring of E, and
+ * so on: 7 links, one every 0,5 с, each 32 px in radius, so the chain runs to the right. Directions: every field grows;
+ * a ring of E turns against the right-hand turn about the B it surrounds (as the induced current, Lenz's rule:
+ * clockwise seen from above around a B that points up and grows), a ring of B turns with the right-hand turn about the
+ * E it surrounds. Seen by the viewer the B rings then turn counterclockwise and the pattern repeats every two links.
+ * Horizontal rings are drawn as ellipses (0,32 as tall as wide), their back halves behind the vertical rings.
+ */
+import EvsStyles from './EvsStyles.astro';
+---
+
+<EvsStyles />
+<figure class="g7 g7--pic evs not-content" data-evs-chain>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 200" role="img" aria-label="Слева постоянный магнит: его магнитное поле не меняется, другого поля вокруг нет. Справа магнитное поле растёт, и вокруг него возникает кольцо электрического поля; вокруг него — кольцо магнитного, затем снова электрического: цепочка полей бежит вправо">
+			<!-- the constant magnet -->
+			<rect class="fc-panel" x="4" y="8" width="78" height="186" rx="6"></rect>
+			<rect class="fc-n" x="31" y="104" width="24" height="26" rx="2"></rect>
+			<rect class="fc-s" x="31" y="130" width="24" height="26" rx="2"></rect>
+			<text class="fc-pole" x="43" y="122" text-anchor="middle">N</text>
+			<text class="fc-pole" x="43" y="148" text-anchor="middle">S</text>
+			<path class="arrow arrow--b" d="M43 100 V58" stroke-width="2.4"></path>
+			<path class="head--b" d="M43 50 l-4.5 9 h9 Z"></path>
+			<text class="t-i t-b" x="52" y="66" font-size="14">B</text>
+			<path class="arrow--b" fill="none" stroke-width="1" d="M52 52 h8 m-2.2 -1.8 l2.2 1.8 l-2.2 1.8"></path>
+			<text class="t-small" x="43" y="172" text-anchor="middle">поле</text>
+			<text class="t-small" x="43" y="183" text-anchor="middle">не меняется</text>
+			<text class="t-small" x="43" y="28" text-anchor="middle">нет кольца</text>
+			<text class="t-small t-e" x="43" y="39" text-anchor="middle"><tspan class="t-i">E</tspan></text>
+			<!-- the chain -->
+			<g data-back></g>
+			<g data-mid></g>
+			<g data-front></g>
+			<text class="t-small" x="98" y="20" data-l1>меняется <tspan class="t-i t-b">B</tspan> → возникает <tspan class="t-i t-e">E</tspan></text>
+			<text class="t-small" x="352" y="192" text-anchor="end" data-l2>меняется <tspan class="t-i t-e">E</tspan> → возникает <tspan class="t-i t-b">B</tspan></text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Слева поле постоянного магнита: оно не меняется, и другого поля вокруг него нет. Справа магнитное поле
+		(фиолетовое) растёт — вокруг него возникает электрическое поле (красное кольцо), вокруг меняющегося
+		электрического — снова магнитное, и так дальше. Это схема: на самом деле поля заполняют всё пространство.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.evs .fc-panel {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 30%, transparent);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.8;
+	}
+	.evs .fc-n {
+		fill: color-mix(in oklab, var(--ig-vx) 70%, var(--sl-color-gray-5));
+	}
+	.evs .fc-s {
+		fill: color-mix(in oklab, var(--ig-vy) 70%, var(--sl-color-gray-5));
+	}
+	.evs .g7__svg .fc-pole {
+		font-size: 12px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+</style>
+
+<script>
+	import { el, loop, ease } from './evs';
+
+	const R = 32;
+	const K = 0.32; // the ellipse of a horizontal ring
+	const X0 = 122;
+	const YC = 106;
+	const RUN = 6;
+	const N = 7;
+	const f = (v: number) => v.toFixed(1);
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-evs-chain]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const back = q('[data-back]');
+		const mid = q('[data-mid]');
+		const front = q('[data-front]');
+		// the central B arrow
+		const bShaft = el('path', { class: 'arrow arrow--b', 'stroke-width': 2.6 });
+		const bHead = el('path', { class: 'head--b' });
+		const bLab = el('text', { class: 't-i t-b', 'font-size': 14 });
+		bLab.textContent = 'B';
+		const bVec = el('path', { class: 'arrow--b', fill: 'none', 'stroke-width': 1 });
+		mid.append(bShaft, bHead, bLab, bVec);
+		// the links: odd k — horizontal E rings, even k — vertical B rings
+		const links = Array.from({ length: N }, (_, i) => {
+			const k = i + 1;
+			const isE = k % 2 === 1;
+			const cx = X0 + i * R;
+			const cls = isE ? 'evs-e-line' : 'evs-b-line';
+			const g = { back: el('path', { class: cls }), front: el('path', { class: cls }), heads: [el('path', { class: isE ? 'head--e' : 'head--b' }), el('path', { class: isE ? 'head--e' : 'head--b' })] };
+			if (isE) {
+				back.append(g.back);
+				front.append(g.front, ...g.heads);
+			} else {
+				mid.append(g.front, ...g.heads);
+			}
+			return { k, isE, cx, ...g };
+		});
+		const P = (isE: boolean, cx: number, th: number) => (isE ? { x: cx + R * Math.cos(th), y: YC + K * R * Math.sin(th) } : { x: cx + R * Math.cos(th), y: YC - R * Math.sin(th) });
+		const arc = (isE: boolean, cx: number, a: number, b: number) => {
+			let d = '';
+			const n = Math.max(2, Math.ceil(Math.abs(b - a) / 0.08));
+			for (let j = 0; j <= n; j++) {
+				const p = P(isE, cx, a + ((b - a) * j) / n);
+				d += `${j ? 'L' : 'M'}${f(p.x)} ${f(p.y)}`;
+			}
+			return d;
+		};
+		const headAt = (isE: boolean, cx: number, th: number) => {
+			const p = P(isE, cx, th);
+			const q2 = P(isE, cx, th + 0.05);
+			const dx = q2.x - p.x;
+			const dy = q2.y - p.y;
+			const l = Math.hypot(dx, dy) || 1;
+			const ux = dx / l;
+			const uy = dy / l;
+			const s = 7;
+			const bx = p.x - ux * s * 0.5;
+			const by = p.y - uy * s * 0.5;
+			return `M${f(p.x + ux * s * 0.5)} ${f(p.y + uy * s * 0.5)} L${f(bx - uy * 3.4)} ${f(by + ux * 3.4)} L${f(bx + uy * 3.4)} ${f(by - ux * 3.4)} Z`;
+		};
+		const draw = (t: number) => {
+			const fade = 1 - ease((t - 5.4) / 0.5);
+			fig.style.setProperty('--fc-o', String(fade));
+			// B grows from 18 to 64 px in 4 с
+			const L = 18 + 46 * ease(t / 4);
+			bShaft.setAttribute('d', `M${X0} ${YC + 20} V${f(YC + 20 - L + 7)}`);
+			bHead.setAttribute('d', `M${X0} ${f(YC + 20 - L - 2)} l-4.5 9 h9 Z`);
+			bLab.setAttribute('x', String(X0 - 16));
+			bLab.setAttribute('y', f(YC + 20 - L + 8));
+			bVec.setAttribute('d', `M${X0 - 16} ${f(YC + 20 - L - 6)} h8 m-2.2 -1.8 l2.2 1.8 l-2.2 1.8`);
+			for (const lk of links) {
+				const t0 = 0.35 + (lk.k - 1) * 0.5;
+				const u = ease((t - t0) / 0.45); // how much of the ring is drawn
+				const op = String(Math.min(u * 3, 1) * fade);
+				for (const e of [lk.back, lk.front, ...lk.heads]) (e as SVGElement).style.opacity = op;
+				if (u <= 0) {
+					lk.back.setAttribute('d', '');
+					lk.front.setAttribute('d', '');
+					for (const h of lk.heads) h.setAttribute('d', '');
+					continue;
+				}
+				const span = 2 * Math.PI * u;
+				if (lk.isE) {
+					// θ grows: clockwise seen from above; the back half is π…2π (screen y above the center)
+					const a0 = 0;
+					const a1 = span;
+					lk.front.setAttribute('d', arc(true, lk.cx, a0, Math.min(a1, Math.PI)));
+					lk.back.setAttribute('d', a1 > Math.PI ? arc(true, lk.cx, Math.PI, a1) : '');
+					lk.heads[0].setAttribute('d', u > 0.4 ? headAt(true, lk.cx, Math.PI / 2) : '');
+					lk.heads[1].setAttribute('d', u > 0.95 ? headAt(true, lk.cx, (3 * Math.PI) / 2) : '');
+				} else {
+					lk.front.setAttribute('d', arc(false, lk.cx, Math.PI, Math.PI + span));
+					lk.heads[0].setAttribute('d', u > 0.4 ? headAt(false, lk.cx, (3 * Math.PI) / 2) : '');
+					lk.heads[1].setAttribute('d', u > 0.95 ? headAt(false, lk.cx, Math.PI / 2) : '');
+				}
+			}
+			q<SVGTextElement>('[data-l1]').style.opacity = String(ease((t - 0.5) / 0.4) * fade);
+			q<SVGTextElement>('[data-l2]').style.opacity = String(ease((t - 1.0) / 0.4) * fade);
+		};
+		let t = 0;
+		draw(0);
+		loop(fig, (dt) => {
+			t = (t + dt) % RUN;
+			draw(t);
+			return true;
+		});
+	}
+</script>

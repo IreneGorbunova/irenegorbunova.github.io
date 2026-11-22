@@ -1,0 +1,403 @@
+---
+/**
+ * «Шкала электромагнитных волн» (model). A logarithmic axis of the wavelength from 10 км (10⁴ м, left) to 1 пм
+ * (10⁻¹² м, right), 16 decades, 20,5 px per decade; long waves on the left, as in most textbooks. Over it the axis of
+ * the frequency ν = c/λ (c = 3·10⁸ м/с, the school value), its powers of ten 0,477 decade off those of λ.
+ * Bands (conventional boundaries, from the outline): радиоволны λ > 1 мм (микроволны 1 м – 1 мм), инфракрасное
+ * 1 мм – 760 нм, видимый свет 760–380 нм, ультрафиолетовое 380–10 нм, рентгеновское 10 нм – 0,01 нм, гамма-излучение
+ * < 0,01 нм (X-rays and gamma rays overlap in reality; they are told apart by their origin, the text says so).
+ * The visible band (0,3 decade, 6 px) is widened below the axis into a linear strip 760 → 380 нм (red on the left,
+ * as on the axis), in the real colors; the colors by the table of the chapter: красный 760–620, оранжевый 620–590,
+ * жёлтый 590–560, зелёный 560–500, голубой 500–480, синий 480–450, фиолетовый 450–380 нм.
+ * A marker is dragged along the axis (or along the widened strip, or by the slider); readouts: λ in a fitting unit with
+ * 3 significant digits, ν = c/λ as a·10ⁿ Гц, the band, the color inside the visible band, and one line with a
+ * pictogram of a source or use. Presets: FM 100 МГц (3,00 м), Wi-Fi 2,4 ГГц (12,5 см), microwave oven 2450 МГц
+ * (12,2 см), TV remote 940 нм (3,19·10¹⁴ Гц), green light 550 нм (5,45·10¹⁴ Гц), the Sun's ultraviolet 300 нм
+ * (1,00·10¹⁵ Гц), medical X-ray 0,025 нм (1,20·10¹⁹ Гц), gamma 1 пм (3,00·10²⁰ Гц).
+ */
+import EvsStyles from './EvsStyles.astro';
+const XL = 16;
+const DEC = 20.5;
+const X = (lg: number) => XL + (4 - lg) * DEC;
+const BANDS = [
+	{ id: 'radio', lo: -3, hi: 4, name: 'радиоволны', inside: true },
+	{ id: 'ir', lo: Math.log10(7.6e-7), hi: -3, name: 'инфракрасное', inside: true },
+	{ id: 'vis', lo: Math.log10(3.8e-7), hi: Math.log10(7.6e-7), name: '', inside: false },
+	{ id: 'uv', lo: -8, hi: Math.log10(3.8e-7), name: 'ультрафиолетовое', inside: false },
+	{ id: 'x', lo: -11, hi: -8, name: 'рентгеновское', inside: true },
+	{ id: 'g', lo: -12, hi: -11, name: 'гамма', inside: false },
+];
+const lamTicks: [number, string][] = [
+	[3, '1 км'],
+	[0, '1 м'],
+	[-3, '1 мм'],
+	[-6, '1 мкм'],
+	[-9, '1 нм'],
+	[-12, '1 пм'],
+];
+// ν = 10^n Гц stands at λ = 3·10^(8 − n) м
+const nuTicks = [6, 9, 12, 15, 18];
+const nuSup = (n: number) => String(n).replace(/\d/g, (d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[Number(d)]);
+const VX1 = X(Math.log10(7.6e-7));
+const VX2 = X(Math.log10(3.8e-7));
+const SX1 = 36;
+const SX2 = 324;
+const SX = (nm: number) => SX1 + ((760 - nm) / 380) * (SX2 - SX1);
+const presets: [string, number][] = [
+	['Радио FM 100 МГц', 3],
+	['Wi-Fi 2,4 ГГц', 0.125],
+	['Микроволновка 2450 МГц', 3e8 / 2.45e9],
+	['Пульт телевизора', 940e-9],
+	['Зелёный свет', 550e-9],
+	['Ультрафиолет Солнца', 300e-9],
+	['Рентген у врача', 0.025e-9],
+	['Гамма-излучение', 1e-12],
+];
+const BY = 62; // the top of the bands
+const AY = BY + 30; // the wavelength axis
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<EvsStyles />
+<figure class="g7 g7--stack evs not-content" data-evs-scale>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 202" role="img" aria-label="Шкала электромагнитных волн: длина волны от десяти километров слева до одного пикометра справа и частота над ней. Полосы: радиоволны, инфракрасное, видимый свет, ультрафиолетовое, рентгеновское и гамма-излучение. Видимый свет растянут внизу. Маркер перетаскивают вдоль шкалы">
+			<defs>
+				<linearGradient id={`evs-sp-${uid}`} x1="0" y1="0" x2="1" y2="0" data-grad></linearGradient>
+			</defs>
+			<!-- the frequency axis -->
+			<text class="t-small" x={XL - 2} y="10">частота <tspan class="t-i">ν</tspan>, Гц</text>
+			<path class="evs-axis" d={`M${XL} 32 H${X(-12)}`} />
+			{
+				Array.from({ length: 16 }, (_, k) => 5 + k).map((n) => {
+					const x = X(8 - n + Math.log10(3));
+					return x >= XL - 0.5 && x <= X(-12) + 0.5 ? <path class="evs-tick" d={`M${x.toFixed(1)} ${nuTicks.includes(n) ? 27 : 29} V32`} /> : null;
+				})
+			}
+			{
+				nuTicks.map((n) => (
+					<text class="t-small" x={X(8 - n + Math.log10(3)).toFixed(1)} y="25" text-anchor="middle">
+						10{nuSup(n)}
+					</text>
+				))
+			}
+			<!-- the bands -->
+			{
+				BANDS.map((b) => (
+					<rect class={`evs-band evs-band--${b.id}`} x={X(b.hi).toFixed(1)} y={BY} width={(X(b.lo) - X(b.hi)).toFixed(1)} height="24" data-bandrect={b.id} />
+				))
+			}
+			<rect x={VX1.toFixed(1)} y={BY} width={(VX2 - VX1).toFixed(1)} height="24" fill={`url(#evs-sp-${uid})`} />
+			<text class="evs-band-name" x={((X(-3) + X(4)) / 2).toFixed(1)} y={BY + 15.5} text-anchor="middle">радиоволны</text>
+			<text class="evs-band-name" x={((X(-3) + VX1) / 2).toFixed(1)} y={BY + 15.5} text-anchor="middle" textLength="62" lengthAdjust="spacingAndGlyphs">инфракрасное</text>
+			<text class="evs-band-name" x={((X(-8) + X(-11)) / 2).toFixed(1)} y={BY + 15.5} text-anchor="middle" textLength="57" lengthAdjust="spacingAndGlyphs">рентгеновское</text>
+			<text class="evs-band-name" x={(VX2 + 6).toFixed(1)} y={BY - 16}>ультрафиолетовое</text>
+			<path class="evs-lead" d={`M${((X(-8) + VX2) / 2).toFixed(1)} ${BY - 13} V${BY}`} />
+			<text class="evs-band-name" x={X(-12)} y={BY - 4} text-anchor="end">гамма</text>
+			<text class="evs-band-name" x={(VX1 - 8).toFixed(1)} y={BY - 4} text-anchor="end">свет</text>
+			<path class="evs-lead" d={`M${(VX1 - 6).toFixed(1)} ${BY - 7} H${((VX1 + VX2) / 2).toFixed(1)} V${BY}`} />
+			<!-- the wavelength axis -->
+			<path class="evs-axis" d={`M${XL} ${AY} H${X(-12)}`} />
+			{Array.from({ length: 17 }, (_, k) => 4 - k).map((lg) => <path class="evs-tick" d={`M${X(lg).toFixed(1)} ${AY} V${AY + (lamTicks.some((t) => t[0] === lg) ? 6 : 3)}`} />)}
+			{
+				lamTicks.map(([lg, t]) => (
+					<text class="t-small" x={X(lg).toFixed(1)} y={AY + 16} text-anchor={lg === 3 ? 'start' : lg === -12 ? 'end' : 'middle'} dx={lg === 3 ? -8 : lg === -12 ? 6 : 0}>
+						{t}
+					</text>
+				))
+			}
+			<text class="t-small" x={XL - 2} y={AY + 30}>длина волны <tspan class="t-i">λ</tspan></text>
+			<!-- the visible band widened -->
+			<path class="evs-zoom" d={`M${VX1.toFixed(1)} ${BY + 24} L${SX1} 140 M${VX2.toFixed(1)} ${BY + 24} L${SX2} 140`} />
+			<rect x={SX1} y="140" width={SX2 - SX1} height="20" rx="2" fill={`url(#evs-sp-${uid})`} data-strip class="evs-strip" />
+			{
+				[700, 600, 500, 400].map((nm) => (
+					<g>
+						<path class="evs-tick" d={`M${SX(nm).toFixed(1)} 160 V165`} />
+						<text class="t-small" x={SX(nm).toFixed(1)} y="176" text-anchor="middle">
+							{nm} нм
+						</text>
+					</g>
+				))
+			}
+			<text class="t-small" x="180" y="194" text-anchor="middle">видимый свет: от 760 до 380 нм</text>
+			<!-- the marker -->
+			<rect class="evs-hit" x={XL - 6} y="32" width={X(-12) - XL + 12} height={AY - 26} data-hit />
+			<g data-marker class="evs-marker">
+				<path class="evs-mline" d="" data-mline></path>
+				<path class="evs-mhandle" d="" data-mhandle></path>
+			</g>
+			<path class="evs-mline" d="" data-sline></path>
+			<path class="evs-mhandle" d="" data-shandle></path>
+		</svg>
+		<div class="g7__side">
+			<ul class="g7__read">
+				<li class="is-key">Длина волны <b data-lamv>—</b></li>
+				<li>Частота <b data-nu>—</b></li>
+				<li class="is-warm">Вид излучения <b data-bandname>—</b></li>
+			</ul>
+			<div class="evs-use">
+				<svg viewBox="-20 -20 40 40" class="evs-use__icon" aria-hidden="true" data-icon></svg>
+				<p class="g7__note" data-use></p>
+			</div>
+			<label class="g7__slider"><span>Длина волны (по шкале)</span><input type="range" min="-12" max="4" step="0.01" value="0" data-sl aria-label="Длина волны" /></label>
+			<div class="evs-presets" data-presets>
+				{presets.map(([name, lam]) => <button type="button" class="g7__btn" data-lam={lam}>{name}</button>)}
+			</div>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Шкала логарифмическая: каждое деление — в 10 раз короче соседнего слева. Перетащите маркер вдоль шкалы или вдоль
+		полоски видимого света. Частота рассчитана по формуле <span class="nw"><i>ν</i> = <i>c</i>/<i>λ</i></span> при <span class="nw"><i>c</i> = 3·10<sup>8</sup>&nbsp;м/с</span>.
+		Границы между полосами условные.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.evs .evs-band {
+		stroke: var(--g7-paper);
+		stroke-width: 0.8;
+	}
+	.evs .evs-band--radio {
+		fill: color-mix(in oklab, var(--ig-vx) 30%, var(--g7-paper));
+	}
+	.evs .evs-band--ir {
+		fill: color-mix(in oklab, hsl(5, 75%, 45%) 38%, var(--g7-paper));
+	}
+	.evs .evs-band--vis {
+		fill: var(--g7-paper);
+	}
+	.evs .evs-band--uv {
+		fill: color-mix(in oklab, hsl(275, 70%, 60%) 40%, var(--g7-paper));
+	}
+	.evs .evs-band--x {
+		fill: color-mix(in oklab, var(--sl-color-gray-3) 40%, var(--g7-paper));
+	}
+	.evs .evs-band--g {
+		fill: color-mix(in oklab, var(--g7-green) 40%, var(--g7-paper));
+	}
+	.evs .evs-band.is-on {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+	}
+	.evs .g7__svg .evs-band-name {
+		font-size: 9.5px;
+		fill: var(--sl-color-gray-1);
+	}
+	.evs .evs-lead,
+	.evs .evs-zoom {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+		stroke-dasharray: 2 2;
+	}
+	.evs .evs-strip {
+		cursor: pointer;
+		touch-action: none;
+	}
+	.evs .evs-hit {
+		fill: transparent;
+		cursor: ew-resize;
+		touch-action: none;
+	}
+	.evs .evs-mline {
+		fill: none;
+		stroke: var(--evs-mark, var(--sl-color-white));
+		stroke-width: 2;
+		pointer-events: none;
+	}
+	.evs .evs-mhandle {
+		fill: var(--evs-mark, var(--sl-color-white));
+		stroke: var(--g7-paper);
+		stroke-width: 1;
+		pointer-events: none;
+	}
+	.evs .evs-use {
+		display: grid;
+		grid-template-columns: 2.6rem 1fr;
+		gap: 0.6rem;
+		align-items: center;
+		min-height: 2.8rem;
+	}
+	.evs .evs-use__icon {
+		width: 2.6rem;
+		height: 2.6rem;
+	}
+	.evs .evs-use .g7__note {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.evs .evs-presets {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.evs .evs-presets .g7__btn {
+		padding: 0.3rem 0.6rem;
+		font-size: var(--sl-text-xs);
+	}
+	.evs .evs-ic-line {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.evs .evs-ic-fill {
+		fill: var(--sl-color-gray-2);
+	}
+	.evs .evs-ic-accent {
+		fill: none;
+		stroke: var(--evs-mark, var(--sl-color-gray-1));
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.g7--stack.evs .g7__grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	@container (min-width: 44rem) {
+		.g7--stack.evs[data-evs-scale] .g7__side {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			column-gap: 1rem;
+		}
+		.g7--stack.evs[data-evs-scale] .evs-presets {
+			grid-column: 1 / -1;
+		}
+	}
+</style>
+
+<script>
+	import { k, svgPoint } from '../g7/kit';
+	import { el, spectral } from './evs';
+
+	const C = 3e8;
+	const XL = 16;
+	const DEC = 20.5;
+	const X = (lg: number) => XL + (4 - lg) * DEC;
+	const LG = (x: number) => 4 - (x - XL) / DEC;
+	const SX1 = 36;
+	const SX2 = 324;
+	const SX = (nm: number) => SX1 + ((760 - nm) / 380) * (SX2 - SX1);
+	const NM = (x: number) => 760 - ((x - SX1) / (SX2 - SX1)) * 380;
+	const UNITS: [number, string][] = [
+		[1e3, 'км'],
+		[1, 'м'],
+		[1e-2, 'см'],
+		[1e-3, 'мм'],
+		[1e-6, 'мкм'],
+		[1e-9, 'нм'],
+		[1e-12, 'пм'],
+	];
+	/** 3 significant digits with a decimal comma (12.24 → «12,2», 940 → «940»). */
+	const sig3 = (v: number) => {
+		const d = v >= 100 ? 0 : v >= 10 ? 1 : 2;
+		return v.toFixed(d).replace('.', ',');
+	};
+	const fmtLam = (lam: number) => {
+		// from 1 нм down to 0,01 нм in нм, three significant digits without trailing zeros (0,025 нм)
+		if (lam < 0.9995e-9 && lam >= 0.9995e-11) return `${Number((lam / 1e-9).toPrecision(3)).toString().replace('.', ',')} нм`;
+		for (const [u, name] of UNITS) {
+			const v = lam / u;
+			if (v >= 0.9995 || u === 1e-12) return `${sig3(Number(v.toPrecision(3)))} ${name}`;
+		}
+		return '';
+	};
+	/** ν as «a·10ⁿ Гц» in TeX. */
+	const nuTex = (nu: number) => {
+		let n = Math.floor(Math.log10(nu));
+		let a = Number((nu / 10 ** n).toPrecision(3));
+		if (a >= 10) {
+			a /= 10;
+			n += 1;
+		}
+		return `${a.toFixed(2).replace('.', '{,}')}\\cdot 10^{${n}}~\\text{Гц}`;
+	};
+	const COLORS: [number, string][] = [
+		[620, 'красный'],
+		[590, 'оранжевый'],
+		[560, 'жёлтый'],
+		[500, 'зелёный'],
+		[480, 'голубой'],
+		[450, 'синий'],
+		[380, 'фиолетовый'],
+	];
+	const band = (lam: number) => {
+		if (lam >= 1) return { id: 'radio', name: 'радиоволны', use: 'Радио и телевидение, связь с кораблями и самолётами.', icon: 'tower' };
+		if (lam >= 1e-3) return { id: 'radio', name: 'радиоволны (микроволны)', use: 'Мобильная связь, Wi-Fi, микроволновая печь, радары.', icon: 'phone' };
+		if (lam >= 7.6e-7) return { id: 'ir', name: 'инфракрасное излучение', use: 'Излучают все тёплые тела; пульт телевизора, тепловизор.', icon: 'remote' };
+		if (lam >= 3.8e-7) return { id: 'vis', name: 'видимый свет', use: 'Его видит глаз: Солнце, лампы, огонь.', icon: 'eye' };
+		if (lam >= 1e-8) return { id: 'uv', name: 'ультрафиолетовое излучение', use: 'Есть в солнечном свете, от него загар; им обеззараживают воду.', icon: 'sun' };
+		if (lam >= 1e-11) return { id: 'x', name: 'рентгеновское излучение', use: 'Проходит сквозь тело: рентгеновские снимки у врача.', icon: 'bone' };
+		return { id: 'g', name: 'гамма-излучение', use: 'Рождается в ядрах атомов; им лечат опухоли.', icon: 'atom' };
+	};
+	const ICONS: Record<string, string> = {
+		tower: '<path class="evs-ic-line" d="M-7 16 L0 -6 L7 16 M-4.5 8 H4.5 M-2.5 1 H2.5"/><circle class="evs-ic-fill" cx="0" cy="-8" r="2.2"/><path class="evs-ic-accent" d="M-7 -14 a10 10 0 0 0 0 12 M7 -14 a10 10 0 0 1 0 12 M-11 -17 a15 15 0 0 0 0 18 M11 -17 a15 15 0 0 1 0 18"/>',
+		phone: '<rect class="evs-ic-line" x="-8" y="-15" width="16" height="30" rx="3"/><path class="evs-ic-line" d="M-3 11 H3"/><path class="evs-ic-accent" d="M-4 -4 a6 6 0 0 1 8 0 M-7 -7.5 a10.5 10.5 0 0 1 14 0 M-1.2 -0.6 a1.7 1.7 0 0 1 2.4 0"/>',
+		remote: '<rect class="evs-ic-line" x="-6" y="-6" width="12" height="22" rx="3" transform="rotate(-35)"/><circle class="evs-ic-fill" cx="-1.2" cy="2.4" r="1.6" transform="rotate(-35)"/><path class="evs-ic-accent" d="M7 -12 l5 -5 M9 -7 l6 -3 M3 -14 l2 -6" stroke-dasharray="2 2"/>',
+		eye: '<path class="evs-ic-line" d="M-16 0 Q0 -14 16 0 Q0 14 -16 0 Z"/><circle class="evs-ic-accent" cx="0" cy="0" r="6"/><circle class="evs-ic-fill" cx="0" cy="0" r="2.6"/>',
+		sun: '<circle class="evs-ic-line" cx="0" cy="0" r="7"/><path class="evs-ic-accent" d="M0 -16 V-11 M0 11 V16 M-16 0 H-11 M11 0 H16 M-11.3 -11.3 l3.5 3.5 M7.8 7.8 l3.5 3.5 M-11.3 11.3 l3.5 -3.5 M7.8 -7.8 l3.5 -3.5"/>',
+		bone: '<rect class="evs-ic-line" x="-15" y="-15" width="30" height="30" rx="3"/><path class="evs-ic-accent" d="M-6 -9 L6 9 M-9 -8 a2.5 2.5 0 1 1 3 -3 M-6 -11 a2.5 2.5 0 1 1 3 2 M3 11 a2.5 2.5 0 1 1 3 -2 M6 8 a2.5 2.5 0 1 1 3 3"/>',
+		atom: '<circle class="evs-ic-fill" cx="-1.5" cy="-1" r="2.6"/><circle class="evs-ic-fill" cx="1.8" cy="0.5" r="2.6"/><circle class="evs-ic-fill" cx="-0.5" cy="2.4" r="2.6"/><path class="evs-ic-accent" d="M6 -3 l9 -6 M6 3 l10 3 M2 8 l4 9" stroke-dasharray="2 2"/>',
+	};
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-evs-scale]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('svg.g7__svg');
+		const grad = q('[data-grad]');
+		for (let i = 0; i <= 38; i++) {
+			const nm = 760 - i * 10;
+			grad.append(el('stop', { offset: (i / 38).toFixed(3), 'stop-color': spectral(nm) }));
+		}
+		const sl = q<HTMLInputElement>('[data-sl]');
+		let lam = 3;
+		const show = () => {
+			const lg = Math.log10(lam);
+			const x = X(lg);
+			const nm = lam * 1e9;
+			const vis = nm >= 380 && nm <= 760;
+			fig.style.setProperty('--evs-mark', vis ? spectral(nm, 0.6) : '');
+			q('[data-mline]').setAttribute('d', `M${x.toFixed(1)} 34 V94`);
+			q('[data-mhandle]').setAttribute('d', `M${x.toFixed(1)} 92 l-5 9 h10 Z`);
+			q('[data-sline]').setAttribute('d', vis ? `M${SX(nm).toFixed(1)} 136 V164` : '');
+			q('[data-shandle]').setAttribute('d', vis ? `M${SX(nm).toFixed(1)} 162 l-5 9 h10 Z` : '');
+			const b = band(lam);
+			for (const r of fig.querySelectorAll('[data-bandrect]')) r.classList.toggle('is-on', (r as HTMLElement).dataset.bandrect === b.id);
+			q('[data-lamv]').textContent = `λ = ${fmtLam(lam)}`;
+			q('[data-nu]').innerHTML = k(`\\nu = \\dfrac{c}{\\lambda} = ${nuTex(C / lam)}`);
+			const col = vis ? COLORS.find((c) => nm >= c[0])?.[1] ?? 'фиолетовый' : '';
+			q('[data-bandname]').textContent = vis ? `${b.name}, ${col}` : b.name;
+			q('[data-use]').textContent = b.use;
+			q('[data-icon]').innerHTML = ICONS[b.icon];
+			sl.value = lg.toFixed(2);
+		};
+		const setLg = (lg: number) => {
+			lam = 10 ** Math.min(4, Math.max(-12, lg));
+			show();
+		};
+		sl.addEventListener('input', () => setLg(Number(sl.value)));
+		const dragOn = (target: Element, toLg: (x: number) => number) => {
+			let on = false;
+			target.addEventListener('pointerdown', (e) => {
+				const ev = e as PointerEvent;
+				on = true;
+				target.setPointerCapture(ev.pointerId);
+				setLg(toLg(svgPoint(svg, ev).x));
+				ev.preventDefault();
+			});
+			target.addEventListener('pointermove', (e) => {
+				if (on) setLg(toLg(svgPoint(svg, e as PointerEvent).x));
+			});
+			const off = () => (on = false);
+			target.addEventListener('pointerup', off);
+			target.addEventListener('pointercancel', off);
+		};
+		dragOn(q('[data-hit]'), LG);
+		dragOn(q('[data-strip]'), (x) => Math.log10(Math.min(760, Math.max(380, NM(x))) * 1e-9));
+		for (const btn of fig.querySelectorAll<HTMLButtonElement>('[data-presets] button'))
+			btn.addEventListener('click', () => {
+				lam = Number(btn.dataset.lam);
+				show();
+			});
+		show();
+	}
+</script>
