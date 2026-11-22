@@ -1,0 +1,536 @@
+---
+/**
+ * «Опыты Фарадея»: two experiments behind two tabs.
+ *
+ * «Магнит и катушка». A coil (1000 turns, 8 см long, radius 2,5 см; ten turns drawn) joined to a zero-center
+ * demonstration galvanometer, and a school bar magnet (10 см) on the coil's axis to the right, N toward the coil.
+ * Real scale, 800 px per meter, real time. The magnet, the coil, or both together are dragged along the axis, or moved
+ * by the buttons: «Внести медленно» 0,15 м/с, «Внести быстро» 0,5 м/с, «Вынуть» 0,3 м/с (each with 0,1 с smooth starts
+ * and stops). The flux linkage of the coil comes from the two-pole model of the magnet (emi.ts); the current is
+ * I = (dΨ/dt)/R with R = 50 Ом, and the galvanometer shows 1 division per 1 мА (full scale 5 мА): a fast push gives
+ * a peak of about 3,8 divisions, a slow one about 1,5, «Вынуть» about 2,8. The needle is a damped pointer (period 0,4 с,
+ * ζ = 0,7), so it lags the current a little. Only the relative motion
+ * counts: moving both together gives zero. Directions: N pushed in → the needle to the left, pulled out → to the
+ * right; S the other way. Gray: the magnet's field lines in the plane of its axis; the lines that pass through the
+ * turns are drawn bolder. The gauge on the left shows the flux through the coil (no number; up when the field inside
+ * the coil points to the left, down when to the right). Green arrows: the current on the front halves of the turns.
+ *
+ * «Две катушки» (Faraday's iron ring, 29 August 1831). Coil 1 on the left of an iron ring is in a circuit with a
+ * 4,5 В battery, a key, a rheostat (current 0,5–1,5 А, step 0,25 А) and an ammeter; coil 2 on the right is joined only
+ * to the galvanometer. The current in coil 1 settles with a time constant of 0,03 с (≈ 0,1 с); the flux in the ring is
+ * proportional to it, and 20 times smaller without iron (a wooden ring). The galvanometer's input is −0,62·dI/dt
+ * divisions per (А/с) for the iron ring: closing the key at 1 А gives a kick of about 4 divisions to the left, back to
+ * zero in about 0,3 с; opening gives the same kick to the right; a rheostat step of 0,25 А gives about 1 division. Without
+ * iron the kicks are about 0,2 division.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import EmiStyles from './EmiStyles.astro';
+import { coilPaths, fieldLines, MAG_L, MAG_W } from './emi';
+
+const S = 800;
+const COIL0 = 170;
+const CY = 92;
+const coil = coilPaths(0, CY, 64, 20, 10); // drawn around x = 0, moved by the script
+// field lines in the magnet's frame, in px (the magnet's center at x = 0, N toward +x before any flip)
+const LINES = fieldLines([0.3, 0.5, 0.72, 0.95, 1.2, 1.5, 1.85].flatMap((a) => [a, -a]), 0.3, 0.11).map((l) =>
+	l.filter((_, i) => i % 3 === 0 || i === l.length - 1).map(([x, y]) => [+(x * S).toFixed(1), +(-y * S).toFixed(1)]),
+);
+const ML = MAG_L * S;
+const clipId = `fl-clip-${Math.random().toString(36).slice(2, 8)}`;
+const MW = MAG_W * S;
+// arrowheads in the middle of every line, pointing along it (from N to S)
+const mid = LINES.map((l) => {
+	const k = Math.floor(l.length / 2);
+	const [x1, y1] = l[k - 1];
+	const [x2, y2] = l[k + 1];
+	return { x: l[k][0], y: l[k][1], a: (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI };
+});
+// ring: center, radii
+const RC = { x: 205, y: 112 };
+const RO = 62;
+const RI = 40;
+const arc = (r: number, a0: number, a1: number) => {
+	const p = (a: number) => `${(RC.x + r * Math.cos((a * Math.PI) / 180)).toFixed(1)} ${(RC.y - r * Math.sin((a * Math.PI) / 180)).toFixed(1)}`;
+	return { p, d: `M${p(a0)} A${r} ${r} 0 0 0 ${p(a1)}` };
+};
+const turnsA = Array.from({ length: 9 }, (_, k) => 148 + k * 8);
+const turnsB = Array.from({ length: 9 }, (_, k) => -32 + k * 8);
+const radial = (a: number) => {
+	const c = Math.cos((a * Math.PI) / 180);
+	const s = Math.sin((a * Math.PI) / 180);
+	return `M${(RC.x + (RI - 5) * c).toFixed(1)} ${(RC.y - (RI - 5) * s).toFixed(1)} L${(RC.x + (RO + 5) * c).toFixed(1)} ${(RC.y - (RO + 5) * s).toFixed(1)}`;
+};
+const endA = [arc(RO + 5, 148, 148).p(148), arc(RO + 5, 212, 212).p(212)];
+const endB = [arc(RO + 5, 32, 32).p(32), arc(RO + 5, -32, -32).p(-32)];
+---
+
+<G7Styles />
+<EmiStyles />
+<figure class="g7 g7--stack emi fl not-content" data-faradaylab>
+	<div class="g7__row fl__tabs" role="tablist">
+		<button type="button" class="g7__btn" role="tab" aria-pressed="true" data-tab="mag">Магнит и катушка</button>
+		<button type="button" class="g7__btn" role="tab" aria-pressed="false" data-tab="ring">Две катушки</button>
+	</div>
+	<div class="g7__grid" data-pane="mag">
+		<svg class="g7__svg" viewBox="0 0 400 250" role="img" aria-label="Катушка, соединённая с гальванометром, и полосовой магнит на её оси; магнит или катушку можно двигать">
+			<!-- the flux gauge -->
+			<g class="fl__gauge">
+				<rect class="fl__gauge-bg" x="33" y="30" width="14" height="124" rx="3"></rect>
+				<path class="fl__gauge-zero" d="M29 92 H51"></path>
+				<rect class="fl__gauge-bar" data-gbar x="35" y="92" width="10" height="0"></rect>
+				<path class="fl__gauge-dir" data-gdir d=""></path>
+				<text class="t-small" x="40" y="168" text-anchor="middle">магнитный</text>
+				<text class="t-small" x="40" y="180" text-anchor="middle">поток через</text>
+				<text class="t-small" x="40" y="192" text-anchor="middle">катушку</text>
+			</g>
+			<defs>
+				<clipPath id={clipId}><rect x="58" y="0" width="342" height="186"></rect></clipPath>
+			</defs>
+			<g data-coil-back>{coil.back.map((d) => <path class="emi-cu is-back" stroke-width="2.6" d={d} />)}</g>
+			<g clip-path={`url(#${clipId})`}>
+			<g data-mag>
+				<g data-mag-flip>
+					<g data-lines>{LINES.map((l) => <path class="emi-line" d={l.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y + CY}`).join(' ')} />)}</g>
+					<g class="fl__heads">{mid.map((m) => <path class="fl__head" d="M3 0 L-3 -2.6 L-3 2.6 Z" transform={`translate(${m.x} ${m.y + CY}) rotate(${m.a.toFixed(1)})`} />)}</g>
+					<rect class="emi-s" x={-ML / 2} y={CY - MW / 2} width={ML / 2} height={MW} rx="1.5"></rect>
+					<rect class="emi-n" x="0" y={CY - MW / 2} width={ML / 2} height={MW} rx="1.5"></rect>
+				</g>
+				<text class="emi-pole" data-pl x={-ML / 4} y={CY + 4.5} text-anchor="middle" font-size="12">N</text>
+				<text class="emi-pole" data-pr x={ML / 4} y={CY + 4.5} text-anchor="middle" font-size="12">S</text>
+				<rect class="fl__grab drag" data-grab-mag x={-ML / 2 - 4} y={CY - MW / 2 - 8} width={ML + 8} height={MW + 16}></rect>
+			</g>
+			</g>
+			<g data-coil-front>
+				{coil.front.map((d) => <path class="emi-cu" stroke-width="2.6" d={d} />)}
+				<g data-arrows>{coil.mids.filter((_, i) => i % 2 === 1).map((m) => <path class="emi-i" data-x={m.x.toFixed(1)} data-y={m.y.toFixed(1)} data-dx={m.dx.toFixed(3)} data-dy={m.dy.toFixed(3)} />)}</g>
+				<rect class="fl__grab drag" data-grab-coil x="-40" y={CY - 26} width="80" height="52"></rect>
+			</g>
+			<path class="emi-wire" data-lead="0" d=""></path>
+			<path class="emi-wire" data-lead="1" d=""></path>
+			<g data-lead-arrows><path class="emi-i" /><path class="emi-i" /></g>
+			<g data-galv></g>
+			<text class="t-small" x="226" y="244">гальванометр</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row">
+				<span class="g7__label">Двигаем:</span>
+				<div class="g7__seg">
+					<button type="button" class="g7__btn" aria-pressed="true" data-what="mag">магнит</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-what="coil">катушку</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-what="both">магнит и катушку вместе</button>
+				</div>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn" data-go="slow">Внести медленно</button>
+				<button type="button" class="g7__btn" data-go="fast">Внести быстро</button>
+				<button type="button" class="g7__btn" data-go="out">Вынуть</button>
+				<button type="button" class="g7__btn" data-flip>Перевернуть магнит</button>
+			</div>
+			<p class="g7__note">Магнит или катушку можно тянуть мышью или пальцем вдоль оси.</p>
+		</div>
+	</div>
+	<div class="g7__grid" data-pane="ring" hidden>
+		<svg class="g7__svg" viewBox="0 0 400 250" role="img" aria-label="Железное кольцо с двумя катушками: первая в цепи с батарейкой, ключом, реостатом и амперметром, вторая соединена только с гальванометром">
+			<path class="fl__ring" data-ring fill-rule="evenodd" d={`M${RC.x + RO} ${RC.y} A${RO} ${RO} 0 1 0 ${RC.x - RO} ${RC.y} A${RO} ${RO} 0 1 0 ${RC.x + RO} ${RC.y} Z M${RC.x + RI} ${RC.y} A${RI} ${RI} 0 1 1 ${RC.x - RI} ${RC.y} A${RI} ${RI} 0 1 1 ${RC.x + RI} ${RC.y} Z`}></path>
+			<g data-rlines>
+				{[45, 51, 57].map((r) => <circle class="emi-line" cx={RC.x} cy={RC.y} r={r} />)}
+				{[45, 51, 57].map((r) => <path class="fl__head" d="M3 0 L-3 -2.6 L-3 2.6 Z" transform={`translate(${RC.x} ${RC.y - r}) rotate(0)`} />)}
+				{[45, 51, 57].map((r) => <path class="fl__head" d="M3 0 L-3 -2.6 L-3 2.6 Z" transform={`translate(${RC.x} ${RC.y + r}) rotate(180)`} />)}
+			</g>
+			{turnsA.map((a) => <path class="emi-cu" stroke-width="2.4" d={radial(a)} />)}
+			{turnsB.map((a) => <path class="emi-cu" stroke-width="2.4" d={radial(a)} />)}
+			<text class="t-small" x="150" y="34" text-anchor="middle">катушка 1</text>
+			<text class="t-small" x="262" y="34" text-anchor="middle">катушка 2</text>
+			<!-- circuit of coil 1: ammeter on top, battery and key on the left, rheostat at the bottom -->
+			<path class="emi-wire" d={`M${endA[0]} L120 ${endA[0].split(' ')[1]} L120 60 H86 M64 60 H30 V96 M30 104 V124 M30 148 V176 H58 M102 176 H120 L120 ${endA[1].split(' ')[1]} L${endA[1]}`}></path>
+			<circle class="fl__meter" cx="75" cy="60" r="11"></circle>
+			<text class="fl__meter-t" x="75" y="64.5" text-anchor="middle">A</text>
+			<text class="t-small t-num" data-amps x="75" y="40" text-anchor="middle">0 А</text>
+			<path class="fl__bat" d="M18 96 H42 M24 104 H36"></path>
+			<text class="t-small" x="48" y="104">4,5 В</text>
+			<circle class="fl__key-p" cx="30" cy="148" r="2.4"></circle>
+			<circle class="fl__key-p" cx="30" cy="124" r="2.4"></circle>
+			<path class="fl__key" data-key d="M30 148 L30 124"></path>
+			<text class="t-small" x="40" y="140">ключ</text>
+			<rect class="fl__rheo" x="58" y="170" width="44" height="12"></rect>
+			<path class="fl__slider" data-slider d=""></path>
+			<text class="t-small" x="80" y="200" text-anchor="middle">реостат</text>
+			<g data-a-arrows><path class="emi-i" /><path class="emi-i" /></g>
+			<!-- coil 2 and the galvanometer -->
+			<path class="emi-wire" d={`M${endB[0]} L370 ${endB[0].split(' ')[1]} V202 H349 M${endB[1]} L311 ${endB[1].split(' ')[1]} V202`}></path>
+			<g data-b-arrows><path class="emi-i" /><path class="emi-i" /></g>
+			<g data-galv2></g>
+			<text class="t-small" x="282" y="244" text-anchor="end">гальванометр</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-key-btn>Замкнуть ключ</button>
+				<label class="g7__label fl__check"><input type="checkbox" data-iron checked /> Железное кольцо</label>
+			</div>
+			<label class="g7__slider">
+				<span>Реостат: сила тока при замкнутом ключе</span>
+				<output data-iout>1 А</output>
+				<input type="range" min="0.5" max="1.5" step="0.25" value="1" data-irange />
+			</label>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Размеры, скорости и время — настоящие; в катушке около тысячи витков, нарисовано десять. Гальванометр: ноль посередине шкалы.</figcaption>
+</figure>
+
+<style is:global>
+	.fl [data-pane][hidden] {
+		display: none;
+	}
+	.fl__tabs {
+		margin-bottom: 0.75rem;
+	}
+	.fl__gauge-bg {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-4);
+	}
+	.fl__gauge-zero {
+		stroke: var(--sl-color-gray-3);
+	}
+	.fl__gauge-bar {
+		fill: var(--sl-color-gray-2);
+	}
+	.fl__gauge-dir {
+		fill: var(--sl-color-gray-2);
+	}
+	.fl__head {
+		fill: var(--emi-line);
+	}
+	.fl__grab {
+		fill: transparent;
+	}
+	.fl__ring {
+		fill: color-mix(in srgb, var(--emi-fe) 85%, var(--ig-vx));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.fl__ring.is-wood {
+		fill: color-mix(in oklab, var(--ig-v) 46%, var(--sl-color-gray-4));
+	}
+	.fl__meter {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.fl .fl__meter-t {
+		font-weight: 700;
+		fill: var(--sl-color-gray-1);
+	}
+	.fl__bat {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2.4;
+	}
+	.fl__key {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.fl__key-p {
+		fill: var(--sl-color-gray-1);
+	}
+	.fl__rheo {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.4;
+	}
+	.fl__slider {
+		fill: var(--sl-color-gray-1);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.4;
+	}
+	.fl__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.fl__check input {
+		accent-color: var(--sl-color-accent);
+	}
+</style>
+
+<script>
+	import { loop, drag } from '../g7/kit';
+	import { linkage, needle, arrowHead, galvanometer, R_OHM } from './emi';
+
+	const S = 800;
+	const CY = 92;
+	const D_OUT = 0.2 * S; // px: the magnet's center 20 см from the coil's center
+	const D_MAX = 0.22 * S;
+	const f1 = (v: number) => v.toFixed(1);
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-faradaylab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const $$ = <T extends Element>(s: string) => [...fig.querySelectorAll<T>(s)];
+		// ---- tabs
+		let tab: 'mag' | 'ring' = 'mag';
+		for (const b of $$<HTMLButtonElement>('[data-tab]'))
+			b.addEventListener('click', () => {
+				tab = b.dataset.tab as 'mag' | 'ring';
+				$$<HTMLButtonElement>('[data-tab]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				$$<HTMLElement>('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== tab));
+				wake();
+			});
+
+		// ================= magnet and coil
+		const svg = $<SVGSVGElement>('[data-pane="mag"] svg');
+		const g1 = galvanometer($('[data-galv]'), 170, 222, 28);
+		const nd1 = needle();
+		let xc = 170; // coil center, px
+		let xm = 170 + D_OUT; // magnet center, px
+		let nLeft = true; // N on the magnet's left end (toward the coil)
+		let what: 'mag' | 'coil' | 'both' = 'mag';
+		let auto: { v: number; until: (xc: number, xm: number) => boolean; t: number } | null = null;
+		const coilBack = $<SVGGElement>('[data-coil-back]');
+		const coilFront = $<SVGGElement>('[data-coil-front]');
+		const mag = $<SVGGElement>('[data-mag]');
+		const flip = $<SVGGElement>('[data-mag-flip]');
+		const lines = $$<SVGPathElement>('[data-lines] path');
+		const linePts = lines.map((p) =>
+			(p.getAttribute('d') ?? '')
+				.slice(1)
+				.split(/[LM]/)
+				.map((s) => s.trim().split(/\s+/).map(Number)),
+		);
+		const arrows = $$<SVGPathElement>('[data-arrows] path');
+		const leadArrows = $$<SVGPathElement>('[data-lead-arrows] path');
+		const leads = $$<SVGPathElement>('[data-lead]');
+		const gbar = $<SVGRectElement>('[data-gbar]');
+		const gdir = $<SVGPathElement>('[data-gdir]');
+		const pl = $<SVGTextElement>('[data-pl]');
+		const pr = $<SVGTextElement>('[data-pr]');
+		const PSI_MAX = Math.abs(linkage(0, true));
+		const cl = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+		// sets the positions of the moving body (or both), keeping the magnet between the coil's center and 22 см from it
+		const place = (kind: 'mag' | 'coil' | 'both', c: number, m: number) => {
+			if (kind === 'mag') xm = cl(m, xc, Math.min(xc + D_MAX, 352));
+			else if (kind === 'coil') xc = cl(c, Math.max(90, xm - D_MAX), xm);
+			else {
+				const d = cl(c - xc, 90 - xc, 352 - xm);
+				xc += d;
+				xm += d;
+			}
+		};
+		const psiNow = () => linkage((xm - xc) / S, !nLeft);
+		let psiPrev = psiNow();
+		let dpsi = 0; // smoothed dΨ/dt
+		const draw1 = (I: number) => {
+			coilBack.setAttribute('transform', `translate(${f1(xc)} 0)`);
+			coilFront.setAttribute('transform', `translate(${f1(xc)} 0)`);
+			mag.setAttribute('transform', `translate(${f1(xm)} 0)`);
+			flip.setAttribute('transform', nLeft ? 'scale(-1 1)' : '');
+			pl.textContent = nLeft ? 'N' : 'S';
+			pr.textContent = nLeft ? 'S' : 'N';
+			pl.setAttribute('class', 'emi-pole');
+			// lines through the turns: a point inside the coil's length and radius
+			lines.forEach((p, i) => {
+				const s = nLeft ? -1 : 1;
+				const on = linePts[i].some(([x, y]) => {
+					const X = xm + s * x;
+					return Math.abs(X - xc) < 32 && Math.abs(y - CY) < 19;
+				});
+				p.classList.toggle('is-on', on);
+			});
+			// the gauge: up when the field inside the coil points left (Ψ < 0)
+			const psi = psiNow();
+			const h = (60 * Math.min(1, Math.abs(psi) / PSI_MAX)) | 0;
+			const up = psi < 0;
+			gbar.setAttribute('y', String(up ? 92 - h : 92));
+			gbar.setAttribute('height', String(h));
+			if (h > 6) {
+				const y = up ? 92 - h - 8 : 92 + h + 8;
+				gdir.setAttribute('d', up ? `M34 ${y} L46 ${y - 4} L46 ${y + 4} Z` : `M46 ${y} L34 ${y - 4} L34 ${y + 4} Z`);
+			} else gdir.setAttribute('d', '');
+			// current arrows (I > 0 up on the front halves, out of the coil at its right end)
+			const k = Math.min(1, Math.abs(I) / 3);
+			const op = k < 0.04 ? '0' : (0.35 + 0.65 * k).toFixed(2);
+			const sg = I > 0 ? 1 : -1;
+			for (const a of arrows) {
+				const dx = sg * +a.dataset.dx!;
+				const dy = sg * +a.dataset.dy!;
+				const l = Math.hypot(dx, dy);
+				a.setAttribute('d', arrowHead(+a.dataset.x! + (3.5 * dx) / l, +a.dataset.y! + (3.5 * dy) / l, dx, dy, 7));
+				a.style.opacity = op;
+			}
+			const [tl, tr] = g1.terminals;
+			const L = { x: xc - 32, y: CY + 20 };
+			const R = { x: xc + 32, y: CY + 20 };
+			leads[0].setAttribute('d', `M${f1(L.x)} ${L.y} C${f1(L.x - 4)} ${L.y + 40} ${tl.x} ${tl.y - 40} ${tl.x} ${tl.y}`);
+			leads[1].setAttribute('d', `M${f1(R.x)} ${R.y} C${f1(R.x + 4)} ${R.y + 40} ${tr.x} ${tr.y - 40} ${tr.x} ${tr.y}`);
+			// lead arrows at the middle of each lead: up the left one and down the right one for I > 0
+			const midL = { x: (L.x + tl.x) / 2, y: (L.y + tl.y) / 2 };
+			const midR = { x: (R.x + tr.x) / 2, y: (R.y + tr.y) / 2 };
+			leadArrows[0].setAttribute('d', arrowHead(midL.x, midL.y - sg * 4, (L.x - tl.x) * sg, (L.y - tl.y) * sg, 7));
+			leadArrows[1].setAttribute('d', arrowHead(midR.x, midR.y + sg * 4, (tr.x - R.x) * sg, (tr.y - R.y) * sg, 7));
+			leadArrows.forEach((a) => (a.style.opacity = op));
+		};
+		const setWhat = (w: typeof what) => {
+			what = w;
+			$$<HTMLButtonElement>('[data-what]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.what === w)));
+		};
+		$$<HTMLButtonElement>('[data-what]').forEach((b) => b.addEventListener('click', () => setWhat(b.dataset.what as typeof what)));
+		// buttons: move the chosen body at a speed (px/s) until the condition holds
+		const go = (v: number, until: (xc: number, xm: number) => boolean) => {
+			auto = { v, until, t: 0 };
+			wake();
+		};
+		const step = (dx: number) => {
+			if (what === 'mag') place('mag', xc, xm + dx);
+			else if (what === 'coil') place('coil', xc - dx, xm);
+			else place('both', xc + dx, xm + dx);
+		};
+		$$<HTMLButtonElement>('[data-go]').forEach((b) =>
+			b.addEventListener('click', () => {
+				const kind = b.dataset.go!;
+				if (what === 'both') {
+					// both together: carry them 15 см to the left (or back to the right with «Вынуть»)
+					const target = kind === 'out' ? 170 : 110;
+					const v = (kind === 'slow' ? 0.15 : kind === 'fast' ? 0.5 : 0.3) * S;
+					go(kind === 'out' ? v : -v, (c) => (kind === 'out' ? c >= target : c <= target));
+					return;
+				}
+				if (kind === 'out') go(0.3 * S, (c, m) => m - c >= D_OUT);
+				else go(-(kind === 'slow' ? 0.15 : 0.5) * S, (c, m) => m - c <= 0);
+			}),
+		);
+		$('[data-flip]').addEventListener('click', () => {
+			nLeft = !nLeft;
+			psiPrev = psiNow(); // turning it over is not a motion along the axis: no kick
+			wake();
+		});
+		// dragging
+		const dragOf = (el: Element, kind: 'mag' | 'coil') => {
+			let x0c = 0;
+			let x0m = 0;
+			let p0 = 0;
+			drag(el, svg, {
+				start: (p) => {
+					auto = null;
+					if (what !== 'both') setWhat(kind);
+					x0c = xc;
+					x0m = xm;
+					void x0c;
+					p0 = p.x;
+				},
+				move: (p) => {
+					const d = p.x - p0;
+					if (what === 'both') place('both', x0c + d, x0m + d);
+					else if (kind === 'mag') place('mag', xc, x0m + d);
+					else place('coil', x0c + d, xm);
+					wake();
+				},
+			});
+		};
+		dragOf($('[data-grab-mag]'), 'mag');
+		dragOf($('[data-grab-coil]'), 'coil');
+
+		// ================= two coils on a ring
+		const g2 = galvanometer($('[data-galv2]'), 330, 225, 20);
+		const nd2 = needle();
+		let closed = false;
+		let iron = true;
+		let iSet = 1;
+		let iA = 0;
+		let u2 = 0; // galvanometer input, divisions
+		let holdB = 0; // s left to show the induced current's arrows in coil 2's circuit
+		let signB = 1;
+		const keyBtn = $<HTMLButtonElement>('[data-key-btn]');
+		const keyLine = $<SVGPathElement>('[data-key]');
+		const amps = $<SVGTextElement>('[data-amps]');
+		const ring = $<SVGPathElement>('[data-ring]');
+		const rlines = $<SVGGElement>('[data-rlines]');
+		const slider = $<SVGPathElement>('[data-slider]');
+		const irange = $<HTMLInputElement>('[data-irange]');
+		const iout = $<HTMLOutputElement>('[data-iout]');
+		const aArrows = $$<SVGPathElement>('[data-a-arrows] path');
+		const bArrows = $$<SVGPathElement>('[data-b-arrows] path');
+		const fmt = (v: number, d = 2) => v.toFixed(d).replace('.', ',');
+		const setKey = () => {
+			keyLine.setAttribute('d', closed ? 'M30 148 L30 124' : 'M30 148 L44 128');
+			keyBtn.textContent = closed ? 'Разомкнуть ключ' : 'Замкнуть ключ';
+		};
+		keyBtn.addEventListener('click', () => {
+			closed = !closed;
+			setKey();
+			wake();
+		});
+		$<HTMLInputElement>('[data-iron]').addEventListener('change', (e) => {
+			iron = (e.target as HTMLInputElement).checked;
+			ring.classList.toggle('is-wood', !iron);
+			wake();
+		});
+		irange.addEventListener('input', () => {
+			iSet = +irange.value;
+			iout.textContent = `${fmt(iSet, 2).replace(/,?0+$/, '')} А`;
+			wake();
+		});
+		const draw2 = () => {
+			amps.textContent = `${fmt(iA)} А`;
+			const rOhm = 4.5 / iSet; // total resistance of the circuit, 3–9 Ом
+			const sx = 58 + 44 * ((rOhm - 3) / 6);
+			slider.setAttribute('d', `M${f1(sx)} 160 V168 M${f1(sx - 3)} 164 L${f1(sx)} 169 L${f1(sx + 3)} 164`);
+			rlines.style.opacity = (Math.min(1, iA / 1.5) * (iron ? 1 : 0.15)).toFixed(2);
+			// current in circuit 1: clockwise on the drawing (out of the battery's long plate at the top)
+			const ka = iA > 0.02 ? (0.4 + 0.6 * Math.min(1, iA / 1.5)).toFixed(2) : '0';
+			aArrows[0].setAttribute('d', arrowHead(100, 60, 1, 0, 7));
+			aArrows[1].setAttribute('d', arrowHead(80, 176, -1, 0, 7));
+			aArrows.forEach((a) => (a.style.opacity = ka));
+			// induced current in coil 2's circuit (its sign follows the needle)
+			// the same convention as on the first tab: current entering the galvanometer's left terminal turns the needle
+			// left. The kick lasts about 0,15 с; its arrows are held for 0,6 с so that they can be seen
+			const kb = holdB > 0 ? (0.4 + 0.6 * Math.min(1, holdB / 0.6)).toFixed(2) : '0';
+			const s = signB;
+			bArrows[0].setAttribute('d', arrowHead(340 + s * 3, 74.3, s, 0, 7));
+			bArrows[1].setAttribute('d', arrowHead(311, 175 - s * 3, 0, -s, 7));
+			bArrows.forEach((a) => (a.style.opacity = kb));
+		};
+		setKey();
+
+		// ================= the loop
+		let idle = 0;
+		const wake = loop(fig, (dt) => {
+			if (dt <= 0) return true; // the first frame after a wake has no time step
+			if (tab === 'mag') {
+				if (auto) {
+					auto.t += dt;
+					// smooth start and stop over 0,1 с
+					const ramp = Math.min(1, auto.t / 0.1);
+					const before = { c: xc, m: xm };
+					step(auto.v * ramp * dt);
+					if (auto.until(xc, xm) || (before.c === xc && before.m === xm)) auto = null;
+				}
+				const psi = psiNow();
+				const raw = (psi - psiPrev) / dt;
+				psiPrev = psi;
+				dpsi += (raw - dpsi) * Math.min(1, dt / 0.03);
+				const I = (dpsi / R_OHM) * 1000; // мА
+				const th = nd1.step(I, dt); // 1 division per мА
+				g1.set(th);
+				draw1(I);
+				idle = Math.abs(th) < 0.01 && Math.abs(I) < 0.01 && !auto ? idle + dt : 0;
+			} else {
+				const target = closed ? iSet : 0;
+				const old = iA;
+				iA += (target - iA) * (1 - Math.exp(-dt / 0.03));
+				u2 = (-0.62 * (iA - old)) / dt * (iron ? 1 : 1 / 20);
+				if (Math.abs(u2) > 0.15) {
+					holdB = 0.6;
+					signB = u2 > 0 ? 1 : -1;
+				} else holdB = Math.max(0, holdB - dt);
+				const th = nd2.step(u2, dt);
+				g2.set(th);
+				draw2();
+				idle = Math.abs(th) < 0.01 && Math.abs(target - iA) < 1e-3 && holdB === 0 ? idle + dt : 0;
+			}
+			return idle < 0.5;
+		});
+		draw1(0);
+		draw2();
+		g1.set(0);
+		g2.set(0);
+		wake();
+	}
+</script>

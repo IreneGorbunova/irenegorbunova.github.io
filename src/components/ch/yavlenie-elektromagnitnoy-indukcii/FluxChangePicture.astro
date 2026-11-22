@@ -1,0 +1,249 @@
+---
+/**
+ * «Как изменить магнитный поток»: four small looping tiles. In each a closed contour of wire (area 0,01 м², a square
+ * 10 см × 10 см or, in (б), a ring of soft wire of the same area) is joined to a small zero-center galvanometer, with a
+ * readout «Φ = … мВб». Oblique view at 6 px per см: x to the right along the field, y up, z toward the viewer (drawn
+ * down and to the left). The uniform field of (б), (в), (г) is B = 0,5 Тл between two flat poles (N blue on the left,
+ * S red on the right); its lines are drawn on a grid of 6 × 4 across the field, and the lines that pass through the
+ * contour are drawn bolder, so their number follows Φ (16 lines for 5 мВб).
+ *   (а) A bar magnet comes up to the contour from the right and goes away: Φ = 5 мВб / (1 + (d/5 см)²)^{3/2} for the
+ *       distance d of its N pole from the contour's center, d from 12 см (Φ ≈ 0,3 → shown 0) to 1 см (4,7 → shown 5);
+ *       an approximate formula, so whole мВб are shown; only the lines of the magnet in the plane of its axis are drawn.
+ *   (б) The ring is squeezed by two pegs to half its area and released: Φ 5 → 2,5 → 5 мВб.
+ *   (в) The square frame turns about a vertical axis by 90° and back: Φ = B·S·cos(угла), 5 → 0 → 5 мВб.
+ *   (г) The square frame slides along the field without turning: Φ = 5 мВб all the time, the needle stays at zero.
+ * Loop of 6 с: rest 0–0,5 с, change 0,5–2 с, hold 2–3 с, change back 3–4,5 с, rest to 6 с (smooth starts and stops).
+ * Real speeds; the galvanometer's input is −0,5 division per (мВб/с) (a change of 5 мВб in 1,5 с gives about 2,5
+ * divisions); the needle is a damped pointer (emi.ts).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import EmiStyles from './EmiStyles.astro';
+
+const TILES = [
+	{ k: 'a', t: 'Меняется индукция' },
+	{ k: 'b', t: 'Меняется площадь' },
+	{ k: 'c', t: 'Контур поворачивается' },
+	{ k: 'd', t: 'Поток не меняется' },
+];
+---
+
+<G7Styles />
+<EmiStyles />
+<figure class="g7 g7--pic emi fc not-content" data-fluxchange>
+	<div class="g7__grid is-two">
+		{
+			TILES.map((x, i) => (
+				<div class="fc__tile">
+					<p class="fc__t">
+						{'абвг'[i]}) {x.t}
+					</p>
+					<svg class="g7__svg" viewBox="0 0 200 176" role="img" aria-label={`${x.t}: контур из провода с гальванометром`} data-tile={x.k} />
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="g7__caption">Площадь каждого контура — 100&nbsp;см², поле между полюсами — 0,5&nbsp;Тл. Жирнее нарисованы магнитные линии, которые проходят сквозь контур.</figcaption>
+</figure>
+
+<style is:global>
+	.fc__tile {
+		display: grid;
+		gap: 0.3rem;
+	}
+	.fc__t {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fc .fc__pole-n {
+		fill: color-mix(in srgb, var(--ig-vx) 70%, var(--sl-color-gray-5));
+	}
+	.fc .fc__pole-s {
+		fill: color-mix(in srgb, var(--ig-vy) 70%, var(--sl-color-gray-5));
+	}
+	.fc .fc__frame {
+		fill: none;
+		stroke: var(--emi-cu);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	.fc .fc__frame-back {
+		fill: none;
+		stroke: var(--emi-cu-back);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	.fc .fc__peg {
+		fill: var(--sl-color-gray-3);
+	}
+	.fc .fc__read {
+		font-size: 13px;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.fc .fc__head {
+		fill: var(--emi-line);
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+	import { needle, galvanometer, svgEl, fieldLines, MAG_L, MAG_W } from './emi';
+
+	const K = 6; // px per см
+	const H = 5 * K; // half side of the square, px
+	const RR = Math.sqrt(100 / Math.PI) * K; // radius of the ring of 100 см², px
+	const C = { x: 100, y: 64 };
+	// oblique projection: z toward the viewer goes down and to the left
+	const P = (x: number, y: number, z: number) => ({ x: C.x + x - 0.42 * z, y: C.y - y + 0.3 * z });
+	const f1 = (v: number) => v.toFixed(1);
+	const pts = (a: { x: number; y: number }[]) => a.map((p, i) => `${i ? 'L' : 'M'}${f1(p.x)} ${f1(p.y)}`).join(' ');
+	const ease = (t: number) => {
+		const x = Math.min(1, Math.max(0, t));
+		return x * x * (3 - 2 * x);
+	};
+	// 0 → 1 → 0 over the 6 s loop
+	const phase = (t: number) => (t < 0.5 ? 0 : t < 2 ? ease((t - 0.5) / 1.5) : t < 3 ? 1 : t < 4.5 ? 1 - ease((t - 3) / 1.5) : 0);
+	const LY = [-1.25, -0.75, -0.25, 0.25, 0.75, 1.25].map((v) => v * H);
+	const LZ = [-0.75, -0.25, 0.25, 0.75].map((v) => v * H);
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-fluxchange]')) {
+		const tiles = [...fig.querySelectorAll<SVGSVGElement>('[data-tile]')].map((svg) => {
+			const kind = svg.dataset.tile!;
+			const uniform = kind !== 'a';
+			const back = svgEl(svg, 'g');
+			const lines: { el: SVGPathElement; y: number; z: number }[] = [];
+			if (uniform) {
+				// poles: two flat blocks, N on the left, S on the right; their inner faces at x = ∓80 px
+				const face = (x: number) => pts([P(x, 46, -36), P(x, 46, 36), P(x, -46, 36), P(x, -46, -36)]) + ' Z';
+				const block = (x0: number, x1: number) =>
+					pts([P(x0, 46, -36), P(x1, 46, -36), P(x1, 46, 36), P(x1, -46, 36), P(x0, -46, 36), P(x0, 46, 36)]) + ' Z';
+				svgEl(back, 'path', { class: 'fc__pole-n', d: block(-96, -80) });
+				svgEl(back, 'path', { class: 'emi-n', d: face(-80), opacity: 0.85 });
+				svgEl(back, 'path', { class: 'fc__pole-s', d: block(80, 96) });
+				svgEl(back, 'path', { class: 'emi-s', d: face(80), opacity: 0.85 });
+				svgEl(back, 'text', { class: 'emi-pole', x: f1(P(-80, -41, 0).x), y: f1(P(-80, -41, 0).y + 5), 'text-anchor': 'middle', 'font-size': 13 }, 'N');
+				svgEl(back, 'text', { class: 'emi-pole', x: f1(P(80, -41, 0).x), y: f1(P(80, -41, 0).y + 5), 'text-anchor': 'middle', 'font-size': 13 }, 'S');
+				for (const z of LZ)
+					for (const y of LY) {
+						const a = P(-80, y, z);
+						const b = P(80, y, z);
+						const el = svgEl(back, 'path', { class: 'emi-line', d: `M${f1(a.x)} ${f1(a.y)} L${f1(b.x)} ${f1(b.y)}` });
+						lines.push({ el, y, z });
+					}
+			}
+			// the magnet of (а): its group moves along x; N on its left end
+			let magG: SVGGElement | null = null;
+			let magLines: { el: SVGPathElement; pts: [number, number][] }[] = [];
+			if (!uniform) {
+				magG = svgEl(svg, 'g');
+				const ml = fieldLines([0.35, 0.65, 1.0, 1.4, 1.9].flatMap((a) => [a, -a]), 0.3, 0.09);
+				const s = K * 100; // px per м
+				magLines = ml.map((l) => {
+					const q = l.filter((_, i) => i % 3 === 0).map(([x, y]) => [-x * s, -y * s] as [number, number]); // N on the left: mirror
+					const el = svgEl(magG!, 'path', { class: 'emi-line', d: q.map(([x, y], i) => `${i ? 'L' : 'M'}${f1(x)} ${f1(y)}`).join(' ') });
+					return { el, pts: q };
+				});
+				const ml2 = MAG_L * s;
+				const mw = MAG_W * s;
+				svgEl(magG, 'rect', { class: 'emi-n', x: f1(-ml2 / 2), y: f1(-mw / 2), width: f1(ml2 / 2), height: f1(mw), rx: 1.5 });
+				svgEl(magG, 'rect', { class: 'emi-s', x: 0, y: f1(-mw / 2), width: f1(ml2 / 2), height: f1(mw), rx: 1.5 });
+			}
+			// the contour: back half and front half (behind and in front of a magnet passing near it)
+			const frameBack = svgEl(svg, 'path', { class: 'fc__frame-back' });
+			const magFront = !uniform ? svgEl(svg, 'g') : null;
+			if (magG && magFront) magFront.append(magG);
+			const frame = svgEl(svg, 'path', { class: 'fc__frame' });
+			const pegs = kind === 'b' ? [svgEl(svg, 'rect', { class: 'fc__peg', width: 10, height: 6, rx: 2 }), svgEl(svg, 'rect', { class: 'fc__peg', width: 10, height: 6, rx: 2 })] : [];
+			const leads = [svgEl(svg, 'path', { class: 'emi-wire' }), svgEl(svg, 'path', { class: 'emi-wire' })];
+			const gal = galvanometer(svgEl(svg, 'g'), 100, 152, 17);
+			const read = svgEl(svg, 'text', { class: 'fc__read', x: 6, y: 170 });
+			return { svg, kind, lines, magLines, magG, frame, frameBack, pegs, leads, gal, read, nd: needle(), phi: 5, prev: NaN };
+		});
+
+		let t = 0;
+		const draw = (dt: number) => {
+			for (const T of tiles) {
+				const p = phase(t);
+				let phi = 5;
+				let dx = 0; // slide of the contour
+				let cosA = 1; // turning
+				let sq = 1; // squeeze of the ring along y
+				if (T.kind === 'a') {
+					// the contour stands 40 px left of the middle; the N pole comes from 12 см to 1 см from its center
+					const d = 12 - 11 * p; // см
+					phi = 5 / Math.pow(1 + (d / 5) ** 2, 1.5);
+					dx = -40;
+					const xc = d * K + (MAG_L * 100 * K) / 2 + dx; // the magnet's center, px from the tile's middle
+					T.magG!.setAttribute('transform', `translate(${f1(C.x + xc)} ${C.y})`);
+					// lines through the contour: crossing x = −xc (in the magnet's frame) within |y| < H
+					for (const l of T.magLines) {
+						const on = l.pts.some(([x, y], i) => {
+							if (!i) return false;
+							const [x0] = l.pts[i - 1];
+							return (x0 + xc - dx) * (x + xc - dx) <= 0 && Math.abs(y) < H;
+						});
+						l.el.classList.toggle('is-on', on);
+					}
+				} else if (T.kind === 'b') {
+					sq = 1 - 0.5 * p;
+					phi = 5 * sq;
+				} else if (T.kind === 'c') {
+					cosA = Math.cos((Math.PI / 2) * p);
+					phi = 5 * cosA;
+				} else dx = 26 * p;
+				// the contour's outline
+				const ang = Math.acos(Math.min(1, cosA));
+				const sinA = Math.sin(ang);
+				let front: { x: number; y: number }[] = [];
+				let backPart: { x: number; y: number }[] = [];
+				if (T.kind === 'b') {
+					const R = (a: number) => P(dx, RR * sq * Math.sin(a), RR * Math.cos(a));
+					const arc = (a0: number, a1: number) => Array.from({ length: 25 }, (_, i) => R(a0 + ((a1 - a0) * i) / 24));
+					// the front half (z > 0) with a small gap at its front point, where the leads are joined
+					front = [...arc(-Math.PI / 2, -0.06), ...arc(0.06, Math.PI / 2)];
+					backPart = arc(Math.PI / 2, (3 * Math.PI) / 2);
+					// two pegs press on the top and the bottom of the ring
+					const top = P(0, RR * sq, 0);
+					const bot = P(0, -RR * sq, 0);
+					T.pegs[0].setAttribute('x', f1(top.x - 5));
+					T.pegs[0].setAttribute('y', f1(top.y - 7.2));
+					T.pegs[1].setAttribute('x', f1(bot.x - 5));
+					T.pegs[1].setAttribute('y', f1(bot.y + 1.2));
+				} else {
+					// square: corners in the frame's own plane (u along its width, y up), turned about y by ang
+					const Q = (u: number, y: number) => P(dx + u * sinA, y, u * cosA);
+					const b0 = Q(0, -H);
+					front = [b0, Q(H, -H), Q(H, H), Q(0, H)]; // the half nearer to the viewer (u > 0 → z > 0)
+					backPart = [Q(0, H), Q(-H, H), Q(-H, -H), b0];
+				}
+				T.frame.setAttribute('d', T.kind === 'b' ? pts(front.slice(0, 25)) + ' ' + pts(front.slice(25)) : pts(front));
+				T.frameBack.setAttribute('d', pts(backPart));
+				// lines of the uniform field through the contour: the contour's shadow along x on the y–z plane
+				for (const l of T.lines) {
+					const inside = T.kind === 'b' ? (l.y / (RR * sq)) ** 2 + (l.z / RR) ** 2 < 1 : Math.abs(l.y) < H && Math.abs(l.z) < H * cosA - 1e-6;
+					l.el.classList.toggle('is-on', inside);
+				}
+				// leads from the bottom of the contour to the galvanometer
+				const b = T.kind === 'b' ? P(0, 0, RR) : P(dx, -H, 0);
+				const [tl, tr] = T.gal.terminals;
+				T.leads[0].setAttribute('d', `M${f1(b.x - 2)} ${f1(b.y)} C${f1(b.x - 2)} ${f1(b.y + 14)} ${f1(tl.x)} ${f1(tl.y - 14)} ${f1(tl.x)} ${f1(tl.y)}`);
+				T.leads[1].setAttribute('d', `M${f1(b.x + 2)} ${f1(b.y)} C${f1(b.x + 2)} ${f1(b.y + 14)} ${f1(tr.x)} ${f1(tr.y - 14)} ${f1(tr.x)} ${f1(tr.y)}`);
+				// the readout and the needle (input −0,5 division per мВб/с)
+				// (а) in whole мВб (the formula is approximate), the others to 0,1 мВб
+				const shown = T.kind === 'a' ? Math.round(phi) : Math.round(phi * 10) / 10;
+				T.read.textContent = `Φ = ${shown.toString().replace('.', ',')} мВб`;
+				const rate = Number.isNaN(T.prev) || dt <= 0 ? 0 : (phi - T.prev) / dt;
+				T.prev = phi;
+				T.gal.set(T.nd.step(-0.5 * rate, dt));
+			}
+		};
+		draw(0);
+		loop(fig, (dt) => {
+			t += dt;
+			if (t >= 6) t -= 6;
+			draw(dt);
+			return true;
+		})();
+	}
+</script>

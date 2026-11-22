@@ -87,7 +87,7 @@ export default defineConfig({
 				grade(9, [
 					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['pryamolineynoe-dvizhenie', 'otnositelnost-dvizheniya', 'zakony-nyutona', 'svobodnoe-padenie-tel', 'zakon-vsemirnogo-tyagoteniya', 'ravnomernoe-dvizhenie-po-okruzhnosti', 'impuls-reaktivnoe-dvizhenie', 'sohranenie-mehanicheskoy-energii']),
 					section('Механические колебания и волны. Звук', '9-klass/kolebaniya-i-volny', ['mayatnik', 'volny-dlina-volny', 'zvuk']),
-					section('Электромагнитное поле', '9-klass/elektromagnitnoe-pole', ['magnitnaya-indukciya']),
+					section('Электромагнитное поле', '9-klass/elektromagnitnoe-pole', ['magnitnaya-indukciya', 'yavlenie-elektromagnitnoy-indukcii']),
 				]),
 				grade(10, [
 					section('Кинематика', '10-klass/kinematika', ['sistema-otscheta', 'ravnouskorennoe-dvizhenie', 'svobodnoe-padenie', 'brosok-pod-uglom', 'dvizhenie-po-okruzhnosti']),
