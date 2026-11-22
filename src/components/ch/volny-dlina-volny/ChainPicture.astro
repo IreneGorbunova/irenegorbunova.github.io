@@ -1,0 +1,113 @@
+---
+/**
+ * «Шарики на пружинках» (picture, a looping animation). A row of 16 equal balls 19 px apart joined by small springs,
+ * side view. On the left a vibrator (a wheel with a pin in a slotted yoke, vdv.ts) moves ball 1 up and down
+ * harmonically: ν = 0,5 Гц (T = 2 с), amplitude 20 px (about one ball spacing). Each next ball repeats the motion of the one
+ * before it 0,125 с later, so the motion runs along the row at 8 spacings per second and 16 balls make exactly one
+ * wavelength (ball 17 would move in step with ball 1). Ball 9 is red; the blue double arrow beside it is the range of
+ * its swing: it moves only up and down. The gold arrow shows where the motion runs. Loop: 0,6 с at rest; the wheel
+ * makes exactly 5 turns (10 с) and stops with ball 1 at rest; the front reaches ball 16 at 1,875 с, and the end of
+ * the motion leaves ball 16 at 11,875 с (each ball makes its 5 full swings); 0,8 с at rest, and again. Real time.
+ */
+import VdvStyles from './VdvStyles.astro';
+---
+
+<VdvStyles />
+<figure class="g7 g7--pic vdv not-content" data-vdv-chain>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 170" role="img" aria-label="Ряд шариков, соединённых пружинками. Первый шарик колеблется вверх-вниз, каждый следующий повторяет его движение чуть позже, и колебания бегут вдоль ряда; красный шарик только поднимается и опускается">
+			<line class="vdv-rope-rest" x1="46" y1="96" x2="356" y2="96"></line>
+			<text class="t-small vdv-faint" x="356" y="150" text-anchor="end">положение равновесия</text>
+			<path class="vdv-rope-rest" d="M300 141 L292 99"></path>
+			<g data-drv></g>
+			<g data-springs></g>
+			<g data-balls></g>
+			<g data-arrows></g>
+			<text class="t-small" x="58" y="140" text-anchor="middle">1</text>
+			<text class="t-small" x="210" y="140" text-anchor="middle">9</text>
+			<text class="t-small t-gold" x="236" y="22" text-anchor="end">волна бежит</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Шарик 1 колеблется сам, а каждый следующий повторяет его движение с опозданием: колебания бегут вдоль ряда.
+		Красный шарик только поднимается и опускается. Время идёт как на самом деле.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, newArrow, newDouble, newVibrator, cycleLoop, TAU } from './vdv';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-vdv-chain]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const X1 = 58; // ball 1
+		const STEP = 19;
+		const Y = 96;
+		const A = 20;
+		const NU = 0.5;
+		const DELAY = 0.125;
+		const NB = 16;
+		const PRE = 0.6;
+		const RUN = 10;
+		const FADE = (NB - 1) * DELAY + 0.8; // the end of the motion runs off the row, then a short rest
+		const vib = newVibrator(q('[data-drv]'), { kind: 'up', cx: 22, cy: Y, R: A, xEnd: X1 - 12, y: Y });
+		const springs = Array.from({ length: NB }, () => {
+			const p = el('path', { class: 'vdv-coil', fill: 'none' });
+			q('[data-springs]').append(p);
+			return p;
+		});
+		const balls = Array.from({ length: NB }, (_, i) => {
+			const c = el('circle', { class: i === 8 ? 'vdv-red' : 'vdv-ball', r: 5.5 });
+			q('[data-balls]').append(c);
+			return c;
+		});
+		const ag = q('[data-arrows]');
+		newArrow(ag, 'gold')(244, 18, 330, 18, 8, 4.5);
+		const swing = newDouble(ag, 'blue');
+		swing(X1 + 8 * STEP + 13, Y - A, X1 + 8 * STEP + 13, Y + A);
+		// a small spring from a to b: 5 zigzags across the line between the balls
+		const zig = (ax: number, ay: number, bx: number, by: number) => {
+			const dx = bx - ax;
+			const dy = by - ay;
+			const L = Math.hypot(dx, dy) || 1;
+			const ux = dx / L;
+			const uy = dy / L;
+			let d = `M${ax.toFixed(1)} ${ay.toFixed(1)}`;
+			const n = 7;
+			for (let k = 1; k < n; k++) {
+				const s = k / n;
+				const w = (k % 2 ? 3 : -3) * (k === 1 || k === n - 1 ? 0.6 : 1);
+				d += ` L${(ax + dx * s - uy * w).toFixed(1)} ${(ay + dy * s + ux * w).toFixed(1)}`;
+			}
+			return d + ` L${bx.toFixed(1)} ${by.toFixed(1)}`;
+		};
+		const draw = (t: number) => {
+			const tt = t - PRE;
+			const y = (i: number) => {
+				const tau = tt - i * DELAY;
+				return tau <= 0 || tau >= RUN ? 0 : A * Math.sin(TAU * NU * tau);
+			};
+			const y0 = y(0);
+			vib(TAU * NU * Math.min(RUN, Math.max(0, tt)), y0);
+			let px = X1 - 12;
+			let py = Y - y0;
+			for (let i = 0; i < NB; i++) {
+				const bx = X1 + i * STEP;
+				const by = Y - y(i);
+				springs[i].setAttribute('d', zig(px, py, bx, by));
+				balls[i].setAttribute('cx', bx.toFixed(1));
+				balls[i].setAttribute('cy', by.toFixed(2));
+				px = bx;
+				py = by;
+			}
+		};
+		cycleLoop(fig, PRE + RUN + FADE, draw);
+	}
+</script>
+
+<style is:global>
+	.vdv .vdv-ball {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+</style>

@@ -1,0 +1,672 @@
+---
+/**
+ * Two short looping opening scenes of «Волны. Длина волны» (grade 9). No terms of the chapter in the pictures or in the
+ * visible captions; each caption's popover names the notion and links to its section. Nothing about sound.
+ *
+ * Stadium «wave» (a football stadium on a sunny day). The kit draws people only in profile, and fans face the pitch, so
+ *   the stand is seen from the end of a sector, looking along the rows: the picture plane is the cross-section of the
+ *   stand (34 px per metre), the depth along the rows is drawn obliquely (one seat, 0,6 м, is 13,5 px to the right and
+ *   6,2 px up; a cabinet view, so every fan keeps the same size and stays in exact profile). Three rows on steps 0,85 м
+ *   deep and 0,45 м high, the pitch 1,1 м below the front row, seats 0,42 м high; the rows go on beyond the picture
+ *   (24, 22 and 20 seats are in it); 66 fans of the people kit (160–186 см, 0,34 px per см,
+ *   so their hands are mittens), facing left toward the pitch. The crest runs along the rows from the near end to the
+ *   far one at 20 seats per second (about 12 м/с, as measured on real stadiums: Farkas, Helbing, Vicsek, Nature 419,
+ *   131, 2002); each fan stands up with both arms raised, holds for 0,05 с and sits down, about 0,8 с in all, his feet
+ *   staying where they are. Each row starts 0,025 с after the one in front and each fan ±0,02 с off the exact moment
+ *   (people are not exact). The whole scene is SLOWED 2 times (10 seats per second on screen, a rise takes 0,7 с); the
+ *   caption's popover says so. The fan in the red shirt (front row, the eighth seat) only stands and sits.
+ * The float (a lake on a summer morning, side view, 55 px per metre across and up, real time, 18 с). A boy (teen of the
+ *   kit, 158 см, 0,55 px per см) sits on the end of a wooden pier, 0,6 м above the water, legs hanging, a fishing rod
+ *   2,6 м long held in both hands (the hands wrap the rod). The float lies 3,3 м from the pier; a duck rests 1,4 м
+ *   farther. Far away a motorboat crosses the lake from right to left (0–9 с) with a V-shaped wake trailing
+ *   behind it; its swell, running partly the boat's way, comes to the pier from the right: deep-water waves with T = 1,5 с, λ = gT²/2π = 3,51 м, crests running left at 2,34 м/с; the
+ *   group of 5–6 crests (a Gaussian envelope, σ = 2,6 м, heights up to ±9 см) moves at half that speed, 1,17 м/с, so
+ *   crests appear at its back, run through it and vanish at its front (as on a real lake). The middle of the group
+ *   passes the float at 11,5 с. Each floating thing moves on a small circle of radius equal to the local height of the
+ *   wave (up, toward the pier on a crest, down, back), and stays where it was; the water is not carried to the pier.
+ */
+import IntroFrame from '@components/intro/IntroFrame.astro';
+import More from '@components/More.astro';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
+
+// ---------- stadium geometry (the same numbers as in the script)
+const K = 34; // px per metre in the cross-section
+const X0 = 30; // front edge of row 0 at the near end
+const YF = 200; // its tread
+const DX = 13.5; // one seat deeper
+const DY = -6.2;
+const RZ = 0.85 * K; // row step across
+const RY = 0.45 * K; // row step up
+const DROP = 1.1 * K; // the pitch lies 1,1 м below the front row
+const ROWS = 3;
+const NE = 30; // the rows go on beyond the edge of the picture
+/** Seats of row r that are (partly) inside the picture. */
+const seatsOf = (r: number) => Math.floor((372 - (X0 + r * RZ + 0.62 * K)) / DX) + 1;
+const P = (x: number, y: number) => `${x.toFixed(1)} ${y.toFixed(1)}`;
+const tread = (r: number) => {
+	const x0 = X0 + r * RZ - 0.4 * DX;
+	const y0 = YF - r * RY - 0.4 * DY;
+	const x1 = x0 + RZ;
+	return `M${P(x0, y0)} L${P(x1, y0)} L${P(x1 + NE * DX, y0 + NE * DY)} L${P(x0 + NE * DX, y0 + NE * DY)} Z`;
+};
+const riser = (r: number) => {
+	// the vertical face that rises from the back of tread r to tread r + 1
+	const x = X0 + (r + 1) * RZ - 0.4 * DX;
+	const y0 = YF - r * RY - 0.4 * DY;
+	const y1 = y0 - RY;
+	return `M${P(x, y0)} L${P(x, y1)} L${P(x + NE * DX, y1 + NE * DY)} L${P(x + NE * DX, y0 + NE * DY)} Z`;
+};
+// the end face of the stand (the cross-section at the near end), down to the ground
+const endFace = (() => {
+	const x0 = X0 - 0.4 * DX;
+	const y0 = YF - 0.4 * DY;
+	let d = `M${P(x0, y0 + DROP)} L${P(x0, y0)}`;
+	for (let r = 0; r < ROWS; r++) {
+		d += ` L${P(x0 + (r + 1) * RZ, y0 - r * RY)}`;
+		if (r < ROWS - 1) d += ` L${P(x0 + (r + 1) * RZ, y0 - (r + 1) * RY)}`;
+	}
+	d += ` L${P(x0 + ROWS * RZ, y0 - (ROWS - 1) * RY - 34)} L${P(x0 + ROWS * RZ + 8, y0 - (ROWS - 1) * RY - 34)} L${P(x0 + ROWS * RZ + 8, y0 + DROP)} Z`;
+	return d;
+})();
+// the back wall behind the top row, along the depth
+const backWall = (() => {
+	const x = X0 - 0.4 * DX + ROWS * RZ;
+	const y0 = YF - 0.4 * DY - (ROWS - 1) * RY;
+	const y1 = y0 - 34;
+	return `M${P(x, y0)} L${P(x, y1)} L${P(x + NE * DX, y1 + NE * DY)} L${P(x + NE * DX, y0 + NE * DY)} Z`;
+})();
+// the pitch-side wall in front of row 0
+const frontWall = (() => {
+	const x = X0 - 0.4 * DX;
+	const y0 = YF - 0.4 * DY;
+	return `M${P(x, y0)} L${P(x, y0 + DROP)} L${P(x + NE * DX, y0 + DROP + NE * DY)} L${P(x + NE * DX, y0 + NE * DY)} Z`;
+})();
+// seats: the plastic seat of row r, place n, its hip point (where a seated fan's hip joint is)
+const seatHip = (r: number, n: number) => ({ x: X0 + r * RZ + 0.62 * K + n * DX, y: YF - r * RY - 0.45 * K + n * DY });
+const seatPath = (r: number, n: number) => {
+	const h = seatHip(r, n);
+	const pan = h.y + 0.05 * K;
+	return `M${P(h.x - 0.2 * K, pan)} L${P(h.x + 0.13 * K, pan)} L${P(h.x + 0.2 * K, pan - 0.36 * K)} L${P(h.x + 0.13 * K, pan - 0.38 * K)} L${P(h.x + 0.08 * K, pan - 0.06 * K)} L${P(h.x - 0.2 * K, pan - 0.06 * K)} Z`;
+};
+const seatLeg = (r: number, n: number) => {
+	const h = seatHip(r, n);
+	return `M${P(h.x + 0.02 * K, h.y + 0.05 * K)} L${P(h.x + 0.02 * K, YF - r * RY + n * DY)}`;
+};
+// draw order: far seats first; at one depth the back rows first
+const order: { r: number; n: number }[] = [];
+for (let n = seatsOf(0) - 1; n >= 0; n--) for (let r = ROWS - 1; r >= 0; r--) if (n < seatsOf(r)) order.push({ r, n });
+const floods = [
+	{ x: 296, y: 14 },
+	{ x: 322, y: 8 },
+	{ x: 348, y: 2 },
+];
+const crowdDots = Array.from({ length: 90 }, (_, i) => {
+	const r = Math.sin(i * 12.9898) * 43758.5453;
+	const f = r - Math.floor(r);
+	return { x: 4 + ((i * 3.97) % 150), y: 72 + (i % 3) * 5 + f * 2, c: i % 4 };
+});
+
+// ---------- lake
+const reeds = Array.from({ length: 14 }, (_, i) => ({ x: 66 + i * 4.3 + (i % 3) * 1.4, h: 26 + ((i * 7) % 11) }));
+const trees = [
+	{ x: 14, r: 18 },
+	{ x: 44, r: 14 },
+	{ x: 80, r: 20 },
+	{ x: 120, r: 15 },
+	{ x: 160, r: 19 },
+	{ x: 212, r: 14 },
+	{ x: 250, r: 18 },
+	{ x: 292, r: 16 },
+	{ x: 330, r: 20 },
+	{ x: 358, r: 14 },
+];
+const planks = Array.from({ length: 6 }, (_, i) => i * 12);
+---
+
+<PeopleStyles />
+<IntroFrame data-volnyintro>
+	<div class="intro__card" data-scene="stadium">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Трибуна стадиона, вид с торца вдоль рядов: болельщики по очереди встают, поднимают руки и садятся, и поднятые руки бегут вдоль рядов, а каждый болельщик остаётся на своём месте">
+			<defs>
+				<linearGradient id="vis-sky" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="vis-sky-top"></stop>
+					<stop offset="1" class="vis-sky-bot"></stop>
+				</linearGradient>
+			</defs>
+			<rect x="0" y="0" width="360" height="240" fill="url(#vis-sky)"></rect>
+			<!-- the opposite stand across the pitch, far away -->
+			<path class="vis-farstand" d="M0 62 L170 50 L170 92 L0 96 Z"></path>
+			{crowdDots.map((d) => <circle class={`vis-crowd vis-crowd--${d.c}`} cx={d.x.toFixed(1)} cy={d.y.toFixed(1)} r="1.6"></circle>)}
+			<path class="vis-roof" d="M0 50 L170 38 L170 44 L0 57 Z"></path>
+			<!-- the pitch -->
+			<path class="vis-pitch" d="M0 96 L170 92 L360 240 L0 240 Z"></path>
+			<path class="vis-stripe" d="M0 122 L190 108 L214 126 L0 146 Z M0 172 L238 145 L262 163 L0 196 Z M0 222 L286 182 L310 200 L60 240 L0 240 Z"></path>
+			<path class="vis-line" d="M0 112 L182 101"></path>
+			<!-- the roof over our stand and the floodlights -->
+			<path class="vis-roof" d="M210 0 L360 0 L360 22 L250 40 Z"></path>
+			{floods.map((f) => <g><rect class="vis-flood" x={f.x} y={f.y + 14} width="16" height="9" rx="1.5"></rect><rect class="vis-flood-lamp" x={f.x + 2} y={f.y + 21} width="12" height="2"></rect></g>)}
+			<!-- the stand: back wall, risers, treads, front wall -->
+			<path class="vis-wall" d={backWall}></path>
+			{[2, 1, 0].map((r) => <path class="vis-tread" d={tread(r)}></path>)}
+			{[1, 0].map((r) => <path class="vis-riser" d={riser(r)}></path>)}
+			<path class="vis-front" d={frontWall}></path>
+			<path class="vis-board" d={`M${P(X0 - 0.4 * DX + 3 * DX, YF - 0.4 * DY + 3 * DY + 8)} l${P(12 * DX, 12 * DY)} l0 10 l${P(-12 * DX, -12 * DY)} Z`}></path>
+			<!-- seats and fans, far first -->
+			{
+				order.map(({ r, n }) => (
+					<g>
+						<path class="vis-seatleg" d={seatLeg(r, n)}></path>
+						<path class={`vis-seat vis-seat--${(r + n) % 2}`} d={seatPath(r, n)}></path>
+						<g data-fan={`${r}-${n}`}></g>
+					</g>
+				))
+			}
+			<path class="vis-end" d={endFace}></path>
+		</svg>
+		<div class="intro__foot">
+			<p>
+				Каждый болельщик только встаёт и садится на своём месте, а поднятые руки бегут вдоль трибуны —{' '}
+				<More term="примерно 20 мест за секунду">Это волна: каждый болельщик повторяет движение соседа с небольшим опозданием, и гребень бежит по трибуне со скоростью около 12&nbsp;м/с, а ширина его — 10–20 мест. Так её измерили на стадионах учёные из Венгрии и Германии в 2002&nbsp;году — раздел [«Механические волны»](#механические-волны). В сцене всё замедлено в 2 раза.</More>.
+			</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+	<div class="intro__card" data-scene="float">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Мальчик ловит рыбу с деревянных мостков на озере. Вдали проходит катер; через несколько секунд до поплавка доходят пологие волны, поплавок и утка качаются вверх и вниз и остаются на месте">
+			<defs>
+				<linearGradient id="vif-sky" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="vif-sky-top"></stop>
+					<stop offset="1" class="vif-sky-bot"></stop>
+				</linearGradient>
+				<linearGradient id="vif-deep" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0" class="vif-water-top"></stop>
+					<stop offset="1" class="vif-water-bot"></stop>
+				</linearGradient>
+			</defs>
+			<rect x="0" y="0" width="360" height="104" fill="url(#vif-sky)"></rect>
+			<circle class="vif-sun" cx="300" cy="36" r="15"></circle>
+			<!-- the far shore -->
+			{trees.map((t) => <ellipse class="vif-tree" cx={t.x} cy={100 - t.r * 0.7} rx={t.r} ry={t.r * 0.9}></ellipse>)}
+			<rect class="vif-shore" x="0" y="96" width="360" height="8"></rect>
+			<!-- the far water, then the near water under the surface line -->
+			<rect class="vif-far" x="0" y="104" width="360" height="60"></rect>
+			<path class="vif-glint" d="M250 112 h22 M268 118 h16 M236 124 h12 M292 109 h10"></path>
+			<g data-boat></g>
+			<path class="vif-water" data-water fill="url(#vif-deep)"></path>
+			<path class="vif-surface" data-surface></path>
+			<!-- reeds by the pier -->
+			{reeds.map((r) => <path class="vif-reed" d={`M${r.x.toFixed(1)} 200 Q${(r.x - 2).toFixed(1)} ${(166 - r.h / 2).toFixed(1)} ${(r.x + 1.5).toFixed(1)} ${(166 - r.h).toFixed(1)}`}></path>)}
+			<!-- the pier -->
+			<path class="vif-post" d="M8 128 V240 M34 128 V240 M60 128 V240" stroke-width="5"></path>
+			<rect class="vif-deck" x="0" y="123" width="68" height="6"></rect>
+			{planks.map((x) => <path class="vif-plank" d={`M${x} 123 v6`}></path>)}
+			<g data-boy></g>
+			<path class="vif-rod" data-rod></path>
+			<path class="vif-line" data-line></path>
+			<g data-duck>
+				<ellipse class="vif-duck" cx="0" cy="-3" rx="8" ry="4"></ellipse>
+				<circle class="vif-duck" cx="7" cy="-9" r="3"></circle>
+				<path class="vif-beak" d="M9.6 -9.4 L13.4 -8.6 L9.6 -7.6 Z"></path>
+				<circle class="vif-eye" cx="7.6" cy="-9.8" r="0.7"></circle>
+				<path class="vif-wing" d="M-5 -4 Q0 -7.5 4 -3.5"></path>
+			</g>
+			<g data-float>
+				<path class="vif-float-red" d="M0 -9 Q2.2 -5 2.6 -2.5 L-2.6 -2.5 Q-2.2 -5 0 -9 Z"></path>
+				<path class="vif-float-white" d="M-2.6 -2.5 L2.6 -2.5 Q2.2 1.2 0 3.2 Q-2.2 1.2 -2.6 -2.5 Z"></path>
+				<path class="vif-line" d="M0 -9 V-12"></path>
+			</g>
+		</svg>
+		<div class="intro__foot">
+			<p>
+				Катер прошёл далеко, а через несколько секунд поплавок закачался вверх и вниз. Вода к берегу не течёт:{' '}
+				<More term="поплавок остаётся на месте">До поплавка дошла волна от катера. Она принесла энергию катера, но не воду: поплавок и частицы воды у поверхности описывают маленькие круги — вверх, к мосткам, вниз, обратно — и остаются на своих местах; чем глубже, тем круги меньше. Раздел [«Энергия волны»](#энергия-волны).</More>.
+			</p>
+			<button type="button" class="intro__again" data-again>Повторить</button>
+		</div>
+	</div>
+</IntroFrame>
+
+<style is:global>
+	[data-volnyintro] .vis-sky-top {
+		stop-color: color-mix(in oklab, var(--ig-vx) 40%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vis-sky-bot {
+		stop-color: color-mix(in oklab, var(--ig-vx) 14%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vis-farstand {
+		fill: color-mix(in oklab, var(--sl-color-gray-4) 70%, var(--ig-vx) 10%);
+	}
+	[data-volnyintro] .vis-crowd {
+		fill: var(--sl-color-gray-2);
+		opacity: 0.6;
+	}
+	[data-volnyintro] .vis-crowd--1 {
+		fill: var(--ig-v);
+	}
+	[data-volnyintro] .vis-crowd--2 {
+		fill: hsl(150, 45%, 50%);
+	}
+	[data-volnyintro] .vis-roof {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 80%, var(--ig-vx) 8%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	[data-volnyintro] .vis-flood {
+		fill: var(--sl-color-gray-4);
+	}
+	[data-volnyintro] .vis-flood-lamp {
+		fill: hsl(52, 100%, 82%);
+	}
+	[data-volnyintro] .vis-pitch {
+		fill: color-mix(in oklab, hsl(125, 45%, 42%) 55%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vis-stripe {
+		fill: color-mix(in oklab, hsl(125, 45%, 50%) 55%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vis-line {
+		fill: none;
+		stroke: hsl(0, 0%, 96%);
+		stroke-width: 1.2;
+		opacity: 0.8;
+	}
+	[data-volnyintro] .vis-wall,
+	[data-volnyintro] .vis-riser {
+		fill: color-mix(in oklab, var(--sl-color-gray-4) 80%, var(--ig-v) 6%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vis-tread {
+		fill: color-mix(in oklab, var(--sl-color-gray-3) 70%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vis-front {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 70%, var(--ig-vx) 12%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vis-board {
+		fill: var(--ig-v);
+		opacity: 0.85;
+	}
+	[data-volnyintro] .vis-end {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 85%, var(--ig-v) 6%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	[data-volnyintro] .vis-seat {
+		stroke: var(--hm-line);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vis-seat--0 {
+		fill: hsl(205, 60%, 45%);
+	}
+	[data-volnyintro] .vis-seat--1 {
+		fill: hsl(205, 55%, 38%);
+	}
+	[data-volnyintro] .vis-seatleg {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	[data-volnyintro] .vis-white {
+		fill: hsl(210, 15%, 92%);
+		stroke: hsl(210, 15%, 92%);
+	}
+	[data-volnyintro] .vis-violet {
+		fill: hsl(275, 45%, 58%);
+		stroke: hsl(275, 45%, 58%);
+	}
+	[data-volnyintro] .vis-teal {
+		fill: hsl(180, 45%, 42%);
+		stroke: hsl(180, 45%, 42%);
+	}
+	[data-volnyintro] .vis-red {
+		fill: hsl(356, 85%, 50%);
+		stroke: hsl(356, 85%, 50%);
+	}
+	[data-volnyintro] .vis-navy {
+		fill: hsl(222, 45%, 36%);
+		stroke: hsl(222, 45%, 36%);
+	}
+	[data-volnyintro] .vis-olive {
+		fill: hsl(80, 30%, 45%);
+		stroke: hsl(80, 30%, 45%);
+	}
+	[data-volnyintro] .vis-gray {
+		fill: hsl(220, 10%, 58%);
+		stroke: hsl(220, 10%, 58%);
+	}
+	[data-volnyintro] .hm-shirt:is(.vis-white, .vis-violet, .vis-teal, .vis-gray, .vis-red, .vis-navy, .vis-olive) {
+		stroke: var(--hm-line);
+	}
+	[data-volnyintro] .hm-limb:is(.vis-white, .vis-violet, .vis-teal, .vis-gray, .vis-red, .vis-navy, .vis-olive) {
+		fill: none;
+	}
+	/* lake */
+	[data-volnyintro] .vif-sky-top {
+		stop-color: color-mix(in oklab, var(--ig-vx) 34%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vif-sky-bot {
+		stop-color: color-mix(in oklab, var(--ig-v) 18%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vif-sun {
+		fill: hsl(48, 100%, 74%);
+		opacity: 0.9;
+	}
+	[data-volnyintro] .vif-tree {
+		fill: color-mix(in oklab, hsl(130, 35%, 35%) 70%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vif-shore {
+		fill: color-mix(in oklab, hsl(100, 30%, 35%) 60%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vif-far {
+		fill: color-mix(in oklab, var(--ig-vx) 30%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vif-glint {
+		fill: none;
+		stroke: hsl(48, 100%, 85%);
+		stroke-width: 1.2;
+		opacity: 0.6;
+	}
+	[data-volnyintro] .vif-water-top {
+		stop-color: color-mix(in oklab, var(--ig-vx) 45%, var(--sl-color-bg));
+	}
+	[data-volnyintro] .vif-water-bot {
+		stop-color: color-mix(in oklab, var(--ig-vx) 70%, var(--sl-color-black));
+	}
+	[data-volnyintro] .vif-surface {
+		fill: none;
+		stroke: color-mix(in oklab, var(--ig-vx) 30%, hsl(0, 0%, 96%));
+		stroke-width: 1.4;
+	}
+	[data-volnyintro] .vif-reed {
+		fill: none;
+		stroke: color-mix(in oklab, hsl(85, 40%, 40%) 75%, var(--sl-color-bg));
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	[data-volnyintro] .vif-post {
+		stroke: color-mix(in oklab, var(--ig-v) 30%, hsl(25, 35%, 28%));
+	}
+	[data-volnyintro] .vif-deck {
+		fill: color-mix(in oklab, var(--ig-v) 40%, hsl(25, 35%, 38%));
+		stroke: var(--hm-line);
+		stroke-width: 0.6;
+	}
+	[data-volnyintro] .vif-plank {
+		stroke: var(--hm-line);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vif-rod {
+		fill: none;
+		stroke: hsl(28, 40%, 30%);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	:root[data-theme='dark'] [data-volnyintro] .vif-rod,
+	:root:not([data-theme]) [data-volnyintro] .vif-rod {
+		stroke: hsl(30, 35%, 62%);
+	}
+	[data-volnyintro] .vif-line {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.6;
+	}
+	[data-volnyintro] .vif-float-red {
+		fill: var(--ig-vy);
+		stroke: var(--hm-line);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vif-float-white {
+		fill: hsl(0, 0%, 96%);
+		stroke: var(--hm-line);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vif-duck {
+		fill: hsl(32, 35%, 45%);
+		stroke: var(--hm-line);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vif-beak {
+		fill: hsl(40, 90%, 55%);
+	}
+	[data-volnyintro] .vif-eye {
+		fill: var(--hm-line);
+	}
+	[data-volnyintro] .vif-wing {
+		fill: none;
+		stroke: var(--hm-line);
+		stroke-width: 0.7;
+	}
+	[data-volnyintro] .vif-boat {
+		fill: hsl(0, 0%, 94%);
+		stroke: var(--hm-line);
+		stroke-width: 0.5;
+	}
+	[data-volnyintro] .vif-boat-top {
+		fill: hsl(205, 40%, 55%);
+	}
+	[data-volnyintro] .vif-wake {
+		fill: none;
+		stroke: hsl(0, 0%, 97%);
+		stroke-width: 0.9;
+		opacity: 0.75;
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+	import { figure, type FigurePose } from '@components/people/body';
+	import { ROLL } from '@components/people/hand';
+	import { ease, reach } from '@components/people/motion';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-volnyintro]')) {
+		// ---------- the stadium ----------
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="stadium"]')!;
+			const K = 34;
+			const S = K / 100; // px per см
+			const X0 = 30;
+			const YF = 200;
+			const DX = 13.5;
+			const DY = -6.2;
+			const RZ = 0.85 * K;
+			const RY = 0.45 * K;
+			const N = 24; // seats of the front row in the picture (the back rows have fewer)
+			const SLOW = 2; // the scene is slowed 2 times
+			const RATE = 20 / SLOW; // seats per second on screen
+			const T0 = 0.75; // s on screen: the crest at seat 0
+			const RISE = 0.35 * SLOW;
+			const TOP = 0.05 * SLOW;
+			const SIT = 0.4 * SLOW;
+			const RUN = T0 + (N - 1) / RATE + 2 * 0.025 * SLOW + TOP + SIT + 0.3;
+			const rnd = (i: number) => {
+				const r = Math.sin(i * 78.233 + 12.9898) * 43758.5453;
+				return r - Math.floor(r);
+			};
+			const shirts = ['hm-blue', 'vis-white', 'vis-navy', 'vis-teal', 'hm-green', 'vis-violet', 'vis-gray', 'vis-olive'];
+			// people differ: hair color, skin tone, trousers (the kit's colors are CSS variables, inherited by the group)
+			const HAIR = ['hsl(25, 40%, 28%)', 'hsl(20, 15%, 14%)', 'hsl(42, 60%, 58%)', 'hsl(15, 55%, 38%)', 'hsl(30, 10%, 62%)', 'hsl(28, 35%, 20%)'];
+			const SKIN = ['hsl(26, 55%, 72%)', 'hsl(24, 45%, 60%)', 'hsl(28, 60%, 80%)', 'hsl(22, 40%, 46%)', 'hsl(30, 50%, 68%)'];
+			const PANTS = ['hsl(225, 25%, 34%)', 'hsl(210, 10%, 25%)', 'hsl(35, 25%, 45%)', 'hsl(215, 35%, 45%)'];
+			type Fan = { f: ReturnType<typeof figure>; sit: FigurePose; up: FigurePose; t: number; last: number };
+			const fans: Fan[] = [];
+			for (let r = 0; r < 3; r++)
+				for (let n = 0; n < N; n++) {
+					const i = r * N + n;
+					const red = r === 0 && n === 7;
+					if (!card.querySelector(`[data-fan="${r}-${n}"]`)) continue;
+					const H = 160 + Math.round(rnd(i) * 26);
+					const u = H * S;
+					const g = card.querySelector<SVGGElement>(`[data-fan="${r}-${n}"]`)!;
+					const pick = (k: number, m: number) => Math.floor(rnd(i * 13 + k) * m) % m;
+					g.style.setProperty('--hm-hair', HAIR[pick(1, HAIR.length)]);
+					g.style.setProperty('--hm-skin', SKIN[pick(2, SKIN.length)]);
+					g.style.setProperty('--hm-pants', PANTS[pick(3, PANTS.length)]);
+					const f = figure(g, { s: S, H, dir: -1, shirt: red ? 'vis-red' : shirts[(i * 3 + r * 2 + pick(4, 3)) % shirts.length], hair: pick(5, 10) < 4 ? 'pony' : 'short', name: red ? 'fan in red' : `fan ${r}-${n}` });
+					// the seat's hip point (as in the frontmatter), the feet on the same tread in front of the seat
+					const hip = { x: X0 + r * RZ + 0.62 * K + n * DX, y: YF - r * RY - 0.45 * K + n * DY };
+					const ty = YF - r * RY + n * DY; // the tread at this seat
+					const ank = { x: hip.x - 0.3 * u, y: ty - 7 * S };
+					const ankles: [{ x: number; y: number }, { x: number; y: number }] = [ank, { x: ank.x + 0.03 * u, y: ank.y - 0.6 }];
+					const sit: FigurePose = {
+						hip,
+						lean: 0.08,
+						ankles,
+						feet: [0, 0],
+						planted: [true, true],
+						// upper arms down and a little forward, forearms forward on the thighs
+						hands: [
+							{ arm: [Math.PI / 2 + 0.3, 1.25], pose: 'relaxed' },
+							{ arm: [Math.PI / 2 + 0.22, 1.3], pose: 'relaxed' },
+						],
+						head: 0,
+					};
+					const up: FigurePose = {
+						hip: { x: ank.x + 0.035 * u, y: ank.y - 0.475 * u * 0.995 },
+						lean: 0.02,
+						ankles,
+						feet: [0, 0],
+						planted: [true, true],
+						// both arms straight up and a little forward, the hands open, palms toward the pitch
+						hands: [
+							{ arm: [(3 * Math.PI) / 2 - 0.16, 0.12], pose: 'open', roll: ROLL.palmCcw },
+							{ arm: [(3 * Math.PI) / 2 - 0.08, 0.16], pose: 'open', roll: ROLL.palmCcw },
+						],
+						head: -0.12,
+					};
+					fans.push({ f, sit, up, t: T0 + n / RATE + r * 0.025 * SLOW + (rnd(i + 7) - 0.5) * 0.04 * SLOW, last: -1 });
+				}
+			// how far up a fan is at time τ from his own moment (0 seated … 1 up)
+			const upness = (tau: number) => {
+				if (tau < -RISE) return 0;
+				if (tau < 0) return ease((tau + RISE) / RISE);
+				if (tau < TOP) return 1;
+				if (tau < TOP + SIT) return 1 - ease((tau - TOP) / SIT);
+				return 0;
+			};
+			const draw = (x: number) => {
+				const t = x * RUN;
+				for (const fan of fans) {
+					const p = upness(t - fan.t);
+					if (p === fan.last) continue;
+					fan.last = p;
+					const q = reach(fan.sit, fan.up, p);
+					// leaning forward while getting up and sitting down
+					q.lean += 0.38 * Math.sin(Math.PI * p);
+					fan.f.pose(q);
+				}
+			};
+			scene(card, RUN, draw);
+		}
+
+		// ---------- the lake ----------
+		{
+			const card = root.querySelector<HTMLElement>('[data-scene="float"]')!;
+			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			const K = 55; // px per metre
+			const YW = 156; // the still water line
+			const XF = 64 + 3.3 * K; // the float
+			const XD = XF + 1.4 * K; // the duck
+			const RUN = 18;
+			const g = 9.8;
+			const T = 1.5;
+			const lam = (g * T * T) / (2 * Math.PI); // 3,51 м
+			const kk = (2 * Math.PI) / lam;
+			const w = (2 * Math.PI) / T;
+			const cg = lam / T / 2; // 1,17 м/с
+			const SIG = 2.6;
+			const A0 = 0.09;
+			const TC = 11.5; // s: the middle of the group at the float
+			// the swell runs to the left: η = a·cos(k·x + ω·t), x in metres from the float
+			const env = (xm: number, t: number) => A0 * Math.exp(-0.5 * ((xm - cg * (TC - t)) / SIG) ** 2);
+			const eta = (xm: number, t: number) => env(xm, t) * Math.cos(kk * xm + w * t);
+			const xi = (xm: number, t: number) => -env(xm, t) * Math.sin(kk * xm + w * t);
+			// the boy
+			const S = 0.55;
+			const boy = figure($<SVGGElement>('[data-boy]'), { s: S, H: 158, age: 'teen', shirt: 'hm-green', hair: 'short', shorts: true, name: 'boy with a rod' });
+			const u = 158 * S;
+			const hip = { x: 50, y: 123 - 0.045 * u };
+			const ang = -0.62; // the rod rises to the right
+			const ru = { x: Math.cos(ang), y: Math.sin(ang) };
+			const g0 = { x: hip.x + 0.17 * u, y: hip.y - 0.11 * u }; // the back hand
+			const g1 = { x: g0.x + 0.14 * u * ru.x, y: g0.y + 0.14 * u * ru.y }; // the front hand
+			const fingers = ang + Math.PI / 2; // the fingers wrap the rod: across it
+			boy.pose({
+				hip,
+				lean: 0.12,
+				head: 0.1,
+				ankles: [
+					{ x: hip.x + 0.27 * u, y: hip.y + 0.25 * u },
+					{ x: hip.x + 0.22 * u, y: hip.y + 0.27 * u },
+				],
+				feet: [-0.2, -0.1],
+				hands: [
+					{ at: g1, pose: 'grip', d: 2.2, dir: fingers, roll: -Math.PI / 2, contact: 'rod' },
+					{ at: g0, pose: 'grip', d: 2.6, dir: fingers, roll: -Math.PI / 2, contact: 'rod' },
+				],
+			});
+			const tip = { x: g0.x + 2.4 * K * ru.x, y: g0.y + 2.4 * K * ru.y };
+			$('[data-rod]').setAttribute('d', `M${(g0.x - 0.2 * K * ru.x).toFixed(1)} ${(g0.y - 0.2 * K * ru.y).toFixed(1)} L${tip.x.toFixed(1)} ${tip.y.toFixed(1)}`);
+			const water = $('[data-water]');
+			const surface = $('[data-surface]');
+			const line = $('[data-line]');
+			const fl = $('[data-float]');
+			const duck = $('[data-duck]');
+			// the boat far away: a small hull with a cabin and a V-shaped wake trailing it
+			const boatG = $('[data-boat]');
+			const ns = 'http://www.w3.org/2000/svg';
+			const mkp = (cls: string, d: string) => {
+				const p = document.createElementNS(ns, 'path');
+				p.setAttribute('class', cls);
+				p.setAttribute('d', d);
+				boatG.append(p);
+				return p;
+			};
+			const wake = mkp('vif-wake', '');
+			const boat = document.createElementNS(ns, 'g');
+			boatG.append(boat);
+			const hull = document.createElementNS(ns, 'path');
+			hull.setAttribute('class', 'vif-boat');
+			hull.setAttribute('d', 'M-9 -2 L8 -2 L11 -4.5 L10 0.6 Q9 1.8 -8 1.8 Z');
+			const cab = document.createElementNS(ns, 'path');
+			cab.setAttribute('class', 'vif-boat-top');
+			cab.setAttribute('d', 'M-5 -2 L-4 -5 L1.5 -5 L3.5 -2 Z');
+			boat.append(cab, hull);
+			const draw = (x: number) => {
+				const t = x * RUN;
+				// boat: from beyond the right edge to beyond the left edge between 0 and 9 s (toward the pier's side), its
+				// V-shaped wake trailing to the right; the swell it sends runs partly its way, so it comes in from the right
+				const bx = 380 - (400 * Math.min(t, 9)) / 9;
+				const by = 110;
+				boat.setAttribute('transform', `translate(${bx.toFixed(1)} ${by}) scale(-1 1)`);
+				const wl = Math.min(90, 380 - bx);
+				wake.setAttribute('d', `M${(bx + 8).toFixed(1)} ${by + 1} L${(bx + 8 + wl).toFixed(1)} ${by - 4} M${(bx + 8).toFixed(1)} ${by + 1.5} L${(bx + 8 + wl).toFixed(1)} ${by + 7}`);
+				boatG.setAttribute('opacity', t > 9 ? '0' : '1');
+				// the near water surface
+				let d = '';
+				for (let px = 0; px <= 360; px += 3) {
+					const xm = (px - XF) / K;
+					d += `${px ? 'L' : 'M'}${px} ${(YW - eta(xm, t) * K).toFixed(2)}`;
+				}
+				surface.setAttribute('d', d);
+				water.setAttribute('d', `${d} L360 240 L0 240 Z`);
+				// the float and the duck on their small circles
+				const place = (el: Element, x0: number) => {
+					const xm = (x0 - XF) / K;
+					const px = x0 + xi(xm, t) * K;
+					const py = YW - eta(xm, t) * K;
+					const slope = (eta(xm + 0.05, t) - eta(xm - 0.05, t)) / 0.1;
+					el.setAttribute('transform', `translate(${px.toFixed(2)} ${py.toFixed(2)}) rotate(${((-Math.atan(slope) * 180) / Math.PI).toFixed(1)})`);
+					return { x: px, y: py };
+				};
+				const fp = place(fl, XF);
+				place(duck, XD);
+				// the fishing line hangs a little slack from the rod tip to the float
+				const top = { x: fp.x, y: fp.y - 12 };
+				line.setAttribute('d', `M${tip.x.toFixed(1)} ${tip.y.toFixed(1)} Q${((tip.x + top.x) / 2 + 6).toFixed(1)} ${((tip.y + top.y) / 2 + 14).toFixed(1)} ${top.x.toFixed(1)} ${top.y.toFixed(1)}`);
+			};
+			scene(card, RUN, draw);
+		}
+	}
+</script>

@@ -1,0 +1,131 @@
+---
+/**
+ * «Длина волны» (picture, a slow looping animation, real time). A steady wave, ν = 0,5 Гц (T = 2 с), λ = 120 px, so
+ * it runs at 60 px/s; s = A·sin(2π(t/T − x/λ)). Both media are pieces of long ones (faded at both ends).
+ * Top: a cord, two and a half wavelengths (300 px), A = 22 px. Two red points exactly λ apart (x = 100 and 220 px) are
+ *   always at the same height and move the same way: their blue arrows (the velocity of the point, 0,35 px per px/s,
+ *   at most 24 px) are equal at every moment. The gray point halfway between them (λ/2 from each) always moves the
+ *   opposite way: «в противоположной фазе». Green brackets λ ride with the wave: between two neighboring crests
+ *   above, between two neighboring troughs below (the pair whose left end lies in the left half of the picture).
+ * Bottom: a soft spring, coils 6 px apart, A = 10 px along it (the coils come within 48 % of their spacing in the
+ *   сгущения); the green bracket λ joins the middles of two neighboring сгущения.
+ */
+import VdvStyles from './VdvStyles.astro';
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<VdvStyles />
+<figure class="g7 g7--pic vdv not-content" data-vdv-lambda>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 250" role="img" aria-label="Длина волны: на шнуре — расстояние между соседними гребнями и между соседними впадинами; две красные точки на этом расстоянии колеблются одинаково, серая посередине — наоборот. На пружине — расстояние между серединами соседних сгущений">
+			<defs>
+				<linearGradient id={`vdvl-l-${uid}`} x1="0" y1="0" x2="1" y2="0">
+					<stop offset="0" class="vdv-fade" stop-opacity="1"></stop>
+					<stop offset="1" class="vdv-fade" stop-opacity="0"></stop>
+				</linearGradient>
+				<linearGradient id={`vdvl-r-${uid}`} x1="0" y1="0" x2="1" y2="0">
+					<stop offset="0" class="vdv-fade" stop-opacity="0"></stop>
+					<stop offset="1" class="vdv-fade" stop-opacity="1"></stop>
+				</linearGradient>
+			</defs>
+			<line class="vdv-rope-rest" x1="20" y1="82" x2="340" y2="82"></line>
+			<path class="vdv-rope" data-cord></path>
+			<g data-coils></g>
+			<rect x="0" y="0" width="44" height="250" fill={`url(#vdvl-l-${uid})`}></rect>
+			<rect x="316" y="0" width="44" height="250" fill={`url(#vdvl-r-${uid})`}></rect>
+			<g data-marks></g>
+			<circle class="vdv-red" r="4.4" data-p="0"></circle>
+			<circle class="vdv-gray" r="4.4" data-p="1"></circle>
+			<circle class="vdv-red" r="4.4" data-p="2"></circle>
+			<text class="t-small vdv-faint" x="160" y="148" text-anchor="middle">в противоположной фазе</text>
+			<text class="t-small" x="352" y="16" text-anchor="end" fill="currentColor"><tspan class="vdv-redtext">красные точки</tspan> — в одинаковых фазах</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Длина волны — расстояние между соседними гребнями (или впадинами) шнура и между серединами соседних сгущений
+		пружины. Красные точки на расстоянии <i>λ</i> друг от друга колеблются одинаково, серая точка посередине —
+		наоборот. Время идёт как на самом деле.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, label, newArrow, newSlinky, bracketPath, cycleLoop, TAU } from './vdv';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-vdv-lambda]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const T = 2;
+		const LAM = 120;
+		const V = LAM / T;
+		const Y1 = 82;
+		const A1 = 22;
+		const Y2 = 208;
+		const A2 = 10;
+		const SP = 6;
+		const ph = (x: number, t: number) => TAU * (t / T - x / LAM);
+		const cord = q('[data-cord]');
+		const slinky = newSlinky(q('[data-coils]'), 56);
+		const marks = q('[data-marks]');
+		const mkBr = (y: number, tick: number) => {
+			const g = el('g');
+			const p = el('path', { class: 'vdv-lambda' });
+			const guide = el('path', { class: 'vdv-lambda-guide' });
+			g.append(guide, p);
+			const t = label(g, 0, 0, [['λ']], { class: 't-green', 'font-size': 14, 'font-weight': 600, 'text-anchor': 'middle' });
+			marks.append(g);
+			return (x1: number, x2: number, to: number) => {
+				p.setAttribute('d', bracketPath(x1, x2, y, tick));
+				guide.setAttribute('d', `M${x1.toFixed(1)} ${y} V${to.toFixed(1)} M${x2.toFixed(1)} ${y} V${to.toFixed(1)}`);
+				t.setAttribute('x', ((x1 + x2) / 2).toFixed(1));
+				t.setAttribute('y', String(y < to ? y - 4 : y + 14));
+			};
+		};
+		const brCrest = mkBr(Y1 - A1 - 16, 4);
+		const brTrough = mkBr(Y1 + A1 + 14, 4);
+		const brDense = mkBr(Y2 - 30, 4);
+		const pts = [100, 160, 220];
+		const dots = pts.map((_, i) => q(`[data-p="${i}"]`));
+		const vArr = pts.map(() => newArrow(marks, 'blue'));
+		const draw = (t: number) => {
+			let d = '';
+			for (let x = 20; x <= 340; x += 3) d += `${x === 20 ? 'M' : 'L'}${x} ${(Y1 - A1 * Math.sin(ph(x, t))).toFixed(1)}`;
+			cord.setAttribute('d', d);
+			pts.forEach((x, i) => {
+				const y = Y1 - A1 * Math.sin(ph(x, t));
+				dots[i].setAttribute('cx', String(x));
+				dots[i].setAttribute('cy', y.toFixed(1));
+				const vy = A1 * (TAU / T) * Math.cos(ph(x, t)); // px/s, up
+				const L = 0.35 * vy;
+				vArr[i](x + 9, y, x + 9, y - L, 6, 3.4);
+			});
+			// crests: sin φ = 1 → x = V·t − λ/4 + nλ; troughs λ/2 farther
+			const c0 = (((V * t - LAM / 4) % LAM) + LAM) % LAM;
+			const firstCrest = c0 + (c0 < 40 ? LAM : 0);
+			brCrest(firstCrest, firstCrest + LAM, Y1 - A1 - 2);
+			const tr0 = (((V * t + LAM / 4) % LAM) + LAM) % LAM;
+			const firstTrough = tr0 + (tr0 < 40 ? LAM : 0);
+			brTrough(firstTrough, firstTrough + LAM, Y1 + A1 + 2);
+			// the spring: coils at rest every 6 px from x = 10
+			const xs = Array.from({ length: 56 }, (_, i) => {
+				const x = 10 + i * SP;
+				return x + A2 * Math.sin(ph(x, t));
+			});
+			slinky(xs, Y2, 15);
+			// сгущения: φ = 2πn → x = V·t + nλ (rest positions)
+			const k0 = (((V * t) % LAM) + LAM) % LAM;
+			const firstDense = k0 + (k0 < 40 ? LAM : 0);
+			brDense(firstDense, firstDense + LAM, Y2 - 15);
+		};
+		cycleLoop(fig, T, draw);
+	}
+</script>
+
+<style is:global>
+	.vdv .vdv-gray {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--g7-paper);
+		stroke-width: 1;
+	}
+	.vdv .vdv-redtext {
+		fill: var(--g7-red);
+	}
+</style>

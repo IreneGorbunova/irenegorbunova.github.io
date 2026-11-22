@@ -1,0 +1,255 @@
+---
+/**
+ * «Какая волна где бежит» (model; speeds on screen are CONVENTIONAL and the motion is slowed enormously: real waves in
+ * rock run at kilometers per second; the caption says so). A block of a medium, 24 columns × 7 rows of particles 13 px
+ * apart filling the block (in a gas 7 rows × 22 columns, 15 px apart and not in rows). A plate on the left is moved by a vibrator with the frequency ν
+ * (0,5 … 2 Гц) either «поперёк» (up and down, along its own face) or «вдоль» (back and forth, like a piston). The motion
+ * starts from rest; a particle at a distance x repeats the motion of the plate later by x/υ (vdv.ts).
+ *   «Твёрдое тело»: a regular lattice, each particle joined to its neighbors by springs (lines: across, along and one
+ *     diagonal). Both waves run; the longitudinal one is 1,7 times faster (as in rock, where υ_прод/υ_попер ≈ √3):
+ *     on screen 85 px/s along, 50 px/s across. Amplitude 7 px across, 4 px along.
+ *   «Жидкость»: particles as close as in the solid but not in rows, jiggling irregularly (±0,7 px, a few times a
+ *     second); no springs between layers. «Вдоль»: the plate squeezes the layer next to it, and сгущения and
+ *     разрежения run at 70 px/s; the swing along is 7 px. «Поперёк»: the plate slides along the liquid; only the layer that touches it moves
+ *     with it (and less), the others stay: the note «Слои скользят друг по другу — волна не возникает» appears.
+ *   «Газ»: particles farther apart, jiggling more (±1,2 px) and faster; «вдоль» runs at 55 px/s with a swing of
+ *     8 px, «поперёк» as in a liquid. Along, every swing is capped at 0,9·λ/2π (λ = υ/ν), so at 2 Гц the gas swings
+ *     3,9 px and the liquid 5 px: neighbors never pass each other in a сгущение. Swings and jiggle are exaggerated.
+ * «Отметить частицу»: one particle in the middle turns red and the blue segment shows the range of its swing due to
+ * the wave (the jiggle comes on top in a liquid and a gas).
+ */
+import VdvStyles from './VdvStyles.astro';
+---
+
+<VdvStyles />
+<figure class="g7 g7--stack vdv not-content" data-vdv-medium>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 150" role="img" aria-label="Кусок вещества из частиц: слева пластина колеблется поперёк или вдоль; в твёрдом теле бегут обе волны, в жидкости и газе — только продольная">
+			<rect class="vdv-medium-bg" x="26" y="10" width="334" height="118" rx="4"></rect>
+			<g data-springs></g>
+			<g data-parts></g>
+			<g data-plate></g>
+			<g data-mark></g>
+			<text class="t-small vdv-note" x="196" y="144" text-anchor="middle" data-note></text>
+		</svg>
+		<div class="vdv-ctrl">
+			<div class="g7__row">
+				<span class="g7__seg" role="group" aria-label="Вещество" data-med>
+					<button type="button" class="g7__btn" aria-pressed="true" data-m="solid">Твёрдое тело</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-m="liquid">Жидкость</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-m="gas">Газ</button>
+				</span>
+			</div>
+			<div class="g7__row">
+				<span class="g7__seg" role="group" aria-label="Как колеблется пластина" data-kind>
+					<button type="button" class="g7__btn" aria-pressed="true" data-k="across">Поперёк</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-k="along">Вдоль</button>
+				</span>
+				<label class="vdv-check"><input type="checkbox" data-markp /> <span>Отметить частицу</span></label>
+			</div>
+			<label class="g7__slider"><span>Частота <i>ν</i></span><output data-onu></output><input type="range" min="1" max="4" step="1" value="2" data-nu aria-label="Частота" /></label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пауза</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Пластина слева колеблется поперёк или вдоль. Скорости волн показаны условно: на самом деле волны в твёрдых телах
+		бегут со скоростью нескольких километров в секунду, а здесь всё замедлено во много тысяч раз.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, fmtTrim, loop, f1, newDouble, TAU } from './vdv';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-vdv-medium]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		type Med = 'solid' | 'liquid' | 'gas';
+		let med: Med = 'solid';
+		let kind: 'across' | 'along' = 'across';
+		let nu = 1;
+		let t = 0;
+		let running = true;
+		const XP = 20; // the face of the plate at rest
+		const SPEED = { solid: { along: 85, across: 50 }, liquid: { along: 70, across: 0 }, gas: { along: 55, across: 0 } };
+		const AMP = { along: { solid: 4, liquid: 7, gas: 8 }, across: { solid: 7, liquid: 7, gas: 7 } };
+		const JIG = { solid: 0, liquid: 0.7, gas: 1.2 };
+		const JF = { solid: 0, liquid: 3, gas: 5 }; // Hz, about
+		const rnd = (i: number) => {
+			const r = Math.sin(i * 91.17 + 3.3) * 43758.5453;
+			return r - Math.floor(r);
+		};
+		type P = { x: number; y: number; c: SVGCircleElement; ph: number[]; col: number };
+		let parts: P[] = [];
+		let springs: { a: number; b: number; l: SVGLineElement }[] = [];
+		let red = -1;
+		const partsG = q('[data-parts]');
+		const springsG = q('[data-springs]');
+		// the plate and its vibrator: a bar on the left
+		const plate = el('rect', { class: 'vdv-metal', width: 6, height: 112, rx: 2 });
+		const rod = el('rect', { class: 'vdv-metal-dark', width: 14, height: 4 });
+		q('[data-plate]').append(rod, plate);
+		const markG = q('[data-mark]');
+		const swing = newDouble(markG, 'blue');
+		const build = () => {
+			partsG.replaceChildren();
+			springsG.replaceChildren();
+			parts = [];
+			springs = [];
+			const gas = med === 'gas';
+			const sp = gas ? 15 : 13;
+			const cols = Math.floor((350 - (XP + 10)) / sp) + 1; // the block is filled to its right edge
+			const rows = 7;
+			const y0 = gas ? 24 : 30;
+			let i = 0;
+			for (let r = 0; r < rows; r++)
+				for (let c = 0; c < cols; c++) {
+					const irr = med === 'solid' ? 0 : 1;
+					const x = Math.min(352, XP + 10 + c * sp + irr * (rnd(i) - 0.5) * sp * 0.5 + (med === 'liquid' && r % 2 ? sp / 2 : 0));
+					const y = y0 + r * sp + irr * (rnd(i + 500) - 0.5) * sp * 0.5;
+					const cEl = el('circle', { class: 'vdv-part', r: gas ? 3.4 : 3.6 });
+					partsG.append(cEl);
+					parts.push({ x, y, c: cEl, ph: [rnd(i + 1) * TAU, rnd(i + 2) * TAU, 0.7 + rnd(i + 3) * 0.6], col: c });
+					i++;
+				}
+			if (med === 'solid') {
+				const at = (r: number, c: number) => r * cols + c;
+				for (let r = 0; r < rows; r++)
+					for (let c = 0; c < cols; c++) {
+						const add = (b: number) => {
+							const l = el('line', { class: 'vdv-spring' });
+							springsG.append(l);
+							springs.push({ a: at(r, c), b, l });
+						};
+						if (c + 1 < cols) add(at(r, c + 1));
+						if (r + 1 < rows) add(at(r + 1, c));
+						if (r + 1 < rows && c + 1 < cols) add(at(r + 1, c + 1));
+					}
+			}
+			// the marked particle: the middle of the block
+			red = Math.floor(rows / 2) * cols + Math.floor(cols / 2);
+		};
+		const draw = () => {
+			const v = SPEED[med][kind];
+			// the swing along is kept below 0,9·λ/2π, so neighbors never pass each other in a сгущение
+			const A = kind === 'along' && v > 0 ? Math.min(AMP.along[med], (0.9 * v) / nu / (2 * Math.PI)) : AMP[kind][med];
+			const plateS = A * Math.sin(TAU * nu * t);
+			// the plate
+			const px = XP - 6 + (kind === 'along' ? plateS : 0);
+			const py = 12 + (kind === 'across' ? -plateS : 0);
+			plate.setAttribute('x', f1(px));
+			plate.setAttribute('y', f1(py));
+			rod.setAttribute('x', f1(px - 14));
+			rod.setAttribute('y', f1(py + 54));
+			const wave = (x: number) => {
+				if (v === 0) return 0;
+				const tau = t - (x - XP) / v;
+				return tau <= 0 ? 0 : A * Math.sin(TAU * nu * tau);
+			};
+			const pos = parts.map((p, i) => {
+				let dx = 0;
+				let dy = 0;
+				if (kind === 'along') dx = wave(p.x);
+				else if (med === 'solid') dy = -wave(p.x);
+				else if (p.col === 0) dy = -0.5 * plateS; // only the layer at the plate is dragged along
+				const j = JIG[med];
+				if (j) {
+					dx += j * Math.sin(TAU * JF[med] * p.ph[2] * t + p.ph[0]);
+					dy += j * Math.sin(TAU * JF[med] * p.ph[2] * 1.3 * t + p.ph[1]);
+				}
+				const x = p.x + dx;
+				const y = p.y + dy;
+				p.c.setAttribute('cx', f1(x));
+				p.c.setAttribute('cy', f1(y));
+				p.c.setAttribute('class', i === red && markOn() ? 'vdv-red' : 'vdv-part');
+				return { x, y };
+			});
+			for (const s of springs) {
+				s.l.setAttribute('x1', f1(pos[s.a].x));
+				s.l.setAttribute('y1', f1(pos[s.a].y));
+				s.l.setAttribute('x2', f1(pos[s.b].x));
+				s.l.setAttribute('y2', f1(pos[s.b].y));
+			}
+			// the swing of the marked particle due to the wave
+			if (markOn() && red >= 0) {
+				const p = parts[red];
+				const reached = v > 0 && t > (p.x - XP) / v;
+				if (!reached) swing(0, 0, 0, 0);
+				else if (kind === 'along') swing(p.x - A - 2, p.y - 10, p.x + A + 2, p.y - 10);
+				else swing(p.x + 9, p.y - A - 2, p.x + 9, p.y + A + 2);
+				// keep the red particle on top
+				partsG.append(p.c);
+			} else swing(0, 0, 0, 0);
+			const fluidAcross = med !== 'solid' && kind === 'across';
+			q('[data-note]').textContent = fluidAcross ? 'Слои скользят друг по другу — волна не возникает' : '';
+		};
+		const markEl = q<HTMLInputElement>('[data-markp]');
+		const markOn = () => markEl.checked;
+		const restart = () => {
+			t = 0;
+			draw();
+			if (running) wake();
+		};
+		const seg = (sel: string, on: (b: HTMLButtonElement) => void) => {
+			for (const b of fig.querySelectorAll<HTMLButtonElement>(`${sel} button`))
+				b.addEventListener('click', () => {
+					for (const o of fig.querySelectorAll(`${sel} button`)) o.setAttribute('aria-pressed', String(o === b));
+					on(b);
+					restart();
+				});
+		};
+		seg('[data-med]', (b) => {
+			med = b.dataset.m as Med;
+			build();
+		});
+		seg('[data-kind]', (b) => (kind = b.dataset.k as 'across' | 'along'));
+		const nuIn = q<HTMLInputElement>('[data-nu]');
+		const setNu = () => {
+			nu = Number(nuIn.value) * 0.5;
+			q('[data-onu]').textContent = `${fmtTrim(nu, 1)} Гц`;
+		};
+		nuIn.addEventListener('input', () => {
+			setNu();
+			restart();
+		});
+		markEl.addEventListener('change', draw);
+		const go = q<HTMLButtonElement>('[data-go]');
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			t += dt;
+			draw();
+			return true;
+		});
+		go.addEventListener('click', () => {
+			running = !running;
+			go.textContent = running ? 'Пауза' : 'Пуск';
+			if (running) wake();
+		});
+		q('[data-reset]').addEventListener('click', restart);
+		setNu();
+		build();
+		draw();
+	}
+</script>
+
+<style is:global>
+	.vdv .vdv-medium-bg {
+		fill: color-mix(in oklab, var(--sl-color-gray-6) 70%, var(--ig-vx) 6%);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.8;
+	}
+	.vdv .vdv-part {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--g7-paper);
+		stroke-width: 0.6;
+	}
+	.vdv .vdv-spring {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.7;
+	}
+	.vdv .vdv-note {
+		fill: var(--sl-color-white);
+		font-weight: 600;
+	}
+</style>

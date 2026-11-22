@@ -1,0 +1,122 @@
+---
+/**
+ * «За период волна проходит λ» (picture, a looping animation, real time). A cord at rest; at t = 0 a vibrator (vdv.ts)
+ * starts to move its left end up and down, T = 2 с (ν = 0,5 Гц), A = 18 px. The wave runs at 65 px/s, so λ = 130 px.
+ * The clock on the right fills its green arc during each period. After exactly one full oscillation (t = T) the
+ * picture stops for 1,5 с: the front of the wave is λ from the vibrator, the green bracket «λ — путь волны за время T».
+ * Then the second period: the front at 2λ = 260 px at t = 2T, bracket «2λ — за время 2T», stop for 1,5 с, and again
+ * from rest. The gold arrow rides just ahead of the front. Loop 0,5 + 2 + 1,5 + 2 + 1,5 = 7,5 с.
+ */
+import VdvStyles from './VdvStyles.astro';
+---
+
+<VdvStyles />
+<figure class="g7 g7--pic vdv not-content" data-vdv-period>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 190" role="img" aria-label="Источник делает одно полное колебание за период, и за это время волна проходит по шнуру расстояние, равное длине волны; за два периода — две длины волны">
+			<line class="vdv-rope-rest" x1="56" y1="112" x2="360" y2="112"></line>
+			<g data-drv></g>
+			<path class="vdv-rope" data-cord></path>
+			<g data-marks></g>
+			<circle class="vdv-clock" cx="330" cy="30" r="15"></circle>
+			<path class="vdv-clock-arc" data-arc></path>
+			<line class="vdv-axis" x1="330" y1="30" x2="330" y2="17" data-hand stroke-width="1.6"></line>
+			<text class="t-small t-i" x="306" y="34" text-anchor="end" data-tlabel></text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Пока источник делает одно полное колебание, волна проходит по шнуру ровно одну длину волны, за два колебания — две.
+		Время идёт как на самом деле; в конце каждого периода картинка на секунду останавливается.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, label, newArrow, newVibrator, bracketPath, cycleLoop, TAU } from './vdv';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-vdv-period]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const X0 = 56;
+		const Y = 112;
+		const A = 18;
+		const T = 2;
+		const V = 65;
+		const LAM = V * T;
+		const PRE = 0.5;
+		const HOLD = 1.5;
+		const vib = newVibrator(q('[data-drv]'), { kind: 'up', cx: 24, cy: Y, R: A, xEnd: X0, y: Y });
+		const cord = q('[data-cord]');
+		const marks = q('[data-marks]');
+		const br = el('path', { class: 'vdv-lambda' });
+		const guide = el('path', { class: 'vdv-lambda-guide' });
+		marks.append(guide, br);
+		const brText = label(marks, 0, 0, [], { class: 't-small t-green', 'text-anchor': 'middle', 'font-weight': 600 });
+		const go = newArrow(marks, 'gold');
+		const arc = q('[data-arc]');
+		const hand = q('[data-hand]');
+		const tl = q('[data-tlabel]');
+		// the wave time τ (s) and whether the picture is stopped, from the loop time
+		const at = (t: number): { tau: number; stop: 0 | 1 | 2 } => {
+			if (t < PRE) return { tau: 0, stop: 0 };
+			let u = t - PRE;
+			if (u < T) return { tau: u, stop: 0 };
+			u -= T;
+			if (u < HOLD) return { tau: T, stop: 1 };
+			u -= HOLD;
+			if (u < T) return { tau: T + u, stop: 0 };
+			return { tau: 2 * T, stop: 2 };
+		};
+		const draw = (t: number) => {
+			const { tau, stop } = at(t);
+			const y = (x: number) => {
+				const tt = tau - (x - X0) / V;
+				return tt <= 0 ? 0 : A * Math.sin((TAU * tt) / T);
+			};
+			vib((TAU * tau) / T, y(X0));
+			let d = '';
+			for (let x = X0; x <= 360; x += 2) d += `${x === X0 ? 'M' : 'L'}${x} ${(Y - y(x)).toFixed(1)}`;
+			cord.setAttribute('d', d);
+			const front = X0 + V * tau;
+			if (tau > 0 && front < 344) go(front + 3, Y - 30, front + 30, Y - 30, 7, 4);
+			else go(0, 0, 0, 0);
+			if (stop) {
+				const x2 = X0 + stop * LAM;
+				const yb = Y + A + 22;
+				br.setAttribute('d', bracketPath(X0, x2, yb, 4));
+				guide.setAttribute('d', `M${X0} ${yb} V${Y} M${x2} ${yb} V${Y}`);
+				brText.replaceChildren(...(stop === 1 ? ['λ — путь волны за время ', 'T'] : ['2λ — путь волны за время 2', 'T']).map((s, i) => {
+					const sp = el('tspan', i ? { class: 't-i' } : {});
+					sp.textContent = s;
+					return sp;
+				}));
+				brText.setAttribute('x', ((X0 + x2) / 2).toFixed(1));
+				brText.setAttribute('y', String(yb + 16));
+				tl.textContent = stop === 1 ? 't = T' : 't = 2T';
+			} else {
+				br.setAttribute('d', '');
+				guide.setAttribute('d', '');
+				brText.replaceChildren();
+				tl.textContent = '';
+			}
+			// the clock: one turn of the hand and of the green arc per period
+			const f = tau <= 0 ? 0 : stop ? 1 : (tau % T) / T;
+			const a = TAU * f - Math.PI / 2;
+			hand.setAttribute('x2', (330 + 13 * Math.cos(a)).toFixed(1));
+			hand.setAttribute('y2', (30 + 13 * Math.sin(a)).toFixed(1));
+			if (f <= 0) arc.setAttribute('d', '');
+			else if (f >= 0.999) arc.setAttribute('d', 'M330 15 A15 15 0 1 1 329.9 15 Z');
+			else arc.setAttribute('d', `M330 30 L330 15 A15 15 0 ${f > 0.5 ? 1 : 0} 1 ${(330 + 15 * Math.cos(a)).toFixed(1)} ${(30 + 15 * Math.sin(a)).toFixed(1)} Z`);
+		};
+		cycleLoop(fig, PRE + T + HOLD + T + HOLD, draw);
+	}
+</script>
+
+<style is:global>
+	.vdv .vdv-clock {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.vdv .vdv-clock-arc {
+		fill: color-mix(in oklab, var(--g7-green) 45%, transparent);
+	}
+</style>

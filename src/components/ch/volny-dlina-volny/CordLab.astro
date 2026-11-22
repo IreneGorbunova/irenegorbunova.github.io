@@ -1,0 +1,237 @@
+---
+/**
+ * «Взмах шнуром» (model). A long rubber cord lies straight; 6 м of it are in the picture (50 px per metre along it;
+ * across it 100 px per metre, i.e. the swings are drawn 2 times larger, and the caption says so). The right end goes
+ * into a box: the cord is very long, so nothing comes back (an absorbing end). The reader moves the left end by
+ * dragging its handle up and down (±0,4 м) or with the buttons:
+ *   «Один взмах»: up and back in 0,5 с, y = H·sin²(πt/0,5 с), H = 0,2 м; «Взмах побольше»: the same with H = 0,4 м;
+ *   «Колебания»: y = 0,2 м·sin(2π·1 Гц·t) until «Стоп», after which the end comes back to rest in its next 0,25 с.
+ * The wave on the cord runs at υ = 2 м/с exactly (an ideal cord): y(x, t) = y_end(t − x/υ), from the recorded motion
+ * of the end. A red ribbon is tied at x = 3 м; the faint red segment is the range of heights it has had so far.
+ * «Замедлить» runs the time 4 times slower (the clock too). The stopwatch «от руки до ленточки» starts when the end
+ * leaves its rest (more than 0,5 см) after the whole cord was at rest, and stops when the ribbon first moves by more
+ * than 0,5 см: always 3 м / 2 м/с = 1,50 с. «Высота ленточки» is its height in centimeters (rest = 0); «наибольшая
+ * высота ленточки» is the highest it has been since the stopwatch last started (exactly 20 or 40 см for a flick).
+ * Checked: a «Один взмах» pulse reaches the ribbon 1,50 с after it starts and lifts it to 20 см; «Взмах побольше» to
+ * 40 см; the ribbon moves only up and down.
+ */
+import VdvStyles from './VdvStyles.astro';
+const ticks = Array.from({ length: 13 }, (_, i) => i);
+---
+
+<VdvStyles />
+<figure class="g7 g7--stack vdv not-content" data-vdv-cord>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 172" role="img" aria-label="Длинный резиновый шнур: левый конец можно двигать вверх и вниз за ручку, на шнуре в трёх метрах от руки завязана красная ленточка; под шнуром линейка от 0 до 6 метров" data-svg>
+			<line class="vdv-rope-rest" x1="34" y1="78" x2="340" y2="78"></line>
+			<path class="vdv-axis" d="M20 30 V126" stroke-width="2"></path>
+			<path class="vdv-rope" data-cord></path>
+			<line class="vdv-trace" x1="186" x2="186" data-trace></line>
+			<g data-ribbon>
+				<path class="vdv-ribbon" d="M0 0 L-5 11 L-1.5 10 Z M0 0 L4.5 12 L1 10.5 Z"></path>
+				<circle class="vdv-red" r="3.2"></circle>
+			</g>
+			<rect class="vdv-box" x="338" y="44" width="22" height="70" rx="3"></rect>
+			<text class="t-small vdv-faint" x="356" y="38" text-anchor="end">шнур уходит дальше</text>
+			<g data-handle class="drag">
+				<rect class="vdv-metal" x="12" y="-7" width="22" height="14" rx="4"></rect>
+				<path class="vdv-pin" d="M17 -3 h12 M17 0 h12 M17 3 h12" stroke="currentColor" stroke-width="0.8"></path>
+				<rect x="0" y="-22" width="48" height="44" fill="transparent"></rect>
+			</g>
+			<rect class="vdv-ruler" x="30" y="136" width="314" height="18" rx="2"></rect>
+			{ticks.map((i) => <line class="vdv-tick" x1={36 + i * 25} y1="136" x2={36 + i * 25} y2={136 + (i % 2 === 0 ? 8 : 4)}></line>)}
+			{[0, 1, 2, 3, 4, 5].map((m) => <text class="t-small" x={36 + m * 50} y="151" text-anchor="middle">{m}</text>)}
+			<text class="t-small" x="342" y="151" text-anchor="end">6 м</text>
+			<text class="t-small vdv-faint" x="40" y="18">тяните ручку вверх и вниз</text>
+		</svg>
+		<div class="vdv-ctrl">
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-act="pulse">Один взмах</button>
+				<button type="button" class="g7__btn" data-act="big">Взмах побольше</button>
+				<button type="button" class="g7__btn" data-act="osc">Колебания</button>
+				<button type="button" class="g7__btn" data-act="stop">Стоп</button>
+			</div>
+			<label class="vdv-check"><input type="checkbox" data-slow /> <span>Замедлить в 4 раза</span></label>
+			<ul class="g7__read">
+				<li>от руки до ленточки <b data-sw>0,00 с</b></li>
+				<li>высота ленточки <b data-h>0 см</b></li>
+				<li>наибольшая высота ленточки <b data-hmax>0 см</b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Шнур очень длинный и уходит в коробку справа. Вдоль шнура масштаб как на линейке, а вверх-вниз движения
+		нарисованы в 2 раза крупнее. Время идёт как на самом деле (или в 4 раза медленнее).
+	</figcaption>
+</figure>
+
+<script>
+	import { fmt, loop, f1 } from './vdv';
+	import { drag } from '../g7/kit';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-vdv-cord]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const KX = 50; // px per metre along
+		const KY = 100; // px per metre across (drawn 2 times larger)
+		const X0 = 36; // x = 0 (the end)
+		const Y = 78;
+		const V = 2; // м/с
+		const XR = 3; // the ribbon, m
+		const LEN = 6.06;
+		const EPS = 0.005; // 0,5 см
+		let t = 0; // model time, s
+		const hist: { t: number; y: number }[] = [{ t: 0, y: 0 }];
+		let mode: 'free' | 'drag' | 'pulse' | 'osc' | 'stop' = 'free';
+		let yEnd = 0;
+		let m0 = 0; // start of the current program
+		let H = 0.2;
+		let yStop = 0;
+		let lo = 0;
+		let hi = 0;
+		let swStart: number | null = null;
+		let swEnd: number | null = null;
+		let armed = true; // the stopwatch is ready: everything at rest
+		let tPrev = 0;
+		let endPrev = 0;
+		let ribPrev = 0;
+		const yAt = (tq: number) => {
+			if (tq <= hist[0].t) return 0;
+			// binary search in the record of the end
+			let a = 0;
+			let b = hist.length - 1;
+			if (tq >= hist[b].t) return hist[b].y;
+			while (b - a > 1) {
+				const m = (a + b) >> 1;
+				if (hist[m].t <= tq) a = m;
+				else b = m;
+			}
+			const u = (tq - hist[a].t) / (hist[b].t - hist[a].t || 1);
+			return hist[a].y + (hist[b].y - hist[a].y) * u;
+		};
+		const cord = q('[data-cord]');
+		const ribbon = q('[data-ribbon]');
+		const trace = q('[data-trace]');
+		const handle = q('[data-handle]');
+		const draw = () => {
+			let d = '';
+			for (let px = 0; px <= LEN * KX; px += 3) d += `${px ? 'L' : 'M'}${f1(X0 + px)} ${f1(Y - yAt(t - px / KX / V) * KY)}`;
+			d += ` L360 ${f1(Y - yAt(t - (360 - X0) / KX / V) * KY)}`;
+			cord.setAttribute('d', d);
+			const yr = yAt(t - XR / V);
+			ribbon.setAttribute('transform', `translate(${X0 + XR * KX} ${f1(Y - yr * KY)})`);
+			lo = Math.min(lo, yr);
+			hi = Math.max(hi, yr);
+			trace.setAttribute('y1', f1(Y - hi * KY));
+			trace.setAttribute('y2', f1(Y - lo * KY));
+			handle.setAttribute('transform', `translate(0 ${f1(Y - yEnd * KY)})`);
+			q('[data-h]').textContent = `${fmt(yr * 100, 0)} см`;
+			q('[data-hmax]').textContent = `${fmt(hi * 100, 0)} см`;
+			// the stopwatch: the moments of crossing 0,5 см are found between frames by linear interpolation
+			const cross = (a: number, b: number) => tPrev + ((EPS - Math.abs(a)) / (Math.abs(b) - Math.abs(a) || 1)) * (t - tPrev);
+			if (armed && Math.abs(yEnd) > EPS) {
+				armed = false;
+				swStart = cross(endPrev, yEnd);
+				swEnd = null;
+				lo = hi = 0;
+			}
+			if (swStart !== null && swEnd === null && Math.abs(yr) > EPS) swEnd = cross(ribPrev, yr);
+			tPrev = t;
+			endPrev = yEnd;
+			ribPrev = yr;
+			const shown = swStart === null ? 0 : (swEnd ?? t) - swStart;
+			q('[data-sw]').textContent = `${fmt(shown, 2)} с`;
+		};
+		const program = () => {
+			const u = t - m0;
+			if (mode === 'pulse') {
+				if (u >= 0.5) {
+					mode = 'free';
+					return 0;
+				}
+				return H * Math.sin((Math.PI * u) / 0.5) ** 2;
+			}
+			if (mode === 'osc') return 0.2 * Math.sin(2 * Math.PI * u);
+			if (mode === 'stop') {
+				if (u >= 0.25) {
+					mode = 'free';
+					return 0;
+				}
+				return yStop * (1 - Math.sin((Math.PI * u) / 0.5));
+			}
+			return yEnd;
+		};
+		const slow = q<HTMLInputElement>('[data-slow]');
+		const wake = loop(fig, (dt) => {
+			t += dt * (slow.checked ? 0.25 : 1);
+			if (mode !== 'drag') yEnd = program();
+			hist.push({ t, y: yEnd });
+			while (hist.length > 2 && hist[1].t < t - LEN / V - 1) hist.shift();
+			// the whole cord at rest again: the stopwatch may start anew
+			if (!armed && mode === 'free' && Math.abs(yEnd) <= EPS) {
+				let still = true;
+				for (const h of hist) if (h.t > t - LEN / V - 0.05 && Math.abs(h.y) > EPS) still = false;
+				if (still) armed = true;
+			}
+			draw();
+			return true;
+		});
+		const start = (m: typeof mode) => {
+			m0 = t;
+			mode = m;
+			wake();
+		};
+		for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-act]'))
+			b.addEventListener('click', () => {
+				const a = b.dataset.act;
+				if (a === 'pulse' || a === 'big') {
+					if (mode === 'osc' || mode === 'pulse') return;
+					H = a === 'big' ? 0.4 : 0.2;
+					yEnd = 0;
+					start('pulse');
+				} else if (a === 'osc') {
+					if (mode === 'osc') return;
+					yEnd = 0;
+					start('osc');
+				} else if (a === 'stop') {
+					if (mode !== 'osc') return;
+					// let the end come back to rest from where it is
+					yStop = yEnd;
+					start('stop');
+				}
+			});
+		drag(handle, svg, {
+			start: () => {
+				mode = 'drag';
+				wake();
+			},
+			move: (p) => {
+				yEnd = Math.max(-0.4, Math.min(0.4, (Y - p.y) / KY));
+			},
+			end: () => {
+				// let go: the end comes back to rest in 0,25 s
+				yStop = yEnd;
+				m0 = t;
+				mode = 'stop';
+			},
+		});
+		draw();
+	}
+</script>
+
+<style is:global>
+	.vdv .vdv-ribbon {
+		fill: var(--g7-red);
+	}
+	.vdv .vdv-trace {
+		stroke: var(--g7-red);
+		stroke-width: 6;
+		stroke-linecap: round;
+		opacity: 0.18;
+	}
+	.vdv .vdv-box {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+</style>

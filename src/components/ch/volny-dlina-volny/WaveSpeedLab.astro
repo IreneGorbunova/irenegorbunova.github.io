@@ -1,0 +1,182 @@
+---
+/**
+ * «Скорость волны на шнуре» (model, real time). Side view, 75 px per metre along the cord (and across it); a vibrator
+ * (vdv.ts) moves the left end up and down, s = A·sin(2πνt), A = 0,15 м (11 px). The cord is long and goes on beyond the
+ * right edge (no wave comes back). Every point repeats the motion of the end later by x/υ (an ideal cord, vdv.ts),
+ * so after the front has passed, the crests stand λ = υ/ν apart.
+ * Controls: ν = 0,5 … 4 Гц in steps of 0,5; the cord «лёгкий шнур» υ = 4 м/с, «тяжёлый шнур» 2 м/с, «резиновый жгут»
+ * 1 м/с (υ is not shown until «Показать скорость шнура»); «Пауза» / «Пуск». Changing ν or the cord starts the wave
+ * again from rest. Two green markers on the ruler (0…4 м) are dragged by their triangles; when the picture is paused a
+ * marker let go within 8 px of a crest snaps to it exactly, otherwise to the nearest 0,01 м. Readouts: T = 1/ν, the
+ * measured λ (distance between the markers), and the calculation υ = λν with the MEASURED λ.
+ * Checked (vdv.ts crests): light cord, ν = 2 Гц → λ = 2,00 м; ν = 4 Гц → 1,00 м; heavy cord, ν = 2 Гц → 1,00 м; rubber,
+ * ν = 0,5 Гц → 2,00 м, ν = 1 Гц → 1,00 м; λ·ν = υ in every case.
+ */
+import VdvStyles from './VdvStyles.astro';
+const uid = Math.random().toString(36).slice(2, 8);
+const ticks = Array.from({ length: 41 }, (_, i) => i);
+---
+
+<VdvStyles />
+<figure class="g7 g7--stack vdv not-content" data-vdv-speed>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 178" role="img" aria-label="Вибратор качает конец длинного шнура, по шнуру бежит волна; под шнуром линейка от 0 до 4 метров и два зелёных маркера для измерения длины волны" data-svg>
+			<defs>
+				<linearGradient id={`vdvs-fade-${uid}`} x1="0" y1="0" x2="1" y2="0">
+					<stop offset="0" class="vdv-fade" stop-opacity="0"></stop>
+					<stop offset="1" class="vdv-fade" stop-opacity="1"></stop>
+				</linearGradient>
+			</defs>
+			<line class="vdv-rope-rest" x1="44" y1="66" x2="360" y2="66"></line>
+			<g data-drv></g>
+			<path class="vdv-rope" data-cord></path>
+			<rect x="336" y="20" width="24" height="96" fill={`url(#vdvs-fade-${uid})`}></rect>
+			<g data-guides></g>
+			<rect class="vdv-ruler" x="38" y="124" width="316" height="20" rx="2"></rect>
+			{ticks.map((i) => <line class="vdv-tick" x1={44 + i * 7.5} y1="124" x2={44 + i * 7.5} y2={124 + (i % 10 === 0 ? 9 : i % 5 === 0 ? 7 : 4)}></line>)}
+			{[0, 1, 2, 3].map((m) => <text class="t-small" x={44 + m * 75} y="141" text-anchor="middle">{m}</text>)}
+			<text class="t-small" x="351" y="141" text-anchor="end">4 м</text>
+			<g data-markers></g>
+			<text class="t-small vdv-faint" x="200" y="172" text-anchor="middle">Перетащите зелёные треугольники к соседним гребням</text>
+		</svg>
+		<div class="vdv-ctrl">
+			<div class="g7__row">
+				<span class="g7__seg" role="group" aria-label="Шнур" data-cord-kind>
+					<button type="button" class="g7__btn" aria-pressed="true" data-v="4">Лёгкий шнур</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="2">Тяжёлый</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-v="1">Резиновый жгут</button>
+				</span>
+			</div>
+			<label class="g7__slider"><span>Частота вибратора <i>ν</i></span><output data-onu></output><input type="range" min="1" max="8" step="1" value="4" data-nu aria-label="Частота вибратора" /></label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пауза</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+				<label class="vdv-check"><input type="checkbox" data-reveal /> <span>Показать скорость шнура</span></label>
+			</div>
+			<ul class="g7__read">
+				<li><span>период <i>T</i> = 1/<i>ν</i></span> <b data-oT></b></li>
+				<li><span>между маркерами <i>λ</i></span> <b data-olam></b></li>
+				<li class="is-key" data-calc></li>
+				<li data-truth style="display: none"></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Шнур длинный и продолжается за краем рисунка. Шнур и линейка нарисованы в одном масштабе, время идёт как на самом
+		деле. Остановите картинку («Пауза») и измерьте длину волны маркерами.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, fmt, fmtTrim, k, tex, loop, disp, marks, f1, newVibrator, TAU } from './vdv';
+	import { drag } from '../g7/kit';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-vdv-speed]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const K = 75; // px per metre
+		const X0 = 44;
+		const Y = 66;
+		const A = 0.15;
+		const LEN = 4.25;
+		let v = 4;
+		let nu = 2;
+		let t = 0;
+		let running = true;
+		const vib = newVibrator(q('[data-drv]'), { kind: 'up', cx: 16, cy: Y, R: A * K, xEnd: X0, y: Y });
+		const cord = q('[data-cord]');
+		// markers: a triangle on the ruler and a dashed line up through the cord
+		const mpos = [0.5, 1.2]; // m
+		const mk = mpos.map((_, i) => {
+			const line = el('line', { class: 'vdv-lambda-guide', y1: 24, y2: 124 });
+			q('[data-guides]').append(line);
+			const tri = el('path', { class: 'vdv-marker drag', d: 'M0 0 L-8 13 L8 13 Z' });
+			const hit = el('rect', { x: -16, y: -6, width: 32, height: 30, fill: 'transparent', class: 'drag' });
+			const g = el('g', { 'data-m': i });
+			g.append(tri, hit);
+			q('[data-markers]').append(g);
+			return { line, g };
+		});
+		const crests = () => marks(t, 1 / nu, v, 'crest').filter((x) => x <= LEN);
+		const placeMarkers = () => {
+			mk.forEach((m, i) => {
+				const x = X0 + mpos[i] * K;
+				m.line.setAttribute('x1', f1(x));
+				m.line.setAttribute('x2', f1(x));
+				m.g.setAttribute('transform', `translate(${f1(x)} 133)`);
+			});
+			const lam = Math.abs(mpos[1] - mpos[0]);
+			q('[data-olam]').textContent = `${fmt(lam, 2)} м`;
+			const vv = lam * nu;
+			q('[data-calc]').innerHTML = k(`\\upsilon = \\lambda\\nu = ${tex(fmt(lam, 2))}~\\text{м}\\cdot ${tex(fmtTrim(nu, 1))}~\\text{Гц} = ${tex(fmt(vv, 2))}~\\text{м/с}`);
+		};
+		mk.forEach((m, i) =>
+			drag(m.g, svg, {
+				move: (p) => {
+					mpos[i] = Math.min(4, Math.max(0, (p.x - X0) / K));
+					placeMarkers();
+				},
+				end: () => {
+					let x = Math.round(mpos[i] * 100) / 100;
+					if (!running) {
+						for (const c of crests()) if (Math.abs(c - mpos[i]) * K < 8) x = c;
+					}
+					mpos[i] = Math.min(4, Math.max(0, x));
+					placeMarkers();
+				},
+			}),
+		);
+		const draw = () => {
+			const T = 1 / nu;
+			vib(TAU * nu * t, disp(0, t, A, T, v) * K);
+			let d = '';
+			for (let px = 0; px <= LEN * K; px += 1.5) d += `${px ? 'L' : 'M'}${f1(X0 + px)} ${f1(Y - disp(px / K, t, A, T, v) * K)}`;
+			cord.setAttribute('d', d);
+		};
+		const setup = () => {
+			nu = Number(q<HTMLInputElement>('[data-nu]').value) * 0.5;
+			q('[data-onu]').textContent = `${fmtTrim(nu, 1)} Гц`;
+			q('[data-oT]').textContent = `${fmtTrim(1 / nu, 2)} с`;
+			const names: Record<number, string> = { 4: 'лёгкого шнура', 2: 'тяжёлого шнура', 1: 'резинового жгута' };
+			q('[data-truth]').innerHTML = `<span>скорость волны у ${names[v]}</span> <b>${v} м/с</b>`;
+			t = 0;
+			draw();
+			placeMarkers();
+		};
+		for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-cord-kind] button'))
+			b.addEventListener('click', () => {
+				for (const o of fig.querySelectorAll('[data-cord-kind] button')) o.setAttribute('aria-pressed', String(o === b));
+				v = Number(b.dataset.v);
+				setup();
+			});
+		q('[data-nu]').addEventListener('input', setup);
+		const reveal = q<HTMLInputElement>('[data-reveal]');
+		reveal.addEventListener('change', () => (q<HTMLElement>('[data-truth]').style.display = reveal.checked ? '' : 'none'));
+		const go = q<HTMLButtonElement>('[data-go]');
+		const wake = loop(fig, (dt) => {
+			if (!running) return false;
+			t += dt;
+			draw();
+			return true;
+		});
+		go.addEventListener('click', () => {
+			running = !running;
+			go.textContent = running ? 'Пауза' : 'Пуск';
+			if (running) wake();
+		});
+		q('[data-reset]').addEventListener('click', () => {
+			t = 0;
+			draw();
+			if (running) wake();
+		});
+		setup();
+	}
+</script>
+
+<style is:global>
+	.vdv .vdv-marker {
+		fill: var(--g7-green);
+		stroke: var(--g7-paper);
+		stroke-width: 1;
+	}
+</style>

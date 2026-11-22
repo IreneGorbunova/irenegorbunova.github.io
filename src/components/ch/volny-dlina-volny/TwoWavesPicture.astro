@@ -1,0 +1,119 @@
+---
+/**
+ * «Поперечная и продольная волны» (picture, a looping animation, real time). Two rows, one scale, one source
+ * frequency ν = 1 Гц and one speed 128 px/s, so λ = 128 px in both. Each source is a vibrator (a wheel with a pin in
+ * a slotted yoke, vdv.ts). The waves are already running when the picture starts (a steady wave): s = A·sin(2πν(t − x/υ)).
+ * Top: a long cord with beads 10 px apart, moved up and down, A = 16 px. The red bead (130 px from the end) moves only up and down (blue
+ *   vertical double arrow = its range); the gold arrow is the direction in which the wave runs.
+ * Bottom: a long soft spring (a «пружинка-радуга» lying on a smooth table), coils 7,5 px apart, its end pushed back and
+ *   forth, A = 11 px (the coils come within 46 % of their spacing in the сгущения and part by 154 % in the
+ *   разрежения; OUTLINE asked 0,35 of the spacing, which hardly shows, so the swing is larger). The labels «сгущение»
+ *   (where the coils are closest, phase 2πn) and «разрежение» (phase π + 2πn) ride with them. The red coil moves only
+ *   back and forth (blue horizontal double arrow). Both media go on beyond the right edge (no reflection).
+ */
+import VdvStyles from './VdvStyles.astro';
+const uid = Math.random().toString(36).slice(2, 8);
+---
+
+<VdvStyles />
+<figure class="g7 g7--pic vdv not-content" data-vdv-two>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 252" role="img" aria-label="Вверху поперечная волна на шнуре: красная бусинка движется вверх-вниз, а волна бежит вправо. Внизу продольная волна в пружине: сгущения и разрежения бегут вправо, красный виток движется вперёд-назад">
+			<defs>
+				<linearGradient id={`vdv2-fade-${uid}`} x1="0" y1="0" x2="1" y2="0">
+					<stop offset="0" class="vdv-fade" stop-opacity="0"></stop>
+					<stop offset="1" class="vdv-fade" stop-opacity="1"></stop>
+				</linearGradient>
+			</defs>
+			<text class="t-strong" x="6" y="16">поперечная волна</text>
+			<text class="t-small t-gold" x="352" y="15" text-anchor="end">направление распространения</text>
+			<line class="vdv-rope-rest" x1="50" y1="74" x2="360" y2="74"></line>
+			<g data-drv1></g>
+			<path class="vdv-rope" data-cord></path>
+			<g data-beads></g>
+			<text class="t-strong" x="6" y="138">продольная волна</text>
+			<g data-drv2></g>
+			<g data-coils></g>
+			<g data-labels class="t-small"></g>
+			<rect x="334" y="20" width="26" height="226" fill={`url(#vdv2-fade-${uid})`}></rect>
+			<g data-arrows></g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		Вверху частицы шнура колеблются поперёк направления, в котором бежит волна, внизу витки пружины — вдоль него.
+		Размах колебаний витков преувеличен, чтобы сгущения и разрежения были хорошо видны. Время идёт как на самом деле.
+	</figcaption>
+</figure>
+
+<script>
+	import { el, newArrow, newDouble, newVibrator, newSlinky, cycleLoop, TAU } from './vdv';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-vdv-two]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const X0 = 50;
+		const NU = 1;
+		const V = 128; // px per s
+		const LAM = V / NU;
+		const s = (x: number, t: number, A: number) => A * Math.sin(TAU * NU * (t - (x - X0) / V));
+		// top: the cord
+		const Y1 = 74;
+		const A1 = 16;
+		const vib1 = newVibrator(q('[data-drv1]'), { kind: 'up', cx: 20, cy: Y1, R: A1, xEnd: X0, y: Y1 });
+		const cord = q('[data-cord]');
+		const XR = X0 + 130; // the red bead (a bead every 10 px)
+		const beads = Array.from({ length: 32 }, (_, i) => {
+			const c = el('circle', { class: X0 + i * 10 === XR ? 'vdv-red' : 'vdv-bead', r: X0 + i * 10 === XR ? 4.2 : 1.7 });
+			q('[data-beads]').append(c);
+			return { c, x: X0 + i * 10 };
+		});
+		// bottom: the spring
+		const Y2 = 192;
+		const A2 = 11;
+		const SP = 7.5;
+		const NC = 42;
+		const RED = 16;
+		const vib2 = newVibrator(q('[data-drv2]'), { kind: 'along', cx: 24, cy: Y2 + 30, R: A2, xEnd: X0, y: Y2, h: 30 });
+		const slinky = newSlinky(q('[data-coils]'), NC, RED);
+		const labels = q('[data-labels]');
+		const lab = Array.from({ length: 6 }, (_, i) => {
+			const t = el('text', { 'text-anchor': 'middle', class: 'vdv-faint' }, i % 2 ? 'разрежение' : 'сгущение');
+			labels.append(t);
+			return t;
+		});
+		// arrows: the run of the waves (gold), the swings of the red ones (blue)
+		const ag = q('[data-arrows]');
+		newArrow(ag, 'gold')(232, 26, 330, 26, 8, 4.5);
+		newArrow(ag, 'gold')(232, 146, 330, 146, 8, 4.5);
+		newDouble(ag, 'blue')(XR + 11, Y1 - A1, XR + 11, Y1 + A1);
+		const xRed = X0 + RED * SP;
+		newDouble(ag, 'blue')(xRed - A2 - 1.4, Y2 - 26, xRed + A2 - 1.4, Y2 - 26);
+		const draw = (t: number) => {
+			const ph = TAU * NU * t;
+			vib1(ph, s(X0, t, A1));
+			let d = '';
+			for (let x = X0; x <= 360; x += 3) d += `${x === X0 ? 'M' : 'L'}${x} ${(Y1 - s(x, t, A1)).toFixed(1)}`;
+			cord.setAttribute('d', d);
+			for (const b of beads) b.c.setAttribute('cy', (Y1 - s(b.x, t, A1)).toFixed(1)), b.c.setAttribute('cx', String(b.x));
+			vib2(ph, s(X0, t, A2));
+			const xs = Array.from({ length: NC }, (_, i) => X0 + i * SP + s(X0 + i * SP, t, A2));
+			slinky(xs, Y2, 16);
+			// compressions at x = X0 + υ(t − nT), rarefactions half a wavelength behind them
+			const base = X0 + ((V * t) % LAM);
+			let k = 0;
+			for (let n = -1; n <= 2; n++)
+				for (const half of [0, 1]) {
+					const x = base + n * LAM - half * (LAM / 2);
+					if (k >= lab.length) break;
+					if (x > X0 + 26 && x < 318) {
+						lab[k].textContent = half ? 'разрежение' : 'сгущение';
+						lab[k].setAttribute('x', x.toFixed(1));
+						lab[k].setAttribute('y', String(Y2 + (half ? 42 : 30)));
+						lab[k].style.display = '';
+						k++;
+					}
+				}
+			for (; k < lab.length; k++) lab[k].style.display = 'none';
+		};
+		cycleLoop(fig, 1 / NU, draw);
+	}
+</script>
