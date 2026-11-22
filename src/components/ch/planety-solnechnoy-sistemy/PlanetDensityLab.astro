@@ -1,0 +1,333 @@
+---
+/**
+ * Model «Плотность планет»: the reader picks a planet; the model draws it next to the Earth in one scale (radius of the
+ * Earth 8 px: 8 px per 6371 км; Jupiter 87,8 px, Saturn's rings out to 136 775 км = 171,7 px, tilted by 20°), shows
+ * its mass and mean radius (NASA planetary fact sheet), computes V = 4/3·π·R³ and ρ = m/V and puts a dot on the density
+ * axis (0–6000 кг/м³, with water 1000 and granite 2600; iron 7800 beyond the right edge). The dots stay, so after all
+ * eight the two groups are seen: 690–1630 and 3940–5510 кг/м³.
+ * Data, m in 10²⁴ кг and R in км: Mercury 0,330 / 2440; Venus 4,87 / 6052; Earth 5,97 / 6371; Mars 0,642 / 3390;
+ * Jupiter 1898 / 69 911; Saturn 568 / 58 232; Uranus 86,8 / 25 362; Neptune 102 / 24 622. The mass is shown with
+ * three significant figures, the volume with four, and the density is computed from the numbers as shown, rounded to
+ * 10 кг/м³: 5420, 5250, 5510, 3930, 1330, 690, 1270, 1630 (exact: 5423, 5245, 5511, 3934, 1326, 687, 1270, 1631).
+ */
+import PssStyles from './PssStyles.astro';
+
+const P = [
+	{ id: 'mercury', name: 'Меркурий', gen: 'Меркурия', m: 0.33, R: 2440 },
+	{ id: 'venus', name: 'Венера', gen: 'Венеры', m: 4.87, R: 6052 },
+	{ id: 'earth', name: 'Земля', gen: 'Земли', m: 5.97, R: 6371 },
+	{ id: 'mars', name: 'Марс', gen: 'Марса', m: 0.642, R: 3390 },
+	{ id: 'jupiter', name: 'Юпитер', gen: 'Юпитера', m: 1898, R: 69911 },
+	{ id: 'saturn', name: 'Сатурн', gen: 'Сатурна', m: 568, R: 58232 },
+	{ id: 'uranus', name: 'Уран', gen: 'Урана', m: 86.8, R: 25362 },
+	{ id: 'neptune', name: 'Нептун', gen: 'Нептуна', m: 102, R: 24622 },
+];
+const X0 = 22;
+const X1 = 338;
+const KX = (X1 - X0) / 6000;
+const ax = (rho: number) => Math.round((X0 + rho * KX) * 10) / 10;
+---
+
+<PssStyles />
+<figure class="pss pdl not-content" data-pdl data-planets={JSON.stringify(P)}>
+	<div class="pdl__btns" role="group" aria-label="Выберите планету">
+		{
+			P.map((p) => (
+				<button type="button" class="pss__btn" data-pick={p.id} aria-pressed="false">
+					{p.name}
+				</button>
+			))
+		}
+	</div>
+	<svg class="pss__svg pdl__pic" viewBox="0 0 360 206" role="img" aria-label="Выбранная планета рядом с Землёй в одном масштабе" data-pic>
+		<g data-ring-back></g>
+		<g data-planet></g>
+		<g data-ring-front></g>
+		<g data-earth></g>
+		<text class="pss-small" x="356" y="14" text-anchor="end">Земля и планета — в одном масштабе</text>
+		<text class="pdl__hint" x="180" y="104" text-anchor="middle" data-hint>Выберите планету</text>
+	</svg>
+	<div class="pdl__calc" data-calc aria-live="polite"></div>
+	<svg class="pss__svg pdl__axis" viewBox="0 0 360 134" role="img" aria-label="Ось плотностей от 0 до 6000 килограммов на кубический метр с отметками воды и гранита и точками выбранных планет" data-axis>
+		<text class="pss-small" x="4" y="12">плотность, кг/м³</text>
+		<path class="pdl__ref" d={`M${ax(1000)} 88 V104`}></path>
+		<path class="pdl__ref" d={`M${ax(2600)} 88 V104`}></path>
+		<g data-labels></g>
+		<path class="pdl__axisline" d={`M${X0} 96 H${X1 + 10}`}></path>
+		{
+			[0, 1000, 2000, 3000, 4000, 5000, 6000].map((v) => (
+				<>
+					<path class="pss-line" d={`M${ax(v)} 96 v5`} />
+					<text class="pss-small" x={ax(v)} y="113" text-anchor="middle">
+						{v === 0 ? '0' : String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+					</text>
+				</>
+			))
+		}
+		<text class="pdl__reft" x={ax(1000)} y="128" text-anchor="middle">вода</text>
+		<text class="pdl__reft" x={ax(2600)} y="128" text-anchor="middle">гранит 2600</text>
+		<text class="pdl__reft" x="356" y="128" text-anchor="end">железо 7800 →</text>
+		<g data-dots></g>
+	</svg>
+	<div class="pss__btns">
+		<button type="button" class="pss__btn" data-reset>Сбросить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.pdl__btns {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		justify-content: center;
+		margin-bottom: 0.6rem;
+	}
+	.pdl__pic {
+		margin-bottom: 0.5rem;
+	}
+	.pdl .pdl__hint {
+		font-size: 13px;
+		fill: var(--sl-color-gray-3);
+	}
+	.pdl__calc {
+		min-height: 5.6rem;
+		margin: 0.2rem auto 0.6rem;
+		max-width: 34rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		line-height: 1.6;
+	}
+	.pdl__calc p {
+		margin: 0;
+	}
+	.pdl__calc .pdl__note {
+		color: var(--ig-vx);
+		font-weight: 600;
+	}
+	.pdl__axisline {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.pdl__ref {
+		stroke: var(--ig-vx);
+		stroke-width: 1;
+		stroke-dasharray: 3 2;
+		opacity: 0.7;
+	}
+	.pdl .pdl__reft {
+		font-size: 12px;
+		fill: var(--ig-vx);
+	}
+	.pdl .pdl__lab {
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.pdl .pdl__lab--on {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+	}
+	.pdl__dot {
+		stroke: var(--sl-color-bg);
+		stroke-width: 1;
+	}
+	.pdl__dot--on {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+	}
+	.pdl .pss-small {
+		font-size: 12px;
+	}
+	.pdl .pdl__name {
+		font-size: 11px;
+	}
+</style>
+
+<script>
+	import { k, el } from '@components/ch/g7/kit';
+	const intTex = (v: number) => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, '\\,');
+
+	type Pl = { id: string; name: string; gen: string; m: number; R: number };
+	const RE = 6371;
+	const S = 8 / RE; // px per км
+	const X0 = 22;
+	const KX = (338 - X0) / 6000;
+	const RING_OUT = 136775;
+	const RING_IN = 74490;
+	const TILT = Math.sin((20 * Math.PI) / 180);
+	// the density axis: its line, the baselines of the label rows, the gap between a leader and its label, the title box
+	const AXIS = 96;
+	const ROWS = [80, 65, 50, 35, 20];
+	const GAP = 4;
+	const TITLE: [number, number, number, number] = [0, 0, 118, 16];
+	const f = (v: number) => v.toFixed(1);
+
+	// a positive number in TeX with three significant figures: 1,08 \cdot 10^{21}
+	const sci = (v: number, sig = 3) => {
+		const e = Math.floor(Math.log10(v));
+		let mnt = v / 10 ** e;
+		let ee = e;
+		if (Number(mnt.toFixed(sig - 1)) >= 10) {
+			mnt /= 10;
+			ee += 1;
+		}
+		return { tex: `${mnt.toFixed(sig - 1).replace('.', '{,}')}\\cdot 10^{${ee}}`, val: Number(mnt.toFixed(sig - 1)) * 10 ** ee };
+	};
+	const densityOf = (p: Pl) => {
+		const R = p.R * 1000;
+		const V = sci((4 / 3) * Math.PI * R ** 3, 4);
+		const m = p.m * 1e24;
+		// from the numbers as shown: m with three significant figures, V with four
+		const rho = Math.round(sci(m, 3).val / V.val / 10) * 10;
+		return { R, V, m, rho };
+	};
+
+	const disc = (g: SVGGElement, id: string, cx: number, cy: number, r: number) => {
+		g.append(el('circle', { class: `pss-${id}`, cx: f(cx), cy: f(cy), r: f(r) }));
+		if (id === 'jupiter' || id === 'saturn') {
+			const bands = id === 'jupiter' ? [-0.32, -0.12, 0.1, 0.3] : [-0.28, 0.05, 0.25];
+			for (const b of bands) {
+				const y = cy + b * r * 2 * 0.5;
+				const w = Math.sqrt(Math.max(0, r * r - (y - cy) ** 2)) * 0.97;
+				g.append(el('path', { class: 'pss-band', 'stroke-width': f(Math.max(1, r * 0.07)), d: `M${f(cx - w)} ${f(y)} Q${f(cx)} ${f(y + r * 0.06)} ${f(cx + w)} ${f(y)}` }));
+			}
+			if (id === 'jupiter') g.append(el('ellipse', { class: 'pss-spot', cx: f(cx + r * 0.3), cy: f(cy + r * 0.38), rx: f(r * 0.15), ry: f(r * 0.09) }));
+		}
+		if (id === 'earth' && r > 4) g.append(el('path', { class: 'pss-land', d: `M${f(cx - r * 0.5)} ${f(cy - r * 0.3)} q${f(r * 0.4)} ${f(-r * 0.35)} ${f(r * 0.7)} 0 q${f(-r * 0.1)} ${f(r * 0.5)} ${f(-r * 0.45)} ${f(r * 0.75)} Z` }));
+		if (r > 2) g.append(el('path', { class: 'pss-shade', d: `M${f(cx)} ${f(cy - r)} A${f(r)} ${f(r)} 0 0 1 ${f(cx)} ${f(cy + r)} A${f(r * 0.55)} ${f(r)} 0 0 0 ${f(cx)} ${f(cy - r)} Z` }));
+	};
+	const ring = (cx: number, cy: number, front: boolean) => {
+		const o = RING_OUT * S;
+		const i = RING_IN * S;
+		const sw = front ? 0 : 1;
+		return `M${f(cx - o)} ${f(cy)} A${f(o)} ${f(o * TILT)} 0 0 ${sw} ${f(cx + o)} ${f(cy)} L${f(cx + i)} ${f(cy)} A${f(i)} ${f(i * TILT)} 0 0 ${1 - sw} ${f(cx - i)} ${f(cy)} Z`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pdl]')) {
+		const planets = JSON.parse(root.dataset.planets!) as Pl[];
+		const pic = root.querySelector<SVGSVGElement>('[data-pic]')!;
+		const gPlanet = pic.querySelector<SVGGElement>('[data-planet]')!;
+		const gEarth = pic.querySelector<SVGGElement>('[data-earth]')!;
+		const gBack = pic.querySelector<SVGGElement>('[data-ring-back]')!;
+		const gFront = pic.querySelector<SVGGElement>('[data-ring-front]')!;
+		const hint = pic.querySelector<SVGTextElement>('[data-hint]')!;
+		const calc = root.querySelector<HTMLElement>('[data-calc]')!;
+		const dots = root.querySelector<SVGGElement>('[data-dots]')!;
+		const labels = root.querySelector<SVGGElement>('[data-labels]')!;
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-pick]')];
+		const chosen: string[] = [];
+		let current = '';
+
+		const drawPic = (p: Pl) => {
+			for (const g of [gPlanet, gEarth, gBack, gFront]) g.replaceChildren();
+			hint.style.display = 'none';
+			const Rp = p.R * S;
+			const CY = 100;
+			const ext = p.id === 'saturn' ? RING_OUT * S : Rp;
+			let cx: number;
+			let ex: number;
+			let ey = CY;
+			if (p.id === 'saturn') {
+				cx = 180;
+				ex = 26;
+				ey = 26;
+			} else {
+				const w = 16 + 26 + 2 * ext;
+				const x0 = 180 - w / 2;
+				ex = x0 + 8;
+				cx = x0 + 16 + 26 + ext;
+			}
+			if (p.id === 'saturn') gBack.append(el('path', { class: 'pss-ring', d: ring(cx, CY, false) }));
+			if (p.id !== 'earth') disc(gPlanet, p.id, cx, CY, Rp);
+			if (p.id === 'saturn') gFront.append(el('path', { class: 'pss-ring', d: ring(cx, CY, true) }));
+			disc(gEarth, 'earth', ex, ey, 8);
+			gEarth.append(el('text', { class: 'pdl__name', x: f(ex), y: f(ey + 22), 'text-anchor': 'middle' }, 'Земля'));
+			if (p.id !== 'earth') gPlanet.append(el('text', { class: 'pdl__name', x: f(cx), y: f(Math.min(CY + Math.max(Rp, p.id === 'saturn' ? 34 : 0) + 15, 192)), 'text-anchor': 'middle' }, p.name));
+		};
+		const drawCalc = (p: Pl) => {
+			const d = densityOf(p);
+			const R = sci(d.R, 4);
+			const m = sci(d.m, 3);
+			const Rtex = `${intTex(p.R)}~\\text{км} = ${R.tex}~\\text{м}`;
+			calc.innerHTML =
+				`<p><b>${p.name}</b>: ${k(`m = ${m.tex}~\\text{кг}`)}, ${k(`R = ${Rtex}`)}</p>` +
+				`<p>${k(`V = \\tfrac{4}{3}\\pi R^3 = ${d.V.tex}~\\text{м}^3`)}</p>` +
+				`<p>${k(`\\rho = \\dfrac{m}{V} = \\dfrac{${m.tex}~\\text{кг}}{${d.V.tex}~\\text{м}^3} \\approx ${intTex(d.rho)}~\\text{кг/м}^3`)}</p>` +
+				(d.rho < 1000 ? `<p class="pdl__note">Меньше плотности воды!</p>` : '');
+			return d.rho;
+		};
+		const drawAxis = () => {
+			dots.replaceChildren();
+			labels.replaceChildren();
+			// Labels in rows above the axis. A label sits beside the top of its leader (to the left or to the right);
+			// a backtracking search finds rows and sides so that no label overlaps another label or the title, no
+			// leader passes through a label, and every label stays inside the picture (all 255 sets of planets work).
+			const items = chosen
+				.map((id) => planets.find((q) => q.id === id)!)
+				.map((p) => ({ p, x: X0 + densityOf(p).rho * KX }))
+				.sort((a, b) => a.x - b.x);
+			const texts = items.map(({ p }) => {
+				const on = p.id === current;
+				const t = el('text', { class: on ? 'pdl__lab pdl__lab--on' : 'pdl__lab', x: '0', y: '0' }, p.name);
+				labels.append(t);
+				const w = t.getComputedTextLength() || p.name.length * 7.4;
+				return { t, w: w + 2 };
+			});
+			type Box = [number, number, number, number];
+			const free = (b: Box, lead: [number, number], boxes: Box[], leads: [number, number][]) => {
+				if (b[0] < 2 || b[2] > 358) return false;
+				for (const o of [...boxes, TITLE]) if (!(b[2] < o[0] || b[0] > o[2] || b[3] < o[1] || b[1] > o[3])) return false;
+				for (const [lx, ly] of leads) if (lx > b[0] - 1 && lx < b[2] + 1 && ly < b[3]) return false;
+				for (const o of boxes) if (lead[0] > o[0] - 1 && lead[0] < o[2] + 1 && lead[1] < o[3]) return false;
+				return true;
+			};
+			const plan: { row: number; side: number }[] = [];
+			const dfs = (i: number, boxes: Box[], leads: [number, number][]): boolean => {
+				if (i === items.length) return true;
+				const { x } = items[i];
+				const { w } = texts[i];
+				for (let row = 0; row < ROWS.length; row++)
+					for (const side of [-1, 1]) {
+						const y = ROWS[row];
+						const x0 = side < 0 ? x - GAP - w : x + GAP;
+						const b: Box = [x0, y - 10, x0 + w, y + 3];
+						const lead: [number, number] = [x, y - 4];
+						if (!free(b, lead, boxes, leads)) continue;
+						plan[i] = { row, side };
+						if (dfs(i + 1, [...boxes, b], [...leads, lead])) return true;
+					}
+				return false;
+			};
+			if (!dfs(0, [], [])) items.forEach((_, i) => (plan[i] = { row: i % ROWS.length, side: 1 }));
+			items.forEach(({ p, x }, i) => {
+				const { row, side } = plan[i];
+				const y = ROWS[row];
+				const { t } = texts[i];
+				t.setAttribute('x', f(side < 0 ? x - GAP : x + GAP));
+				t.setAttribute('y', f(y));
+				t.setAttribute('text-anchor', side < 0 ? 'end' : 'start');
+				labels.append(el('path', { class: 'pss-lead', d: `M${f(x)} ${AXIS - 5} V${f(y - 4)} h${side * (GAP - 1.5)}` }));
+				const on = p.id === current;
+				dots.append(el('circle', { class: `pss-${p.id} ${on ? 'pdl__dot pdl__dot--on' : 'pdl__dot'}`, cx: f(x), cy: String(AXIS), r: on ? '4.2' : '3.4' }));
+			});
+		};
+		const pick = (id: string) => {
+			const p = planets.find((q) => q.id === id)!;
+			current = id;
+			if (!chosen.includes(id)) chosen.push(id);
+			for (const b of btns) b.setAttribute('aria-pressed', String(b.dataset.pick === id));
+			drawPic(p);
+			drawCalc(p);
+			drawAxis();
+		};
+		for (const b of btns) b.addEventListener('click', () => pick(b.dataset.pick!));
+		root.querySelector('[data-reset]')!.addEventListener('click', () => {
+			chosen.length = 0;
+			current = '';
+			for (const b of btns) b.setAttribute('aria-pressed', 'false');
+			for (const g of [gPlanet, gEarth, gBack, gFront]) g.replaceChildren();
+			hint.style.display = '';
+			calc.innerHTML = '';
+			drawAxis();
+		});
+	}
+</script>

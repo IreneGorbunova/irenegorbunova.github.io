@@ -1,0 +1,251 @@
+---
+/**
+ * Picture to the definition of a comet: one comet near the Sun, close up (its orbit is in grade 11).
+ * The nucleus is an irregular lump of ice and dust, 1–20 км across (Halley's 15 × 8 км); the sunlit side boils off in
+ * jets of gas and dust (slow particles here: they leave toward the Sun and are pushed back by the sunlight and the
+ * solar wind). The head (coma) is up to 10⁵–10⁶ км across, so the nucleus is drawn tens of thousands of times too
+ * large (said in the caption). Two tails point away from the Sun: the gas tail straight and bluish, the dust tail
+ * broader, yellowish and curved back along the path, because dust grains keep the comet's motion (the comet moves
+ * up the picture). Tails reach tens of millions of км.
+ * Toggle: «Далеко от Солнца» — only the frozen nucleus, no head, no tails; «Близко к Солнцу» — the jets, the head
+ * and the tails grow in 2,5 s. Colors of space are fixed (it is a picture of the night sky in both themes).
+ */
+import PssStyles from './PssStyles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const N = { x: 128, y: 104 };
+let seed = 5;
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const stars = Array.from({ length: 50 }, () => ({ x: Math.round(rnd() * 3600) / 10, y: Math.round(rnd() * 2000) / 10, r: rnd() < 0.2 ? 0.9 : 0.5 }));
+// the nucleus: a lumpy outline
+const lump = Array.from({ length: 14 }, (_, i) => {
+	const a = (i / 14) * 2 * Math.PI;
+	const r = 6.5 * (1 + 0.22 * Math.sin(3 * a + 1) + 0.12 * Math.cos(5 * a)) * (Math.abs(Math.cos(a)) * 0.35 + 0.75);
+	return `${i ? 'L' : 'M'}${(N.x + r * Math.cos(a)).toFixed(1)} ${(N.y + r * 0.8 * Math.sin(a)).toFixed(1)}`;
+}).join(' ') + ' Z';
+// the dust tail: a curved band from the head to the lower right, lagging behind the upward motion
+const dust = `M${N.x + 6} ${N.y - 6} Q${N.x + 120} ${N.y - 4} ${N.x + 236} ${N.y + 54} L${N.x + 228} ${N.y + 92} Q${N.x + 110} ${N.y + 30} ${N.x + 6} ${N.y + 8} Z`;
+const gas = `M${N.x + 4} ${N.y - 4} L${N.x + 240} ${N.y - 14} L${N.x + 240} ${N.y + 4} L${N.x + 4} ${N.y + 3} Z`;
+const streamers = [-10, -6, -2, 2];
+---
+
+<PssStyles />
+<figure class="pss pcm not-content" data-pcm>
+	<div class="pss__btns pcm__btns" role="group" aria-label="Где комета">
+		<button type="button" class="pss__btn" data-where="far" aria-pressed="false">Далеко от Солнца</button>
+		<button type="button" class="pss__btn" data-where="near" aria-pressed="true">Близко к Солнцу</button>
+	</div>
+	<svg class="pss__svg" viewBox="0 0 360 210" role="img" aria-label="Комета вблизи Солнца. Слева сияние Солнца. Ледяное ядро окружено светящейся головой, из освещённой стороны ядра бьют струи газа и пыли. От Солнца направлены два хвоста: прямой голубоватый газовый и широкий изогнутый желтоватый пылевой">
+		<defs>
+			<radialGradient id={`pcm-sun-${uid}`} cx="0" cy="0.5" r="0.9">
+				<stop offset="0" class="pcm-sun-in"></stop>
+				<stop offset="0.35" class="pcm-sun-mid"></stop>
+				<stop offset="1" class="pcm-sun-out"></stop>
+			</radialGradient>
+			<radialGradient id={`pcm-coma-${uid}`}>
+				<stop offset="0" class="pcm-coma-in"></stop>
+				<stop offset="0.4" class="pcm-coma-mid"></stop>
+				<stop offset="1" class="pcm-coma-out"></stop>
+			</radialGradient>
+			<linearGradient id={`pcm-gas-${uid}`} x1="0" y1="0" x2="1" y2="0">
+				<stop offset="0" class="pcm-gas-in"></stop>
+				<stop offset="1" class="pcm-gas-out"></stop>
+			</linearGradient>
+			<linearGradient id={`pcm-dust-${uid}`} x1="0" y1="0" x2="1" y2="0.4">
+				<stop offset="0" class="pcm-dust-in"></stop>
+				<stop offset="1" class="pcm-dust-out"></stop>
+			</linearGradient>
+		</defs>
+		<rect class="pcm-space" x="0" y="0" width="360" height="210"></rect>
+		{stars.map((s) => <circle class="pcm-star" cx={s.x} cy={s.y} r={s.r} />)}
+		<rect x="0" y="0" width="120" height="210" fill={`url(#pcm-sun-${uid})`} data-sun></rect>
+		<g data-active>
+			<path d={dust} fill={`url(#pcm-dust-${uid})`} data-dust></path>
+			<path d={gas} fill={`url(#pcm-gas-${uid})`} data-gas></path>
+			{streamers.map((dy) => <path class="pcm-streamer" d={`M${N.x + 10} ${N.y + dy * 0.6} L${N.x + 236} ${N.y + dy * 1.5 - 5}`} data-streamer />)}
+			<circle cx={N.x} cy={N.y} r="30" fill={`url(#pcm-coma-${uid})`} data-coma></circle>
+			<g data-jets></g>
+		</g>
+		<path class="pcm-nucleus" d={lump}></path>
+		<path class="pcm-nucleus-lit" d={`M${N.x - 7} ${N.y - 2} Q${N.x - 5} ${N.y - 7} ${N.x - 1} ${N.y - 6} Q${N.x - 5} ${N.y - 2} ${N.x - 4} ${N.y + 4} Z`}></path>
+		<!-- labels -->
+		<path class="pcm-arrow" d="M58 26 H14 M20 21 L14 26 L20 31"></path>
+		<text class="pcm-t" x="36" y="18" text-anchor="middle">к Солнцу</text>
+		<path class="pcm-arrow" d={`M${N.x} ${N.y - 38} V${N.y - 56} M${N.x - 4} ${N.y - 50} L${N.x} ${N.y - 56} L${N.x + 4} ${N.y - 50}`} data-lab></path>
+		<text class="pcm-t" x={N.x + 6} y={N.y - 48} data-lab>движение кометы</text>
+		<path class="pcm-lead" d={`M${N.x - 2} ${N.y + 7} L${N.x - 30} ${N.y + 62}`}></path>
+		<text class="pcm-t" x={N.x - 34} y={N.y + 74} text-anchor="middle">ядро — несколько км</text>
+		<text class="pcm-t" x={N.x - 34} y={N.y + 86} text-anchor="middle">льда и пыли</text>
+		<path class="pcm-lead" d={`M${N.x - 22} ${N.y - 18} L${N.x - 42} ${N.y - 34}`} data-lab></path>
+		<text class="pcm-t" x={N.x - 44} y={N.y - 38} text-anchor="end" data-lab>голова</text>
+		<text class="pcm-t pcm-t--gas" x="352" y={N.y - 22} text-anchor="end" data-lab>газовый хвост</text>
+		<text class="pcm-t pcm-t--dust" x="352" y="200" text-anchor="end" data-lab>пылевой хвост</text>
+		<text class="pcm-t" x="352" y={N.y + 4} text-anchor="end" data-far opacity="0">ни головы, ни хвостов</text>
+	</svg>
+	<div class="pss__foot">
+		<figcaption>Ядро нарисовано в десятки тысяч раз крупнее, чем надо: голова кометы бывает в сотни тысяч километров, а хвосты тянутся на десятки миллионов километров.</figcaption>
+	</div>
+</figure>
+
+<style is:global>
+	.pcm__btns {
+		margin: 0 0 0.6rem;
+	}
+	.pcm-space {
+		fill: hsl(230, 40%, 6%);
+	}
+	.pcm-star {
+		fill: hsl(220, 30%, 90%);
+		opacity: 0.8;
+	}
+	.pcm-sun-in {
+		stop-color: hsl(48, 100%, 92%);
+		stop-opacity: 0.95;
+	}
+	.pcm-sun-mid {
+		stop-color: hsl(42, 95%, 62%);
+		stop-opacity: 0.35;
+	}
+	.pcm-sun-out {
+		stop-color: hsl(42, 95%, 55%);
+		stop-opacity: 0;
+	}
+	.pcm-coma-in {
+		stop-color: hsl(170, 60%, 92%);
+		stop-opacity: 0.95;
+	}
+	.pcm-coma-mid {
+		stop-color: hsl(175, 55%, 70%);
+		stop-opacity: 0.4;
+	}
+	.pcm-coma-out {
+		stop-color: hsl(180, 50%, 60%);
+		stop-opacity: 0;
+	}
+	.pcm-gas-in {
+		stop-color: hsl(205, 90%, 75%);
+		stop-opacity: 0.7;
+	}
+	.pcm-gas-out {
+		stop-color: hsl(205, 90%, 65%);
+		stop-opacity: 0;
+	}
+	.pcm-dust-in {
+		stop-color: hsl(45, 80%, 80%);
+		stop-opacity: 0.6;
+	}
+	.pcm-dust-out {
+		stop-color: hsl(40, 70%, 70%);
+		stop-opacity: 0;
+	}
+	.pcm-streamer {
+		stroke: hsl(205, 90%, 82%);
+		stroke-width: 0.8;
+		stroke-dasharray: 18 26;
+		opacity: 0.55;
+		fill: none;
+	}
+	.pcm-nucleus {
+		fill: hsl(25, 12%, 22%);
+		stroke: hsl(25, 10%, 40%);
+		stroke-width: 0.6;
+	}
+	.pcm-nucleus-lit {
+		fill: hsl(35, 20%, 55%);
+		opacity: 0.8;
+	}
+	.pcm-jet {
+		fill: hsl(180, 60%, 90%);
+	}
+	.pcm-arrow,
+	.pcm-lead {
+		stroke: hsl(220, 20%, 80%);
+		stroke-width: 1;
+		fill: none;
+	}
+	.pcm-lead {
+		stroke-width: 0.7;
+		stroke-opacity: 0.8;
+	}
+	.pcm .pcm-t {
+		font-size: 12px;
+		fill: hsl(220, 25%, 90%);
+		stroke: hsl(230, 40%, 6%);
+	}
+	.pcm .pcm-t--gas {
+		fill: hsl(205, 90%, 80%);
+	}
+	.pcm .pcm-t--dust {
+		fill: hsl(45, 85%, 75%);
+	}
+</style>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const N = { x: 128, y: 104 };
+	for (const root of document.querySelectorAll<HTMLElement>('[data-pcm]')) {
+		const active = root.querySelector<SVGGElement>('[data-active]')!;
+		const jetsG = root.querySelector<SVGGElement>('[data-jets]')!;
+		const coma = root.querySelector<SVGCircleElement>('[data-coma]')!;
+		const gas = root.querySelector<SVGPathElement>('[data-gas]')!;
+		const dust = root.querySelector<SVGPathElement>('[data-dust]')!;
+		const streamers = [...root.querySelectorAll<SVGPathElement>('[data-streamer]')];
+		const labs = [...root.querySelectorAll<SVGElement>('[data-lab]')];
+		const farLab = root.querySelector<SVGTextElement>('[data-far]')!;
+		const sun = root.querySelector<SVGRectElement>('[data-sun]')!;
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-where]')];
+		// jet particles: leave the sunlit side toward the Sun, slow down, are pushed back and fade
+		const P = Array.from({ length: 36 }, (_, i) => {
+			const c = document.createElementNS(NS, 'circle');
+			c.setAttribute('class', 'pcm-jet');
+			c.setAttribute('r', '0.8');
+			jetsG.append(c);
+			return { c, phase: (i * 0.618) % 1, ang: Math.PI + (((i * 7) % 9) - 4) * 0.13 };
+		});
+		let target = 1; // 1 near the Sun, 0 far away
+		let level = 1;
+		let t = 0;
+		const draw = () => {
+			const L = level;
+			active.setAttribute('opacity', L.toFixed(2));
+			sun.setAttribute('opacity', (0.25 + 0.75 * L).toFixed(2));
+			coma.setAttribute('r', (8 + 24 * L).toFixed(1));
+			const sx = 0.15 + 0.85 * L;
+			const tr = `translate(${N.x} ${N.y}) scale(${sx.toFixed(3)} 1) translate(${-N.x} ${-N.y})`;
+			gas.setAttribute('transform', tr);
+			dust.setAttribute('transform', tr);
+			for (const [i, s] of streamers.entries()) {
+				s.setAttribute('transform', tr);
+				s.setAttribute('stroke-dashoffset', (-(t * 22 + i * 11) % 44).toFixed(1));
+			}
+			for (const p of P) {
+				const u = (p.phase + t / 2.2) % 1;
+				// out toward the Sun up to 16 px, then carried back past the nucleus
+				const d = 6 + 26 * u - 30 * u * u;
+				const x = N.x + Math.cos(p.ang) * d + 34 * u * u * u;
+				const y = N.y + Math.sin(p.ang) * d * 1.4;
+				p.c.setAttribute('cx', x.toFixed(1));
+				p.c.setAttribute('cy', y.toFixed(1));
+				p.c.setAttribute('opacity', ((1 - u) * 0.9 * L).toFixed(2));
+			}
+			for (const e of labs) e.setAttribute('opacity', L.toFixed(2));
+			farLab.setAttribute('opacity', Math.max(0, 1 - 2 * L).toFixed(2));
+		};
+		const wake = loop(root, (dt) => {
+			t += dt;
+			const step = dt / 2.5;
+			level = target > level ? Math.min(target, level + step) : Math.max(target, level - step);
+			draw();
+			return true;
+		});
+		for (const b of btns)
+			b.addEventListener('click', () => {
+				target = b.dataset.where === 'near' ? 1 : 0;
+				for (const o of btns) o.setAttribute('aria-pressed', String(o === b));
+				wake();
+			});
+		draw();
+	}
+</script>
