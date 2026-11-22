@@ -1,0 +1,669 @@
+---
+/**
+ * «Опыт Резерфорда»: the model of the experiment in two views (tabs) and two atoms (a switch acting on both).
+ *
+ * «Прибор» (the apparatus, top view, not to scale): source in a lead block, α beam (red), gold foil, the round screen
+ * with zinc sulfide, the microscope that turns round the foil; vacuum chamber. The slider turns the microscope to
+ * θ = 5°, 10°, 15°, 30°, 45°, 60°, 90°, 120°, 150°. «Наблюдать 1 мин» counts the flashes seen in one minute (played in
+ * 3 s): a Poisson random number with the mean
+ *   atom with a nucleus: n(θ) = 0,87 / sin⁴(θ/2) per minute (Rutherford's law, confirmed by Geiger and Marsden in
+ *     1913; normalised so that n(150°) = 1,0): 5° → 240 000; 10° → 15 100; 15° → 3 000; 30° → 194; 45° → 40;
+ *     60° → 13,9; 90° → 3,5; 120° → 1,5; 150° → 1,0;
+ *   Thomson's atom: 0 at every angle from 5° (the whole beam stays within about 1° of the straight line: one Thomson
+ *     atom turns an α particle by about 0,01°, a thousand layers of the foil by about 0,5°).
+ *   Between measurements the screen flashes at the microscope at the same rate sped up 20 times (at most 12 flashes a
+ *   second), each flash preceded by a particle flying from the foil to that spot; the round view shows the eyepiece.
+ * «Внутри фольги» (inside the foil): four layers of gold atoms (radius drawn 30 px, really about 1,4·10⁻¹⁰ м). α particles
+ *   (4,8 МэВ) come from the left one by one at random heights (uniform), at a constant speed.
+ *   Atom with a nucleus: a dashed circle (the atom) with a red nucleus (+79e) and electrons; the electrons are
+ *   neglected. A particle that passes a nucleus at the aiming distance b turns by θ = 2·arctg(d / 2b), where
+ *   d = 2·79·e²/(4πε₀·E) = 4,74·10⁻¹⁴ м is the closest distance of a head-on approach (the hyperbola of Rutherford).
+ *   Because d is so small the turn happens within a few d of the nucleus; it is drawn as a sharp bend there.
+ *   EXAGGERATION: the nucleus dot (radius 2 px) is about 1000 times too big for the drawn atom (a real gold nucleus,
+ *   7·10⁻¹⁵ м, would be 0,0015 px), and the distance d is drawn 30 times too large (0,29 px instead of 0,0098 px), so
+ *   particles turn far more often than in a real foil: here about 20 % turn by more than 10° and about 2 % come back
+ *   in four layers. The visible caption says so; the real numbers are in the «Прибор» view.
+ *   Thomson's atom: a translucent red sphere of the same size with electrons in it; each atom turns a particle by at
+ *   most about 0,02°, nothing visible.
+ *   «Прицелиться»: the random stream stops; a slider sets the aiming distance b from the nucleus of the first atom in
+ *   the middle: 0; 1·10⁻¹⁴; 2·10⁻¹⁴; 5·10⁻¹⁴; 1·10⁻¹³; 5·10⁻¹³; 1·10⁻¹² м, and «Пустить частицу» sends one particle;
+ *   its angle (the turn at that nucleus) is shown: 180°; 134°; 100°; 51°; 27°; 5,4°; 2,7° (atom with a nucleus); Thomson's atom: at most
+ *   about 0,02° (shown as «меньше 0,1°»). The drawn offset is b·(0,29 px / d),  consistent with the drawn d (so larger b would leave the drawn atom: 1·10⁻¹² м is drawn 6 px).
+ * Tally (inside the foil, exclusive): «прошли почти прямо» (less than 10°), «отклонились на 10°–90°», «отлетели назад»
+ *   (more than 90°).
+ */
+import RaStyles from './RaStyles.astro';
+
+const C = { x: 212, y: 160 };
+const R = 92;
+const GAP = 16;
+const pt = (r: number, a: number) => ({ x: C.x + r * Math.cos((a * Math.PI) / 180), y: C.y - r * Math.sin((a * Math.PI) / 180) });
+const P = (p: { x: number; y: number }) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+const ring = (r: number) => `M${P(pt(r, 180 + GAP))} A${r} ${r} 0 1 0 ${P(pt(r, 180 - GAP))}`;
+const ANGLES = [5, 10, 15, 30, 45, 60, 90, 120, 150];
+// atoms inside the foil: four layers, alternate layers shifted by half a spacing
+const RA = 30;
+const atoms: { x: number; y: number }[] = [];
+for (let c = 0; c < 4; c++) for (let r = 0; r < 5; r++) atoms.push({ x: 150 + c * 52, y: 22 + r * 60 + (c % 2 ? 30 : 0) });
+const vis = atoms.filter((a) => a.y - RA < 300 && a.y + RA > 0);
+const AIMS = ['0', '1·10⁻¹⁴', '2·10⁻¹⁴', '5·10⁻¹⁴', '1·10⁻¹³', '5·10⁻¹³', '1·10⁻¹²'];
+---
+
+<RaStyles />
+<figure class="ra rul not-content" data-rul>
+	<div class="ra-ctl rul-tabs">
+		<button type="button" class="ra-btn" data-tab="dev" aria-pressed="true">Прибор</button>
+		<button type="button" class="ra-btn" data-tab="foil" aria-pressed="false">Внутри фольги</button>
+		<span class="rul-sep"></span>
+		<button type="button" class="ra-btn" data-atom="t" aria-pressed="false">Атом Томсона</button>
+		<button type="button" class="ra-btn" data-atom="n" aria-pressed="true">Атом с ядром</button>
+	</div>
+	<svg viewBox="0 0 420 300" role="img" aria-label="Модель опыта Резерфорда. Вид «Прибор»: источник, пучок альфа-частиц, золотая фольга, круглый экран и микроскоп, который можно повернуть на разные углы и сосчитать вспышки за минуту. Вид «Внутри фольги»: несколько слоёв атомов золота и альфа-частицы, пролетающие сквозь них" data-svg>
+		<defs>
+			<clipPath id="rul-eye"><circle cx="372" cy="246" r="30"></circle></clipPath>
+			<clipPath id="rul-box"><rect x="0" y="0" width="420" height="300"></rect></clipPath>
+		</defs>
+		<!-- ===== the apparatus ===== -->
+		<g data-view="dev">
+			<rect class="rul-cham" x="6" y="18" width="408" height="270" rx="10"></rect>
+			<text class="ra-lbl-s" x="16" y="268">вакуум: из камеры</text>
+			<text class="ra-lbl-s" x="16" y="281">откачан воздух</text>
+			<path class="rul-screen" d={ring(R)}></path>
+			<path class="rul-zns" d={ring(R - 2.6)}></path>
+			<text class="ra-lbl" x={C.x} y={C.y + R + 20} text-anchor="middle">экран</text>
+			<rect class="rul-lead" x="20" y={C.y - 24} width="50" height="48" rx="3"></rect>
+			<rect class="rul-chan" x="44" y={C.y - 2.5} width="26" height="5"></rect>
+			<circle class="rul-src" cx="42" cy={C.y} r="4.5"></circle>
+			<text class="ra-lbl-s" x="45" y={C.y - 42} text-anchor="middle">свинцовый</text>
+			<text class="ra-lbl-s" x="45" y={C.y - 30} text-anchor="middle">блок</text>
+			<text class="ra-lbl-s" x="45" y={C.y + 40} text-anchor="middle">источник</text>
+			<text class="ra-lbl-s" x="45" y={C.y + 52} text-anchor="middle"><tspan class="ra-sym rul-al">α</tspan>-частиц</text>
+			<path class="rul-beam" d={`M70 ${C.y} H${C.x}`}></path>
+			<path class="rul-beam rul-beam2" d={`M${C.x} ${C.y} H${C.x + R - 3}`}></path>
+			<rect class="rul-foil" x={C.x - 1.2} y={C.y - 26} width="2.4" height="52"></rect>
+			<text class="ra-lbl-s" x={C.x} y={C.y + 40} text-anchor="middle">золотая фольга</text>
+			<!-- the angle -->
+			<path class="rul-ang" d="" data-ang></path>
+			<text class="ra-sym rul-th" x="0" y="0" data-th>θ</text>
+			<g data-devparts></g>
+			<circle class="rul-flash" r="6" data-flash></circle>
+			<!-- the microscope, turned by the script -->
+			<g data-mic>
+				<rect class="rul-mic" x="0" y="-5" width="30" height="10" rx="2"></rect>
+				<rect class="rul-mic2" x="30" y="-7" width="10" height="14" rx="2"></rect>
+				<rect class="rul-mic" x="-3" y="-3.5" width="4" height="7" rx="1"></rect>
+			</g>
+			<text class="ra-lbl-s" x="0" y="0" text-anchor="middle" data-miclbl>микроскоп</text>
+			<!-- the eyepiece view -->
+			<circle class="rul-eye" cx="372" cy="246" r="31"></circle>
+			<g clip-path="url(#rul-eye)" data-eye></g>
+			<text class="ra-lbl-s" x="372" y="206" text-anchor="middle">в микроскопе</text>
+		</g>
+		<!-- ===== inside the foil ===== -->
+		<g data-view="foil" style="display: none" clip-path="url(#rul-box)">
+			{
+				vis.map((a) => (
+					<g>
+						<circle class="rul-atom-n" cx={a.x} cy={a.y} r={RA} data-an />
+						<circle class="rul-atom-t" cx={a.x} cy={a.y} r={RA} data-at />
+						<circle class="rul-nuc" cx={a.x} cy={a.y} r="2" data-an />
+					</g>
+				))
+			}
+			<g data-els></g>
+			<g data-trails></g>
+			<g data-fparts></g>
+			<path class="rul-aim" d="" data-aim></path>
+			<rect class="rul-foil-edge" x="118" y="0" width="1" height="300"></rect>
+			<rect class="rul-foil-edge" x="336" y="0" width="1" height="300"></rect>
+		</g>
+	</svg>
+	<!-- controls of the apparatus -->
+	<div data-ctl="dev">
+		<div class="ra-ctl">
+			<label class="rul-lab rul-slider"><span>Угол микроскопа <i>θ</i> = <b data-thv>15</b>°</span><input type="range" min="0" max="8" step="1" value="2" data-thin /></label>
+			<button type="button" class="ra-btn rul-go" data-go>Наблюдать 1 мин</button>
+		</div>
+		<p class="rul-read" data-devread>Вспышек за 1 мин: —</p>
+	</div>
+	<!-- controls inside the foil -->
+	<div data-ctl="foil" style="display: none">
+		<p class="rul-read" data-tally></p>
+		<div class="ra-ctl">
+			<button type="button" class="ra-btn" data-aimbtn aria-pressed="false">Прицелиться</button>
+			<button type="button" class="ra-btn" data-clear>Сбросить счёт</button>
+		</div>
+		<div class="ra-ctl" data-aimctl style="display: none">
+			<label class="rul-lab rul-slider"><span>Прицельное расстояние <span data-bto>до ядра</span>: <b data-bv>1·10⁻¹³</b> м</span><input type="range" min="0" max={AIMS.length - 1} step="1" value="4" data-bin /></label>
+			<button type="button" class="ra-btn rul-go" data-shoot>Пустить частицу</button>
+		</div>
+		<p class="rul-read" data-aimread style="display: none"></p>
+		<p class="ra-cap">Ядра нарисованы примерно в 1000 раз крупнее настоящих, а отталкивают частицы на расстояниях в 30 раз больших, чем на самом деле. Поэтому здесь частицы отклоняются гораздо чаще, чем в настоящей фольге. Движение сильно замедлено.</p>
+	</div>
+	<p class="ra-cap" data-devcap>Вид сверху, не в масштабе. Время ускорено: одна минута наблюдения проходит за 3 с.</p>
+</figure>
+
+<script>
+	import { el, loop, fmt, fmtInt } from '@components/ch/g7/kit';
+
+	const C = { x: 212, y: 160 };
+	const R = 92;
+	const ANGLES = [5, 10, 15, 30, 45, 60, 90, 120, 150];
+	const AIMS = [0, 1e-14, 2e-14, 5e-14, 1e-13, 5e-13, 1e-12];
+	const AIMT = ['0', '1·10⁻¹⁴', '2·10⁻¹⁴', '5·10⁻¹⁴', '1·10⁻¹³', '5·10⁻¹³', '1·10⁻¹²'];
+	const D_REAL = 4.74e-14; // м: 2·79·1,44 МэВ·фм / 4,8 МэВ
+	const D_PX = 0.29; // the drawn d (30 times too large for the drawn atom)
+	const RA = 30;
+	const nRate = (th: number) => 0.87 / Math.sin(((th / 2) * Math.PI) / 180) ** 4;
+	const poisson = (m: number) => {
+		if (m <= 0) return 0;
+		if (m < 40) {
+			const L = Math.exp(-m);
+			let k = 0;
+			let p = 1;
+			do {
+				k++;
+				p *= Math.random();
+			} while (p > L);
+			return k - 1;
+		}
+		const z = Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+		return Math.max(0, Math.round(m + Math.sqrt(m) * z));
+	};
+	const pt = (r: number, a: number) => ({ x: C.x + r * Math.cos((a * Math.PI) / 180), y: C.y - r * Math.sin((a * Math.PI) / 180) });
+
+	document.querySelectorAll<HTMLElement>('[data-rul]').forEach((root) => {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const qa = <T extends Element>(s: string) => [...root.querySelectorAll<T>(s)];
+		let tab: 'dev' | 'foil' = 'dev';
+		let nuclear = true;
+		// ---------------- the apparatus
+		const mic = q<SVGGElement>('[data-mic]');
+		const micLbl = q<SVGTextElement>('[data-miclbl]');
+		const ang = q<SVGPathElement>('[data-ang]');
+		const thT = q<SVGTextElement>('[data-th]');
+		const devParts = q<SVGGElement>('[data-devparts]');
+		const flash = q<SVGCircleElement>('[data-flash]');
+		const eye = q<SVGGElement>('[data-eye]');
+		const thIn = q<HTMLInputElement>('[data-thin]');
+		const thv = q<HTMLElement>('[data-thv]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		const devRead = q<HTMLElement>('[data-devread]');
+		let th = 15;
+		let beamT = 0;
+		let nextFlash = 0;
+		let flashT = 0;
+		let meas = -1;
+		let target = 0;
+		let shown = 0;
+		const beam: { node: SVGCircleElement; x: number }[] = [];
+		const toMic: { node: SVGCircleElement; s: number }[] = [];
+		// the label «микроскоп»: the first place outward along the microscope (then a little to either side) where its box
+		// keeps clear of the tube, the screen ring, the eyepiece view, the chamber's label and the edges (measured boxes)
+		const placeMicLabel = () => {
+			const u = { x: Math.cos((th * Math.PI) / 180), y: -Math.sin((th * Math.PI) / 180) };
+			const anchor = u.x > 0.35 ? 'start' : u.x < -0.35 ? 'end' : 'middle';
+			micLbl.setAttribute('text-anchor', anchor);
+			const rectDist = (px: number, py: number, b: { x: number; y: number; width: number; height: number }) => Math.hypot(Math.max(b.x - px, 0, px - b.x - b.width), Math.max(b.y - py, 0, py - b.y - b.height));
+			const clear = (b: { x: number; y: number; width: number; height: number }) => {
+				if (b.x < 10 || b.x + b.width > 410 || b.y < 24 || b.y + b.height > 284) return false;
+				if (rectDist(C.x, C.y, b) < R + 6) return false;
+				for (let r = R; r <= R + 46; r += 4) {
+					const q = pt(r, th);
+					if (rectDist(q.x, q.y, b) < 10) return false;
+				}
+				// the eyepiece view with its label, the labels of the lead block and of the source, the chamber's label
+				const busy = [
+					{ x: 336, y: 194, width: 72, height: 86 },
+					{ x: 10, y: 104, width: 76, height: 32 },
+					{ x: 10, y: 186, width: 76, height: 34 },
+					{ x: 10, y: 256, width: 120, height: 30 },
+				];
+				return !busy.some((o) => b.x < o.x + o.width + 3 && b.x + b.width + 3 > o.x && b.y < o.y + o.height + 3 && b.y + b.height + 3 > o.y);
+			};
+			const sides = [0, 14, -14, 28, -28, 42, -42, 56, -56, 70, -70];
+			for (let r = R + 20; r <= R + 120; r += 4)
+				for (const sd of sides) {
+					const p = pt(r, th);
+					const x = p.x + -u.y * sd;
+					const y = p.y + u.x * sd + 4;
+					micLbl.setAttribute('x', x.toFixed(1));
+					micLbl.setAttribute('y', y.toFixed(1));
+					let b = micLbl.getBBox();
+					if (!b.width) b = { x: anchor === 'start' ? x : anchor === 'end' ? x - 60 : x - 30, y: y - 10, width: 60, height: 13 } as DOMRect;
+					if (clear(b)) return;
+				}
+		};
+		const placeMic = () => {
+			const p = pt(R + 4, th);
+			mic.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${-th})`);
+			placeMicLabel();
+			const a = pt(34, th);
+			ang.setAttribute('d', `M${C.x + 34} ${C.y} A34 34 0 0 0 ${a.x.toFixed(1)} ${a.y.toFixed(1)} M${C.x} ${C.y} L${pt(R - 4, th).x.toFixed(1)} ${pt(R - 4, th).y.toFixed(1)}`);
+			const m = pt(46, th / 2);
+			thT.setAttribute('x', m.x.toFixed(1));
+			thT.setAttribute('y', (m.y + 4).toFixed(1));
+			const f = pt(R - 3, th);
+			flash.setAttribute('cx', f.x.toFixed(1));
+			flash.setAttribute('cy', f.y.toFixed(1));
+		};
+		const visRate = () => (nuclear ? Math.min(12, (nRate(th) / 60) * 20) : 0);
+		const eyeFlash = () => {
+			const c = el('circle', { class: 'rul-eflash', cx: (372 + (Math.random() - 0.5) * 36).toFixed(1), cy: (246 + (Math.random() - 0.5) * 36).toFixed(1), r: 2.2 });
+			eye.append(c);
+			setTimeout(() => c.remove(), 350);
+		};
+		const stepDev = (dt: number) => {
+			// the beam: a dot every 0,15 s from the source to the foil and straight on (most particles)
+			beamT -= dt;
+			if (beamT <= 0) {
+				beamT = 0.15;
+				const n = el('circle', { class: 'rul-a', r: 2.3, cy: C.y });
+				devParts.append(n);
+				beam.push({ node: n, x: 44 });
+			}
+			for (let i = beam.length - 1; i >= 0; i--) {
+				const b = beam[i];
+				b.x += 160 * dt;
+				b.node.setAttribute('cx', b.x.toFixed(1));
+				b.node.style.opacity = b.x < 70 ? '0' : '1';
+				if (b.x > C.x + R - 3) {
+					b.node.remove();
+					beam.splice(i, 1);
+				}
+			}
+			// particles turned toward the microscope, then a flash there
+			const rate = meas >= 0 ? 0 : visRate();
+			nextFlash -= dt;
+			if (rate > 0 && nextFlash <= 0) {
+				const n = el('circle', { class: 'rul-a', r: 2.3 });
+				devParts.append(n);
+				toMic.push({ node: n, s: 0 });
+				nextFlash = -Math.log(1 - Math.random()) / rate;
+			}
+			for (let i = toMic.length - 1; i >= 0; i--) {
+				const p = toMic[i];
+				p.s += 160 * dt;
+				const e = pt(Math.min(p.s, R - 3), th);
+				p.node.setAttribute('cx', e.x.toFixed(1));
+				p.node.setAttribute('cy', e.y.toFixed(1));
+				if (p.s >= R - 3) {
+					p.node.remove();
+					toMic.splice(i, 1);
+					flashT = 0.25;
+					eyeFlash();
+				}
+			}
+			if (meas >= 0) {
+				meas += dt;
+				const k = Math.min(1, meas / 3);
+				const now = Math.round(target * k);
+				if (now > shown) {
+					flashT = 0.2;
+					if (Math.random() < Math.min(1, (now - shown) / 2)) eyeFlash();
+				}
+				shown = now;
+				devRead.innerHTML = `Вспышек за 1 мин: <b>${fmtInt(shown)}</b>${k < 1 ? ` (идёт ${Math.floor(60 * k)} с)` : ''}`;
+				if (k >= 1) {
+					meas = -1;
+					go.disabled = false;
+				}
+			}
+			flashT -= dt;
+			flash.style.opacity = flashT > 0 ? '1' : '0';
+		};
+		thIn.addEventListener('input', () => {
+			th = ANGLES[+thIn.value];
+			thv.textContent = String(th);
+			devRead.textContent = 'Вспышек за 1 мин: —';
+			meas = -1;
+			go.disabled = false;
+			toMic.forEach((p) => p.node.remove());
+			toMic.length = 0;
+			placeMic();
+		});
+		go.addEventListener('click', () => {
+			target = nuclear ? poisson(nRate(th)) : 0;
+			shown = 0;
+			meas = 0;
+			go.disabled = true;
+			wake();
+		});
+
+		// ---------------- inside the foil
+		const atomsN = qa<SVGElement>('[data-an]');
+		const atomsT = qa<SVGElement>('[data-at]');
+		const nuclei = qa<SVGCircleElement>('.rul-nuc').map((c) => ({ x: +c.getAttribute('cx')!, y: +c.getAttribute('cy')! }));
+		const els = q<SVGGElement>('[data-els]');
+		const trails = q<SVGGElement>('[data-trails]');
+		const fparts = q<SVGGElement>('[data-fparts]');
+		const aimPath = q<SVGPathElement>('[data-aim]');
+		const tallyP = q<HTMLElement>('[data-tally]');
+		const aimBtn = q<HTMLButtonElement>('[data-aimbtn]');
+		const aimCtl = q<HTMLElement>('[data-aimctl]');
+		const aimRead = q<HTMLElement>('[data-aimread]');
+		const bIn = q<HTMLInputElement>('[data-bin]');
+		const bv = q<HTMLElement>('[data-bv]');
+		const shoot = q<HTMLButtonElement>('[data-shoot]');
+		const clearB = q<HTMLButtonElement>('[data-clear]');
+		// electrons: three per atom, slowly circling (nuclear atom) or sitting inside the sphere (Thomson)
+		const elecs = nuclei.flatMap((n, i) =>
+			[0, 1, 2].map((j) => {
+				const c = el('circle', { class: 'rul-el', r: 1.6 });
+				els.append(c);
+				return { n, a0: (j * 2 * Math.PI) / 3 + i, r: 12 + 7 * j, w: 0.6 / (1 + j) };
+			}),
+		);
+		const elNodes = [...els.children] as SVGCircleElement[];
+		let tally = [0, 0, 0];
+		type FP = { node: SVGCircleElement; trail: SVGPolylineElement; pts: string[]; x: number; y: number; vx: number; vy: number; done: Set<number>; turn: number; aimed: boolean; aimTurn: number };
+		let fl: FP[] = [];
+		let nextF = 0;
+		let aiming = false;
+		let elT = 0;
+		const thomsonTurn = (b: number) => {
+			const u = Math.min(1, b / RA);
+			return 0.018 * 2 * u * Math.sqrt(Math.max(0, 1 - u * u)) * (Math.PI / 180);
+		};
+		const launch = (y: number, aimed = false) => {
+			const node = el('circle', { class: 'rul-a', r: 2.6 });
+			const trail = el('polyline', { class: 'rul-trail' });
+			trails.append(trail);
+			fparts.append(node);
+			fl.push({ node, trail, pts: [`0 ${y.toFixed(2)}`], x: 0, y, vx: 1, vy: 0, done: new Set(), turn: 0, aimed, aimTurn: -1 });
+			while (trails.childElementCount > 14) trails.firstElementChild!.remove();
+		};
+		const finish = (p: FP) => {
+			const deg = (Math.abs(p.turn) * 180) / Math.PI;
+			// the total angle between the first and the last direction
+			const out = (Math.acos(Math.max(-1, Math.min(1, p.vx))) * 180) / Math.PI;
+			if (!p.aimed) {
+				tally[out < 10 ? 0 : out <= 90 ? 1 : 2]++;
+				showTally();
+			} else {
+				const real = p.aimTurn >= 0 ? p.aimTurn : deg;
+				aimRead.innerHTML = nuclear ? `Угол отклонения: <b>${fmt(real, real < 1 ? 2 : real < 10 ? 1 : 0)}°</b>` : 'Угол отклонения: <b>меньше 0,1°</b>';
+			}
+		};
+		const stepFoil = (dt: number) => {
+			if (!aiming) {
+				nextF -= dt;
+				if (nextF <= 0) {
+					launch(4 + Math.random() * 292);
+					nextF = 0.45;
+				}
+			}
+			const V = 130;
+			fl = fl.filter((p) => {
+				let rest = V * dt;
+				while (rest > 0) {
+					// the nearest nucleus whose closest approach lies within this step
+					let best = -1;
+					let tb = rest;
+					nuclei.forEach((n, i) => {
+						if (p.done.has(i)) return;
+						const t = (n.x - p.x) * p.vx + (n.y - p.y) * p.vy;
+						if (t >= 0 && t <= tb) {
+							const b = Math.abs((n.x - p.x) * p.vy - (n.y - p.y) * p.vx);
+							if (b < RA) {
+								best = i;
+								tb = t;
+							}
+						}
+					});
+					p.x += p.vx * tb;
+					p.y += p.vy * tb;
+					rest -= tb;
+					if (best < 0) break;
+					const n = nuclei[best];
+					p.done.add(best);
+					const cr = (n.x - p.x) * p.vy - (n.y - p.y) * p.vx; // > 0: the nucleus is to the right of the path (y down)
+					const b = Math.max(1e-6, Math.abs(cr));
+					const turn = nuclear ? 2 * Math.atan(D_PX / (2 * b)) : thomsonTurn(b);
+					const s = cr > 0 ? -1 : 1; // turn away from the nucleus
+					const a = Math.atan2(p.vy, p.vx) + s * turn;
+					p.vx = Math.cos(a);
+					p.vy = Math.sin(a);
+					p.turn += s * turn;
+					if (p.aimed && n === AIM_N) p.aimTurn = (turn * 180) / Math.PI;
+					p.pts.push(`${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
+				}
+				p.node.setAttribute('cx', p.x.toFixed(1));
+				p.node.setAttribute('cy', p.y.toFixed(1));
+				p.trail.setAttribute('points', [...p.pts, `${p.x.toFixed(2)} ${p.y.toFixed(2)}`].join(' '));
+				if (p.x > 430 || p.x < -10 || p.y < -10 || p.y > 310) {
+					p.node.remove();
+					finish(p);
+					return false;
+				}
+				return true;
+			});
+			// the electrons
+			elT += dt;
+			elecs.forEach((e, i) => {
+				const a = e.a0 + (nuclear ? e.w * elT : 0);
+				const r = nuclear ? e.r : e.r * 0.8;
+				elNodes[i].setAttribute('cx', (e.n.x + r * Math.cos(a)).toFixed(1));
+				elNodes[i].setAttribute('cy', (e.n.y + r * Math.sin(a)).toFixed(1));
+			});
+		};
+		const showTally = () => {
+			tallyP.innerHTML = `Прошли почти прямо (меньше 10°): <b>${tally[0]}</b> · отклонились на 10°–90°: <b>${tally[1]}</b> · отлетели назад: <b>${tally[2]}</b>`;
+		};
+		// the aimed shot: at the nucleus of the first layer, in the middle
+		const AIM_N = nuclei.reduce((best, n) => (n.x < best.x - 1 || (Math.abs(n.x - best.x) < 1 && Math.abs(n.y - 150) < Math.abs(best.y - 150)) ? n : best), nuclei[0]);
+		const aimY = () => AIM_N.y - (AIMS[+bIn.value] / D_REAL) * D_PX;
+		const drawAim = () => {
+			aimPath.setAttribute('d', aiming ? `M0 ${aimY().toFixed(2)} H${AIM_N.x}` : '');
+			bv.textContent = AIMT[+bIn.value];
+		};
+		bIn.addEventListener('input', () => {
+			drawAim();
+			aimRead.textContent = '';
+		});
+		shoot.addEventListener('click', () => {
+			launch(aimY(), true);
+			aimRead.textContent = '';
+			wake();
+		});
+		aimBtn.addEventListener('click', () => {
+			aiming = !aiming;
+			aimBtn.setAttribute('aria-pressed', String(aiming));
+			aimCtl.style.display = aiming ? '' : 'none';
+			aimRead.style.display = aiming ? '' : 'none';
+			drawAim();
+		});
+		clearB.addEventListener('click', () => {
+			tally = [0, 0, 0];
+			showTally();
+		});
+
+		// ---------------- tabs and the atom switch
+		const step = (dt: number) => {
+			if (tab === 'dev') stepDev(dt);
+			else stepFoil(dt);
+			return true;
+		};
+		const wake = loop(root, step);
+		qa<HTMLButtonElement>('[data-tab]').forEach((b) =>
+			b.addEventListener('click', () => {
+				tab = b.dataset.tab as 'dev' | 'foil';
+				qa<HTMLButtonElement>('[data-tab]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				qa<SVGGElement>('[data-view]').forEach((g) => (g.style.display = g.dataset.view === tab ? '' : 'none'));
+				qa<HTMLElement>('[data-ctl]').forEach((g) => (g.style.display = g.dataset.ctl === tab ? '' : 'none'));
+				q<HTMLElement>('[data-devcap]').style.display = tab === 'dev' ? '' : 'none';
+				wake();
+			}),
+		);
+		qa<HTMLButtonElement>('[data-atom]').forEach((b) =>
+			b.addEventListener('click', () => {
+				nuclear = b.dataset.atom === 'n';
+				q<HTMLElement>('[data-bto]').textContent = nuclear ? 'до ядра' : 'до центра атома';
+				qa<HTMLButtonElement>('[data-atom]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				atomsN.forEach((e) => (e.style.display = nuclear ? '' : 'none'));
+				atomsT.forEach((e) => (e.style.display = nuclear ? 'none' : ''));
+				tally = [0, 0, 0];
+				showTally();
+				fl.forEach((p) => p.node.remove());
+				fl = [];
+				trails.replaceChildren();
+				aimRead.textContent = '';
+				devRead.textContent = 'Вспышек за 1 мин: —';
+				meas = -1;
+				go.disabled = false;
+				toMic.forEach((p) => p.node.remove());
+				toMic.length = 0;
+				wake();
+			}),
+		);
+		atomsT.forEach((e) => (e.style.display = 'none'));
+		placeMic();
+		showTally();
+		drawAim();
+	});
+</script>
+
+<style is:global>
+	.rul-tabs {
+		margin: 0 0 0.5rem;
+	}
+	.rul-sep {
+		flex: 0 0 0.6rem;
+	}
+	.rul-cham {
+		fill: color-mix(in srgb, var(--sl-color-gray-6) 40%, transparent);
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 5 4;
+	}
+	.rul-screen {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 5;
+	}
+	.rul-zns {
+		fill: none;
+		stroke: color-mix(in srgb, hsl(120, 70%, 60%) 30%, var(--sl-color-gray-3));
+		stroke-width: 1.6;
+	}
+	.rul-lead {
+		fill: var(--ra-lead);
+		stroke: color-mix(in srgb, var(--ra-lead) 60%, black);
+	}
+	.rul-chan {
+		fill: var(--ig-surface);
+	}
+	.rul-src {
+		fill: color-mix(in srgb, var(--ra-a) 70%, white);
+	}
+	.rul-al {
+		fill: var(--ra-a);
+	}
+	.rul-beam {
+		stroke: var(--ra-a);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+		opacity: 0.5;
+	}
+	.rul-beam2 {
+		opacity: 0.25;
+	}
+	.rul-foil {
+		fill: var(--ra-gold);
+	}
+	.rul-ang {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+		stroke-dasharray: 3 2;
+	}
+	.rul-th {
+		fill: var(--sl-color-gray-2);
+		font-size: 13px;
+	}
+	.rul-a {
+		fill: var(--ra-a);
+	}
+	.rul-flash {
+		fill: hsl(120, 90%, 70%);
+		opacity: 0;
+		filter: blur(1.5px);
+	}
+	.rul-mic {
+		fill: var(--sl-color-gray-3);
+	}
+	.rul-mic2 {
+		fill: var(--sl-color-gray-4);
+	}
+	.rul-eye {
+		fill: hsl(220, 30%, 6%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.rul-eflash {
+		fill: hsl(120, 90%, 72%);
+		filter: drop-shadow(0 0 2px hsl(120, 90%, 60%));
+	}
+	.rul-atom-n {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.rul-atom-t {
+		fill: color-mix(in srgb, var(--ra-p) 22%, transparent);
+		stroke: color-mix(in srgb, var(--ra-p) 45%, transparent);
+		stroke-width: 1;
+	}
+	.rul-nuc {
+		fill: var(--ra-p);
+	}
+	.rul-el {
+		fill: var(--ra-e);
+	}
+	.rul-trail {
+		fill: none;
+		stroke: var(--ra-a);
+		stroke-width: 1;
+		opacity: 0.45;
+	}
+	.rul-aim {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		stroke-dasharray: 4 3;
+	}
+	.rul-foil-edge {
+		fill: color-mix(in srgb, var(--ra-gold) 40%, transparent);
+	}
+	.rul-lab {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.rul-lab i {
+		font-family: var(--ig-font-math);
+	}
+	.rul-slider {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+	}
+	.rul-slider input {
+		width: 11rem;
+		max-width: 60vw;
+		accent-color: var(--sl-color-accent);
+	}
+	.rul .rul-go {
+		border-color: var(--sl-color-accent);
+	}
+	.rul .rul-go:disabled {
+		opacity: 0.5;
+	}
+	.rul-read {
+		margin: 0.4rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		text-align: center;
+		min-height: 1.4em;
+	}
+</style>

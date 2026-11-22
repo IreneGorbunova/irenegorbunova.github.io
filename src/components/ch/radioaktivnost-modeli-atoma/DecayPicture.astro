@@ -1,0 +1,232 @@
+---
+/**
+ * «Радиоактивный распад»: two decays, chosen by buttons, each a 5-s loop. Nuclei are plain red discs (what they are made
+ * of is the next chapter); the charges are written next to them.
+ *   α decay: radium (+88e) → radon (+86e) + α particle (+2e). The nucleus trembles (1 s), the α particle (red, the
+ *     chapter's α color) shoots out to the right leaving a track; the nucleus recoils to the left. Momentum is
+ *     conserved: the radon nucleus is about 55 times heavier than the α particle (222 against 4), so it moves 55 times
+ *     slower: 230 px of the α particle make 4,2 px of recoil. Then the label changes to «радон».
+ *   β decay: bismuth (+83e) → polonium (+84e) + electron (−e) (bismuth-210 → polonium-210). The electron (blue, the β
+ *     color) flies out with a long track; the recoil of the nucleus is too small to draw (not drawn).
+ * Under the picture the balance of charge (+88e = +86e + 2e; +83e = +84e + (−e)) and a strip of cells of Mendeleev's
+ * table with an arrow two cells back (α) or one cell forward (β). The caption follows the mode (α: the recoil to
+ * scale; β: the recoil is too small to see).
+ */
+import RaStyles from './RaStyles.astro';
+
+const CELLS_A = [
+	{ z: 86, s: 'Rn' },
+	{ z: 87, s: 'Fr' },
+	{ z: 88, s: 'Ra' },
+];
+const CELLS_B = [
+	{ z: 83, s: 'Bi' },
+	{ z: 84, s: 'Po' },
+];
+---
+
+<RaStyles />
+<figure class="ra dcp not-content" data-dcp>
+	<div class="ra-ctl">
+		<button type="button" class="ra-btn" data-mode="a" aria-pressed="true"><i>α</i>-распад</button>
+		<button type="button" class="ra-btn" data-mode="b" aria-pressed="false"><i>β</i>-распад</button>
+	</div>
+	<svg viewBox="0 0 420 250" role="img" aria-label="Радиоактивный распад. Альфа-распад: ядро радия с зарядом плюс 88e испускает альфа-частицу с зарядом плюс 2e и становится ядром радона с зарядом плюс 86e. Бета-распад: ядро висмута с зарядом плюс 83e испускает электрон и становится ядром полония с зарядом плюс 84e" style="max-width: 40rem">
+		<path class="dcp-track" d="" data-track></path>
+		<g data-nuc>
+			<circle class="dcp-nuc" r="34"></circle>
+			<circle class="dcp-shine" cx="-11" cy="-12" r="9"></circle>
+		</g>
+		<text class="ra-lbl dcp-name" x="0" y="46" text-anchor="middle" data-name></text>
+		<g data-part>
+			<circle class="dcp-pa" r="9" data-pa></circle>
+			<circle class="dcp-pb" r="4" data-pb></circle>
+		</g>
+		<text class="ra-lbl dcp-pq" x="0" y="0" text-anchor="middle" data-pq></text>
+		<text class="dcp-eq" x="210" y="166" text-anchor="middle" data-eq></text>
+		<!-- the strips of Mendeleev's table -->
+		<g data-strip="a">
+			{
+				CELLS_A.map((c, i) => (
+					<g transform={`translate(${150 + i * 44} 186)`}>
+						<rect class="dcp-cell" width="40" height="40" rx="3" />
+						<text class="dcp-z" x="5" y="13">{c.z}</text>
+						<text class="dcp-sym" x="20" y="33" text-anchor="middle">{c.s}</text>
+					</g>
+				))
+			}
+			<path class="dcp-arr dcp-arr-a" d="M258 182 C258 170 172 170 172 180" data-arr></path>
+			<path class="dcp-head dcp-head-a" d="M172 184 L167.5 176 L176.5 176 Z" data-arr></path>
+		</g>
+		<g data-strip="b" style="display: none">
+			{
+				CELLS_B.map((c, i) => (
+					<g transform={`translate(${172 + i * 44} 186)`}>
+						<rect class="dcp-cell" width="40" height="40" rx="3" />
+						<text class="dcp-z" x="5" y="13">{c.z}</text>
+						<text class="dcp-sym" x="20" y="33" text-anchor="middle">{c.s}</text>
+					</g>
+				))
+			}
+			<path class="dcp-arr dcp-arr-b" d="M192 182 C192 170 236 170 236 180" data-arr></path>
+			<path class="dcp-head dcp-head-b" d="M236 184 L231.5 176 L240.5 176 Z" data-arr></path>
+		</g>
+	</svg>
+	<figcaption class="ra-cap"><span data-cap="a">Отдача ядра нарисована в масштабе: ядро радона в 55 раз тяжелее <span class="nw">α-частицы</span> и отходит в 55 раз медленнее.</span><span data-cap="b" style="display: none">Электрон намного легче ядра, поэтому ядро полония отходит так медленно, что на рисунке этого не видно.</span></figcaption>
+</figure>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+
+	const RUN = 5;
+	const N0 = { x: 120, y: 86 };
+	const MODES = {
+		a: { before: 'радий, заряд +88e', after: 'радон, заряд +86e', q: '+2e', eq: '+88e = +86e + 2e', v: 130, recoil: 1 / 55, dx: 230 },
+		b: { before: 'висмут, заряд +83e', after: 'полоний, заряд +84e', q: '−e', eq: '+83e = +84e + (−e)', v: 240, recoil: 0, dx: 230 },
+	};
+	document.querySelectorAll<HTMLElement>('[data-dcp]').forEach((root) => {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const nuc = q<SVGGElement>('[data-nuc]');
+		const name = q<SVGTextElement>('[data-name]');
+		const part = q<SVGGElement>('[data-part]');
+		const pa = q<SVGCircleElement>('[data-pa]');
+		const pb = q<SVGCircleElement>('[data-pb]');
+		const pq = q<SVGTextElement>('[data-pq]');
+		const eq = q<SVGTextElement>('[data-eq]');
+		const track = q<SVGPathElement>('[data-track]');
+		const strips = [...root.querySelectorAll<SVGGElement>('[data-strip]')];
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-mode]')];
+		let mode: 'a' | 'b' = 'a';
+		let t = 0;
+		const draw = () => {
+			const m = MODES[mode];
+			const s = t % RUN;
+			const T0 = 1.2; // the moment of the decay
+			const shake = s < T0 ? Math.sin(s * 70) * 0.8 * (s / T0) : 0;
+			const fly = Math.max(0, s - T0);
+			const d = Math.min(m.dx, fly * m.v * (mode === 'a' ? 1 : 1));
+			const nx = N0.x - d * m.recoil + shake;
+			nuc.setAttribute('transform', `translate(${nx.toFixed(2)} ${N0.y})`);
+			name.setAttribute('x', nx.toFixed(1));
+			name.setAttribute('y', String(N0.y + 52));
+			name.textContent = s < T0 ? m.before : m.after;
+			const px = N0.x + 34 + d;
+			part.setAttribute('transform', `translate(${(px - (s < T0 ? 14 : 0)).toFixed(1)} ${N0.y})`);
+			part.style.opacity = s < T0 ? '0' : '1';
+			pa.style.display = mode === 'a' ? '' : 'none';
+			pb.style.display = mode === 'b' ? '' : 'none';
+			pq.setAttribute('x', px.toFixed(1));
+			pq.setAttribute('y', String(N0.y - 16));
+			pq.textContent = s < T0 ? '' : m.q;
+			track.setAttribute('d', s < T0 ? '' : `M${N0.x + 34} ${N0.y} H${px.toFixed(1)}`);
+			track.setAttribute('class', `dcp-track dcp-track-${mode}`);
+			const eqs = s < T0 + 0.6 ? '' : m.eq;
+			if (eq.dataset.v !== eqs) {
+				eq.dataset.v = eqs;
+				eq.replaceChildren(
+					...eqs.split(/(e)/).map((part) => {
+						const ts = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+						ts.textContent = part;
+						if (part === 'e') ts.setAttribute('class', 'dcp-e');
+						return ts;
+					}),
+				);
+			}
+			root.querySelectorAll<SVGElement>('[data-arr]').forEach((a) => (a.style.opacity = s < T0 + 0.6 ? '0' : '1'));
+		};
+		btns.forEach((b) =>
+			b.addEventListener('click', () => {
+				mode = b.dataset.mode as 'a' | 'b';
+				btns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				strips.forEach((g) => (g.style.display = g.dataset.strip === mode ? '' : 'none'));
+				root.querySelectorAll<HTMLElement>('[data-cap]').forEach((c) => (c.style.display = c.dataset.cap === mode ? '' : 'none'));
+				t = 0;
+				draw();
+			}),
+		);
+		loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+		draw();
+	});
+</script>
+
+<style is:global>
+	.dcp-nuc {
+		fill: var(--ra-p);
+	}
+	.dcp-shine {
+		fill: white;
+		opacity: 0.25;
+	}
+	.dcp-pa {
+		fill: var(--ra-a);
+		stroke: white;
+		stroke-width: 1;
+	}
+	.dcp-pb {
+		fill: var(--ra-b);
+	}
+	.dcp-pq {
+		font-size: 13px;
+		font-weight: 600;
+		fill: var(--sl-color-white);
+	}
+	.dcp-name {
+		font-size: 13px;
+	}
+	.dcp-track {
+		stroke-width: 1.4;
+		stroke-dasharray: 3 3;
+		fill: none;
+	}
+	.dcp-track-a {
+		stroke: var(--ra-a);
+	}
+	.dcp-track-b {
+		stroke: var(--ra-b);
+	}
+	.dcp-eq {
+		fill: var(--sl-color-white);
+		font-size: 17px;
+		font-variant-numeric: lining-nums;
+	}
+	.dcp-eq .dcp-e {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.dcp-cell {
+		fill: var(--sl-color-gray-6);
+		stroke: var(--sl-color-gray-4);
+	}
+	.dcp-z {
+		fill: var(--sl-color-gray-3);
+		font-size: 9px;
+	}
+	.dcp-sym {
+		fill: var(--sl-color-white);
+		font-size: 15px;
+		font-weight: 600;
+	}
+	.dcp-arr {
+		fill: none;
+		stroke-width: 2;
+	}
+	.dcp-arr-a {
+		stroke: var(--ra-a);
+	}
+	.dcp-arr-b {
+		stroke: var(--ra-b);
+	}
+	.dcp-head-a {
+		fill: var(--ra-a);
+	}
+	.dcp-head-b {
+		fill: var(--ra-b);
+	}
+	.dcp i {
+		font-family: var(--ig-font-math);
+	}
+</style>

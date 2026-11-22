@@ -1,0 +1,192 @@
+---
+/**
+ * «Если ядро — горошина»: the nuclear atom enlarged to a football field. A gold nucleus is about 1,4·10⁻¹⁴ м across,
+ * the atom about 2,9·10⁻¹⁰ м: 21 000 times larger. A nucleus enlarged to a pea of 5 мм makes the atom about 100 м
+ * across: a circle wider than the field (105 м × 68 м, the standard size) around the center mark.
+ * Drawn to scale in one frame: the field, the dashed circle of the atom (diameter 104 м = 5 мм·20 700) and the pea
+ * (5 мм) at the center. The center spot (22 см) and the halfway line (12 см) are painted white, so at the closest zoom the pea lies on
+ * white paint (the spot fills most of the closest frame). A slow zoom loop (8 с: 0,5 s still, 3 s in, 1 s still, 3 s out, 0,5 s still) goes from the
+ * whole field (124 м across the frame) to the pea on the center spot (35 см across the frame), about 350 times, exponentially, so the
+ * speed of the zoom feels even. While the whole field is shown the pea is too small to see (0,01 px), so a round
+ * inset shows it about 900 times enlarged (15 px instead of 0,017 px); the inset fades as the zoom comes close. The electrons are drawn as dots of a
+ * fixed size on the screen: in reality they are far smaller even than the nucleus. No numbers in the caption: the
+ * section's worked task computes them.
+ */
+import RaStyles from './RaStyles.astro';
+---
+
+<RaStyles />
+<figure class="ra asp not-content" data-asp>
+	<svg viewBox="0 0 420 300" role="img" aria-label="Футбольное поле сверху. В центре поля лежит горошина — это ядро. Пунктирный круг вокруг центра шире самого поля — это граница атома. Картинка медленно приближается к горошине и отдаляется обратно" style="max-width: 40rem">
+		<defs>
+			<clipPath id="asp-frame"><rect x="0" y="0" width="420" height="300" rx="8"></rect></clipPath>
+			<clipPath id="asp-ins"><circle cx="356" cy="62" r="40"></circle></clipPath>
+		</defs>
+		<g clip-path="url(#asp-frame)">
+			<rect class="asp-grass" x="0" y="0" width="420" height="300"></rect>
+			<g data-world>
+				<!-- the field in meters (data-m: x y w h of a rect, or cx cy r of a circle); placed on the screen by the script -->
+				{[-52.5, -31.5, -10.5, 10.5, 31.5].map((x) => <rect class="asp-stripe" data-m={`${x} -34 10.5 68`} />)}
+				<rect class="asp-line" data-m="-52.5 -34 105 68" />
+				<rect class="asp-paint" data-m="-0.06 -34 0.12 68" />
+				<circle class="asp-paint" data-m="0 0 0.11" />
+				<circle class="asp-line" data-m="0 0 9.15" />
+				<rect class="asp-line" data-m="-52.5 -20.16 16.5 40.32" />
+				<rect class="asp-line" data-m="36 -20.16 16.5 40.32" />
+				<rect class="asp-line" data-m="-52.5 -9.16 5.5 18.32" />
+				<rect class="asp-line" data-m="47 -9.16 5.5 18.32" />
+				<rect class="asp-goal" data-m="-54.5 -3.66 2 7.32" />
+				<rect class="asp-goal" data-m="52.5 -3.66 2 7.32" />
+				<circle class="asp-atom" data-m="0 0 52" />
+				<circle class="asp-pea" data-m="0 0 0.0025" />
+			</g>
+			<g data-els></g>
+		</g>
+		<text class="ra-lbl asp-t" x="12" y="290" data-scale></text>
+		<!-- the inset: the center about 900 times enlarged -->
+		<g data-ins>
+			<circle class="asp-insbg" cx="356" cy="62" r="41"></circle>
+			<g clip-path="url(#asp-ins)">
+				<rect class="asp-grass" x="316" y="22" width="80" height="80"></rect>
+				<circle class="asp-pea" cx="356" cy="62" r="7.5"></circle>
+			</g>
+			<text class="ra-lbl-s asp-t" x="356" y="118" text-anchor="middle">горошина 5 мм</text>
+		</g>
+	</svg>
+	<figcaption class="ra-cap">Горошина в центре поля — ядро, пунктирный круг — граница атома. Электроны нарисованы гораздо крупнее, чем они есть.</figcaption>
+</figure>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+
+	const CX = 210;
+	const CY = 150;
+	const S0 = 420 / 124; // px per meter: the whole field
+	const S1 = 420 / 0.35; // px per meter: the pea on the white center spot
+	const EL = [0.4, 1.9, 3.3, 4.6, 5.6].map((a, i) => ({ a, r: 24 + 6 * i, w: 0.15 + 0.05 * i }));
+	document.querySelectorAll<HTMLElement>('[data-asp]').forEach((root) => {
+		const svg = root.querySelector('svg')!;
+		const world = svg.querySelector<SVGGElement>('[data-world]')!;
+		const elsG = svg.querySelector<SVGGElement>('[data-els]')!;
+		const ins = svg.querySelector<SVGGElement>('[data-ins]')!;
+		const shapes = [...world.querySelectorAll<SVGGraphicsElement>('[data-m]')].map((e) => ({ e, m: e.dataset.m!.split(' ').map(Number) }));
+		const lbl = svg.querySelector<SVGTextElement>('[data-scale]')!;
+		const els = EL.map(() => {
+			const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			c.setAttribute('class', 'asp-el');
+			c.setAttribute('r', '2.6');
+			elsG.append(c);
+			return c;
+		});
+		let t = 0;
+		const ease = (x: number) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, x)));
+		const draw = () => {
+			const s = t % 8;
+			const k = s < 0.5 ? 0 : s < 3.5 ? ease((s - 0.5) / 3) : s < 4.5 ? 1 : s < 7.5 ? 1 - ease((s - 4.5) / 3) : 0;
+			const sc = Math.exp(Math.log(S0) + (Math.log(S1) - Math.log(S0)) * k);
+			// every shape is placed in screen coordinates and clipped to a little more than the frame, so the zoom never
+			// makes huge shapes (thin lines keep their 1,2-px width)
+			shapes.forEach(({ e, m }) => {
+				if (e.tagName === 'circle') {
+					const r = m[2] * sc;
+					const show = r < 4000 && r > 0.05;
+					e.style.display = show ? '' : 'none';
+					if (show) {
+						e.setAttribute('cx', (CX + m[0] * sc).toFixed(2));
+						e.setAttribute('cy', (CY + m[1] * sc).toFixed(2));
+						e.setAttribute('r', Math.max(0.6, r).toFixed(2));
+					}
+					return;
+				}
+				const x0 = CX + m[0] * sc;
+				const y0 = CY + m[1] * sc;
+				const x1 = x0 + m[2] * sc;
+				const y1 = y0 + m[3] * sc;
+				const fill = !e.classList.contains('asp-line');
+				const minW = e.classList.contains('asp-paint') ? 1.2 : 0;
+				// an outline rect far bigger than the frame shows its edges only if they are near the frame
+				const cx0 = Math.max(-20, x0);
+				const cy0 = Math.max(-20, y0);
+				const cx1 = Math.min(440, x1);
+				const cy1 = Math.min(320, y1);
+				const vis = cx1 > cx0 && cy1 > cy0;
+				e.style.display = vis ? '' : 'none';
+				if (!vis) return;
+				if (fill) {
+					// a filled rect; painted lines are at least 1,2 px wide
+					const w = Math.max(minW, cx1 - cx0);
+					e.setAttribute('x', (w > cx1 - cx0 ? (x0 + x1) / 2 - w / 2 : cx0).toFixed(2));
+					e.setAttribute('y', cy0.toFixed(2));
+					e.setAttribute('width', w.toFixed(2));
+					e.setAttribute('height', (cy1 - cy0).toFixed(2));
+				} else {
+					e.setAttribute('x', (x0 < -20 ? -40 : x0).toFixed(2));
+					e.setAttribute('y', (y0 < -20 ? -40 : y0).toFixed(2));
+					e.setAttribute('width', ((x1 > 440 ? 460 : x1) - (x0 < -20 ? -40 : x0)).toFixed(2));
+					e.setAttribute('height', ((y1 > 320 ? 340 : y1) - (y0 < -20 ? -40 : y0)).toFixed(2));
+				}
+			});
+			els.forEach((c, i) => {
+				const e = EL[i];
+				const a = e.a + e.w * t;
+				const r = e.r + 3 * Math.sin(t * 0.3 + i);
+				c.setAttribute('cx', (CX + r * Math.cos(a) * sc).toFixed(1));
+				c.setAttribute('cy', (CY + r * Math.sin(a) * sc).toFixed(1));
+			});
+			ins.style.opacity = Math.max(0, 1 - k * 4).toFixed(2);
+			const w = 420 / sc; // meters across the frame
+			lbl.textContent = `ширина кадра: ${w >= 1 ? Math.round(w) + ' м' : w >= 0.1 ? (w * 100).toFixed(0) + ' см' : (w * 100).toFixed(1).replace('.', ',') + ' см'}`;
+		};
+		loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+		draw();
+	});
+</script>
+
+<style is:global>
+	.asp-grass {
+		fill: hsl(120, 32%, 32%);
+	}
+	.asp-stripe {
+		fill: hsl(120, 32%, 36%);
+	}
+	.asp-line {
+		fill: none;
+		stroke: hsl(0, 0%, 95%);
+		stroke-width: 1.2;
+	}
+	.asp-paint {
+		fill: hsl(0, 0%, 95%);
+	}
+	.asp-goal {
+		fill: hsl(0, 0%, 95%);
+	}
+	.asp-atom {
+		fill: none;
+		stroke: hsl(55, 90%, 75%);
+		stroke-width: 1.6;
+		stroke-dasharray: 6 4;
+	}
+	.asp-pea {
+		fill: var(--ra-p);
+	}
+	.asp-el {
+		fill: var(--ra-e);
+		stroke: white;
+		stroke-width: 0.6;
+	}
+	.asp-t {
+		fill: white !important;
+		paint-order: stroke;
+		stroke: hsl(120, 30%, 18%);
+		stroke-width: 3px;
+	}
+	.asp-insbg {
+		fill: none;
+		stroke: white;
+		stroke-width: 2;
+	}
+</style>

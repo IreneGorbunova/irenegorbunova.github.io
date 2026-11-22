@@ -1,0 +1,410 @@
+---
+/**
+ * «Что задерживает излучение»: a source, an absorber and a Geiger counter, side view, distances to scale (25 px per
+ * см; the tube of the counter is drawn shorter than a real one).
+ *
+ * Model of the count (per minute): n = 20 + 3000·(2 см / d)²·T, where 20 имп/мин is the natural background, 3000 имп/мин
+ * the count from the source at d = 2 см without an absorber, d the distance source → window of the counter
+ * (inverse-square law), T the part that passes the absorber:
+ *   absorber        α (полоний-210)   β (стронций-90)   γ (кобальт-60)
+ *   нет             1 if d ≤ 3 см, 0 if d ≥ 4 см (polonium's α fly about 3,9 см in air)   1   1
+ *   лист бумаги     0                 0,86              1
+ *   алюминий 1 мм   0                 0,09              0,985
+ *   алюминий 5 мм   0                 0                 0,93
+ *   свинец 1 см     0                 0                 0,51   (for the 1,17 and 1,33 МэВ γ of cobalt-60 μ ≈ 0,67 1/см:
+ *   свинец 2 см     0                 0                 0,26    each centimeter of lead lets through about half,
+ *   свинец 5 см     0                 0                 0,036   e^(−0,67·5) ≈ 0,035)
+ * The β numbers are for the electrons of strontium-90 with its daughter yttrium-90 (up to 2,28 МэВ; range in aluminium
+ * about 4 мм). So at 2 см: α 3020 → paper 20; β 3020 → paper 2600 → Al 1 мм 290 → Al 5 мм 20; γ 3020 → Al 5 мм 2810 →
+ * Pb 1 см 1550. An absorber needs room: d is at least its thickness plus 0,5 см, rounded up to whole centimeters
+ * (Pb 1 см from 2 см, Pb 2 см from 3 см, Pb 5 см from 6 см); the slider moves up by itself when needed, and the note
+ * under it says so.
+ * «Измерить 1 мин»: one minute of counting is played in 3 s; the result is a Poisson random number with the mean n
+ * (so it differs from run to run by about √n). The flying dots only show where the radiation goes: dots for the
+ * particles that head for the counter, about 10 per second at 2 см (fewer farther away), slowed enormously.
+ */
+import RaStyles from './RaStyles.astro';
+
+const SRC = [
+	{ k: 'a', t: 'α (полоний-210)' },
+	{ k: 'b', t: 'β (стронций-90)' },
+	{ k: 'g', t: 'γ (кобальт-60)' },
+	{ k: '0', t: 'Без источника' },
+];
+const ABS = [
+	{ k: 'none', t: 'Нет' },
+	{ k: 'paper', t: 'Лист бумаги' },
+	{ k: 'al1', t: 'Алюминий 1 мм' },
+	{ k: 'al5', t: 'Алюминий 5 мм' },
+	{ k: 'pb1', t: 'Свинец 1 см' },
+	{ k: 'pb2', t: 'Свинец 2 см' },
+	{ k: 'pb5', t: 'Свинец 5 см' },
+];
+const X_S = 60; // the opening of the source holder
+const PXCM = 25;
+---
+
+<RaStyles />
+<figure class="ra abl not-content" data-abl>
+	<svg viewBox="0 0 420 200" role="img" aria-label="Модель: слева источник излучения в свинцовом держателе, справа счётчик Гейгера, между ними можно поставить лист бумаги, алюминиевую или свинцовую пластинку. Счётчик показывает число импульсов за минуту" style="max-width: 40rem">
+		<!-- the source holder -->
+		<rect class="abl-lead" x="14" y="72" width={X_S - 14} height="56" rx="3"></rect>
+		<rect class="abl-hole" x={X_S - 16} y="95" width="16" height="10"></rect>
+		<circle class="abl-src" cx={X_S - 12} cy="100" r="4" data-srcdot></circle>
+		<text class="ra-lbl-s" x="37" y="64" text-anchor="middle">источник</text>
+		<!-- the absorber (placed by the script) -->
+		<rect class="abl-abs" x="0" y="66" width="0" height="68" rx="1" data-abs></rect>
+		<text class="ra-lbl-s" x="0" y="150" text-anchor="middle" data-abslbl></text>
+		<g data-parts></g>
+		<!-- the counter: tube with its window, the display above -->
+		<g data-det>
+			<rect class="abl-tube" x="0" y="84" width="96" height="32" rx="6"></rect>
+			<rect class="abl-win" x="-1.5" y="88" width="3" height="24" rx="1"></rect>
+			<path class="abl-wire" d="M4 100 H92"></path>
+			<rect class="abl-flash" x="4" y="97" width="88" height="6" rx="3" data-flash></rect>
+			<path class="abl-cable" d="M48 84 V60"></path>
+			<rect class="abl-disp" x="10" y="26" width="76" height="34" rx="4"></rect>
+			<text class="abl-num" x="80" y="48" text-anchor="end" data-num>—</text>
+			<text class="abl-unit" x="48" y="57" text-anchor="middle">имп/мин</text>
+			<text class="abl-click" x="100" y="40" text-anchor="middle" data-click>щёлк</text>
+			<text class="ra-lbl-s" x="48" y="132" text-anchor="middle">счётчик Гейгера</text>
+		</g>
+		<!-- the ruler: distance from the source -->
+		<g class="abl-ruler">
+			<path d={`M${X_S} 172 H${X_S + 10 * PXCM}`}></path>
+			{Array.from({ length: 11 }, (_, i) => <path d={`M${X_S + i * PXCM} 172 v${i % 5 ? 4 : 7}`}></path>)}
+		</g>
+		{[0, 5, 10].map((c) => <text class="ra-lbl-s" x={X_S + c * PXCM} y="190" text-anchor="middle">{c === 10 ? '10 см' : c}</text>)}
+		<path class="abl-dim" d="" data-dim></path>
+		<text class="ra-lbl-s" x="0" y="154" text-anchor="middle" data-dimt></text>
+	</svg>
+	<div class="ra-ctl abl-row">
+		<span class="abl-lab">Источник:</span>
+		{SRC.map((s, i) => <button type="button" class="ra-btn" data-src={s.k} aria-pressed={i === 0 ? 'true' : 'false'}>{s.t}</button>)}
+	</div>
+	<div class="ra-ctl abl-row">
+		<span class="abl-lab">Преграда:</span>
+		{ABS.map((a, i) => <button type="button" class="ra-btn" data-ab={a.k} aria-pressed={i === 0 ? 'true' : 'false'}>{a.t}</button>)}
+	</div>
+	<div class="ra-ctl abl-row">
+		<label class="abl-lab abl-slider"><span>Расстояние до счётчика: <b data-dv>2</b>&nbsp;см</span><input type="range" min="1" max="10" step="1" value="2" data-d /></label>
+		<button type="button" class="ra-btn abl-go" data-go>Измерить 1 мин</button>
+	</div>
+	<p class="abl-note" data-note></p>
+	<figcaption class="ra-cap">Время ускорено: одна минута счёта проходит за 3 с. Движение частиц сильно замедлено.</figcaption>
+</figure>
+
+<script>
+	import { el, loop, fmtInt } from '@components/ch/g7/kit';
+
+	const X_S = 60;
+	const PXCM = 25;
+	const BG = 20;
+	const N0 = 3000;
+	type Src = 'a' | 'b' | 'g' | '0';
+	type Ab = 'none' | 'paper' | 'al1' | 'al5' | 'pb1' | 'pb2' | 'pb5';
+	const THICK: Record<Ab, number> = { none: 0, paper: 0.01, al1: 0.1, al5: 0.5, pb1: 1, pb2: 2, pb5: 5 }; // см
+	const NAME: Record<Ab, string> = { none: '', paper: 'бумага', al1: 'алюминий', al5: 'алюминий', pb1: 'свинец', pb2: 'свинец', pb5: 'свинец' };
+	const LONG: Record<Ab, string> = { none: '', paper: 'Лист бумаги', al1: 'Алюминий толщиной 1 мм', al5: 'Алюминий толщиной 5 мм', pb1: 'Свинец толщиной 1 см', pb2: 'Свинец толщиной 2 см', pb5: 'Свинец толщиной 5 см' };
+	const T: Record<'b' | 'g', Record<Ab, number>> = {
+		b: { none: 1, paper: 0.86, al1: 0.09, al5: 0, pb1: 0, pb2: 0, pb5: 0 },
+		g: { none: 1, paper: 1, al1: 0.985, al5: 0.93, pb1: 0.51, pb2: 0.26, pb5: 0.036 },
+	};
+	const minD = (a: Ab) => (a === 'none' ? 1 : Math.max(1, Math.ceil(THICK[a] + 0.5)));
+	const trans = (s: Src, a: Ab, d: number) => {
+		if (s === '0') return 0;
+		if (s === 'a') return a === 'none' ? (d <= 3 ? 1 : 0) : 0;
+		return T[s][a];
+	};
+	const mean = (s: Src, a: Ab, d: number) => BG + N0 * (2 / d) ** 2 * trans(s, a, d);
+	/** A Poisson random number with mean m (exact for small m, normal approximation for large m). */
+	const poisson = (m: number) => {
+		if (m < 40) {
+			const L = Math.exp(-m);
+			let k = 0;
+			let p = 1;
+			do {
+				k++;
+				p *= Math.random();
+			} while (p > L);
+			return k - 1;
+		}
+		const u = 1 - Math.random();
+		const v = Math.random();
+		const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+		return Math.max(0, Math.round(m + Math.sqrt(m) * z));
+	};
+
+	document.querySelectorAll<HTMLElement>('[data-abl]').forEach((root) => {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const parts = q<SVGGElement>('[data-parts]');
+		const det = q<SVGGElement>('[data-det]');
+		const absR = q<SVGRectElement>('[data-abs]');
+		const absL = q<SVGTextElement>('[data-abslbl]');
+		const num = q<SVGTextElement>('[data-num]');
+		const flash = q<SVGRectElement>('[data-flash]');
+		const click = q<SVGTextElement>('[data-click]');
+		const dim = q<SVGPathElement>('[data-dim]');
+		const dimt = q<SVGTextElement>('[data-dimt]');
+		const srcDot = q<SVGCircleElement>('[data-srcdot]');
+		const dIn = q<HTMLInputElement>('[data-d]');
+		const dv = q<HTMLElement>('[data-dv]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		const note = q<HTMLElement>('[data-note]');
+		const srcBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-src]')];
+		const abBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-ab]')];
+		let src: Src = 'a';
+		let ab: Ab = 'none';
+		let d = 2;
+		let parts_: { node: SVGElement; x: number; stop: number; pass: boolean; v: number; dead: number }[] = [];
+		let nextP = 0;
+		let meas = -1; // time into the measurement, s (−1: none)
+		let target = 0;
+		let shown = 0;
+		let flashT = 0;
+
+		const xw = () => X_S + d * PXCM; // the window of the counter
+		const absBox = () => {
+			const w = Math.max(1.5, THICK[ab] * PXCM);
+			const x1 = xw() - 4;
+			return { x0: x1 - w, x1, w };
+		};
+		const layout = () => {
+			det.setAttribute('transform', `translate(${xw()} 0)`);
+			const b = absBox();
+			absR.setAttribute('x', b.x0.toFixed(1));
+			absR.setAttribute('width', ab === 'none' ? '0' : b.w.toFixed(1));
+			absR.setAttribute('class', `abl-abs abl-${ab.replace(/\d/, '')}`);
+			absL.setAttribute('x', ((b.x0 + b.x1) / 2).toFixed(1));
+			absL.textContent = NAME[ab];
+			dim.setAttribute('d', `M${X_S} 160 H${xw()} M${X_S} 156 v8 M${xw()} 156 v8`);
+			dimt.setAttribute('x', ((X_S + xw()) / 2).toFixed(1));
+			dimt.textContent = `${d} см`;
+			srcDot.setAttribute('class', `abl-src abl-src-${src}`);
+		};
+		const stopFor = () => {
+			// where a dot heading for the counter ends (x), and whether it passes
+			const b = absBox();
+			const Tp = trans(src, ab, d);
+			const pass = Math.random() < Tp;
+			if (pass) return { stop: xw() + 6, pass };
+			if (src === 'a') return { stop: ab === 'none' ? X_S + 3.9 * PXCM : b.x0, pass };
+			if (src === 'b') return { stop: ab === 'paper' || ab === 'al1' || ab === 'al5' ? b.x0 + Math.random() * b.w : b.x0 + Math.random() * Math.min(b.w, 4), pass };
+			return { stop: b.x0 + Math.random() * b.w, pass };
+		};
+		const spawn = () => {
+			if (src === '0') return;
+			const { stop, pass } = stopFor();
+			const node = src === 'g' ? el('path', { class: 'abl-pg', d: 'M-6 0 q1.5 -3 3 0 t3 0 t3 0 t3 0' }) : el('circle', { class: `abl-p${src}`, r: src === 'a' ? 3 : 1.9 });
+			parts.append(node);
+			parts_.push({ node, x: X_S - 4, stop, pass, v: src === 'a' ? 80 : src === 'b' ? 170 : 210, dead: 0 });
+		};
+		const setGo = () => {
+			go.disabled = meas >= 0;
+		};
+		const step = (dt: number) => {
+			nextP -= dt;
+			if (nextP <= 0) {
+				spawn();
+				const rate = 10 * Math.min(1, (2 / d) ** 2) + 0.6;
+				nextP = (-Math.log(1 - Math.random()) / rate) * 1;
+			}
+			parts_ = parts_.filter((p) => {
+				if (p.x < p.stop) {
+					p.x = Math.min(p.stop, p.x + p.v * dt);
+					if (p.x >= p.stop && p.pass) flashT = 0.12;
+				} else p.dead += dt;
+				if (p.dead > 0.4) {
+					p.node.remove();
+					return false;
+				}
+				p.node.setAttribute('transform', `translate(${p.x.toFixed(1)} ${100 + (p.node.tagName === 'path' ? 0 : 0)})`);
+				p.node.style.opacity = p.dead ? (1 - p.dead / 0.4).toFixed(2) : p.pass && p.x >= xw() ? '0' : '1';
+				return true;
+			});
+			if (meas >= 0) {
+				meas += dt;
+				const k = Math.min(1, meas / 3);
+				const now = Math.round(target * k);
+				if (now > shown && Math.random() < 0.5) flashT = 0.1;
+				shown = now;
+				num.textContent = fmtInt(shown);
+				if (k >= 1) {
+					meas = -1;
+					setGo();
+				}
+			}
+			flashT -= dt;
+			flash.style.opacity = flashT > 0 ? '1' : '0';
+			click.style.opacity = flashT > 0 ? '1' : '0';
+			return true;
+		};
+		const wake = loop(root, step);
+		const reset = () => {
+			const m = minD(ab);
+			dIn.min = String(m);
+			if (d < m) {
+				d = m;
+				dIn.value = String(d);
+				note.textContent = `${LONG[ab]} помещается между источником и счётчиком только при расстоянии от ${m} см.`;
+			} else note.textContent = m > 1 ? `${LONG[ab]} помещается только при расстоянии от ${m} см.` : '';
+			dv.textContent = String(d);
+			parts_.forEach((p) => p.node.remove());
+			parts_ = [];
+			meas = -1;
+			num.textContent = '—';
+			setGo();
+			layout();
+			wake();
+		};
+		srcBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				src = b.dataset.src as Src;
+				srcBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				reset();
+			}),
+		);
+		abBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				ab = b.dataset.ab as Ab;
+				abBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				reset();
+			}),
+		);
+		dIn.addEventListener('input', () => {
+			d = Math.max(minD(ab), +dIn.value);
+			reset();
+		});
+		go.addEventListener('click', () => {
+			target = poisson(mean(src, ab, d));
+			shown = 0;
+			meas = 0;
+			setGo();
+			wake();
+		});
+		reset();
+	});
+</script>
+
+<style is:global>
+	.abl-row {
+		row-gap: 0.35rem;
+	}
+	.abl-lab {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.abl-slider {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+	}
+	.abl-slider input {
+		width: 11rem;
+		max-width: 60vw;
+		accent-color: var(--sl-color-accent);
+	}
+	.abl .abl-go {
+		border-color: var(--sl-color-accent);
+	}
+	.abl .abl-go:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.abl-note {
+		margin: 0.35rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		min-height: 1.2em;
+	}
+	.abl-lead {
+		fill: var(--ra-lead);
+		stroke: color-mix(in srgb, var(--ra-lead) 60%, black);
+	}
+	.abl-hole {
+		fill: var(--ig-surface);
+	}
+	.abl-src {
+		fill: var(--sl-color-gray-3);
+	}
+	.abl-src-a {
+		fill: var(--ra-a);
+	}
+	.abl-src-b {
+		fill: var(--ra-b);
+	}
+	.abl-src-g {
+		fill: var(--ra-g);
+	}
+	.abl-abs.abl-paper {
+		fill: var(--ra-paper);
+	}
+	.abl-abs.abl-al {
+		fill: var(--ra-al);
+	}
+	.abl-abs.abl-pb {
+		fill: color-mix(in srgb, var(--ra-lead) 85%, black);
+		stroke: color-mix(in srgb, var(--ra-lead) 50%, black);
+	}
+	.abl-tube {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 40%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.abl-win {
+		fill: var(--sl-color-gray-2);
+	}
+	.abl-wire {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	.abl-flash {
+		fill: hsl(275, 80%, 78%);
+		opacity: 0;
+		filter: blur(1px);
+	}
+	.abl-cable {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+		fill: none;
+	}
+	.abl-disp {
+		fill: hsl(150, 30%, 12%);
+		stroke: var(--sl-color-gray-3);
+	}
+	.abl-num {
+		fill: hsl(140, 80%, 65%);
+		font-size: 17px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+	.abl-unit {
+		fill: hsl(140, 40%, 60%);
+		font-size: 8px;
+	}
+	.abl-click {
+		fill: var(--sl-color-white);
+		font-size: 9px;
+		font-style: italic;
+		opacity: 0;
+	}
+	.abl-pa {
+		fill: var(--ra-a);
+	}
+	.abl-pb {
+		fill: var(--ra-b);
+	}
+	.abl-pg {
+		fill: none;
+		stroke: var(--ra-g);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.abl-ruler path,
+	.abl-dim {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		fill: none;
+	}
+</style>
