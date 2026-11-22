@@ -1,0 +1,171 @@
+---
+/**
+ * «Первая ядерная реакция» (Rutherford, 1919): ¹⁴₇N + ⁴₂He → ¹⁷₈O + ¹₁H.
+ * An α particle (2 protons + 2 neutrons, red track) flies in from the left and hits a nitrogen-14 nucleus (7 + 7);
+ * they merge into one cluster of 18 nucleons that trembles for 0,3 с; a proton leaves up-right (red track) and the
+ * remaining 17 nucleons (8 protons, 9 neutrons) settle into an oxygen-17 nucleus that recoils slowly down-right.
+ * Momentum is kept in the picture: α 4 mass units × 60 px/с = 240; the proton 1 × 70 px/с at 25° up; the oxygen
+ * nucleus takes the rest, (176,6; 29,6)/17 ≈ 10,5 px/с. Nuclei drawn at 6 px per фм; not to scale in time (a real
+ * collision lasts about 10⁻²¹ с, the picture 6 с). Under the picture the equation, A in the accent color and Z in the
+ * color of protons, and the two checks 14 + 4 = 17 + 1 and 7 + 2 = 8 + 1, which light up when the products have
+ * appeared. Loop 6 с + 2 с of the last frame.
+ */
+import YrStyles from './YrStyles.astro';
+import { pack } from './nucleus';
+const N14 = pack(14, 7, 5);
+const HE = pack(4, 2, 5);
+const O17 = pack(17, 8, 5);
+const nt = (A: number | string, Z: number | string, X: string) => `<span class="nt"><span class="nt__n"><span class="nt__a">${A}</span><span class="nt__z">${Z}</span></span><span class="nt__x">${X}</span></span>`;
+const EQ = `${nt(14, 7, 'N')} + ${nt(4, 2, 'He')} → ${nt(17, 8, 'O')} + ${nt(1, 1, 'H')}`;
+---
+
+<YrStyles />
+<figure class="yr rp not-content" data-rp data-json={JSON.stringify({ N14, HE, O17 })}>
+	<svg class="yr-big" viewBox="0 0 420 210" role="img" aria-label="Первая ядерная реакция: альфа-частица налетает на ядро азота-14, они сливаются, из ядра вылетает протон, остаётся ядро кислорода-17">
+		<defs>
+			<radialGradient id="rp-gp" cx="0.35" cy="0.3" r="0.75"><stop offset="0" class="yr-p0"></stop><stop offset="1" class="yr-p1"></stop></radialGradient>
+			<radialGradient id="rp-gn" cx="0.35" cy="0.3" r="0.75"><stop offset="0" class="yr-n0"></stop><stop offset="1" class="yr-n1"></stop></radialGradient>
+		</defs>
+		<path class="rp-tr" d="" data-tra></path>
+		<path class="rp-tr" d="" data-trp></path>
+		<g data-nuc></g>
+		<text class="yr-lbl rp-l" data-l="a" text-anchor="middle">α-частица</text>
+		<text class="yr-lbl rp-l" data-l="n" text-anchor="middle">азот-14</text>
+		<text class="yr-lbl rp-l" data-l="p" text-anchor="middle">протон</text>
+		<text class="yr-lbl rp-l" data-l="o" text-anchor="middle">кислород-17</text>
+	</svg>
+	<p class="rp-eq" set:html={EQ} />
+	<p class="rp-chk"><span data-ca><span class="nt__a">14 + 4</span> = <span class="nt__a">17 + 1</span></span><span data-cz><span class="nt__z">7 + 2</span> = <span class="nt__z">8 + 1</span></span></p>
+	<div class="yr-ctl"><button type="button" class="yr-btn" data-again>Повторить</button></div>
+	<p class="yr-cap">Размеры ядер — в масштабе, время сильно растянуто: настоящее столкновение длится около 10<sup>−21</sup>&nbsp;с.</p>
+</figure>
+
+<style is:global>
+	.rp .rp-tr {
+		fill: none;
+		stroke: var(--yr-p);
+		stroke-width: 1.6;
+		stroke-dasharray: 3 3;
+		opacity: 0.8;
+	}
+	.rp .rp-l {
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+	}
+	.rp .rp-eq {
+		margin: 0.3rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-lg);
+		line-height: 1.6;
+	}
+	.rp .rp-chk {
+		display: flex;
+		justify-content: center;
+		gap: 1.6rem;
+		margin: 0.1rem 0 0;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+	}
+	.rp .rp-chk > span {
+		opacity: 0.25;
+		transition: opacity 0.4s;
+	}
+	.rp .rp-chk > span.is-on {
+		opacity: 1;
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+	import { balls, view } from './nucleus';
+	type Nuc = [number, number, number, 0 | 1][];
+	const K = 6;
+	const RUN = 6;
+	const N0 = { x: 210, y: 105 };
+	const c01 = (x: number) => Math.min(1, Math.max(0, x));
+	const ease = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
+	document.querySelectorAll<HTMLElement>('[data-rp]').forEach((root) => {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const D = JSON.parse(root.dataset.json!) as { N14: Nuc; HE: Nuc; O17: Nuc };
+		// all 18 nucleons: 14 of nitrogen, then 4 of the α particle
+		const all: Nuc = [...D.N14, ...D.HE];
+		const kinds = all.map((p) => p[3]);
+		const B = balls(q<SVGGElement>('[data-nuc]'), kinds, { k: K, fills: ['url(#rp-gn)', 'url(#rp-gp)'] });
+		// the proton that leaves: the α particle's proton nearest to the far side; the rest map onto oxygen-17
+		const out = 14 + D.HE.findIndex((p) => p[3] === 1);
+		const restIdx = all.map((_, i) => i).filter((i) => i !== out);
+		const target: [number, number, number][] = new Array(18);
+		for (const kind of [0, 1] as const) {
+			const mine = restIdx.filter((i) => all[i][3] === kind);
+			const slots = D.O17.filter((p) => p[3] === kind);
+			mine.forEach((i, k) => (target[i] = [slots[k][0], slots[k][1], slots[k][2]]));
+		}
+		const tra = q<SVGPathElement>('[data-tra]');
+		const trp = q<SVGPathElement>('[data-trp]');
+		const lab = (k: string) => q<SVGTextElement>(`[data-l="${k}"]`);
+		const put = (t: SVGTextElement, x: number, y: number, o: number) => {
+			t.setAttribute('x', x.toFixed(1));
+			t.setAttribute('y', y.toFixed(1));
+			t.style.opacity = o.toFixed(2);
+		};
+		const ca = q<HTMLElement>('[data-ca]');
+		const cz = q<HTMLElement>('[data-cz]');
+		const VA = 60; // px/s
+		const T_HIT = 2.4;
+		const T_OUT = 2.9;
+		const VP = { x: 70 * Math.cos((25 * Math.PI) / 180), y: -70 * Math.sin((25 * Math.PI) / 180) };
+		const VO = { x: (240 - VP.x) / 17, y: -VP.y / 17 };
+		const draw = (x: number) => {
+			const t = RUN * x;
+			// the α particle until the hit: its center from the left
+			const ax = Math.min(N0.x - 26, N0.x - 26 - VA * (T_HIT - t));
+			const merge = c01((t - T_HIT) / 0.15);
+			const tr = t > T_HIT && t < T_OUT ? Math.sin((t - T_HIT) * 60) * 1.2 : 0;
+			const tau = t - T_OUT;
+			const settle = ease(tau / 0.6);
+			const oc = tau > 0 ? { x: N0.x + 13 + VO.x * tau, y: N0.y + VO.y * tau } : { x: N0.x + 13 * merge, y: N0.y };
+			all.forEach((p, i) => {
+				let x0: number, y0: number, z0: number;
+				if (i < 14) [x0, y0, z0] = [p[0] * K + N0.x, p[1] * K + N0.y, p[2]];
+				else [x0, y0, z0] = [p[0] * K + ax + (N0.x - 26 - ax) * merge, p[1] * K + N0.y, p[2]];
+				let vx: number, vy: number, vz: number;
+				if (i === out && tau > 0) {
+					vx = x0 + VP.x * tau;
+					vy = y0 + VP.y * tau;
+					vz = 9;
+				} else if (tau > 0) {
+					const g = target[i];
+					vx = x0 + (oc.x + g[0] * K - x0) * settle;
+					vy = y0 + (oc.y + g[1] * K - y0) * settle;
+					vz = g[2];
+				} else {
+					vx = x0 + tr;
+					vy = y0;
+					vz = z0;
+				}
+				const v = view((vx - N0.x) / K, (vy - N0.y) / K, vz);
+				B.set(i, N0.x + v.x * K, N0.y + v.y * K, v.z);
+			});
+			B.render();
+			// tracks
+			tra.setAttribute('d', `M10 ${N0.y} H${Math.max(10, ax - 14).toFixed(1)}`);
+			tra.style.opacity = t < T_HIT ? '0.8' : (0.8 * (1 - c01((t - T_HIT) / 1.5))).toFixed(2);
+			if (tau > 0) {
+				const px = N0.x - 26 + VP.x * tau;
+				const py = N0.y + VP.y * tau;
+				trp.setAttribute('d', `M${N0.x - 10} ${N0.y} L${(px - 8 * Math.cos(-0.436)).toFixed(1)} ${(py - 8 * Math.sin(-0.436)).toFixed(1)}`);
+				put(lab('p'), px + 6, py - 12, c01((tau - 0.3) / 0.3));
+			} else {
+				trp.setAttribute('d', '');
+				put(lab('p'), 0, 0, 0);
+			}
+			put(lab('a'), ax, N0.y - 26, t < T_HIT ? 1 : 0);
+			put(lab('n'), N0.x, N0.y + 38, t < T_HIT ? 1 : 0);
+			put(lab('o'), oc.x, oc.y + 42, c01((tau - 0.6) / 0.3));
+			ca.classList.toggle('is-on', tau > 1.0);
+			cz.classList.toggle('is-on', tau > 1.6);
+		};
+		scene(root, RUN, draw);
+	});
+</script>

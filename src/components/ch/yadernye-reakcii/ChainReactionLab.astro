@@ -1,0 +1,491 @@
+---
+/**
+ * «Цепная реакция»: a cross-section of a ball of uranium (a disc) and the neutrons of a chain reaction, generation by
+ * generation.
+ *
+ * Physics (a one-group estimate, honest within the model; the caption says it is a model):
+ *   radius of the ball R = (3m / (4πρ))^⅓, ρ = 19 г/см³: 4,0 см at 5 кг, 8,7 см at 52 кг, 10,8 см at 100 кг;
+ *   the share of neutrons that stay inside P = 1 / (1 + (πM/R)²), M = 3,14 см;
+ *   k = k∞·P, k∞ = 2,3 for pure uranium-235 (k = 1 at R = 8,66 см, m ≈ 52 кг: the critical mass), k∞ = 0,35 for natural
+ *   uranium (0,7 % of uranium-235; uranium-238 swallows most neutrons; k < 1 at any mass).
+ *   A neutron leaves through the surface with the probability 1 − P; a neutron that stays splits a uranium-235 nucleus
+ *   with the probability k∞/2,5, otherwise it is swallowed (in natural uranium mostly by uranium-238). Each fission
+ *   gives 2 or 3 neutrons (2,5 on average). So the mean number of neutrons of the next generation is k times larger.
+ *   The drawing follows this random process (Math.random); the counts are exact up to 5000 neutrons in a generation,
+ *   beyond that the mean k·N is used. At most 200 neutrons are drawn; beyond that the picture says so and the numbers go
+ *   on. One generation lasts 1 с on screen (in a real piece of uranium about 10⁻⁸ с). The disc is drawn at 14 px per см;
+ *   the nuclei are drawn as a grid of dots, one dot for very many nuclei; in natural uranium every tenth dot is drawn as
+ *   uranium-235 (in reality one in 140).
+ * Controls: «Масса шара» 5–100 кг; «Уран-235 / Природный уран»; «Запустить 10 нейтронов» (a neutron source at the
+ * center gives generation 0; with a single neutron the chain often dies at once by chance even at k = 1,25: the
+ * probability is about 0,7, with ten neutrons about 0,04);
+ * «Сброс». Readouts: the generation, the number of neutrons in it, the last ones in a row, k ≈ (the ratio of the last
+ * two generations), the model's k, and the verdict.
+ */
+import YrStyles from './YrStyles.astro';
+const PXCM = 14;
+const RMAX = 10.8 * PXCM;
+const DOTS: [number, number, number][] = [];
+{
+	let i = 0;
+	for (let r = -12; r <= 12; r++)
+		for (let c = -13; c <= 13; c++) {
+			const x = c * 13 + (r % 2 ? 6.5 : 0);
+			const y = r * 11.3;
+			if (Math.hypot(x, y) < RMAX - 4) {
+				// a fixed pseudo-random tenth of the dots are uranium-235 in natural uranium
+				const h = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+				DOTS.push([+x.toFixed(1), +y.toFixed(1), h - Math.floor(h) < 0.1 ? 1 : 0]);
+				i++;
+			}
+		}
+}
+---
+
+<YrStyles />
+<figure class="yr crl not-content" data-crl data-dots={JSON.stringify(DOTS)}>
+	<svg viewBox="0 0 360 336" role="img" aria-label="Модель цепной реакции: срез уранового шара. Нейтроны разлетаются от разделившихся ядер, часть вылетает наружу, часть поглощается, остальные делят новые ядра. Можно менять массу шара и выбирать уран-235 или природный уран">
+		<defs>
+			<radialGradient id="crl-glow"><stop offset="0" class="crl-glow0"></stop><stop offset="1" class="crl-glow1"></stop></radialGradient>
+		</defs>
+		<circle class="crl-ball" cx="180" cy="168" r="60" data-ball></circle>
+		<circle cx="180" cy="168" r="60" fill="url(#crl-glow)" opacity="0" data-glow></circle>
+		<g data-dots></g>
+		<g data-flashes></g>
+		<g data-ns></g>
+		<path class="crl-rline" d="" data-rline></path>
+		<text class="yr-lbl crl-l yr-sym" x="180" y="0" text-anchor="middle" data-rlab>R</text>
+		<text class="yr-lbl-s crl-l" x="350" y="326" text-anchor="end" data-many></text>
+		<g class="crl-key" transform="translate(10 14)">
+			<circle class="crl-u5" cx="5" cy="0" r="4"></circle>
+			<text class="yr-lbl-s" x="13" y="3.5">уран-235</text>
+			<circle class="crl-u8" cx="5" cy="14" r="4" data-key8></circle>
+			<text class="yr-lbl-s" x="13" y="17.5" data-key8t>уран-238</text>
+			<circle class="yr-ball yr-free crl-n" cx="5" cy="28" r="2.6"></circle>
+			<text class="yr-lbl-s" x="13" y="31.5">нейтрон</text>
+		</g>
+	</svg>
+	<div class="crl-read">
+		<p><span class="crl-k">Поколение:</span> <b data-gen>—</b> · <span class="crl-k">нейтронов в поколении:</span> <b data-num>—</b></p>
+		<p class="crl-hist" data-hist>&nbsp;</p>
+		<p><span class="crl-k"><i>k</i> ≈</span> <b data-kk>—</b> <span class="crl-k">(отношение двух последних поколений)</span></p>
+		<p><span class="crl-k"><i>k</i> модели =</span> <b data-km>—</b> · <span data-verdict></span></p>
+	</div>
+	<div class="yr-ctl">
+		<label class="crl-sl"><span>Масса шара <b data-mv>30</b>&nbsp;кг · радиус <i>R</i> = <b data-rv>7,2</b>&nbsp;см</span><input type="range" min="5" max="100" step="1" value="30" data-m /></label>
+	</div>
+	<div class="yr-ctl">
+		<button type="button" class="yr-btn" data-u="235" aria-pressed="true">Уран-235</button>
+		<button type="button" class="yr-btn" data-u="nat" aria-pressed="false">Природный уран</button>
+	</div>
+	<div class="yr-ctl">
+		<button type="button" class="yr-btn crl-go" data-go>Запустить 10 нейтронов</button>
+		<button type="button" class="yr-btn" data-reset>Сброс</button>
+	</div>
+	<p class="yr-cap">10 нейтронов вылетают из источника в центре шара. Это модель: каждый нейтрон с некоторой вероятностью вылетает наружу, поглощается или делит ядро урана-235, и при каждом делении вылетает 2 или 3 нейтрона. Одно поколение длится здесь 1&nbsp;с, в настоящем куске урана — около 10<sup>−8</sup>&nbsp;с. В природном уране ядра урана-235 нарисованы чаще, чем они встречаются (на самом деле одно на 140).</p>
+</figure>
+
+<style is:global>
+	@media (max-width: 560px) {
+		.yr.crl svg text {
+			font-size: 12.4px;
+		}
+	}
+	.crl .crl-ball {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.crl .crl-glow0 {
+		stop-color: var(--yr-g);
+		stop-opacity: 0.55;
+	}
+	.crl .crl-glow1 {
+		stop-color: var(--yr-g);
+		stop-opacity: 0.1;
+	}
+	.crl .crl-u5 {
+		fill: var(--yr-n);
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.6;
+	}
+	.crl .crl-u8 {
+		fill: var(--yr-n);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	.crl .crl-n {
+		fill: var(--yr-n);
+	}
+	.crl .crl-tr {
+		stroke: var(--yr-n);
+		stroke-width: 2;
+		stroke-linecap: round;
+		opacity: 0.55;
+	}
+	.crl .crl-fl {
+		fill: var(--yr-g);
+	}
+	.crl .crl-ab {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.crl .crl-rline {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	.crl .crl-l {
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+	}
+	.crl .crl-read {
+		margin-top: 0.4rem;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		line-height: 1.5;
+		font-variant-numeric: tabular-nums;
+	}
+	.crl .crl-read p {
+		margin: 0;
+	}
+	.crl .crl-k {
+		color: var(--sl-color-gray-2);
+	}
+	.crl .crl-hist {
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-xs);
+		overflow-wrap: anywhere;
+	}
+	.crl [data-verdict].is-up {
+		color: var(--yr-p);
+		font-weight: 600;
+	}
+	.crl [data-verdict].is-eq {
+		color: var(--yr-g);
+		font-weight: 600;
+	}
+	.crl [data-verdict].is-down {
+		color: var(--ig-vx);
+		font-weight: 600;
+	}
+	.crl .crl-sl {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.2rem;
+		width: min(100%, 22rem);
+		font-size: var(--sl-text-sm);
+	}
+	.crl .crl-sl input {
+		width: 100%;
+	}
+	.crl .crl-go {
+		border-color: var(--sl-color-accent);
+	}
+</style>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+	const NS = 'http://www.w3.org/2000/svg';
+	const CX = 180;
+	const CY = 168;
+	const PXCM = 14;
+	const RHO = 19; // г/см³
+	const M = 3.14; // см
+	const KINF = { '235': 2.3, nat: 0.35 } as const;
+	const MAXDRAW = 200;
+	const START = 10; // neutrons from the source at the center
+	const GEN = 1; // s per generation
+	const FLY = 0.8; // s of flight
+	const mk = (p: Element, tag: string, a: Record<string, string | number>) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		p.append(e);
+		return e;
+	};
+	const fmt = (v: number, d = 2) => v.toFixed(d).replace('.', ',');
+	const fint = (v: number) => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+	const radius = (m: number) => Math.cbrt((3 * m * 1000) / (4 * Math.PI * RHO)); // см
+	const stayP = (R: number) => 1 / (1 + ((Math.PI * M) / R) ** 2);
+	/** binomial(n, p) by direct trials (n ≤ 5000) */
+	const binom = (n: number, p: number) => {
+		let c = 0;
+		for (let i = 0; i < n; i++) if (Math.random() < p) c++;
+		return c;
+	};
+
+	document.querySelectorAll<HTMLElement>('[data-crl]').forEach((root) => {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const dots = JSON.parse(root.dataset.dots!) as [number, number, 0 | 1][];
+		const ball = q<SVGCircleElement>('[data-ball]');
+		const glow = q<SVGCircleElement>('[data-glow]');
+		const dotG = q<SVGGElement>('[data-dots]');
+		const flG = q<SVGGElement>('[data-flashes]');
+		const nG = q<SVGGElement>('[data-ns]');
+		const rline = q<SVGPathElement>('[data-rline]');
+		const rlab = q<SVGTextElement>('[data-rlab]');
+		const many = q<SVGTextElement>('[data-many]');
+		const out = { gen: q('[data-gen]'), num: q('[data-num]'), hist: q('[data-hist]'), kk: q('[data-kk]'), km: q('[data-km]'), verdict: q<HTMLElement>('[data-verdict]'), mv: q('[data-mv]'), rv: q('[data-rv]') };
+		const slider = q<HTMLInputElement>('[data-m]');
+		const dotEls = dots.map(([x, y]) => mk(dotG, 'circle', { cx: CX + x, cy: CY + y, r: 3.6 }) as SVGCircleElement);
+		// pools: neutrons (dot + trail), flashes
+		const pool = Array.from({ length: MAXDRAW }, () => {
+			const g = mk(nG, 'g', {}) as SVGGElement;
+			const tr = mk(g, 'line', { class: 'crl-tr' });
+			const c = mk(g, 'circle', { class: 'yr-ball yr-free crl-n', r: 2.6 });
+			g.style.display = 'none';
+			return { g, tr, c };
+		});
+		const fpool = Array.from({ length: MAXDRAW }, () => {
+			const c = mk(flG, 'circle', { class: 'crl-fl', r: 0 });
+			c.style.display = 'none';
+			return c;
+		});
+
+		let mass = 30;
+		let kind: '235' | 'nat' = '235';
+		let R = radius(mass);
+		let kModel = 0;
+		const setup = () => {
+			R = radius(mass);
+			kModel = KINF[kind] * stayP(R);
+			const rp = R * PXCM;
+			ball.setAttribute('r', rp.toFixed(1));
+			glow.setAttribute('r', rp.toFixed(1));
+			dots.forEach(([x, y, f], i) => {
+				const inside = Math.hypot(x, y) < rp - 3;
+				dotEls[i].style.display = inside ? '' : 'none';
+				dotEls[i].setAttribute('class', kind === '235' || f ? 'crl-u5' : 'crl-u8');
+			});
+			rline.setAttribute('d', `M${CX} ${CY} H${(CX + rp).toFixed(1)}`);
+			rlab.setAttribute('x', String(CX + rp / 2));
+			rlab.setAttribute('y', String(CY - 6));
+			out.mv.textContent = String(mass);
+			out.rv.textContent = fmt(R, 1);
+			out.km.textContent = fmt(kModel, 2);
+			const v = out.verdict;
+			const [cls, txt] = Math.abs(kModel - 1) < 0.01 ? ['is-eq', '<i>k</i> ≈ 1: реакция идёт с постоянной скоростью'] : kModel > 1 ? ['is-up', '<i>k</i> > 1: реакция нарастает'] : ['is-down', '<i>k</i> < 1: реакция затухает'];
+			v.className = cls;
+			v.innerHTML = txt;
+			q<SVGCircleElement>('[data-key8]').style.display = kind === 'nat' ? '' : 'none';
+			q<SVGTextElement>('[data-key8t]').style.display = kind === 'nat' ? '' : 'none';
+		};
+
+		// ---- the run: generations
+		type Fly = { x0: number; y0: number; x1: number; y1: number; fate: 0 | 1 | 2 }; // 0 fission, 1 out, 2 swallowed
+		let running = false;
+		let t = 0;
+		let gen = 0;
+		let N = 0; // neutrons in the current generation
+		let hist: number[] = [];
+		let flies: Fly[] = [];
+		let sites: [number, number][] = []; // where the current neutrons start
+		const u5 = () => dots.filter(([x, y, f]) => (kind === '235' || f) && Math.hypot(x, y) < R * PXCM - 3);
+		const u8 = () => dots.filter(([x, y, f]) => kind === 'nat' && !f && Math.hypot(x, y) < R * PXCM - 3);
+		const near = (list: [number, number, 0 | 1][], x: number, y: number) => {
+			// a random nucleus of the list 15–70 px away, else the nearest one
+			const c = list.filter(([a, b]) => {
+				const d = Math.hypot(a - x, b - y);
+				return d > 15 && d < 70;
+			});
+			if (c.length) return c[Math.floor(Math.random() * c.length)];
+			let best = list[0];
+			let bd = 1e9;
+			for (const p of list) {
+				const d = Math.hypot(p[0] - x, p[1] - y);
+				if (d > 4 && d < bd) {
+					bd = d;
+					best = p;
+				}
+			}
+			return best;
+		};
+		/** decide the fates of N neutrons; returns the number of the next generation */
+		const step = (n: number): { next: number; fis: number; outN: number; abs: number } => {
+			const P = stayP(R);
+			const pf = KINF[kind] / 2.5;
+			if (n <= 5000) {
+				const stay = binom(n, P);
+				const fis = binom(stay, pf);
+				let next = 0;
+				for (let i = 0; i < fis; i++) next += Math.random() < 0.5 ? 2 : 3;
+				return { next, fis, outN: n - stay, abs: stay - fis };
+			}
+			const fis = n * P * pf;
+			return { next: Math.round(fis * 2.5), fis, outN: n * (1 - P), abs: n * P * (1 - pf) };
+		};
+		const plan = () => {
+			// the paths of the drawn neutrons of this generation
+			flies = [];
+			const res = step(N);
+			const drawN = Math.min(N, MAXDRAW);
+			if (N <= MAXDRAW) {
+				const fates: (0 | 1 | 2)[] = [];
+				for (let i = 0; i < Math.round(res.fis); i++) fates.push(0);
+				for (let i = 0; i < Math.round(res.outN); i++) fates.push(1);
+				while (fates.length < N) fates.push(2);
+				const list5 = u5();
+				const list8 = u8();
+				fates.forEach((fate, i) => {
+					const [x0, y0] = sites[i % sites.length];
+					let x1 = x0;
+					let y1 = y0;
+					if (fate === 1) {
+						// straight out through the surface, 40 px beyond it
+						const an = Math.random() * 2 * Math.PI;
+						const dx = Math.cos(an);
+						const dy = Math.sin(an);
+						const Rr = R * PXCM + 40;
+						const b = x0 * dx + y0 * dy;
+						const L = -b + Math.sqrt(b * b - (x0 * x0 + y0 * y0 - Rr * Rr));
+						x1 = x0 + dx * L;
+						y1 = y0 + dy * L;
+					} else {
+						const list = fate === 2 && list8.length ? list8 : list5;
+						const p = list.length ? near(list, x0, y0) : [x0 + 20, y0, 0];
+						x1 = p[0];
+						y1 = p[1];
+					}
+					flies.push({ x0, y0, x1, y1, fate });
+				});
+			}
+			many.textContent = N > MAXDRAW ? 'нейтронов слишком много, чтобы нарисовать' : '';
+			return { res, drawN };
+		};
+		let pending: { next: number; fis: number } = { next: 0, fis: 0 };
+		const startGen = () => {
+			const { res } = plan();
+			pending = res;
+			hist.push(N);
+			out.gen.textContent = String(gen);
+			out.num.textContent = fint(N);
+			const h = hist.slice(-7).map(fint).join(' → ');
+			out.hist.textContent = (hist.length > 7 ? '… → ' : '') + h;
+			if (hist.length >= 2 && hist[hist.length - 2] > 0) out.kk.textContent = fmt(hist[hist.length - 1] / hist[hist.length - 2], 2);
+			else out.kk.textContent = '—';
+		};
+		const finishGen = () => {
+			// the next generation starts at the fissioned nuclei
+			const fs = flies.filter((f) => f.fate === 0).map((f) => [f.x1, f.y1] as [number, number]);
+			sites = [];
+			if (fs.length) {
+				// each fission gives 2 or 3 neutrons: repeat its site
+				let k = 0;
+				while (sites.length < Math.min(pending.next, MAXDRAW)) sites.push(fs[k++ % fs.length]);
+			} else {
+				const l = u5();
+				for (let i = 0; i < Math.min(pending.next, MAXDRAW); i++) {
+					const p = l[Math.floor(Math.random() * l.length)];
+					sites.push([p[0], p[1]]);
+				}
+			}
+			N = pending.next;
+			gen++;
+			if (N === 0 || gen > 40 || N > 1e15) {
+				running = false;
+				hist.push(N);
+				out.gen.textContent = String(gen);
+				out.num.textContent = fint(N);
+				const h = hist.slice(-7).map(fint).join(' → ');
+				out.hist.textContent = (hist.length > 7 ? '… → ' : '') + h + (N === 0 ? ' — реакция затухла' : '');
+				if (hist[hist.length - 2] > 0) out.kk.textContent = fmt(hist[hist.length - 1] / hist[hist.length - 2], 2);
+				pool.forEach((p) => (p.g.style.display = 'none'));
+				return;
+			}
+			startGen();
+		};
+		const draw = () => {
+			const u = Math.min(1, t / FLY);
+			pool.forEach((p, i) => {
+				const f = flies[i];
+				if (!f || !running) {
+					p.g.style.display = 'none';
+					return;
+				}
+				const x = f.x0 + (f.x1 - f.x0) * u;
+				const y = f.y0 + (f.y1 - f.y0) * u;
+				const a = Math.atan2(f.y1 - f.y0, f.x1 - f.x0);
+				const tl = Math.min(14, Math.hypot(x - f.x0, y - f.y0));
+				const out1 = f.fate === 1 && Math.hypot(x, y) > R * PXCM;
+				p.g.style.display = u >= 1 ? 'none' : '';
+				p.g.style.opacity = out1 ? String(Math.max(0, 1 - (Math.hypot(x, y) - R * PXCM) / 40)) : '1';
+				p.c.setAttribute('cx', (CX + x).toFixed(1));
+				p.c.setAttribute('cy', (CY + y).toFixed(1));
+				p.tr.setAttribute('x1', (CX + x - tl * Math.cos(a)).toFixed(1));
+				p.tr.setAttribute('y1', (CY + y - tl * Math.sin(a)).toFixed(1));
+				p.tr.setAttribute('x2', (CX + x - 3 * Math.cos(a)).toFixed(1));
+				p.tr.setAttribute('y2', (CY + y - 3 * Math.sin(a)).toFixed(1));
+			});
+			// flashes at the end of the flight: gold for a fission, a gray ring for a neutron swallowed
+			const fu = (t - FLY) / (GEN - FLY);
+			fpool.forEach((c, i) => {
+				const f = flies[i];
+				if (!f || !running || f.fate === 1 || fu < 0) {
+					c.style.display = 'none';
+					return;
+				}
+				c.style.display = '';
+				c.setAttribute('class', f.fate === 0 ? 'crl-fl' : 'crl-ab');
+				c.setAttribute('cx', (CX + f.x1).toFixed(1));
+				c.setAttribute('cy', (CY + f.y1).toFixed(1));
+				c.setAttribute('r', (3 + 7 * fu).toFixed(1));
+				c.style.opacity = (1 - fu).toFixed(2);
+			});
+			glow.setAttribute('opacity', running && N > 0 ? Math.min(1, Math.log10(N + 1) / 6).toFixed(2) : '0');
+		};
+		const wake = loop(root, (dt) => {
+			if (!running) {
+				draw();
+				return false;
+			}
+			t += dt;
+			if (t >= GEN) {
+				t = 0;
+				finishGen();
+			}
+			draw();
+			return running;
+		});
+		const reset = () => {
+			running = false;
+			gen = 0;
+			N = 0;
+			hist = [];
+			t = 0;
+			flies = [];
+			out.gen.textContent = '—';
+			out.num.textContent = '—';
+			out.kk.textContent = '—';
+			out.hist.innerHTML = '&nbsp;';
+			many.textContent = '';
+			draw();
+		};
+		q('[data-go]').addEventListener('click', () => {
+			reset();
+			running = true;
+			N = START;
+			sites = Array.from({ length: START }, () => [0, 0] as [number, number]);
+			startGen();
+			wake();
+		});
+		q('[data-reset]').addEventListener('click', reset);
+		slider.addEventListener('input', () => {
+			mass = Number(slider.value);
+			setup();
+			reset();
+		});
+		root.querySelectorAll<HTMLButtonElement>('[data-u]').forEach((b) =>
+			b.addEventListener('click', () => {
+				kind = b.dataset.u as '235' | 'nat';
+				root.querySelectorAll('[data-u]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				setup();
+				reset();
+			}),
+		);
+		setup();
+		reset();
+	});
+</script>

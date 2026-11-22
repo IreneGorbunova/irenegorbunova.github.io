@@ -1,0 +1,346 @@
+---
+/**
+ * «Уравняйте реакцию»: five real nuclear reactions, one at a time, each with one empty slot «?». The reader picks one
+ * of six particles (neutron, proton, α particle, electron, deuteron, triton); two counters compare the sums of the mass
+ * numbers A and of the charge numbers Z on the left and on the right (green «=», red «≠»). The right particle plays a
+ * short animation of the reaction (the projectile hits the target, the two products fly apart) and says «Верно»;
+ * a wrong one says «Подумайте ещё», and the counters show which sum fails. A note appears under a solved reaction.
+ * All five balance (checked):
+ *   ⁷Li + p → ⁴He + ⁴He (7 + 1 = 4 + 4; 3 + 1 = 2 + 2), Cockcroft and Walton, 1932;
+ *   ¹⁴N + n → ¹⁴C + p (14 + 1 = 14 + 1; 7 + 0 = 6 + 1);
+ *   ¹⁰B + n → ⁷Li + ⁴He (10 + 1 = 7 + 4; 5 + 0 = 3 + 2);
+ *   ⁶Li + n → ³H + ⁴He (6 + 1 = 3 + 4; 3 + 0 = 1 + 2);
+ *   ²⁷Al + n → ²⁴Na + ⁴He (27 + 1 = 24 + 4; 13 + 0 = 11 + 2).
+ * Nuclei are drawn with their real numbers of protons and neutrons (nucleus.ts), 3 px per фм in the equation.
+ */
+import YrStyles from './YrStyles.astro';
+import { clusterSvg } from './nucleus';
+type Sp = { A: number; Z: number; X: string; name: string };
+const SP: Record<string, Sp> = {
+	n: { A: 1, Z: 0, X: 'n', name: 'нейтрон' },
+	p: { A: 1, Z: 1, X: 'p', name: 'протон' },
+	a: { A: 4, Z: 2, X: 'He', name: 'α-частица' },
+	e: { A: 0, Z: -1, X: 'e', name: 'электрон' },
+	d: { A: 2, Z: 1, X: 'H', name: 'дейтрон' },
+	t: { A: 3, Z: 1, X: 'H', name: 'тритон' },
+	li7: { A: 7, Z: 3, X: 'Li', name: 'литий-7' },
+	n14: { A: 14, Z: 7, X: 'N', name: 'азот-14' },
+	c14: { A: 14, Z: 6, X: 'C', name: 'углерод-14' },
+	b10: { A: 10, Z: 5, X: 'B', name: 'бор-10' },
+	li6: { A: 6, Z: 3, X: 'Li', name: 'литий-6' },
+	al27: { A: 27, Z: 13, X: 'Al', name: 'алюминий-27' },
+	na24: { A: 24, Z: 11, X: 'Na', name: 'натрий-24' },
+};
+const CHOICES = ['n', 'p', 'a', 'e', 'd', 't'];
+// [target, projectile] → [product 1, product 2]; the slot is the index of the unknown product; the answer
+const R = [
+	{ l: ['li7', 'p'], r: ['a', 'a'], slot: 1, note: 'Кокрофт и Уолтон, 1932: первая реакция с протонами из ускорителя.' },
+	{ l: ['n14', 'n'], r: ['c14', 'p'], slot: 1, note: 'Так в воздухе рождается углерод-14.' },
+	{ l: ['b10', 'n'], r: ['li7', 'a'], slot: 1, note: 'Так бор поглощает нейтроны в управляющих стержнях.' },
+	{ l: ['li6', 'n'], r: ['t', 'a'], slot: 0, note: 'Так получают тритий.' },
+	{ l: ['al27', 'n'], r: ['na24', 'a'], slot: 1, note: '' },
+];
+const nt = (s: Sp) => `<span class="nt"><span class="nt__n"><span class="nt__a">${s.A}</span><span class="nt__z">${s.Z < 0 ? '−' + -s.Z : s.Z}</span></span><span class="nt__x">${s.X}</span></span>`;
+const K = 3;
+const icon = (k: string, kk = K) => {
+	const s = SP[k];
+	const r = s.A ? (Math.cbrt(s.A / 0.64) + 0.2) * kk : kk;
+	const w = Math.ceil(2 * r + 4);
+	return `<svg class="rbl-ic" width="${w}" height="${w}" viewBox="${-w / 2} ${-w / 2} ${w} ${w}" aria-hidden="true">${clusterSvg(s.A, s.Z, kk, 'url(#rbl-gp)', 'url(#rbl-gn)')}</svg>`;
+};
+const ICONS = Object.fromEntries(Object.keys(SP).map((k) => [k, icon(k)]));
+const BIG = Object.fromEntries(Object.keys(SP).map((k) => [k, clusterSvg(SP[k].A, SP[k].Z, 4.2, 'url(#rbl-gp)', 'url(#rbl-gn)')]));
+const term = (k: string) => `<span class="rbl-term">${ICONS[k]}${nt(SP[k])}</span>`;
+---
+
+<YrStyles />
+<figure class="yr rbl not-content" data-rbl data-sp={JSON.stringify(SP)} data-r={JSON.stringify(R)} data-icons={JSON.stringify(ICONS)} data-nts={JSON.stringify(Object.fromEntries(Object.keys(SP).map((k) => [k, nt(SP[k])])))} data-big={JSON.stringify(BIG)}>
+	<svg width="0" height="0" class="rbl-defs" aria-hidden="true">
+		<defs>
+			<radialGradient id="rbl-gp" cx="0.35" cy="0.3" r="0.75"><stop offset="0" class="yr-p0"></stop><stop offset="1" class="yr-p1"></stop></radialGradient>
+			<radialGradient id="rbl-gn" cx="0.35" cy="0.3" r="0.75"><stop offset="0" class="yr-n0"></stop><stop offset="1" class="yr-n1"></stop></radialGradient>
+		</defs>
+	</svg>
+	<div class="rbl-nav">
+		<button type="button" class="yr-btn" data-prev aria-label="Предыдущая реакция">‹</button>
+		<span>Реакция <b data-i>1</b> из 5</span>
+		<button type="button" class="yr-btn" data-next aria-label="Следующая реакция">›</button>
+	</div>
+	{
+		R.map((r, i) => (
+			<div class="rbl-eq" data-eq={i} hidden={i > 0}>
+				<Fragment set:html={term(r.l[0])} />
+				<span class="rbl-op">+</span>
+				<Fragment set:html={term(r.l[1])} />
+				<span class="rbl-op">→</span>
+				{r.slot === 0 ? <span class="rbl-slot" data-slot>?</span> : <Fragment set:html={term(r.r[0])} />}
+				<span class="rbl-op">+</span>
+				{r.slot === 1 ? <span class="rbl-slot" data-slot>?</span> : <Fragment set:html={term(r.r[1])} />}
+			</div>
+		))
+	}
+	<svg class="rbl-anim" viewBox="0 0 360 90" aria-hidden="true">
+		<g data-a0></g>
+		<g data-a1></g>
+		<g data-a2></g>
+		<g data-a3></g>
+		<circle class="rbl-flash" r="14" cx="180" cy="45" opacity="0" data-flash></circle>
+	</svg>
+	<div class="rbl-sums">
+		<p>Сумма <span class="nt__a"><i>A</i></span>: слева <b data-al></b>, справа <b data-ar></b> <b class="rbl-mark" data-am></b></p>
+		<p>Сумма <span class="nt__z"><i>Z</i></span>: слева <b data-zl></b>, справа <b data-zr></b> <b class="rbl-mark" data-zm></b></p>
+	</div>
+	<p class="rbl-verdict" data-verdict aria-live="polite">&nbsp;</p>
+	<p class="rbl-note" data-note>&nbsp;</p>
+	<div class="rbl-choices">
+		{
+			CHOICES.map((k) => (
+				<button type="button" class="yr-btn rbl-ch" data-ch={k}>
+					<Fragment set:html={ICONS[k]} />
+					<Fragment set:html={nt(SP[k])} />
+					<span class="rbl-nm">{SP[k].name}</span>
+				</button>
+			))
+		}
+	</div>
+	<p class="rbl-score">Решено: <b data-score>0</b> из 5</p>
+</figure>
+
+<style is:global>
+	.rbl svg.rbl-ic {
+		display: inline-block;
+		width: auto;
+		height: auto;
+		margin: 0;
+	}
+	.rbl .rbl-defs {
+		position: absolute;
+	}
+	.rbl .rbl-nav {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 0.8rem;
+		font-size: var(--sl-text-sm);
+	}
+	.rbl .rbl-eq {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		align-items: flex-end;
+		gap: 0.25rem 0.45rem;
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xl);
+	}
+	.rbl .rbl-eq[hidden] {
+		display: none;
+	}
+	.rbl .rbl-term {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.1rem;
+	}
+	.rbl .rbl-op {
+		padding-bottom: 0.2rem;
+	}
+	.rbl .rbl-slot {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: flex-end;
+		min-width: 3rem;
+		min-height: 3.6rem;
+		padding: 0.1rem 0.3rem;
+		border: 2px dashed var(--sl-color-gray-3);
+		border-radius: 0.5rem;
+		color: var(--sl-color-gray-2);
+	}
+	.rbl .rbl-slot.is-ok {
+		border-color: var(--sl-color-green);
+		border-style: solid;
+	}
+	.rbl .rbl-slot.is-bad {
+		border-color: var(--sl-color-red);
+	}
+	.rbl .rbl-anim {
+		display: block;
+		max-width: 360px;
+		margin: 0.2rem auto 0;
+	}
+	.rbl .rbl-flash {
+		fill: var(--yr-g);
+	}
+	.rbl .rbl-sums {
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+	}
+	.rbl .rbl-sums p {
+		margin: 0;
+	}
+	.rbl .rbl-mark.is-eq {
+		color: var(--sl-color-green);
+	}
+	.rbl .rbl-mark.is-ne {
+		color: var(--sl-color-red);
+	}
+	.rbl .rbl-verdict {
+		margin: 0.3rem 0 0;
+		text-align: center;
+		font-weight: 600;
+	}
+	.rbl .rbl-verdict.is-ok {
+		color: var(--sl-color-green);
+	}
+	.rbl .rbl-verdict.is-bad {
+		color: var(--sl-color-red);
+	}
+	.rbl .rbl-note {
+		margin: 0;
+		text-align: center;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.rbl .rbl-choices {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.4rem;
+		margin-top: 0.5rem;
+	}
+	.rbl .rbl-ch {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.15rem;
+		border-radius: 0.8rem;
+		padding: 0.35rem 0.3rem;
+	}
+	.rbl .rbl-nm {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.rbl .rbl-score {
+		margin: 0.5rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+	}
+</style>
+
+<script>
+	type Sp = { A: number; Z: number; X: string; name: string };
+	type Re = { l: string[]; r: string[]; slot: number; note: string };
+	const NS = 'http://www.w3.org/2000/svg';
+	document.querySelectorAll<HTMLElement>('[data-rbl]').forEach((root) => {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const SP = JSON.parse(root.dataset.sp!) as Record<string, Sp>;
+		const R = JSON.parse(root.dataset.r!) as Re[];
+		const ICONS = JSON.parse(root.dataset.icons!) as Record<string, string>;
+		const NTS = JSON.parse(root.dataset.nts!) as Record<string, string>;
+		const BIG = JSON.parse(root.dataset.big!) as Record<string, string>;
+		const eqs = [...root.querySelectorAll<HTMLElement>('[data-eq]')];
+		const out = { i: q('[data-i]'), al: q('[data-al]'), ar: q('[data-ar]'), am: q('[data-am]'), zl: q('[data-zl]'), zr: q('[data-zr]'), zm: q('[data-zm]'), v: q<HTMLElement>('[data-verdict]'), note: q('[data-note]'), score: q('[data-score]') };
+		const anim = [0, 1, 2, 3].map((k) => q<SVGGElement>(`[data-a${k}]`));
+		const flash = q<SVGCircleElement>('[data-flash]');
+		let cur = 0;
+		const picked: (string | null)[] = R.map(() => null);
+		const solved = R.map(() => false);
+		let raf = 0;
+		const play = (r: Re) => {
+			// the projectile hits the target, a flash, the two products fly apart
+			const parts = [r.l[0], r.l[1], r.r[0], r.r[1]];
+			anim.forEach((g, k) => (g.innerHTML = BIG[parts[k]]));
+			cancelAnimationFrame(raf);
+			const t0 = performance.now();
+			const step = (now: number) => {
+				const t = (now - t0) / 1000;
+				const u = Math.min(1, t / 0.9);
+				const hit = t >= 0.9;
+				anim[0].setAttribute('transform', `translate(180 45)`);
+				anim[1].setAttribute('transform', `translate(${(40 + 112 * u).toFixed(1)} 45)`);
+				anim[0].style.opacity = hit ? '0' : '1';
+				anim[1].style.opacity = hit ? '0' : '1';
+				const s = hit ? Math.min(1, (t - 0.9) / 1.1) : 0;
+				anim[2].setAttribute('transform', `translate(${(180 + 120 * s).toFixed(1)} ${(45 + 26 * s).toFixed(1)})`);
+				anim[3].setAttribute('transform', `translate(${(180 + 110 * s).toFixed(1)} ${(45 - 30 * s).toFixed(1)})`);
+				anim[2].style.opacity = hit ? '1' : '0';
+				anim[3].style.opacity = hit ? '1' : '0';
+				flash.setAttribute('opacity', hit ? Math.max(0, 1 - (t - 0.9) / 0.5).toFixed(2) : '0');
+				if (t < 2.1) raf = requestAnimationFrame(step);
+			};
+			raf = requestAnimationFrame(step);
+		};
+		const showStatic = (r: Re, solvedNow: boolean) => {
+			cancelAnimationFrame(raf);
+			flash.setAttribute('opacity', '0');
+			const parts = [r.l[0], r.l[1], r.r[0], r.r[1]];
+			anim.forEach((g, k) => (g.innerHTML = BIG[parts[k]]));
+			if (solvedNow) {
+				anim[0].style.opacity = '0';
+				anim[1].style.opacity = '0';
+				anim[2].style.opacity = '1';
+				anim[3].style.opacity = '1';
+				anim[2].setAttribute('transform', 'translate(300 71)');
+				anim[3].setAttribute('transform', 'translate(290 15)');
+			} else {
+				anim[0].style.opacity = '1';
+				anim[1].style.opacity = '1';
+				anim[2].style.opacity = '0';
+				anim[3].style.opacity = '0';
+				anim[0].setAttribute('transform', 'translate(180 45)');
+				anim[1].setAttribute('transform', 'translate(40 45)');
+			}
+		};
+		const update = (fresh = false) => {
+			const r = R[cur];
+			eqs.forEach((e, i) => (e.hidden = i !== cur));
+			out.i.textContent = String(cur + 1);
+			const pk = picked[cur];
+			const slot = eqs[cur].querySelector<HTMLElement>('[data-slot]')!;
+			const ans = r.r[r.slot];
+			slot.innerHTML = pk ? ICONS[pk] + NTS[pk] : '?';
+			const known = r.r[1 - r.slot];
+			const Al = SP[r.l[0]].A + SP[r.l[1]].A;
+			const Zl = SP[r.l[0]].Z + SP[r.l[1]].Z;
+			const Ar = SP[known].A + (pk ? SP[pk].A : 0);
+			const Zr = SP[known].Z + (pk ? SP[pk].Z : 0);
+			const zf = (z: number) => (z < 0 ? '−' + -z : String(z));
+			out.al.textContent = String(Al);
+			out.zl.textContent = zf(Zl);
+			out.ar.textContent = pk ? String(Ar) : `${SP[known].A} + ?`;
+			out.zr.textContent = pk ? zf(Zr) : `${zf(SP[known].Z)} + ?`;
+			const mark = (el: Element, ok: boolean) => {
+				el.textContent = pk ? (ok ? '=' : '≠') : '';
+				el.className = 'rbl-mark ' + (pk ? (ok ? 'is-eq' : 'is-ne') : '');
+			};
+			mark(out.am, Al === Ar);
+			mark(out.zm, Zl === Zr);
+			const ok = pk === ans;
+			slot.className = 'rbl-slot' + (pk ? (ok ? ' is-ok' : ' is-bad') : '');
+			out.v.className = 'rbl-verdict' + (pk ? (ok ? ' is-ok' : ' is-bad') : '');
+			out.v.innerHTML = pk ? (ok ? 'Верно' : 'Подумайте ещё') : '&nbsp;';
+			out.note.innerHTML = ok && r.note ? r.note : '&nbsp;';
+			root.querySelectorAll<HTMLButtonElement>('[data-ch]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.ch === pk)));
+			out.score.textContent = String(solved.filter(Boolean).length);
+			if (fresh && ok) play(r);
+			else showStatic(r, ok);
+		};
+		root.querySelectorAll<HTMLButtonElement>('[data-ch]').forEach((b) =>
+			b.addEventListener('click', () => {
+				picked[cur] = b.dataset.ch!;
+				if (picked[cur] === R[cur].r[R[cur].slot]) solved[cur] = true;
+				update(true);
+			}),
+		);
+		q('[data-prev]').addEventListener('click', () => {
+			cur = (cur + R.length - 1) % R.length;
+			update();
+		});
+		q('[data-next]').addEventListener('click', () => {
+			cur = (cur + 1) % R.length;
+			update();
+		});
+		update();
+		void NS;
+	});
+</script>

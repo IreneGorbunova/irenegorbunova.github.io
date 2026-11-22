@@ -1,0 +1,251 @@
+---
+/**
+ * «Распад ядер»: a square grid of radioactive nuclei (20 × 20 = 400, or 40 × 40 = 1600) that decay at random.
+ * Physics: in a time step Δt every nucleus that is still there decays with the probability p = 1 − 2^(−Δt/T), whatever
+ * its age and its neighbors (Math.random, truly random). On average N = N₀/2^(t/T) remain. The isotopes and their
+ * half-lives T: iodine-131 8,0 сут, radon-222 3,8 сут, cobalt-60 5,3 года, cesium-137 30 лет; the time axis is in the
+ * isotope's units. One half-life lasts 4 с on screen (the clock is sped up: for iodine 2 сут per second, for cesium
+ * 7,5 лет per second); the run stops at 5T. A live nucleus is a red-gray dot, a decayed one turns pale after a short
+ * gold flash. The graph adds a dot every 0,1T and shows the dashed curve N₀/2^(t/T) with marks at T, 2T, 3T, 4T and
+ * dashed lines at N₀/2, N₀/4, N₀/8. The grid and the graph are two drawings side by side (stacked on a phone).
+ */
+import YrStyles from './YrStyles.astro';
+const ISO = [
+	{ key: 'i', name: 'йод-131', T: 8, u: 'сут', au: 'сут', show: '8 сут' },
+	{ key: 'rn', name: 'радон-222', T: 3.8, u: 'сут', au: 'сут', show: '3,8 сут' },
+	{ key: 'co', name: 'кобальт-60', T: 5.3, u: 'года', au: 'годы', show: '5,3 года' },
+	{ key: 'cs', name: 'цезий-137', T: 30, u: 'года', au: 'годы', show: '30 лет' },
+];
+// the graph: x 250..410 for 0..5T, y 196..26 for 0..N0
+const GX0 = 44, GX1 = 226, GY0 = 196, GY1 = 26;
+const curve = Array.from({ length: 101 }, (_, i) => {
+	const u = (i / 100) * 5;
+	return `${i ? 'L' : 'M'}${(GX0 + ((GX1 - GX0) * u) / 5).toFixed(1)} ${(GY0 - (GY0 - GY1) * Math.pow(2, -u)).toFixed(1)}`;
+}).join('');
+---
+
+<YrStyles />
+<figure class="yr hl not-content" data-hl data-iso={JSON.stringify(ISO)}>
+	<div class="hl-pair">
+	<svg viewBox="0 0 220 220" role="img" aria-label="Модель радиоактивного распада: сетка ядер, которые случайно распадаются">
+		<g data-grid></g>
+	</svg>
+	<svg viewBox="0 0 240 236" role="img" aria-label="График числа оставшихся ядер от времени">
+		<path class="hl-axis" d={`M${GX0} ${GY1 - 8} V${GY0} H${GX1 + 6}`}></path>
+		<path class="hl-half" d={`M${GX0} ${(GY0 + GY1) / 2} H${GX1} M${GX0} ${GY0 - (GY0 - GY1) / 4} H${GX1} M${GX0} ${GY0 - (GY0 - GY1) / 8} H${GX1}`}></path>
+		<path class="hl-curve" d={curve}></path>
+		{[1, 2, 3, 4, 5].map((k) => <path class="hl-tick" d={`M${GX0 + ((GX1 - GX0) * k) / 5} ${GY0} v5`} />)}
+		{[1, 2, 3, 4].map((k) => <text class="yr-lbl-s" x={GX0 + ((GX1 - GX0) * k) / 5} y={GY0 + 15} text-anchor="middle">{k > 1 ? k : ''}<tspan class="yr-sym">T</tspan></text>)}
+		<text class="yr-lbl-s" x={GX0 - 4} y={GY1 + 4} text-anchor="end" data-n0>400</text>
+		<text class="yr-lbl-s" x={GX0 - 4} y={(GY0 + GY1) / 2 + 4} text-anchor="end" data-n2>200</text>
+		<text class="yr-lbl-s" x={GX0 - 4} y={GY0 - (GY0 - GY1) / 4 + 4} text-anchor="end" data-n4>100</text>
+		<text class="yr-lbl-s" x={GX0 - 4} y={GY0 + 4} text-anchor="end">0</text>
+		<text class="yr-lbl-s" x={GX0 + 4} y={GY1 - 10}><tspan class="yr-sym">N</tspan>, ядер</text>
+		<text class="yr-lbl-s" x={GX1 + 12} y={GY0 + 30} text-anchor="end" data-tax><tspan class="yr-sym">t</tspan>, сут</text>
+		<text class="yr-lbl-s" x={GX0 + 4} y={GY0 + 28} data-tval></text>
+		<g data-pts></g>
+		<path class="hl-now" d="" data-now></path>
+	</svg>
+	</div>
+	<p class="hl-note">Какое ядро распадётся следующим — угадать нельзя</p>
+	<div class="hl-read">
+		<span>Прошло: <b data-t>0</b> <span data-u>сут</span></span>
+		<span>Осталось ядер: <b data-n>400</b></span>
+		<span>Доля: <b data-f>100</b>&nbsp;%</span>
+	</div>
+	<div class="yr-ctl">
+		{ISO.map((s, i) => <button type="button" class="yr-btn" data-iso-k={i} aria-pressed={i === 0 ? 'true' : 'false'}>{s.name} ({s.show})</button>)}
+	</div>
+	<div class="yr-ctl">
+		<button type="button" class="yr-btn" data-run>Пуск</button>
+		<button type="button" class="yr-btn" data-reset>Сброс</button>
+		<span class="yr-lab">Ядер:</span>
+		<button type="button" class="yr-btn" data-size="20" aria-pressed="true">400</button>
+		<button type="button" class="yr-btn" data-size="40" aria-pressed="false">1600</button>
+	</div>
+	<p class="yr-cap">Время ускорено: один период полураспада длится здесь 4&nbsp;с.</p>
+</figure>
+
+<style is:global>
+	.hl .hl-pair {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.6rem 1rem;
+	}
+	.hl .hl-pair > svg {
+		flex: 1 1 260px;
+		max-width: 360px;
+	}
+	.hl .hl-live {
+		fill: color-mix(in srgb, var(--yr-p) 70%, var(--yr-n));
+	}
+	.hl .hl-dead {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 70%, transparent);
+	}
+	.hl .hl-flash {
+		fill: var(--yr-g);
+	}
+	.hl .hl-axis {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.hl .hl-half {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.8;
+		stroke-dasharray: 3 3;
+	}
+	.hl .hl-curve {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 3;
+	}
+	.hl .hl-tick {
+		stroke: var(--sl-color-gray-3);
+	}
+	.hl .hl-pt {
+		fill: var(--yr-p);
+	}
+	.hl .hl-now {
+		stroke: var(--sl-color-accent);
+		stroke-width: 1;
+	}
+	.hl .hl-note {
+		margin: 0.2rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+		font-style: italic;
+	}
+	.hl .hl-read {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.2rem 1.2rem;
+		margin-top: 0.3rem;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+	}
+</style>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+	const NS = 'http://www.w3.org/2000/svg';
+	const GX0 = 44, GX1 = 226, GY0 = 196, GY1 = 26;
+	const SEC_PER_T = 4;
+	const fmt = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
+	const mk = (p: Element, tag: string, a: Record<string, string | number>) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		p.append(e);
+		return e;
+	};
+	document.querySelectorAll<HTMLElement>('[data-hl]').forEach((root) => {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const ISO = JSON.parse(root.dataset.iso!) as { name: string; T: number; u: string; au: string; show: string }[];
+		const grid = q<SVGGElement>('[data-grid]');
+		const ptsG = q<SVGGElement>('[data-pts]');
+		const now = q<SVGPathElement>('[data-now]');
+		const out = { t: q('[data-t]'), u: q('[data-u]'), n: q('[data-n]'), f: q('[data-f]'), n0: q('[data-n0]'), n2: q('[data-n2]'), n4: q('[data-n4]'), tax: q<SVGTextElement>('[data-tax]'), tval: q<SVGTextElement>('[data-tval]') };
+		const runBtn = q<HTMLButtonElement>('[data-run]');
+		let iso = 0;
+		let size = 20;
+		let cells: { e: SVGCircleElement; live: boolean; flash: number }[] = [];
+		let tau = 0; // time in units of T
+		let nextPt = 0;
+		let running = false;
+		let N = 0;
+		const build = () => {
+			grid.replaceChildren();
+			ptsG.replaceChildren();
+			const step = 200 / size;
+			cells = [];
+			for (let r = 0; r < size; r++)
+				for (let c = 0; c < size; c++)
+					cells.push({ e: mk(grid, 'circle', { class: 'hl-live', cx: 10 + step * (c + 0.5), cy: 10 + step * (r + 0.5), r: step * 0.38 }) as SVGCircleElement, live: true, flash: 0 });
+			N = cells.length;
+			tau = 0;
+			nextPt = 0;
+			out.n0.textContent = String(N);
+			out.n2.textContent = String(N / 2);
+			out.n4.textContent = String(N / 4);
+			const s = ISO[iso];
+			out.u.textContent = s.u;
+			out.tax.innerHTML = `<tspan class="yr-sym">t</tspan>, ${s.au}`;
+			out.tval.textContent = `T = ${s.show}`;
+			addPt();
+			show();
+		};
+		const addPt = () => {
+			mk(ptsG, 'circle', { class: 'hl-pt', r: 2, cx: (GX0 + ((GX1 - GX0) * tau) / 5).toFixed(1), cy: (GY0 - ((GY0 - GY1) * N) / cells.length).toFixed(1) });
+			nextPt += 0.1;
+		};
+		const show = () => {
+			const s = ISO[iso];
+			out.t.textContent = fmt(tau * s.T);
+			out.n.textContent = String(N);
+			out.f.textContent = fmt((100 * N) / cells.length);
+			const x = (GX0 + ((GX1 - GX0) * tau) / 5).toFixed(1);
+			now.setAttribute('d', tau > 0 ? `M${x} ${GY1} V${GY0}` : '');
+		};
+		const wake = loop(root, (dt) => {
+			let busy = false;
+			for (const c of cells)
+				if (c.flash > 0) {
+					c.flash -= dt;
+					busy = true;
+					if (c.flash <= 0) c.e.setAttribute('class', 'hl-dead');
+				}
+			if (!running) return busy;
+			const dTau = Math.min(dt / SEC_PER_T, 5 - tau);
+			const p = 1 - Math.pow(2, -dTau);
+			for (const c of cells)
+				if (c.live && Math.random() < p) {
+					c.live = false;
+					c.flash = 0.3;
+					c.e.setAttribute('class', 'hl-flash');
+					N--;
+				}
+			tau += dTau;
+			while (tau + 1e-9 >= nextPt && nextPt <= 5.0001) addPt();
+			if (tau >= 5) {
+				running = false;
+				runBtn.textContent = 'Пуск';
+			}
+			show();
+			return true;
+		});
+		runBtn.addEventListener('click', () => {
+			if (tau >= 5) build();
+			running = !running;
+			runBtn.textContent = running ? 'Пауза' : 'Пуск';
+			wake();
+		});
+		q('[data-reset]').addEventListener('click', () => {
+			running = false;
+			runBtn.textContent = 'Пуск';
+			build();
+		});
+		root.querySelectorAll<HTMLButtonElement>('[data-iso-k]').forEach((b) =>
+			b.addEventListener('click', () => {
+				iso = Number(b.dataset.isoK);
+				root.querySelectorAll('[data-iso-k]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				running = false;
+				runBtn.textContent = 'Пуск';
+				build();
+			}),
+		);
+		root.querySelectorAll<HTMLButtonElement>('[data-size]').forEach((b) =>
+			b.addEventListener('click', () => {
+				size = Number(b.dataset.size);
+				root.querySelectorAll('[data-size]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				running = false;
+				runBtn.textContent = 'Пуск';
+				build();
+			}),
+		);
+		build();
+	});
+</script>

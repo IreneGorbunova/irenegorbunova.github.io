@@ -1,0 +1,460 @@
+---
+/**
+ * «Деление ядра урана»: four steps, the buttons 1–4 jump to each.
+ *   1. A slow neutron flies to a uranium-235 nucleus (an accent ring marks the fissile nucleus).
+ *   2. The nucleus takes it in (uranium-236) and oscillates, stretching one way and the other.
+ *   3. It stretches into a dumbbell, the waist breaks: barium-141 and krypton-92 fly apart, 3 neutrons with long trails
+ *      and γ radiation leave, a gold glow marks the released energy.
+ *      ²³⁵U + n → ¹⁴¹Ba + ⁹²Kr + 3n (Z: 92 = 56 + 36; A: 235 + 1 = 141 + 92 + 3). Every nucleon of the compound
+ *      nucleus goes to a definite fragment (protons stay protons), so the counts in the picture are exact.
+ *   4. A different scale: the fragments slow down among the atoms of the uranium and shake them: the atoms they pass
+ *      jitter harder and turn gold, the heat spreads — the energy of the fragments becomes heat.
+ *
+ * Scales. Steps 1–3: nuclei to scale, 5 px per фм (every nucleon a ball of radius 1 фм; nucleus.ts): uranium-235
+ * R ≈ 7,4 фм, barium-141 6,2 фм, krypton-92 5,4 фм. Step 4: atoms, about 3·10⁻¹⁰ м apart, drawn 18 px apart (some
+ * 10⁵ times smaller scale); a real fragment stops after about 10 мкм, some 10 000 atoms: the track is drawn
+ * about 7 atoms long, krypton's 1,3 times longer than barium's (about 120 and 92 px).
+ * Speeds in step 3 are in the true ratio: the fragments share about 168 МэВ of the ≈ 200 МэВ released, with equal and
+ * opposite momenta, so the lighter one is faster: barium 9 500 км/с, krypton 14 600 км/с; the fission neutrons
+ * (≈ 2 МэВ) about 20 000 км/с. Drawn at 50 px/с for 14 600 км/с (slowed about 3·10¹¹ times). γ radiation flies at
+ * the speed of light, 15 times faster than the neutrons; drawn at 900 px/с (slowed less, so it leaves at once). The
+ * incoming slow neutron (thermal, about 2,2 км/с, some 5000 times slower than the fragments) is drawn at 80 px/с: before
+ * the split the clock of the picture is a different one. A real fission takes less than 10⁻¹⁴ с. The fragments speed
+ * up (electric repulsion) over 0,25 s of the picture (in reality about 10⁻²¹ с). The caption says what is slowed.
+ * Loop: 11 s and 2,2 s of the last frame; «Пауза» stops it.
+ */
+import YrStyles from './YrStyles.astro';
+import { pack, outerRadius, type Nucleon } from './nucleus';
+
+const AH = 141, ZH = 56, AL = 92, ZL = 36, FREE = 3;
+const C = pack(236, 92, 3);
+const RC = outerRadius(C);
+// the absorbed neutron: a neutron on the left surface, near the axis
+const absorbed = C.map((p, i) => ({ i, s: p[3] ? 1e9 : p[0] + 0.6 * Math.hypot(p[1], p[2]) })).sort((a, b) => a.s - b.s)[0].i;
+const H = pack(AH, ZH, 11);
+const L = pack(AL, ZL, 13);
+const RH = outerRadius(H);
+const RL = outerRadius(L);
+// fragment of every compound nucleon: 0 heavy (−x), 1 light (+x), 2 free neutron (from the neck)
+const frag = new Array(236).fill(0);
+const prot = C.map((_, i) => i).filter((i) => C[i][3]).sort((a, b) => C[a][0] - C[b][0]);
+const neut = C.map((_, i) => i).filter((i) => !C[i][3]).sort((a, b) => C[a][0] - C[b][0]);
+prot.forEach((i, k) => (frag[i] = k < ZH ? 0 : 1));
+neut.forEach((i, k) => (frag[i] = k < AH - ZH ? 0 : k < AH - ZH + FREE ? 2 : 1));
+const tgt: [number, number, number][] = new Array(236);
+const match = (F: Nucleon[], f: number) => {
+	for (const kind of [0, 1] as const) {
+		const mine = C.map((_, i) => i).filter((i) => frag[i] === f && C[i][3] === kind).sort((a, b) => C[a][0] - C[b][0]);
+		const slots = F.filter((p) => p[3] === kind).sort((a, b) => a[0] - b[0]);
+		mine.forEach((i, k) => (tgt[i] = [slots[k][0], slots[k][1], slots[k][2]]));
+	}
+};
+match(H, 0);
+match(L, 1);
+// scission: the fragments touch, the center of mass stays at 0
+const D = RH + RL - 0.6;
+const dH = (D * AL) / (AH + AL);
+const dL = (D * AH) / (AH + AL);
+const neck = RH - dH - 0.3;
+let fn = 0;
+C.forEach((_, i) => {
+	if (frag[i] === 2) tgt[i] = [neck, (fn++ - (FREE - 1) / 2) * 2.2, 0];
+});
+const data = { C, absorbed, RC, frag, tgt: tgt.map((t) => t.map((v) => +v.toFixed(2))), dH: +dH.toFixed(2), dL: +dL.toFixed(2), neck: +neck.toFixed(2), RH: +RH.toFixed(2), RL: +RL.toFixed(2) };
+
+const nt = (A: number | string, Z: number | string, X: string) => `<span class="nt"><span class="nt__n"><span class="nt__a">${A}</span><span class="nt__z">${Z}</span></span><span class="nt__x">${X}</span></span>`;
+const EQ = `${nt(235, 92, 'U')} + ${nt(1, 0, 'n')} → ${nt(141, 56, 'Ba')} + ${nt(92, 36, 'Kr')} + 3${nt(1, 0, 'n')}`;
+const STEPS = ['захват', 'колебания', 'деление', 'нагревание'];
+---
+
+<YrStyles />
+<figure class="yr fis not-content" data-fis data-json={JSON.stringify(data)}>
+	<svg class="yr-big" viewBox="0 0 420 270" role="img" aria-label="Деление ядра урана. Медленный нейтрон подлетает к ядру урана-235, ядро захватывает его, колеблется, вытягивается и разрывается на два осколка — ядра бария и криптона. Осколки разлетаются в противоположные стороны, лёгкий быстрее тяжёлого; вылетают три нейтрона и гамма-излучение. Затем в другом масштабе: осколки тормозятся среди атомов урана и раскачивают их — вещество нагревается">
+		<defs>
+			<radialGradient id="fis-gp" cx="0.35" cy="0.3" r="0.75"><stop offset="0" class="yr-p0"></stop><stop offset="1" class="yr-p1"></stop></radialGradient>
+			<radialGradient id="fis-gn" cx="0.35" cy="0.3" r="0.75"><stop offset="0" class="yr-n0"></stop><stop offset="1" class="yr-n1"></stop></radialGradient>
+			<radialGradient id="fis-glow"><stop offset="0" class="fis-glow0"></stop><stop offset="1" class="fis-glow1"></stop></radialGradient>
+		</defs>
+		<!-- steps 1–3: nuclei -->
+		<g data-nview>
+			<circle class="fis-glow" cx="0" cy="0" r="80" fill="url(#fis-glow)" data-glow></circle>
+			<g data-gam></g>
+			<g data-trails></g>
+			<circle class="yr-fiss" r="1" data-ring></circle>
+			<g data-nuc></g>
+			<g data-free></g>
+			<g data-in></g>
+			<text class="yr-lbl fis-l" data-l="in" text-anchor="middle">нейтрон</text>
+			<text class="yr-lbl fis-l" data-l="u" text-anchor="middle">уран-235</text>
+			<text class="yr-lbl fis-l" data-l="h" text-anchor="middle">барий-141</text>
+			<text class="yr-lbl-s fis-l" data-l="hv" text-anchor="middle">≈ 9 500 км/с</text>
+			<text class="yr-lbl fis-l" data-l="l" text-anchor="middle">криптон-92</text>
+			<text class="yr-lbl-s fis-l" data-l="lv" text-anchor="middle">≈ 14 600 км/с</text>
+			<text class="yr-lbl fis-l" data-l="n" text-anchor="start">нейтроны</text>
+			<text class="yr-lbl-s fis-l" data-l="nv" text-anchor="start">≈ 20 000 км/с</text>
+			<text class="yr-lbl fis-l fis-gold" data-l="g" text-anchor="middle"><tspan class="yr-sym">γ</tspan>-излучение</text>
+			<text class="yr-lbl fis-l fis-gold" data-l="e" text-anchor="middle">энергия</text>
+		</g>
+		<!-- step 4: atoms of the uranium -->
+		<g data-aview opacity="0">
+			<rect class="fis-mat" x="0" y="0" width="420" height="270"></rect>
+			<g data-heat></g>
+			<g data-atoms></g>
+			<g data-ftrack></g>
+			<g data-frag2></g>
+			<text class="yr-lbl fis-l" x="12" y="262">атомы урана (масштаб в 100 000 раз крупнее)</text>
+			<text class="yr-lbl fis-l fis-gold" data-l="hot" text-anchor="middle">атомы колеблются сильнее — уран нагревается</text>
+		</g>
+	</svg>
+	<div class="yr-ctl fis-steps" role="group" aria-label="Шаги">
+		{STEPS.map((s, i) => <button type="button" class="yr-btn fis-sb" data-go={i} aria-pressed={i === 0 ? 'true' : 'false'}><b>{i + 1}</b> {s}</button>)}
+	</div>
+	<p class="yr-step" data-step aria-live="polite"></p>
+	<p class="fis-eq" set:html={EQ} />
+	<div class="yr-ctl">
+		<button type="button" class="yr-btn" data-run aria-pressed="false">Пауза</button>
+	</div>
+	<p class="yr-cap">Шаги 1–3: размеры ядер и расстояния между ними нарисованы в масштабе (поперечник ядра урана — около 1,5·10<sup>−14</sup>&nbsp;м), движение замедлено в сотни миллиардов раз, скорости осколков и нейтронов — в верном отношении. Медленный нейтрон на самом деле в тысячи раз медленнее осколков. Шаг 4 — в другом масштабе: настоящий путь осколка в уране — около 10&nbsp;000 атомов.</p>
+</figure>
+
+<style is:global>
+	.fis .fis-glow0 {
+		stop-color: var(--yr-g);
+		stop-opacity: 0.85;
+	}
+	.fis .fis-glow1 {
+		stop-color: var(--yr-g);
+		stop-opacity: 0;
+	}
+	.fis .fis-l {
+		paint-order: stroke;
+		stroke: var(--ig-surface);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+	}
+	.fis .fis-gold {
+		fill: var(--yr-g);
+	}
+	.fis .fis-mat {
+		fill: var(--ig-surface);
+	}
+	.fis .fis-atom {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	.fis .fis-hot {
+		fill: var(--yr-g);
+	}
+	.fis .fis-ftr {
+		fill: none;
+		stroke: var(--yr-p);
+		stroke-width: 1.4;
+		stroke-dasharray: 2 3;
+		opacity: 0.7;
+	}
+	.fis .fis-sb b {
+		color: var(--sl-color-accent);
+	}
+	.fis .fis-eq {
+		margin: 0.2rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-lg);
+		color: var(--sl-color-white);
+		line-height: 1.6;
+	}
+</style>
+
+<script>
+	import { balls, view } from './nucleus';
+	type Data = {
+		C: [number, number, number, 0 | 1][];
+		absorbed: number;
+		RC: number;
+		frag: number[];
+		tgt: [number, number, number][];
+		dH: number;
+		dL: number;
+		neck: number;
+		RH: number;
+		RL: number;
+	};
+	const K = 5; // px per фм
+	const CX = 200;
+	const CY = 142;
+	const TH = (-28 * Math.PI) / 180; // the split axis on screen: the light fragment flies up-right
+	const PX = 50 / 14600; // px/с per км/с
+	const VH = 9500 * PX;
+	const VL = 14600 * PX;
+	const VN = 20000 * PX;
+	const VIN = 80; // px/s, the incoming slow neutron (not to scale)
+	const T1 = 1.8; // the neutron reaches the nucleus
+	const T2 = 3.4; // end of the oscillation
+	const T3 = 4.4; // scission
+	const T4 = 7.3; // the matter view
+	const RUN = 11;
+	const CYCLE = RUN + 2.2;
+	const STARTS = [0, T1, T2, T4];
+	const ACC = 0.25;
+	const N_DIRS = [-75, 70, 195].map((d) => (d * Math.PI) / 180);
+	const G_DIRS = [12, -125, 115].map((d) => (d * Math.PI) / 180);
+	const STEP_TEXT = [
+		'Медленный нейтрон подлетает к ядру урана-235.',
+		'Ядро захватывает нейтрон — получается уран-236 — и начинает колебаться: вытягивается то в одну, то в другую сторону.',
+		'Ядро вытягивается и разрывается на два осколка — ядра бария и криптона. Осколки разлетаются, вылетают три нейтрона и γ-излучение, выделяется энергия.',
+		'Осколки тормозятся среди атомов урана и раскачивают их: энергия осколков превращается во внутреннюю энергию — уран нагревается.',
+	];
+	const ease = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
+	const c01 = (x: number) => Math.min(1, Math.max(0, x));
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = (p: Element, tag: string, a: Record<string, string | number>) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		p.append(e);
+		return e;
+	};
+	/** a point of the nucleus frame (фм; x along the split axis) to the screen */
+	const scr = (x: number, y: number, z: number) => {
+		const v = view(x, y, z, 0.3);
+		return { x: CX + K * (v.x * Math.cos(TH) - v.y * Math.sin(TH)), y: CY + K * (v.x * Math.sin(TH) + v.y * Math.cos(TH)), z: v.z };
+	};
+	/** distance a fragment covers τ s after scission at final speed v px/s (speeding up over ACC) */
+	const flight = (v: number, tau: number) => (tau <= 0 ? 0 : v * (tau - ACC * (1 - Math.exp(-tau / ACC))));
+	// step 4: the fragments stop after S px in TS s, slowing down evenly (s = S·(1 − (1 − u)²))
+	const S4 = [92, 120];
+	const TS = 2.6;
+	const s4 = (S: number, u: number) => S * (1 - (1 - c01(u)) ** 2);
+
+	document.querySelectorAll<HTMLElement>('[data-fis]').forEach((root) => {
+		const D: Data = JSON.parse(root.dataset.json!);
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const nuc = balls(q<SVGGElement>('[data-nuc]'), D.C.map((p) => p[3]), { k: K, fills: ['url(#fis-gn)', 'url(#fis-gp)'] });
+		const inG = q<SVGGElement>('[data-in]');
+		const inTrail = mk(inG, 'path', { class: 'yr-trail', 'stroke-width': 3, opacity: 0.55 });
+		const inBallG = mk(inG, 'g', {}) as SVGGElement;
+		const inBall = balls(inBallG, [0], { k: K, fills: ['url(#fis-gn)', 'url(#fis-gp)'], cls: 'yr-free' });
+		const freeG = q<SVGGElement>('[data-free]');
+		const free = balls(freeG, [0, 0, 0], { k: K, fills: ['url(#fis-gn)', 'url(#fis-gp)'], cls: 'yr-free' });
+		const trails = [0, 1, 2].map(() => mk(q('[data-trails]'), 'path', { class: 'yr-trail', 'stroke-width': 3, opacity: 0.5 }));
+		const gam = G_DIRS.map(() => mk(q('[data-gam]'), 'path', { class: 'yr-gamma' }));
+		const glow = q<SVGCircleElement>('[data-glow]');
+		const ring = q<SVGCircleElement>('[data-ring]');
+		const nview = q<SVGGElement>('[data-nview]');
+		const aview = q<SVGGElement>('[data-aview]');
+		const step = q<HTMLElement>('[data-step]');
+		const lab = (k: string) => q<SVGTextElement>(`[data-l="${k}"]`);
+		const L = { in: lab('in'), u: lab('u'), h: lab('h'), hv: lab('hv'), l: lab('l'), lv: lab('lv'), n: lab('n'), nv: lab('nv'), g: lab('g'), e: lab('e'), hot: lab('hot') };
+		const put = (t: SVGTextElement, x: number, y: number, show: number) => {
+			t.setAttribute('x', x.toFixed(1));
+			t.setAttribute('y', y.toFixed(1));
+			t.style.opacity = show.toFixed(2);
+		};
+		const ctr = scr(0, 0, 0);
+		const nk = scr(D.neck, 0, 0);
+		// ---- step 4: atoms, heat, fragments
+		const ATOMS: [number, number][] = [];
+		for (let r = 0; r < 12; r++) for (let c = 0; c < 24; c++) ATOMS.push([12 + c * 18 + (r % 2) * 9, 36 + r * 18]);
+		const atoms = ATOMS.map(([x, y]) => mk(q('[data-atoms]'), 'circle', { class: 'fis-atom', cx: x, cy: y, r: 4.2 }));
+		const hots = ATOMS.map(([x, y]) => mk(q('[data-heat]'), 'circle', { class: 'fis-hot', cx: x, cy: y, r: 7, opacity: 0 }));
+		const ph = ATOMS.map((_, i) => [(i * 2.399) % (2 * Math.PI), (i * 1.618) % (2 * Math.PI)]);
+		const dirs4 = [TH + Math.PI, TH];
+		const ftr = [0, 1].map(() => mk(q('[data-ftrack]'), 'path', { class: 'fis-ftr' }));
+		const f2 = [0, 1].map((k) => mk(q('[data-frag2]'), 'circle', { r: k ? 4.6 : 5.4, fill: 'url(#fis-gp)', class: 'yr-ball' }));
+		// energy left along the tracks: 24 samples per fragment; each spreads in time (σ² = σ0² + 2·Dh·age)
+		const samples: { x: number; y: number; t: number; e: number }[] = [];
+		for (let k = 0; k < 2; k++)
+			for (let j = 0; j < 24; j++) {
+				const u0 = j / 24;
+				const u1 = (j + 1) / 24;
+				const sm = (s4(S4[k], u0) + s4(S4[k], u1)) / 2;
+				// energy given up on this stretch: ∝ the loss of the kinetic energy, (1−u0)² − (1−u1)²
+				samples.push({ x: ctr.x + sm * Math.cos(dirs4[k]), y: ctr.y + sm * Math.sin(dirs4[k]), t: T4 + 0.6 + u1 * TS, e: (1 - u0) ** 2 - (1 - u1) ** 2 });
+			}
+
+		const draw = (t: number) => {
+			const s = t < T1 ? 0 : t < T2 ? 1 : t < T4 ? 2 : 3;
+			if (step.dataset.s !== String(s)) {
+				step.dataset.s = String(s);
+				step.textContent = STEP_TEXT[s];
+				root.querySelectorAll('[data-go]').forEach((b, i) => b.setAttribute('aria-pressed', String(i === s)));
+			}
+			const xf = c01((t - T4) / 0.6);
+			nview.setAttribute('opacity', (1 - xf).toFixed(2));
+			aview.setAttribute('opacity', xf.toFixed(2));
+			if (xf < 1) drawNuclei(t);
+			if (xf > 0) drawAtoms(t);
+		};
+
+		const drawNuclei = (t: number) => {
+			// ---- the incoming neutron
+			const ab = D.C[D.absorbed];
+			const target = scr(ab[0], ab[1], ab[2]);
+			if (t < T1) {
+				const x = target.x - VIN * (T1 - t);
+				inBall.set(0, x, target.y, 0);
+				inBall.render();
+				inTrail.setAttribute('d', `M${(x - 16).toFixed(1)} ${target.y.toFixed(1)} H${(x - 5).toFixed(1)}`);
+				inG.style.display = '';
+				put(L.in, x, target.y - 12, 1);
+			} else {
+				inG.style.display = 'none';
+				put(L.in, 0, 0, 0);
+			}
+			// ---- the compound nucleus and the fragments
+			const wob = t < T1 ? 0 : t < T2 ? Math.sin(((t - T1) / (T2 - T1)) * 2 * Math.PI * 2) * 0.1 * c01((t - T1) / 0.6) : 0;
+			const el = ease((t - T2) / (T3 - T2));
+			const tau = t - T3;
+			const cH = -D.dH * el - flight(VH, tau) / K;
+			const cL = D.dL * el + flight(VL, tau) / K;
+			const sx = 1 + wob;
+			const sy = 1 / Math.sqrt(1 + wob);
+			let fi = 0;
+			D.C.forEach((p, i) => {
+				const f = D.frag[i];
+				const g = D.tgt[i];
+				const a = [p[0] * sx, p[1] * sy, p[2] * sy];
+				if (f === 2) {
+					// a neutron of the neck: part of the nucleus until the split, then a free neutron with a trail
+					const p0 = scr(a[0] + (g[0] - a[0]) * el, a[1] + (g[1] - a[1]) * el, a[2] + (g[2] - a[2]) * el);
+					if (tau > 0) {
+						const d = VN * tau;
+						const an = N_DIRS[fi];
+						const x = p0.x + d * Math.cos(an);
+						const y = p0.y + d * Math.sin(an);
+						const tl = Math.min(d, 40);
+						trails[fi].setAttribute('d', `M${(x - tl * Math.cos(an)).toFixed(1)} ${(y - tl * Math.sin(an)).toFixed(1)} L${(x - 5 * Math.cos(an)).toFixed(1)} ${(y - 5 * Math.sin(an)).toFixed(1)}`);
+						free.set(fi, x, y, 0, x > -10 && x < 430 && y > -10 && y < 280);
+						nuc.set(i, 0, 0, 0, false);
+					} else {
+						trails[fi].setAttribute('d', '');
+						free.set(fi, 0, 0, 0, false);
+						nuc.set(i, p0.x, p0.y, p0.z, true);
+					}
+					fi++;
+					return;
+				}
+				const c = f === 0 ? cH : cL;
+				const b = [g[0] + c, g[1], g[2]];
+				const pos = scr(a[0] + (b[0] - a[0]) * el, a[1] + (b[1] - a[1]) * el, a[2] + (b[2] - a[2]) * el);
+				nuc.set(i, pos.x, pos.y, pos.z, !(i === D.absorbed && t < T1));
+			});
+			nuc.render();
+			free.render();
+			// the accent ring of U-235: until the nucleus starts to stretch
+			ring.setAttribute('cx', ctr.x.toFixed(1));
+			ring.setAttribute('cy', ctr.y.toFixed(1));
+			ring.setAttribute('r', (D.RC * K * Math.max(sx, sy) + 3).toFixed(1));
+			ring.style.opacity = t < T2 ? '1' : (1 - c01((t - T2) / 0.3)).toFixed(2);
+			// ---- labels
+			L.u.textContent = t < T1 ? 'уран-235' : 'уран-236';
+			put(L.u, ctr.x, ctr.y + D.RC * K + 20, t < T2 ? 1 : 1 - c01((t - T2) / 0.3));
+			const pH = scr(cH, 0, 0);
+			const pL = scr(cL, 0, 0);
+			const lab1 = c01((tau - 0.5) / 0.4);
+			put(L.h, pH.x, pH.y + D.RH * K + 16, lab1);
+			put(L.hv, pH.x, pH.y + D.RH * K + 29, lab1);
+			put(L.l, pL.x, pL.y - D.RL * K - 22, lab1);
+			put(L.lv, pL.x, pL.y - D.RL * K - 9, lab1);
+			const an = N_DIRS[1];
+			const nshow = c01((tau - 0.9) / 0.4);
+			put(L.n, nk.x + 90 * Math.cos(an) + 12, nk.y + 90 * Math.sin(an), nshow);
+			put(L.nv, nk.x + 90 * Math.cos(an) + 12, nk.y + 90 * Math.sin(an) + 13, nshow);
+			// ---- energy: the glow and γ
+			const gl = tau < 0 ? 0 : Math.exp(-tau / 1.2) * c01(tau / 0.08);
+			glow.setAttribute('cx', nk.x.toFixed(1));
+			glow.setAttribute('cy', nk.y.toFixed(1));
+			glow.setAttribute('r', (30 + 70 * c01(tau / 1.5)).toFixed(1));
+			glow.style.opacity = gl.toFixed(2);
+			put(L.e, nk.x + 8, nk.y + 36, tau < 0 ? 0 : c01(tau / 0.2) * (1 - c01((tau - 2.2) / 0.5)));
+			G_DIRS.forEach((a, k) => {
+				const d0 = Math.min(460, 900 * (tau - 0.03 * k));
+				if (tau <= 0.03 * k) {
+					gam[k].setAttribute('d', '');
+					return;
+				}
+				// the wave runs out at the speed of light and leaves a faint track of where it went
+				const segs: string[] = [];
+				for (let r = 16; r <= d0; r += 2) {
+					const w = 3.5 * Math.sin(((r - d0) / 15) * 2 * Math.PI);
+					segs.push(`${segs.length ? 'L' : 'M'}${(nk.x + r * Math.cos(a) - w * Math.sin(a)).toFixed(1)} ${(nk.y + r * Math.sin(a) + w * Math.cos(a)).toFixed(1)}`);
+				}
+				gam[k].setAttribute('d', segs.join(''));
+				gam[k].style.opacity = (0.4 + 0.6 * Math.exp(-tau / 0.6)).toFixed(2);
+			});
+			put(L.g, nk.x + 160 * Math.cos(G_DIRS[0]), nk.y + 160 * Math.sin(G_DIRS[0]) + 22, c01((tau - 0.2) / 0.3));
+		};
+
+		const drawAtoms = (t: number) => {
+			const u = (t - T4 - 0.6) / TS;
+			[0, 1].forEach((k) => {
+				const sk = s4(S4[k], u);
+				const x = ctr.x + sk * Math.cos(dirs4[k]);
+				const y = ctr.y + sk * Math.sin(dirs4[k]);
+				f2[k].setAttribute('cx', x.toFixed(1));
+				f2[k].setAttribute('cy', y.toFixed(1));
+				ftr[k].setAttribute('d', `M${ctr.x.toFixed(1)} ${ctr.y.toFixed(1)} L${x.toFixed(1)} ${y.toFixed(1)}`);
+			});
+			ATOMS.forEach(([x0, y0], i) => {
+				let h = 0;
+				for (const s of samples) {
+					const age = t - s.t;
+					if (age < 0) continue;
+					const sig2 = 60 + 900 * age;
+					h += ((s.e * 900) / sig2) * Math.exp(-((x0 - s.x) ** 2 + (y0 - s.y) ** 2) / (2 * sig2));
+				}
+				h = Math.min(1, h);
+				const A = 0.4 + 2.6 * h;
+				atoms[i].setAttribute('cx', (x0 + A * Math.sin(t * 37 + ph[i][0])).toFixed(2));
+				atoms[i].setAttribute('cy', (y0 + A * Math.sin(t * 43 + ph[i][1])).toFixed(2));
+				hots[i].setAttribute('opacity', (0.55 * h).toFixed(2));
+			});
+			put(L.hot, 210, 18, c01((t - T4 - 1.6) / 0.6));
+		};
+
+		// ---- the clock
+		let t = 0;
+		let playing = true;
+		let raf = 0;
+		let last = 0;
+		let visible = false;
+		const runBtn = q<HTMLButtonElement>('[data-run]');
+		const frame = (now: number) => {
+			const dt = Math.min((now - (last || now)) / 1000, 0.05);
+			last = now;
+			t += dt;
+			if (t >= CYCLE) t = 0;
+			draw(Math.min(t, RUN));
+			raf = visible && playing ? requestAnimationFrame(frame) : 0;
+		};
+		const wake = () => {
+			if (!raf && visible && playing) {
+				last = 0;
+				raf = requestAnimationFrame(frame);
+			}
+		};
+		new IntersectionObserver((es) => {
+			visible = es.some((e) => e.isIntersecting);
+			wake();
+		}).observe(root);
+		runBtn.addEventListener('click', () => {
+			playing = !playing;
+			runBtn.textContent = playing ? 'Пауза' : 'Пуск';
+			runBtn.setAttribute('aria-pressed', String(!playing));
+			wake();
+		});
+		root.querySelectorAll<HTMLButtonElement>('[data-go]').forEach((b) =>
+			b.addEventListener('click', () => {
+				t = STARTS[Number(b.dataset.go)];
+				draw(t);
+				wake();
+			}),
+		);
+		draw(0);
+		// for the screenshots: window.__fis(t) stops the clock and draws the picture at time t (s)
+		(window as unknown as { __fis?: (t: number) => void }).__fis = (tt: number) => {
+			playing = false;
+			t = tt;
+			draw(tt);
+		};
+	});
+</script>

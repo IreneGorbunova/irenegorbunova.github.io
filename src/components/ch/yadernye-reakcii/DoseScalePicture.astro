@@ -1,0 +1,229 @@
+---
+/**
+ * «Сколько это — миллизиверт»: typical equivalent doses on a logarithmic scale from 0,001 to 10 000 мЗв (each step of
+ * the scale is ten times the previous one). Dots, not bars; a tap on a dot shows its one-line note under the scale.
+ * A colored strip on the axis: green below 100 мЗв (no harm found), yellow 100–1000 мЗв (the risk of illness grows),
+ * red above 1000 мЗв received at once. Values are typical; real doses vary two or three times:
+ *   dental X-ray 0,005; a flight of 8 h at 11 км 0,03 (3–5 мкЗв/ч); chest X-ray (флюорография) 0,05 (0,02–0,1);
+ *   the yearly limit for the population from artificial sources 1; the natural background 2,4 a year (world mean,
+ *   UNSCEAR); abdominal CT 8; the yearly limit for workers of a nuclear station 20 (mean over 5 years); half a year on
+ *   the ISS about 100 (0,5–1 мЗв a day); 1000 at once: radiation sickness; 4000–5000 at once: deadly without treatment
+ *   (the dot at 4500 with a short line 4000–5000).
+ * Wide screens: a horizontal scale; at 560 px and narrower the scale turns vertical (two drawings, one shown by CSS),
+ * with one-line labels of 12,6 px (at least 11 px on a 390-px phone).
+ */
+import YrStyles from './YrStyles.astro';
+type It = { v: number; l: [string, string]; note: string; icon: string; h: number; side: number };
+// h: label level (horizontal layout: −2, −1 above the axis, 1, 2 below); side: column in the vertical layout (0, 1)
+const IT: It[] = [
+	{ v: 0.005, l: ['снимок', 'зуба'], note: 'Рентгеновский снимок зуба — около 0,005 мЗв.', icon: 'tooth', h: -1, side: 0 },
+	{ v: 0.03, l: ['перелёт', '8 ч'], note: 'Перелёт Москва — Владивосток на высоте 11 км: около 0,03 мЗв от частиц из космоса.', icon: 'plane', h: 1, side: 1 },
+	{ v: 0.05, l: ['снимок', 'лёгких'], note: 'Флюорография (снимок лёгких): от 0,02 до 0,1 мЗв, обычно около 0,05 мЗв.', icon: 'lungs', h: -2, side: 0 },
+	{ v: 1, l: ['предел в год', 'для жителей'], note: '1 мЗв в год — предел для жителей от искусственных источников излучения (кроме лечения и обследований).', icon: 'house', h: -1, side: 1 },
+	{ v: 2.4, l: ['природный', 'фон за год'], note: 'В среднем на Земле человек получает от природных источников 2,4 мЗв в год, больше всего — от радона в воздухе.', icon: 'earth', h: 1, side: 0 },
+	{ v: 8, l: ['томография', 'живота'], note: 'Компьютерная томография живота — около 8 мЗв.', icon: 'ct', h: -2, side: 1 },
+	{ v: 20, l: ['предел в год', 'для работников АЭС'], note: '20 мЗв в год (в среднем за 5 лет) — предел для работников атомных станций.', icon: 'helmet', h: 2, side: 0 },
+	{ v: 100, l: ['полгода', 'на МКС'], note: 'Полгода на МКС — около 100 мЗв: станция летит выше почти всей атмосферы.', icon: 'iss', h: -1, side: 1 },
+	{ v: 1000, l: ['1 Зв сразу —', 'лучевая болезнь'], note: '1 Зв = 1000 мЗв, полученные сразу, вызывают лучевую болезнь.', icon: 'warn', h: 1, side: 0 },
+	{ v: 4500, l: ['4–5 Зв сразу —', 'смертельно опасно'], note: '4–5 Зв, полученные сразу, смертельно опасны без лечения.', icon: 'skull', h: -2, side: 1 },
+];
+const ICON: Record<string, string> = {
+	tooth: 'M-5 -6 Q-6 -1 -4 2 L-3 7 Q-2 8 -1 6 L0 2 L1 6 Q2 8 3 7 L4 2 Q6 -1 5 -6 Q3 -8 0 -6 Q-3 -8 -5 -6 Z',
+	plane: 'M-7 1 L7 -1 Q9 0 7 1 L-7 1 Z M-1 0 L-4 -6 H-2 L3 0 L-2 6 H-4 Z M-6 0 L-8 -4 H-7 L-4 0 Z',
+	lungs: 'M-1 -7 V-1 Q-3 -3 -5 -2 Q-8 2 -7 7 Q-3 8 -1 3 Z M1 -7 V-1 Q3 -3 5 -2 Q8 2 7 7 Q3 8 1 3 Z',
+	house: 'M-7 0 L0 -7 L7 0 V7 H-7 Z M-2 7 V2 H2 V7',
+	earth: 'M-7 0 A7 7 0 1 0 7 0 A7 7 0 1 0 -7 0 M-5 -3 Q-1 -1 -2 3 Q0 6 2 4 M2 -6 Q4 -2 6 -1',
+	ct: 'M-7 0 A7 7 0 1 0 7 0 A7 7 0 1 0 -7 0 M-3 0 A3 3 0 1 0 3 0 A3 3 0 1 0 -3 0',
+	helmet: 'M-7 3 Q-7 -6 0 -6 Q7 -6 7 3 Z M-9 3 H9 V5 H-9 Z M0 -6 V-1',
+	iss: 'M-2 -2 H2 V2 H-2 Z M-9 -1 H-2 M2 -1 H9 M-9 -5 H-5 V3 H-9 Z M5 -5 H9 V3 H5 Z',
+	warn: 'M0 -7 L8 6 H-8 Z M0 -3 V2 M0 4 V4.5',
+	skull: 'M-6 0 Q-6 -7 0 -7 Q6 -7 6 0 Q6 3 3 4 V7 H-3 V4 Q-6 3 -6 0 Z M-3 -1 A1.5 1.5 0 1 0 -2.9 -1 M3 -1 A1.5 1.5 0 1 0 3.1 -1',
+};
+const lg = (v: number) => Math.log10(v) + 3; // 0 … 7
+// horizontal: x from 40 to 600 for 0,001 … 10 000; axis at y 104
+const HX = (v: number) => 40 + (lg(v) / 7) * 560;
+const HY = 104;
+const LEV: Record<number, number> = { [-2]: 24, [-1]: 58, 1: 156, 2: 192 };
+// vertical: y from 580 (0,001) to 20 (10 000); axis at x 112
+const VY = (v: number) => 580 - (lg(v) / 7) * 560;
+const VX = 96;
+const DEC = [0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000];
+const decLab = (d: number) => (d < 1 ? String(d).replace('.', ',') : d === 10000 ? '10 000' : String(d));
+const zones = [
+	{ a: 0.001, b: 100, c: 'yr-zg' },
+	{ a: 100, b: 1000, c: 'yr-zy' },
+	{ a: 1000, b: 10000, c: 'yr-zr' },
+];
+---
+
+<YrStyles />
+<figure class="yr dsp not-content" data-dsp>
+	<svg class="dsp-h" viewBox="0 0 640 230" role="img" aria-label="Логарифмическая шкала доз от 0,001 до 10 000 миллизивертов с примерами: снимок зуба, перелёт, снимок лёгких, пределы для жителей и работников АЭС, природный фон, томография, полгода на МКС, лучевая болезнь">
+		{zones.map((z) => <rect class={z.c} x={HX(z.a)} y={HY - 4} width={HX(z.b) - HX(z.a)} height="8" />)}
+		{DEC.map((d) => <g><path class="dsp-tick" d={`M${HX(d)} ${HY - 7} V${HY + 7}`} /><text class="yr-lbl-s" x={HX(d)} y={HY + 20} text-anchor="middle">{decLab(d)}</text></g>)}
+		<text class="yr-lbl-s" x="634" y={HY + 20} text-anchor="end">мЗв</text>
+		{
+			IT.map((it, i) => {
+				const x = HX(it.v);
+				const ly = LEV[it.h];
+				const up = it.h < 0;
+				return (
+					<g class="dsp-it" data-k={i} tabindex="0" role="button" aria-label={`${it.l.join(' ')}: ${String(it.v).replace('.', ',')} мЗв`}>
+						<path class="dsp-lead" d={`M${x} ${HY} V${up ? ly + 26 : ly - 22}`} />
+						{it.v === 4500 && <path class="dsp-range" d={`M${HX(4000)} ${HY} H${HX(5000)}`} />}
+						<circle class="dsp-dot" cx={x} cy={HY} r="5.5" />
+						<path class="dsp-ic" transform={`translate(${x} ${up ? ly - 6 : ly - 12})`} d={ICON[it.icon]} />
+						<text class="yr-lbl-s dsp-t" x={x} y={up ? ly + 10 : ly + 4} text-anchor="middle">{it.l[0]}</text>
+						<text class="yr-lbl-s dsp-t" x={x} y={up ? ly + 22 : ly + 16} text-anchor="middle">{it.l[1]}</text>
+					</g>
+				);
+			})
+		}
+	</svg>
+	<svg class="dsp-v" viewBox="0 0 360 600" role="img" aria-label="Логарифмическая шкала доз от 0,001 до 10 000 миллизивертов с примерами">
+		{zones.map((z) => <rect class={z.c} x={VX - 4} y={VY(z.b)} width="8" height={VY(z.a) - VY(z.b)} />)}
+		{DEC.map((d) => <g><path class="dsp-tick" d={`M${VX - 7} ${VY(d)} H${VX + 7}`} /><text class="dsp-tv" x={VX - 12} y={VY(d) + 4} text-anchor="end">{decLab(d)}</text></g>)}
+		<text class="dsp-tv" x={VX - 12} y="597" text-anchor="end">мЗв</text>
+		{
+			IT.map((it, i) => {
+				const y = VY(it.v);
+				return (
+					<g class="dsp-it" data-k={i} tabindex="0" role="button" aria-label={`${it.l.join(' ')}: ${String(it.v).replace('.', ',')} мЗв`}>
+						<path class="dsp-lead" d={`M${VX} ${y} H${VX + 12}`} />
+						{it.v === 4500 && <path class="dsp-range" d={`M${VX} ${VY(4000)} V${VY(5000)}`} />}
+						<circle class="dsp-dot" cx={VX} cy={y} r="5.5" />
+						<path class="dsp-ic" transform={`translate(${VX + 22} ${y})`} d={ICON[it.icon]} />
+						<text class="dsp-tv dsp-t" x={VX + 34} y={y + 4.5}>{it.l.join(' ')}</text>
+					</g>
+				);
+			})
+		}
+	</svg>
+	<ul class="dsp-key">
+		<li><span class="dsp-sw yr-zg"></span>до 100 мЗв: вред не обнаружен</li>
+		<li><span class="dsp-sw yr-zy"></span>100–1000 мЗв: риск болезней растёт</li>
+		<li><span class="dsp-sw yr-zr"></span>больше 1000 мЗв сразу: лучевая болезнь</li>
+	</ul>
+	<p class="dsp-note" data-note aria-live="polite">Нажмите на точку, чтобы прочитать пояснение.</p>
+	<p class="yr-cap">Каждое деление шкалы в 10 раз больше предыдущего. Значения типичные: настоящие дозы бывают в 2–3 раза больше или меньше.</p>
+	<script type="application/json" data-notes set:html={JSON.stringify(IT.map((it) => it.note))} />
+</figure>
+
+<style is:global>
+	.dsp .yr-zg {
+		fill: var(--sl-color-green);
+		background: var(--sl-color-green);
+	}
+	.dsp .yr-zy {
+		fill: var(--yr-g);
+		background: var(--yr-g);
+	}
+	.dsp .yr-zr {
+		fill: var(--sl-color-red);
+		background: var(--sl-color-red);
+	}
+	.dsp .dsp-tick {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.dsp .dsp-lead {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.8;
+	}
+	.dsp .dsp-range {
+		stroke: var(--sl-color-accent);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.dsp .dsp-dot {
+		fill: var(--sl-color-accent);
+		stroke: var(--ig-surface);
+		stroke-width: 1.5;
+	}
+	.dsp .dsp-ic {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.dsp .dsp-t {
+		fill: var(--sl-color-gray-2);
+	}
+	.dsp .dsp-it {
+		cursor: pointer;
+		outline: none;
+	}
+	.dsp .dsp-it:hover .dsp-dot,
+	.dsp .dsp-it:focus-visible .dsp-dot,
+	.dsp .dsp-it.is-on .dsp-dot {
+		r: 7.5;
+	}
+	.dsp .dsp-it.is-on .dsp-t {
+		fill: var(--sl-color-white);
+		font-weight: 600;
+	}
+	.dsp .dsp-tv {
+		fill: var(--sl-color-gray-2);
+		font-size: 12.6px;
+	}
+	.dsp .dsp-v {
+		display: none;
+		max-width: 420px;
+	}
+	@media (max-width: 560px) {
+		.dsp .dsp-h {
+			display: none;
+		}
+		.dsp .dsp-v {
+			display: block;
+		}
+	}
+	.dsp .dsp-key {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.2rem 1rem;
+		margin: 0.4rem 0 0;
+		padding: 0;
+		list-style: none;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.dsp .dsp-key li {
+		margin: 0;
+	}
+	.dsp .dsp-sw {
+		display: inline-block;
+		width: 0.9em;
+		height: 0.5em;
+		margin-right: 0.35em;
+		border-radius: 2px;
+	}
+	.dsp .dsp-note {
+		min-height: 2.9em;
+		margin: 0.4rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+	}
+</style>
+
+<script>
+	document.querySelectorAll<HTMLElement>('[data-dsp]').forEach((root) => {
+		const notes = JSON.parse(root.querySelector('[data-notes]')!.textContent!) as string[];
+		const out = root.querySelector<HTMLElement>('[data-note]')!;
+		const items = [...root.querySelectorAll<SVGGElement>('.dsp-it')];
+		const pick = (k: number) => {
+			items.forEach((g) => g.classList.toggle('is-on', Number(g.dataset.k) === k));
+			out.textContent = notes[k];
+		};
+		items.forEach((g) => {
+			g.addEventListener('click', () => pick(Number(g.dataset.k)));
+			g.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					pick(Number(g.dataset.k));
+				}
+			});
+		});
+	});
+</script>
