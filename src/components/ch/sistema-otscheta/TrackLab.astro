@@ -1,0 +1,428 @@
+---
+/**
+ * Model «Закон движения и траектория»: a motorboat on a pond, top view. The origin O is the corner of a pier; Ox points
+ * east, Oy north; the pond holds the square 0…24 × 0…18 м; 12 px per metre on both axes, a faint grid every 2 м. Three
+ * laws of motion (buttons), coordinates in metres, t in seconds, 0 ≤ t ≤ 10 с:
+ *   «Равномерно»:    x = 2t,       y = 1,5t       — t = 5 с: (10; 7,5), r = 12,5 м; t = 10 с: (20; 15), r = 25 м;
+ *   «С разгоном»:    x = 0,2t²,    y = 0,15t²     — t = 5 с: (5; 3,75), r = 6,25 м; t = 10 с: (20; 15), r = 25 м:
+ *                    the same straight trajectory y = 0,75x as the first law, covered in another way;
+ *   «Вокруг буйка»:  x = 12 + 6 cos(πt/5), y = 8 + 6 sin(πt/5) — a circle of 6 м round the buoy at (12; 8),
+ *                    counterclockwise, one lap in 10 с: t = 0: (18; 8), r = 19,7 м; t = 2,5 с: (12; 14), r = 18,4 м;
+ *                    t = 5 с: (6; 8), r = 10 м; t = 10 с: back at (18; 8).
+ * Shown: the boat (3 м long, to the scale of the pond) with its nose along its velocity; the radius-vector r⃗ from O
+ * (violet); dashed drops to both axes with the coordinates x (blue) and y (red) at their feet; the trace of the boat
+ * from t = 0 (the trajectory, gray); optionally the displacement s⃗ from the start (gold). Below, the graphs x(t) and
+ * y(t) (0…10 с, 0…24 м): the whole law dashed and faint, the part already covered solid, a dot at the current time.
+ * Readouts t, x, y, r = √(x² + y²) (two decimals, trailing zeros dropped). Time slider 0…10 с (step 0,5), «Пуск / Пауза» runs real time
+ * (it stops at 10 с), «Сначала» returns to 0.
+ */
+import SoStyles from './SoStyles.astro';
+const K = 12;
+const OX = 34;
+const OY = 238;
+const X = (m: number) => OX + m * K;
+const Y = (m: number) => OY - m * K;
+const grid = [
+	...Array.from({ length: 13 }, (_, i) => `M${X(2 * i)} ${Y(0)} V${Y(18)}`),
+	...Array.from({ length: 10 }, (_, j) => `M${X(0)} ${Y(2 * j)} H${X(24)}`),
+].join(' ');
+// the pond: a smooth blob round the square −1,5…25,5 × −1,5…19,5 м
+const pond = `M${X(-1.6)} ${Y(4)} C${X(-2.4)} ${Y(12)} ${X(-2)} ${Y(19)} ${X(3)} ${Y(20)} C${X(9)} ${Y(21.2)} ${X(17)} ${Y(20.4)} ${X(23)} ${Y(20)} C${X(26.4)} ${Y(19.6)} ${X(26)} ${Y(14)} ${X(25.8)} ${Y(9)} C${X(25.6)} ${Y(3)} ${X(26)} ${Y(-1.6)} ${X(20)} ${Y(-1.8)} C${X(13)} ${Y(-2.2)} ${X(6)} ${Y(-1.6)} ${X(1)} ${Y(-1.6)} C${X(-1)} ${Y(-1.6)} ${X(-1.4)} ${Y(1)} ${X(-1.6)} ${Y(4)} Z`;
+const reeds = [
+	[25.6, 6],
+	[25.4, 13],
+	[8, 20.6],
+	[-1.9, 11],
+	[16, -1.9],
+];
+// the graphs
+const GX = [30, 210];
+const GT = 13.5; // px per second
+const GV = 4.6; // px per metre
+const GB = 128; // the time axis
+---
+
+<SoStyles />
+<figure class="g7 g7--wide som not-content" data-tracklab>
+	<div class="g7__grid">
+		<div>
+			<svg class="g7__svg" viewBox="0 0 360 270" role="img" aria-label="Пруд, вид сверху, с осями x и y от угла причала. Катер движется по выбранному закону; показаны его радиус-вектор, координаты и траектория">
+				<rect class="tl-bank" x="0" y="0" width="360" height="270"></rect>
+				<path class="tl-pond" d={pond}></path>
+				<path class="som-grid" d={grid}></path>
+				{reeds.map(([x, y]) => <g transform={`translate(${X(x)} ${Y(y)})`}><path class="tl-reed" d="M0 0 l-3 -8 M0 0 l0 -10 M0 0 l3 -8 M0 0 l6 -5 M0 0 l-6 -5" /></g>)}
+				<!-- the pier: a wooden deck south-west of O -->
+				<rect class="tl-pier" x={X(-2.6)} y={Y(0)} width={2.6 * K} height={2.6 * K}></rect>
+				<path class="tl-plank" d={[0.5, 1.1, 1.7, 2.3].map((d) => `M${X(-2.6)} ${Y(-d)} H${X(0)}`).join(' ')}></path>
+				<path class="tl-pier-walk" d={`M${X(-2.6)} ${Y(-2.6)} V270 M${X(-1.2)} ${Y(-2.6)} V270`}></path>
+				<g data-buoy transform={`translate(${X(12)} ${Y(8)})`}>
+					<circle class="tl-buoy" r="5"></circle>
+					<path class="tl-buoy-band" d="M-5 0 H5"></path>
+				</g>
+				<!-- axes -->
+				<path class="som-axis" d={`M${X(0)} ${Y(0)} H${X(26)} M${X(0)} ${Y(0)} V${Y(19.6)}`}></path>
+				<path class="head--ink" d={`M${X(26) + 8} ${Y(0)} l-9 -4.5 v9 Z`}></path>
+				<path class="head--ink" d={`M${X(0)} ${Y(19.6) - 8} l-4.5 9 h9 Z`}></path>
+				{[4, 8, 12, 16, 20, 24].map((m) => <><path class="ln" d={`M${X(m)} ${Y(0) - 3} V${Y(0) + 3}`} /><text class="t-small t-num" x={X(m)} y={Y(0) + 15} text-anchor="middle">{m}</text></>)}
+				{[4, 8, 12, 16].map((m) => <><path class="ln" d={`M${X(0) - 3} ${Y(m)} H${X(0) + 3}`} /><text class="t-small t-num" x={X(0) - 6} y={Y(m) + 4} text-anchor="end">{m}</text></>)}
+				<text x={X(26) - 2} y={Y(0) - 7} text-anchor="end"><tspan class="t-math">x</tspan>, м</text>
+				<text x={X(0) + 8} y={Y(19.6) + 4}><tspan class="t-math">y</tspan>, м</text>
+				<text class="t-small" x={X(0) + 4} y={Y(0) + 14}>O</text>
+				<g transform="translate(336 24)">
+					<path class="tl-north" d="M0 -12 L4 2 L0 -1 L-4 2 Z"></path>
+					<text class="t-small" x="0" y="15" text-anchor="middle">С</text>
+				</g>
+				<!-- the motion -->
+				<path class="som-trace" data-trace d=""></path>
+				<path class="som-drop" data-drops d=""></path>
+				<path class="arrow arrow--gold" data-s d=""></path>
+				<path class="head--gold" data-sh d=""></path>
+				<path class="arrow arrow--violet" data-r d=""></path>
+				<path class="head--violet" data-rh d=""></path>
+				<circle class="tl-foot tl-foot--x" data-fx r="3.2"></circle>
+				<circle class="tl-foot tl-foot--y" data-fy r="3.2"></circle>
+				<text class="t-strong t-num t-halo t-blue" data-lx text-anchor="middle"></text>
+				<text class="t-strong t-num t-halo t-red" data-ly></text>
+				<g data-rlab>
+					<text class="t-math t-violet t-halo tl-big" x="0" y="0" text-anchor="middle">r</text>
+					<path class="tl-vec" d="M-4 -12 H4 M1.5 -14.5 L4 -12 L1.5 -9.5"></path>
+				</g>
+				<g data-boat>
+					<path class="tl-hull" d="M-18 -7.5 H8 Q18 -6 18 0 Q18 6 8 7.5 H-18 Z"></path>
+					<rect class="tl-cabin" x="-8" y="-5" width="10" height="10" rx="2.5"></rect>
+					<path class="tl-wind" d="M3 -4.5 Q6.5 0 3 4.5"></path>
+					<circle class="tl-mid" r="2"></circle>
+				</g>
+			</svg>
+			<svg class="g7__svg" viewBox="0 0 360 150" role="img" aria-label="Графики зависимости координат x и y катера от времени">
+				{GX.map((g0, i) => (
+					<g>
+						<path class="som-grid" d={[8, 16, 24].map((v) => `M${g0} ${GB - v * GV} H${g0 + 10 * GT}`).join(' ') + ' ' + [5, 10].map((t) => `M${g0 + t * GT} ${GB} V${GB - 24 * GV}`).join(' ')} />
+						<path class="som-axis" d={`M${g0} ${GB} H${g0 + 10 * GT + 8} M${g0} ${GB} V${GB - 24 * GV - 8}`} />
+						<path class="head--ink" d={`M${g0 + 10 * GT + 14} ${GB} l-8 -4 v8 Z`} />
+						<path class="head--ink" d={`M${g0} ${GB - 24 * GV - 14} l-4 8 h8 Z`} />
+						{[0, 8, 16, 24].map((v) => <text class="t-small t-num" x={g0 - 5} y={GB - v * GV + 4} text-anchor="end">{v}</text>)}
+						{[5, 10].map((t) => <text class="t-small t-num" x={g0 + t * GT} y={GB + 14} text-anchor="middle">{t}</text>)}
+						<text x={g0 + 7} y={GB - 24 * GV - 3}><tspan class={`t-math ${i ? 't-red' : 't-blue'}`}>{i ? 'y' : 'x'}</tspan>, м</text>
+						<text x={g0 + 10 * GT + 14} y={GB - 7} text-anchor="end"><tspan class="t-math">t</tspan>, с</text>
+						<path class="tl-law" data-law={i} d="" />
+						<path class={`tl-curve ${i ? 'tl-curve--y' : 'tl-curve--x'}`} data-curve={i} d="" />
+						<line class="tl-cursor" data-cur={i} y1={GB} y2={GB - 24 * GV} />
+						<circle class={`tl-gdot ${i ? 'tl-foot--y' : 'tl-foot--x'}`} data-gdot={i} r="3.5" />
+					</g>
+				))}
+			</svg>
+		</div>
+		<div class="tl-ctrl">
+			<div class="g7__row">
+				<span class="g7__seg" data-law-btns><button type="button" class="g7__btn" aria-pressed="true" data-k="0">Равномерно</button><button type="button" class="g7__btn" aria-pressed="false" data-k="1">С разгоном</button><button type="button" class="g7__btn" aria-pressed="false" data-k="2">Вокруг буйка</button></span>
+			</div>
+			<p class="tl-lawtext" data-lawtext></p>
+			<label class="g7__slider"><span>Время <i>t</i></span><output data-to>0 с</output><input type="range" min="0" max="10" step="0.5" value="0" data-t aria-label="Время, секунды" /></label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пуск</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+				<label class="tl-check"><input type="checkbox" data-sbox /> <span>Показать перемещение</span></label>
+			</div>
+			<ul class="som-read">
+				<li><i>t</i> = <b data-rt>0 с</b></li>
+				<li class="is-blue"><i>x</i> = <b data-rx></b></li>
+				<li class="is-red"><i>y</i> = <b data-ry></b></li>
+				<li class="is-violet"><i>r</i> = <b data-rr></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Фиолетовая стрелка — радиус-вектор катера, серая линия — его траектория, внизу — графики координат. Катер длиной 3&nbsp;м и пруд нарисованы в одном масштабе; время настоящее.
+	</figcaption>
+</figure>
+
+<style is:global>
+	[data-tracklab] .tl-bank {
+		fill: color-mix(in oklab, var(--g7-green) 22%, var(--g7-paper));
+	}
+	[data-tracklab] .tl-pond {
+		fill: color-mix(in oklab, var(--ig-vx) 22%, var(--g7-paper));
+		stroke: color-mix(in oklab, var(--ig-vx) 45%, var(--g7-paper));
+		stroke-width: 2;
+	}
+	[data-tracklab] .tl-reed {
+		stroke: color-mix(in oklab, var(--g7-green) 70%, var(--g7-ink));
+		stroke-width: 1.3;
+		stroke-linecap: round;
+		fill: none;
+	}
+	[data-tracklab] .tl-pier {
+		fill: var(--g7-wood);
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	[data-tracklab] .tl-plank {
+		stroke: var(--g7-wood-dark);
+		stroke-width: 0.7;
+	}
+	[data-tracklab] .tl-pier-walk {
+		stroke: var(--g7-wood-dark);
+		stroke-width: 1;
+	}
+	[data-tracklab] .tl-buoy {
+		fill: var(--so-light);
+		stroke: var(--g7-red);
+		stroke-width: 2;
+	}
+	[data-tracklab] .tl-buoy-band {
+		stroke: var(--g7-red);
+		stroke-width: 3;
+	}
+	[data-tracklab] .tl-north {
+		fill: var(--g7-ink);
+	}
+	[data-tracklab] .tl-hull {
+		fill: var(--so-light);
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	[data-tracklab] .tl-cabin {
+		fill: color-mix(in oklab, var(--ig-vx) 40%, var(--g7-paper));
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	[data-tracklab] .tl-wind {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	[data-tracklab] .tl-mid {
+		fill: var(--g7-violet);
+	}
+	[data-tracklab] .tl-foot {
+		stroke: var(--g7-paper);
+		stroke-width: 1;
+	}
+	[data-tracklab] .tl-foot--x {
+		fill: var(--g7-blue);
+	}
+	[data-tracklab] .tl-foot--y {
+		fill: var(--g7-red);
+	}
+	[data-tracklab] .tl-big {
+		font-size: 17px;
+	}
+	[data-tracklab] .tl-vec {
+		fill: none;
+		stroke: var(--g7-violet);
+		stroke-width: 1.3;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	[data-tracklab] .tl-law {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 3;
+	}
+	[data-tracklab] .tl-curve {
+		fill: none;
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	[data-tracklab] .tl-curve--x {
+		stroke: var(--g7-blue);
+	}
+	[data-tracklab] .tl-curve--y {
+		stroke: var(--g7-red);
+	}
+	[data-tracklab] .tl-cursor {
+		stroke: var(--g7-line);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	[data-tracklab] .tl-ctrl {
+		display: grid;
+		gap: 0.6rem;
+		align-content: start;
+	}
+	[data-tracklab] .tl-lawtext {
+		margin: 0;
+		font-size: 1rem;
+		color: var(--sl-color-gray-1);
+	}
+	[data-tracklab] .tl-lawtext span {
+		white-space: nowrap;
+	}
+	[data-tracklab] .tl-check {
+		display: inline-flex;
+		gap: 0.35rem;
+		align-items: center;
+		font-size: var(--sl-text-sm);
+	}
+</style>
+
+<script>
+	import { loop, segment } from '../g7/kit';
+	import { arrow, ru, ruTrim } from './so';
+
+	const K = 12;
+	const OX = 34;
+	const OY = 238;
+	const X = (m: number) => OX + m * K;
+	const Y = (m: number) => OY - m * K;
+	const GX = [30, 210];
+	const GT = 13.5;
+	const GV = 4.6;
+	const GB = 128;
+	type Law = { at: (t: number) => [number, number]; vel: (t: number) => [number, number]; text: string };
+	const LAWS: Law[] = [
+		{ at: (t) => [2 * t, 1.5 * t], vel: () => [2, 1.5], text: '<span><i>x</i> = 2<i>t</i>,</span> <span><i>y</i> = 1,5<i>t</i></span>' },
+		{ at: (t) => [0.2 * t * t, 0.15 * t * t], vel: () => [2, 1.5], text: '<span><i>x</i> = 0,2<i>t</i><sup>2</sup>,</span> <span><i>y</i> = 0,15<i>t</i><sup>2</sup></span>' },
+		{
+			at: (t) => [12 + 6 * Math.cos((Math.PI * t) / 5), 8 + 6 * Math.sin((Math.PI * t) / 5)],
+			vel: (t) => [-Math.sin((Math.PI * t) / 5), Math.cos((Math.PI * t) / 5)],
+			text: '<span><i>x</i> = 12 + 6&#8239;cos&#8239;(π<i>t</i>/5),</span> <span><i>y</i> = 8 + 6&#8239;sin&#8239;(π<i>t</i>/5)</span>',
+		},
+	];
+	const f = (v: number) => v.toFixed(1);
+	const m1 = (v: number) => (Math.abs(v) < 0.005 ? '0' : `${ruTrim(v, 2)} м`);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-tracklab]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const trace = q<SVGPathElement>('[data-trace]');
+		const drops = q<SVGPathElement>('[data-drops]');
+		const sPath = q<SVGPathElement>('[data-s]');
+		const sHead = q<SVGPathElement>('[data-sh]');
+		const rPath = q<SVGPathElement>('[data-r]');
+		const rHead = q<SVGPathElement>('[data-rh]');
+		const fx = q<SVGCircleElement>('[data-fx]');
+		const fy = q<SVGCircleElement>('[data-fy]');
+		const lx = q<SVGTextElement>('[data-lx]');
+		const ly = q<SVGTextElement>('[data-ly]');
+		const rlab = q<SVGGElement>('[data-rlab]');
+		const boat = q<SVGGElement>('[data-boat]');
+		const buoy = q<SVGGElement>('[data-buoy]');
+		const lawText = q<HTMLElement>('[data-lawtext]');
+		const slider = q<HTMLInputElement>('[data-t]');
+		const tOut = q<HTMLOutputElement>('[data-to]');
+		const go = q<HTMLButtonElement>('[data-go]');
+		const sbox = q<HTMLInputElement>('[data-sbox]');
+		const rt = q<HTMLElement>('[data-rt]');
+		const rx = q<HTMLElement>('[data-rx]');
+		const ry = q<HTMLElement>('[data-ry]');
+		const rr = q<HTMLElement>('[data-rr]');
+		const laws = [0, 1].map((i) => q<SVGPathElement>(`[data-law="${i}"]`));
+		const curves = [0, 1].map((i) => q<SVGPathElement>(`[data-curve="${i}"]`));
+		const curs = [0, 1].map((i) => q<SVGLineElement>(`[data-cur="${i}"]`));
+		const gdots = [0, 1].map((i) => q<SVGCircleElement>(`[data-gdot="${i}"]`));
+		let k = 0;
+		let t = 0;
+		let playing = false;
+		const gpath = (i: number, t1: number) => {
+			const pts: string[] = [];
+			const n = Math.max(1, Math.round(t1 / 0.05));
+			for (let j = 0; j <= n; j++) {
+				const tt = (t1 * j) / n;
+				const v = LAWS[k].at(tt)[i];
+				pts.push(`${j ? 'L' : 'M'}${f(GX[i] + tt * GT)} ${f(GB - v * GV)}`);
+			}
+			return pts.join(' ');
+		};
+		const setLaw = () => {
+			lawText.innerHTML = 'Закон движения: ' + LAWS[k].text;
+			laws.forEach((p, i) => p.setAttribute('d', gpath(i, 10)));
+			buoy.style.display = k === 2 ? '' : 'none';
+		};
+		const draw = () => {
+			const L = LAWS[k];
+			const [x, y] = L.at(t);
+			const bx = X(x);
+			const by = Y(y);
+			// the trace
+			const n = Math.round(t / 0.05);
+			const pts: string[] = [];
+			for (let j = 0; j <= n; j++) {
+				const [a, b] = L.at((t * j) / Math.max(n, 1));
+				pts.push(`${j ? 'L' : 'M'}${f(X(a))} ${f(Y(b))}`);
+			}
+			trace.setAttribute('d', n ? pts.join(' ') : '');
+			drops.setAttribute('d', `M${f(bx)} ${f(by)} V${Y(0)} M${f(bx)} ${f(by)} H${X(0)}`);
+			const r = arrow(X(0), Y(0), bx, by, 10, 5);
+			rPath.setAttribute('d', r.line);
+			rHead.setAttribute('d', r.head);
+			const [x0, y0] = L.at(0);
+			const s = sbox.checked ? arrow(X(x0), Y(y0), bx, by, 10, 5) : { line: '', head: '' };
+			sPath.setAttribute('d', s.line);
+			sHead.setAttribute('d', s.head);
+			fx.setAttribute('cx', f(bx));
+			fx.setAttribute('cy', String(Y(0)));
+			fy.setAttribute('cx', String(X(0)));
+			fy.setAttribute('cy', f(by));
+			lx.setAttribute('x', f(bx));
+			lx.setAttribute('y', String(Y(0) - 7));
+			lx.textContent = ruTrim(x, 2);
+			ly.setAttribute('x', String(X(0) + 7));
+			ly.setAttribute('y', f(by - 6));
+			ly.textContent = ruTrim(y, 2);
+			// r⃗ label: beside the middle of the vector, on its upper-left side
+			const len = Math.hypot(bx - X(0), by - Y(0));
+			const nx = len > 1 ? (by - Y(0)) / len : 0;
+			const ny = len > 1 ? -(bx - X(0)) / len : 0;
+			rlab.setAttribute('transform', `translate(${f((X(0) + bx) / 2 + nx * 13)} ${f((Y(0) + by) / 2 + ny * 13 + 5)})`);
+			rlab.style.display = len > 40 ? '' : 'none';
+			const [vx, vy] = L.vel(t);
+			boat.setAttribute('transform', `translate(${f(bx)} ${f(by)}) rotate(${((-Math.atan2(vy, vx) * 180) / Math.PI).toFixed(1)})`);
+			// graphs
+			curves.forEach((p, i) => p.setAttribute('d', t > 0 ? gpath(i, t) : ''));
+			curs.forEach((c, i) => {
+				c.setAttribute('x1', f(GX[i] + t * GT));
+				c.setAttribute('x2', f(GX[i] + t * GT));
+			});
+			gdots.forEach((d, i) => {
+				d.setAttribute('cx', f(GX[i] + t * GT));
+				d.setAttribute('cy', f(GB - [x, y][i] * GV));
+			});
+			// readouts
+			tOut.textContent = `${ru(t, Math.abs(t - Math.round(t)) > 0.01 ? 1 : 0)} с`;
+			rt.textContent = `${ru(t, 1)} с`;
+			rx.textContent = m1(x);
+			ry.textContent = m1(y);
+			rr.textContent = m1(Math.hypot(x, y));
+		};
+		segment(q('[data-law-btns]'), (b) => {
+			k = +b.dataset.k!;
+			setLaw();
+			draw();
+		});
+		slider.addEventListener('input', () => {
+			playing = false;
+			go.textContent = 'Пуск';
+			t = +slider.value;
+			draw();
+		});
+		const wake = loop(root, (dt) => {
+			if (!playing) return false;
+			t = Math.min(10, t + dt);
+			slider.value = String(Math.round(t * 2) / 2);
+			if (t >= 10) {
+				playing = false;
+				go.textContent = 'Пуск';
+			}
+			draw();
+			return playing;
+		});
+		go.addEventListener('click', () => {
+			if (!playing && t >= 10) t = 0;
+			playing = !playing;
+			go.textContent = playing ? 'Пауза' : 'Пуск';
+			wake();
+		});
+		q('[data-reset]').addEventListener('click', () => {
+			playing = false;
+			go.textContent = 'Пуск';
+			t = 0;
+			slider.value = '0';
+			draw();
+		});
+		sbox.addEventListener('change', draw);
+		setLaw();
+		draw();
+	}
+</script>

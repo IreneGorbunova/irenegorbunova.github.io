@@ -1,0 +1,275 @@
+---
+/**
+ * Picture for «Система отсчёта»: three coordinates of a quadcopter over a football pitch (animated, real time).
+ * The pitch is 105 × 68 м; the body of reference is the corner flag O; the axis Ox runs along the touchline, Oy along
+ * the goal line, Oz straight up. Oblique (cavalier) view: x to the right, y back at 30° to the horizontal, z up, all
+ * three at the same scale, 1,95 px per metre; the markings (halfway line, center circle 9,15 м, penalty areas
+ * 16,5 × 40,32 м, goal areas 5,5 × 18,32 м, goals 7,32 × 2,44 м) are drawn to it.
+ * Flight (26 s, then the end frame for 2 s): 0–8 s the drone rises from (10; 10; 0) to (10; 10; 16) at 2 м/с; 8–18 s
+ * it flies straight to (58; 46; 16): Δx = 48 м, Δy = 36 м, 60 м at 6 м/с; 18–26 s it lands at (58; 46; 0) at
+ * 2 м/с. A dashed drop goes from the drone to its point on the ground (x; y; 0) and from there to both axes; the
+ * stopwatch and the readouts t, x, y, z (rounded to 1 м) follow it. The drone (about 0,5 м across) is drawn about
+ * 15 times larger than the scale (the caption says so).
+ */
+import SoStyles from './SoStyles.astro';
+const K = 1.95;
+const C = Math.cos(Math.PI / 6);
+const S = Math.sin(Math.PI / 6);
+const O = { x: 20, y: 176 };
+const P = (x: number, y: number, z = 0) => ({ x: O.x + K * (x + y * C), y: O.y - K * (y * S + z) });
+const f = (v: number) => v.toFixed(1);
+const poly = (pts: [number, number][], close = true) =>
+	pts.map(([x, y], i) => `${i ? 'L' : 'M'}${f(P(x, y).x)} ${f(P(x, y).y)}`).join(' ') + (close ? ' Z' : '');
+const rect = (x0: number, y0: number, x1: number, y1: number) => poly([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]);
+const circle = (cx: number, cy: number, r: number) =>
+	poly(Array.from({ length: 48 }, (_, i) => [cx + r * Math.cos((i * Math.PI) / 24), cy + r * Math.sin((i * Math.PI) / 24)] as [number, number]));
+const pa = 40.32;
+const ga = 18.32;
+const W = 68;
+const L = 105;
+const lines = [
+	rect(0, 0, L, W),
+	poly([[L / 2, 0], [L / 2, W]], false),
+	circle(L / 2, W / 2, 9.15),
+	rect(0, (W - pa) / 2, 16.5, (W + pa) / 2),
+	rect(L - 16.5, (W - pa) / 2, L, (W + pa) / 2),
+	rect(0, (W - ga) / 2, 5.5, (W + ga) / 2),
+	rect(L - 5.5, (W - ga) / 2, L, (W + ga) / 2),
+].join(' ');
+// stripes of the mown grass, every 10,5 м across the pitch
+const stripes = Array.from({ length: 5 }, (_, i) => rect(2 * i * 10.5, 0, (2 * i + 1) * 10.5, W));
+const goal = (x: number) => {
+	const a = P(x, W / 2 - 3.66);
+	const b = P(x, W / 2 + 3.66);
+	const h = 2.44 * K;
+	return `M${f(a.x)} ${f(a.y)} V${f(a.y - h)} L${f(b.x)} ${f(b.y - h)} V${f(b.y)}`;
+};
+const flags = [P(0, 0), P(L, 0), P(L, W), P(0, W)];
+const xTicks = [20, 40, 60, 80, 100];
+const yTicks = [20, 40, 60];
+const ax = { x: P(118, 0), y: P(0, 80), z: P(0, 0, 30) };
+---
+
+<SoStyles />
+<figure class="g7 g7--pic som not-content" data-drone>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 64 360 152" role="img" aria-label="Квадрокоптер взлетает над футбольным полем, летит по прямой и садится. Начало координат — угловой флажок, оси x и y идут вдоль линий поля, ось z — вверх. Его координаты x, y и z меняются">
+			<path class="dr-grass" d={rect(-3, -3, L + 3, W + 3)}></path>
+			{stripes.map((d) => <path class="dr-stripe" d={d} />)}
+			<path class="dr-lines" d={lines}></path>
+			<path class="dr-goal" d={goal(0)}></path>
+			<path class="dr-goal" d={goal(L)}></path>
+			{flags.map((p) => <path class="dr-flagpole" d={`M${f(p.x)} ${f(p.y)} v-7 l5 1.6 l-5 1.6`} />)}
+			<!-- axes from the corner flag -->
+			<path class="som-axis" d={`M${O.x} ${O.y} L${f(ax.x.x)} ${f(ax.x.y)} M${O.x} ${O.y} L${f(ax.y.x)} ${f(ax.y.y)} M${O.x} ${O.y} L${f(ax.z.x)} ${f(ax.z.y)}`}></path>
+			<path class="head--ink" d={`M${f(ax.x.x + 8)} ${f(ax.x.y)} l-9 -4.5 v9 Z`}></path>
+			<path class="head--ink" d={`M${f(ax.y.x + 6.9)} ${f(ax.y.y - 4)} l-9.9 -1.4 l4.5 7.8 Z`}></path>
+			<path class="head--ink" d={`M${f(ax.z.x)} ${f(ax.z.y - 8)} l-4.5 9 h9 Z`}></path>
+			{xTicks.map((m) => { const p = P(m, 0); return <><path class="ln" d={`M${f(p.x)} ${f(p.y)} v5`} /><text class="t-small t-num" x={f(p.x)} y={f(p.y + 16)} text-anchor="middle">{m}</text></>; })}
+			{yTicks.map((m) => { const p = P(0, m); return <><path class="ln" d={`M${f(p.x)} ${f(p.y)} l-2.5 -4.3`} /><text class="t-small t-num" x={f(p.x - 6)} y={f(p.y - 7)} text-anchor="end">{m}</text></>; })}
+			<text x={f(ax.x.x + 2)} y={f(ax.x.y + 17)} text-anchor="end"><tspan class="t-math">x</tspan>, м</text>
+			<text x={f(ax.y.x + 4)} y={f(ax.y.y - 8)} text-anchor="middle"><tspan class="t-math">y</tspan>, м</text>
+			<text x={f(ax.z.x + 9)} y={f(ax.z.y + 2)}><tspan class="t-math">z</tspan>, м</text>
+			<text class="t-small" x={O.x - 4} y={O.y + 16} text-anchor="middle">O</text>
+			<text class="t-small" x={O.x + 10} y={O.y + 34}>угловой флажок — тело отсчёта</text>
+			<!-- the drone, its shadow and the drops -->
+			<ellipse class="dr-shadow" data-shadow rx="7" ry="2.6"></ellipse>
+			<path class="som-drop" data-drops d=""></path>
+			<path class="dr-z" data-zline d=""></path>
+			<circle class="dr-pt" data-gx r="3"></circle>
+			<circle class="dr-pt dr-pt--y" data-gy r="3"></circle>
+			<text class="t-strong t-num t-halo t-blue" data-lx></text>
+			<text class="t-strong t-num t-halo t-red" data-ly text-anchor="middle"></text>
+			<text class="t-strong t-num t-halo" data-lz></text>
+			<g data-copter>
+				<path class="dr-arm" d="M-11 -3 L11 -3 M-6 -5.5 L6 -0.5"></path>
+				<rect class="dr-body" x="-4.5" y="-6" width="9" height="5" rx="2"></rect>
+				<path class="dr-leg" d="M-3 -1 L-4.5 3 M3 -1 L4.5 3 M-6.5 3 H-2.5 M2.5 3 H6.5"></path>
+				<ellipse class="dr-rotor" data-rotor cx="-11" cy="-4.5" rx="5" ry="1.2"></ellipse>
+				<ellipse class="dr-rotor" data-rotor cx="11" cy="-4.5" rx="5" ry="1.2"></ellipse>
+				<ellipse class="dr-rotor" data-rotor cx="-6" cy="-7" rx="4" ry="1"></ellipse>
+				<ellipse class="dr-rotor" data-rotor cx="6" cy="-2" rx="4" ry="1"></ellipse>
+				<circle class="dr-led" cx="0" cy="-3.5" r="1.1"></circle>
+			</g>
+			<!-- the stopwatch -->
+			<g transform="translate(318 88)">
+				<circle class="dr-watch" r="17"></circle>
+				<rect class="dr-crown" x="-2.5" y="-23" width="5" height="5" rx="1"></rect>
+				<line class="dr-hand" data-hand x1="0" y1="0" x2="0" y2="-13"></line>
+				<circle class="dr-crown" r="1.8"></circle>
+			</g>
+		</svg>
+		<ul class="som-read">
+			<li><i>t</i> = <b data-rt>0,0 с</b></li>
+			<li class="is-blue"><i>x</i> = <b data-rx>10 м</b></li>
+			<li class="is-red"><i>y</i> = <b data-ry>10 м</b></li>
+			<li><i>z</i> = <b data-rz>0</b></li>
+		</ul>
+	</div>
+	<figcaption class="g7__caption">
+		Тело отсчёта — угловой флажок поля, оси <i>x</i> и <i>y</i> идут вдоль линий разметки, ось <i>z</i> — вверх; часы отсчитывают время. Положение квадрокоптера задают три координаты. Поле и высота полёта в одном масштабе, квадрокоптер нарисован примерно в 15 раз крупнее; время настоящее.
+	</figcaption>
+</figure>
+
+<style is:global>
+	[data-drone] .dr-grass {
+		fill: color-mix(in oklab, var(--g7-green) 30%, var(--g7-paper));
+	}
+	[data-drone] .dr-stripe {
+		fill: color-mix(in oklab, var(--g7-green) 12%, transparent);
+	}
+	[data-drone] .dr-lines {
+		fill: none;
+		stroke: color-mix(in oklab, var(--so-light) 85%, var(--g7-green));
+		stroke-width: 1.1;
+		opacity: 0.9;
+	}
+	[data-drone] .dr-goal {
+		fill: none;
+		stroke: var(--so-light);
+		stroke-width: 1.6;
+	}
+	[data-drone] .dr-flagpole {
+		fill: var(--g7-red);
+		stroke: var(--g7-ink);
+		stroke-width: 0.9;
+	}
+	[data-drone] .dr-shadow {
+		fill: color-mix(in oklab, var(--g7-ink) 35%, transparent);
+	}
+	[data-drone] .dr-z {
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+		stroke-dasharray: 3 3;
+	}
+	[data-drone] .dr-pt {
+		fill: var(--g7-blue);
+		stroke: var(--g7-paper);
+		stroke-width: 1;
+	}
+	[data-drone] .dr-pt--y {
+		fill: var(--g7-red);
+	}
+	[data-drone] .dr-arm {
+		stroke: var(--g7-ink);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	[data-drone] .dr-body {
+		fill: var(--sl-color-gray-2);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	[data-drone] .dr-leg {
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+		fill: none;
+	}
+	[data-drone] .dr-rotor {
+		fill: color-mix(in oklab, var(--sl-color-gray-3) 50%, transparent);
+		stroke: var(--g7-ink);
+		stroke-width: 0.5;
+	}
+	[data-drone] .dr-led {
+		fill: var(--g7-red);
+	}
+	[data-drone] .dr-watch {
+		fill: var(--g7-paper);
+		stroke: var(--g7-ink);
+		stroke-width: 1.8;
+	}
+	[data-drone] .dr-crown {
+		fill: var(--g7-ink);
+	}
+	[data-drone] .dr-hand {
+		stroke: var(--g7-red);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { loop, fmt } from '../g7/kit';
+
+	const K = 1.95;
+	const C = Math.cos(Math.PI / 6);
+	const S = Math.sin(Math.PI / 6);
+	const O = { x: 20, y: 176 };
+	const P = (x: number, y: number, z = 0) => ({ x: O.x + K * (x + y * C), y: O.y - K * (y * S + z) });
+	const RUN = 26;
+	const HOLD = 2;
+	/** Where the drone is at time t, м. */
+	const at = (t: number) => {
+		if (t < 8) return { x: 10, y: 10, z: 2 * t };
+		if (t < 18) {
+			const d = 6 * (t - 8);
+			return { x: 10 + 0.8 * d, y: 10 + 0.6 * d, z: 16 };
+		}
+		return { x: 58, y: 46, z: Math.max(0, 16 - 2 * (t - 18)) };
+	};
+	const f = (v: number) => v.toFixed(1);
+	const m = (v: number) => (Math.round(v) === 0 ? '0' : `${Math.round(v)} м`);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-drone]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const drone = q<SVGGElement>("[data-copter]");
+		const shadow = q<SVGEllipseElement>('[data-shadow]');
+		const drops = q<SVGPathElement>('[data-drops]');
+		const zline = q<SVGPathElement>('[data-zline]');
+		const gx = q<SVGCircleElement>('[data-gx]');
+		const gy = q<SVGCircleElement>('[data-gy]');
+		const lx = q<SVGTextElement>('[data-lx]');
+		const ly = q<SVGTextElement>('[data-ly]');
+		const lz = q<SVGTextElement>('[data-lz]');
+		const hand = q<SVGLineElement>('[data-hand]');
+		const rotors = [...root.querySelectorAll<SVGEllipseElement>('[data-rotor]')];
+		const rt = q<HTMLElement>('[data-rt]');
+		const rx = q<HTMLElement>('[data-rx]');
+		const ry = q<HTMLElement>('[data-ry]');
+		const rz = q<HTMLElement>('[data-rz]');
+		let run = 0;
+		let spin = 0;
+		const show = () => {
+			const t = Math.min(run, RUN);
+			const p = at(t);
+			const d = P(p.x, p.y, p.z);
+			const g = P(p.x, p.y);
+			const ox = P(p.x, 0);
+			const oy = P(0, p.y);
+			drone.setAttribute('transform', `translate(${f(d.x)} ${f(d.y - 3)})`);
+			shadow.setAttribute('cx', f(g.x));
+			shadow.setAttribute('cy', f(g.y));
+			zline.setAttribute('d', `M${f(d.x)} ${f(d.y)} L${f(g.x)} ${f(g.y)}`);
+			drops.setAttribute('d', `M${f(g.x)} ${f(g.y)} L${f(ox.x)} ${f(ox.y)} M${f(g.x)} ${f(g.y)} L${f(oy.x)} ${f(oy.y)}`);
+			gx.setAttribute('cx', f(ox.x));
+			gx.setAttribute('cy', f(ox.y));
+			gy.setAttribute('cx', f(oy.x));
+			gy.setAttribute('cy', f(oy.y));
+			// the tags stand on the grass beside the middles of the dashed drops, clear of the axis labels
+			lx.setAttribute('x', f((g.x + ox.x) / 2 + 7));
+			lx.setAttribute('y', f((g.y + ox.y) / 2 + 4));
+			lx.textContent = Math.round(p.x) + '';
+			ly.setAttribute('x', f((g.x + oy.x) / 2));
+			ly.setAttribute('y', f((g.y + oy.y) / 2 + 13));
+			ly.textContent = Math.round(p.y) + '';
+			lz.setAttribute('x', f(d.x + 14));
+			lz.setAttribute('y', f((d.y + g.y) / 2 + 4));
+			lz.textContent = p.z > 0.5 ? `z = ${Math.round(p.z)} м` : '';
+			hand.setAttribute('transform', `rotate(${((t / 60) * 360).toFixed(1)})`);
+			const flying = p.z > 0 || (t > 0 && t < RUN);
+			rotors.forEach((r, i) => r.setAttribute('rx', flying ? (3 + 2 * Math.abs(Math.sin(spin * 9 + i))).toFixed(1) : i < 2 ? '5' : '4'));
+			rt.textContent = `${fmt(t, 1)} с`;
+			rx.textContent = m(p.x);
+			ry.textContent = m(p.y);
+			rz.textContent = m(p.z);
+		};
+		loop(root, (dt) => {
+			run += dt;
+			spin += dt;
+			if (run > RUN + HOLD) run = 0;
+			show();
+			return true;
+		});
+		show();
+	}
+</script>
