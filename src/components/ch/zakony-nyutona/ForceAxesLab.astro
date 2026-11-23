@@ -1,0 +1,1002 @@
+---
+/**
+ * «Силы и оси» (section «Силы в механике. Второй закон Ньютона в проекциях»): the forces on a body in four cases, to one
+ * scale per tab, and the second law in projections. g = 9,8 Н/кг; every body starts from rest.
+ *   Горизонтальная плоскость: a block m on a table pulled horizontally with F_тяги. N = mg; static friction = F_тяги while
+ *     F_тяги ≤ μN, otherwise kinetic friction μN and a = (F_тяги − μN)/m. Scale 2,5 px/Н; 1 m = 260 px.
+ *   Наклонная плоскость: m = 2 кг, angle α. N = mg cos α; static friction = mg sin α while mg sin α ≤ μN (tg α ≤ μ),
+ *     otherwise μN and a = g(sin α − μ cos α). x down the plane, y perpendicular, out of it. Scale 5 px/Н; 1 m = 225 px; the axes reach past the longest arrow.
+ *   Вертикальная стена: m = 1 кг pressed to the wall by a hand with F_руки (perpendicular to the wall; friction between
+ *     the palm and the block is not taken into account). N = F_руки; static friction = mg while mg ≤ μN, otherwise μN and
+ *     a = g − μN/m, down. x down, y away from the wall. Scale 5 px/Н; 1 m = 200 px. The hand: people kit (nzArm.ts).
+ *   Нить через блок: m₁ on the table, a light thread over a light pulley without friction to a hanging m₂; T is the same
+ *     on both bodies. Moving when m₂g > μm₁g: a = (m₂ − μm₁)g/(m₁ + m₂), T = m₂(g − a); at rest T = m₂g and static
+ *     friction = m₂g. Axes: body 1 x toward the pulley, y up; body 2 x down. Scale 5 px/Н; 1 m = 187,5 px.
+ * A moving body slides 1 m (0,6 m on the incline and the pulley) in real time, waits 0,9 s and starts again.
+ * Numbers: 3 significant figures (2 decimals below 10). Checked by review/nyut2/check_forces.py.
+ */
+import PeopleStyles from '@components/people/PeopleStyles.astro';
+
+const uid = `fa-${Math.random().toString(36).slice(2, 8)}`;
+const tabs = ['Горизонтальная плоскость', 'Наклонная плоскость', 'Вертикальная стена', 'Нить через блок'];
+const hatch = (x0: number, y0: number, x1: number, y1: number, step = 10) => {
+	let s = '';
+	for (let k = x0 - (y1 - y0); k < x1; k += step) {
+		const xa = Math.max(k, x0);
+		const xb = Math.min(k + (y1 - y0), x1);
+		s += `M ${xa.toFixed(1)} ${(y1 - (xa - k)).toFixed(1)} L ${xb.toFixed(1)} ${(y1 - (xb - k)).toFixed(1)} `;
+	}
+	return s;
+};
+---
+
+<PeopleStyles />
+<figure class="fa not-content" data-fa>
+	<div class="fa__tabs" role="tablist" aria-label="Где лежит тело">
+		{
+			tabs.map((t, i) => (
+				<button type="button" role="tab" id={`${uid}-t${i}`} aria-controls={`${uid}-p${i}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? undefined : '-1'} data-tab={i}>
+					{t}
+				</button>
+			))
+		}
+	</div>
+
+	<div class="fa__panel" role="tabpanel" id={`${uid}-p0`} aria-labelledby={`${uid}-t0`} data-panel="0">
+		<svg class="fa__svg" viewBox="0 0 480 420" role="img" aria-label="Брусок на горизонтальном столе, его тянут с силой тяги">
+			<rect class="fa__ground" x="10" y="260" width="460" height="26"></rect>
+			<line class="fa__gline" x1="10" y1="260" x2="470" y2="260"></line>
+			<g data-scene></g>
+		</svg>
+		<div class="fa__controls">
+			<label class="fa__slider"><span>Сила тяги <i>F</i><sub>тяги</sub></span><output data-out="F"></output><input type="range" min="0" max="30" step="1" value="10" data-in="F" /></label>
+			<label class="fa__slider"><span>Масса бруска <i>m</i></span><output data-out="m"></output><input type="range" min="1" max="4" step="0.5" value="2" data-in="m" /></label>
+			<label class="fa__slider"><span>Коэффициент трения <i>μ</i></span><output data-out="mu"></output><input type="range" min="0" max="0.6" step="0.05" value="0.3" data-in="mu" /></label>
+		</div>
+	</div>
+
+	<div class="fa__panel" role="tabpanel" id={`${uid}-p1`} aria-labelledby={`${uid}-t1`} data-panel="1" hidden>
+		<svg class="fa__svg" viewBox="0 0 480 400" role="img" aria-label="Брусок массой 2 килограмма на наклонной плоскости">
+			<path class="fa__wedge" data-wedge></path>
+			<line class="fa__gline" x1="10" y1="300" x2="470" y2="300"></line>
+			<path class="fa__arc" data-arc></path>
+			<text class="fa__angle" data-arc-label>α</text>
+			<g data-scene></g>
+		</svg>
+		<div class="fa__controls">
+			<label class="fa__slider"><span>Угол наклона <i>α</i></span><output data-out="al"></output><input type="range" min="0" max="60" step="1" value="20" data-in="al" /></label>
+			<label class="fa__slider"><span>Коэффициент трения <i>μ</i></span><output data-out="mu"></output><input type="range" min="0" max="1" step="0.05" value="0.5" data-in="mu" /></label>
+		</div>
+	</div>
+
+	<div class="fa__panel" role="tabpanel" id={`${uid}-p2`} aria-labelledby={`${uid}-t2`} data-panel="2" hidden>
+		<svg class="fa__svg" viewBox="0 0 480 420" role="img" aria-label="Рука прижимает брусок массой 1 килограмм к вертикальной стене">
+			<rect class="fa__ground" x="120" y="0" width="50" height="420"></rect>
+			<path class="fa__hatch" d={hatch(120, 0, 170, 420)}></path>
+			<line class="fa__gline" x1="170" y1="0" x2="170" y2="420"></line>
+			<g data-hand></g>
+			<g data-scene></g>
+		</svg>
+		<div class="fa__controls">
+			<label class="fa__slider"><span>Рука давит с силой <i>F</i><sub>руки</sub></span><output data-out="F"></output><input type="range" min="0" max="40" step="1" value="30" data-in="F" /></label>
+			<label class="fa__slider"><span>Коэффициент трения <i>μ</i></span><output data-out="mu"></output><input type="range" min="0.1" max="1" step="0.05" value="0.4" data-in="mu" /></label>
+		</div>
+	</div>
+
+	<div class="fa__panel" role="tabpanel" id={`${uid}-p3`} aria-labelledby={`${uid}-t3`} data-panel="3" hidden>
+		<svg class="fa__svg" viewBox="0 0 480 460" role="img" aria-label="Брусок на столе связан нитью, перекинутой через блок, с висящим грузом">
+			<rect class="fa__ground" x="10" y="170" width="370" height="24"></rect>
+			<line class="fa__gline" x1="10" y1="170" x2="380" y2="170"></line>
+			<line class="fa__gline" x1="380" y1="170" x2="380" y2="194"></line>
+			<path class="fa__bracket" d="M 372 170 L 394 162 M 380 194 L 394 162"></path>
+			<circle class="fa__pulley" cx="394" cy="162" r="14"></circle>
+			<circle class="fa__hub" cx="394" cy="162" r="3"></circle>
+			<path class="fa__thread" data-thread></path>
+			<g data-scene></g>
+		</svg>
+		<div class="fa__controls">
+			<label class="fa__slider"><span>Масса бруска на столе <i>m</i><sub>1</sub></span><output data-out="m1"></output><input type="range" min="0.5" max="2" step="0.5" value="1" data-in="m1" /></label>
+			<label class="fa__slider"><span>Масса груза <i>m</i><sub>2</sub></span><output data-out="m2"></output><input type="range" min="0.1" max="2" step="0.1" value="0.5" data-in="m2" /></label>
+			<label class="fa__slider"><span>Коэффициент трения <i>μ</i></span><output data-out="mu"></output><input type="range" min="0" max="0.6" step="0.05" value="0.2" data-in="mu" /></label>
+		</div>
+	</div>
+
+	<div class="fa__bar">
+		<button type="button" class="fa__btn" aria-pressed="false" data-axes>Оси</button>
+		<span class="fa__hint">оси <i>x</i> и <i>y</i>, проекции сил и второй закон Ньютона в проекциях</span>
+	</div>
+	<p class="fa__live" aria-live="polite" data-live></p>
+	<div class="fa__calc" data-calc hidden>
+		<table class="fa__table" data-table></table>
+		<div class="fa__tex" data-tex></div>
+	</div>
+	<p class="fa__legend" data-legend></p>
+</figure>
+
+<style is:global>
+	.fa {
+		margin-block: 2rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.fa i {
+		font-family: var(--ig-font-math);
+	}
+	.fa__tabs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 0.75rem;
+	}
+	.fa__tabs button {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.fa__tabs button[aria-selected='true'] {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+		font-weight: 700;
+	}
+	.fa-sleeve {
+		stroke: color-mix(in oklab, var(--ig-vx) 35%, var(--sl-color-gray-4));
+	}
+	.fa__panel[hidden],
+	.fa__calc[hidden] {
+		display: none;
+	}
+	.fa__svg {
+		display: block;
+		width: 100%;
+		max-width: 34rem;
+		height: auto;
+		margin-inline: auto;
+		border-radius: 0.6rem;
+		background: var(--sl-color-bg);
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.fa__ground,
+	.fa__wedge {
+		fill: color-mix(in oklab, var(--ig-v) 22%, var(--sl-color-gray-5));
+	}
+	.fa__wedge {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.fa__gline {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.fa__hatch {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		fill: none;
+	}
+	.fa__arc,
+	.fa__bracket {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.fa__bracket {
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.fa__pulley {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.fa__hub {
+		fill: var(--sl-color-gray-2);
+	}
+	.fa__thread {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.5;
+	}
+	.fa__block {
+		fill: hsl(30, 40%, 46%);
+		stroke: hsl(28, 40%, 24%);
+		stroke-width: 1.5;
+	}
+	:root[data-theme='light'] .fa__block {
+		fill: hsl(32, 48%, 66%);
+	}
+	.fa__metal {
+		fill: color-mix(in oklab, var(--sl-color-gray-3) 80%, var(--ig-vx));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.fa__bname {
+		fill: var(--sl-color-white);
+		font: 700 16px var(--__sl-font);
+	}
+	.fa__force {
+		fill: var(--ig-vy);
+		stroke: var(--sl-color-bg);
+		stroke-width: 1;
+		paint-order: stroke fill;
+	}
+	.fa__dot {
+		fill: var(--sl-color-gray-1);
+	}
+	.fa__flabel,
+	.fa__plabel,
+	.fa__alabel,
+	.fa__angle {
+		font-family: var(--__sl-font);
+		paint-order: stroke fill;
+		stroke: var(--sl-color-bg);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.fa__flabel {
+		fill: var(--ig-vy);
+		font-size: 17px;
+		font-weight: 600;
+	}
+	.fa__flabel .fa__sym,
+	.fa__alabel .fa__sym {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 19px;
+	}
+	.fa__flabel .fa__sub {
+		font-size: 16px;
+	}
+	.fa__plabel {
+		fill: var(--ig-vy);
+		font-size: 16px;
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.fa__alabel {
+		fill: var(--sl-color-gray-2);
+		font-size: 16px;
+	}
+	.fa__angle {
+		fill: var(--sl-color-gray-2);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 18px;
+	}
+	.fa__axis {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+		fill: none;
+	}
+	.fa__axhead {
+		fill: var(--sl-color-gray-2);
+	}
+	.fa__proj {
+		stroke: var(--ig-vy);
+		stroke-width: 2.5;
+		stroke-dasharray: 6 4;
+		fill: none;
+	}
+	.fa__projhd {
+		fill: var(--ig-vy);
+	}
+	.fa__guide {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	.fa__controls {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+		gap: 0.5rem 1.5rem;
+		margin-top: 0.75rem;
+	}
+	.fa__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.fa__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.fa__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.fa__bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem 0.75rem;
+		margin-top: 0.75rem;
+	}
+	.fa__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		padding: 0.45rem 1.2rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-accent);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.fa__btn[aria-pressed='true'] {
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+	.fa__hint {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.fa__live {
+		min-height: 3em;
+		margin: 0.6rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.fa__nw {
+		white-space: nowrap;
+	}
+	.fa__calc {
+		margin-top: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		overflow-x: auto;
+	}
+	.fa__table {
+		width: 100%;
+		margin: 0 0 0.4rem;
+		border-collapse: collapse;
+		font-size: var(--sl-text-sm);
+		font-variant-numeric: tabular-nums;
+	}
+	.fa__table :is(th, td) {
+		padding: 0.2rem 0.4rem;
+		border: 0;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		text-align: left;
+		vertical-align: top;
+		background: transparent;
+	}
+	.fa__table th {
+		color: var(--sl-color-gray-2);
+		font-weight: 600;
+	}
+	.fa__table tr.fa__grp td {
+		color: var(--sl-color-gray-2);
+		font-weight: 600;
+		padding-top: 0.4rem;
+	}
+	.fa__tex .katex-display {
+		margin: 0.4rem 0;
+	}
+	.fa__tex .katex {
+		font-size: 1.05em;
+	}
+	.fa__legend {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.fa {
+			padding: 0.75rem;
+		}
+		.fa__tex .katex {
+			font-size: 0.95em;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { SVG_NS, arrowPath, attrs, fmt } from './draw';
+	import { ROLL } from '@components/people/hand';
+	import { nzArm } from './nzArm';
+
+	const G = 9.8;
+	const EPS = 1e-9;
+	const DEG = Math.PI / 180;
+	type V = { x: number; y: number };
+	const v = (x: number, y: number): V => ({ x, y });
+	const add = (a: V, b: V, k = 1): V => ({ x: a.x + b.x * k, y: a.y + b.y * k });
+	const UP = v(0, -1);
+	const DOWN = v(0, 1);
+	const LEFT = v(-1, 0);
+	const RIGHT = v(1, 0);
+
+	/** Digits for 3 significant figures (2 decimals below 10). */
+	const dig = (x: number) => (Math.abs(x) >= 100 ? 0 : Math.abs(x) >= 10 ? 1 : 2);
+	const rnd = (x: number) => Math.round(x * 10 ** dig(x)) / 10 ** dig(x);
+	/** A number for text («5,88»), and for KaTeX («5{,}88»). */
+	const n = (x: number) => fmt(x, dig(x), true);
+	const t = (x: number) => n(x).replace('−', '-').replace(',', '{,}');
+	/** «=» when the shown number is exact, «≈» otherwise. */
+	const eq = (x: number) => (Math.abs(x - rnd(x)) < 1e-9 ? '=' : '\\approx');
+	const nw = (s: string) => `<span class="fa__nw">${s}</span>`;
+	const N_ = (x: number, u = 'Н') => nw(`${n(x)} ${u}`);
+
+	const Fs = {
+		mg: '<tspan class="fa__sym">mg</tspan>',
+		m1g: '<tspan class="fa__sym">m</tspan><tspan class="fa__sub" dy="5">1</tspan><tspan class="fa__sym" dy="-5">g</tspan>',
+		m2g: '<tspan class="fa__sym">m</tspan><tspan class="fa__sub" dy="5">2</tspan><tspan class="fa__sym" dy="-5">g</tspan>',
+		N: '<tspan class="fa__sym">N</tspan>',
+		T: '<tspan class="fa__sym">T</tspan>',
+		fr: '<tspan class="fa__sym">F</tspan><tspan class="fa__sub" dy="5">тр</tspan>',
+		pull: '<tspan class="fa__sym">F</tspan><tspan class="fa__sub" dy="5">тяги</tspan>',
+		hand: '<tspan class="fa__sym">F</tspan><tspan class="fa__sub" dy="5">руки</tspan>',
+	};
+	const H = {
+		mg: '<i>mg</i>',
+		m1g: '<i>m</i><sub>1</sub><i>g</i>',
+		m2g: '<i>m</i><sub>2</sub><i>g</i>',
+		N: '<i>N</i>',
+		T: '<i>T</i>',
+		fr: '<i>F</i><sub>тр</sub>',
+		pull: '<i>F</i><sub>тяги</sub>',
+		hand: '<i>F</i><sub>руки</sub>',
+	};
+
+	interface Force {
+		id: string;
+		body: 0 | 1;
+		dir: V; // unit vector on the screen
+		mag: number; // Н
+		label: string; // svg tspans
+		side?: number; // label shift across a slanted arrow, px (+ = to the left of the direction of the arrow)
+		left?: boolean; // the label of a vertical arrow on its left
+		ox?: number; // the arrow drawn this far right of the body's center (beside a thread), px
+	}
+	interface Axis {
+		body: 0 | 1;
+		ex: V;
+		ey: V | null;
+		nx: string;
+		ny: string;
+		lx: number; // length of the positive half, px
+		ly: number;
+		shift?: V; // the axis drawn beside the body, px
+	}
+	interface State {
+		forces: Force[];
+		moving: boolean;
+		a: number;
+		D: number; // m, the run
+		ppm: number; // px per metre
+		k: number; // px per newton
+		axes: Axis[];
+		proj?: { dir: V; mag: number; label: string; off: V; anchor: string; along?: number }[]; // components of a slanted force (drawn with the axes)
+		rows: string[][]; // the table of projections; a row of one cell is a group title
+		head: string[];
+		tex: string;
+		live: string;
+	}
+	interface Tab {
+		state: (p: Record<string, number>) => State;
+		place: (st: State, s: number, sc: Scene) => V[]; // the centers of the bodies for the run s (px)
+		out: Record<string, (x: number) => string>;
+		legend: string;
+	}
+	interface Scene {
+		root: SVGSVGElement;
+		g: SVGGElement;
+		bodies: SVGGElement[];
+		arrows: Map<string, { p: SVGPathElement; l: SVGTextElement }>;
+		axes: SVGGElement;
+		proj: SVGGElement;
+		dots: SVGCircleElement[];
+		size: [number, number, number][]; // per body: width, height, rotation (rad)
+		extra: Record<string, any>;
+	}
+
+	// ---------- the four tabs ----------
+	const horiz: Tab = {
+		out: { F: (x) => `${n(x)} Н`, m: (x) => `${n(x)} кг`, mu: (x) => n(x) },
+		legend: 'Все силы — в одном масштабе и приложены к бруску (стрелки начинаются в его центре). Брусок начинает двигаться из покоя.',
+		state: ({ F, m, mu }) => {
+			const N = m * G;
+			const fmax = mu * N;
+			const moving = F > fmax + EPS;
+			const fr = moving ? fmax : F;
+			const a = moving ? (F - fmax) / m : 0;
+			const tex = [
+				`Ox{:}\\; & F_{\\text{тяги}} - F_{\\text{тр}} = ma`,
+				`Oy{:}\\; & N - mg = 0 \\;\\Rightarrow\\; N = mg ${eq(N)} ${t(N)}~\\text{Н}`,
+				moving
+					? `& F_{\\text{тр}} = \\mu N = ${t(mu)} \\cdot ${t(N)} ${eq(fmax)} ${t(fmax)}~\\text{Н}`
+					: `& F_{\\text{тр}} = F_{\\text{тяги}} = ${t(F)}~\\text{Н} \\le \\mu N ${eq(fmax)} ${t(fmax)}~\\text{Н}`,
+				moving
+					? `& a = \\dfrac{F_{\\text{тяги}} - F_{\\text{тр}}}{m} \\\\[0.3em] & \\hphantom{a} = \\dfrac{${t(F)} - ${t(fmax)}}{${t(m)}} ${eq(a)} ${t(a)}~\\text{м/с}^2`
+					: `& a = 0`,
+			];
+			return {
+				forces: [
+					{ id: 'mg', body: 0, dir: DOWN, mag: m * G, label: Fs.mg },
+					{ id: 'N', body: 0, dir: UP, mag: N, label: Fs.N },
+					{ id: 'pull', body: 0, dir: RIGHT, mag: F, label: Fs.pull },
+					{ id: 'fr', body: 0, dir: LEFT, mag: fr, label: Fs.fr, side: 14 },
+				],
+				moving,
+				a,
+				D: 1,
+				ppm: 200,
+				k: 4,
+				axes: [{ body: 0, ex: RIGHT, ey: UP, nx: 'x', ny: 'y', lx: 175, ly: 185 }],
+				head: ['Сила', 'на ось <i>x</i>', 'на ось <i>y</i>'],
+				rows: [
+					[H.pull, `${H.pull} = ${N_(F)}`, '0'],
+					[H.fr, `−${H.fr} = ${N_(-fr)}`, '0'],
+					[H.N, '0', `${H.N} = ${N_(N)}`],
+					[H.mg, '0', `−${H.mg} = ${N_(-m * G)}`],
+				],
+				tex: tex.join(' \\\\[0.3em] '),
+				live: moving
+					? fmax < EPS
+						? `Трения нет, и брусок скользит с ускорением ${N_(a, 'м/с²')}.`
+						: `Брусок скользит: ${H.pull} = ${N_(F)} больше наибольшей силы трения покоя ${nw(`<i>μN</i> = ${n(fmax)} Н`)}. Ускорение ${N_(a, 'м/с²')}.`
+					: F > 0
+						? `Брусок покоится: сила трения покоя равна силе тяги, ${N_(F)}, и не больше ${nw(`<i>μN</i> = ${n(fmax)} Н`)}.`
+						: 'Брусок покоится, его никто не тянет — и силы трения нет.',
+			};
+		},
+		place: (st, s) => [v(90 + s, 235)],
+	};
+
+	const B = v(400, 300);
+	const LEN = 300;
+	const incline: Tab = {
+		out: { al: (x) => `${n(x)}°`, mu: (x) => n(x) },
+		legend: 'Масса бруска 2 кг. Все силы — в одном масштабе и приложены к бруску. Ось x направлена вниз вдоль плоскости, ось y — перпендикулярно ей.',
+		state: ({ al, mu }) => {
+			const m = 2;
+			const r = al * DEG;
+			const d = v(Math.cos(r), Math.sin(r));
+			const nn = v(Math.sin(r), -Math.cos(r));
+			const N = m * G * Math.cos(r);
+			const along = m * G * Math.sin(r);
+			const fmax = mu * N;
+			const moving = along > fmax + EPS;
+			const fr = moving ? fmax : along;
+			const a = moving ? (along - fmax) / m : 0;
+			const tex = [
+				`Ox{:}\\; & mg\\sin\\alpha - F_{\\text{тр}} = ma`,
+				`Oy{:}\\; & N - mg\\cos\\alpha = 0`,
+				`& N = mg\\cos\\alpha ${eq(N)} ${t(N)}~\\text{Н}`,
+				moving
+					? `& F_{\\text{тр}} = \\mu N ${eq(fmax)} ${t(fmax)}~\\text{Н}`
+					: `& F_{\\text{тр}} = mg\\sin\\alpha ${eq(along)} ${t(along)}~\\text{Н} \\le \\mu N ${eq(fmax)} ${t(fmax)}~\\text{Н}`,
+				moving
+					? `& a = \\dfrac{mg\\sin\\alpha - F_{\\text{тр}}}{m} \\\\[0.3em] & \\hphantom{a} = \\dfrac{${t(along)} - ${t(fmax)}}{2} ${eq(a)} ${t(a)}~\\text{м/с}^2`
+					: `& a = 0`,
+			];
+			return {
+				forces: [
+					{ id: 'mg', body: 0, dir: DOWN, mag: m * G, label: Fs.mg, side: -10 },
+					{ id: 'N', body: 0, dir: nn, mag: N, label: Fs.N, side: -16 },
+					{ id: 'fr', body: 0, dir: v(-d.x, -d.y), mag: fr, label: Fs.fr, side: 16 },
+				],
+				moving,
+				a,
+				D: 0.6,
+				ppm: 225,
+				k: 5,
+				// the axes reach past the longest arrow along them
+				axes: [{ body: 0, ex: d, ey: nn, nx: 'x', ny: 'y', lx: Math.max(along * 5, 40) + 90, ly: Math.max(N * 5 + 45, 80) }],
+				proj: [
+					{ dir: d, mag: along, label: 'mg sin α', off: v(0, 0), anchor: 'start', along: al },
+					{ dir: v(-nn.x, -nn.y), mag: N, label: 'mg cos α', off: v(-d.x * 12, -d.y * 12 + 6), anchor: 'end' },
+				],
+				head: ['Сила', 'на ось <i>x</i>', 'на ось <i>y</i>'],
+				rows: [
+					[H.mg, `<i>mg</i> sin <i>α</i> = ${N_(along)}`, `−<i>mg</i> cos <i>α</i> = ${N_(-N)}`],
+					[H.N, '0', `${H.N} = ${N_(N)}`],
+					[H.fr, `−${H.fr} = ${N_(-fr)}`, '0'],
+				],
+				tex: tex.join(' \\\\[0.3em] '),
+				live:
+					al === 0
+						? 'Плоскость горизонтальна: брусок покоится, <i>N</i> = <i>mg</i>, и силы трения нет.'
+						: moving && fmax < EPS
+							? `Трения нет: брусок соскальзывает с ускорением ${N_(a, 'м/с²')} — это ${nw('<i>g</i> sin <i>α</i>')}.`
+							: moving
+							? `Брусок соскальзывает с ускорением ${N_(a, 'м/с²')}: часть силы тяжести вдоль плоскости, ${N_(along)}, больше наибольшей силы трения покоя ${nw(`<i>μN</i> = ${n(fmax)} Н`)}.`
+							: `Брусок покоится: трение покоя равно части силы тяжести вдоль плоскости, ${N_(along)}, и не больше ${nw(`<i>μN</i> = ${n(fmax)} Н`)}.`,
+			};
+		},
+		place: (st, s, sc) => {
+			const r = (sc.extra.al as number) * DEG;
+			const d = v(Math.cos(r), Math.sin(r));
+			const nn = v(Math.sin(r), -Math.cos(r));
+			const top = add(B, d, -LEN);
+			return [add(add(top, d, 70 + s), nn, 22)];
+		},
+	};
+
+	const wall: Tab = {
+		out: { F: (x) => `${n(x)} Н`, mu: (x) => n(x) },
+		legend: 'Масса бруска 1 кг. Рука давит перпендикулярно стене, трение между ладонью и бруском не учитываем. Ось x направлена вниз, ось y — от стены.',
+		state: ({ F, mu }) => {
+			const m = 1;
+			const N = F;
+			const fmax = mu * N;
+			const w = m * G;
+			const moving = w > fmax + EPS;
+			const fr = moving ? fmax : w;
+			const a = moving ? (w - fmax) / m : 0;
+			const tex = [
+				`Ox{:}\\; & mg - F_{\\text{тр}} = ma`,
+				`Oy{:}\\; & N - F_{\\text{руки}} = 0 \\;\\Rightarrow\\; N = ${t(N)}~\\text{Н}`,
+				moving
+					? `& F_{\\text{тр}} = \\mu N ${eq(fmax)} ${t(fmax)}~\\text{Н}`
+					: `& F_{\\text{тр}} = mg = ${t(w)}~\\text{Н} \\le \\mu N ${eq(fmax)} ${t(fmax)}~\\text{Н}`,
+				moving ? `& a = \\dfrac{mg - F_{\\text{тр}}}{m} = \\dfrac{${t(w)} - ${t(fmax)}}{1} ${eq(a)} ${t(a)}~\\text{м/с}^2` : `& a = 0`,
+			];
+			return {
+				forces: [
+					{ id: 'mg', body: 0, dir: DOWN, mag: w, label: Fs.mg, side: -10 },
+					{ id: 'fr', body: 0, dir: UP, mag: fr, label: Fs.fr, left: true },
+					{ id: 'N', body: 0, dir: RIGHT, mag: N, label: Fs.N },
+					{ id: 'hand', body: 0, dir: LEFT, mag: F, label: Fs.hand },
+				],
+				moving,
+				a,
+				D: 1,
+				ppm: 200,
+				k: 5,
+				axes: [{ body: 0, ex: DOWN, ey: RIGHT, nx: 'x', ny: 'y', lx: 100, ly: 222 }],
+				head: ['Сила', 'на ось <i>x</i>', 'на ось <i>y</i>'],
+				rows: [
+					[H.mg, `${H.mg} = ${N_(w)}`, '0'],
+					[H.fr, `−${H.fr} = ${N_(-fr)}`, '0'],
+					[H.N, '0', `${H.N} = ${N_(N)}`],
+					[H.hand, '0', `−${H.hand} = ${N_(-F)}`],
+				],
+				tex: tex.join(' \\\\[0.3em] '),
+				live:
+					F === 0
+						? 'Рука не давит: <i>N</i> = 0, трения нет, и брусок падает вдоль стены с ускорением <i>g</i>.'
+						: moving
+							? `Брусок скользит вниз с ускорением ${N_(a, 'м/с²')}: сила тяжести ${N_(w)} больше наибольшей силы трения покоя ${nw(`<i>μN</i> = ${n(fmax)} Н`)}.`
+							: `Брусок держится: трение покоя равно силе тяжести, ${N_(w)}, и не больше ${nw(`<i>μN</i> = ${n(fmax)} Н`)}.`,
+			};
+		},
+		place: (st, s) => [v(202, 90 + s)],
+	};
+
+	const pulley: Tab = {
+		out: { m1: (x) => `${n(x)} кг`, m2: (x) => `${n(x)} кг`, mu: (x) => n(x) },
+		legend: 'Нить лёгкая и не растягивается, блок лёгкий и вращается без трения: нить тянет оба тела с одной и той же силой T. Ось x₁ — к блоку, ось x₂ — вниз.',
+		state: ({ m1, m2, mu }) => {
+			const N = m1 * G;
+			const fmax = mu * N;
+			const moving = m2 * G > fmax + EPS;
+			const a = moving ? ((m2 - mu * m1) * G) / (m1 + m2) : 0;
+			const T = moving ? m2 * (G - a) : m2 * G;
+			const fr = moving ? fmax : T;
+			const tex = [
+				`\\text{брусок: } Ox_1{:}\\; & T - F_{\\text{тр}} = m_1 a`,
+				`Oy_1{:}\\; & N - m_1 g = 0 \\;\\Rightarrow\\; N ${eq(N)} ${t(N)}~\\text{Н}`,
+				`\\text{груз: } Ox_2{:}\\; & m_2 g - T = m_2 a`,
+				...(moving
+					? [
+							`& F_{\\text{тр}} = \\mu N ${eq(fmax)} ${t(fmax)}~\\text{Н}`,
+							`& a = \\dfrac{m_2 g - F_{\\text{тр}}}{m_1 + m_2} \\\\[0.3em] & \\hphantom{a} = \\dfrac{${t(m2 * G)} - ${t(fmax)}}{${t(m1 + m2)}} ${eq(a)} ${t(a)}~\\text{м/с}^2`,
+							`& T = m_2 (g - a) ${eq(T)} ${t(T)}~\\text{Н}`,
+						]
+					: [`& a = 0, \\quad T = m_2 g ${eq(T)} ${t(T)}~\\text{Н}`, `& F_{\\text{тр}} = T ${eq(T)} ${t(T)}~\\text{Н} \\le \\mu N ${eq(fmax)} ${t(fmax)}~\\text{Н}`]),
+			];
+			return {
+				forces: [
+					{ id: 'mg', body: 0, dir: DOWN, mag: N, label: Fs.m1g, side: -10 },
+					{ id: 'N', body: 0, dir: UP, mag: N, label: Fs.N },
+					{ id: 'T1', body: 0, dir: RIGHT, mag: T, label: Fs.T, side: -14 },
+					{ id: 'fr', body: 0, dir: LEFT, mag: fr, label: Fs.fr, side: 14 },
+					{ id: 'T2', body: 1, dir: UP, mag: T, label: Fs.T, ox: 12 },
+					{ id: 'm2g', body: 1, dir: DOWN, mag: m2 * G, label: Fs.m2g, ox: 12 },
+				],
+				moving,
+				a,
+				D: 0.6,
+				ppm: 187.5,
+				k: 5,
+				axes: [
+					{ body: 0, ex: RIGHT, ey: UP, nx: 'x₁', ny: 'y₁', lx: 150, ly: 112 },
+					{ body: 1, ex: DOWN, ey: null, nx: 'x₂', ny: '', lx: 100, ly: 0, shift: v(-48, 0) },
+				],
+				head: ['Сила', 'на ось <i>x</i>', 'на ось <i>y</i>'],
+				rows: [
+					['Брусок на столе, оси <i>x</i><sub>1</sub> и <i>y</i><sub>1</sub>'],
+					[H.T, `${H.T} = ${N_(T)}`, '0'],
+					[H.fr, `−${H.fr} = ${N_(-fr)}`, '0'],
+					[H.N, '0', `${H.N} = ${N_(N)}`],
+					[H.m1g, '0', `−${H.m1g} = ${N_(-N)}`],
+					['Груз, ось <i>x</i><sub>2</sub>'],
+					[H.m2g, `${H.m2g} = ${N_(m2 * G)}`, '—'],
+					[H.T, `−${H.T} = ${N_(-T)}`, '—'],
+				],
+				tex: tex.join(' \\\\[0.3em] '),
+				live: moving
+					? `Тела движутся с ускорением ${N_(a, 'м/с²')}${fmax < EPS ? ', трения нет' : ''}. Нить тянет каждое из них с силой ${nw(`<i>T</i> = ${n(T)} Н`)} — меньше, чем ${nw(`${H.m2g} = ${n(m2 * G)} Н`)}: груз разгоняется вниз.`
+					: `Тела покоятся: ${nw(`${H.m2g} = ${n(m2 * G)} Н`)} не больше наибольшей силы трения покоя ${nw(`<i>μm</i><sub>1</sub><i>g</i> = ${n(fmax)} Н`)}. Нить тянет брусок с силой ${nw(`<i>T</i> = ${H.m2g}`)}.`,
+			};
+		},
+		place: (st, s) => [v(110 + s, 148), v(408, 215 + s)],
+	};
+	const TABS = [horiz, incline, wall, pulley];
+
+	// ---------- drawing ----------
+	const mk = <K extends keyof SVGElementTagNameMap>(parent: Element, tag: K, a: Record<string, string | number> = {}) => {
+		const e = document.createElementNS(SVG_NS, tag) as SVGElementTagNameMap[K];
+		attrs(e, a);
+		parent.append(e);
+		return e;
+	};
+	const axisPath = (o: V, e: V, neg: number, pos: number) => {
+		const a = add(o, e, -neg);
+		const b = add(o, e, pos);
+		return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-fa]')) {
+		const q = <T extends Element>(sel: string, host: ParentNode = root) => host.querySelector<T>(sel)!;
+		const tabsEl = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+		const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-panel]'));
+		const axesBtn = q<HTMLButtonElement>('[data-axes]');
+		const live = q<HTMLElement>('[data-live]');
+		const calc = q<HTMLElement>('[data-calc]');
+		const table = q<HTMLTableElement>('[data-table]');
+		const texEl = q<HTMLElement>('[data-tex]');
+		const legend = q<HTMLElement>('[data-legend]');
+		let cur = 0;
+		let axesOn = false;
+
+		const scenes: Scene[] = panels.map((p, i) => {
+			const svg = q<SVGSVGElement>('svg', p);
+			const g = q<SVGGElement>('[data-scene]', p);
+			const nb = i === 3 ? 2 : 1;
+			const bodies: SVGGElement[] = [];
+			for (let b = 0; b < nb; b++) {
+				const bg = mk(g, 'g', {});
+				if (i === 3 && b === 1) {
+					mk(bg, 'rect', { class: 'fa__metal', x: -22, y: -22, width: 44, height: 44, rx: 4 });
+					mk(bg, 'text', { class: 'fa__bname', x: 0, y: 5, 'text-anchor': 'middle' }).textContent = '2';
+				} else {
+					const [w, h] = i === 0 ? [80, 50] : i === 2 ? [64, 64] : [70, 44];
+					mk(bg, 'rect', { class: 'fa__block', x: -w / 2, y: -h / 2, width: w, height: h, rx: 3 });
+					if (i === 3) mk(bg, 'text', { class: 'fa__bname', x: 0, y: 5, 'text-anchor': 'middle' }).textContent = '1';
+				}
+				bodies.push(bg);
+			}
+			const axes = mk(g, 'g', {});
+			const proj = mk(g, 'g', {});
+			const size: [number, number, number][] = i === 0 ? [[80, 50, 0]] : i === 1 ? [[70, 44, 0]] : i === 2 ? [[64, 64, 0]] : [[70, 44, 0], [44, 44, 0]];
+			const sc: Scene = { root: svg, g, bodies, arrows: new Map(), axes, proj, dots: [], size, extra: {} };
+			if (i === 2) sc.extra.arm = nzArm(q<SVGGElement>('[data-hand]', p), { Lh: 62, side: 'L', sleeve: 'fa-sleeve', reach: 260 });
+			return sc;
+		});
+
+		const params = (i: number) => {
+			const o: Record<string, number> = {};
+			panels[i].querySelectorAll<HTMLInputElement>('[data-in]').forEach((inp) => (o[inp.dataset.in!] = Number(inp.value)));
+			return o;
+		};
+		const states: (State | null)[] = [null, null, null, null];
+		const clock = [0, 0, 0, 0];
+
+		/** Draws the forces, the axes and the projections of tab i for the run s (px). */
+		const draw = (i: number, s: number) => {
+			const st = states[i]!;
+			const sc = scenes[i];
+			const centers = TABS[i].place(st, s, sc);
+			sc.bodies.forEach((b, j) => {
+				const c = centers[j];
+				const rot = i === 1 ? ` rotate(${sc.extra.al})` : '';
+				b.setAttribute('transform', `translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})${rot}`);
+			});
+			if (i === 3) {
+				const [c1, c2] = centers;
+				q<SVGPathElement>('[data-thread]', panels[3]).setAttribute(
+					'd',
+					`M ${c1.x + 35} 148 L 394 148 A 14 14 0 0 1 408 162 L 408 ${(c2.y - 22).toFixed(1)}`,
+				);
+			}
+			if (i === 2) {
+				const c = centers[0];
+				sc.extra.arm({ at: { x: c.x + 32, y: c.y + 6 }, pose: 'flat', dir: -Math.PI / 2, roll: ROLL.palmCcw + 0.6, bend: -1.1 });
+			}
+			// forces
+			for (const f of st.forces) {
+				let a = sc.arrows.get(f.id);
+				if (!a) {
+					a = { p: mk(sc.g, 'path', { class: 'fa__force' }), l: mk(sc.g, 'text', { class: 'fa__flabel' }) };
+					a.l.innerHTML = f.label;
+					sc.arrows.set(f.id, a);
+				}
+				const c = add(centers[f.body], v(f.ox ?? 0, 0));
+				const L = f.mag * st.k;
+				const tip = add(c, f.dir, L);
+				a.p.setAttribute('d', arrowPath(c.x, c.y, tip.x, tip.y, 4, 13, 3));
+				a.l.style.visibility = L > 1 ? 'visible' : 'hidden';
+				// Labels stay off the body: beyond the arrow's end or the body's edge, whichever is farther.
+				const [bw, bh, rot] = sc.size[f.body];
+				const u = v(Math.cos(rot), Math.sin(rot));
+				const half = (Math.abs(f.dir.x * u.x + f.dir.y * u.y) * bw) / 2 + (Math.abs(-f.dir.x * u.y + f.dir.y * u.x) * bh) / 2;
+				const far = Math.max(L, half);
+				const lw = a.l.getBBox().width;
+				let p: V;
+				let anchor = 'start';
+				if (Math.abs(f.dir.x) < 0.05) {
+					// vertical: next to the end, on the right (or the left)
+					p = v(c.x + (f.left ? -8 : 8), f.dir.y < 0 ? c.y - far - 11 : c.y + far + 18);
+					anchor = f.left ? 'end' : 'start';
+				} else if (Math.abs(f.dir.y) < 0.05) {
+					// horizontal: above the shaft, between the body and the head when there is room, else beyond the end
+					const inward = L >= half + lw + 10;
+					p = v(inward ? tip.x - f.dir.x * 6 : c.x + f.dir.x * (far + 6), c.y - 9);
+					anchor = (f.dir.x > 0) === inward ? 'end' : 'start';
+				} else {
+					const across = v(f.dir.y, -f.dir.x);
+					p = add(add(c, f.dir, far + 12), across, f.side ?? 0);
+					p.y += 6;
+					anchor = Math.abs(f.dir.x) > 0.5 ? (f.dir.x > 0 ? 'start' : 'end') : 'middle';
+				}
+				attrs(a.l, { x: p.x.toFixed(1), y: p.y.toFixed(1), 'text-anchor': anchor });
+			}
+			// centers
+			while (sc.dots.length < centers.length) sc.dots.push(mk(sc.g, 'circle', { class: 'fa__dot', r: 3 }));
+			sc.dots.forEach((d, j) => attrs(d, { cx: centers[j].x.toFixed(1), cy: centers[j].y.toFixed(1) }));
+			// axes and projections
+			sc.axes.replaceChildren();
+			sc.proj.replaceChildren();
+			if (!axesOn) return;
+			for (const ax of st.axes) {
+				const o = add(centers[ax.body], ax.shift ?? v(0, 0));
+				const pairs: [V, string, number][] = [[ax.ex, ax.nx, ax.lx]];
+				if (ax.ey) pairs.push([ax.ey, ax.ny, ax.ly]);
+				for (const [e, name, len] of pairs) {
+					mk(sc.axes, 'path', { class: 'fa__axis', d: axisPath(o, e, 30, len) });
+					const end = add(o, e, len);
+					mk(sc.axes, 'path', { class: 'fa__axhead', d: arrowPath(end.x - e.x * 10, end.y - e.y * 10, end.x, end.y, 0.1, 10) });
+					// a horizontal axis is labelled above its end, a vertical one beyond it, a slanted one on its left at the end
+					const lp = Math.abs(e.y) < 0.05 ? add(end, v(-4, -14)) : Math.abs(e.x) < 0.05 ? add(end, e, 16) : add(end, v(e.y, -e.x), 14);
+					const lab = mk(sc.axes, 'text', { class: 'fa__alabel', x: lp.x.toFixed(1), y: (lp.y + 6).toFixed(1), 'text-anchor': 'middle' });
+					lab.innerHTML = `<tspan class="fa__sym">${name[0]}</tspan>${name.length > 1 ? `<tspan font-size="16" dy="4">${name.slice(1) === '₁' ? '1' : '2'}</tspan>` : ''}`;
+				}
+			}
+			if (st.proj) {
+				const o = centers[0];
+				const mgTip = add(o, DOWN, st.forces[0].mag * st.k);
+				for (const pr of st.proj) {
+					const L = pr.mag * st.k;
+					if (L < 4) continue;
+					const tip = add(o, pr.dir, L);
+					mk(sc.proj, 'path', { class: 'fa__guide', d: `M ${mgTip.x.toFixed(1)} ${mgTip.y.toFixed(1)} L ${tip.x.toFixed(1)} ${tip.y.toFixed(1)}` });
+					const base = add(tip, pr.dir, -10);
+					mk(sc.proj, 'path', { class: 'fa__proj', d: `M ${o.x.toFixed(1)} ${o.y.toFixed(1)} L ${base.x.toFixed(1)} ${base.y.toFixed(1)}` });
+					mk(sc.proj, 'path', { class: 'fa__projhd', d: arrowPath(base.x, base.y, tip.x, tip.y, 0.1, 10) });
+					if (pr.along !== undefined) {
+						// written along the x axis, past the component's head (or past the block), just above the axis
+						const r = pr.along * DEG;
+						const nrm = v(Math.sin(r), -Math.cos(r)); // the normal out of the plane
+						const lp = add(add(o, pr.dir, Math.max(L, 40) + 8), nrm, 5);
+						mk(sc.proj, 'text', { class: 'fa__plabel', x: lp.x.toFixed(1), y: lp.y.toFixed(1), transform: `rotate(${pr.along} ${lp.x.toFixed(1)} ${lp.y.toFixed(1)})` }).textContent = pr.label;
+					} else {
+						const lp = add(tip, pr.off);
+						mk(sc.proj, 'text', { class: 'fa__plabel', x: lp.x.toFixed(1), y: lp.y.toFixed(1), 'text-anchor': pr.anchor }).textContent = pr.label;
+					}
+				}
+			}
+		};
+
+		/** Recomputes tab i from its sliders and writes the panel. */
+		const update = (i: number, restart = true) => {
+			const p = params(i);
+			if (i === 1) {
+				const sc = scenes[1];
+				sc.extra.al = p.al;
+				sc.size[0][2] = p.al * DEG;
+				const r = p.al * DEG;
+				const d = v(Math.cos(r), Math.sin(r));
+				const top = add(B, d, -LEN);
+				q<SVGPathElement>('[data-wedge]', panels[1]).setAttribute('d', `M ${top.x.toFixed(1)} ${top.y.toFixed(1)} L ${B.x} ${B.y} L ${top.x.toFixed(1)} ${B.y} Z`);
+				const R = 46;
+				const arcEl = q<SVGPathElement>('[data-arc]', panels[1]);
+				const lab = q<SVGTextElement>('[data-arc-label]', panels[1]);
+				arcEl.setAttribute('d', p.al > 0 ? `M ${B.x - R} ${B.y} A ${R} ${R} 0 0 1 ${(B.x - R * d.x).toFixed(1)} ${(B.y - R * d.y).toFixed(1)}` : '');
+				const mid = (p.al / 2) * DEG;
+				attrs(lab, { x: (B.x - (R + 14) * Math.cos(mid) - 6).toFixed(1), y: (B.y - (R + 4) * Math.sin(mid) + 5).toFixed(1) });
+				lab.style.visibility = p.al >= 8 ? 'visible' : 'hidden';
+			}
+			const st = TABS[i].state(p);
+			states[i] = st;
+			panels[i].querySelectorAll<HTMLOutputElement>('[data-out]').forEach((o) => (o.value = TABS[i].out[o.dataset.out!](p[o.dataset.out!])));
+			if (restart) clock[i] = 0;
+			if (i === cur) writePanel();
+			draw(i, 0);
+		};
+
+		const writePanel = () => {
+			const st = states[cur]!;
+			live.innerHTML = st.live;
+			legend.textContent = TABS[cur].legend;
+			calc.hidden = !axesOn;
+			if (!axesOn) return;
+			table.innerHTML =
+				`<thead><tr>${st.head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>` +
+				st.rows.map((r) => (r.length === 1 ? `<tr class="fa__grp"><td colspan="3">${r[0]}</td></tr>` : `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`)).join('') +
+				'</tbody>';
+			katex.render(`\\begin{aligned} ${st.tex} \\end{aligned}`, texEl, { displayMode: true, throwOnError: false, strict: false });
+		};
+
+		const select = (i: number) => {
+			cur = i;
+			tabsEl.forEach((tb, j) => {
+				tb.setAttribute('aria-selected', String(i === j));
+				tb.tabIndex = i === j ? 0 : -1;
+			});
+			panels.forEach((p, j) => (p.hidden = i !== j));
+			update(i);
+		};
+		tabsEl.forEach((tb, i) => {
+			tb.addEventListener('click', () => select(i));
+			tb.addEventListener('keydown', (e) => {
+				if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+				const j = (i + (e.key === 'ArrowRight' ? 1 : tabsEl.length - 1)) % tabsEl.length;
+				select(j);
+				tabsEl[j].focus();
+			});
+		});
+		panels.forEach((p, i) => p.querySelectorAll<HTMLInputElement>('[data-in]').forEach((inp) => inp.addEventListener('input', () => update(i))));
+		axesBtn.addEventListener('click', () => {
+			axesOn = !axesOn;
+			axesBtn.setAttribute('aria-pressed', String(axesOn));
+			writePanel();
+			draw(cur, 0);
+		});
+
+		for (let i = 0; i < 4; i++) update(i);
+		writePanel();
+
+		// The run: s = a t² / 2 up to the length D, a pause of 0,9 s, and again.
+		let visible = false;
+		let raf = 0;
+		let last = 0;
+		const frame = (now: number) => {
+			const dt = Math.min((now - last) / 1000, 0.05);
+			last = now;
+			const st = states[cur]!;
+			if (st.moving) {
+				clock[cur] += dt;
+				const tEnd = Math.sqrt((2 * st.D) / st.a);
+				if (clock[cur] > tEnd + 0.9) clock[cur] = 0;
+				const tt = Math.min(clock[cur], tEnd);
+				draw(cur, ((st.a * tt * tt) / 2) * st.ppm);
+			}
+			raf = visible ? requestAnimationFrame(frame) : 0;
+		};
+		new IntersectionObserver((es) => {
+			visible = es[0].isIntersecting;
+			if (visible && !raf) {
+				last = performance.now();
+				raf = requestAnimationFrame(frame);
+			}
+		}).observe(root);
+	}
+</script>
