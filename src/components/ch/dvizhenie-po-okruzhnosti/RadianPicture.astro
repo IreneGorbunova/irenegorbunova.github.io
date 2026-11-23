@@ -1,0 +1,172 @@
+---
+/**
+ * «Радиан»: a circle of radius R (72 px). A loop of 11 с, no controls (`loop` from g7/kit):
+ *   0–1,2 с   a segment equal to R (accent) lies on the radius OA, then turns about A until it stands along the tangent;
+ *   1,2–2,6 с it bends onto the circle (a curve of length R with the curvature growing from 0 to 1/R), so the arc AB
+ *             has length l = R; the central angle AOB appears: «1 рад ≈ 57,3°» (180/π = 57,30°);
+ *   3,2–7,4 с radii are laid one after another along the circle: 2, 3, 4, 5, 6 рад (0,7 с each);
+ *   7,6–8,4 с the rest, 2π − 6 = 0,28 рад (0,28 R of arc, dashed), closes the turn: «полный оборот: 2π ≈ 6,28 рад = 360°»;
+ *   8,4–11 с  the end frame with the rule φ = l / R.
+ * Arc lengths in the ink colors (alternating light and dark gray; gold is kept for velocity in this chapter), the angle in gray; the angle is measured counterclockwise from OA.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 g7--pic g7--narrow rad not-content" data-rad>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 232" role="img" aria-label="Отрезок, равный радиусу, изгибается по окружности: дуга длиной R стягивает угол в 1 радиан; полный оборот — 2π радиан" data-svg>
+			<g data-draw></g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">Отрезок длиной в радиус окружности уложили на окружность. Центральный угол, опирающийся на такую дугу, — 1&nbsp;радиан. На всю окружность помещается 2π&nbsp;≈&nbsp;6,28 таких дуг, поэтому полный оборот — 2π&nbsp;рад.</figcaption>
+</figure>
+
+<style is:global>
+	.rad.g7--narrow .g7__grid {
+		max-width: 26rem;
+		margin-inline: auto;
+	}
+	.rad__circle {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1.4;
+	}
+	.rad__r {
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	.rad__seg {
+		fill: none;
+		stroke-width: 4.5;
+		stroke-linecap: round;
+	}
+	.rad__seg--a {
+		stroke: var(--sl-color-gray-1);
+	}
+	.rad__seg--b {
+		stroke: var(--sl-color-gray-3);
+	}
+	.rad__rest {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-dasharray: 3 3;
+	}
+	.rad__wedge {
+		fill: color-mix(in oklab, var(--sl-color-gray-2) 22%, transparent);
+	}
+	.rad__ang {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.rad__pt {
+		fill: var(--g7-ink);
+	}
+	.rad svg text.rad__big {
+		font-size: 14px;
+		font-weight: 700;
+		fill: var(--sl-color-white);
+	}
+</style>
+
+<script>
+	import { el, loop } from '../g7/kit';
+
+	const CX = 112;
+	const CY = 116;
+	const R = 72;
+	const CYCLE = 11;
+	const ease = (u: number) => {
+		const x = Math.min(1, Math.max(0, u));
+		return x * x * (3 - 2 * x);
+	};
+	// math → screen (y up in math)
+	const S = (x: number, y: number) => ({ x: CX + x, y: CY - y });
+	const polyline = (pts: { x: number; y: number }[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+	const arcPts = (a0: number, a1: number, r = R) => {
+		const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) / 0.04));
+		return Array.from({ length: n + 1 }, (_, i) => S(r * Math.cos(a0 + ((a1 - a0) * i) / n), r * Math.sin(a0 + ((a1 - a0) * i) / n)));
+	};
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rad]')) {
+		const g = root.querySelector('[data-draw]')!;
+		const text = (x: number, y: number, s: string, cls = '', anchor = 'start') => {
+			const t = el('text', { class: cls, x: x.toFixed(1), y: y.toFixed(1), 'text-anchor': anchor });
+			t.innerHTML = s;
+			return t;
+		};
+		let t = 0;
+		const draw = () => {
+			g.replaceChildren();
+			g.append(el('circle', { class: 'rad__circle', cx: CX, cy: CY, r: R }));
+			const A = S(R, 0);
+			g.append(el('line', { class: 'rad__r', x1: CX, y1: CY, x2: A.x, y2: A.y }));
+			g.append(el('circle', { class: 'rad__pt', cx: CX, cy: CY, r: 2.6 }));
+			g.append(text(CX - 6, CY + 15, 'O', 't-title'));
+			g.append(text(A.x + 6, A.y - 4, 'A', 't-title'));
+			g.append(text(CX + 16, CY + 15, '<tspan class="t-i">R</tspan>'));
+			// stage 1: the segment lies on OA, turns about A to the tangent, then bends onto the circle
+			const lift = ease(t / 1.2);
+			const bend = ease((t - 1.2) / 1.4);
+			let seg: { x: number; y: number }[];
+			if (t < 1.2) {
+				// a segment from A of length R pointing at angle π (toward O) turning to π/2 (up, the tangent)
+				const ang = Math.PI - (Math.PI / 2) * lift;
+				seg = [S(R, 0), S(R + R * Math.cos(ang), R * Math.sin(ang))];
+			} else {
+				const k = bend / R; // curvature
+				seg = Array.from({ length: 41 }, (_, i) => {
+					const s = (R * i) / 40;
+					return k < 1e-6 ? S(R, s) : S(R - 1 / k + Math.cos(k * s) / k, Math.sin(k * s) / k);
+				});
+			}
+			const n = t < 3.2 ? 0 : Math.min(5, Math.floor((t - 3.2) / 0.7) + 1); // radii laid after the first
+			const grow = t < 3.2 ? 0 : Math.min(1, ((t - 3.2) % 0.7) / 0.5);
+			const last = n === 5 && t > 3.2 + 4 * 0.7 + 0.5 ? 1 : grow;
+			// the angle of the first radian
+			if (t >= 2.6) {
+				const showAng = ease((t - 2.6) / 0.4);
+				const B = S(R * Math.cos(1), R * Math.sin(1));
+				const wedge = [S(0, 0), ...arcPts(0, 1), S(0, 0)];
+				g.append(el('path', { class: 'rad__wedge', d: polyline(wedge) + ' Z', opacity: showAng.toFixed(2) }));
+				g.append(el('line', { class: 'rad__r', x1: CX, y1: CY, x2: B.x, y2: B.y, opacity: showAng.toFixed(2) }));
+				g.append(el('path', { class: 'rad__ang', d: polyline(arcPts(0, 1, 18)), opacity: showAng.toFixed(2) }));
+				g.append(text(B.x + 4, B.y - 6, 'B', 't-title'));
+				if (t < 7.6) g.append(text(CX + 26, CY - 10, '1 рад', 't-small'));
+			}
+			// the arcs of 2 … 6 radians, then the rest
+			for (let i = 1; i <= n; i++) {
+				const f = i < n ? 1 : last;
+				g.append(el('path', { class: `rad__seg rad__seg--${i % 2 ? 'b' : 'a'}`, d: polyline(arcPts(i, i + f)) }));
+				const m = i + 0.5;
+				if (f > 0.6) g.append(text(CX + (R + 13) * Math.cos(m), CY - (R + 13) * Math.sin(m) + 4, String(i + 1), 't-title', 'middle'));
+			}
+			g.append(el('path', { class: 'rad__seg rad__seg--a', d: polyline(seg) }));
+			if (t >= 2.6) g.append(text(CX + (R + 13) * Math.cos(0.5), CY - (R + 13) * Math.sin(0.5) + 4, '1', 't-title', 'middle'));
+			const rest = ease((t - 7.6) / 0.8);
+			if (rest > 0) g.append(el('path', { class: 'rad__rest', d: polyline(arcPts(6, 6 + (2 * Math.PI - 6) * rest)) }));
+			// the texts at the right
+			const X = 202;
+			if (t >= 2.6) g.append(text(X, 40, '1 рад ≈ 57,3°', 'rad__big'));
+			if (t >= 2.6) g.append(text(X, 58, 'дуга <tspan class="t-i">l</tspan> = <tspan class="t-i">R</tspan>', 't-small'));
+			if (rest > 0.95) {
+				g.append(text(X, 118, 'полный оборот:', 't-small'));
+				g.append(text(X, 136, '2π ≈ 6,28 рад', 'rad__big'));
+				g.append(text(X, 154, '= 360°', 'rad__big'));
+				g.append(text(CX + (R - 24) * Math.cos(5.75), CY - (R - 24) * Math.sin(5.75) + 4, '0,28 <tspan class="t-i">R</tspan>', 't-small', 'middle'));
+			}
+			if (t >= 8.4) {
+				g.append(text(X, 196, 'угол в радианах:', 't-small'));
+				g.append(text(X, 216, '<tspan class="t-i">φ</tspan> = <tspan class="t-i">l</tspan> / <tspan class="t-i">R</tspan>', 'rad__big'));
+			}
+		};
+		loop(root, (dt) => {
+			t += dt;
+			if (t > CYCLE) t = 0;
+			draw();
+			return true;
+		});
+		draw();
+	}
+</script>

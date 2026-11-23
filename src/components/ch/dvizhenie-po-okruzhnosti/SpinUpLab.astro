@@ -1,0 +1,297 @@
+---
+/**
+ * «Карусель разгоняется»: the playground roundabout of the opening scene seen from above (R = 1,5 м, 70 px per м, so
+ * 105 px), real time, turning counterclockwise. A red seat mark on the rim (no person: the people kit has no top views).
+ * Buttons «Разгон» (a_τ = +|a_τ|), «Равномерно» (a_τ = 0), «Торможение» (a_τ = −|a_τ|); slider |a_τ| = 0,2…1,0 м/с²
+ * (step 0,1, default 0,5); «Пауза», «С начала» (t = 0, υ = 0, «Разгон»). The rim speed stays within 0…2 м/с: at 2 м/с
+ * speeding up stops by itself («разгон окончен», then a_τ = 0), braking stops at 0 («карусель остановилась»).
+ * Arrows at the mark: υ⃗ gold along the tangent (40 px per м/с); a⃗_τ violet along or against υ⃗; a⃗_ц green toward the
+ * center, a_ц = υ²/R; a⃗ (thick, the ink color: white in the dark theme, black in the light one; the theme accent is the
+ * same gold as υ⃗ in the dark theme) their sum, with the dashed sides of the parallelogram (34 px per м/с²).
+ * Labels sit beyond the arrow tips at a minimum distance from the mark, each shifted to its own side, with a dashed
+ * leader line when the arrow is short, so they never pile up on the seat.
+ * Readouts: t, υ, a_τ, a_ц, a = √(a_τ² + a_ц²) and the angle β between a⃗ and the radius (tg β = |a_τ| / a_ц).
+ * Check values (a_τ = 0,5 м/с²): t 0: υ 0, a_ц 0, a 0,50, β 90°; t 1 с: 0,50; 0,17; 0,53; 71,6°; t 2 с: 1,00; 0,67;
+ * 0,83; 36,9°; t 3 с: 1,50; 1,50; 1,58; 18,4°; t 4 с: 2,00; 2,67; 2,71; 10,6°. Uniform at 2 м/с: a = a_ц = 2,67, β = 0.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 spin not-content" data-spin>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 300 300" role="img" aria-label="Карусель, вид сверху: метка на краю, её скорость, касательное, центростремительное и полное ускорения" data-svg>
+			<circle class="spin__ground" cx="150" cy="150" r="118"></circle>
+			<g data-deck></g>
+			<g data-arrows></g>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Режим" data-modes>
+				<button type="button" class="g7__btn" aria-pressed="true" data-m="1">Разгон</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="0">Равномерно</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="-1">Торможение</button>
+			</div>
+			<label class="g7__slider">
+				<span>Касательное ускорение |<i>a</i><sub>τ</sub>|</span>
+				<output data-oa></output>
+				<input type="range" min="0.2" max="1" step="0.1" value="0.5" data-a aria-label="Модуль касательного ускорения, метры в секунду в квадрате" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn" data-pause>Пауза</button>
+				<button type="button" class="g7__btn" data-restart>С начала</button>
+			</div>
+			<ul class="g7__read" aria-live="off">
+				<li><span>Время <i>t</i></span><b data-t></b></li>
+				<li class="is-warm"><span>Скорость <i>υ</i></span><b data-v></b></li>
+				<li><span>Касательное <i>a</i><sub>τ</sub></span><b data-at></b></li>
+				<li><span>Центростремительное <i>a</i><sub>ц</sub></span><b data-ac></b></li>
+				<li class="is-key"><span>Полное <i>a</i></span><b data-aa></b></li>
+				<li><span>Угол между <i>a⃗</i> и радиусом</span><b data-beta></b></li>
+			</ul>
+			<p class="g7__msg" data-msg></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Карусель радиусом 1,5&nbsp;м, вид сверху; красная метка — сиденье на краю. Золотая стрелка — скорость, фиолетовая — касательное ускорение, зелёная — центростремительное, самая толстая стрелка — полное ускорение, их сумма (штриховые линии — стороны параллелограмма). Время в модели настоящее.</figcaption>
+</figure>
+
+<style is:global>
+	.spin__ground {
+		fill: color-mix(in oklab, var(--ig-v) 14%, var(--sl-color-gray-6));
+	}
+	.spin__deck {
+		fill: color-mix(in oklab, var(--ig-vy) 22%, var(--sl-color-gray-4));
+		stroke: var(--g7-ink);
+		stroke-width: 1.2;
+	}
+	.spin__board {
+		stroke: color-mix(in oklab, var(--ig-vy) 22%, var(--sl-color-gray-5));
+		stroke-width: 1;
+	}
+	.spin__rail {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.spin__pole {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--g7-ink);
+	}
+	.spin__seat {
+		fill: var(--ig-vy);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.spin__lead {
+		stroke-width: 0.9;
+		stroke-dasharray: 2 2;
+	}
+	.spin__lead--gold {
+		stroke: var(--g7-gold);
+	}
+	.spin__lead--violet {
+		stroke: var(--g7-violet);
+	}
+	.spin__lead--green {
+		stroke: var(--g7-green);
+	}
+	.spin__lead--ink {
+		stroke: var(--sl-color-white);
+	}
+	.spin__side {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 4 3;
+	}
+	.spin svg .arrow--violet {
+		stroke: var(--g7-violet);
+	}
+	.spin svg .head--violet {
+		fill: var(--g7-violet);
+	}
+	.spin svg .arrow--accent {
+		stroke: var(--sl-color-white);
+		stroke-width: 6;
+	}
+	.spin svg .head--accent {
+		fill: var(--sl-color-white);
+	}
+	.spin svg .t-violet {
+		fill: var(--g7-violet);
+	}
+	.spin svg .t-accent {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const CX = 150;
+	const CY = 150;
+	const K = 70; // px per м
+	const RM = 1.5; // м
+	const R = RM * K;
+	const SV = 40; // px per м/с
+	const SA = 34; // px per м/с² (2,71 м/с² reaches the hub)
+	const VMAX = 2;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-spin]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const aIn = $<HTMLInputElement>('[data-a]');
+		const deck = $('[data-deck]');
+		const arrows = $('[data-arrows]');
+		const msg = $('[data-msg]');
+		let mode = 1;
+		let t = 0;
+		let v = 0;
+		let phi = 0.35; // the mark's angle, counterclockwise from the right
+		let run = true;
+		let note = '';
+		// the deck: boards and four radial handrails, drawn in the deck's frame and turned as a whole
+		const dg = el('g');
+		deck.append(dg);
+		dg.append(el('circle', { class: 'spin__deck', cx: 0, cy: 0, r: R }));
+		for (let i = 0; i < 8; i++) {
+			const a = (i * Math.PI) / 8;
+			dg.append(el('line', { class: 'spin__board', x1: -R * Math.cos(a), y1: -R * Math.sin(a), x2: R * Math.cos(a), y2: R * Math.sin(a) }));
+		}
+		for (let i = 0; i < 4; i++) {
+			const a = (i * Math.PI) / 2 + Math.PI / 4;
+			dg.append(el('line', { class: 'spin__rail', x1: 0, y1: 0, x2: (R - 4) * Math.cos(a), y2: (R - 4) * Math.sin(a) }));
+		}
+		dg.append(el('circle', { class: 'spin__pole', cx: 0, cy: 0, r: 8 }));
+		dg.append(el('rect', { class: 'spin__seat', x: R - 16, y: -8, width: 13, height: 16, rx: 3 }));
+		const arrow = (x1: number, y1: number, dx: number, dy: number, color: string) => {
+			const out = el('g');
+			const L = Math.hypot(dx, dy);
+			if (L < 3) return out;
+			const ux = dx / L;
+			const uy = dy / L;
+			const h = Math.min(color === 'accent' ? 11 : 9, L * 0.6);
+			const w = color === 'accent' ? 6 : 4.8;
+			const x2 = x1 + dx;
+			const y2 = y1 + dy;
+			out.append(el('line', { class: `arrow arrow--${color}`, x1, y1, x2: x2 - ux * h * 0.6, y2: y2 - uy * h * 0.6 }));
+			out.append(el('path', { class: `head--${color}`, d: `M${x2 - ux * h - uy * w} ${y2 - uy * h + ux * w} L${x2} ${y2} L${x2 - ux * h + uy * w} ${y2 - uy * h - ux * w} Z` }));
+			return out;
+		};
+		const label = (x: number, y: number, s: string, cls: string) => {
+			const tt = el('text', { class: `t-i t-halo ${cls}`, x: x.toFixed(1), y: y.toFixed(1), 'text-anchor': 'middle' });
+			tt.innerHTML = s;
+			return tt;
+		};
+		const atNow = () => {
+			const A = Number(aIn.value);
+			if (mode > 0 && v >= VMAX - 1e-9) return 0;
+			if (mode < 0 && v <= 1e-9) return 0;
+			return mode * A;
+		};
+		const draw = () => {
+			$('[data-oa]').textContent = `${fmt(Number(aIn.value), 1)} м/с²`;
+			dg.setAttribute('transform', `translate(${CX} ${CY}) rotate(${((-phi * 180) / Math.PI).toFixed(2)})`);
+			arrows.replaceChildren();
+			const at = atNow();
+			const ac = (v * v) / RM;
+			const a = Math.hypot(at, ac);
+			// the mark (center of the seat) and the unit vectors: tangent (counterclockwise) and toward the center
+			const rs = R - 9.5;
+			const P = { x: CX + rs * Math.cos(phi), y: CY - rs * Math.sin(phi) };
+			const tx = -Math.sin(phi);
+			const ty = -Math.cos(phi);
+			const nx = -Math.cos(phi);
+			const ny = Math.sin(phi);
+			const vT = { x: tx * v * SV, y: ty * v * SV };
+			const aT = { x: tx * at * SA, y: ty * at * SA };
+			const aC = { x: nx * ac * SA, y: ny * ac * SA };
+			const aS = { x: aT.x + aC.x, y: aT.y + aC.y };
+			if (Math.abs(at) > 1e-6 && ac * SA > 3) {
+				arrows.append(el('line', { class: 'spin__side', x1: P.x + aT.x, y1: P.y + aT.y, x2: P.x + aS.x, y2: P.y + aS.y }));
+				arrows.append(el('line', { class: 'spin__side', x1: P.x + aC.x, y1: P.y + aC.y, x2: P.x + aS.x, y2: P.y + aS.y }));
+			}
+			// the sum first (thick, underneath), so that a⃗_ц stays visible inside it when a_τ = 0
+			arrows.append(arrow(P.x, P.y, aS.x, aS.y, 'accent'));
+			arrows.append(arrow(P.x, P.y, aC.x, aC.y, 'green'));
+			arrows.append(arrow(P.x, P.y, aT.x, aT.y, 'violet'));
+			arrows.append(arrow(P.x, P.y, vT.x, vT.y, 'gold'));
+			// labels: each sits beyond its arrow's tip, at least `min` px from the mark, shifted sideways to its own side
+			// (υ and a_τ to the outside of the circle, a to the inside, a_ц away from a); a label away from a short arrow's
+			// tip is joined to it by a thin leader line, so that no two labels meet at any moment
+			const out = { x: -nx, y: -ny }; // outward normal
+			const tipLabel = (d: { x: number; y: number }, dir: { x: number; y: number }, min: number, side: { x: number; y: number }, s: string, cls: string, color: string) => {
+				const L = Math.hypot(d.x, d.y);
+				const ux = L > 0.5 ? d.x / L : dir.x;
+				const uy = L > 0.5 ? d.y / L : dir.y;
+				const r = Math.max(L, min) + 11;
+				const lx = P.x + ux * r + side.x;
+				const ly = P.y + uy * r + side.y;
+				if (r - L > 18) arrows.append(el('line', { class: `spin__lead spin__lead--${color}`, x1: P.x + d.x + ux * 3, y1: P.y + d.y + uy * 3, x2: lx - ux * 8 - side.x * 0.4, y2: ly - uy * 8 - side.y * 0.4 }));
+				arrows.append(label(lx, ly + 5, s, cls));
+			};
+			const fwd = { x: tx, y: ty };
+			const sgn = at >= 0 ? 1 : -1;
+			if (v > 0.005) tipLabel(vT, fwd, 58, { x: out.x * 10, y: out.y * 10 }, 'υ', 't-gold', 'gold');
+			if (Math.abs(at) > 1e-6) tipLabel(aT, { x: tx * sgn, y: ty * sgn }, 30, { x: out.x * 12, y: out.y * 12 }, 'a<tspan baseline-shift="sub" font-size="10">τ</tspan>', 't-violet', 'violet');
+			if (ac > 1e-4) tipLabel(aC, { x: nx, y: ny }, 42, { x: -tx * sgn * 14, y: -ty * sgn * 14 }, 'a<tspan baseline-shift="sub" font-size="10">ц</tspan>', 't-green', 'green');
+			if (Math.abs(at) > 1e-6 && ac > 1e-4) {
+				const L = Math.hypot(aS.x, aS.y);
+				tipLabel(aS, { x: aS.x / L, y: aS.y / L }, 40, { x: nx * 12 + tx * sgn * 6, y: ny * 12 + ty * sgn * 6 }, 'a', 't-accent', 'ink');
+			}
+			$('[data-t]').textContent = `${fmt(t, 1)} с`;
+			$('[data-v]').textContent = `${fmt(v, 2)} м/с`;
+			$('[data-at]').textContent = `${fmt(at, 2)} м/с²`;
+			$('[data-ac]').textContent = `${fmt(ac, 2)} м/с²`;
+			$('[data-aa]').textContent = `${fmt(a, 2)} м/с²`;
+			$('[data-beta]').textContent = a < 1e-9 ? '—' : `${fmt((Math.atan2(Math.abs(at), ac) * 180) / Math.PI, 1)}°`;
+			msg.textContent = note;
+			msg.hidden = !note;
+		};
+		const step = (dt: number) => {
+			const at = atNow();
+			let nv = v + at * dt;
+			if (mode > 0 && nv >= VMAX) {
+				nv = VMAX;
+				note = 'Разгон окончен: дальше карусель вращается равномерно.';
+			}
+			if (mode < 0 && nv <= 0) {
+				nv = 0;
+				note = 'Карусель остановилась.';
+			}
+			phi += ((v + nv) / 2 / RM) * dt;
+			v = nv;
+			t += dt;
+		};
+		const setMode = (m: number) => {
+			mode = m;
+			note = '';
+			for (const b of root.querySelectorAll<HTMLButtonElement>('[data-modes] button')) b.setAttribute('aria-pressed', String(Number(b.dataset.m) === m));
+		};
+		for (const b of root.querySelectorAll<HTMLButtonElement>('[data-modes] button'))
+			b.addEventListener('click', () => {
+				setMode(Number(b.dataset.m));
+				draw();
+				wake();
+			});
+		aIn.addEventListener('input', draw);
+		const pauseBtn = $<HTMLButtonElement>('[data-pause]');
+		pauseBtn.addEventListener('click', () => {
+			run = !run;
+			pauseBtn.textContent = run ? 'Пауза' : 'Пуск';
+			pauseBtn.setAttribute('aria-pressed', String(!run));
+			if (run) wake();
+		});
+		$('[data-restart]').addEventListener('click', () => {
+			t = 0;
+			v = 0;
+			phi = 0.35;
+			setMode(1);
+			draw();
+			wake();
+		});
+		const wake = loop(root, (dt) => {
+			if (run) step(dt);
+			draw();
+			return run;
+		});
+		draw();
+	}
+</script>
