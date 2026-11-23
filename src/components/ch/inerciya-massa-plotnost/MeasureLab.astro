@@ -1,0 +1,401 @@
+---
+/**
+ * «Измерьте плотность сами»: the reader chooses a body of irregular shape, weighs it on electronic scales (division
+ * 0,1 г), then lowers it on a thread into a measuring cylinder with 30 мл of water (division 1 мл) and reads the level
+ * after. The model then shows ρ = m / V in г/см³ and кг/м³, and the reader finds the substance in the chapter's table.
+ *   key      15,6 г, 32 − 30 = 2 см³ → 7,8 г/см³  = 7800 кг/м³  steel (iron)
+ *   sinker   45,2 г, 34 − 30 = 4 см³ → 11,3 г/см³ = 11 300 кг/м³ lead
+ *   wire     44,5 г, 35 − 30 = 5 см³ → 8,9 г/см³  = 8900 кг/м³  copper
+ *   pebble   15,0 г, 36 − 30 = 6 см³ → 2,5 г/см³  = 2500 кг/м³  glass (a decorative glass pebble)
+ * Scale of the drawing: 20 px per см. The cylinder is 2,52 см wide inside (50 px), so 1 мл raises the water by
+ * 1 : 5,0 см² = 0,2 см = 4 px; 0…50 мл is 200 px. The bodies are drawn to the same scale (the key is 4,5 см long). While
+ * a body goes under, the water rises by the part of its volume already under the surface (taken by height).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const BODIES = [
+	{ key: 'key', name: 'Ключ' },
+	{ key: 'sinker', name: 'Грузило' },
+	{ key: 'wire', name: 'Моток проволоки' },
+	{ key: 'pebble', name: 'Камешек' },
+];
+const SUBS = [
+	{ key: 'al', name: 'Алюминий' },
+	{ key: 'glass', name: 'Стекло' },
+	{ key: 'fe', name: 'Железо, сталь' },
+	{ key: 'cu', name: 'Медь' },
+	{ key: 'ag', name: 'Серебро' },
+	{ key: 'pb', name: 'Свинец' },
+	{ key: 'au', name: 'Золото' },
+];
+const CX = 250; // cylinder axis
+const FLOOR = 316; // inside bottom, 0 мл
+const PX = 4; // px per мл
+const y = (v: number) => FLOOR - v * PX;
+const ticks = Array.from({ length: 51 }, (_, i) => i);
+---
+
+<G7Styles />
+<figure class="g7 g7--wide mea not-content" data-mea>
+	<div class="g7__grid">
+		<svg class="g7__svg mea__svg" viewBox="0 0 340 330" role="img" aria-label="Электронные весы и мензурка с водой; выбранное тело на нитке сначала кладут на весы, потом опускают в мензурку" data-svg>
+			<!-- the scales -->
+			<rect class="mea__plate" x="40" y="282" width="100" height="6" rx="3"></rect>
+			<rect class="mea__scale" x="30" y="289" width="120" height="29" rx="7"></rect>
+			<rect class="mea__screen" x="50" y="294" width="80" height="19" rx="3"></rect>
+			<text class="mea__digits" x="125" y="309" text-anchor="end" data-mass>0,0 г</text>
+			<text class="t-small" x="90" y="276" text-anchor="middle" data-scalelabel>весы</text>
+			<line class="ln" x1="4" x2="336" y1="318.5" y2="318.5"></line>
+
+			<!-- the cylinder: water, scale, glass -->
+			<rect class="mea__water" x={CX - 25} width="50" data-water></rect>
+			<line class="mea__level" x1={CX - 25} x2={CX + 25} data-level></line>
+			<g data-body></g>
+			<path class="mea__thread" data-thread></path>
+			{ticks.map((v) => <line class="mea__tick" x1={CX - 25} x2={CX - 25 + (v % 10 === 0 ? 14 : v % 5 === 0 ? 9 : 5)} y1={y(v)} y2={y(v)} />)}
+			{
+				ticks
+					.filter((v) => v > 0 && v % 10 === 0)
+					.map((v) => (
+						<text class="mea__num" x={CX - 30} y={y(v) + 4} text-anchor="end">
+							{v}
+						</text>
+					))
+			}
+			<text class="mea__num" x={CX - 33} y={y(50) - 16} text-anchor="end">мл</text>
+			<path class="mea__glass" d={`M${CX - 25} ${y(50) - 12} V${FLOOR} H${CX + 25} V${y(50) - 12} M${CX - 25} ${y(50) - 12} l-5 -5 M${CX - 36} ${FLOOR + 2} H${CX + 36} M${CX - 25} ${FLOOR} V${FLOOR + 2} M${CX + 25} ${FLOOR} V${FLOOR + 2}`}></path>
+			<text class="t-small" x={CX + 30} y={y(46)}>мензурка</text>
+		</svg>
+		<div class="g7__side">
+			<label class="g7__select">
+				Тело
+				<select data-pick aria-label="Тело">
+					{BODIES.map((b) => <option value={b.key}>{b.name}</option>)}
+				</select>
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn" data-weigh>1. Взвесить</button>
+				<button type="button" class="g7__btn" data-dip disabled>2. Опустить в мензурку</button>
+			</div>
+			<button type="button" class="g7__btn g7__again" data-calc disabled>Показать расчёт</button>
+			<ul class="g7__lines" data-lines hidden></ul>
+			<p class="g7__label">Из какого вещества тело? Найдите его плотность в таблице.</p>
+			<div class="g7__row" data-subs>
+				{
+					SUBS.map((s) => (
+						<button type="button" class="g7__btn mea__sub" data-sub={s.key}>
+							{s.name}
+						</button>
+					))
+				}
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite"></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Сначала взвешивают сухое тело, потом опускают его на нитке в мензурку так, чтобы оно целиком скрылось под водой. Тела и мензурка нарисованы в одном масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.mea__svg {
+		max-width: 26rem;
+		margin-inline: auto;
+	}
+	.mea__plate {
+		fill: var(--sl-color-gray-3);
+	}
+	.mea__scale {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.mea__screen {
+		fill: hsl(150, 30%, 12%);
+	}
+	.mea svg .mea__digits {
+		font-size: 15px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		fill: hsl(140, 80%, 62%);
+	}
+	.mea__water {
+		fill: var(--g7-water);
+	}
+	.mea__level {
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.6;
+	}
+	.mea__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.g7__svg .mea__num {
+		font-size: 11.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.mea__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.mea__thread {
+		fill: none;
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.mea__steel {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.mea__lead {
+		fill: hsl(220, 8%, 46%);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.mea__copper {
+		fill: none;
+		stroke: hsl(20, 70%, 50%);
+		stroke-width: 3.2;
+	}
+	.mea__pebble {
+		fill: hsl(165, 45%, 55%);
+		fill-opacity: 0.85;
+		stroke: hsl(165, 40%, 30%);
+		stroke-width: 1;
+	}
+	.mea__sub {
+		padding-inline: 0.6rem;
+	}
+	.mea__sub.is-right {
+		background: color-mix(in oklab, var(--g7-green) 30%, transparent);
+		border-color: var(--g7-green);
+	}
+	.mea__sub.is-wrong {
+		background: color-mix(in oklab, var(--g7-red) 22%, transparent);
+		border-color: var(--g7-red);
+	}
+</style>
+
+<script>
+	import { el, loop, fmt, fmtInt, k } from '../g7/kit';
+
+	const CX = 250;
+	const FLOOR = 316;
+	const PX = 4;
+	const V1 = 30;
+	type Body = { m: number; V: number; sub: string; h: number; draw: () => SVGElement };
+	const B: Record<string, Body> = {
+		key: {
+			m: 15.6,
+			V: 2,
+			sub: 'fe',
+			h: 88,
+			draw: () => {
+				const g = el('g');
+				g.append(
+					el('path', { class: 'mea__steel', 'fill-rule': 'evenodd', d: 'M-16 -72 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0 Z M-7 -72 a7 7 0 1 1 14 0 a7 7 0 1 1 -14 0 Z' }),
+					el('rect', { class: 'mea__steel', x: -3.5, y: -57, width: 7, height: 57, rx: 1.5 }),
+					el('path', { class: 'mea__steel', d: 'M3.5 -4 H15 V-12 H10 V-17 H15 V-26 H3.5 Z' }),
+				);
+				return g;
+			},
+		},
+		sinker: {
+			m: 45.2,
+			V: 4,
+			sub: 'pb',
+			h: 64,
+			draw: () => {
+				const g = el('g');
+				g.append(
+					el('circle', { class: 'mea__thread', cx: 0, cy: -60, r: 4 }),
+					el('path', { class: 'mea__lead', d: 'M0 -56 C6 -50 16 -30 16 -16 C16 -6 9 0 0 0 C-9 0 -16 -6 -16 -16 C-16 -30 -6 -50 0 -56 Z' }),
+				);
+				return g;
+			},
+		},
+		wire: {
+			m: 44.5,
+			V: 5,
+			sub: 'cu',
+			h: 40,
+			draw: () => {
+				const g = el('g');
+				for (let i = 0; i < 7; i++) g.append(el('ellipse', { class: 'mea__copper', cx: 0, cy: -4 - i * 5.33, rx: 19, ry: 3.6 }));
+				return g;
+			},
+		},
+		pebble: {
+			m: 15.0,
+			V: 6,
+			sub: 'glass',
+			h: 56,
+			draw: () => {
+				const g = el('g');
+				g.append(
+					el('path', { class: 'mea__pebble', d: 'M-4 -56 C12 -57 23 -44 22 -28 C21 -10 12 0 -2 0 C-16 0 -23 -12 -22 -28 C-21 -44 -16 -55 -4 -56 Z' }),
+					el('path', { class: 'mea__thread', d: 'M-21 -30 C-8 -24 8 -24 22 -30' }),
+					el('ellipse', { cx: -9, cy: -42, rx: 5, ry: 8, fill: 'white', opacity: 0.3 }),
+				);
+				return g;
+			},
+		},
+	};
+	const RHO: Record<string, [number, string]> = {
+		al: [2700, 'алюминия'],
+		glass: [2500, 'стекла'],
+		fe: [7800, 'железа и стали'],
+		cu: [8900, 'меди'],
+		ag: [10500, 'серебра'],
+		pb: [11300, 'свинца'],
+		au: [19300, 'золота'],
+	};
+	const NAME: Record<string, string> = {
+		key: 'Ключ стальной.',
+		sinker: 'Грузило свинцовое.',
+		wire: 'Проволока медная.',
+		pebble: 'Камешек стеклянный: такие кладут в аквариумы и вазы.',
+	};
+	const tx = (v: number, d: number) => fmt(v, d).replace(',', '{,}');
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-mea]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const pick = q<HTMLSelectElement>('[data-pick]');
+		const holder = q<SVGGElement>('[data-body]');
+		const thread = q<SVGPathElement>('[data-thread]');
+		const water = q<SVGRectElement>('[data-water]');
+		const level = q<SVGLineElement>('[data-level]');
+		const mass = q<SVGTextElement>('[data-mass]');
+		const weigh = q<HTMLButtonElement>('[data-weigh]');
+		const dip = q<HTMLButtonElement>('[data-dip]');
+		const calc = q<HTMLButtonElement>('[data-calc]');
+		const lines = q<HTMLUListElement>('[data-lines]');
+		const msg = q<HTMLElement>('[data-msg]');
+		const subs = [...root.querySelectorAll<HTMLButtonElement>('[data-sub]')];
+		let pos = { x: 90, b: 100 }; // the body: axis x and the y of its bottom
+		let path: { x: number; b: number }[] = [];
+		let where: 'air' | 'scale' | 'cyl' = 'air';
+		const body = () => B[pick.value];
+		const levelY = () => {
+			const s = body();
+			let ly = FLOOR - V1 * PX;
+			for (let i = 0; i < 3; i++) {
+				const f = Math.min(1, Math.max(0, (pos.b - ly) / s.h));
+				ly = FLOOR - (V1 + s.V * (pos.x > 190 ? f : 0)) * PX;
+			}
+			return ly;
+		};
+		const draw = () => {
+			const s = body();
+			holder.setAttribute('transform', `translate(${pos.x} ${pos.b.toFixed(2)})`);
+			const top = pos.b - s.h - 2;
+			const slack = where === 'scale' && path.length === 0;
+			thread.setAttribute('d', slack ? `M${pos.x} 0 Q${pos.x + 18} ${(top / 2).toFixed(1)} ${pos.x} ${top.toFixed(1)}` : `M${pos.x} 0 V${top.toFixed(1)}`);
+			const ly = levelY();
+			water.setAttribute('y', ly.toFixed(2));
+			water.setAttribute('height', (FLOOR - ly).toFixed(2));
+			level.setAttribute('y1', ly.toFixed(2));
+			level.setAttribute('y2', ly.toFixed(2));
+			const onPlate = where === 'scale' && path.length === 0;
+			mass.textContent = `${onPlate ? fmt(s.m, 1) : '0,0'} г`;
+		};
+		const wake = loop(root, (dt) => {
+			if (!path.length) return false;
+			const t = path[0];
+			const inWater = pos.x > 190 && pos.b > FLOOR - V1 * PX;
+			const v = inWater ? 70 : 170;
+			const dx = t.x - pos.x;
+			const db = t.b - pos.b;
+			const d = Math.hypot(dx, db);
+			if (d <= v * dt) {
+				pos = { ...t };
+				path.shift();
+			} else pos = { x: pos.x + (dx / d) * v * dt, b: pos.b + (db / d) * v * dt };
+			draw();
+			if (!path.length) arrived();
+			return path.length > 0;
+		});
+		const arrived = () => {
+			if (where === 'scale') say('Весы показывают массу тела. Теперь опустите его в мензурку.');
+			if (where === 'cyl') {
+				say('Тело целиком под водой. Прочитайте уровень воды до и после погружения и найдите объём тела.');
+				calc.disabled = false;
+			}
+		};
+		const say = (t: string, cls = '') => {
+			msg.textContent = t;
+			msg.classList.toggle('is-right', cls === 'right');
+		};
+		const reset = () => {
+			holder.replaceChildren(body().draw());
+			pos = { x: 90, b: 100 };
+			path = [];
+			where = 'air';
+			weigh.disabled = false;
+			dip.disabled = true;
+			calc.disabled = true;
+			lines.hidden = true;
+			lines.replaceChildren();
+			for (const b of subs) b.classList.remove('is-right', 'is-wrong');
+			say('Нажмите «Взвесить».');
+			draw();
+		};
+		weigh.addEventListener('click', () => {
+			where = 'scale';
+			path = [{ x: 90, b: 282 }];
+			weigh.disabled = true;
+			dip.disabled = false;
+			say('…');
+			wake();
+		});
+		dip.addEventListener('click', () => {
+			where = 'cyl';
+			path = [
+				{ x: 90, b: 100 },
+				{ x: CX, b: 100 },
+				{ x: CX, b: FLOOR - 4 },
+			];
+			dip.disabled = true;
+			say('…');
+			draw();
+			wake();
+		});
+		calc.addEventListener('click', () => {
+			const s = body();
+			const V2 = V1 + s.V;
+			const rho = s.m / s.V;
+			const row = (t: string) => {
+				const li = document.createElement('li');
+				li.innerHTML = k(t);
+				return li;
+			};
+			lines.replaceChildren(
+				row(`m = ${tx(s.m, 1)}~\\text{г}`),
+				row(`V = V_2 - V_1 = ${V2}~\\text{мл} - ${V1}~\\text{мл} = ${s.V}~\\text{см}^3`),
+				row(`\\rho = \\dfrac{m}{V} = \\dfrac{${tx(s.m, 1)}~\\text{г}}{${s.V}~\\text{см}^3} = ${tx(rho, 1)}~\\text{г/см}^3`),
+				row(`\\rho = ${fmtInt(rho * 1000).replace(/\s/g, '\\,')}~\\text{кг/м}^3`),
+			);
+			lines.lastElementChild!.classList.add('is-key');
+			lines.hidden = false;
+			calc.disabled = true;
+		});
+		for (const b of subs)
+			b.addEventListener('click', () => {
+				const s = body();
+				const [r, gen] = RHO[b.dataset.sub!];
+				for (const o of subs) o.classList.remove('is-right', 'is-wrong');
+				if (b.dataset.sub === s.sub) {
+					b.classList.add('is-right');
+					say(`Верно: плотность ${gen} ${fmtInt(r)}\u00a0кг/\u2060м³. ${NAME[pick.value]}`, 'right');
+				} else {
+					b.classList.add('is-wrong');
+					say(`Плотность ${gen} ${fmtInt(r)}\u00a0кг/\u2060м³. Сравните с плотностью тела.`);
+				}
+			});
+		pick.addEventListener('change', reset);
+		reset();
+	}
+</script>

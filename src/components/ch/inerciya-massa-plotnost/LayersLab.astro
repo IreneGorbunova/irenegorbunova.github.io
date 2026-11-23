@@ -1,0 +1,243 @@
+---
+/**
+ * «Слоёный стакан»: honey (1400 кг/м³), water (1000) and sunflower oil (920) lie in layers in a glass. The reader
+ * drops four pieces one by one; each stops where its density first exceeds that of the liquid below it:
+ *   cork ≈ 240 < 920            → floats on the oil;
+ *   polyethylene ≈ 950: 920 < 950 < 1000 → passes the oil, stops on the water (at the oil–water boundary);
+ *   a grape ≈ 1070: 1000 < 1070 < 1400 → passes oil and water, stops on the honey;
+ *   a steel nut 7800 > 1400     → lies on the bottom.
+ * Floating depths are computed, not guessed. A body between an upper liquid A and a lower liquid B has the part
+ * (ρ − ρ_A)/(ρ_B − ρ_A) of its volume in B (the air counts as ρ_A = 0): cork 240/920 = 0,261 of its height in the
+ * oil (a cylinder); polyethylene (950 − 920)/(1000 − 920) = 0,375 of its height in the water (a flat piece); the grape
+ * (1070 − 1000)/(1400 − 1000) = 0,175 of its volume in the honey, which for a sphere is a cap 0,266 of the diameter high
+ * (found by bisection below). The speeds of falling are illustrative: fast in the air, slower in the oil and water,
+ * very slow in the viscous honey.
+ * Drawing: the glass is 140 px wide inside (about 8 см, so about 17 px per см); the pieces are drawn to that scale.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const PIECES = [
+	{ key: 'cork', name: 'Пробка' },
+	{ key: 'pe', name: 'Полиэтилен' },
+	{ key: 'grape', name: 'Виноградина' },
+	{ key: 'nut', name: 'Гайка' },
+];
+// layer boundaries (y of the surfaces) and the floor
+const OIL = 86;
+const WATER = 136;
+const HONEY = 191;
+const FLOOR = 236;
+const LAYERS = [
+	{ cls: 'lay__oil', y0: OIL, y1: WATER, name: 'масло', rho: '920 кг/м³' },
+	{ cls: 'lay__water', y0: WATER, y1: HONEY, name: 'вода', rho: '1000 кг/м³' },
+	{ cls: 'lay__honey', y0: HONEY, y1: FLOOR, name: 'мёд', rho: '1400 кг/м³' },
+];
+---
+
+<G7Styles />
+<figure class="g7 lay not-content" data-lay>
+	<div class="g7__grid">
+		<svg class="g7__svg lay__svg" viewBox="0 0 300 256" role="img" aria-label="Стакан, в котором слоями лежат мёд, вода и подсолнечное масло; в него бросают пробку, кусочек полиэтилена, виноградину и гайку">
+			{LAYERS.map((l) => <rect class={l.cls} x="70" y={l.y0} width="140" height={l.y1 - l.y0} />)}
+			{LAYERS.map((l) => <line class="lay__edge" x1="70" x2="210" y1={l.y0} y2={l.y0} />)}
+			<g data-pieces></g>
+			<path class="lay__glass" d="M68 28 V240 Q68 246 74 246 H206 Q212 246 212 240 V28"></path>
+			<line class="lay__glass" x1="70" x2="210" y1="238" y2="238"></line>
+			{
+				LAYERS.map((l) => (
+					<g>
+						<line class="ln" x1="214" x2="222" y1={(l.y0 + l.y1) / 2} y2={(l.y0 + l.y1) / 2} />
+						<text class="t-title" x="226" y={(l.y0 + l.y1) / 2 - 2}>
+							{l.name}
+						</text>
+						<text class="t-small" x="226" y={(l.y0 + l.y1) / 2 + 12}>
+							{l.rho}
+						</text>
+					</g>
+				))
+			}
+		</svg>
+		<div class="g7__side">
+			<p class="g7__label">Бросьте в стакан</p>
+			<div class="g7__row">
+				{
+					PIECES.map((p) => (
+						<button type="button" class="g7__btn" data-drop={p.key}>
+							{p.name}
+						</button>
+					))
+				}
+			</div>
+			<p class="g7__msg" data-msg aria-live="polite">Нажмите на кусочек, чтобы бросить его в стакан.</p>
+			<button type="button" class="g7__btn g7__again" data-reset>Сначала</button>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Плотность пробки около 240&nbsp;кг/м³, полиэтилена — около 950&nbsp;кг/м³, виноградины — около 1070&nbsp;кг/м³, стальной гайки — 7800&nbsp;кг/м³. Глубина погружения плавающих кусочков рассчитана по плотностям; скорость падения условная.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.lay__svg {
+		max-width: 24rem;
+		margin-inline: auto;
+	}
+	.lay__oil {
+		fill: hsl(50, 92%, 58%);
+		opacity: 0.42;
+	}
+	.lay__water {
+		fill: var(--g7-water);
+	}
+	.lay__honey {
+		fill: hsl(34, 92%, 46%);
+		opacity: 0.85;
+	}
+	.lay__edge {
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.lay__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	.lay__cork {
+		fill: hsl(32, 45%, 62%);
+		stroke: hsl(32, 40%, 32%);
+		stroke-width: 1;
+	}
+	.lay__pe {
+		fill: hsl(195, 30%, 94%);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	:root[data-theme='light'] .lay__pe {
+		fill: hsl(195, 70%, 98%);
+		stroke: hsl(210, 15%, 40%);
+	}
+	.lay__grape {
+		fill: hsl(95, 55%, 52%);
+		stroke: hsl(95, 50%, 28%);
+		stroke-width: 1;
+	}
+	.lay__nut {
+		fill: var(--g7-steel);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+</style>
+
+<script>
+	import { el, loop } from '../g7/kit';
+
+	const OIL = 86;
+	const WATER = 136;
+	const HONEY = 191;
+	const FLOOR = 236;
+	// the height of a cap of a sphere (in diameters) that holds the part f of its volume
+	const capOf = (f: number) => {
+		let lo = 0;
+		let hi = 2;
+		for (let i = 0; i < 50; i++) {
+			const x = (lo + hi) / 2; // cap height in radii
+			if ((x * x * (3 - x)) / 4 < f) lo = x;
+			else hi = x;
+		}
+		return lo / 2;
+	};
+	type Piece = { x: number; w: number; h: number; top: number; msg: string; draw: () => SVGElement };
+	const P: Record<string, Piece> = {
+		cork: {
+			x: 96,
+			w: 28,
+			h: 16,
+			top: OIL - 16 * (1 - 240 / 920),
+			msg: 'Пробка (около 240 кг/⁠м³) плавает на поверхности масла: её плотность меньше плотности масла.',
+			draw: () => el('rect', { class: 'lay__cork', x: -14, y: 0, width: 28, height: 16, rx: 3 }),
+		},
+		pe: {
+			x: 128,
+			w: 22,
+			h: 8,
+			top: WATER + 8 * ((950 - 920) / (1000 - 920)) - 8,
+			msg: 'Полиэтилен (около 950 кг/⁠м³) прошёл масло и остановился на воде: он плотнее масла, но его плотность меньше плотности воды.',
+			draw: () => el('path', { class: 'lay__pe', d: 'M-11 2 L-6 0 H9 L11 3 L10 8 H-9 L-11 6 Z' }),
+		},
+		grape: {
+			x: 160,
+			w: 22,
+			h: 22,
+			top: HONEY + 22 * capOf((1070 - 1000) / (1400 - 1000)) - 22,
+			msg: 'Виноградина (около 1070 кг/⁠м³) прошла масло и воду и остановилась на мёде: мёд плотнее её.',
+			draw: () => {
+				const g = el('g');
+				g.append(el('circle', { class: 'lay__grape', cx: 0, cy: 11, r: 11 }), el('circle', { cx: -4, cy: 7, r: 2.5, fill: 'white', opacity: 0.45 }));
+				return g;
+			},
+		},
+		nut: {
+			x: 192,
+			w: 26,
+			h: 12,
+			top: FLOOR - 12,
+			msg: 'Стальная гайка (7800 кг/⁠м³) плотнее всех трёх жидкостей и легла на дно. В густом мёде она опускалась медленно.',
+			draw: () => {
+				const g = el('g');
+				g.append(el('rect', { class: 'lay__nut', x: -13, y: 0, width: 26, height: 12, rx: 1 }), el('path', { class: 'lay__nut', d: 'M-6 0 V12 M6 0 V12', fill: 'none' }));
+				return g;
+			},
+		},
+	};
+	// terminal speeds (px/s) in each medium, by the medium at the piece's center
+	const vMax = (y: number) => (y < OIL ? 260 : y < WATER ? 70 : y < HONEY ? 110 : 14);
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-lay]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const layer = q<SVGGElement>('[data-pieces]');
+		const msg = q<HTMLElement>('[data-msg]');
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-drop]')];
+		type Live = { key: string; node: SVGElement; y: number; v: number; done: boolean };
+		let live: Live[] = [];
+		const place = (p: Live) => p.node.setAttribute('transform', `translate(${P[p.key].x} ${p.y.toFixed(2)})`);
+		const wake = loop(root, (dt) => {
+			let busy = false;
+			for (const p of live) {
+				if (p.done) continue;
+				const s = P[p.key];
+				const mid = p.y + s.h / 2;
+				const cap = vMax(mid);
+				p.v = p.v < cap ? Math.min(cap, p.v + 900 * dt) : p.v + (cap - p.v) * Math.min(1, dt * 12);
+				const left = s.top - p.y;
+				p.v = Math.min(p.v, left * 5 + 3); // the floating pieces come to rest smoothly
+				p.y += p.v * dt;
+				if (p.y >= s.top - 0.05) {
+					p.y = s.top;
+					p.done = true;
+					msg.textContent = s.msg;
+				} else busy = true;
+				place(p);
+			}
+			return busy;
+		});
+		for (const b of btns)
+			b.addEventListener('click', () => {
+				const key = b.dataset.drop!;
+				const node = P[key].draw();
+				layer.append(node);
+				const p = { key, node, y: 6, v: 0, done: false };
+				live.push(p);
+				place(p);
+				b.disabled = true;
+				msg.textContent = '…';
+				wake();
+			});
+		q('[data-reset]').addEventListener('click', () => {
+			live = [];
+			layer.replaceChildren();
+			for (const b of btns) b.disabled = false;
+			msg.textContent = 'Нажмите на кусочек, чтобы бросить его в стакан.';
+		});
+	}
+</script>
