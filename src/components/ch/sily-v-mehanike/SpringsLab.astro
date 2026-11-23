@@ -1,0 +1,368 @@
+---
+/**
+ * «Соединение пружин» (model), section «Сила упругости. Закон Гука», before the formulas k = k₁ + k₂ and
+ * 1/k = 1/k₁ + 1/k₂. Light springs, each 10 см long without a load; stiffnesses k₁, k₂ = 20…100 Н/м (step 10); a load
+ * m = 50…300 г (step 50); g = 9,8 Н/кг. Three cases (buttons):
+ *   Одна пружина: x = mg/k₁.
+ *   Последовательно: spring 1 hangs from the beam, spring 2 from it, the load from spring 2. The same force mg stretches
+ *     each spring: x₁ = mg/k₁, x₂ = mg/k₂, x = x₁ + x₂; the system's stiffness mg/x = k₁k₂/(k₁ + k₂).
+ *   Параллельно: a light bar hangs on both springs (4 см apart in the picture, 10,7 px per см across); the load hangs
+ *     at the point that divides the bar in the ratio k₂ : k₁ (distances from spring 1 and spring 2), so the bar stays
+ *     level and both springs stretch by the same x: F₁ = k₁x, F₂ = k₂x, F₁ + F₂ = mg, x = mg/(k₁ + k₂).
+ * Defaults k₁ = 40, k₂ = 60 Н/м, m = 200 г: one spring 4,90 см; series 4,90 + 3,27 = 8,17 см, k = 24,0 Н/м; parallel
+ *   1,96 см, F₁ = 0,784 Н, F₂ = 1,176 Н, k = 100 Н/м. The longest system (series, 20 + 20 Н/м, 300 г) is 49,4 см.
+ * Picture to scale: 4,2 px per см vertically (the ruler on the left, 0 at the beam); left the system without the load
+ *   (faint), right with it. After a change the load settles with the real period 2π√(m/k) (light damping, ζ = 0,15);
+ *   the readouts show the final values. Arrows on the load (or the bar): F_упр blue, mg violet, 16 px per Н.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const Y0 = 24; // the beam's lower edge = 0 on the ruler
+const PXC = 4.2; // px per см
+const ticks = Array.from({ length: 56 }, (_, i) => i);
+---
+
+<G7Styles />
+<figure class="g7 spr not-content" data-spr>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 300" role="img" aria-label="Пружины без груза и с грузом рядом с линейкой: одна пружина, две последовательно или две параллельно" data-svg>
+			<defs>
+				{['blue', 'violet', 'ink'].map((c) => <marker id={`sp-${uid}-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class={`spr__h--${c}`} d="M0,0 L10,5 L0,10 z" /></marker>)}
+			</defs>
+			<rect class="spr__beam" x="44" y={Y0 - 8} width="270" height="8" />
+			<!-- the ruler -->
+			<rect class="spr__ruler" x="8" y={Y0} width="26" height={55 * PXC + 2} rx="1.5" />
+			{ticks.map((i) => <line class="spr__tick" x1="34" x2={i % 10 === 0 ? 22 : i % 5 === 0 ? 26 : 29} y1={(Y0 + i * PXC).toFixed(1)} y2={(Y0 + i * PXC).toFixed(1)} />)}
+			{[0, 10, 20, 30, 40, 50].map((c) => <text class="spr__num" x="20" y={(Y0 + c * PXC + 4).toFixed(1)} text-anchor="end">{c}</text>)}
+			<text class="spr__num" x="21" y={(Y0 + 55 * PXC + 14).toFixed(1)} text-anchor="middle">см</text>
+			<text class="t-small" x="96" y="12" text-anchor="middle">без груза</text>
+			<text class="t-small" x="226" y="12" text-anchor="middle">с грузом</text>
+			<g data-ghost></g>
+			<g data-live></g>
+			<line class="ln-dash spr__lvl" data-lvl0 x1="34" />
+			<line class="ln-dash spr__lvl" data-lvl1 x1="34" />
+			<line class="spr__dim" data-dim marker-end={`url(#sp-${uid}-ink)`} marker-start={`url(#sp-${uid}-ink)`} />
+			<text class="t-i t-halo" data-lx>x</text>
+			<line class="spr__arr spr__arr--blue" data-fu marker-end={`url(#sp-${uid}-blue)`} />
+			<line class="spr__arr spr__arr--blue" data-fu2 marker-end={`url(#sp-${uid}-blue)`} />
+			<line class="spr__arr spr__arr--violet" data-mg marker-end={`url(#sp-${uid}-violet)`} />
+			<text class="t-i t-halo spr__lb" data-lfu>F<tspan class="spr__sub" dy="3" data-lfu-sub>упр</tspan></text>
+			<text class="t-i t-halo spr__lb" data-lfu2>F<tspan class="spr__sub" dy="3">2</tspan></text>
+			<text class="t-i t-halo spr__lv" data-lmg>mg</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__seg" role="group" aria-label="Как соединены пружины" data-mode>
+				<button type="button" class="g7__btn" aria-pressed="true" data-m="one">Одна пружина</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="ser">Последовательно</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-m="par">Параллельно</button>
+			</div>
+			<label class="g7__slider">
+				<span>Жёсткость <i>k</i><sub>1</sub></span>
+				<output data-ok1></output>
+				<input type="range" min="20" max="100" step="10" value="40" data-k1 aria-label="Жёсткость первой пружины, ньютоны на метр" />
+			</label>
+			<label class="g7__slider" data-k2row>
+				<span>Жёсткость <i>k</i><sub>2</sub></span>
+				<output data-ok2></output>
+				<input type="range" min="20" max="100" step="10" value="60" data-k2 aria-label="Жёсткость второй пружины, ньютоны на метр" />
+			</label>
+			<label class="g7__slider">
+				<span>Масса груза <i>m</i></span>
+				<output data-om></output>
+				<input type="range" min="50" max="300" step="50" value="200" data-mass aria-label="Масса груза, граммы" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Сила тяжести груза <i>mg</i></span><b data-rmg></b></li>
+				<li data-rx12><span>Удлинения <i>x</i><sub>1</sub> и <i>x</i><sub>2</sub></span><b data-x12></b></li>
+				<li data-rf12><span><i>F</i><sub>1</sub> и <i>F</i><sub>2</sub></span><b data-f12></b></li>
+				<li><span>Удлинение <i>x</i></span><b data-x></b></li>
+				<li class="is-key"><span>Жёсткость <i>k</i> = <i>mg</i>/<i>x</i></span><b data-k></b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Лёгкие пружины по 10&nbsp;см без груза: слева без груза, справа с грузом, длины в масштабе линейки. Синие стрелки — силы упругости, фиолетовая — сила тяжести. При параллельном соединении груз висит там, где планка не перекашивается.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.spr .g7__seg {
+		flex-wrap: wrap;
+	}
+	.spr__beam {
+		fill: var(--sl-color-gray-4);
+	}
+	.spr__hatch {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.spr__ruler {
+		fill: color-mix(in oklab, var(--g7-wood) 60%, var(--g7-paper));
+		stroke: var(--g7-line);
+		stroke-width: 0.6;
+	}
+	.spr__tick {
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	.spr .g7__svg .spr__num {
+		font-size: 11px;
+		fill: var(--g7-ink);
+	}
+	.spr__coil {
+		fill: none;
+		stroke: var(--g7-steel);
+		stroke-linejoin: round;
+	}
+	.spr__coil--2 {
+		stroke: color-mix(in oklab, var(--g7-gold) 55%, var(--g7-steel));
+	}
+	[data-ghost] {
+		opacity: 0.4;
+	}
+	.spr__hook {
+		fill: none;
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.spr__bar {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-ink);
+		stroke-width: 0.6;
+	}
+	.spr__load {
+		fill: color-mix(in oklab, var(--g7-ink) 25%, var(--g7-steel-dark));
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.spr__lvl {
+		opacity: 0.8;
+	}
+	.spr__dim {
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.spr__h--ink {
+		fill: var(--g7-ink);
+	}
+	.spr__h--blue {
+		fill: var(--g7-blue);
+	}
+	.spr__h--violet {
+		fill: var(--g7-violet);
+	}
+	.spr__arr {
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.spr__arr--blue {
+		stroke: var(--g7-blue);
+	}
+	.spr__arr--violet {
+		stroke: var(--g7-violet);
+	}
+	.spr .g7__svg .spr__lb {
+		fill: var(--g7-blue);
+	}
+	.spr .g7__svg .spr__lv {
+		fill: var(--g7-violet);
+	}
+	.spr .g7__svg .spr__klab {
+		font-size: 12px;
+		fill: var(--g7-ink);
+	}
+	.spr svg .spr__sub {
+		font-size: 10px;
+		font-style: normal;
+		font-family: var(--__sl-font);
+	}
+</style>
+
+<script>
+	import { fmt, fmtTrim, loop, segment, el } from '../g7/kit';
+
+	const Y0 = 24;
+	const PXC = 4.2;
+	const L0 = 10; // см
+	const G = 9.8;
+	const KF = 16; // px per Н
+	const GAP = 40; // px between the parallel springs
+	type Mode = 'one' | 'ser' | 'par';
+	const coil = (x: number, y0: number, y1: number, w: number, cls: string) => {
+		const n = 9;
+		const top = 4;
+		const L = y1 - y0 - 2 * top;
+		let d = `M${x} ${y0} V${(y0 + top).toFixed(1)}`;
+		for (let i = 0; i < n; i++) {
+			d += ` L${(x - 6).toFixed(1)} ${(y0 + top + (L * (i + 0.25)) / n).toFixed(1)} L${(x + 6).toFixed(1)} ${(y0 + top + (L * (i + 0.75)) / n).toFixed(1)}`;
+		}
+		d += ` L${x} ${(y1 - top).toFixed(1)} V${y1.toFixed(1)}`;
+		return el('path', { class: `spr__coil ${cls}`, d, 'stroke-width': w.toFixed(2) });
+	};
+	const width = (k: number) => 0.8 + k / 45; // a stiffer spring is drawn with a thicker wire
+	for (const root of document.querySelectorAll<HTMLElement>('[data-spr]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const s1 = q<HTMLInputElement>('[data-k1]');
+		const s2 = q<HTMLInputElement>('[data-k2]');
+		const sm = q<HTMLInputElement>("[data-mass]");
+		let mode: Mode = 'one';
+		let xs = 0; // the shown stretch of the system, см (dynamic)
+		let vs = 0;
+		const phys = () => {
+			const k1 = Number(s1.value);
+			const k2 = Number(s2.value);
+			const m = Number(sm.value) / 1000;
+			const F = m * G;
+			const k = mode === 'one' ? k1 : mode === 'ser' ? (k1 * k2) / (k1 + k2) : k1 + k2;
+			const x = (F / k) * 100; // см
+			return { k1, k2, m, F, k, x };
+		};
+		const lineAt = (e: Element, x1: number, y1: number, x2: number, y2: number) => {
+			e.setAttribute('x1', x1.toFixed(1));
+			e.setAttribute('y1', y1.toFixed(1));
+			e.setAttribute('x2', x2.toFixed(1));
+			e.setAttribute('y2', y2.toFixed(1));
+		};
+		const put = (e: Element, x: number, y: number, on = true) => {
+			e.setAttribute('x', x.toFixed(1));
+			e.setAttribute('y', y.toFixed(1));
+			(e as SVGElement).style.visibility = on ? 'visible' : 'hidden';
+		};
+		const hook = (g: Element, x: number, y: number) => g.append(el('path', { class: 'spr__hook', d: `M${x} ${y} v3 a2 2 0 1 0 2 2` }));
+		const loadShape = (g: Element, x: number, y: number, m: number) => {
+			const h = 7 + (m / 0.05) * 2.2; // px, grows with the mass
+			g.append(el('path', { class: 'spr__hook', d: `M${x} ${y} V${(y + 4).toFixed(1)}` }));
+			g.append(el('rect', { class: 'spr__load', x: (x - 9).toFixed(1), y: (y + 4).toFixed(1), width: 18, height: h.toFixed(1), rx: 2 }));
+			return { top: y, mid: y + 4 + h / 2, bottom: y + 4 + h };
+		};
+		/** Draws the system into `g` stretched by x (см in all), returns the bottom of the springs and the load's points. */
+		const system = (g: Element, cx: number, x: number, p: ReturnType<typeof phys>, withLoad: boolean) => {
+			g.replaceChildren();
+			const labs: { t: string; x: number; y: number }[] = [];
+			if (mode === 'one') {
+				const yb = Y0 + (L0 + x) * PXC;
+				g.append(coil(cx, Y0, yb, width(p.k1), ''));
+				labs.push({ t: 'k₁', x: cx + 10, y: Y0 + (L0 + x) * PXC * 0.45 });
+				if (withLoad) return { yb, load: loadShape(g, cx, yb, p.m), labs, xs: [cx] };
+				return { yb, labs, xs: [cx] };
+			}
+			if (mode === 'ser') {
+				const x1 = (x * p.k2) / (p.k1 + p.k2);
+				const ym = Y0 + (L0 + x1) * PXC;
+				const yb = ym + (L0 + (x - x1)) * PXC;
+				g.append(coil(cx, Y0, ym - 1.5, width(p.k1), ''));
+				g.append(el('circle', { class: 'spr__hook', cx, cy: ym, r: 1.6 }));
+				g.append(coil(cx, ym + 1.5, yb, width(p.k2), 'spr__coil--2'));
+				labs.push({ t: 'k₁', x: cx + 10, y: (Y0 + ym) / 2 + 4 });
+				labs.push({ t: 'k₂', x: cx + 10, y: (ym + yb) / 2 + 4 });
+				if (withLoad) return { yb, load: loadShape(g, cx, yb, p.m), labs, xs: [cx] };
+				return { yb, labs, xs: [cx] };
+			}
+			// parallel: the springs at cx ∓ GAP/2, the bar under them, the load at the balance point
+			const xa = cx - GAP / 2;
+			const xb = cx + GAP / 2;
+			const yb = Y0 + (L0 + x) * PXC;
+			g.append(coil(xa, Y0, yb, width(p.k1), ''));
+			g.append(coil(xb, Y0, yb, width(p.k2), 'spr__coil--2'));
+			g.append(el('rect', { class: 'spr__bar', x: xa - 8, y: yb, width: GAP + 16, height: 3.5, rx: 1 }));
+			if (!withLoad) {
+				// the loaded system shows F₁ and F₂ beside its springs instead
+				labs.push({ t: 'k₁', x: xa - 20, y: Y0 + 12 });
+				labs.push({ t: 'k₂', x: xb + 9, y: Y0 + 12 });
+			}
+			const xl = xa + (GAP * p.k2) / (p.k1 + p.k2);
+			if (withLoad) return { yb: yb + 3.5, load: loadShape(g, xl, yb + 3.5, p.m), labs, xs: [xa, xb], xl };
+			return { yb: yb + 3.5, labs, xs: [xa, xb], xl };
+		};
+		const draw = () => {
+			const p = phys();
+			const ghost = q('[data-ghost]');
+			const live = q('[data-live]');
+			const g0 = system(ghost, 96, 0, p, false);
+			const g1 = system(live, 226, xs, p, true);
+			for (const L of [...g0.labs, ...g1.labs]) live.append(el('text', { class: 'spr__klab', x: L.x.toFixed(1), y: L.y.toFixed(1) }, L.t));
+			// levels of the lower ends and the stretch between them
+			const y0 = g0.yb;
+			const y1 = g1.yb;
+			lineAt(q('[data-lvl0]'), 34, y0, 300, y0);
+			lineAt(q('[data-lvl1]'), 34, y1, 300, y1);
+			const dimX = mode === 'par' ? 292 : 270;
+			const dim = q('[data-dim]');
+			const big = y1 - y0 > 9;
+			lineAt(dim, dimX, y0 + 1, dimX, y1 - 1);
+			(dim as SVGElement).style.visibility = big ? 'visible' : 'hidden';
+			put(q('[data-lx]'), dimX + 5, (y0 + y1) / 2 + 5, big);
+			// the forces: on the load F_упр up from its top and mg down from its middle; parallel: F₁, F₂ on the bar
+			const ld = g1.load!;
+			const xl = mode === 'par' ? g1.xl! : 226;
+			const mgL = p.F * KF;
+			const mgx = xl + 16;
+			lineAt(q('[data-mg]'), mgx, ld.mid, mgx, ld.mid + mgL - 3);
+			put(q('[data-lmg]'), mgx + 5, ld.mid + mgL - 4);
+			const fu = q('[data-fu]');
+			const fu2 = q('[data-fu2]');
+			const fNow = (xs / 100) * p.k; // the spring force at the shown stretch, Н
+			if (mode === 'par') {
+				const f1 = (xs / 100) * p.k1;
+				const f2 = (xs / 100) * p.k2;
+				lineAt(fu, g1.xs[0] - 12, y1, g1.xs[0] - 12, y1 - Math.max(4, f1 * KF));
+				lineAt(fu2, g1.xs[1] + 12, y1, g1.xs[1] + 12, y1 - Math.max(4, f2 * KF));
+				(fu2 as SVGElement).style.visibility = 'visible';
+				put(q('[data-lfu]'), g1.xs[0] - 30, y1 - Math.max(4, f1 * KF) - 2);
+				q('[data-lfu-sub]').textContent = '1';
+				put(q('[data-lfu2]'), g1.xs[1] + 15, y1 - Math.max(4, f2 * KF) - 2);
+			} else {
+				lineAt(fu, xl - 15, ld.top + 3, xl - 15, ld.top + 3 - Math.max(4, fNow * KF));
+				(fu2 as SVGElement).style.visibility = 'hidden';
+				put(q('[data-lfu]'), xl - 46, ld.top + 3 - fNow * KF + 10);
+				q('[data-lfu-sub]').textContent = 'упр';
+				put(q('[data-lfu2]'), 0, 0, false);
+			}
+			// the panel
+			q('[data-ok1]').textContent = `${p.k1} Н/м`;
+			q('[data-ok2]').textContent = `${p.k2} Н/м`;
+			q('[data-om]').textContent = `${sm.value} г`;
+			q('[data-rmg]').textContent = `${fmtTrim(p.F, 3)} Н`;
+			const x1 = (p.F / p.k1) * 100;
+			const x2 = (p.F / p.k2) * 100;
+			q('[data-x12]').textContent = `${fmt(x1, 2)} см и ${fmt(x2, 2)} см`;
+			const xp = (p.F / (p.k1 + p.k2)) * 100;
+			q('[data-f12]').textContent = `${fmtTrim(p.k1 * xp / 100, 3)} Н и ${fmtTrim(p.k2 * xp / 100, 3)} Н`;
+			q('[data-x]').textContent = `${fmt(p.x, 2)} см`;
+			q('[data-k]').textContent = `${fmtTrim(p.k, 1)} Н/м`;
+			(q('[data-rx12]') as HTMLElement).style.display = mode !== 'ser' ? 'none' : '';
+			(q('[data-rf12]') as HTMLElement).style.display = mode !== 'par' ? 'none' : '';
+						(q('[data-k2row]') as HTMLElement).style.opacity = mode === 'one' ? '0.45' : '1';
+			s2.disabled = mode === 'one';
+		};
+		const wake = loop(root, (dt) => {
+			const p = phys();
+			const w = Math.sqrt(p.k / p.m);
+			const h = Math.min(dt, 1 / 60);
+			for (let i = 0; i < 8; i++) {
+				const a = (p.x - xs) * w * w - 2 * 0.15 * w * vs;
+				vs += (a * h) / 8;
+				xs += (vs * h) / 8;
+			}
+			const done = Math.abs(xs - p.x) < 0.01 && Math.abs(vs) < 0.05;
+			if (done) {
+				xs = p.x;
+				vs = 0;
+			}
+			draw();
+			return !done;
+		});
+		const change = () => {
+			draw();
+			wake();
+		};
+		for (const s of [s1, s2, sm]) s.addEventListener('input', change);
+		segment(q('[data-mode]'), (b) => {
+			mode = b.dataset.m as Mode;
+			change();
+		});
+		xs = phys().x;
+		draw();
+	}
+</script>

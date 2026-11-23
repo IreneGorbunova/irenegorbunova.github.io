@@ -3,10 +3,19 @@
  * «Брусок на наклонной доске»: a wooden block of 1 кг on a board tilted by α (0…60°, step 1°). The board is covered
  * with ice (μ = 0,05), bare wood (μ = 0,3) or sandpaper (μ = 0,6); the same μ is used for the largest static friction
  * and for sliding friction (the school model). Forces on the block: gravity mg = 9,8 Н (violet), the support
- * N = mg cos α (green), friction (red) along the board: at rest it equals mg sin α, while tg α ≤ μ; otherwise the
- * block slides with sliding friction μN and a = g(sin α − μ cos α). It starts to slide at 3° (ice), 17° (wood),
- * 31° (sandpaper). The sliding is shown in real time over 0,85 м of the board, then the block is put back.
- * Scale: the board is 1,2 м = 240 px; arrows 6 px per newton.
+ * N = mg cos α (green), friction (red) along the board; the velocity (gold) while it moves. Two experiments (buttons):
+ *   «Отпустить сверху» (as before): the block lies 1,0 м up the board. At rest the friction equals mg sin α, while
+ *     tg α ≤ μ; otherwise the block slides with sliding friction μN up the board and a = g(sin α − μ cos α), over
+ *     0,865 м down to a stop at the lower end, and is put back. It starts to slide at 3° (ice), 17° (wood), 31° (sandpaper).
+ *   «Толкнуть вверх» (23 Nov 2026): the block starts 0,1 м from the lower end (its middle 0,22 м up the board) with
+ *     υ₀ = 1,5 м/с up the board. Going up, friction points down the board: a_up = g(sin α + μ cos α); it stops after
+ *     υ₀²/(2a_up). Then, if tg α > μ, it slides back down with a_down = g(sin α − μ cos α) to the lower end; otherwise
+ *     it stays and static friction mg sin α holds it (the arrow turns up the board). μ = (a_up − a_down)/(2g cos α).
+ *     Examples: wood 30° — 7,45 and 2,35 м/с², 15 см up; wood 10° — 4,60 м/с², 24,5 см up, stays, 1,70 Н up the board;
+ *     sandpaper 45° — 11,09 and 2,77 м/с²; ice 20° — 3,81 and 2,89 м/с². The push is off (with a note) where the
+ *     block would leave the 1,2 м board: ice at 0…4°.
+ * Real time; each run repeats after a pause. Scale: the board is 1,2 м = 240 px; forces 6 px per newton; velocity
+ * 15 px per м/с (an arrow that would leave the picture is shortened).
  */
 import G7Styles from '../g7/G7Styles.astro';
 
@@ -18,13 +27,14 @@ const uid = Math.random().toString(36).slice(2, 8);
 	<div class="g7__grid">
 		<svg class="g7__svg" viewBox="0 0 380 282" role="img" aria-label="Брусок на наклонной доске и действующие на него силы" data-svg>
 			<defs>
-				{['violet', 'green', 'red'].map((c) => <marker id={`in-${uid}-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class={`inc__h--${c}`} d="M0,0 L10,5 L0,10 z" /></marker>)}
+				{['violet', 'green', 'red', 'gold'].map((c) => <marker id={`in-${uid}-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class={`inc__h--${c}`} d="M0,0 L10,5 L0,10 z" /></marker>)}
 			</defs>
 			<rect class="inc__table" x="0" y="232" width="380" height="50" />
 			<line class="inc__prop" data-prop />
 			<g data-board>
 				<rect class="inc__board" x="0" y="0" width="240" height="10" />
 				<rect class="inc__cover" data-cover x="0" y="-2.5" width="240" height="3" />
+				<rect class="inc__stop" x="0" y="-9" width="3" height="9" />
 			</g>
 			<path class="inc__arc" data-arc />
 			<text class="t-i t-halo" data-alab>α</text>
@@ -35,6 +45,8 @@ const uid = Math.random().toString(36).slice(2, 8);
 			<line class="inc__arr" data-mg marker-end={`url(#in-${uid}-violet)`} />
 			<line class="inc__arr" data-n marker-end={`url(#in-${uid}-green)`} />
 			<line class="inc__arr" data-fr marker-end={`url(#in-${uid}-red)`} />
+			<line class="inc__arr inc__arr--v" data-vel marker-end={`url(#in-${uid}-gold)`} />
+			<text class="t-i t-halo inc__lvv" data-lvel>υ</text>
 			<text class="t-i t-halo inc__lv" data-lmg>mg</text>
 			<text class="t-i t-halo inc__lg" data-ln>N</text>
 			<text class="t-i t-halo inc__lr" data-lfr>F<tspan class="inc__sub" dy="3">тр</tspan></text>
@@ -51,17 +63,24 @@ const uid = Math.random().toString(36).slice(2, 8);
 				<button type="button" class="g7__btn" aria-pressed="true" data-mu="0.3">Дерево</button>
 				<button type="button" class="g7__btn" aria-pressed="false" data-mu="0.6">Наждачная бумага</button>
 			</div>
+			<div class="g7__seg" role="group" aria-label="Опыт" data-exp>
+				<button type="button" class="g7__btn" aria-pressed="true" data-e="drop">Отпустить сверху</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-e="push">Толкнуть вверх</button>
+			</div>
+			<p class="g7__note" data-pushnote hidden>На такой гладкой и пологой доске толчок унёс бы брусок за её край. Увеличьте наклон.</p>
 			<ul class="g7__read">
 				<li><span>tg&nbsp;α и коэффициент трения μ</span> <b data-tg></b></li>
 				<li><span>Тянет вниз вдоль доски <i>mg</i>&nbsp;sin&nbsp;α</span> <b data-pull></b></li>
 				<li><span>Наибольшая сила трения <i>μmg</i>&nbsp;cos&nbsp;α</span> <b data-max></b></li>
 				<li class="is-key">Сила трения <b data-f></b></li>
 				<li class="is-key">Ускорение бруска <b data-acc></b></li>
+				<li data-pushrow hidden><span>Вверх: ускорение и путь</span> <b data-up></b></li>
+				<li data-pushrow hidden><span>Вниз: ускорение</span> <b data-down></b></li>
 			</ul>
 		</div>
 	</div>
 	<figcaption class="g7__caption">
-		Деревянный брусок массой 1&nbsp;кг. Фиолетовая стрелка — сила тяжести, зелёная — сила реакции опоры, красная — сила трения; масштаб 6&nbsp;px на ньютон. Скольжение показано в настоящем времени.
+		Деревянный брусок массой 1&nbsp;кг. Фиолетовая стрелка — сила тяжести, зелёная — сила реакции опоры, красная — сила трения (все силы в одном масштабе), жёлтая — скорость бруска. Толчок вверх — со скоростью 1,5&nbsp;м/с. Движение показано в настоящем времени.
 	</figcaption>
 </figure>
 
@@ -81,6 +100,9 @@ const uid = Math.random().toString(36).slice(2, 8);
 		fill: var(--g7-wood-dark);
 		stroke: var(--g7-ink);
 		stroke-width: 0.8;
+	}
+	.inc__stop {
+		fill: var(--g7-ink);
 	}
 	.inc__cover {
 		fill: var(--g7-wood);
@@ -128,6 +150,19 @@ const uid = Math.random().toString(36).slice(2, 8);
 	.inc__h--red {
 		fill: var(--g7-red);
 	}
+	.inc__h--gold {
+		fill: var(--ig-v);
+	}
+	.inc__arr--v {
+		stroke: var(--ig-v);
+		stroke-width: 2.4;
+	}
+	.inc .g7__svg .inc__lvv {
+		fill: var(--ig-v);
+	}
+	.inc .g7__seg {
+		flex-wrap: wrap;
+	}
 	.inc .g7__svg .inc__lv {
 		fill: var(--g7-violet);
 	}
@@ -149,16 +184,22 @@ const uid = Math.random().toString(36).slice(2, 8);
 
 	const P0 = { x: 26, y: 222 }; // the hinge of the board (its top surface)
 	const PXM = 200; // px per metre along the board
-	const S0 = 1.0; // м, where the block starts (its middle)
-	const S1 = 0.15; // м, where it stops (the end of the slide)
+	const S0 = 1.0; // м, where the dropped block starts (its middle)
+	const S1 = 0.135; // м, the lowest place of the block's middle: it rests on the stop at the lower end
+	const SP = 0.22; // м, the pushed block starts here (its lower edge 0,1 м from the end)
+	const SMAX = 1.08; // м, the highest place of the middle on the 1,2 м board
+	const V0 = 1.5; // м/с, the push
 	const KF = 6;
+	const KV = 15; // px per м/с
 	const G = 9.8;
 	const M = 1;
 	for (const root of document.querySelectorAll<HTMLElement>('[data-inc]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
 		const sa = q<HTMLInputElement>('[data-a]');
+		const pushBtn = q<HTMLButtonElement>('[data-e="push"]');
 		let mu = 0.3;
 		let t = 0;
+		let exp: 'drop' | 'push' = 'drop';
 		const arrow = (sel: string, x: number, y: number, dx: number, dy: number) => {
 			const e = q<SVGLineElement>(sel);
 			const L = Math.hypot(dx, dy);
@@ -182,12 +223,34 @@ const uid = Math.random().toString(36).slice(2, 8);
 			const N = M * G * Math.cos(al);
 			const max = mu * N;
 			const slides = Math.tan(al) > mu + 1e-12;
-			const F = slides ? max : pull;
-			const a = slides ? (pull - max) / M : 0;
-			return { al, pull, N, max, slides, F, a };
+			const aDown = slides ? (pull - max) / M : 0;
+			const aUp = (pull + max) / M;
+			const dUp = (V0 * V0) / (2 * aUp);
+			const canPush = SP + dUp <= SMAX;
+			const tUp = V0 / aUp;
+			const sTop = SP + dUp;
+			const tDown = slides ? Math.sqrt((2 * (sTop - S1)) / aDown) : 0;
+			return { al, pull, N, max, slides, aDown, aUp, dUp, canPush, tUp, sTop, tDown };
+		};
+		/** The block at time t of the run: its middle s (м), velocity v (м/с, + up the board), friction F (Н, + up the board), acceleration and the state. */
+		const state = (p: ReturnType<typeof phys>) => {
+			if (exp === 'drop') {
+				if (!p.slides) return { s: S0, v: 0, F: p.pull, a: 0, st: 'лежит', end: 0 };
+				const tEnd = Math.sqrt((2 * (S0 - S1)) / p.aDown);
+				const tt = Math.min(t, tEnd);
+				const moving = t < tEnd;
+				return { s: S0 - 0.5 * p.aDown * tt * tt, v: moving ? -p.aDown * tt : 0, F: moving ? p.max : 0, a: moving ? -p.aDown : 0, st: moving ? 'скользит вниз' : 'у упора', end: tEnd };
+			}
+			if (t < p.tUp) return { s: SP + V0 * t - 0.5 * p.aUp * t * t, v: V0 - p.aUp * t, F: -p.max, a: -p.aUp, st: 'едет вверх', end: 0 };
+			const tt = t - p.tUp;
+			if (!p.slides) return { s: p.sTop, v: 0, F: p.pull, a: 0, st: 'остановился и лежит', end: p.tUp };
+			const td = Math.min(tt, p.tDown);
+			const moving = tt < p.tDown;
+			return { s: p.sTop - 0.5 * p.aDown * td * td, v: moving ? -p.aDown * td : 0, F: moving ? p.max : 0, a: moving ? -p.aDown : 0, st: moving ? 'скользит вниз' : 'у упора', end: p.tUp + p.tDown };
 		};
 		const draw = () => {
 			const p = phys();
+			const b = state(p);
 			const c = Math.cos(p.al);
 			const s = Math.sin(p.al);
 			const e = { x: c, y: -s }; // up the board
@@ -200,45 +263,65 @@ const uid = Math.random().toString(36).slice(2, 8);
 			prop.setAttribute('y1', end.y.toFixed(1));
 			prop.setAttribute('x2', end.x.toFixed(1));
 			prop.setAttribute('y2', '232');
-			// the block: along the board
-			const travel = p.slides ? 0.5 * p.a * t * t : 0;
-			const sm = Math.max(S1, S0 - travel);
-			const cx = P0.x + e.x * sm * PXM;
-			const cy = P0.y + e.y * sm * PXM;
+			const cx = P0.x + e.x * b.s * PXM;
+			const cy = P0.y + e.y * b.s * PXM;
 			q('[data-block]').setAttribute('transform', `translate(${cx.toFixed(1)} ${cy.toFixed(1)}) rotate(${(-p.al * 180) / Math.PI})`);
 			const mid = { x: cx + n.x * 14, y: cy + n.y * 14 };
-			label('[data-lmg]', mid.x + 6, mid.y + p.pull * 0 + M * G * KF - 4, arrow('[data-mg]', mid.x, mid.y, 0, M * G * KF));
-			label('[data-ln]', cx + n.x * p.N * KF - 14, cy + n.y * p.N * KF + 2, arrow('[data-n]', cx - e.x * 8, cy - e.y * 8, n.x * p.N * KF, n.y * p.N * KF));
-			const fx = e.x * p.F * KF;
-			const fy = e.y * p.F * KF;
-			label('[data-lfr]', cx + e.x * 24 + fx + 4, cy + e.y * 24 + fy + 14, arrow('[data-fr]', cx + e.x * 24, cy + e.y * 24, fx, fy));
+			label('[data-lmg]', b.s < 0.5 && b.F >= 0 ? mid.x - 26 : mid.x + 6, mid.y + M * G * KF - 4, arrow('[data-mg]', mid.x, mid.y, 0, M * G * KF));
+			label('[data-ln]', Math.max(4, cx + n.x * p.N * KF - 14), cy + n.y * p.N * KF + 2, arrow('[data-n]', cx - e.x * 8, cy - e.y * 8, n.x * p.N * KF, n.y * p.N * KF));
+			// friction from the block's contact face: up the board from its upper end, down the board from its lower end
+			const side = b.F >= 0 ? 24 : -24;
+			const fx = e.x * b.F * KF;
+			const fy = e.y * b.F * KF;
+			const ok = arrow('[data-fr]', cx + e.x * side, cy + e.y * side, fx, fy);
+			label('[data-lfr]', Math.max(2, cx + e.x * side + fx + (b.F >= 0 ? 4 : -22)), cy + e.y * side + fy + 14, ok);
+			// the velocity, above the block
+			// the velocity, from the front face of the block at half its height
+			const fs = b.v >= 0 ? 26 : -26;
+			const vs = { x: cx + e.x * fs + n.x * 14, y: cy + e.y * fs + n.y * 14 };
+			let vk = b.v * KV;
+			if (vs.x + e.x * vk < 8) vk = (8 - vs.x) / e.x; // keep the arrow inside the picture
+			const vOn = arrow('[data-vel]', vs.x, vs.y, e.x * vk, e.y * vk);
+			label('[data-lvel]', Math.max(2, vs.x + e.x * vk * 0.5 + n.x * 11 - 4), vs.y + e.y * vk * 0.5 + n.y * 11 + 5, vOn);
 			// the angle
 			const R = 40;
 			q('[data-arc]').setAttribute('d', p.al > 0.01 ? `M${P0.x + R} ${P0.y} A${R} ${R} 0 0 0 ${(P0.x + R * c).toFixed(1)} ${(P0.y - R * s).toFixed(1)}` : '');
-			label('[data-alab]', P0.x + 48 * Math.cos(p.al / 2), P0.y - 48 * Math.sin(p.al / 2) + 5, p.al > 0.05);
+			label('[data-alab]', P0.x + 48 * Math.cos(p.al / 2), P0.y - 48 * Math.sin(p.al / 2) + 5, p.al > 0.05 && b.s > 0.75); // the slider shows α while the block is near the hinge
 			q('[data-oa]').textContent = `${sa.value}°`;
 			q('[data-tg]').textContent = `${fmt(Math.tan(p.al), 2)} и ${fmt(mu, mu < 0.1 ? 2 : 1)}`;
 			q('[data-pull]').textContent = `${fmt(p.pull, 2)} Н`;
 			q('[data-max]').textContent = `${fmt(p.max, 2)} Н`;
-			q('[data-f]').textContent = p.slides ? `${fmt(p.F, 2)} Н (скольжения)` : p.F > 0.005 ? `${fmt(p.F, 2)} Н (покоя)` : '0';
-			q('[data-acc]').textContent = p.slides ? `${fmt(p.a, 2)} м/с²` : '0';
-			q('[data-state]').textContent = p.slides ? 'скользит' : 'лежит';
+			const dir = b.F >= 0 ? 'вверх по доске' : 'вниз по доске';
+			q('[data-f]').textContent = b.st === 'у упора' ? 'брусок у упора' : b.v !== 0 ? `${fmt(Math.abs(b.F), 2)} Н, скольжения, ${dir}` : Math.abs(b.F) > 0.005 ? `${fmt(Math.abs(b.F), 2)} Н, покоя, ${dir}` : '0';
+			q('[data-acc]').textContent = b.a !== 0 ? `${fmt(Math.abs(b.a), 2)} м/с², ${b.a > 0 ? 'вверх' : 'вниз'} по доске` : '0';
+			q('[data-state]').textContent = b.st;
+			q('[data-up]').textContent = `${fmt(p.aUp, 2)} м/с²; ${fmt(p.dUp * 100, 1)} см`;
+			q('[data-down]').textContent = p.slides ? `${fmt(p.aDown, 2)} м/с²` : 'не скользит';
+			root.querySelectorAll<HTMLElement>('[data-pushrow]').forEach((r) => (r.style.display = exp !== 'push' ? 'none' : ''));
+			pushBtn.disabled = !p.canPush;
+			q<HTMLElement>('[data-pushnote]').hidden = p.canPush;
 		};
 		const wake = loop(root, (dt) => {
 			const p = phys();
-			if (!p.slides) {
+			if (exp === 'drop' && !p.slides) {
 				t = 0;
 				draw();
 				return false;
 			}
 			t += dt;
-			const tEnd = Math.sqrt((2 * (S0 - S1)) / p.a);
-			if (t > tEnd + 1) t = 0;
+			const b = state(p);
+			const pause = exp === 'push' && !p.slides ? 2.5 : 1;
+			if (t > b.end + pause && b.end > 0) t = 0;
 			draw();
 			return true;
 		});
 		const change = () => {
 			t = 0;
+			if (exp === 'push' && !phys().canPush) {
+				exp = 'drop';
+				q('[data-e="drop"]').setAttribute('aria-pressed', 'true');
+				pushBtn.setAttribute('aria-pressed', 'false');
+			}
 			draw();
 			wake();
 		};
@@ -248,6 +331,10 @@ const uid = Math.random().toString(36).slice(2, 8);
 			const cover = q('[data-cover]');
 			cover.classList.toggle('is-ice', mu < 0.1);
 			cover.classList.toggle('is-sand', mu > 0.5);
+			change();
+		});
+		segment(q('[data-exp]'), (b) => {
+			exp = b.dataset.e as 'drop' | 'push';
 			change();
 		});
 		draw();

@@ -1,0 +1,280 @@
+---
+/**
+ * «Автомобиль на выпуклом мосту и в ложбине» (animated picture, two panels on one scale), section «Вес тела.
+ * Невесомость». A car of 1 т drives at a constant 15 м/с (54 км/ч; the engine keeps the speed, the forces along the
+ * road are not drawn) over a convex bridge and through a dip. Each road is made of circular arcs of radius 50 м joined
+ * smoothly: 2 м level, an arc turning by 15°, an arc of the opposite curvature turning by 30°, an arc of 15°, 2 м
+ * level (56,4 м of road, the hump 3,4 м high, the dip 3,4 м deep). So the bridge's top is convex and its approaches
+ * are concave, the dip the other way round.
+ * At each point φ is the slope of the road and κ = ±1/R its curvature (+ when the center of the arc is above the road):
+ *   N = m(g cos φ + υ²κ), the weight P = N (third law), the acceleration υ²/R = 4,5 м/с² toward the center of the arc.
+ *   On the top of the bridge P = 1000·(9,8 − 4,5) = 5300 Н = 5,3 кН; at the bottom of the dip 14 300 Н = 14,3 кН; on the
+ *   level 9,8 кН. Weight zero on the top at υ = √(gR) = 22,1 м/с ≈ 80 км/ч (in the caption).
+ * Scale: 3,85 px per metre (the car is 4,5 м long); forces 3,5 px per кН: mg (violet) 34 px, N (green) 19…50 px; the
+ * acceleration (dashed, gold-free ink) 4 px per м/с², drawn from the front of the car toward the center of the arc.
+ * Real time: 3,8 с over the road, then 1,2 с at the end; the readout P follows the car.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const PXM = 3.85;
+const R = 50;
+const D = Math.PI / 180;
+// the road as a list of segments [length м, curvature 1/м], hump: concave, convex, concave
+const road = (sign: number) => [
+	[2, 0],
+	[R * 15 * D, sign / R],
+	[R * 30 * D, -sign / R],
+	[R * 15 * D, sign / R],
+	[2, 0],
+];
+const trace = (sign: number) => {
+	const pts: { x: number; y: number }[] = [];
+	let x = 0;
+	let y = 0;
+	let ph = 0;
+	const ds = 0.1;
+	for (const [L, k] of road(sign)) {
+		for (let s = 0; s < L - 1e-9; s += ds) {
+			const h = Math.min(ds, L - s);
+			ph += k * h;
+			x += Math.cos(ph) * h;
+			y += Math.sin(ph) * h;
+			pts.push({ x, y });
+		}
+	}
+	return pts;
+};
+const X0 = 22;
+const panels = [
+	{ key: 'hump', sign: 1, base: 98, title: 'Выпуклый мост' },
+	{ key: 'dip', sign: -1, base: 68, title: 'Ложбина' },
+].map((p) => {
+	const pts = trace(p.sign);
+	const d = pts.map((q, i) => `${i ? 'L' : 'M'}${(X0 + q.x * PXM).toFixed(1)} ${(p.base - q.y * PXM).toFixed(1)}`).join(' ');
+	return { ...p, d, end: pts[pts.length - 1] };
+});
+---
+
+<G7Styles />
+<figure class="g7 g7--pic brg not-content" data-brg>
+	<div class="g7__grid is-two">
+		{panels.map((p) => (
+			<svg class="g7__svg" viewBox="0 0 248 134" role="img" aria-label={p.key === 'hump' ? 'Автомобиль проезжает выпуклый мост: в верхней точке он давит на мост слабее' : 'Автомобиль проезжает ложбину: в нижней точке он давит на дорогу сильнее'} data-panel={p.key} data-sign={p.sign} data-base={p.base}>
+				<defs>
+					{['violet', 'green', 'ink'].map((c) => <marker id={`br-${uid}-${p.key}-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class={`brg__h--${c}`} d="M0,0 L10,5 L0,10 z" /></marker>)}
+				</defs>
+				<text class="t-title" x="8" y="17">{p.title}</text>
+				{p.key === 'hump' ? (
+					<>
+						<path class="brg__water" d={`M0 134 V112 H248 V134 Z`} />
+						<path class="brg__arch" d={`${p.d} L${(X0 + p.end.x * PXM).toFixed(1)} 112 L${X0} 112 Z`} />
+						<rect class="brg__bank" x="0" y={p.base} width="22" height={134 - p.base} />
+						<rect class="brg__bank" x={(X0 + p.end.x * PXM).toFixed(1)} y={p.base} width="30" height={134 - p.base} />
+					</>
+				) : (
+					<path class="brg__ground" d={`${p.d} L${(X0 + p.end.x * PXM).toFixed(1)} 134 L${X0} 134 Z M0 ${p.base} H${X0} V134 H0 Z M${(X0 + p.end.x * PXM).toFixed(1)} ${p.base} H248 V134 H${(X0 + p.end.x * PXM).toFixed(1)} Z`} />
+				)}
+				<path class="brg__road" d={p.d} />
+				<line class="brg__mg" data-mg marker-end={`url(#br-${uid}-${p.key}-violet)`} />
+				<line class="brg__n" data-n marker-end={`url(#br-${uid}-${p.key}-green)`} />
+				<line class="brg__a" data-acc marker-end={`url(#br-${uid}-${p.key}-ink)`} />
+				<g data-car>
+					<g transform="scale(1.2)">
+					<path class="brg__body" d="M-7.2 -1.6 V-4.4 Q-7 -5.4 -5.6 -5.6 L-3.4 -5.8 L-1.6 -8.4 H3 L5 -5.8 L6.6 -5.4 Q7.4 -5 7.2 -3.6 V-1.6 Z" />
+					<path class="brg__glass" d="M-1.2 -7.8 H1 V-6 H-2.4 Z M1.6 -7.8 H2.8 L4.2 -6 H1.6 Z" />
+					<circle class="brg__wheel" cx="-4.4" cy="-1.4" r="1.5" />
+					<circle class="brg__wheel" cx="4.4" cy="-1.4" r="1.5" />
+					</g>
+				</g>
+				<text class="t-i t-halo brg__lv" data-lmg>mg</text>
+				<text class="t-i t-halo brg__lg" data-ln>N</text>
+				<text class="t-i t-halo" data-la>a</text>
+				<text class="t-strong t-num" x="240" y="17" text-anchor="end" data-p></text>
+			</svg>
+		))}
+	</div>
+	<figcaption class="g7__caption">
+		Автомобиль массой 1&nbsp;т, 54&nbsp;км/ч, радиус дуг 50&nbsp;м, масштаб один, время настоящее. Фиолетовая стрелка — сила тяжести, зелёная — сила реакции опоры, пунктирная — ускорение (к центру дуги). Вес на вершине моста 5,3&nbsp;кН, внизу ложбины 14,3&nbsp;кН, на ровной дороге 9,8&nbsp;кН. На въезде на мост дорога изогнута вогнуто, и вес там больше 9,8&nbsp;кН; на краях ложбины — выпукло, и вес меньше.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.brg__road {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	.brg__arch {
+		fill: color-mix(in oklab, var(--g7-steel) 55%, var(--g7-paper));
+		stroke: var(--g7-line);
+		stroke-width: 0.6;
+	}
+	.brg__water {
+		fill: var(--g7-water);
+	}
+	.brg__bank,
+	.brg__ground {
+		fill: var(--g7-ground);
+	}
+	.brg__body {
+		fill: var(--g7-blue);
+		stroke: var(--g7-ink);
+		stroke-width: 0.4;
+	}
+	.brg__glass {
+		fill: var(--g7-paper);
+		opacity: 0.85;
+	}
+	.brg__wheel {
+		fill: var(--g7-ink);
+	}
+	.brg__mg,
+	.brg__n {
+		stroke-width: 2.2;
+		stroke-linecap: round;
+	}
+	.brg__mg {
+		stroke: var(--g7-violet);
+	}
+	.brg__n {
+		stroke: var(--g7-green);
+	}
+	.brg__a {
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+		stroke-dasharray: 3 2;
+	}
+	.brg__h--violet {
+		fill: var(--g7-violet);
+	}
+	.brg__h--green {
+		fill: var(--g7-green);
+	}
+	.brg__h--ink {
+		fill: var(--g7-ink);
+	}
+	.brg .g7__svg .brg__lv {
+		fill: var(--g7-violet);
+	}
+	.brg .g7__svg .brg__lg {
+		fill: var(--g7-green);
+	}
+</style>
+
+<script>
+	import { loop, fmt } from '../g7/kit';
+
+	const PXM = 3.85;
+	const R = 50;
+	const D = Math.PI / 180;
+	const G = 9.8;
+	const M = 1000;
+	const V = 15;
+	const KF = 3.5; // px per кН
+	const KA = 4; // px per м/с²
+	const X0 = 22;
+	const segs = (sign: number) => [
+		[2, 0],
+		[R * 15 * D, sign / R],
+		[R * 30 * D, -sign / R],
+		[R * 15 * D, sign / R],
+		[2, 0],
+	];
+	// the state at the arc length s: position (м, y up), slope φ and curvature κ
+	const at = (sign: number, s: number) => {
+		let x = 0;
+		let y = 0;
+		let ph = 0;
+		let left = s;
+		let k = 0;
+		for (const [L, kk] of segs(sign)) {
+			const h = Math.min(L, Math.max(0, left));
+			k = kk;
+			if (kk === 0) {
+				x += Math.cos(ph) * h;
+				y += Math.sin(ph) * h;
+			} else {
+				// exact arc: radius 1/|κ|, turning by κh
+				const ph2 = ph + kk * h;
+				x += (Math.sin(ph2) - Math.sin(ph)) / kk;
+				y += (Math.cos(ph) - Math.cos(ph2)) / kk;
+				ph = ph2;
+			}
+			if (left <= L) break;
+			left -= L;
+		}
+		return { x, y, ph, k };
+	};
+	const TOTAL = 4 + R * 60 * D; // м
+	for (const root of document.querySelectorAll<HTMLElement>('[data-brg]')) {
+		const panels = [...root.querySelectorAll<SVGSVGElement>('[data-panel]')].map((svg) => ({
+			svg,
+			sign: Number(svg.dataset.sign),
+			base: Number(svg.dataset.base),
+			q: <T extends Element>(s: string) => svg.querySelector<T>(s)!,
+		}));
+		const line = (e: SVGLineElement, x: number, y: number, dx: number, dy: number) => {
+			const L = Math.hypot(dx, dy);
+			const k = L > 4 ? (L - 3) / L : 0;
+			e.setAttribute('x1', x.toFixed(1));
+			e.setAttribute('y1', y.toFixed(1));
+			e.setAttribute('x2', (x + dx * k).toFixed(1));
+			e.setAttribute('y2', (y + dy * k).toFixed(1));
+		};
+		const put = (e: Element, x: number, y: number, on = true) => {
+			e.setAttribute('x', x.toFixed(1));
+			e.setAttribute('y', y.toFixed(1));
+			(e as SVGElement).style.visibility = on ? 'visible' : 'hidden';
+		};
+		const draw = (s: number) => {
+			for (const p of panels) {
+				const st = at(p.sign, Math.min(s, TOTAL));
+				const cx = X0 + st.x * PXM;
+				const cy = p.base - st.y * PXM;
+				const deg = (-st.ph * 180) / Math.PI;
+				p.q('[data-car]').setAttribute('transform', `translate(${cx.toFixed(1)} ${cy.toFixed(1)}) rotate(${deg.toFixed(1)})`);
+				// the normal (out of the road, screen coordinates) and the center of the car
+				const nx = -Math.sin(st.ph);
+				const ny = -Math.cos(st.ph);
+				const tx = Math.cos(st.ph);
+				const ty = -Math.sin(st.ph);
+				const mx = cx + nx * 5.4;
+				const my = cy + ny * 5.4;
+				const N = (M * (G * Math.cos(st.ph) + V * V * st.k)) / 1000; // кН
+				const mg = (M * G) / 1000;
+				line(p.q('[data-mg]'), mx, my, 0, mg * KF);
+				line(p.q('[data-n]'), mx, my, nx * N * KF, ny * N * KF);
+				put(p.q('[data-lmg]'), mx - 20, my + mg * KF - 2);
+				put(p.q('[data-ln]'), mx + nx * N * KF - tx * 10 - 6, my + ny * N * KF - ty * 10 + 6);
+				// the acceleration toward the center of the arc, from a point ahead of the car
+				const acc = p.q<SVGLineElement>('[data-acc]');
+				const la = p.q('[data-la]');
+				if (st.k !== 0 && s < TOTAL) {
+					const sg = Math.sign(st.k); // + : the center above the road
+					const ax = cx + tx * 15 + nx * 5.4;
+					const ay = cy + ty * 15 + ny * 5.4;
+					const A = (V * V) / R;
+					line(acc, ax, ay, sg * nx * A * KA, sg * ny * A * KA);
+					acc.style.visibility = 'visible';
+					const tipx = ax + sg * nx * A * KA;
+					put(la, tipx > 226 ? tipx - 14 : tipx + 5, ay + sg * ny * A * KA + (sg > 0 ? 4 : 10));
+				} else {
+					acc.style.visibility = 'hidden';
+					la.style.visibility = 'hidden';
+				}
+				p.q('[data-p]').textContent = `P = ${fmt(N, 1)} кН`;
+			}
+		};
+		let t = 0;
+		const RUN = TOTAL / V;
+		loop(root, (dt) => {
+			t += dt;
+			if (t > RUN + 1.2) t = 0;
+			draw(V * Math.min(t, RUN));
+			return true;
+		});
+		draw(0);
+	}
+</script>
