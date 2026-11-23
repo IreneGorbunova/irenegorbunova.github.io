@@ -1,0 +1,479 @@
+---
+/**
+ * Picture to «Где это встречается»: four small tiles, one row on a wide screen, 2 × 2 on a phone; no air resistance,
+ * g = 9,8 м/с². People: the shared people kit (tiny, so their hands are mittens).
+ * 1. «Толкание ядра» (7,4 px per м on both axes): the shot leaves the hand 2,1 м above the ground at 14 м/с and 37°,
+ *    flies 1,94 с, rises to 5,72 м and lands 21,7 м away (horizontally from the release); the gold arrow at the
+ *    release point is the initial velocity (14 м/с), the thin line under it the release height. Top shot-putters release at
+ *    about 31–38° (Linthorne 2001; Lenz & Rappl 2010): from a height the best angle is less than 45°.
+ * 2. «Стрельба из лука»: the target 70 м away at the height of the bow (2,31 px per м along the ground). The arrow
+ *    (60 м/с) leaves at 5,5° above the line of sight (sin 2α = 70·9,8/60²), flies 1,17 с and rises 1,69 м above
+ *    the line; without the tilt it would drop g·t²/2 = 6,7 м over the same 70 м. The heights of the path are drawn
+ *    5 times larger (11,6 px per м), the caption says so; the archer (180 см) is drawn at 0,116 px per см, the
+ *    line of sight 1,55 м above the ground.
+ * 3. «Груз с вертолёта» (0,62 px per м on both axes): a helicopter at 125 м flies at 50 м/с (180 км/ч) and releases a
+ *    box √(2·125/9,8) = 5,05 с, that is 252 м, before the target. Positions every 1 с: the box stays under the
+ *    helicopter (dotted vertical lines), falling 4,9; 19,6; 44,1; 78,4; 122,5 м.
+ * 4. «Брызги из-под колеса» (97 px per м): the rear wheel of a bicycle (diameter 70 см) on a wet road, seen from the
+ *    bicycle (the road runs back under it at 3 м/с). Drops leave the tire along the tangent at 3 м/с and fly on
+ *    parabolas; the mudguard over the top and the back of the wheel catches those that would fly up and forward (faint:
+ *    where they would go without it — onto the rider's back).
+ */
+import BpPicStyles from './BpPicStyles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const f1 = (v: number) => v.toFixed(1);
+const G = 9.8;
+const rad = (a: number) => (a * Math.PI) / 180;
+
+// 1. the shot
+const S1 = { x0: 26, g: 116, k: 7.4 };
+const shot = (() => {
+	const vx = 14 * Math.cos(rad(37));
+	const vy = 14 * Math.sin(rad(37));
+	const T = (vy + Math.sqrt(vy * vy + 2 * G * 2.1)) / G;
+	const pts = Array.from({ length: 31 }, (_, i) => {
+		const t = (T * i) / 30;
+		return `${f1(S1.x0 + vx * t * S1.k)} ${f1(S1.g - (2.1 + vy * t - (G * t * t) / 2) * S1.k)}`;
+	});
+	return { d: `M ${pts.join(' L ')}`, xl: S1.x0 + vx * T * S1.k };
+})();
+
+// 2. the arrow
+const S2 = { x0: 30, y0: 92, kx: 2.31, ky: 11.6, L: 70 };
+const arrowPath = (() => {
+	const a = Math.asin((S2.L * G) / 3600) / 2;
+	const vx = 60 * Math.cos(a);
+	const vy = 60 * Math.sin(a);
+	const T = S2.L / vx;
+	const pts = Array.from({ length: 31 }, (_, i) => {
+		const t = (T * i) / 30;
+		return `${f1(S2.x0 + vx * t * S2.kx)} ${f1(S2.y0 - (vy * t - (G * t * t) / 2) * S2.ky)}`;
+	});
+	return `M ${pts.join(' L ')}`;
+})();
+const XT = S2.x0 + S2.L * S2.kx;
+
+// 3. the helicopter
+const S3 = { x0: 16, g: 116, k: 0.62, h: 125, v: 50 };
+const TB = Math.sqrt((2 * S3.h) / G);
+const heliAt = (t: number) => ({ x: S3.x0 + S3.v * t * S3.k, y: S3.g - S3.h * S3.k });
+const boxAt = (t: number) => ({ x: S3.x0 + S3.v * t * S3.k, y: S3.g - (S3.h - (G * t * t) / 2) * S3.k });
+const boxPath = `M ${Array.from({ length: 31 }, (_, i) => {
+	const p = boxAt((TB * i) / 30);
+	return `${f1(p.x)} ${f1(p.y)}`;
+}).join(' L ')}`;
+const SECS = [0, 1, 2, 3, 4, 5];
+const XB = boxAt(TB).x;
+
+// 4. the wheel, in the frame of the bicycle; math angles (counterclockwise from +x, y up), the wheel turns clockwise
+const W = { cx: 120, cy: 74, r: 34, k: 97, v: 3, road: 108 };
+const GUARD = { from: 75, to: 200, r: 34 + 6 }; // over the top and the back of the wheel
+const inGuard = (ang: number) => {
+	const a = ((ang % 360) + 360) % 360;
+	return a >= GUARD.from && a <= GUARD.to;
+};
+const drops = [100, 130, 160, 190, 215, 235, 255].map((th) => {
+	const t0 = rad(th);
+	const px = W.cx + W.r * Math.cos(t0);
+	const py = W.cy - W.r * Math.sin(t0);
+	const vx = W.v * Math.sin(t0); // clockwise: velocity (sin θ, −cos θ) in math axes
+	const vy = -W.v * Math.cos(t0);
+	const real: string[] = [];
+	const free: string[] = [];
+	let caught = false;
+	for (let i = 0; i <= 60; i++) {
+		const t = i * 0.008;
+		const x = px + vx * t * W.k;
+		const y = py - (vy * t - (G * t * t) / 2) * W.k;
+		if (y > W.road || x < 0 || y < 0) break;
+		const d = Math.hypot(x - W.cx, y - W.cy);
+		const ang = (Math.atan2(W.cy - y, x - W.cx) * 180) / Math.PI;
+		if (!caught && d >= GUARD.r && inGuard(ang)) caught = true;
+		(caught ? free : real).push(`${f1(x)} ${f1(y)}`);
+		if (caught && free.length === 1) real.push(`${f1(x)} ${f1(y)}`);
+	}
+	return { real: real.length > 1 ? `M ${real.join(' L ')}` : '', free: free.length > 1 ? `M ${free.join(' L ')}` : '', caught, end: real[real.length - 1] };
+});
+const guardPath = (() => {
+	const p = (a: number) => `${f1(W.cx + GUARD.r * Math.cos(rad(a)))} ${f1(W.cy - GUARD.r * Math.sin(rad(a)))}`;
+	return `M ${p(GUARD.from)} A ${GUARD.r} ${GUARD.r} 0 0 0 ${p(GUARD.to)}`;
+})();
+const SPOKES = Array.from({ length: 12 }, (_, i) => rad(i * 30));
+---
+
+<BpPicStyles />
+<figure class="bp-pic not-content" data-bpuses>
+	<div class="bp-uses">
+		<div class="bp-uses__tile">
+			<svg class="bp-pic__svg" viewBox="0 0 200 130" role="img" aria-label="Толкание ядра: ядро вылетает на высоте 2,1 метра под углом 37 градусов со скоростью 14 метров в секунду и падает в 21,7 метра">
+				<defs>
+					<marker id={`${uid}-shot-v`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+						<path class="bp-head--v" d="M0,0 L10,5 L0,10 z" />
+					</marker>
+				</defs>
+				<rect class="bp-u-sky" x="0" y="0" width="200" height={S1.g}></rect>
+				<path class="bp-u-stand" d={`M 0 ${S1.g - 34} L 200 ${S1.g - 40} L 200 ${S1.g - 22} L 0 ${S1.g - 18} Z`}></path>
+				<rect class="bp-u-grass" x="0" y={S1.g} width="200" height={130 - S1.g}></rect>
+				<path class="bp-u-line" d={`M ${S1.x0 + 2} ${S1.g + 1} L 196 ${S1.g + 5} M ${S1.x0 + 2} ${S1.g + 1} L 196 ${S1.g - 3}`}></path>
+				<ellipse class="bp-u-circle" cx={S1.x0 - 6} cy={S1.g + 1} rx="12" ry="2.5"></ellipse>
+				<path class="bp-dash" d={shot.d}></path>
+				<line class="bp-ovl" x1={S1.x0} y1={S1.g} x2={S1.x0} y2={f1(S1.g - 2.1 * S1.k)}></line>
+				<g data-shotput></g>
+				<circle class="bp-u-shot" cx={f1(shot.xl)} cy={S1.g - 2} r="2.6"></circle>
+				<circle class="bp-u-shot" cx={S1.x0} cy={f1(S1.g - 2.1 * S1.k)} r="2.6"></circle>
+				<path class="bp-ovl" d={`M ${S1.x0 + 14} ${f1(S1.g - 2.1 * S1.k)} A 14 14 0 0 0 ${f1(S1.x0 + 14 * Math.cos(rad(37)))} ${f1(S1.g - 2.1 * S1.k - 14 * Math.sin(rad(37)))}`}></path>
+				<text class="bp-u-t" x={S1.x0 + 17} y={f1(S1.g - 2.1 * S1.k - 3)}>37°</text>
+				<line class="bp-vec bp-vec--v" style="stroke-width: 1.8" x1={S1.x0} y1={f1(S1.g - 2.1 * S1.k)} x2={f1(S1.x0 + 24 * Math.cos(rad(37)))} y2={f1(S1.g - 2.1 * S1.k - 24 * Math.sin(rad(37)))} marker-end={`url(#${uid}-shot-v)`}></line>
+				<text class="bp-u-t" x={f1(S1.x0 + 30 * Math.cos(rad(37)) - 6)} y={f1(S1.g - 2.1 * S1.k - 30 * Math.sin(rad(37)) - 2)}>14 м/с</text>
+				<text class="bp-u-t" x={f1(shot.xl)} y="128" text-anchor="end">21,7 м</text>
+				<text class="bp-u-t" x={S1.x0 + 4} y={S1.g - 3}>2,1 м</text>
+			</svg>
+			<p class="bp-uses__title">Толкание ядра</p>
+		</div>
+		<div class="bp-uses__tile">
+			<svg class="bp-pic__svg" viewBox="0 0 200 130" role="img" aria-label="Стрельба из лука: чтобы попасть в мишень в 70 метрах, лучник целится на 5,5 градуса выше линии прицела; стрела летит по дуге и попадает в центр">
+				<rect class="bp-u-sky" x="0" y="0" width="200" height="110"></rect>
+				<rect class="bp-u-grass" x="0" y="110" width="200" height="20"></rect>
+				<g class="bp-u-tree">
+					<circle cx="96" cy="88" r="14"></circle>
+					<circle cx="116" cy="92" r="11"></circle>
+				</g>
+				<line class="bp-dash" x1={S2.x0} y1={S2.y0} x2={XT} y2={S2.y0}></line>
+				<!-- the target on its stand -->
+				<path class="bp-u-wood" d={`M ${XT - 2} ${S2.y0 + 8} L ${XT - 7} 112 M ${XT + 2} ${S2.y0 + 8} L ${XT + 7} 112`}></path>
+				<ellipse class="bp-u-ring1" cx={XT} cy={S2.y0} rx="3.5" ry="10"></ellipse>
+				<ellipse class="bp-u-ring2" cx={XT} cy={S2.y0} rx="2.4" ry="6.6"></ellipse>
+				<ellipse class="bp-u-ring3" cx={XT} cy={S2.y0} rx="1.2" ry="3"></ellipse>
+				<path class="bp-u-arrowpath" d={arrowPath}></path>
+				<path class="bp-u-arrow" d={`M ${XT - 8} ${S2.y0 - 2} L ${XT} ${S2.y0}`}></path>
+				<g data-archer></g>
+				<text class="bp-u-t" x={S2.x0 + 20} y={S2.y0 - 22}>5,5°</text>
+				<text class="bp-u-t" x="100" y="128" text-anchor="middle">70 м</text>
+				<text class="bp-u-t" x="196" y="16" text-anchor="end">высота ×5</text>
+			</svg>
+			<p class="bp-uses__title">Стрельба из лука</p>
+		</div>
+		<div class="bp-uses__tile">
+			<svg class="bp-pic__svg" viewBox="0 0 200 130" role="img" aria-label="Груз с вертолёта: вертолёт на высоте 125 метров летит со скоростью 50 метров в секунду и сбрасывает груз за 250 метров до цели. Груз всё время остаётся под вертолётом и падает через 5 секунд">
+				<rect class="bp-u-sky" x="0" y="0" width="200" height={S3.g}></rect>
+				<rect class="bp-u-field" x="0" y={S3.g} width="200" height={130 - S3.g}></rect>
+				<path class="bp-u-hill" d={`M 0 ${S3.g} Q 50 ${S3.g - 10} 100 ${S3.g - 3} T 200 ${S3.g - 6} V ${S3.g} Z`}></path>
+				{SECS.map((t) => {
+					const h = heliAt(Math.min(t, TB));
+					const b = boxAt(Math.min(t, TB));
+					return <line class="bp-dash" style="stroke-dasharray: 1 2.5" x1={f1(h.x)} y1={f1(h.y + 5)} x2={f1(b.x)} y2={f1(b.y - 3)} />;
+				})}
+				<path class="bp-dash" d={boxPath}></path>
+				{SECS.map((t) => {
+					const h = heliAt(t);
+					return (
+						<g class={t === 0 ? 'bp-u-heli' : 'bp-u-heli bp-u-heli--ghost'} transform={`translate(${f1(h.x)} ${f1(h.y)})`}>
+							<ellipse cx="0" cy="0" rx="7" ry="3.6" />
+							<path d="M -6 -1 L -17 -2 L -18 -5 L -16 -5 L -14 -2" />
+							<path class="bp-u-rotor" d="M -10 -5 H 10 M 0 -3.6 V -5 M -4 4.5 H 5 M -2 3 V 4.5 M 3 3 V 4.5" />
+						</g>
+					);
+				})}
+				{SECS.map((t) => {
+					const b = boxAt(Math.min(t, TB));
+					return <rect class={t === 0 ? 'bp-u-box' : 'bp-u-box bp-u-box--ghost'} x={f1(b.x - 2.5)} y={f1(b.y - 2.5)} width="5" height="5" />;
+				})}
+				<path class="bp-u-cross" d={`M ${f1(XB - 4)} ${S3.g - 4} L ${f1(XB + 4)} ${S3.g + 4} M ${f1(XB + 4)} ${S3.g - 4} L ${f1(XB - 4)} ${S3.g + 4}`}></path>
+				<text class="bp-u-t" x="4" y="80">125 м</text>
+				<text class="bp-u-t" x={f1((S3.x0 + XB) / 2)} y="128" text-anchor="middle">250 м за 5 с</text>
+			</svg>
+			<p class="bp-uses__title">Груз с вертолёта</p>
+		</div>
+		<div class="bp-uses__tile">
+			<svg class="bp-pic__svg" viewBox="0 0 200 130" role="img" aria-label="Брызги из-под колеса велосипеда: капли слетают с шины по касательной и летят по параболам; щиток над колесом ловит те, что полетели бы вверх и вперёд, на спину велосипедиста">
+				<rect class="bp-u-sky" x="0" y="0" width="200" height={W.road}></rect>
+				<rect class="bp-u-road" x="0" y={W.road} width="200" height={130 - W.road}></rect>
+				<path class="bp-u-puddle" d={`M 20 ${W.road + 6} q 40 -3 80 0 q 40 3 90 0`}></path>
+				<!-- the frame: the chain stay, the seat stay, the seat post and the saddle -->
+				<path class="bp-u-frame" d={`M ${W.cx} ${W.cy} L 200 ${W.cy + 2} M ${W.cx} ${W.cy} L 178 26 M 172 18 L 186 40 M 164 18 H 186`}></path>
+				<!-- without the mudguard -->
+				{drops.map((d) => d.free && <path class="bp-u-drop-free" d={d.free} />)}
+				<!-- the wheel -->
+				<circle class="bp-u-tire" cx={W.cx} cy={W.cy} r={W.r}></circle>
+				<circle class="bp-u-rim" cx={W.cx} cy={W.cy} r={W.r - 4}></circle>
+				<path class="bp-u-spoke" d={SPOKES.map((a) => `M ${W.cx} ${W.cy} L ${f1(W.cx + (W.r - 4) * Math.cos(a))} ${f1(W.cy - (W.r - 4) * Math.sin(a))}`).join(' ')}></path>
+				<circle class="bp-u-hub" cx={W.cx} cy={W.cy} r="3.5"></circle>
+				<path class="bp-u-guard" d={guardPath}></path>
+				{drops.map((d) => d.real && <path class="bp-u-drop" d={d.real} />)}
+				{drops.map((d) => d.end && <circle class="bp-u-dot" cx={d.end.split(' ')[0]} cy={d.end.split(' ')[1]} r="1.8" />)}
+				<text class="bp-u-t" x="4" y="20">щиток ловит</text>
+				<text class="bp-u-t" x="4" y="36">брызги</text>
+			</svg>
+			<p class="bp-uses__title">Брызги из-под колеса</p>
+		</div>
+	</div>
+	<div class="bp-pic__foot">
+		<figcaption>Всё это — броски под углом к горизонту (сопротивление воздуха не учтено). У лука высота траектории увеличена в 5 раз: без наклона на 5,5° стрела опустилась бы за 70&nbsp;м на 6,7&nbsp;м. Груз с вертолёта всё время под вертолётом; пунктир на последней картинке — куда полетели бы брызги без щитка.</figcaption>
+	</div>
+</figure>
+
+<style is:global>
+	[data-bpuses] {
+		--bpu-sky: hsl(210, 30%, 22%);
+		--bpu-grass: hsl(110, 26%, 28%);
+		--bpu-field: hsl(85, 25%, 30%);
+		--bpu-hill: hsl(110, 22%, 24%);
+		--bpu-stand: hsl(214, 15%, 30%);
+		--bpu-road: hsl(215, 8%, 30%);
+		--bpu-wood: hsl(28, 40%, 45%);
+		--bpu-steel: hsl(210, 8%, 62%);
+		--bpu-tire: hsl(220, 10%, 12%);
+		--bpu-water: hsl(195, 80%, 72%);
+		--bpu-red: hsl(0, 70%, 60%);
+		--bpu-gold: hsl(45, 90%, 60%);
+		--bpu-blue: hsl(210, 70%, 60%);
+		--bpu-tree: hsl(128, 26%, 26%);
+	}
+	:root[data-theme='light'] [data-bpuses] {
+		--bpu-sky: hsl(200, 70%, 90%);
+		--bpu-grass: hsl(100, 40%, 62%);
+		--bpu-field: hsl(80, 40%, 66%);
+		--bpu-hill: hsl(105, 30%, 54%);
+		--bpu-stand: hsl(214, 20%, 76%);
+		--bpu-road: hsl(215, 8%, 62%);
+		--bpu-wood: hsl(28, 45%, 42%);
+		--bpu-steel: hsl(210, 8%, 45%);
+		--bpu-tire: hsl(220, 10%, 18%);
+		--bpu-water: hsl(198, 85%, 36%);
+		--bpu-tree: hsl(125, 35%, 42%);
+	}
+	.bp-uses {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 0.5rem;
+	}
+	@media (max-width: 50rem) {
+		.bp-uses {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+	.bp-uses .bp-pic__svg {
+		max-width: none;
+	}
+	.bp-uses__title {
+		margin: 0.3rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-xs);
+		line-height: 1.3;
+		font-weight: 600;
+		color: var(--sl-color-gray-1);
+	}
+	.bp-pic .bp-u-t {
+		font-size: 14px;
+		stroke-width: 3px;
+	}
+	.bp-u-sky {
+		fill: var(--bpu-sky);
+	}
+	.bp-u-grass {
+		fill: var(--bpu-grass);
+	}
+	.bp-u-field {
+		fill: var(--bpu-field);
+	}
+	.bp-u-hill {
+		fill: var(--bpu-hill);
+	}
+	.bp-u-stand {
+		fill: var(--bpu-stand);
+	}
+	.bp-u-road {
+		fill: var(--bpu-road);
+	}
+	.bp-u-tree {
+		fill: var(--bpu-tree);
+	}
+	.bp-u-line {
+		stroke: var(--sl-color-white);
+		stroke-width: 0.8;
+		opacity: 0.7;
+		fill: none;
+	}
+	.bp-u-circle {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1;
+		opacity: 0.8;
+	}
+	.bp-u-shot {
+		fill: var(--sl-color-gray-2);
+	}
+	.bp-u-wood {
+		stroke: var(--bpu-wood);
+		stroke-width: 1.6;
+		fill: none;
+	}
+	.bp-u-ring1 {
+		fill: var(--sl-color-white);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.5;
+	}
+	.bp-u-ring2 {
+		fill: var(--bpu-red);
+	}
+	.bp-u-ring3 {
+		fill: var(--bpu-gold);
+	}
+	.bp-u-arrowpath {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 1.6;
+		stroke-dasharray: 4 3;
+	}
+	.bp-u-arrow {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1.4;
+	}
+	.bp-u-heli ellipse,
+	.bp-u-heli path {
+		fill: var(--bpu-blue);
+		stroke: var(--bpu-blue);
+		stroke-width: 1;
+	}
+	.bp-u-heli .bp-u-rotor {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+	}
+	.bp-u-heli--ghost {
+		opacity: 0.28;
+	}
+	.bp-u-box {
+		fill: var(--bpu-wood);
+	}
+	.bp-u-box--ghost {
+		fill: none;
+		stroke: var(--bpu-wood);
+		stroke-width: 1;
+	}
+	.bp-u-cross {
+		stroke: var(--bpu-red);
+		stroke-width: 1.6;
+		fill: none;
+	}
+	.bp-u-frame {
+		stroke: var(--bpu-red);
+		stroke-width: 3;
+		stroke-linecap: round;
+		fill: none;
+	}
+	.bp-u-tire {
+		fill: none;
+		stroke: var(--bpu-tire);
+		stroke-width: 5;
+	}
+	.bp-u-rim {
+		fill: none;
+		stroke: var(--bpu-steel);
+		stroke-width: 1.4;
+	}
+	.bp-u-spoke {
+		stroke: var(--bpu-steel);
+		stroke-width: 0.5;
+		fill: none;
+	}
+	.bp-u-hub {
+		fill: var(--bpu-steel);
+	}
+	.bp-u-guard {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.bp-u-drop {
+		fill: none;
+		stroke: var(--bpu-water);
+		stroke-width: 1.4;
+		stroke-dasharray: 2 2.5;
+	}
+	.bp-u-drop-free {
+		fill: none;
+		stroke: var(--bpu-water);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+		opacity: 0.45;
+	}
+	.bp-u-dot {
+		fill: var(--bpu-water);
+	}
+	.bp-u-puddle {
+		fill: none;
+		stroke: var(--bpu-water);
+		stroke-width: 1.4;
+		opacity: 0.6;
+	}
+	.bp-u-motion {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+</style>
+
+<script>
+	import { figure } from '@components/people';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bpuses]')) {
+		// the shot-putter: 190 см at 0,074 px per см, facing right; the near hand pushes the shot at the release point
+		{
+			const s = 0.074;
+			const H = 190;
+			const u = s * H;
+			const G0 = 116;
+			const rel = { x: 26, y: G0 - 2.1 * 7.4 };
+			const hipX = rel.x - 0.32 * 100 * s;
+			figure(root.querySelector<SVGGElement>('[data-shotput]')!, { s, H, clothes: 'indoor', shirt: 'hm-red', shorts: true, bare: true, name: 'shot-putter' }).pose({
+				hip: { x: hipX, y: G0 - 0.5 * u },
+				lean: 0.12,
+				head: -0.3,
+				ankles: [
+					{ x: hipX - 0.16 * u, y: G0 - 0.045 * u },
+					{ x: hipX + 0.14 * u, y: G0 - 0.045 * u },
+				],
+				feet: [0.4, 0],
+				planted: [false, true],
+				hands: [
+					{ at: { x: rel.x - 0.8, y: rel.y + 1.4 }, pose: 'open', dir: -1.0, roll: -Math.PI / 2, contact: 'shot' },
+					{ at: { x: hipX - 0.28 * u, y: G0 - 0.72 * u }, pose: 'relaxed' },
+				],
+			});
+		}
+		// the archer: 180 см at 0,116 px per см, facing right; the far hand holds the bow, the near hand draws the string
+		{
+			const s = 0.116;
+			const H = 180;
+			const u = s * H;
+			const G0 = 110;
+			const bowY = 92; // the line of sight, 1,55 м above the ground
+			const hipX = 18;
+			const g = root.querySelector<SVGGElement>('[data-archer]')!;
+			figure(g, { s, H, clothes: 'home', shirt: 'hm-green', name: 'archer' }).pose({
+				hip: { x: hipX, y: G0 - 0.52 * u },
+				lean: -0.03,
+				head: 0.05,
+				ankles: [
+					{ x: hipX - 3, y: G0 - 0.045 * u },
+					{ x: hipX + 4, y: G0 - 0.045 * u },
+				],
+				feet: [0, 0],
+				planted: [true, true],
+				hands: [
+					{ at: { x: hipX + 3, y: bowY - 1 }, pose: 'pinch', dir: 0, contact: 'string' },
+					{ at: { x: hipX + 0.32 * u, y: bowY }, pose: 'grip', d: 3, dir: -Math.PI / 2, contact: 'bow' },
+				],
+			});
+			// the bow and the string over the figure
+			const NS = 'http://www.w3.org/2000/svg';
+			const bx = hipX + 0.32 * u;
+			const bow = document.createElementNS(NS, 'path');
+			bow.setAttribute('d', `M ${bx - 1.5} ${bowY - 10} Q ${bx + 3.5} ${bowY} ${bx - 1.5} ${bowY + 10} M ${bx - 1.5} ${bowY - 10} L ${hipX + 3} ${bowY - 1} L ${bx - 1.5} ${bowY + 10}`);
+			bow.setAttribute('style', 'fill: none; stroke: var(--bpu-wood); stroke-width: 1.2');
+			g.append(bow);
+		}
+	}
+</script>

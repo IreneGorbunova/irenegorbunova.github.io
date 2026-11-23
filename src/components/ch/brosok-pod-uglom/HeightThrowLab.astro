@@ -1,0 +1,392 @@
+---
+/**
+ * Model for «Тело, брошенное горизонтально»: a ball thrown from the edge of a cliff of height h above flat ground.
+ * Controls: h 0…20 м (step 1, default 20), υ0 0…20 м/с (step 1, default 10), the angle α to the horizontal −30…75°
+ * (step 5, default 0 — horizontally; below zero the ball is thrown downward), «Уронить второй мяч» (a second ball let
+ * go from the same point at the same moment falls straight down; on by default), «Бросить», «Стереть следы».
+ * Physics: g = 9,8 м/с², no air; origin on the ground under the throw point, Oy up:
+ *   x = υ0·cos α·t, y = h + υ0·sin α·t − g·t²/2; the flight ends at y = 0:
+ *   t = (υ0y + √(υ0y² + 2gh)) / g, L = υ0x·t, the landing speed υ = √(υ0² + 2gh), its angle β to the horizontal
+ *   tg β = |υy| / υx. The dropped ball lands after √(2h/g).
+ * Field 0…60 м × 0…40 м, 5 px per м on both axes (holds the largest case: from 20 м at 20 м/с and 35° L = 57,4 м;
+ * the top at 75° and 20 м/с is 39,0 м). Real time. The velocity of the ball is drawn gold with its projections υx
+ * (blue) and υy (red), 2 px per м/с. The traces stay until erased.
+ * Check values: h 20, υ0 10, α 0 → t 2,02 с, L 20,2 м, υ 22,2 м/с, β 63,2°; h 20, α 0, υ0 5 / 20 → t 2,02 с, L 10,1 /
+ * 40,4 м; h 20, υ0 15: α 25° → L 37,6 м, 30° → 38,0 м (best near 31°), 35° → 37,9 м, 45° → 35,8 м; υ 24,8 м/с at every
+ * angle; h 0, υ0 15: 40° → 22,6 м, 45° → 23,0 м, 50° → 22,6 м.
+ */
+import G7Styles from '@components/ch/g7/G7Styles.astro';
+
+const uid = Math.random().toString(36).slice(2, 8);
+const OX = 44;
+const OY = 226;
+const K = 5;
+const XS = [10, 20, 30, 40, 50, 60];
+const YS = [10, 20, 30, 40];
+---
+
+<G7Styles />
+<figure class="g7 g7--wide htl not-content" data-htlab>
+	<div class="g7__grid">
+		<div class="htl-left">
+		<svg class="g7__svg" viewBox="0 0 360 252" role="img" aria-label="Мяч бросают с края обрыва высотой h. Видны траектория, скорость мяча и её проекции, второй мяч, который просто роняют с той же точки">
+			<defs>
+				{
+					['v', 'vx', 'vy'].map((k) => (
+						<marker id={`${uid}-${k}`} class={`htl-head htl-head--${k}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+							<path d="M0,0 L10,5 L0,10 z" />
+						</marker>
+					))
+				}
+			</defs>
+			<rect class="htl-sky" x="0" y="0" width="360" height={OY}></rect>
+			{XS.map((x) => <line class="htl-grid" x1={OX + x * K} y1={OY} x2={OX + x * K} y2={OY - 40 * K} />)}
+			{YS.map((y) => <line class="htl-grid" x1={OX} y1={OY - y * K} x2={OX + 62 * K} y2={OY - y * K} />)}
+			<rect class="htl-ground" x="0" y={OY} width="360" height={252 - OY}></rect>
+			<line class="htl-axis" x1="0" y1={OY} x2="360" y2={OY}></line>
+			{XS.map((x) => <text class="htl-tick" x={OX + x * K} y={OY + 16} text-anchor="middle">{x}</text>)}
+			<text class="htl-tick" x={OX} y={OY + 16} text-anchor="middle">0</text>
+			{YS.map((y) => <text class="htl-tick" x={OX + 4} y={OY - y * K + 13}>{y}</text>)}
+			<text class="htl-tick" x="356" y={OY - 6} text-anchor="end"><tspan class="htl-it">x</tspan>, м</text>
+			<text class="htl-tick" x={OX + 22} y="14"><tspan class="htl-it">y</tspan>, м</text>
+			<path class="htl-cliff" d="" data-cliff></path>
+			<g data-traces></g>
+			<path class="htl-preview" d="" data-preview></path>
+			<path class="htl-trail" d="" data-trail></path>
+			<g class="htl-land" data-land></g>
+			<circle class="htl-ball2" r="4.5" data-ball2></circle>
+			<line class="htl-vec htl-vec--vx" marker-end={`url(#${uid}-vx)`} data-vx></line>
+			<line class="htl-vec htl-vec--vy" marker-end={`url(#${uid}-vy)`} data-vy></line>
+			<line class="htl-vec htl-vec--v" marker-end={`url(#${uid}-v)`} data-v></line>
+			<circle class="htl-ball" r="5" data-ball></circle>
+			<text class="htl-tick htl-hlab" text-anchor="middle" data-hlab></text>
+		</svg>
+			<ul class="g7__read htl-read" aria-live="polite">
+				<li><span>Время полёта <i>t</i></span><b data-rt>—</b></li>
+				<li><span>Дальность <i>L</i></span><b data-rl>—</b></li>
+				<li class="is-warm"><span>Скорость падения <i>υ</i></span><b data-rv>—</b></li>
+				<li><span>Угол падения <i>β</i></span><b data-rb>—</b></li>
+				<li data-r2row><span>Второй мяч <i>t</i><sub>2</sub></span><b data-r2>—</b></li>
+			</ul>
+		</div>
+		<div class="g7__side">
+			<label class="g7__slider"><span>Высота обрыва <i>h</i></span><output data-oh></output><input type="range" min="0" max="20" step="1" value="20" data-h aria-label="Высота обрыва, метры" /></label>
+			<label class="g7__slider"><span>Начальная скорость <i>υ</i><sub>0</sub></span><output data-ov></output><input type="range" min="0" max="20" step="1" value="10" data-v0 aria-label="Начальная скорость, метры в секунду" /></label>
+			<label class="g7__slider"><span>Угол броска <i>α</i></span><output data-oa></output><input type="range" min="-30" max="75" step="5" value="0" data-a aria-label="Угол броска к горизонту, градусы" /></label>
+			<label class="htl-check"><input type="checkbox" checked data-drop /> <span>Уронить второй мяч</span></label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Бросить</button>
+				<button type="button" class="g7__btn" data-clear>Стереть следы</button>
+			</div>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		<span class="htl-key htl-key--v"></span><i>υ</i> — скорость, <span class="htl-key htl-key--vx"></span><i>υ<sub>x</sub></i> и <span class="htl-key htl-key--vy"></span><i>υ<sub>y</sub></i> — её проекции; <i>β</i> — угол между скоростью при падении и горизонтом. Серый мяч просто роняют с той же точки в тот же момент. Сопротивление воздуха не учитывается, <span class="nw"><i>g</i> = 9,8&nbsp;м/с²</span>; движение в реальном времени.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.htl {
+		--htl-sky: color-mix(in srgb, var(--ig-vx) 7%, var(--sl-color-bg));
+		--htl-ground: hsl(100, 22%, 30%);
+		--htl-rock: hsl(30, 12%, 40%);
+		--htl-rock-edge: hsl(30, 10%, 30%);
+	}
+	:root[data-theme='light'] .htl {
+		--htl-ground: hsl(95, 35%, 62%);
+		--htl-rock: hsl(30, 15%, 62%);
+		--htl-rock-edge: hsl(30, 12%, 46%);
+	}
+	.htl-sky {
+		fill: var(--htl-sky);
+	}
+	.htl-ground {
+		fill: var(--htl-ground);
+	}
+	.htl-cliff {
+		fill: var(--htl-rock);
+		stroke: var(--htl-rock-edge);
+		stroke-width: 1;
+	}
+	.htl-grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.htl-axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.g7__svg .htl-tick {
+		font-size: 12px;
+		fill: var(--sl-color-gray-2);
+	}
+	.htl-it {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.htl-preview {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.3;
+		stroke-dasharray: 5 5;
+	}
+	.htl-trail {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	.htl-trace path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.8;
+	}
+	.htl-trace text {
+		font-size: 11.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.htl-land path {
+		stroke: var(--ig-v);
+		stroke-width: 2;
+		fill: none;
+	}
+	.htl-ball {
+		fill: var(--ig-v);
+	}
+	.htl-ball2 {
+		fill: var(--sl-color-gray-2);
+	}
+	.htl-vec {
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	.htl-vec--v {
+		stroke: var(--ig-v);
+	}
+	.htl-vec--vx {
+		stroke: var(--ig-vx);
+	}
+	.htl-vec--vy {
+		stroke: var(--ig-vy);
+	}
+	.htl-head--v path {
+		fill: var(--ig-v);
+	}
+	.htl-head--vx path {
+		fill: var(--ig-vx);
+	}
+	.htl-head--vy path {
+		fill: var(--ig-vy);
+	}
+	.htl-left {
+		display: grid;
+		gap: 0.5rem;
+	}
+	.htl-read {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.htl-check {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	.htl-check input {
+		accent-color: var(--sl-color-accent);
+		width: 1.05rem;
+		height: 1.05rem;
+	}
+	.htl i {
+		font-family: var(--ig-font-math);
+	}
+	.htl-key {
+		display: inline-block;
+		width: 1.1rem;
+		height: 0.2rem;
+		margin-right: 0.3rem;
+		vertical-align: middle;
+		border-radius: 1px;
+	}
+	.htl-key--v {
+		background: var(--ig-v);
+	}
+	.htl-key--vx {
+		background: var(--ig-vx);
+	}
+	.htl-key--vy {
+		background: var(--ig-vy);
+	}
+</style>
+
+<script>
+	import { loop, fmt, el } from '@components/ch/g7/kit';
+
+	const f1 = (v: number) => v.toFixed(1);
+	const G = 9.8;
+	const OX = 44;
+	const OY = 226;
+	const K = 5;
+	const A = 2; // px per м/с
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-htlab]')) {
+		const $ = <E extends Element>(s: string) => root.querySelector<E>(s)!;
+		const inH = $<HTMLInputElement>('[data-h]');
+		const inV = $<HTMLInputElement>('[data-v0]');
+		const inA = $<HTMLInputElement>('[data-a]');
+		const inDrop = $<HTMLInputElement>('[data-drop]');
+		const cliff = $('[data-cliff]');
+		const traces = $('[data-traces]');
+		const preview = $('[data-preview]');
+		const trail = $('[data-trail]');
+		const land = $('[data-land]');
+		const ball = $('[data-ball]');
+		const ball2 = $<SVGCircleElement>('[data-ball2]');
+		const vV = $<SVGLineElement>('[data-v]');
+		const vX = $<SVGLineElement>('[data-vx]');
+		const vY = $<SVGLineElement>('[data-vy]');
+		const hlab = $<SVGTextElement>('[data-hlab]');
+		const out = { h: $('[data-oh]'), v: $('[data-ov]'), a: $('[data-oa]') };
+		const rd = { t: $('[data-rt]'), l: $('[data-rl]'), v: $('[data-rv]'), b: $('[data-rb]'), r2: $('[data-r2]'), r2row: $<HTMLElement>('[data-r2row]') };
+
+		const params = () => {
+			const h = Number(inH.value);
+			const v0 = Number(inV.value);
+			const a = Number(inA.value);
+			const vx = v0 * Math.cos((a * Math.PI) / 180);
+			const vy = v0 * Math.sin((a * Math.PI) / 180);
+			const T = (vy + Math.sqrt(Math.max(0, vy * vy + 2 * G * h))) / G;
+			const vyL = vy - G * T;
+			return { h, v0, a, vx, vy, T: Math.max(0, T), L: vx * Math.max(0, T), vL: Math.hypot(vx, vyL), beta: (Math.atan2(-vyL, vx) * 180) / Math.PI, T2: Math.sqrt((2 * h) / G) };
+		};
+		const pos = (p: ReturnType<typeof params>, t: number) => ({ x: OX + p.vx * t * K, y: OY - (p.h + p.vy * t - (G * t * t) / 2) * K });
+		const pathOf = (p: ReturnType<typeof params>, t: number) => {
+			const n = Math.max(2, Math.ceil(t / 0.03));
+			const pts: string[] = [];
+			for (let i = 0; i <= n; i++) {
+				const q = pos(p, (t * i) / n);
+				pts.push(`${f1(q.x)} ${f1(q.y)}`);
+			}
+			return `M ${pts.join(' L ')}`;
+		};
+		const arrow = (line: SVGLineElement, x: number, y: number, dx: number, dy: number) => {
+			const d = Math.hypot(dx, dy);
+			line.style.opacity = d > 5 ? '1' : '0';
+			const k = d > 5 ? (d - 3) / d : 1;
+			line.setAttribute('x1', f1(x));
+			line.setAttribute('y1', f1(y));
+			line.setAttribute('x2', f1(x + dx * k));
+			line.setAttribute('y2', f1(y + dy * k));
+		};
+		const showVel = (x: number, y: number, vx: number, vy: number) => {
+			arrow(vX, x, y, vx * A, 0);
+			arrow(vY, x, y, 0, -vy * A);
+			arrow(vV, x, y, vx * A, -vy * A);
+		};
+
+		let p = params();
+		let t = 0;
+		let flying = false;
+		const readouts = () => {
+			out.h.textContent = `${p.h} м`;
+			out.v.textContent = `${p.v0} м/с`;
+			out.a.textContent = `${String(p.a).replace('-', '−')}°`;
+			rd.t.textContent = `${fmt(p.T, 2)} с`;
+			rd.l.textContent = `${fmt(p.L, 1)} м`;
+			rd.v.textContent = p.T > 0 ? `${fmt(p.vL, 1)} м/с` : '—';
+			rd.b.textContent = p.T > 0 ? `${fmt(p.beta, 1)}°` : '—';
+			rd.r2.textContent = `${fmt(p.T2, 2)} с`;
+			rd.r2row.hidden = !inDrop.checked || p.h === 0;
+		};
+		const still = () => {
+			p = params();
+			readouts();
+			const top = OY - p.h * K;
+			cliff.setAttribute('d', p.h > 0 ? `M 0 ${OY} L 0 ${f1(top)} L ${OX} ${f1(top)} L ${OX} ${OY} Z` : '');
+			hlab.textContent = p.h > 0 ? `h = ${p.h} м` : '';
+			const my = (OY + top) / 2;
+			hlab.setAttribute('x', '26');
+			hlab.setAttribute('y', f1(my));
+			hlab.setAttribute('transform', `rotate(-90 26 ${f1(my)})`);
+			hlab.style.opacity = p.h >= 8 ? '1' : '0';
+			preview.setAttribute('d', p.T > 0 ? pathOf(p, p.T) : '');
+			trail.setAttribute('d', '');
+			land.replaceChildren();
+			const s = pos(p, 0);
+			ball.setAttribute('cx', f1(s.x));
+			ball.setAttribute('cy', f1(s.y));
+			ball2.setAttribute('cx', f1(s.x));
+			ball2.setAttribute('cy', f1(s.y));
+			ball2.style.opacity = inDrop.checked && p.h > 0 ? '1' : '0';
+			showVel(s.x, s.y, p.vx, p.vy);
+		};
+		const mark = (x: number, color: 'v' | 'g') => {
+			const g = el('path', { d: `M ${f1(x - 5)} ${OY - 5} L ${f1(x + 5)} ${OY + 5} M ${f1(x + 5)} ${OY - 5} L ${f1(x - 5)} ${OY + 5}` });
+			if (color === 'g') g.setAttribute('style', 'stroke: var(--sl-color-gray-2)');
+			land.append(g);
+		};
+		// one clock for both balls: the thrown one stops at p.T, the dropped one at p.T2
+		let landed1 = false;
+		let landed2 = false;
+		const wake = loop(root, (dt) => {
+			if (!flying) return false;
+			const two = inDrop.checked && p.h > 0;
+			const end = Math.max(p.T, two ? p.T2 : 0);
+			t = Math.min(t + dt, end);
+			const t1 = Math.min(t, p.T);
+			const q = pos(p, t1);
+			trail.setAttribute('d', pathOf(p, t1));
+			ball.setAttribute('cx', f1(q.x));
+			ball.setAttribute('cy', f1(q.y));
+			if (t1 < p.T) showVel(q.x, q.y, p.vx, p.vy - G * t1);
+			else showVel(q.x, q.y, 0, 0);
+			if (!landed1 && t1 >= p.T - 1e-9) {
+				landed1 = true;
+				mark(q.x, 'v');
+			}
+			if (two) {
+				const t2 = Math.min(t, p.T2);
+				ball2.setAttribute('cy', f1(OY - (p.h - (G * t2 * t2) / 2) * K));
+				if (!landed2 && t2 >= p.T2 - 1e-9) {
+					landed2 = true;
+					mark(OX, 'g');
+				}
+			}
+			if (t >= end - 1e-9) {
+				flying = false;
+				const g = el('g', { class: 'htl-trace' });
+				g.append(el('path', { d: pathOf(p, p.T) }));
+				// a label next to the landing point, lifted above the labels of traces that landed close by
+				const lx = Math.min(300, q.x + 4);
+				const near = [...traces.querySelectorAll('text')].filter((tx) => Math.abs(Number(tx.getAttribute('x')) - lx) < 62).length;
+				g.append(el('text', { x: f1(lx), y: OY - 6 - 13 * near }, `${p.v0} м/с, ${String(p.a).replace('-', '−')}°`));
+				traces.append(g);
+				return false;
+			}
+			return true;
+		});
+		const go = () => {
+			still();
+			if (p.T <= 0) return;
+			t = 0;
+			landed1 = false;
+			landed2 = false;
+			flying = true;
+			preview.setAttribute('d', '');
+			wake();
+		};
+		for (const inp of [inH, inV, inA, inDrop])
+			inp.addEventListener('input', () => {
+				flying = false;
+				still();
+			});
+		$('[data-go]').addEventListener('click', go);
+		$('[data-clear]').addEventListener('click', () => {
+			traces.replaceChildren();
+			flying = false;
+			still();
+		});
+		still();
+	}
+</script>

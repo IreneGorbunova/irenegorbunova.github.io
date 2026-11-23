@@ -1,0 +1,236 @@
+---
+/**
+ * Picture to «Скорость и координаты»: the four graphs of the common throw (υ0x = 6 м/с, υ0y = 7,84 м/с, g = 9,8 м/с²;
+ * top 3,14 м at 0,8 с, landing at 1,6 с, 9,6 м away), t from 0 to 1,7 с (167 px per с):
+ *   x(t) = 6t (a straight line to 9,6 м; 9,6 px per м), y(t) = 7,84t − 4,9t² (a parabola, top 3,14 м at 0,8 с; 24 px
+ *   per м), υx(t) = 6 м/с (a horizontal line; 12 px per м/с), υy(t) = 7,84 − 9,8t (a straight line from 7,84 to
+ *   −7,84 м/с, zero at 0,8 с; 6 px per м/с). Blue for the horizontal quantities, red for the vertical ones.
+ * A time cursor runs through all four, slowed down 2,5 times (1,6 с in 4 с), with a dot on each line. The area under
+ *   υx(t) from 0 to t is shaded blue and equals x = 6t; the area under υy(t) is shaded red, darker above the axis and
+ *   lighter below it (that part counts with a minus), and equals y: 3,14 м at 0,8 с, 0 at 1,6 с, when the two parts
+ *   cancel. The readouts at the top of each graph give t and x, y, υx, υy and both areas at the cursor.
+ */
+import BpPicStyles from './BpPicStyles.astro';
+
+const f1 = (v: number) => v.toFixed(1);
+const L = 50; // t = 0
+const KT = 167; // px per s
+const TMAX = 1.7;
+const GRAPHS = [
+	{ key: 'x', name: 'x, м', c: 'x', y0: 116, k: 9.6, ticks: [0, 5, 10] },
+	{ key: 'y', name: 'y, м', c: 'y', y0: 116, k: 24, ticks: [0, 2, 4] },
+	{ key: 'vx', name: 'υx, м/с', c: 'x', y0: 116, k: 12, ticks: [0, 3, 6] },
+	{ key: 'vy', name: 'υy, м/с', c: 'y', y0: 69, k: 6, ticks: [-6, 0, 6] },
+];
+const TT = [0.4, 0.8, 1.2, 1.6];
+const fun: Record<string, (t: number) => number> = {
+	x: (t) => 6 * t,
+	y: (t) => 7.84 * t - 4.9 * t * t,
+	vx: () => 6,
+	vy: (t) => 7.84 - 9.8 * t,
+};
+const curve = (key: string, y0: number, k: number) =>
+	Array.from({ length: 33 }, (_, i) => {
+		const t = (1.6 * i) / 32;
+		return `${f1(L + t * KT)} ${f1(y0 - fun[key](t) * k)}`;
+	}).join(' L ');
+---
+
+<BpPicStyles />
+<figure class="bp-pic not-content" data-bpgraphs>
+	<div class="bp-pic__row">
+		{
+			GRAPHS.map((g) => (
+				<svg class="bp-pic__svg" viewBox="0 0 360 140" role="img" aria-label={`График зависимости ${g.name.split(',')[0]} от времени`} data-g={g.key}>
+					{g.ticks.map((v) => (
+						<g>
+							<line class="bp-grid" x1={L} y1={f1(g.y0 - v * g.k)} x2={L + TMAX * KT} y2={f1(g.y0 - v * g.k)} />
+							<text x={L - 6} y={f1(g.y0 - v * g.k + 4.5)} text-anchor="end">
+								{String(v).replace('-', '−')}
+							</text>
+						</g>
+					))}
+					{TT.map((t) => (
+						<g>
+							<line class="bp-grid" x1={f1(L + t * KT)} y1="16" x2={f1(L + t * KT)} y2="118" />
+							<text x={f1(L + t * KT)} y="134" text-anchor="middle">
+								{String(t).replace('.', ',')}
+							</text>
+						</g>
+					))}
+					<path class={`bp-area bp-area--${g.c}`} d="" data-area />
+					{g.key === 'vy' && <path class="bp-area bp-area--neg" d="" data-area2 />}
+					<line class="bp-axis" x1={L} y1="118" x2={L} y2="12" />
+					<line class="bp-axis" x1={L} y1={g.y0} x2={L + TMAX * KT + 6} y2={g.y0} />
+					<text class="bp-ax" x={L + TMAX * KT + 2} y={g.y0 - 6} text-anchor="end">
+						t, с
+					</text>
+					<text class={`bp-ax bp-c${g.c}`} x={L + 6} y="13">
+						{g.name.startsWith('υ') ? (
+							<>
+								υ<tspan class="bp-sub" dy="3">{g.name[1]}</tspan>
+								<tspan dy="-3">{g.name.slice(2)}</tspan>
+							</>
+						) : (
+							g.name
+						)}
+					</text>
+					<path class={`bp-curve bp-curve--${g.c}`} d={`M ${curve(g.key, g.y0, g.k)}`} />
+					<line class="bp-cursor" x1={L} y1="16" x2={L} y2="118" data-cursor />
+					<circle class={`bp-dot bp-dot--${g.c}`} r="4" cx={L} cy={g.y0} data-dot />
+					<text class={`bp-gread bp-c${g.c}`} x="354" y="12" text-anchor="end" data-gread />
+					{g.key.startsWith('v') && <text class={`bp-gread bp-c${g.c}`} x={L + 6} y={g.key === 'vx' ? 100 : 112} data-garea />}
+				</svg>
+			))
+		}
+	</div>
+	<div class="bp-pic__foot">
+		<figcaption>Графики того же броска (замедлено в 2,5 раза). Площадь под графиком <i>υ<sub>x</sub></i>(<i>t</i>) равна <i>x</i>, под графиком <i>υ<sub>y</sub></i>(<i>t</i>) — <i>y</i>; часть под осью времени считается со знаком «минус».</figcaption>
+		<button type="button" class="bp-pic__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.bp-pic .bp-ax {
+		font-size: 13px;
+		font-style: italic;
+		font-family: var(--ig-font-math);
+		fill: var(--sl-color-gray-2);
+	}
+	.bp-pic .bp-ax.bp-cx {
+		fill: var(--ig-vx);
+	}
+	.bp-pic .bp-ax.bp-cy {
+		fill: var(--ig-vy);
+	}
+	.bp-curve {
+		fill: none;
+		stroke-width: 2.4;
+	}
+	.bp-curve--x {
+		stroke: var(--ig-vx);
+	}
+	.bp-curve--y {
+		stroke: var(--ig-vy);
+	}
+	.bp-dot--x {
+		fill: var(--ig-vx);
+	}
+	.bp-dot--y {
+		fill: var(--ig-vy);
+	}
+	.bp-area {
+		stroke: none;
+	}
+	.bp-area--x {
+		fill: color-mix(in srgb, var(--ig-vx) 30%, transparent);
+	}
+	.bp-area--y {
+		fill: color-mix(in srgb, var(--ig-vy) 34%, transparent);
+	}
+	.bp-area--neg {
+		fill: color-mix(in srgb, var(--ig-vy) 14%, transparent);
+		stroke: color-mix(in srgb, var(--ig-vy) 50%, transparent);
+		stroke-width: 1;
+		stroke-dasharray: 3 3;
+	}
+	[data-g='x'] .bp-area,
+	[data-g='y'] .bp-area {
+		display: none;
+	}
+	.bp-cursor {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	.bp-pic .bp-gread {
+		font-size: 12.5px;
+	}
+	.bp-pic .bp-gread .bp-it {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.bp-read {
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.5;
+		color: var(--sl-color-gray-2);
+		text-align: center;
+		font-variant-numeric: tabular-nums;
+	}
+	.bp-read i {
+		font-family: var(--ig-font-math);
+	}
+	.bp-read .bp-rx {
+		color: var(--ig-vx);
+	}
+	.bp-read .bp-ry {
+		color: var(--ig-vy);
+	}
+	.bp-read span {
+		white-space: nowrap;
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+	import { fmt } from '@components/ch/g7/kit';
+
+	const f1 = (v: number) => v.toFixed(1);
+	const L = 50;
+	const KT = 167;
+	const T = 1.6;
+	const SLOW = 2.5;
+	const SPEC: Record<string, { y0: number; k: number; f: (t: number) => number }> = {
+		x: { y0: 116, k: 9.6, f: (t) => 6 * t },
+		y: { y0: 116, k: 24, f: (t) => 7.84 * t - 4.9 * t * t },
+		vx: { y0: 116, k: 12, f: () => 6 },
+		vy: { y0: 69, k: 6, f: (t) => 7.84 - 9.8 * t },
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bpgraphs]')) {
+		const g = Object.fromEntries(
+			[...root.querySelectorAll<SVGSVGElement>('svg[data-g]')].map((svg) => [
+				svg.dataset.g!,
+				{
+					cursor: svg.querySelector('[data-cursor]')!,
+					dot: svg.querySelector('[data-dot]')!,
+					area: svg.querySelector('[data-area]')!,
+					area2: svg.querySelector('[data-area2]'),
+					read: svg.querySelector('[data-gread]')!,
+					areaText: svg.querySelector('[data-garea]'),
+				},
+			]),
+		);
+		scene(root, T * SLOW, (s) => {
+			const t = s * T;
+			const cx = L + t * KT;
+			for (const [key, e] of Object.entries(g)) {
+				const sp = SPEC[key];
+				e.cursor.setAttribute('x1', f1(cx));
+				e.cursor.setAttribute('x2', f1(cx));
+				e.dot.setAttribute('cx', f1(cx));
+				e.dot.setAttribute('cy', f1(sp.y0 - sp.f(t) * sp.k));
+			}
+			// the area under υx(t)
+			g.vx.area.setAttribute('d', t > 0 ? `M ${L} 116 L ${L} ${f1(116 - 6 * 12)} L ${f1(cx)} ${f1(116 - 6 * 12)} L ${f1(cx)} 116 Z` : '');
+			// the area under υy(t): above the axis up to 0,8 с, below it after
+			const vy = SPEC.vy;
+			const yv = (tt: number) => f1(vy.y0 - vy.f(tt) * vy.k);
+			const tUp = Math.min(t, 0.8);
+			g.vy.area.setAttribute('d', t > 0 ? `M ${L} ${vy.y0} L ${L} ${yv(0)} L ${f1(L + tUp * KT)} ${yv(tUp)} L ${f1(L + tUp * KT)} ${vy.y0} Z` : '');
+			g.vy.area2!.setAttribute('d', t > 0.8 ? `M ${f1(L + 0.8 * KT)} ${vy.y0} L ${f1(cx)} ${yv(t)} L ${f1(cx)} ${vy.y0} Z` : '');
+			const x = SPEC.x.f(t);
+			const y = Math.max(0, SPEC.y.f(t));
+			const v = SPEC.vy.f(t);
+			const it = (c: string) => `<tspan class="bp-it">${c}</tspan>`;
+			const sub = (c: string) => `<tspan class="bp-it">υ</tspan><tspan dy="3" font-size="10">${c}</tspan><tspan dy="-3">`;
+			g.x.read.innerHTML = `${it('t')} = ${fmt(t, 2)} с: ${it('x')} = ${fmt(x, 2)} м`;
+			g.y.read.innerHTML = `${it('y')} = ${fmt(y, 2)} м`;
+			g.vx.read.innerHTML = `${sub('x')} = 6 м/с</tspan>`;
+			g.vx.areaText!.innerHTML = t > 0.02 ? `площадь = ${fmt(x, 2)} м = ${it('x')}` : '';
+			g.vy.read.innerHTML = `${sub('y')} = ${fmt(v, 2)} м/с</tspan>`;
+			g.vy.areaText!.innerHTML = t > 0.02 ? `площадь = ${fmt(y, 2)} м = ${it('y')}` : '';
+		});
+	}
+</script>
