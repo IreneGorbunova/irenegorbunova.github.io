@@ -5,7 +5,8 @@
  * The motion is computed exactly: a = F/m along the force, x = υ₀t + aₓt²/2, y = a_yt²/2. It plays for 8 с in real
  * time, holds 1,5 с and repeats; a change of any control restarts it. Marks every second. Scale: 5 px per metre (a
  * cell of the grid is 10 м); arrows: velocity 10 px per м/с (gold), force 0,4 px per newton (blue), acceleration
- * 30 px per м/с² (green). The probe turns its nozzle against the force.
+ * 30 px per м/с² (green). The probe turns its nozzle against the force. When the velocity lies along the force or
+ * against it (within 15°), the velocity arrow is drawn 11 px aside so that the force arrow does not hide it.
  */
 import G7Styles from '../g7/G7Styles.astro';
 
@@ -224,7 +225,15 @@ const stars = Array.from({ length: 60 }, (_, i) => ({ x: (i * 97.3) % 380, y: (i
 			const deg = p.F > 0 ? (-p.ph * 180) / Math.PI : vx || vy ? (-Math.atan2(vy, vx) * 180) / Math.PI : 0;
 			q('[data-probe]').setAttribute('transform', `translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${deg.toFixed(1)})`);
 			q<SVGElement>('[data-flame]').style.visibility = p.F > 0 && t <= RUN ? 'visible' : 'hidden';
-			arrow('[data-av]', '[data-lv]', c.x, c.y, vx * 10, -vy * 10);
+			// when the velocity lies along the force (or against it), its arrow is drawn 11 px aside, else the force hides it
+			const vl = Math.hypot(vx, vy);
+			const cross = vl > 0 && p.F > 0 ? (vx * Math.sin(p.ph) - vy * Math.cos(p.ph)) / vl : 1;
+			const side = Math.abs(cross) < 0.26 && vl > 0 ? 11 : 0;
+			const nx = vl > 0 ? -vy / vl : 0;
+			const ny = vl > 0 ? -vx / vl : 0;
+			OFF['[data-lv]'] = side ? [2, -6] : [2, 15]; // beside the force, the υ label goes on the outer side
+			OFF['[data-la]'] = side ? [-10, 15] : [-10, -8]; // and the a label below the force
+			arrow('[data-av]', '[data-lv]', c.x + nx * side, c.y + ny * side, vx * 10, -vy * 10);
 			arrow('[data-af]', '[data-lf]', c.x, c.y, p.F * 0.4 * Math.cos(p.ph), -p.F * 0.4 * Math.sin(p.ph));
 			arrow('[data-aa]', '[data-la]', c.x, c.y + 0, p.ax * 30, -p.ay * 30);
 			q('[data-time]').textContent = `t = ${fmt(s, 1)} с`;

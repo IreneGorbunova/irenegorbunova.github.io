@@ -7,9 +7,12 @@
  * man and the soles on the floor (static friction 157 Н, red); the floor on the crate and the crate on the floor
  * (sliding friction 157 Н, red); the Earth on the crate and the crate on the Earth (392 Н, gravitation, violet).
  * Scale: 0,5 px per см for the picture, 0,15 px per newton for the arrows. Real time.
+ * The man is drawn with the shared people kit (src/components/people/): he walks with steps of 60 см (the stance foot
+ * planted on the floor), leans forward and holds the rope behind him in his near hand, the far hand beside it. Everything
+ * that moves with the floor is drawn in one world group, which the camera shifts so that the man stays in place.
  */
 import G7Styles from '../g7/G7Styles.astro';
-import PeopleStyles from '../mehanicheskaya-rabota/PeopleStyles.astro';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
 
 const uid = Math.random().toString(36).slice(2, 8);
 const FLOOR = 168;
@@ -26,9 +29,10 @@ const FLOOR = 168;
 			<rect class="prs3__wall" x="0" y="0" width="380" height={FLOOR} />
 			<rect class="prs3__skirt" x="0" y={FLOOR - 6} width="380" height="6" />
 			<rect class="prs3__floor" x="0" y={FLOOR} width="380" height="30" />
-			<g data-seams></g>
 			<rect class="prs3__earth" x="0" y={FLOOR + 30} width="380" height={236 - FLOOR - 30} />
 			<text class="t-small prs3__earthlab" x="8" y="230">Земля</text>
+			<g data-world>
+			<g data-seams></g>
 			<path class="prs3__rope" data-rope />
 			<g data-crate>
 				<rect class="prs3__crate" x="-30" y="-44" width="30" height="44" rx="1.5" />
@@ -42,6 +46,7 @@ const FLOOR = 168;
 				<circle class="prs3__dot" data-d2 r="2.5" />
 				<text class="t-small t-halo prs3__lab" data-l1></text>
 				<text class="t-small t-halo prs3__lab" data-l2></text>
+			</g>
 			</g>
 		</svg>
 		<div class="g7__side">
@@ -128,7 +133,7 @@ const FLOOR = 168;
 
 <script>
 	import { loop, segment, el } from '../g7/kit';
-	import { human, gait, ANKLE, type HumanPose } from '../mehanicheskaya-rabota/people';
+	import { figure, walk, ANKLE_CM, SKELETON } from '@components/people';
 
 	const FLOOR = 168;
 	const S = 0.5; // px per см
@@ -148,14 +153,18 @@ const FLOOR = 168;
 	for (const root of document.querySelectorAll<HTMLElement>('[data-prs3]')) {
 		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
 		const uid = q('marker')!.id.replace(/-blue$/, '');
-		const man = human(q<SVGGElement>('[data-man]'), { s: S, H, shirt: 'hm-green', hair: 'short' });
+		const man = figure(q<SVGGElement>('[data-man]'), { s: S, H, clothes: 'indoor', shirt: 'hm-green', hair: 'short', name: 'man' });
+		const sk = SKELETON.adult;
+		const world = q<SVGGElement>('[data-world]');
 		const seams = q<SVGGElement>('[data-seams]');
 		const crate = q<SVGGElement>('[data-crate]');
 		const rope = q('[data-rope]');
 		const msg = q('[data-msg]');
 		let pair = 'rope';
-		let d = 0;
-		const A = ANKLE * S;
+		let d = 0; // how far the man has walked, px (world coordinates)
+		const A = ANKLE_CM.trainer * S;
+		const legL = (sk.thigh + sk.shin) * u;
+		const HIP = 0.93; // the hip this low keeps the stance foot within reach at both ends of a step (no sliding)
 		const arrow = (i: 1 | 2, x: number, y: number, dx: number, dy: number, lab: string, lx: number, ly: number, c: string) => {
 			const a = q<SVGLineElement>(`[data-a${i}]`);
 			const L = Math.hypot(dx, dy);
@@ -176,55 +185,52 @@ const FLOOR = 168;
 			t.textContent = lab;
 		};
 		const draw = () => {
-			const cam = d; // the hip's walked distance; screen x = world x − cam + SCREEN
-			// floor boards
+			// the camera keeps the man's hip at SCREEN: world x − d + SCREEN − x0 on the screen
+			const x0 = SCREEN; // the hip's world x at d = 0
+			world.setAttribute('transform', `translate(${(-d).toFixed(2)} 0)`);
 			seams.replaceChildren();
-			for (let i = 0; i < 12; i++) {
-				const x = (((i * 40 - cam) % 480) + 480) % 480 - 40;
-				seams.append(el('line', { class: 'prs3__seam', x1: x.toFixed(1), x2: x.toFixed(1), y1: FLOOR, y2: FLOOR + 30 }));
-			}
-			// the man: the hip at SCREEN, feet by the gait (in screen coordinates)
-			const hip = { x: SCREEN, y: FLOOR - 0.505 * u };
-			const ft = gait(d, STEP, SCREEN + 6, 3).map((f) => ({ x: f.x - d, up: f.up }));
-			const pose: HumanPose = {
+			const first = Math.floor((d - 40) / 40) * 40;
+			for (let x = first; x < d + 420; x += 40) seams.append(el('line', { class: 'prs3__seam', x1: x, x2: x, y1: FLOOR, y2: FLOOR + 30 }));
+			// the man walks in world coordinates: the stance foot stays put on the floor
+			const w = walk(d, STEP, x0 + STEP * 0.5, 0.05 * u);
+			const hip = { x: x0 + d, y: FLOOR - A - legL * HIP + w.bob };
+			const grip = { x: hip.x - 0.1 * u, y: hip.y + 0.03 * u };
+			man.pose({
 				hip,
-				lean: 0.28,
+				lean: 0.22,
+				head: -0.12,
 				ankles: [
-					{ x: ft[0].x, y: FLOOR - A - ft[0].up },
-					{ x: ft[1].x, y: FLOOR - A - ft[1].up },
+					{ x: w.feet[0].x, y: FLOOR - A - w.feet[0].up },
+					{ x: w.feet[1].x, y: FLOOR - A - w.feet[1].up },
 				],
-				feet: [0, 0],
+				feet: [w.feet[0].toe, w.feet[1].toe],
 				hands: [
-					{ x: hip.x - 0.1 * u, y: hip.y + 0.03 * u },
-					{ x: hip.x - 0.08 * u, y: hip.y + 0.02 * u },
+					{ at: grip, pose: 'grip', d: 2.5, contact: 'rope' },
+					{ at: { x: grip.x + 2.5, y: grip.y }, pose: 'grip', d: 2.5, contact: 'rope' },
 				],
-				head: -0.15,
-			};
-			man(pose);
-			const hand = { x: hip.x - 0.1 * u, y: hip.y + 0.03 * u };
-			const cx = SCREEN - 85; // the front of the crate
-			crate.setAttribute('transform', `translate(${cx} ${FLOOR})`);
-			const knot = { x: cx, y: hand.y }; // tied at the height of the hands: the rope is horizontal
-			rope.setAttribute('d', `M${knot.x} ${knot.y.toFixed(1)} H${hand.x.toFixed(1)}`);
+				planted: [w.feet[0].planted, w.feet[1].planted],
+			});
+			const cx = hip.x - 85; // the front of the crate
+			crate.setAttribute('transform', `translate(${cx.toFixed(1)} ${FLOOR})`);
+			const knot = { x: cx, y: grip.y }; // tied at the height of the hands: the rope is horizontal
+			rope.setAttribute('d', `M${knot.x.toFixed(1)} ${knot.y.toFixed(1)} H${(grip.x + 4).toFixed(1)}`);
 			// the pair; the standing foot is the one that does not swing
 			const P = PAIRS[pair];
 			const L = P.F * KF;
-			const ux = hand.x - knot.x;
-			const uy = hand.y - knot.y;
-			const n = Math.hypot(ux, uy);
-			const stand = ft[0].up < ft[1].up ? ft[0] : ft[1];
+			const stand = w.feet[0].up < w.feet[1].up ? w.feet[0] : w.feet[1];
 			if (pair === 'rope') {
-				arrow(1, knot.x, knot.y, (ux / n) * L, (uy / n) * L, 'на ящик', knot.x + 12, knot.y - 12, P.c);
-				arrow(2, hand.x, hand.y, (-ux / n) * L, (-uy / n) * L, 'на человека', hand.x + 6, hand.y - 18, P.c);
+				arrow(1, knot.x, knot.y, L, 0, 'на ящик', knot.x + 24, knot.y + 20, P.c);
+				arrow(2, grip.x, grip.y, -L, 0, 'на человека', grip.x - 36, grip.y - 14, P.c);
 			} else if (pair === 'feet') {
 				arrow(1, stand.x + 3, FLOOR - 1, L, 0, 'на человека', stand.x + 44, FLOOR - 8, P.c);
 				arrow(2, stand.x + 3, FLOOR + 10, -L, 0, 'на пол', stand.x - 10, FLOOR + 25, P.c);
 			} else if (pair === 'box') {
-				arrow(1, cx - 15, FLOOR - 1, -L, 0, 'на ящик', cx - 52, FLOOR - 10, P.c);
+				arrow(1, cx - 15, FLOOR - 1, -L, 0, 'на ящик', cx - 62, FLOOR - 10, P.c);
 				arrow(2, cx - 15, FLOOR + 10, L, 0, 'на пол', cx + 22, FLOOR + 25, P.c);
 			} else {
-				arrow(1, cx - 15, FLOOR - 22, 0, L, 'на ящик', cx - 52, FLOOR + 20, P.c);
-				arrow(2, cx - 15, 228, 0, -L, 'на Землю', cx + 22, 222, P.c);
+				// side by side, as in NotPairPicture: the Earth on the crate from its middle, the crate on the Earth from below
+				arrow(1, cx - 21, FLOOR - 22, 0, L, 'на ящик', cx - 62, FLOOR - 26, P.c);
+				arrow(2, cx - 9, 230, 0, -L, 'на Землю', cx + 26, 232, P.c);
 			}
 		};
 		loop(root, (dt) => {
