@@ -2,20 +2,16 @@
 /**
  * A grade's contents as a course map, on the grade's «Содержание» page.
  *  - A status line computed from the sidebar: «8 класс — полный курс: 24 главы, 4 раздела».
- *  - «Сегодня», filled in the browser from localStorage (./today.ts): where the pupil stopped (ig:last, written by
- *    ./LastVisit.astro), the formula cards due today (ig:cards, formulas/leitner.mjs) and the first chapter in
- *    course order whose stars are not all lit (ig:sky, sky/progress.ts). The server renders the first visit (empty
- *    storage), so the most common case needs no script and never flashes.
+ *  - No block «Сегодня» (Irina, 23 Nov 2026: «уберём везде, во всех классах, в содержании раздел "сегодня"»).
  *  - The map: the grade's sections as a path, a tile per chapter with its thumbnail, title, line (./chapters.ts),
  *    stars lit exactly as «Моё небо» counts them, number of cards and state.
  * A grade that is not complete (no `replace`) ends with the heading «Вся программа класса»: the page's own list of
- * all the chapters, written and not, follows it. The sky and Leitner modules are only read.
+ * all the chapters, written and not, follows it. The tiles and sections show the pupil's progress (./tiles.ts reads
+ * ig:sky and ig:last from localStorage; the sky module is only read).
  */
 import { getCollection } from 'astro:content';
 import { skySections } from '../sky/sections';
 import { CONSTELLATIONS, blocks } from '../sky/constellations';
-import { cardParts, chapterLabel } from '../formulas/render';
-import CardDeck from '../formulas/CardDeck.astro';
 import Thumb from './Thumb.astro';
 import { MAP_CHAPTERS, COMPLETE_GRADES } from './chapters';
 import { plural, ofStars } from './words';
@@ -28,7 +24,6 @@ interface Props {
 }
 const { grade, replace = false } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
-const deckId = 'deck-kmap';
 
 const thumbs = import.meta.glob<{ default: ImageMetadata }>('./thumbs/*.webp', { eager: true });
 const thumbOf = (slug: string, theme: 'dark' | 'light') => thumbs[`./thumbs/${slug}-${theme}.webp`]?.default;
@@ -58,7 +53,7 @@ const sections = skySections(Astro.locals.starlightRoute)
 				size: own[ci].length,
 				dark: thumbOf(slug, 'dark'),
 				light: thumbOf(slug, 'light'),
-				cards: entry ? formulas.map((f) => cardParts(entry.id, chapterLabel(entry), `${base}${entry.id}/`, f)) : [],
+				cards: formulas.length,
 			};
 		});
 		return { name: s.section, sky: sky.name, nStars: sky.stars.length, chapters };
@@ -66,21 +61,15 @@ const sections = skySections(Astro.locals.starlightRoute)
 const chapters = sections.flatMap((s) => s.chapters);
 // a grade with a few chapters shows all of them at once; a long one opens only the section being read
 const openAll = chapters.length <= 8;
-const allCards = chapters.flatMap((c) => c.cards);
-const first = chapters[0];
 const status = `${grade}${COMPLETE_GRADES.has(grade) ? ' — полный курс' : ''}: ${plural(chapters.length, 'глава', 'главы', 'глав')}, ${plural(sections.length, 'раздел', 'раздела', 'разделов')}${COMPLETE_GRADES.has(grade) ? '' : '. Остальные главы появляются по мере написания.'}`;
 // what the script needs, per chapter
 const json = JSON.stringify(
 	chapters.map((c) => ({
 		id: c.id,
 		href: c.href,
-		title: c.title,
 		need: c.need,
 		size: c.size,
 		sec: c.sec,
-		keys: c.cards.map((k) => k.key),
-		dark: c.dark?.src ?? '',
-		light: c.light?.src ?? '',
 	})),
 );
 const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.25-6.54L2.55 9.43l6.6-.8z';
@@ -88,73 +77,6 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 
 <div class="kmap not-content" data-kmap data-kmap-replace={replace ? '' : undefined} data-open-all={openAll ? '' : undefined} data-chapters={json} data-nebo={`${base}uchebnik/nebo/`} data-pagefind-ignore>
 	<p class="kmap-status">{status}</p>
-
-	<section class="kmap-today" aria-labelledby="kmap-today-h">
-		<h2 class="kmap-h" id="kmap-today-h">Сегодня</h2>
-
-		<div class="kmap-first" data-first>
-			<a class="kmap-first__card" href={first.href}>
-				<Thumb dark={first.dark} light={first.light} />
-				<span class="kmap-first__text">
-					<span class="kmap-kicker">Начните с первой главы</span>
-					<span class="kmap-first__title">{first.title}</span>
-					<span class="kmap-first__line">{first.line}</span>
-					<span class="kmap-btn">Открыть главу</span>
-				</span>
-			</a>
-			<p class="kmap-hint">
-				Звёзды глав загораются, когда вы двигаете модели, проходите выводы до конца и отвечаете на вопросы. Карта запомнит, где вы остановились, и подскажет, что читать дальше.
-			</p>
-		</div>
-
-		<div class="kmap-rows" data-back hidden>
-			<a class="kmap-row" data-row="finished" href={`${base}uchebnik/nebo/`} hidden>
-				<span class="kmap-row__pic kmap-row__pic--cards" aria-hidden="true"><span class="kmap-cards">★</span></span>
-				<span class="kmap-row__text">
-					<span class="kmap-kicker">Курс пройден</span>
-					<span class="kmap-row__title">{`Все звёзды ${grade}а горят`}</span>
-					<span class="kmap-row__sub">Посмотрите на собранные созвездия в «Моём небе».</span>
-				</span>
-			</a>
-			<a class="kmap-row" data-row="continue" href={first.href} hidden>
-				<span class="kmap-row__pic" data-pic></span>
-				<span class="kmap-row__text">
-					<span class="kmap-kicker">Продолжить</span>
-					<span class="kmap-row__title" data-title></span>
-					<span class="kmap-row__sub" data-sub></span>
-				</span>
-			</a>
-			<button class="kmap-row" type="button" data-row="due" data-deck-open={deckId} data-deck-due hidden>
-				<span class="kmap-row__pic kmap-row__pic--cards" aria-hidden="true"><span class="kmap-cards" data-due-n></span></span>
-				<span class="kmap-row__text">
-					<span class="kmap-kicker" data-title></span>
-					<span class="kmap-row__sub">Формулы и определения, которые пора вспомнить сегодня.</span>
-				</span>
-			</button>
-			<button class="kmap-row" type="button" data-row="learn" data-deck-open={deckId} data-deck-keys="" hidden>
-				<span class="kmap-row__pic kmap-row__pic--cards" aria-hidden="true"><span class="kmap-cards">+</span></span>
-				<span class="kmap-row__text">
-					<span class="kmap-kicker">Учить карточки</span>
-					<span class="kmap-row__sub" data-sub></span>
-				</span>
-			</button>
-			<div class="kmap-row kmap-row--quiet" data-row="rested" hidden>
-				<span class="kmap-row__pic kmap-row__pic--cards" aria-hidden="true"><span class="kmap-cards">✓</span></span>
-				<span class="kmap-row__text">
-					<span class="kmap-kicker">Карточки на сегодня повторены</span>
-					<span class="kmap-row__sub" data-sub></span>
-				</span>
-			</div>
-			<a class="kmap-row" data-row="next" href={first.href} hidden>
-				<span class="kmap-row__pic" data-pic></span>
-				<span class="kmap-row__text">
-					<span class="kmap-kicker">Дальше</span>
-					<span class="kmap-row__title" data-title></span>
-					<span class="kmap-row__sub" data-sub></span>
-				</span>
-			</a>
-		</div>
-	</section>
 
 	<ol class="kmap-path">
 		{
@@ -172,9 +94,9 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 								<h2 class="ksec__title">{s.name}</h2>
 								<span class="ksec__meta">
 									{plural(s.chapters.length, 'глава', 'главы', 'глав')}
-									{s.chapters.some((c) => c.cards.length > 0) &&
+									{s.chapters.some((c) => c.cards > 0) &&
 										` · ${plural(
-											s.chapters.reduce((a, c) => a + c.cards.length, 0),
+											s.chapters.reduce((a, c) => a + c.cards, 0),
 											'карточка',
 											'карточки',
 											'карточек',
@@ -205,7 +127,7 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 													</svg>
 												))}
 											</span>
-											{c.cards.length > 0 && <span>{plural(c.cards.length, 'карточка', 'карточки', 'карточек')}</span>}
+											{c.cards > 0 && <span>{plural(c.cards, 'карточка', 'карточки', 'карточек')}</span>}
 										</p>
 									</div>
 								</li>
@@ -217,13 +139,11 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 		}
 	</ol>
 
-	<CardDeck id={deckId} cards={allCards} />
-
 	{!replace && <h2 class="kmap-h kmap-plan">Вся программа класса</h2>}
 </div>
 
 <script>
-	import './today';
+	import './tiles';
 </script>
 
 <style is:global>
@@ -265,12 +185,6 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 		font-size: 2.4rem;
 		margin-bottom: 0.6rem;
 	}
-	.kmap-kicker {
-		display: block;
-		font-size: var(--sl-text-sm);
-		font-weight: 600;
-		color: var(--sl-color-text-accent);
-	}
 
 	/* thumbnails: the scene of the current theme; a night sky where a chapter has no scene */
 	.kthumb {
@@ -301,129 +215,6 @@ const STAR = 'M12 2.6l2.85 6.03 6.6.8-4.86 4.55 1.25 6.54L12 17.3l-5.84 3.22 1.2
 			radial-gradient(circle at 40% 70%, var(--sl-color-gray-3) 0 1px, transparent 1.5px),
 			radial-gradient(circle at 12% 78%, var(--sl-color-gray-4) 0 1px, transparent 1.5px),
 			radial-gradient(ellipse at 50% 40%, var(--sl-color-accent-low), transparent 75%), var(--ig-surface);
-	}
-
-	/* «Сегодня» */
-	.kmap-today {
-		margin-bottom: 2rem;
-	}
-	.kmap-first__card {
-		display: grid;
-		gap: 0.9rem;
-		padding: 0.75rem;
-		border: 1px solid var(--sl-color-accent);
-		border-radius: var(--kmap-r);
-		background: var(--ig-surface);
-	}
-	.kmap-first__text {
-		display: grid;
-		gap: 0.3rem;
-		align-content: center;
-		padding: 0 0.25rem 0.25rem;
-	}
-	.kmap-first__title {
-		font-family: var(--ig-font-display);
-		font-size: 2rem;
-		line-height: 1.15;
-		color: var(--sl-color-white);
-	}
-	.kmap-first__line {
-		color: var(--sl-color-gray-2);
-	}
-	.kmap-btn {
-		justify-self: start;
-		margin-top: 0.5rem;
-		padding: 0.65rem 1.3rem;
-		min-height: 2.75rem;
-		border-radius: 999px;
-		background: var(--sl-color-accent);
-		color: var(--sl-color-black);
-		font-weight: 600;
-		font-size: var(--sl-text-sm);
-		line-height: 1.5;
-	}
-	.kmap-first__card:hover .kmap-btn {
-		filter: brightness(1.08);
-	}
-	.kmap-hint {
-		margin: 0.75rem 0 0;
-		font-size: var(--sl-text-sm);
-		color: var(--sl-color-gray-3);
-	}
-	@media (min-width: 40rem) {
-		.kmap-first__card {
-			grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-			gap: 1.25rem;
-		}
-	}
-
-	.kmap-rows {
-		display: grid;
-		gap: 0.6rem;
-	}
-	.kmap-rows[hidden],
-	.kmap-row[hidden],
-	.kmap-first[hidden] {
-		display: none;
-	}
-	.kmap-row {
-		display: grid;
-		grid-template-columns: 6rem minmax(0, 1fr);
-		gap: 0.85rem;
-		align-items: center;
-		min-height: 4.5rem;
-		margin: 0;
-		padding: 0.6rem;
-		border: 1px solid var(--kmap-line);
-		border-radius: var(--kmap-r);
-		background: var(--ig-surface);
-		font: inherit;
-		text-align: left;
-		color: inherit;
-		cursor: pointer;
-		transition: border-color 0.2s;
-	}
-	.kmap-row:hover {
-		border-color: var(--sl-color-accent);
-	}
-	.kmap-row--quiet {
-		cursor: default;
-	}
-	.kmap-row--quiet:hover {
-		border-color: var(--kmap-line);
-	}
-	.kmap-row__text {
-		display: grid;
-		gap: 0.1rem;
-	}
-	.kmap-row__title {
-		font-weight: 600;
-		line-height: 1.3;
-		color: var(--sl-color-white);
-	}
-	.kmap-row__sub {
-		font-size: var(--sl-text-sm);
-		line-height: 1.35;
-		color: var(--sl-color-gray-3);
-	}
-	.kmap-row__pic--cards {
-		display: grid;
-		place-items: center;
-		aspect-ratio: 3 / 2;
-		border-radius: 0.6rem;
-		background: var(--sl-color-accent-low);
-	}
-	.kmap-cards {
-		font-size: 1.6rem;
-		font-weight: 600;
-		line-height: 1;
-		color: var(--sl-color-text-accent);
-		font-variant-numeric: tabular-nums;
-	}
-	@media (min-width: 50rem) {
-		.kmap-rows {
-			grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-		}
 	}
 
 	/* the path of sections */
