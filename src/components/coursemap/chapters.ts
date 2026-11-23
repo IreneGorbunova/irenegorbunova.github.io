@@ -11,7 +11,8 @@ export interface MapChapter {
 }
 
 /** Grades whose course is complete: the status line says «полный курс». */
-export const COMPLETE_GRADES = new Set(['7 класс', '8 класс', '9 класс', '10 класс']);
+// 10 класс is not complete while three of its sections are hidden as drafts (23 Nov 2026)
+export const COMPLETE_GRADES = new Set(['7 класс', '8 класс', '9 класс']);
 
 const nb = (s: string) => s.replace(/(\d) (°C)/g, '$1 $2'); // a number keeps its unit
 
