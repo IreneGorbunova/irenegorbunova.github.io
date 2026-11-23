@@ -1,0 +1,336 @@
+---
+/**
+ * Picture «Когда падение можно считать свободным»: the graph υ(t) of four bodies falling from rest in air, against the
+ * free fall υ = gt (dashed), t 0…3 с, υ 0…32 м/с. Air drag grows as υ², so a body that starts from rest has
+ * υ = υт·th(gt/υт): it starts along the dashed line, leaves it and tends to its terminal speed υт (thin dotted lines for
+ * the three υт inside the frame). Terminal speeds (sea-level air): steel ball 2 см — 60 м/с; tennis ball — 22 м/с;
+ * raindrop 4 мм — 8,8 м/с; badminton shuttlecock — 6,8 м/с. g = 9,8 м/с².
+ * The speed stays within 5 % of gt while gt/υт < 0,3995 (th x / x = 0,95): t5 = 0,3995 υт/g, the path then
+ * h = (υт²/g)·ln ch(g t5/υт): ball 2,45 с, 28,6 м; tennis ball 0,90 с, 3,8 м; drop 0,36 с, 0,61 м; shuttlecock 0,28 с,
+ * 0,37 м. At 3 с: 27,3; 19,2; 8,8; 6,8 м/с (free fall 29,4 м/с).
+ * All curves are velocities, so all are blue (the chapter's color of velocity); the chosen body's curve is bold, with a
+ * dot and a drop line at t5. The buttons choose a body; until one is tapped they cycle every 4 с. A time cursor runs
+ * 0…3 с in real time with a dot on every curve, holds 1,5 с and repeats. Not to scale: the icons of the bodies.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const G = 9.8;
+const X0 = 42;
+const XW = 238; // 0…3 с
+const Y0 = 196;
+const YH = 176; // 0…32 м/с
+const VMAX = 32;
+const tx = (t: number) => X0 + (t / 3) * XW;
+const vy = (v: number) => Y0 - (v / VMAX) * YH;
+const K = 0.39946; // th(x)/x = 0,95
+const bodies = [
+	{ id: 'ball', name: 'стальной шарик', vt: 60 },
+	{ id: 'tennis', name: 'теннисный мяч', vt: 22 },
+	{ id: 'drop', name: 'капля дождя', vt: 8.8 },
+	{ id: 'shuttle', name: 'волан', vt: 6.8 },
+].map((b) => {
+	const t5 = (K * b.vt) / G;
+	const h5 = ((b.vt * b.vt) / G) * Math.log(Math.cosh((G * t5) / b.vt));
+	const v = (t: number) => b.vt * Math.tanh((G * t) / b.vt);
+	let d = '';
+	for (let i = 0; i <= 90; i++) {
+		const t = (3 * i) / 90;
+		d += `${i ? 'L' : 'M'}${tx(t).toFixed(1)} ${vy(v(t)).toFixed(1)} `;
+	}
+	return { ...b, t5, h5, v3: v(3), d, x5: tx(t5), y5: vy(v(t5)) };
+});
+const ru = (x: number, n: number) => x.toFixed(n).replace('.', ',');
+// icon places at the right end of the curves, kept 13 px apart
+const iy = bodies.map((b) => vy(b.v3));
+for (let i = 1; i < iy.length; i++) if (iy[i] - iy[i - 1] < 13) iy[i] = iy[i - 1] + 13;
+---
+
+<G7Styles />
+<figure class="g7 dragg not-content" data-dragg>
+	<div class="g7__grid">
+	<svg class="g7__svg" viewBox="0 0 340 232" role="img" aria-label="Графики скорости четырёх тел, падающих в воздухе, и прямая свободного падения: сначала все графики идут по прямой, потом отходят от неё и выходят на постоянную скорость" data-svg>
+		<!-- axes and grid -->
+		{[0, 1, 2, 3].map((s) => (
+			<>
+				<line class="dragg__grid" x1={tx(s)} x2={tx(s)} y1={Y0} y2={Y0 - YH} />
+				<text class="dragg__num" x={tx(s)} y={Y0 + 15} text-anchor="middle">{s}</text>
+			</>
+		))}
+		{[10, 20, 30].map((v) => (
+			<>
+				<line class="dragg__grid" x1={X0} x2={X0 + XW} y1={vy(v)} y2={vy(v)} />
+				<text class="dragg__num" x={X0 - 5} y={vy(v) + 4} text-anchor="end">{v}</text>
+			</>
+		))}
+		<line class="ln" x1={X0} x2={X0 + XW + 6} y1={Y0} y2={Y0}></line>
+		<line class="ln" x1={X0} x2={X0} y1={Y0} y2={Y0 - YH - 6}></line>
+		<text class="dragg__lab" x={X0 + XW + 6} y={Y0 + 29} text-anchor="end"><tspan class="t-i">t</tspan>, с</text>
+		<text class="dragg__lab" x={X0 + 6} y={Y0 - YH + 4}><tspan class="t-i">υ</tspan>, м/с</text>
+		<text class="dragg__num" x={X0 - 5} y={Y0 + 4} text-anchor="end">0</text>
+		<!-- terminal speeds inside the frame -->
+		{bodies.filter((b) => b.vt < VMAX).map((b) => <line class="dragg__vt" data-vt={b.id} x1={X0} x2={X0 + XW} y1={vy(b.vt)} y2={vy(b.vt)} />)}
+		<!-- free fall -->
+		<path class="dragg__free" d={`M${tx(0)} ${vy(0)} L${tx(VMAX / G)} ${vy(VMAX)}`}></path>
+		<text class="dragg__lab t-blue dragg__halo" x={tx(2.62) - 4} y={vy(29) - 10} text-anchor="end">без воздуха: <tspan class="t-i">υ</tspan> = <tspan class="t-i">gt</tspan></text>
+		<!-- the four bodies -->
+		{bodies.map((b) => <path class="dragg__curve" data-curve={b.id} d={b.d} />)}
+		<!-- the 5 % mark of the chosen body -->
+		<line class="dragg__drop" data-drop x1="0" x2="0" y1="0" y2={Y0}></line>
+		<circle class="dragg__mark" data-mark r="4"></circle>
+		<text class="dragg__lab dragg__t5" data-t5 y={Y0 - 6}></text>
+		<!-- the time cursor -->
+		<line class="dragg__cursor" data-cursor y1={Y0} y2={Y0 - YH}></line>
+		{bodies.map((b) => <circle class="dragg__dot" data-dot={b.id} r="2.8" />)}
+		<circle class="dragg__dot dragg__dot--free" data-dot="free" r="2.8"></circle>
+		<!-- icons at the right ends (not to scale) -->
+		{bodies.map((b, i) => (
+			<g class="dragg__icon" data-icon={b.id} transform={`translate(${X0 + XW + 14} ${iy[i].toFixed(1)})`}>
+				{b.id === 'ball' && (
+					<>
+						<circle class="dragg__steel" r="5" />
+						<circle class="dragg__shine" cx="-1.6" cy="-1.8" r="1.4" />
+					</>
+				)}
+				{b.id === 'tennis' && (
+					<>
+						<circle class="dragg__tennis" r="5.5" />
+						<path class="dragg__seam" d="M-3.8 -3.9 Q0 0 -3.8 3.9 M3.8 -3.9 Q0 0 3.8 3.9" />
+					</>
+				)}
+				{b.id === 'drop' && <path class="dragg__water" d="M0 -6.5 C2.5 -2.5 4.5 0 4.5 2.2 A4.5 4.5 0 0 1 -4.5 2.2 C-4.5 0 -2.5 -2.5 0 -6.5 Z" />}
+				{b.id === 'shuttle' && (
+					<>
+						<path class="dragg__feather" d="M-2.2 1 L-5.5 -7 L5.5 -7 L2.2 1 Z" />
+						<path class="dragg__seam2" d="M-3.8 -7 L-1.4 1 M0 -7 V1 M3.8 -7 L1.4 1" />
+						<path class="dragg__cork" d="M-2.4 1 H2.4 V2.6 A2.4 2.4 0 0 1 -2.4 2.6 Z" />
+					</>
+				)}
+				<text class="dragg__v3" x="9" y="4" data-v3={b.id}>{ru(b.v3, 1)}</text>
+			</g>
+		))}
+	</svg>
+	<div class="g7__side">
+	<div class="dragg__pick" role="group" aria-label="Тело">
+		{bodies.map((b, i) => (
+			<button type="button" class="g7__btn" aria-pressed={i === 1 ? 'true' : 'false'} data-pick={b.id} data-t5={ru(b.t5, 2)} data-h5={b.h5 < 1 ? ru(b.h5, 2) : ru(b.h5, 1)} data-vt={b.vt}>{b.name}</button>
+		))}
+	</div>
+	<p class="g7__msg dragg__msg" aria-live="polite" data-msg></p>
+	</div>
+	</div>
+	<figcaption class="g7__caption">
+		Скорость четырёх тел, падающих в воздухе без начальной скорости, и прямая <i>υ</i>&nbsp;=&nbsp;<i>gt</i> для падения без воздуха. Тонкие пунктиры — скорости, выше которых эти тела в воздухе не разгоняются; числа справа — скорость через 3&nbsp;с, м/с. Время на графике идёт как в жизни, тела нарисованы не в масштабе.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.dragg__grid {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.7;
+	}
+	.dragg .g7__svg .dragg__num,
+	.dragg .g7__svg .dragg__lab,
+	.dragg .g7__svg .dragg__v3 {
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.dragg .g7__svg .dragg__lab.t-blue {
+		fill: var(--g7-blue);
+	}
+	.dragg .g7__svg .dragg__v3 {
+		fill: var(--g7-blue);
+		font-variant-numeric: tabular-nums;
+	}
+	.dragg .g7__svg .dragg__halo {
+		paint-order: stroke;
+		stroke: var(--g7-paper);
+		stroke-width: 4px;
+		stroke-linejoin: round;
+	}
+	.dragg__free {
+		stroke: var(--g7-blue);
+		stroke-width: 1.6;
+		stroke-dasharray: 6 4;
+		fill: none;
+	}
+	.dragg__curve {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 1.4;
+		opacity: 0.45;
+		transition: opacity 0.3s, stroke-width 0.3s;
+	}
+	.dragg__curve.is-on {
+		stroke-width: 3;
+		opacity: 1;
+	}
+	.dragg__vt {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 1.5 3;
+	}
+	.dragg__vt.is-on {
+		stroke: var(--g7-blue);
+	}
+	.dragg__drop {
+		stroke: var(--g7-gold);
+		stroke-width: 1.2;
+		stroke-dasharray: 3 3;
+	}
+	.dragg__mark {
+		fill: var(--g7-gold);
+		stroke: var(--g7-paper);
+		stroke-width: 1.2;
+	}
+	.dragg .g7__svg .dragg__t5 {
+		fill: var(--g7-gold);
+		font-weight: 700;
+	}
+	.dragg__cursor {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.dragg__dot {
+		fill: var(--g7-blue);
+		stroke: var(--g7-paper);
+		stroke-width: 0.8;
+	}
+	.dragg__dot--free {
+		fill: var(--g7-paper);
+		stroke: var(--g7-blue);
+		stroke-width: 1.4;
+	}
+	.dragg__icon {
+		opacity: 0.6;
+		transition: opacity 0.3s;
+	}
+	.dragg__icon.is-on {
+		opacity: 1;
+	}
+	.dragg__steel {
+		fill: color-mix(in oklab, var(--sl-color-gray-3) 70%, var(--ig-vx));
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.7;
+	}
+	.dragg__shine {
+		fill: var(--sl-color-white);
+		opacity: 0.8;
+	}
+	.dragg__tennis {
+		fill: hsl(70, 80%, 52%);
+		stroke: hsl(70, 60%, 30%);
+		stroke-width: 0.6;
+	}
+	.dragg__seam {
+		fill: none;
+		stroke: hsl(0, 0%, 98%);
+		stroke-width: 0.9;
+	}
+	.dragg__water {
+		fill: color-mix(in srgb, var(--ig-vx) 55%, transparent);
+		stroke: var(--g7-water-edge);
+		stroke-width: 0.8;
+	}
+	.dragg__feather {
+		fill: hsl(0, 0%, 96%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	.dragg__seam2 {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.5;
+	}
+	.dragg__cork {
+		fill: hsl(30, 45%, 62%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.5;
+	}
+	.dragg__pick {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const G = 9.8;
+	const X0 = 42;
+	const XW = 238;
+	const Y0 = 196;
+	const YH = 176;
+	const tx = (t: number) => X0 + (t / 3) * XW;
+	const vy = (v: number) => Y0 - (Math.min(v, 32) / 32) * YH;
+	const K = 0.39946;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-dragg]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-pick]')];
+		const ids = btns.map((b) => b.dataset.pick!);
+		let cur = 1;
+		let auto = true;
+		let since = 0;
+		let t = 0;
+		const choose = (i: number) => {
+			cur = i;
+			const b = btns[i];
+			const id = b.dataset.pick!;
+			const vt = Number(b.dataset.vt);
+			for (const o of btns) o.setAttribute('aria-pressed', String(o === b));
+			for (const c of root.querySelectorAll('[data-curve]')) c.classList.toggle('is-on', c.getAttribute('data-curve') === id);
+			for (const c of root.querySelectorAll('[data-icon]')) c.classList.toggle('is-on', c.getAttribute('data-icon') === id);
+			for (const c of root.querySelectorAll('[data-vt]')) if (c.tagName === 'line') c.classList.toggle('is-on', c.getAttribute('data-vt') === id);
+			const t5 = (K * vt) / G;
+			const x = tx(t5);
+			const y = vy(vt * Math.tanh((G * t5) / vt));
+			$('[data-mark]').setAttribute('cx', x.toFixed(1));
+			$('[data-mark]').setAttribute('cy', y.toFixed(1));
+			const drop = $('[data-drop]');
+			drop.setAttribute('x1', x.toFixed(1));
+			drop.setAttribute('x2', x.toFixed(1));
+			drop.setAttribute('y1', y.toFixed(1));
+			const lab = $('[data-t5]');
+			lab.setAttribute('x', (x + 5).toFixed(1));
+			lab.textContent = `${b.dataset.t5} с`;
+			$('[data-msg]').innerHTML = `${b.textContent}: до <i>t</i>&nbsp;≈&nbsp;${b.dataset.t5}&nbsp;с скорость отличается от <i>gt</i> меньше чем на 5&nbsp;%, за это время тело пролетает ≈&nbsp;${b.dataset.h5}&nbsp;м.`;
+		};
+		btns.forEach((b, i) =>
+			b.addEventListener('click', () => {
+				auto = false;
+				choose(i);
+			}),
+		);
+		const draw = () => {
+			const s = Math.min(t, 3);
+			const x = tx(s);
+			$('[data-cursor]').setAttribute('x1', x.toFixed(1));
+			$('[data-cursor]').setAttribute('x2', x.toFixed(1));
+			btns.forEach((b, i) => {
+				const vt = Number(b.dataset.vt);
+				const d = $(`[data-dot="${ids[i]}"]`);
+				d.setAttribute('cx', x.toFixed(1));
+				d.setAttribute('cy', vy(vt * Math.tanh((G * s) / vt)).toFixed(1));
+			});
+			const f = $('[data-dot="free"]');
+			f.setAttribute('cx', x.toFixed(1));
+			f.setAttribute('cy', vy(G * s).toFixed(1));
+			f.setAttribute('opacity', G * s <= 32 ? '1' : '0');
+		};
+		choose(cur);
+		draw();
+		loop(root, (dt) => {
+			t += dt;
+			if (t > 4.5) t = 0;
+			if (auto) {
+				since += dt;
+				if (since > 4) {
+					since = 0;
+					choose((cur + 1) % btns.length);
+				}
+			}
+			draw();
+			return true;
+		});
+	}
+</script>

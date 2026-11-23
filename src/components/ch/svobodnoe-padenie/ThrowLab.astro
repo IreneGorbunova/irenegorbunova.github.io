@@ -1,214 +1,441 @@
 ---
 /**
- * «Бросок вверх»: a ball is thrown straight up from the ground with υ0 = 10…30 м/с (g = 9,8 м/с², no air). Axis Oy
- * points up from the point of the throw: υy = υ0 − g t, y = υ0 t − g t²/2. Rise time υ0/g (1,02…3,06 с), the
- * greatest height υ0²/(2g) (5,1…45,9 м), the flight 2υ0/g. Real time.
- * Left: the height column to scale, 0…50 м (4,4 px per metre); the ball (drawn larger) carries its velocity arrow
- * (1,6 px per м/с, gold, the color of velocity in the chapter); a dashed line marks the greatest height.
- * Right: the graphs υy(t) (−30…30 м/с) and y(t) (0…50 м), both over 0…6,5 с, drawn as the ball flies; the faint
- * curve shows the whole flight in advance.
+ * «Бросок по вертикали» (kept from the first version, upgraded 23 Nov 2026): a ball is thrown vertically from the
+ * point O at the height y0 = 0…30 м (step 5) above the ground, with υ0y = −15…30 м/с (step 1; negative: thrown down).
+ * g = 9,8 м/с², no air. Axis Oy up, its origin on the ground: υy = υ0y − g t, y = y0 + υ0y t − g t²/2, ay = −g.
+ * The flight ends on the ground after T = (υ0y + √(υ0y² + 2 g y0))/g, with the speed √(υ0y² + 2 g y0).
+ * Examples: y0 = 0, υ0y = 20 → the top at 2,04 с, 20,4 м; back on the ground at 4,08 с with υy = −20 м/с; at
+ * t = 3 с: y = 15,9 м, υy = −9,4 м/с, Δy = 15,9 м, the path 24,9 м (= 2H − y). y0 = 10, υ0y = ±5 → on the ground at
+ * 2,03 / 1,01 с, both with 14,9 м/с. The largest case, y0 = 30, υ0y = 30: the top 75,9 м, the flight 7,0 с.
+ * Left: the height column to scale (its full height 10…80 м chosen to fit the flight); a small tower of height y0;
+ * the ball (drawn larger) with its velocity (blue, 1,2 px per м/с) and g (red, the same length always).
+ * Right, over one time axis (0 … the flight time, rounded up): y(t) green (a parabola, its vertex marked as the top
+ * point), υy(t) blue (a straight line with the slope −g), ay(t) red (the horizontal line −9,8). Under υy(t) the area
+ * from 0 to the present moment is shaded, gold above the axis (positive), violet below (negative); its algebraic
+ * sum equals Δy = y − y0. The path l is the distance travelled without sign: |Δy| before the top, 2(H − y0) − Δy after.
+ * Faint dashed curves show the whole flight in advance. Real time; «Пауза» and the time slider stop it.
+ * With y0 = 0 a ball thrown down (υ0y ≤ 0) cannot fly: the button is off and a note says so.
  */
 import G7Styles from '../g7/G7Styles.astro';
 
-const GY = 250; // the ground
-const PXM = 4.4;
-const CX = 52;
-// graphs: t from 0 to 6,5 с over 200 px
-const GX0 = 128;
-const GW = 200;
-const V0Y = 62; // υ = 0 line of the first graph (±30 м/с over ±48 px)
-const Y0Y = 232; // y = 0 line of the second graph (50 м over 96 px)
+const GY = 300; // the ground in the column
+const CT = 20; // the top of the column
+const AX = 30; // the height axis
+const BX = 70; // the ball
+// the graphs
+const GX0 = 136;
+const GW = 192;
+const P1 = { top: 14, h: 82 }; // y(t)
+const P2 = { top: 116, h: 104 }; // υy(t), zero in the middle
+const P3 = { top: 240, h: 52 }; // ay(t): +2 … −12 м/с²
+const aY = (a: number) => P3.top + ((2 - a) / 14) * P3.h;
 ---
 
 <G7Styles />
-<figure class="g7 throwup not-content" data-throwup>
+<figure class="g7 g7--wide vthrow not-content" data-vthrow>
 	<div class="g7__grid">
-		<svg class="g7__svg" viewBox="0 0 340 262" role="img" aria-label="Мяч, брошенный вертикально вверх, и графики его скорости и координаты" data-svg>
-			<!-- the height column -->
-			<line class="ln" x1="20" x2="20" y1={GY} y2={GY - 50 * PXM}></line>
-			{[0, 10, 20, 30, 40, 50].map((m) => (
-				<>
-					<line class="ln" x1="20" x2="26" y1={GY - m * PXM} y2={GY - m * PXM} />
-					<text class="t-small t-num" x="29" y={GY - m * PXM + 3.5}>{m}</text>
-				</>
-			))}
-			<text class="t-small" x="8" y={GY - 50 * PXM - 8}>y, м</text>
-			<line class="throwup__ground" x1="0" x2="100" y1={GY + 1.5} y2={GY + 1.5}></line>
-			<line class="throwup__top" data-top x1="34" x2="96"></line>
-			<text class="t-small t-gold" data-toplab x="62"></text>
-			<line class="arrow arrow--gold" data-varrow></line>
-			<path class="head--gold" data-vhead></path>
-			<circle class="throwup__ball" data-ball cx={CX} r="6"></circle>
-			<!-- graph of υy -->
-			<text class="t-small" x={GX0 + 6} y={V0Y - 40}><tspan class="t-i">υ<tspan baseline-shift="sub" font-size="9">y</tspan></tspan>, м/с</text>
-			<line class="ln" x1={GX0} x2={GX0} y1={V0Y - 50} y2={V0Y + 50}></line>
-			<line class="ln" x1={GX0} x2={GX0 + GW + 4} y1={V0Y} y2={V0Y}></line>
-			{[-30, 30].map((v) => <text class="t-small t-num" x={GX0 - 3} y={V0Y - v * 1.6 + 3.5} text-anchor="end">{v > 0 ? v : '−30'}</text>)}
-			<text class="t-small" x={GX0 + GW + 4} y={V0Y - 4} text-anchor="end">t, с</text>
-			<path class="throwup__ghost" data-vghost></path>
-			<path class="throwup__curve" data-vcurve></path>
-			<circle class="throwup__dot" r="3.2" data-vdot></circle>
-			<!-- graph of y -->
-			<text class="t-small" x={GX0 + 6} y={Y0Y - 92}><tspan class="t-i">y</tspan>, м</text>
-			<line class="ln" x1={GX0} x2={GX0} y1={Y0Y} y2={Y0Y - 100}></line>
-			<line class="ln" x1={GX0} x2={GX0 + GW + 4} y1={Y0Y} y2={Y0Y}></line>
-			{[25, 50].map((m) => <text class="t-small t-num" x={GX0 - 3} y={Y0Y - m * 1.92 + 3.5} text-anchor="end">{m}</text>)}
-			{[0, 1, 2, 3, 4, 5, 6].map((s) => (
-				<>
-					<line class="ln" x1={GX0 + (s / 6.5) * GW} x2={GX0 + (s / 6.5) * GW} y1={Y0Y} y2={Y0Y + 4} />
-					<text class="t-small t-num" x={GX0 + (s / 6.5) * GW} y={Y0Y + 14} text-anchor="middle">{s}</text>
-				</>
-			))}
-			<text class="t-small" x={GX0 + GW + 4} y={Y0Y + 14} text-anchor="end">t, с</text>
-			<path class="throwup__ghost" data-yghost></path>
-			<path class="throwup__curve" data-ycurve></path>
-			<circle class="throwup__dot" r="3.2" data-ydot></circle>
+		<svg class="g7__svg" viewBox="0 0 340 322" role="img" aria-label="Мяч, брошенный по вертикали с заданной высоты, и графики его координаты, скорости и ускорения" data-svg>
+			<!-- the column -->
+			<line class="ln" x1={AX} x2={AX} y1={GY} y2={CT}></line>
+			<g data-ticks></g>
+			<text class="vthrow__lab" x="6" y="12"><tspan class="t-i">y</tspan>, м</text>
+			<rect class="vthrow__tower" data-tower x={BX - 30} width="22"></rect>
+			<line class="vthrow__ground" x1={AX - 1} x2="118" y1={GY + 1.5} y2={GY + 1.5}></line>
+			<line class="vthrow__top" data-top x1={AX + 2} x2="116"></line>
+			<line class="arrow arrow--blue" data-varrow x1={BX} x2={BX}></line>
+			<path class="head--blue" data-vhead></path>
+			<line class="arrow arrow--red" data-garrow x1={BX + 13} x2={BX + 13}></line>
+			<path class="head--red" data-ghead></path>
+			<circle class="vthrow__ball" data-ball cx={BX} r="5.5"></circle>
+			<text class="vthrow__lab" x="4" y={GY + 17} data-clock></text>
+
+			<!-- y(t) -->
+			<text class="vthrow__lab t-green" x={GX0 + 5} y={P1.top + 4}><tspan class="t-i">y</tspan>, м</text>
+			<line class="ln" x1={GX0} x2={GX0} y1={P1.top - 4} y2={P1.top + P1.h}></line>
+			<line class="ln" x1={GX0} x2={GX0 + GW + 4} y1={P1.top + P1.h} y2={P1.top + P1.h}></line>
+			<text class="vthrow__num" data-ymax x={GX0 - 3} y={P1.top + 4} text-anchor="end"></text>
+			<text class="vthrow__num" x={GX0 - 3} y={P1.top + P1.h + 4} text-anchor="end">0</text>
+			<path class="vthrow__ghost" data-yghost></path>
+			<path class="vthrow__curve vthrow__curve--y" data-ycurve></path>
+			<g data-vertex>
+				<line class="vthrow__lead" data-lead></line>
+				<circle class="vthrow__vtx" r="3.2" data-vtx></circle>
+				<text class="vthrow__lab vthrow__halo" data-vtxlab text-anchor="middle">верхняя точка</text>
+			</g>
+			<circle class="vthrow__dot vthrow__dot--y" r="3.4" data-ydot></circle>
+
+			<!-- υy(t) with the area -->
+			<text class="vthrow__lab t-blue" x={GX0 + 5} y={P2.top + 4}><tspan class="t-i">υ<tspan baseline-shift="sub" font-size="11.5">y</tspan></tspan>, м/с</text>
+			<line class="ln" x1={GX0} x2={GX0} y1={P2.top - 4} y2={P2.top + P2.h}></line>
+			<line class="ln" x1={GX0} x2={GX0 + GW + 4} y1={P2.top + P2.h / 2} y2={P2.top + P2.h / 2}></line>
+			<text class="vthrow__num" data-vmax x={GX0 - 3} y={P2.top + 4} text-anchor="end"></text>
+			<text class="vthrow__num" data-vmin x={GX0 - 3} y={P2.top + P2.h + 4} text-anchor="end"></text>
+			<text class="vthrow__num" x={GX0 - 3} y={P2.top + P2.h / 2 + 4} text-anchor="end">0</text>
+			<path class="vthrow__area vthrow__area--pos" data-apos></path>
+			<path class="vthrow__area vthrow__area--neg" data-aneg></path>
+			<path class="vthrow__ghost" data-vghost></path>
+			<path class="vthrow__curve vthrow__curve--v" data-vcurve></path>
+			<circle class="vthrow__dot vthrow__dot--v" r="3.4" data-vdot></circle>
+
+			<!-- ay(t) -->
+			<text class="vthrow__lab t-red" x={GX0 + 5} y={P3.top + 4}><tspan class="t-i">a<tspan baseline-shift="sub" font-size="11.5">y</tspan></tspan>, м/с²</text>
+			<line class="ln" x1={GX0} x2={GX0} y1={P3.top - 4} y2={P3.top + P3.h}></line>
+			<line class="ln" x1={GX0} x2={GX0 + GW + 4} y1={aY(0)} y2={aY(0)}></line>
+			<text class="vthrow__num" x={GX0 - 3} y={aY(0) + 4} text-anchor="end">0</text>
+			<text class="vthrow__num" x={GX0 - 3} y={aY(-9.8) + 4} text-anchor="end">−9,8</text>
+			<path class="vthrow__curve vthrow__curve--a" data-acurve></path>
+			<g data-tticks></g>
+			<text class="vthrow__lab" x={GX0 + GW + 4} y={P3.top + P3.h + 28} text-anchor="end"><tspan class="t-i">t</tspan>, с</text>
+			<line class="vthrow__now" data-now y1={P1.top} y2={P3.top + P3.h}></line>
 		</svg>
 		<div class="g7__side">
 			<label class="g7__slider">
-				<span>Начальная скорость <i>υ</i><sub>0</sub></span>
-				<output data-ov></output>
-				<input type="range" min="10" max="30" step="1" value="20" data-v0 aria-label="Начальная скорость, метры в секунду" />
+				<span>Высота точки броска <i>y</i><sub>0</sub></span>
+				<output data-oy0></output>
+				<input type="range" min="0" max="30" step="5" value="0" data-y0 aria-label="Высота точки броска, метры" />
 			</label>
-			<button type="button" class="g7__btn g7__btn--go" data-go>Бросить мяч</button>
+			<label class="g7__slider">
+				<span>Начальная скорость <i>υ</i><sub>0<i>y</i></sub></span>
+				<output data-ov0></output>
+				<input type="range" min="-15" max="30" step="1" value="20" data-v0 aria-label="Проекция начальной скорости, метры в секунду" />
+			</label>
+			<div class="vthrow__btns">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Бросить</button>
+				<button type="button" class="g7__btn" data-pause disabled>Пауза</button>
+			</div>
+			<p class="g7__note" data-note hidden>С высоты 0 бросить мяч вниз нельзя: он уже на земле. Поднимите точку броска или бросьте вверх.</p>
+			<label class="g7__slider">
+				<span>Время <i>t</i></span>
+				<output data-ot></output>
+				<input type="range" min="0" max="4.08" step="0.01" value="0" data-t aria-label="Время от момента броска, секунды" />
+			</label>
 			<ul class="g7__read" aria-live="polite">
-				<li><span>Время <i>t</i></span><b data-t>0 с</b></li>
-				<li><span>Высота <i>y</i></span><b data-y>0 м</b></li>
-				<li><span>Скорость <i>υ<sub>y</sub></i></span><b data-vy></b></li>
-				<li class="is-key"><span>Время подъёма</span><b data-tup></b></li>
-				<li class="is-key"><span>Наибольшая высота</span><b data-h></b></li>
-				<li><span>Время полёта</span><b data-tfl></b></li>
+				<li><span>Координата <i>y</i></span><b data-y></b></li>
+				<li><span>Проекция скорости <i>υ<sub>y</sub></i></span><b data-vy></b></li>
+				<li class="is-warm"><span>Площадь под графиком <i>υ<sub>y</sub></i> = Δ<i>y</i></span><b data-dy></b></li>
+				<li><span>Путь <i>l</i></span><b data-path></b></li>
+				<li><span>Верхняя точка</span><b data-topread></b></li>
+				<li class="is-key"><span>Падение на землю</span><b data-land></b></li>
 			</ul>
 		</div>
 	</div>
 	<figcaption class="g7__caption">
-		Ось <i>Oy</i> направлена вверх, начало — в точке броска; сопротивления воздуха нет. Золотая стрелка — скорость мяча. Высота слева в масштабе, мяч нарисован крупнее; время идёт как в жизни.
+		Ось <i>Oy</i> направлена вверх, начало — на земле; сопротивления воздуха нет. Синяя стрелка — скорость мяча, красная — ускорение <i>g</i>. Площадь под графиком скорости: золотая — положительная, фиолетовая — отрицательная. Высота слева в масштабе, мяч нарисован крупнее; время идёт как в жизни.
 	</figcaption>
 </figure>
 
 <style is:global>
-	.throwup__ground {
+	.vthrow .g7__svg .vthrow__lab,
+	.vthrow .g7__svg .vthrow__num {
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.vthrow .g7__svg .t-green {
+		fill: var(--g7-green);
+	}
+	.vthrow .g7__svg .vthrow__halo {
+		paint-order: stroke;
+		stroke: var(--g7-paper);
+		stroke-width: 3px;
+		fill: var(--g7-green);
+	}
+	.vthrow__ground {
 		stroke: var(--g7-ink);
 		stroke-width: 3;
 	}
-	.throwup__top {
-		stroke: var(--g7-gold);
+	.vthrow__tower {
+		fill: var(--g7-steel-dark);
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.vthrow__top {
+		stroke: var(--g7-green);
 		stroke-width: 1;
 		stroke-dasharray: 4 3;
 	}
-	.throwup__ball {
-		fill: var(--g7-red);
+	.vthrow__ball {
+		fill: hsl(28, 90%, 58%);
 		stroke: var(--g7-ink);
 		stroke-width: 1;
 	}
-	.throwup__ghost {
+	.vthrow__ghost {
 		fill: none;
 		stroke: var(--g7-faint);
 		stroke-width: 1.5;
 		stroke-dasharray: 3 3;
 	}
-	.throwup__curve {
+	.vthrow__curve {
 		fill: none;
-		stroke: var(--g7-blue);
-		stroke-width: 2.2;
+		stroke-width: 2.3;
 	}
-	.throwup__dot {
-		fill: var(--g7-blue);
+	.vthrow__curve--y {
+		stroke: var(--g7-green);
+	}
+	.vthrow__curve--v {
+		stroke: var(--g7-blue);
+	}
+	.vthrow__curve--a {
+		stroke: var(--g7-red);
+	}
+	.vthrow__area--pos {
+		fill: color-mix(in srgb, var(--g7-gold) 45%, transparent);
+	}
+	.vthrow__area--neg {
+		fill: color-mix(in srgb, var(--g7-violet) 45%, transparent);
+	}
+	.vthrow__dot {
 		stroke: var(--g7-paper);
 		stroke-width: 1;
+	}
+	.vthrow__dot--y {
+		fill: var(--g7-green);
+	}
+	.vthrow__dot--v {
+		fill: var(--g7-blue);
+	}
+	.vthrow__vtx {
+		fill: var(--g7-paper);
+		stroke: var(--g7-green);
+		stroke-width: 1.6;
+	}
+	.vthrow__lead {
+		stroke: var(--g7-green);
+		stroke-width: 0.8;
+		stroke-dasharray: 2 2;
+	}
+	.vthrow__now {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+		stroke-dasharray: 2 3;
+	}
+	.vthrow__btns {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.vthrow__btns .g7__btn {
+		flex: 1 1 auto;
 	}
 </style>
 
 <script>
-	import { fmt, loop } from '../g7/kit';
+	import { el, fmt, loop } from '../g7/kit';
 
 	const G = 9.8;
-	const GY = 250;
-	const PXM = 4.4;
-	const CX = 52;
-	const GX0 = 128;
-	const GW = 200;
-	const V0Y = 62;
-	const Y0Y = 232;
-	const tx = (t: number) => GX0 + (t / 6.5) * GW;
-	const vy = (v: number) => V0Y - v * 1.6;
-	const yy = (y: number) => Y0Y - y * 1.92;
-	for (const root of document.querySelectorAll<HTMLElement>('[data-throwup]')) {
+	const GY = 300;
+	const CT = 20;
+	const AX = 30;
+	const BX = 70;
+	const R = 5.5;
+	const KV = 1.2; // px per м/с
+	const GL = 22; // px, the g arrow
+	const GX0 = 136;
+	const GW = 192;
+	const P1 = { top: 14, h: 82 };
+	const P2 = { top: 116, h: 104 };
+	const P3 = { top: 240, h: 52 };
+	const aY = (a: number) => P3.top + ((2 - a) / 14) * P3.h;
+	const HEIGHTS = [10, 20, 30, 40, 50, 60, 80];
+	const SPEEDS = [10, 20, 30, 40];
+	const TIMES = [1, 2, 3, 4, 5, 6, 8];
+	const head = (x: number, tip: number, dir: number, w = 3.6, l = 6.5) => `M${x - w} ${(tip - dir * l).toFixed(1)} L${x} ${tip.toFixed(1)} L${x + w} ${(tip - dir * l).toFixed(1)} Z`;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-vthrow]')) {
 		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const y0In = $<HTMLInputElement>('[data-y0]');
 		const v0In = $<HTMLInputElement>('[data-v0]');
-		let t = -1;
-		const curves = (v0: number, upTo: number) => {
-			const T = (2 * v0) / G;
-			let a = '';
-			let b = '';
-			const n = 60;
+		const tIn = $<HTMLInputElement>('[data-t]');
+		const go = $<HTMLButtonElement>('[data-go]');
+		const pause = $<HTMLButtonElement>('[data-pause]');
+		let y0 = 0;
+		let v0 = 20;
+		let T = 0; // the flight
+		let F = 30; // м, the column
+		let V = 20; // м/с, the speed axis
+		let TA = 5; // с, the time axis
+		let t = 0;
+		let running = false;
+		const colY = (m: number) => GY - (m / F) * (GY - CT);
+		const tx = (s: number) => GX0 + (s / TA) * GW;
+		const yG = (m: number) => P1.top + P1.h - (m / F) * P1.h;
+		const vG = (v: number) => P2.top + P2.h / 2 - (v / V) * (P2.h / 2);
+		const yAt = (s: number) => y0 + v0 * s - (G * s * s) / 2;
+		const vAt = (s: number) => v0 - G * s;
+		const path = (f: (s: number) => number, g: (x: number) => number, upTo: number) => {
+			let d = '';
+			const n = 80;
 			for (let i = 0; i <= n; i++) {
-				const s = (Math.min(upTo, T) * i) / n;
-				a += `${i ? 'L' : 'M'}${tx(s).toFixed(1)} ${vy(v0 - G * s).toFixed(1)} `;
-				b += `${i ? 'L' : 'M'}${tx(s).toFixed(1)} ${yy(v0 * s - (G * s * s) / 2).toFixed(1)} `;
+				const s = (upTo * i) / n;
+				d += `${i ? 'L' : 'M'}${tx(s).toFixed(1)} ${g(f(s)).toFixed(1)} `;
 			}
-			return [a, b];
+			return d;
+		};
+		const setup = () => {
+			y0 = Number(y0In.value);
+			v0 = Number(v0In.value);
+			const ok = !(y0 === 0 && v0 <= 0);
+			T = ok ? (v0 + Math.sqrt(v0 * v0 + 2 * G * y0)) / G : 0;
+			const top = v0 > 0 ? y0 + (v0 * v0) / (2 * G) : y0;
+			F = HEIGHTS.find((h) => h >= top * 1.04) ?? 80;
+			const vland = Math.sqrt(v0 * v0 + 2 * G * y0);
+			V = SPEEDS.find((s) => s >= Math.max(Math.abs(v0), vland) * 1.02) ?? 40;
+			TA = TIMES.find((s) => s >= T * 1.02) ?? 8;
+			t = 0;
+			running = false;
+			go.disabled = !ok;
+			$('[data-note]').hidden = ok;
+			tIn.max = T.toFixed(2);
+			tIn.value = '0';
+			$('[data-oy0]').textContent = `${y0} м`;
+			$('[data-ov0]').textContent = `${v0 > 0 ? '+' : ''}${fmt(v0, 0)} м/с`;
+			// the column ticks and the time ticks
+			const ticks = $('[data-ticks]');
+			ticks.replaceChildren();
+			const step = F <= 20 ? 5 : F <= 40 ? 10 : 20;
+			for (let m = 0; m <= F + 1e-9; m += step) {
+				ticks.append(el('line', { class: 'ln', x1: AX - 4, x2: AX, y1: colY(m), y2: colY(m) }));
+				ticks.append(el('text', { class: 'vthrow__num', x: AX - 6, y: colY(m) + 4, 'text-anchor': 'end' }, String(m)));
+			}
+			const tt = $('[data-tticks]');
+			tt.replaceChildren();
+			for (let s = 0; s <= TA + 1e-9; s += TA > 5 ? 2 : 1) {
+				tt.append(el('line', { class: 'ln', x1: tx(s), x2: tx(s), y1: P3.top + P3.h, y2: P3.top + P3.h + 4 }));
+				tt.append(el('text', { class: 'vthrow__num', x: tx(s), y: P3.top + P3.h + 16, 'text-anchor': 'middle' }, String(s)));
+			}
+			$('[data-ymax]').textContent = String(F);
+			$('[data-vmax]').textContent = String(V);
+			$('[data-vmin]').textContent = `−${V}`;
+			const tower = $('[data-tower]');
+			tower.setAttribute('y', colY(y0).toFixed(1));
+			tower.setAttribute('height', (GY - colY(y0)).toFixed(1));
+			tower.setAttribute('opacity', y0 > 0 ? '1' : '0');
+			$('[data-yghost]').setAttribute('d', T > 0 ? path(yAt, yG, T) : '');
+			$('[data-vghost]').setAttribute('d', T > 0 ? path(vAt, vG, T) : '');
+			$('[data-acurve]').setAttribute('d', T > 0 ? `M${tx(0)} ${aY(-G)} H${tx(T).toFixed(1)}` : '');
+			const tup = v0 / G;
+			const vtx = $('[data-vertex]');
+			if (v0 > 0 && T > 0) {
+				const x = tx(tup);
+				const yv = yG(top);
+				$('[data-vtx]').setAttribute('cx', x.toFixed(1));
+				$('[data-vtx]').setAttribute('cy', yv.toFixed(1));
+				const lab = $('[data-vtxlab]');
+				// the label halfway between the vertex and the t axis, inside the parabola, with a leader to the vertex
+				const ly = Math.max(yv + 20, (yv + P1.top + P1.h) / 2 + 4);
+				lab.setAttribute('x', Math.min(Math.max(x, GX0 + 50), GX0 + GW - 46).toFixed(1));
+				lab.setAttribute('y', ly.toFixed(1));
+				const lead = $('[data-lead]');
+				lead.setAttribute('x1', x.toFixed(1));
+				lead.setAttribute('x2', x.toFixed(1));
+				lead.setAttribute('y1', (yv + 3).toFixed(1));
+				lead.setAttribute('y2', (ly - 11).toFixed(1));
+				vtx.setAttribute('opacity', '1');
+				const tl = $('[data-top]');
+				tl.setAttribute('y1', colY(top).toFixed(1));
+				tl.setAttribute('y2', colY(top).toFixed(1));
+				tl.setAttribute('opacity', '1');
+			} else {
+				vtx.setAttribute('opacity', '0');
+				$('[data-top]').setAttribute('opacity', '0');
+			}
+			draw();
 		};
 		const draw = () => {
-			const v0 = Number(v0In.value);
-			const T = (2 * v0) / G;
-			const H = (v0 * v0) / (2 * G);
 			const s = Math.min(Math.max(0, t), T);
-			const v = t < 0 ? v0 : v0 - G * s;
-			const y = v0 * s - (G * s * s) / 2;
-			$('[data-ov]').textContent = `${v0} м/с`;
-			const [ga, gb] = curves(v0, T);
-			$('[data-vghost]').setAttribute('d', ga);
-			$('[data-yghost]').setAttribute('d', gb);
-			const [ca, cb] = curves(v0, s);
-			$('[data-vcurve]').setAttribute('d', t < 0 ? '' : ca);
-			$('[data-ycurve]').setAttribute('d', t < 0 ? '' : cb);
-			$('[data-vdot]').setAttribute('cx', tx(s).toFixed(1));
-			$('[data-vdot]').setAttribute('cy', vy(v).toFixed(1));
-			$('[data-ydot]').setAttribute('cx', tx(s).toFixed(1));
-			$('[data-ydot]').setAttribute('cy', yy(y).toFixed(1));
-			const by = GY - 6 - y * PXM;
+			const landed = T > 0 && s >= T - 1e-9;
+			const y = landed ? 0 : yAt(s);
+			const v = vAt(s);
+			const H = v0 > 0 ? y0 + (v0 * v0) / (2 * G) : y0;
+			const tup = v0 > 0 ? v0 / G : 0;
+			// the ball: drawn larger, so it stands on the ground with its center R above it
+			const by = Math.min(colY(y), GY - R);
 			$('[data-ball]').setAttribute('cy', by.toFixed(1));
-			// the velocity arrow, 1,6 px per м/с, from the edge of the ball
-			const landed = t >= T;
-			const L = Math.abs(v) * 1.6;
-			const dir = v >= 0 ? -1 : 1;
-			const show = !landed && L > 3;
-			const y1 = by + dir * 7;
-			const y2 = y1 + dir * L;
-			const ar = $('[data-varrow]');
-			ar.setAttribute('x1', String(CX));
-			ar.setAttribute('x2', String(CX));
-			ar.setAttribute('y1', y1.toFixed(1));
-			ar.setAttribute('y2', (y2 - dir * 4).toFixed(1));
-			ar.setAttribute('opacity', show ? '1' : '0');
-			$('[data-vhead]').setAttribute('d', show ? `M${CX - 5} ${(y2 - dir * 7).toFixed(1)} L${CX} ${y2.toFixed(1)} L${CX + 5} ${(y2 - dir * 7).toFixed(1)} Z` : '');
-			const top = GY - H * PXM;
-			$('[data-top]').setAttribute('y1', top.toFixed(1));
-			$('[data-top]').setAttribute('y2', top.toFixed(1));
-			$('[data-toplab]').setAttribute('y', (top - 4).toFixed(1));
-			$('[data-toplab]').textContent = `H = ${fmt(H, 1)} м`;
-			$('[data-t]').textContent = `${fmt(s, 2)} с`;
-			$('[data-y]').textContent = `${fmt(Math.max(0, y), 1)} м`;
-			$('[data-vy]').textContent = `${fmt(landed ? -v0 : v, 1)} м/с`;
-			$('[data-tup]').textContent = `${fmt(v0 / G, 2)} с`;
-			$('[data-h]').textContent = `${fmt(H, 1)} м`;
-			$('[data-tfl]').textContent = `${fmt(T, 2)} с`;
+			const L = Math.abs(v) * KV;
+			const va = $('[data-varrow]');
+			if (T > 0 && !landed && L > 4) {
+				const dir = v > 0 ? -1 : 1;
+				const y1 = by + dir * R;
+				const tip = y1 + dir * L;
+				va.setAttribute('y1', y1.toFixed(1));
+				va.setAttribute('y2', (tip - dir * 5).toFixed(1));
+				va.setAttribute('opacity', '1');
+				$('[data-vhead]').setAttribute('d', head(BX, tip, dir));
+			} else {
+				va.setAttribute('opacity', '0');
+				$('[data-vhead]').setAttribute('d', '');
+			}
+			const ga = $('[data-garrow]');
+			if (T > 0 && !landed) {
+				ga.setAttribute('y1', (by - 4).toFixed(1));
+				ga.setAttribute('y2', (by - 4 + GL - 5).toFixed(1));
+				ga.setAttribute('opacity', '1');
+				$('[data-ghead]').setAttribute('d', head(BX + 13, by - 4 + GL, 1, 3.3, 6));
+			} else {
+				ga.setAttribute('opacity', '0');
+				$('[data-ghead]').setAttribute('d', '');
+			}
+			// the curves up to now, the dots, the line of the present moment
+			$('[data-ycurve]').setAttribute('d', T > 0 && s > 0 ? path(yAt, yG, s) : '');
+			$('[data-vcurve]').setAttribute('d', T > 0 && s > 0 ? path(vAt, vG, s) : '');
+			for (const [sel, yy] of [
+				['[data-ydot]', yG(y)],
+				['[data-vdot]', vG(v)],
+			] as const) {
+				$(sel).setAttribute('cx', tx(s).toFixed(1));
+				$(sel).setAttribute('cy', yy.toFixed(1));
+				$(sel).setAttribute('opacity', T > 0 ? '1' : '0');
+			}
+			$('[data-now]').setAttribute('x1', tx(s).toFixed(1));
+			$('[data-now]').setAttribute('x2', tx(s).toFixed(1));
+			// the area under υy(t): positive part up to min(s, tup), negative part after tup
+			const z = vG(0);
+			const sp = v0 > 0 ? Math.min(s, tup) : 0;
+			$('[data-apos]').setAttribute('d', sp > 0 ? `M${tx(0)} ${z} L${tx(0)} ${vG(v0).toFixed(1)} L${tx(sp).toFixed(1)} ${vG(vAt(sp)).toFixed(1)} L${tx(sp).toFixed(1)} ${z} Z` : '');
+			const sn = v0 > 0 ? tup : 0;
+			$('[data-aneg]').setAttribute('d', s > sn ? `M${tx(sn).toFixed(1)} ${z} L${tx(sn).toFixed(1)} ${vG(vAt(sn)).toFixed(1)} L${tx(s).toFixed(1)} ${vG(v).toFixed(1)} L${tx(s).toFixed(1)} ${z} Z` : '');
+			// readouts
+			const dy = y - y0;
+			const l = s <= tup ? Math.abs(dy) : 2 * (H - y0) - dy;
+			$('[data-clock]').textContent = `t = ${fmt(s, 2)} с`;
+			$('[data-ot]').textContent = `${fmt(s, 2)} с`;
+			if (document.activeElement !== tIn) tIn.value = s.toFixed(2);
+			$('[data-y]').textContent = `${fmt(y, 1)} м`;
+			$('[data-vy]').textContent = T > 0 ? `${fmt(v, 1)} м/с` : '—';
+			$('[data-dy]').textContent = `${fmt(dy, 1)} м`;
+			$('[data-path]').textContent = `${fmt(l, 1)} м`;
+			$('[data-topread]').textContent = v0 > 0 && T > 0 && s >= tup ? `${fmt(tup, 2)} с; ${fmt(H, 1)} м` : '—';
+			$('[data-land]').textContent = landed ? `${fmt(T, 2)} с; ${fmt(Math.abs(v), 1)} м/с` : '—';
+			pause.disabled = T <= 0 || s <= 0 || landed;
+			pause.textContent = running || s <= 0 || landed ? 'Пауза' : 'Продолжить';
 		};
 		const wake = loop(root, (d) => {
-			if (t < 0) return false;
+			if (!running) return false;
 			t += d;
+			if (t >= T) {
+				t = T;
+				running = false;
+			}
 			draw();
-			return t < (2 * Number(v0In.value)) / G;
+			return running;
 		});
-		$('[data-go]').addEventListener('click', () => {
+		go.addEventListener('click', () => {
 			t = 0;
+			running = T > 0;
+			draw();
 			wake();
 		});
-		v0In.addEventListener('input', () => {
-			t = -1;
+		pause.addEventListener('click', () => {
+			running = !running;
+			draw();
+			if (running) wake();
+		});
+		tIn.addEventListener('input', () => {
+			running = false;
+			// the slider's last step is the end of the flight (its max is rounded to 0,01 с)
+			t = Number(tIn.value) >= Number(tIn.max) - 1e-9 ? T : Number(tIn.value);
 			draw();
 		});
-		draw();
+		y0In.addEventListener('input', setup);
+		v0In.addEventListener('input', setup);
+		setup();
 	}
 </script>

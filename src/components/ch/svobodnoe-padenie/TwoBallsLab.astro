@@ -1,0 +1,462 @@
+---
+/**
+ * Model «Два падающих тела». Two balls move along one vertical (drawn 25 px apart so that both are seen; in the
+ * world they are on one line). Ball 1 (white) starts at the height H = 10…40 м (step 5) with υ01 = −10…10 м/с (up
+ * positive); ball 2 (orange) starts from the ground with υ02 = 5…30 м/с up (a ball lying on the ground, υ02 = 0, is held
+ * by the ground and does not fall freely, so the slider starts at 5). g = 9,8 м/с², no air, real time.
+ *   y1 = H + υ01 t − g t²/2, y2 = υ02 t − g t²/2; the distance d = y1 − y2 = H − (υ02 − υ01) t is a straight line:
+ *   relative to each other the balls move uniformly, υ2y − υ1y = υ02 − υ01 at every moment.
+ *   They meet at t = H/(υ02 − υ01) if ball 2 is still in the air then (it is always below ball 1 before the meeting,
+ *   so ball 1 cannot land first); otherwise ball 2 falls back to the ground first and the run ends there.
+ *   Defaults H = 30, υ01 = 0, υ02 = 15: the meeting at 2,0 с at 10,4 м, υ1y = −19,6 м/с, υ2y = −4,6 м/с, υ2y − υ1y
+ *   = 15 м/с.
+ * «Система отсчёта: Земля / мяч 1». In the frame of ball 1 the camera moves with it: ball 1 stays where it started,
+ * ball 2 comes straight at it with the constant velocity υ02 − υ01 (a blue arrow of constant length), and the ground,
+ * the house, the tree and the height scale rise with the acceleration g.
+ * Strobe copies every 0,25 с in the chosen frame: spaced unevenly in the frame of the Earth, evenly in the frame of
+ * ball 1. Ball 1 leaves the edge of the flat roof of a building whose height is H (to scale, 6 м wide; it changes with H).
+ * The label of the frame sits on its own plate, so the rising scale numbers pass under it. Scale: the scene 1 px = 1/k м with k chosen so that the whole flight fits (the scale says it); the balls are
+ * drawn larger than to scale. Velocity arrows 1,6 px per м/с.
+ * Graph: d(t) (gold, a straight line) and, in the frame of the Earth, y1(t) and y2(t) (green parabolas, a dot of the
+ * ball's color at their ends); the parabolas cross at the meeting, where d(t) reaches 0.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const SX0 = 4; // the scene
+const SW = 160;
+const GY = 284; // the ground at t = 0
+const CT = 30;
+const GX0 = 196; // the graph
+const GW = 132;
+const GT = 18;
+const GB = 284;
+const CLIP = `twob-clip-${Math.random().toString(36).slice(2, 8)}`; // a unique id per instance
+---
+
+<G7Styles />
+<figure class="g7 g7--wide twob not-content" data-twob>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 320" role="img" aria-label="Два мяча на одной вертикали: верхний падает, нижний брошен ему навстречу. В системе отсчёта верхнего мяча нижний летит к нему равномерно, а земля поднимается с ускорением" data-svg>
+			<defs>
+				<clipPath id={CLIP}><rect x={SX0} y="0" width={SW} height={GB + 2}></rect></clipPath>
+			</defs>
+			<g clip-path={`url(#${CLIP})`}>
+				<rect class="twob__sky" x={SX0} y="0" width={SW} height={GB + 2}></rect>
+				<g data-world>
+					<!-- the world in metres: y up from the ground, drawn by a transform -->
+					<g data-house></g>
+				</g>
+				<g data-ghosts></g>
+				<line class="arrow arrow--blue" data-va="1"></line>
+				<path class="head--blue" data-vh="1"></path>
+				<line class="arrow arrow--blue" data-va="2"></line>
+				<path class="head--blue" data-vh="2"></path>
+				<circle class="twob__ball twob__ball--1" r="5" data-b="1"></circle>
+				<circle class="twob__ball twob__ball--2" r="5" data-b="2"></circle>
+				<rect class="twob__plate" x={SX0} y="0" width={SW} height="20"></rect>
+				<text class="twob__lab" x={SX0 + SW - 4} y="14" text-anchor="end" data-frame>система отсчёта: Земля</text>
+			</g>
+			<text class="twob__lab" x={SX0 + 2} y={GB + 18} data-clock></text>
+			<!-- the graph -->
+			<text class="twob__lab" x={GX0 + 4} y={GT - 4}><tspan class="t-i">y</tspan>, <tspan class="t-i">d</tspan>, м</text>
+			<line class="ln" x1={GX0} x2={GX0} y1={GT} y2={GB}></line>
+			<line class="ln" x1={GX0} x2={GX0 + GW + 4} y1={GB} y2={GB}></line>
+			<g data-gticks></g>
+			<text class="twob__lab" x={GX0 + GW + 4} y={GB + 30} text-anchor="end"><tspan class="t-i">t</tspan>, с</text>
+			<path class="twob__ghost" data-g1></path>
+			<path class="twob__ghost" data-g2></path>
+			<path class="twob__ghost twob__ghost--d" data-gd></path>
+			<path class="twob__y" data-c1></path>
+			<path class="twob__y" data-c2></path>
+			<path class="twob__d" data-cd></path>
+			<circle class="twob__ball twob__ball--1" r="3.4" data-p1></circle>
+			<circle class="twob__ball twob__ball--2" r="3.4" data-p2></circle>
+			<circle class="twob__dd" r="3.4" data-pd></circle>
+			<text class="twob__lab twob__gold twob__halo" data-dlab>d</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row">
+				<span class="g7__label">Система отсчёта</span>
+				<div class="g7__seg" data-frameseg>
+					<button type="button" class="g7__btn" aria-pressed="true" data-f="earth">Земля</button>
+					<button type="button" class="g7__btn" aria-pressed="false" data-f="ball">мяч 1</button>
+				</div>
+			</div>
+			<label class="g7__slider">
+				<span>Высота мяча 1 <i>H</i></span>
+				<output data-oh></output>
+				<input type="range" min="10" max="40" step="5" value="30" data-h aria-label="Начальная высота мяча 1, метры" />
+			</label>
+			<label class="g7__slider">
+				<span>Скорость мяча 1 <i>υ</i><sub>01</sub></span>
+				<output data-ov1></output>
+				<input type="range" min="-10" max="10" step="1" value="0" data-v1 aria-label="Проекция начальной скорости мяча 1, метры в секунду" />
+			</label>
+			<label class="g7__slider">
+				<span>Скорость мяча 2 <i>υ</i><sub>02</sub></span>
+				<output data-ov2></output>
+				<input type="range" min="5" max="30" step="1" value="15" data-v2 aria-label="Проекция начальной скорости мяча 2, метры в секунду" />
+			</label>
+			<div class="twob__btns">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Пуск</button>
+				<button type="button" class="g7__btn" data-pause disabled>Пауза</button>
+			</div>
+			<label class="g7__slider">
+				<span>Время <i>t</i></span>
+				<output data-ot></output>
+				<input type="range" min="0" max="2" step="0.01" value="0" data-t aria-label="Время, секунды" />
+			</label>
+			<ul class="g7__read" aria-live="polite">
+				<li><span>Мяч 1: <i>y</i><sub>1</sub>; <i>υ</i><sub>1<i>y</i></sub></span><b data-r1></b></li>
+				<li><span>Мяч 2: <i>y</i><sub>2</sub>; <i>υ</i><sub>2<i>y</i></sub></span><b data-r2></b></li>
+				<li class="is-warm"><span>Расстояние <i>d</i></span><b data-rd></b></li>
+				<li class="is-key"><span><i>υ</i><sub>2<i>y</i></sub> − <i>υ</i><sub>1<i>y</i></sub></span><b data-rr></b></li>
+			</ul>
+			<p class="g7__msg" data-msg hidden></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Мяч 1 (белый) отпускают или бросают с высоты <i>H</i>, мяч 2 (оранжевый) в тот же момент бросают с земли вверх; сопротивления воздуха нет. Мячи летят по одной вертикали, на рисунке их раздвинули. Синие стрелки — скорости в выбранной системе отсчёта, бледные копии — положения через каждые 0,25&nbsp;с. Время идёт как в жизни.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.twob .g7__svg .twob__lab {
+		font-size: 12.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.twob .g7__svg .twob__halo {
+		paint-order: stroke;
+		stroke: var(--g7-paper);
+		stroke-width: 3px;
+	}
+	.twob .g7__svg .twob__gold {
+		fill: var(--g7-gold);
+		font-weight: 700;
+		font-style: italic;
+		font-family: var(--ig-font-math);
+	}
+	.twob__sky {
+		fill: var(--g7-sky);
+	}
+	.twob__ground {
+		fill: var(--g7-ground);
+	}
+	.twob__grass {
+		stroke: hsl(120, 30%, 40%);
+		stroke-width: 2;
+	}
+	.twob__wall {
+		fill: color-mix(in oklab, var(--ig-v) 22%, var(--sl-color-gray-5));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.6;
+	}
+	.twob__win {
+		fill: color-mix(in oklab, var(--ig-vx) 30%, var(--sl-color-bg));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	.twob__plate {
+		fill: var(--g7-sky);
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.6;
+	}
+	.twob__door {
+		fill: color-mix(in oklab, var(--ig-v) 45%, var(--sl-color-gray-5));
+	}
+	.twob__roof {
+		fill: var(--sl-color-gray-4);
+	}
+	.twob__trunk {
+		fill: var(--g7-wood-dark);
+	}
+	.twob__crown {
+		fill: hsl(130, 30%, 38%);
+	}
+	.twob__scale {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.twob .g7__svg .twob__tick {
+		font-size: 12px;
+		fill: var(--sl-color-gray-2);
+		paint-order: stroke;
+		stroke: var(--g7-sky);
+		stroke-width: 3px;
+	}
+	.twob__ball {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.9;
+	}
+	.twob__ball--1 {
+		fill: hsl(0, 0%, 95%);
+	}
+	.twob__ball--2 {
+		fill: hsl(28, 90%, 58%);
+	}
+	.twob__copy {
+		opacity: 0.4;
+	}
+	.twob__ghost {
+		fill: none;
+		stroke: var(--g7-faint);
+		stroke-width: 1.3;
+		stroke-dasharray: 3 3;
+	}
+	.twob__y {
+		fill: none;
+		stroke: var(--g7-green);
+		stroke-width: 2.2;
+	}
+	.twob__d {
+		fill: none;
+		stroke: var(--g7-gold);
+		stroke-width: 2.6;
+	}
+	.twob__dd {
+		fill: var(--g7-gold);
+		stroke: var(--g7-paper);
+		stroke-width: 1;
+	}
+	.twob__btns {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.twob__btns .g7__btn {
+		flex: 1 1 auto;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop, segment } from '../g7/kit';
+
+	const G = 9.8;
+	const SX0 = 4;
+	const SW = 160;
+	const GY = 284;
+	const CT = 30;
+	const GX0 = 196;
+	const GW = 132;
+	const GT = 18;
+	const GB = 284;
+	const X1 = 98; // ball 1 on screen
+	const X2 = 123; // ball 2
+	const R = 5;
+	const KV = 1.6; // px per м/с
+	const HEIGHTS = [20, 30, 40, 50];
+	const head = (x: number, tip: number, dir: number, w = 3.4, l = 6) => `M${x - w} ${(tip - dir * l).toFixed(1)} L${x} ${tip.toFixed(1)} L${x + w} ${(tip - dir * l).toFixed(1)} Z`;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-twob]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const hIn = $<HTMLInputElement>('[data-h]');
+		const v1In = $<HTMLInputElement>('[data-v1]');
+		const v2In = $<HTMLInputElement>('[data-v2]');
+		const tIn = $<HTMLInputElement>('[data-t]');
+		const go = $<HTMLButtonElement>('[data-go]');
+		const pause = $<HTMLButtonElement>('[data-pause]');
+		let H = 30;
+		let v1 = 0;
+		let v2 = 15;
+		let F = 40; // м over the scene
+		let k = 6.65; // px per м
+		let END = 2; // the run ends: the meeting or ball 2 back on the ground
+		let meet = true;
+		let frame: 'earth' | 'ball' = 'earth';
+		let t = 0;
+		let running = false;
+		const y1 = (s: number) => H + v1 * s - (G * s * s) / 2;
+		const y2 = (s: number) => v2 * s - (G * s * s) / 2;
+		// the screen y of a world height y at time s: the Earth frame, or the frame of ball 1 (it stays at its start)
+		const sy = (y: number, s: number) => (frame === 'earth' ? GY - y * k : GY - H * k - (y - y1(s)) * k);
+		const gx = (s: number) => GX0 + (s / END) * GW;
+		const gy = (m: number) => GB - (m / F) * (GB - GT);
+		const curve = (f: (s: number) => number, upTo: number) => {
+			let d = '';
+			for (let i = 0; i <= 60; i++) {
+				const s = (upTo * i) / 60;
+				d += `${i ? 'L' : 'M'}${gx(s).toFixed(1)} ${gy(f(s)).toFixed(1)} `;
+			}
+			return d;
+		};
+		const house = $('[data-house]');
+		const world = () => {
+			// the background in world metres; redrawn when the scale changes
+			house.replaceChildren();
+			const X = (m: number) => SX0 + 6 + m * k; // horizontal metres, same scale
+			const Y = (m: number) => GY - m * k;
+			// the building ball 1 is released from: 6 м wide, its flat roof exactly at the height H, its right wall 7 px left of
+			// the ball (both to scale vertically; the building moves with the Earth in the frame of ball 1)
+			const RW = X1 - 7;
+			const LW = RW - 6 * k;
+			house.append(el('rect', { class: 'twob__wall', x: LW, y: Y(H), width: 6 * k, height: H * k }));
+			house.append(el('rect', { class: 'twob__roof', x: LW - 0.2 * k, y: Y(H), width: 6.2 * k, height: Math.max(2, 0.4 * k) }));
+			for (let f = 0; f * 3.2 + 2.4 < H - 0.4; f++) for (const wx of [0.9, 3.6]) house.append(el('rect', { class: 'twob__win', x: LW + wx * k, y: Y(f * 3.2 + 2.4), width: 1.5 * k, height: 1.5 * k }));
+			house.append(el('rect', { class: 'twob__door', x: LW + 2.2 * k, y: Y(2.2), width: 1.6 * k, height: 2.2 * k }));
+			house.append(el('rect', { class: 'twob__trunk', x: X(20.6), y: Y(3), width: Math.max(2, 0.5 * k), height: 3 * k }));
+			house.append(el('circle', { class: 'twob__crown', cx: X(20.85), cy: Y(4.6), r: 2.4 * k }));
+			house.append(el('rect', { class: 'twob__ground', x: SX0, y: GY, width: SW, height: 400 }));
+			house.append(el('line', { class: 'twob__grass', x1: SX0, x2: SX0 + SW, y1: GY + 1, y2: GY + 1 }));
+			// the height scale of the Earth (it moves with the Earth)
+			house.append(el('line', { class: 'twob__scale', x1: SX0 + SW - 10, x2: SX0 + SW - 10, y1: GY, y2: Y(F) }));
+			const step = F <= 30 ? 5 : 10;
+			for (let m = 0; m <= F; m += step) {
+				house.append(el('line', { class: 'twob__scale', x1: SX0 + SW - 14, x2: SX0 + SW - 10, y1: Y(m), y2: Y(m) }));
+				house.append(el('text', { class: 'twob__tick', x: SX0 + SW - 17, y: Y(m) + 4, 'text-anchor': 'end' }, `${m}`));
+			}
+		};
+		const setup = () => {
+			H = Number(hIn.value);
+			v1 = Number(v1In.value);
+			v2 = Number(v2In.value);
+			const rel = v2 - v1;
+			const tland2 = (2 * v2) / G;
+			const tm = rel > 0 ? H / rel : Infinity;
+			meet = tm <= tland2 + 1e-9; // a tie: they meet on the ground as ball 2 lands
+			END = meet ? tm : tland2;
+			const top = Math.max(H + (v1 > 0 ? (v1 * v1) / (2 * G) : 0), (v2 * v2) / (2 * G));
+			F = HEIGHTS.find((h) => h >= top * 1.03) ?? 50;
+			k = (GY - CT) / F;
+			$('[data-oh]').textContent = `${H} м`;
+			$('[data-ov1]').textContent = `${v1 > 0 ? '+' : ''}${fmt(v1, 0)} м/с`;
+			$('[data-ov2]').textContent = `+${v2} м/с`;
+			tIn.max = END.toFixed(2);
+			t = 0;
+			running = false;
+			world();
+			const gt = $('[data-gticks]');
+			gt.replaceChildren();
+			const ts = END > 4 ? 2 : END > 2 ? 1 : 0.5;
+			for (let s = 0; s <= END + 1e-9; s += ts) {
+				gt.append(el('line', { class: 'ln', x1: gx(s), x2: gx(s), y1: GB, y2: GB + 4 }));
+				gt.append(el('text', { class: 'twob__lab', x: gx(s), y: GB + 16, 'text-anchor': 'middle' }, fmt(s, ts < 1 ? 1 : 0)));
+			}
+			for (const m of [0, F / 2, F]) {
+				gt.append(el('line', { class: 'ln', x1: GX0 - 4, x2: GX0, y1: gy(m), y2: gy(m) }));
+				gt.append(el('text', { class: 'twob__lab', x: GX0 - 6, y: gy(m) + 4, 'text-anchor': 'end' }, `${m}`));
+			}
+			draw();
+		};
+		const draw = () => {
+			const s = Math.min(Math.max(0, t), END);
+			const a = y1(s);
+			const b = Math.max(0, y2(s));
+			const u1 = v1 - G * s;
+			const u2 = v2 - G * s;
+			// the world moves in the frame of ball 1: shift the background by the fall of ball 1 so far
+			const shift = frame === 'earth' ? 0 : (H - a) * k;
+			$('[data-world]').setAttribute('transform', `translate(0 ${(-shift).toFixed(1)})`);
+			$('[data-frame]').textContent = frame === 'earth' ? 'система отсчёта: Земля' : 'система отсчёта: мяч 1';
+			const c1 = sy(a, s);
+			const c2 = Math.min(sy(b, s), sy(0, s) - R);
+			$('[data-b="1"]').setAttribute('cx', String(X1));
+			$('[data-b="1"]').setAttribute('cy', c1.toFixed(1));
+			$('[data-b="2"]').setAttribute('cx', String(X2));
+			$('[data-b="2"]').setAttribute('cy', c2.toFixed(1));
+			// strobe copies every 0,25 с in this frame
+			const gh = $('[data-ghosts]');
+			gh.replaceChildren();
+			for (let i = 0; i * 0.25 < s - 1e-6; i++) {
+				const ti = i * 0.25;
+				gh.append(el('circle', { class: 'twob__ball twob__ball--1 twob__copy', cx: X1, cy: (frame === 'earth' ? GY - y1(ti) * k : GY - H * k).toFixed(1), r: R }));
+				const p2 = frame === 'earth' ? GY - y2(ti) * k : GY - H * k + (y1(ti) - y2(ti)) * k;
+				gh.append(el('circle', { class: 'twob__ball twob__ball--2 twob__copy', cx: X2, cy: p2.toFixed(1), r: R }));
+			}
+			// velocity arrows in this frame
+			const w1 = frame === 'earth' ? u1 : 0;
+			const w2 = frame === 'earth' ? u2 : u2 - u1;
+			for (const [n, x, c, w] of [
+				['1', X1, c1, w1],
+				['2', X2, c2, w2],
+			] as const) {
+				const L = Math.abs(w) * KV;
+				const va = $(`[data-va="${n}"]`);
+				if (L > 4) {
+					const dir = w > 0 ? -1 : 1;
+					const yA = c + dir * R;
+					const tip = yA + dir * L;
+					va.setAttribute('x1', String(x + 9));
+					va.setAttribute('x2', String(x + 9));
+					va.setAttribute('y1', yA.toFixed(1));
+					va.setAttribute('y2', (tip - dir * 5).toFixed(1));
+					va.setAttribute('opacity', '1');
+					$(`[data-vh="${n}"]`).setAttribute('d', head(x + 9, tip, dir));
+				} else {
+					va.setAttribute('opacity', '0');
+					$(`[data-vh="${n}"]`).setAttribute('d', '');
+				}
+			}
+			// the graph
+			const d = (q: number) => y1(q) - y2(q);
+			const earth = frame === 'earth';
+			$('[data-g1]').setAttribute('d', earth ? curve(y1, END) : '');
+			$('[data-g2]').setAttribute('d', earth ? curve(y2, END) : '');
+			$('[data-gd]').setAttribute('d', curve(d, END));
+			$('[data-c1]').setAttribute('d', earth && s > 0 ? curve(y1, s) : '');
+			$('[data-c2]').setAttribute('d', earth && s > 0 ? curve(y2, s) : '');
+			$('[data-cd]').setAttribute('d', s > 0 ? curve(d, s) : '');
+			for (const [sel, v, on] of [
+				['[data-p1]', a, earth],
+				['[data-p2]', b, earth],
+				['[data-pd]', d(s), true],
+			] as const) {
+				$(sel).setAttribute('cx', gx(s).toFixed(1));
+				$(sel).setAttribute('cy', gy(v).toFixed(1));
+				$(sel).setAttribute('opacity', on ? '1' : '0');
+			}
+			const dl = $('[data-dlab]');
+			dl.setAttribute('x', (gx(s) + 6).toFixed(1));
+			dl.setAttribute('y', (gy(d(s)) - 6).toFixed(1));
+			// readouts
+			$('[data-clock]').textContent = `t = ${fmt(s, 2)} с`;
+			$('[data-ot]').textContent = `${fmt(s, 2)} с`;
+			if (document.activeElement !== tIn) tIn.value = s.toFixed(2);
+			$('[data-r1]').textContent = `${fmt(a, 1)} м; ${fmt(u1, 1)} м/с`;
+			$('[data-r2]').textContent = `${fmt(b, 1)} м; ${fmt(u2, 1)} м/с`;
+			$('[data-rd]').textContent = `${fmt(Math.max(0, d(s)), 1)} м`;
+			$('[data-rr]').textContent = `${fmt(u2 - u1, 1)} м/с`;
+			const done = s >= END - 1e-9;
+			const msg = $<HTMLElement>('[data-msg]');
+			msg.hidden = !done;
+			msg.textContent = !done
+				? ''
+				: meet
+					? `Мячи встретились через ${fmt(END, 2)} с на высоте ${fmt(a, 1)} м.`
+					: `Мяч 2 упал обратно на землю через ${fmt(END, 2)} с, раньше, чем мячи встретились.`;
+			pause.disabled = s <= 0 || done;
+			pause.textContent = running || s <= 0 || done ? 'Пауза' : 'Продолжить';
+		};
+		const wake = loop(root, (dt) => {
+			if (!running) return false;
+			t += dt;
+			if (t >= END) {
+				t = END;
+				running = false;
+			}
+			draw();
+			return running;
+		});
+		go.addEventListener('click', () => {
+			t = 0;
+			running = true;
+			draw();
+			wake();
+		});
+		pause.addEventListener('click', () => {
+			running = !running;
+			draw();
+			if (running) wake();
+		});
+		tIn.addEventListener('input', () => {
+			running = false;
+			// the slider's last step is the end of the flight (its max is rounded to 0,01 с)
+			t = Number(tIn.value) >= Number(tIn.max) - 1e-9 ? END : Number(tIn.value);
+			draw();
+		});
+		segment($('[data-frameseg]'), (b) => {
+			frame = b.dataset.f as 'earth' | 'ball';
+			draw();
+		});
+		for (const i of [hIn, v1In, v2In]) i.addEventListener('input', setup);
+		setup();
+	}
+</script>
