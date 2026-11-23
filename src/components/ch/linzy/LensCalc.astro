@@ -1,0 +1,473 @@
+---
+/**
+ * The thin-lens formula at work: a converging lens, a draggable object, the ray parallel to the axis and the ray
+ * through the optical centre, and under the drawing the calculation 1/f = 1/F − 1/d → f and Γ, done with the same
+ * whole numbers the pupil set. d and F move in steps of 1 cm, so the fractions are exact.
+ * Equal scales on both axes (8 px per centimetre); the ruler marks distances from the lens.
+ */
+import LzStyles from './LzStyles.astro';
+import { makeView, X, Y } from './optics';
+
+const V = makeView(-36, 64, -18, 10, 8);
+const uid = `lzc-${Math.random().toString(36).slice(2, 8)}`;
+const y0 = Y(V, 0);
+const ticks = Array.from({ length: 99 }, (_, i) => i - 35);
+---
+
+<LzStyles />
+<figure class="lz lzc not-content" data-lens-calc>
+	<svg
+		class="lz__svg"
+		viewBox={`0 0 ${V.w} ${V.h}`}
+		role="group"
+		aria-label="Собирающая линза, предмет, два луча и изображение; под рисунком — расчёт по формуле тонкой линзы"
+	>
+		<defs>
+			<clipPath id={`${uid}-clip`}>
+				<rect x="0" y="0" width={V.w} height={V.h}></rect>
+			</clipPath>
+		</defs>
+		<g class="lz-ruler">
+			{
+				ticks.map((t) => (
+					<line
+						class={t % 5 === 0 ? 'is-major' : undefined}
+						x1={X(V, t)}
+						x2={X(V, t)}
+						y1={y0 - (t % 5 === 0 ? 5 : 2.5)}
+						y2={y0 + (t % 5 === 0 ? 5 : 2.5)}
+					/>
+				))
+			}
+		</g>
+		<g class="lzc__nums">
+			{
+				[-30, -20, -10, 10, 20, 30, 40, 50, 60].map((t) => (
+					<text class="lz-t" x={X(V, t)} y={y0} text-anchor="middle" data-num>
+						{Math.abs(t)}
+					</text>
+				))
+			}
+		</g>
+		<line class="lz-axis" x1="0" y1={y0} x2={V.w} y2={y0}></line>
+		<line class="lz-plane" x1={X(V, 0)} y1="0" x2={X(V, 0)} y2={V.h}></line>
+		<path class="lz-sym" data-lens></path>
+
+		<g clip-path={`url(#${uid}-clip)`}>
+			{
+				[2, 1].map((n) => (
+					<g class={`lz-ray lz-ray--${n}`} data-ray={n}>
+						<path class="lz-virt" />
+						<path class="lz-base" />
+						<path class="lz-flow" />
+					</g>
+				))
+			}
+			<g class="lz-arrow lz-arrow--image" data-image>
+				<line></line>
+				<polygon></polygon>
+			</g>
+		</g>
+
+		{
+			[-2, -1, 1, 2].map((k) => (
+				<g data-focus={k}>
+					<circle class={`lz-focus ${Math.abs(k) === 2 ? 'lz-focus--2' : ''}`} r="4.5" />
+					<text class="lz-t lz-t--math" text-anchor="middle" data-flabel>
+						{Math.abs(k) === 2 && <tspan class="lz-t__num">2</tspan>}F
+					</text>
+				</g>
+			))
+		}
+
+		<g
+			class="lz-arrow lz-arrow--object lzc__object"
+			data-object
+			tabindex="0"
+			role="slider"
+			aria-valuemin="2"
+			aria-valuemax="34"
+			aria-label="Предмет. Стрелки влево и вправо — двигать"
+		>
+			<line></line>
+			<polygon></polygon>
+			<line class="lzc__grab" data-grab></line>
+		</g>
+	</svg>
+
+	<div class="lz-controls">
+		<label class="lz-slider">
+			<span>Расстояние от предмета до линзы <i>d</i></span>
+			<output data-d-out>15 см</output>
+			<input type="range" min="2" max="34" step="1" value="15" data-d />
+		</label>
+		<label class="lz-slider">
+			<span>Фокусное расстояние <i>F</i></span>
+			<output data-f-out>10 см</output>
+			<input type="range" min="5" max="15" step="1" value="10" data-f />
+		</label>
+	</div>
+
+	<div class="lzc__calc">
+		<div class="lzc__box lzc__box--f">
+			<span class="lzc__tag">Расчёт по формуле</span>
+			<div data-tex="f"></div>
+		</div>
+		<div class="lzc__box">
+			<span class="lzc__tag">Увеличение</span>
+			<div data-tex="g"></div>
+		</div>
+	</div>
+	<p class="lz-live" data-live aria-live="polite"></p>
+
+	<figcaption class="lz-legend">
+		<span class="lz-key" style="--c: var(--ig-v)"></span>луч, параллельный оси
+		<span class="lz-key" style="--c: var(--ig-vx)"></span>луч через центр
+		<span class="lz-key lz-key--dash" style="--c: var(--sl-color-gray-2)"></span>продолжения лучей.
+		Числа на оси — расстояние от линзы в сантиметрах.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.lzc__object {
+		cursor: grab;
+		outline: none;
+	}
+	.lzc__object:focus-visible line:first-child {
+		stroke: var(--sl-color-accent);
+	}
+	.lzc__grab {
+		stroke: transparent !important;
+		stroke-width: 34 !important;
+		touch-action: none;
+	}
+	.lzc__nums .lz-t {
+		fill: var(--sl-color-gray-3);
+		font-size: 14px;
+	}
+	.lzc__calc {
+		display: grid;
+		grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+		gap: 0.5rem;
+		margin-top: 0.9rem;
+	}
+	.lzc__box {
+		display: grid;
+		align-content: start;
+		gap: 0.1rem;
+		padding: 0.5rem 0.75rem 0.2rem;
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+		border: 1.5px solid transparent;
+		min-width: 0;
+	}
+	.lzc__box--f {
+		border-color: var(--sl-color-accent);
+	}
+	.lzc__box > div {
+		min-width: 0;
+		overflow-x: auto;
+		color: var(--sl-color-white);
+	}
+	.lzc__box .katex-display {
+		margin: 0.35rem 0;
+		text-align: left;
+	}
+	.lzc__box .katex-display > .katex {
+		text-align: left;
+	}
+	.lzc__tag {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.lzc__calc {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.lzc__grab {
+			stroke-width: 60 !important;
+		}
+		.lzc__nums .lz-t {
+			font-size: 22px;
+		}
+	}
+</style>
+
+<script>
+	import katex from 'katex';
+	import { makeView, X, Y, pathD, traceScene, lensSymbol, fmt, fmtSmart, type P } from './optics';
+
+	const V = makeView(-36, 64, -18, 10, 8);
+	const LENS_HALF = 9.5;
+	const H_OBJ = 4; // object height, cm
+	const D_MIN = 2;
+	const D_MAX = 34;
+	/** narrow screens show the middle of the scene, a bit larger */
+	const CROP_NARROW = { xmin: -28, xmax: 34, ymin: -12, ymax: 10 };
+
+	const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+	/** whole number or one decimal, for KaTeX with a decimal comma */
+	const tn = (x: number, digits = 1) =>
+		fmtSmart(x, digits).replace(/(,\d*?)0+$/, '$1').replace(/,$/, '').replace('−', '-').replace(',', '{,}');
+	const isWhole = (x: number, digits: number) => Math.abs(x * 10 ** digits - Math.round(x * 10 ** digits)) < 1e-9;
+	const CM = '~\\text{см}';
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-lens-calc]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const svg = q<SVGSVGElement>('svg');
+		const lensEl = q<SVGPathElement>('[data-lens]');
+		const rayEls = [1, 2].map((n) => {
+			const g = q<SVGGElement>(`[data-ray="${n}"]`);
+			return {
+				virt: g.querySelector<SVGPathElement>('.lz-virt')!,
+				base: g.querySelector<SVGPathElement>('.lz-base')!,
+				flow: g.querySelector<SVGPathElement>('.lz-flow')!,
+			};
+		});
+		const imageG = q<SVGGElement>('[data-image]');
+		const objectG = q<SVGGElement>('[data-object]');
+		const grab = q<SVGLineElement>('[data-grab]');
+		const foci = Array.from(root.querySelectorAll<SVGGElement>('[data-focus]'));
+		const nums = Array.from(root.querySelectorAll<SVGTextElement>('[data-num]'));
+		const dIn = q<HTMLInputElement>('[data-d]');
+		const fIn = q<HTMLInputElement>('[data-f]');
+		const dOut = q<HTMLOutputElement>('[data-d-out]');
+		const fOut = q<HTMLOutputElement>('[data-f-out]');
+		const texF = q<HTMLElement>('[data-tex="f"]');
+		const texG = q<HTMLElement>('[data-tex="g"]');
+		const live = q<HTMLElement>('[data-live]');
+
+		const st = { d: 15, F: 10 };
+		let crop = { xmin: V.xmin, xmax: V.xmax, ymin: V.ymin, ymax: V.ymax };
+		let narrow = false;
+		const cache: Record<string, string> = {};
+		const katexTo = (key: string, el: HTMLElement, s: string) => {
+			if (cache[key] === s) return;
+			cache[key] = s;
+			katex.render(s, el, { displayMode: true, throwOnError: false });
+		};
+
+		const setArrow = (g: SVGGElement, x: number, y: number) => {
+			const [line, head] = [g.querySelector('line')!, g.querySelector('polygon')!];
+			const px = X(V, x);
+			const p0 = Y(V, 0);
+			const p1 = Y(V, y);
+			const dir = p1 < p0 ? 1 : -1;
+			const hl = Math.min(13, Math.abs(p1 - p0) * 0.45);
+			const hw = hl * 0.55;
+			line.setAttribute('x1', String(px));
+			line.setAttribute('y1', String(p0));
+			line.setAttribute('x2', String(px));
+			line.setAttribute('y2', String(p1 + dir * hl * 0.7));
+			head.setAttribute('points', `${px},${p1} ${px - hw},${p1 + dir * hl} ${px + hw},${p1 + dir * hl}`);
+		};
+
+		const layout = () => {
+			narrow = root.clientWidth < 560;
+			crop = narrow ? { ...CROP_NARROW } : { xmin: V.xmin, xmax: V.xmax, ymin: V.ymin, ymax: V.ymax };
+			svg.setAttribute(
+				'viewBox',
+				`${X(V, crop.xmin)} ${Y(V, crop.ymax)} ${(crop.xmax - crop.xmin) * V.S} ${(crop.ymax - crop.ymin) * V.S}`,
+			);
+			const fs = narrow ? 22 : 14;
+			for (const t of nums) {
+				t.setAttribute('y', String(Y(V, 0) + (narrow ? 30 : 20)));
+				const x = Number(t.textContent) * (Number(t.getAttribute('x')) < X(V, 0) ? -1 : 1);
+				t.style.display = x > crop.xmin + 1 && x < crop.xmax - 1 ? '' : 'none';
+				t.style.fontSize = `${fs}px`;
+			}
+			for (const k of Object.keys(cache)) delete cache[k];
+		};
+
+		/**
+		 * The labels F and 2F take the first free place: above the focus, in a row below the ruler numbers, or
+		 * beside either of them. A place is free when no ray, dashed extension, arrow or the lens passes through
+		 * it (sampled along each segment in SVG units) and no other label stands there.
+		 */
+		const placeLabels = (segs: { pts: P[]; pad: number }[], F: number) => {
+			const placed: [number, number, number, number][] = [];
+			const above = narrow ? -14 : -10;
+			const below = narrow ? 64 : 40;
+			const hits = (b: [number, number, number, number]) => {
+				const inside = (x: number, y: number, pad: number) =>
+					x > b[0] - pad && x < b[2] + pad && y > b[1] - pad && y < b[3] + pad;
+				for (const { pts, pad } of segs) {
+					for (let i = 1; i < pts.length; i++) {
+						const [x0, y0] = pts[i - 1];
+						const [x1, y1] = pts[i];
+						const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 2));
+						for (let j = 0; j <= n; j++) {
+							if (inside(x0 + ((x1 - x0) * j) / n, y0 + ((y1 - y0) * j) / n, pad)) return true;
+						}
+					}
+				}
+				return placed.some((o) => !(b[2] + 4 < o[0] || o[2] + 4 < b[0] || b[3] + 4 < o[1] || o[3] + 4 < b[1]));
+			};
+			for (const k of [-1, 1, -2, 2]) {
+				const g = foci.find((e) => Number(e.dataset.focus) === k)!;
+				const t = g.querySelector('text')!;
+				const bb = t.getBBox();
+				const [w, h] = [bb.width, bb.height];
+				const cx = X(V, k * F);
+				const cy = Y(V, 0);
+				const side = w / 2 + 12;
+				const cands: [number, number][] = [
+					[0, above],
+					[0, below],
+					[side, above],
+					[-side, above],
+					[side, below],
+					[-side, below],
+				];
+				const box = ([dx, dy]: [number, number]): [number, number, number, number] => [
+					cx + dx - w / 2,
+					cy + dy - 0.8 * h,
+					cx + dx + w / 2,
+					cy + dy + 0.2 * h,
+				];
+				const pick = cands.find((c) => !hits(box(c))) ?? cands[0];
+				t.setAttribute('x', String(pick[0]));
+				t.setAttribute('y', String(pick[1]));
+				placed.push(box(pick));
+			}
+		};
+
+		const render = () => {
+			const { d, F } = st;
+			const scene = traceScene(V, d, H_OBJ, F, LENS_HALF);
+			const im = scene.img;
+
+			for (const g of foci) {
+				const k = Number(g.dataset.focus);
+				g.setAttribute('transform', `translate(${X(V, k * F)} ${Y(V, 0)})`);
+			}
+			[0, 1].forEach((i) => {
+				const ray = scene.rays[i]!;
+				const el = rayEls[i];
+				const real = pathD(V, ray.real);
+				el.base.setAttribute('d', real);
+				el.flow.setAttribute('d', real);
+				el.virt.setAttribute('d', pathD(V, ray.virt));
+			});
+			const tip = scene.tip;
+			imageG.style.display = tip ? '' : 'none';
+			if (tip) {
+				setArrow(imageG, tip[0], tip[1]);
+				imageG.classList.toggle('is-real', im.real);
+				imageG.classList.toggle('is-virtual', !im.real);
+			}
+			setArrow(objectG, -d, H_OBJ);
+			const toU = (pts: P[]): P[] => pts.map(([x, y]) => [X(V, x), Y(V, y)]);
+			const segs = [0, 1].flatMap((i) => [
+				{ pts: toU(scene.rays[i]!.real), pad: 5 },
+				{ pts: toU(scene.rays[i]!.virt), pad: 5 },
+			]);
+			segs.push({ pts: toU([[-d, 0], [-d, H_OBJ]]), pad: 11 });
+			if (tip) segs.push({ pts: toU([[tip[0], 0], tip]), pad: 11 });
+			segs.push({ pts: toU([[0, -LENS_HALF], [0, LENS_HALF]]), pad: 8 });
+			placeLabels(segs, F);
+			grab.setAttribute('x1', String(X(V, -d)));
+			grab.setAttribute('x2', String(X(V, -d)));
+			grab.setAttribute('y1', String(Y(V, 0)));
+			grab.setAttribute('y2', String(Y(V, H_OBJ)));
+			objectG.setAttribute('aria-valuenow', String(d));
+			objectG.setAttribute('aria-valuetext', `d = ${d} см`);
+
+			dIn.value = String(d);
+			fIn.value = String(F);
+			dOut.value = `${d} см`;
+			fOut.value = `${F} см`;
+
+			// the calculation, with the whole numbers d and F in centimetres:
+			// 1/f = 1/F − 1/d = (d − F)/(F·d), so f = F·d/(d − F)
+			const num = d - F;
+			const den = F * d;
+			const head = `\\dfrac{1}{f} &= \\dfrac{1}{F} - \\dfrac{1}{d}`;
+			const subst = `\\dfrac{1}{${F}${CM}} - \\dfrac{1}{${d}${CM}}`;
+			const frac = `\\dfrac{${d} - ${F}}{${F} \\cdot ${d}${CM}} = \\dfrac{${num}}{${den}${CM}}`;
+			const lines = narrow ? [head, `&= ${subst}`, `&= ${frac}`] : [`${head} = ${subst}`, `&= ${frac}`];
+			let g: string;
+			if (num === 0) {
+				lines[lines.length - 1] += ' = 0';
+				g = `\\text{—}`;
+			} else {
+				const f = den / num;
+				const eq = isWhole(f, 1) ? '=' : '\\approx';
+				lines.push(`f &= \\dfrac{${den}${CM}}{${num}} ${eq} ${tn(f)}${CM}`);
+				const G = F / Math.abs(num); // = |f| / d, exactly
+				const geq = isWhole(G, 2) ? '=' : '\\approx';
+				const fTxt = `${tn(Math.abs(f))}${CM}`;
+				g = `\\Gamma = \\dfrac{${num > 0 ? 'f' : '|f|'}}{d} ${eq} \\dfrac{${fTxt}}{${d}${CM}} ${geq} ${tn(G, 2)}`;
+			}
+			katexTo('f', texF, `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`);
+			katexTo('g', texG, g);
+
+			let text: string;
+			if (num === 0) {
+				text =
+					'Предмет в фокусе: <i>1/f</i> = 0. Лучи после линзы идут параллельно и нигде не пересекаются — изображения нет.';
+			} else {
+				const f = den / num;
+				const tipInside =
+					!!tip && tip[0] > crop.xmin && tip[0] < crop.xmax && tip[1] > crop.ymin && tip[1] < crop.ymax;
+				const G = F / Math.abs(num);
+				const size = Math.abs(G - 1) < 1e-9 ? 'равное предмету' : G > 1 ? 'увеличенное' : 'уменьшенное';
+				text =
+					num > 0
+						? `<b><i>f</i> &gt; 0</b>: изображение действительное, за линзой, перевёрнутое, ${size}.`
+						: `<b><i>f</i> &lt; 0</b>: изображение мнимое — перед линзой, с той же стороны, что и предмет; прямое, ${size}.`;
+				if (!tipInside) text += ` Оно за краем рисунка: ${fmt(Math.abs(f), isWhole(f, 0) ? 0 : 1)} см от линзы.`;
+			}
+			if (live.innerHTML !== text) live.innerHTML = text;
+		};
+
+		const setD = (d: number) => {
+			st.d = clamp(Math.round(d), D_MIN, D_MAX);
+			render();
+		};
+		const setF = (F: number) => {
+			st.F = clamp(Math.round(F), 5, 15);
+			render();
+		};
+
+		lensEl.setAttribute('d', lensSymbol(V, LENS_HALF, 1, 1.4, 0.85));
+
+		let dragging = false;
+		let off = 0;
+		const toX = (e: PointerEvent) => {
+			const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM()!.inverse());
+			return V.xmin + pt.x / V.S;
+		};
+		objectG.addEventListener('pointerdown', (e) => {
+			if (e.button !== 0) return;
+			dragging = true;
+			off = -st.d - toX(e);
+			svg.setPointerCapture(e.pointerId);
+			e.preventDefault();
+		});
+		svg.addEventListener('pointermove', (e) => {
+			if (dragging) setD(-(toX(e) + off));
+		});
+		svg.addEventListener('pointerup', () => (dragging = false));
+		svg.addEventListener('pointercancel', () => (dragging = false));
+		objectG.addEventListener('keydown', (e) => {
+			if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+			e.preventDefault();
+			setD(st.d + (e.key === 'ArrowLeft' ? 1 : -1));
+		});
+		dIn.addEventListener('input', () => setD(Number(dIn.value)));
+		fIn.addEventListener('input', () => setF(Number(fIn.value)));
+
+		let wasNarrow: boolean | null = null;
+		new ResizeObserver(() => {
+			const n = root.clientWidth < 560;
+			if (n !== wasNarrow) {
+				wasNarrow = n;
+				layout();
+				render();
+			}
+		}).observe(root);
+		layout();
+		render();
+	}
+</script>
