@@ -1,20 +1,50 @@
 ---
 /**
  * Picture to the impulse of a force: the same egg falls from the same height onto a tiled floor and onto a pillow.
- * Below each, the force on the egg against time as a rectangle (the force taken constant during the stop). Both
- * rectangles have the same area, 640 px² (8 × 80 and 64 × 10): the change of the egg's momentum is the same, the time
- * of the stop on the pillow is 8 times longer and the force 8 times smaller. Same axes in both graphs.
+ * Below each, the force on the egg against time during the stop: a real impact is a pulse that rises and falls,
+ * drawn as a half sine, F = F_max sin(πt/τ). The area under each pulse is the change of the egg's momentum, the same
+ * in both: 640 px² (half sine: (2/π)·F_max·τ; tile τ = 10 px, F_max = 100,5 px; pillow τ = 80 px, F_max = 12,6 px).
+ * Dashed: the mean force over the same time, a rectangle of the same area (10 × 64 and 80 × 8 px), F_ср = Δp/Δt.
+ * The stop on the pillow lasts 8 times longer, so the mean force is 8 times smaller. Same axes in both graphs; the
+ * scales are not given (only the ratio matters).
  */
 import ImpPicStyles from './ImpPicStyles.astro';
 import { arrow } from './pic';
 
-const O = { x: 40, y: 206 }; // origin of the graphs
+const O = { x: 40, y: 232 }; // origin of the graphs
 const tAx = arrow(O.x, O.y, 304, O.y, 8, 4);
-const fAx = arrow(O.x, O.y, O.x, 116, 8, 4);
+const fAx = arrow(O.x, O.y, O.x, 110, 8, 4);
+const AREA = 640;
+const pulse = (tau: number) => {
+	const Fm = (AREA * Math.PI) / (2 * tau);
+	const pts = Array.from({ length: 41 }, (_, i) => {
+		const t = (tau * i) / 40;
+		return `${(O.x + 0.8 + t).toFixed(1)} ${(O.y - Fm * Math.sin((Math.PI * t) / tau)).toFixed(1)}`;
+	});
+	return { line: `M ${pts.join(' L ')}`, area: `M ${pts.join(' L ')} Z`, mean: AREA / tau, Fm };
+};
 const panels = [
-	{ key: 'tile', title: 'Кафельный пол', w: 8, h: 80, note: ['удар короткий —', 'сила большая'], nx: 60, ny: 150 },
-	{ key: 'pillow', title: 'Подушка', w: 64, h: 10, note: ['удар долгий —', 'сила маленькая'], nx: 112, ny: 176 },
-];
+	{
+		key: 'tile',
+		title: 'Кафельный пол',
+		tau: 10,
+		note: ['удар короткий —', 'сила большая'],
+		nx: 74,
+		ny: 128,
+		areaL: { x: 74, y: 210, to: [47, 218] },
+		meanL: { x: 74, y: 176, to: [52, 170] },
+	},
+	{
+		key: 'pillow',
+		title: 'Подушка',
+		tau: 80,
+		note: ['удар долгий —', 'сила маленькая'],
+		nx: 150,
+		ny: 150,
+		areaL: { x: 150, y: 214, to: [112, 228] },
+		meanL: { x: 150, y: 196, to: [118, 223] },
+	},
+].map((p) => ({ ...p, ...pulse(p.tau) }));
 ---
 
 <ImpPicStyles />
@@ -22,7 +52,7 @@ const panels = [
 	<div class="ip-pic__grid">
 		{
 			panels.map((p) => (
-				<svg class="ip-pic__svg" viewBox="0 0 320 222" role="img" aria-label={p.key === 'tile' ? 'Яйцо упало на кафельный пол и разбилось. График: сила удара большая, но действует очень короткое время' : 'Такое же яйцо упало на подушку и осталось целым. График: сила маленькая, но действует долго. Площади прямоугольников на двух графиках одинаковые'}>
+				<svg class="ip-pic__svg" viewBox="0 0 320 246" role="img" aria-label={p.key === 'tile' ? 'Яйцо упало на кафельный пол и разбилось. График: сила удара большая, но действует очень короткое время' : 'Такое же яйцо упало на подушку и осталось целым. График: сила маленькая, но действует долго. Площади под двумя графиками одинаковые'}>
 					<text class="ip-title" x="14" y="22">{p.title}</text>
 					{p.key === 'tile' ? (
 						<g>
@@ -46,18 +76,23 @@ const panels = [
 					<polygon class="ep-axhead" points={tAx.head} />
 					<path class="ip-arrow ip-axis" d={fAx.shaft} />
 					<polygon class="ep-axhead" points={fAx.head} />
-					<text class="ip-math" x="50" y="126">F</text>
-					<text class="ip-math" x="300" y="200" text-anchor="end">t</text>
-					<rect class="ep-rect" x={O.x + 0.8} y={O.y - p.h} width={p.w} height={p.h} />
+					<text class="ip-math" x="21" y="124">F</text>
+					<text class="ip-math" x="300" y="226" text-anchor="end">t</text>
+					<path class="ep-area" d={p.area} />
+					<path class="ep-pulse" d={p.line} />
+					<rect class="ep-mean" x={O.x + 0.8} y={O.y - p.mean} width={p.tau} height={p.mean} />
 					<text class="ip-small" x={p.nx} y={p.ny}>{p.note[0]}</text>
 					<text class="ip-small" x={p.nx} y={p.ny + 14}>{p.note[1]}</text>
-					<path class="ip-lead" d={p.key === 'tile' ? 'M 58 156 L 50 160' : 'M 110 180 L 100 197'} />
+					<path class="ip-lead" d={`M ${p.areaL.x - 3} ${p.areaL.y - 4} L ${p.areaL.to[0]} ${p.areaL.to[1]}`} />
+					<text class="ip-small ep-tarea" x={p.areaL.x} y={p.areaL.y}>площадь = Δ<tspan class="ip-math">p</tspan></text>
+					<path class="ip-lead" d={`M ${p.meanL.x - 3} ${p.meanL.y - 4} L ${p.meanL.to[0]} ${p.meanL.to[1]}`} />
+					<text class="ip-small" x={p.meanL.x} y={p.meanL.y}>средняя сила</text>
 				</svg>
 			))
 		}
 	</div>
 	<div class="ip-pic__foot">
-		<figcaption>Одинаковые яйца упали с одной и той же высоты, поэтому изменение импульса у них одно и то же. На графиках — сила, которая останавливает яйцо. Площади закрашенных прямоугольников одинаковые: о подушку яйцо тормозит в 8&nbsp;раз дольше, поэтому сила в 8&nbsp;раз меньше.</figcaption>
+		<figcaption>Площади под графиками одинаковые и равны изменению импульса яйца; пунктир — средняя сила. О подушку яйцо тормозит в 8&nbsp;раз дольше, и средняя сила в 8&nbsp;раз меньше.</figcaption>
 	</div>
 </figure>
 
@@ -112,9 +147,23 @@ const panels = [
 	.ep-axhead {
 		fill: var(--sl-color-gray-3);
 	}
-	.ep-rect {
+	.ep-area {
 		fill: color-mix(in srgb, var(--ig-vx) 35%, transparent);
-		stroke: var(--ig-vx);
-		stroke-width: 1.6;
+	}
+	.ep-pulse {
+		fill: none;
+		stroke: var(--ip-f);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.ep-mean {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+		stroke-dasharray: 4 3;
+	}
+	.ep-tarea {
+		fill: var(--ig-vx) !important;
+		font-weight: 700;
 	}
 </style>

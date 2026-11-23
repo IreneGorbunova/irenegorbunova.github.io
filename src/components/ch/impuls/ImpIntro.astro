@@ -1,393 +1,590 @@
 ---
 /**
- * Two short looping opening scenes of «Импульс. Закон сохранения импульса». No terms of the chapter in the pictures;
- * the captions' popovers explain.
- * Billiards (top view): the cue strikes the white ball; it slides straight at the red ball of the same mass and hits
- *   it dead centre. The white ball stops at the point of impact, the red one goes on along the same line with the same
- *   speed (110 px/s for both) and drops into the corner pocket. Rolling friction is left out.
- * Boat (side view, 40 px per m): a boy (50 kg, 1,6 m) crouches in a boat (100 kg, 3 m) and jumps onto the pier. During
- *   the 0,2 s push he gets 2 m/s horizontally and the boat 1 m/s backwards (equal and opposite momenta); he flies
- *   0,7 s on a parabola (g = 9,8 m/s², the pier is 0,35 m above the boat floor) and lands on the pier. The water slows
- *   the boat afterwards (its speed decays with a time constant of 4 s). The arrows of the two speeds are 2 : 1.
- * Plays only while visible.
+ * Two short looping opening scenes of «Импульс. Закон сохранения импульса» (grade 10). No terms of the chapter in the
+ * pictures or the visible captions; each caption's popover names the notion and links to its section. People: the
+ * shared people kit (src/components/people/). Grade 9 has bumper cars and a firework, grade 7 the boy jumping from a
+ * boat, so this chapter keeps billiards and adds a platform dive.
+ *
+ * Billiards (a billiard room seen from the side and a little from above; real time, 3,0 с). A 9-foot table (playing
+ *   field 254 × 127 см, cloth 80 см above the floor) is drawn at 0,72–0,79 px per см with the far side raised by
+ *   perspective; the player (people kit, 178 см, 0,76 px per см) stands at the head end in the usual stance: the body
+ *   bent forward, the left hand flat on the cloth as a bridge, the right hand holding the cue (147 см) by the butt,
+ *   the forearm hanging down. The stroke: the cue is drawn back by 12 см in 0,5 с and pushed forward with an even
+ *   acceleration over 15 см (0,3 с); the tip meets the white ball at 1,0 м/с and the ball leaves at 1,5 м/с (a cue of
+ *   0,55 кг on a ball of 0,17 кг: 2 · 0,55 / 0,72 · 1,0 = 1,53 м/с; the cue goes on at 0,5 м/с, follows through by 5 см
+ *   and stops). The white ball slides 83 см to the red ball in 0,55 с and hits it dead centre; balls of equal mass, an
+ *   elastic impact: the white ball stops on the spot, the red one goes on at 1,5 м/с along the same line, 119 см in
+ *   0,80 с, and drops into the far corner pocket. Rolling friction (a slowing of about 0,1 м/с over this distance) is
+ *   left out. The balls (57 мм) are drawn 1,8 times larger than to scale so that they can be seen.
+ * Platform dive (an outdoor pool; real time, 45 px per м on both axes, the diver 180 см at 0,45 px per см; the picture
+ *   shows 5,3 м of height, and the view follows the diver down from the platform to the water). The diver
+ *   stands at the edge of the 10-м platform, bends the knees with the arms swinging back and springs up with the arms
+ *   swinging over the head; at the take-off (1,1 с) his centre of mass moves at 4,0 м/с up and 1,3 м/с forward. In
+ *   the air it moves as a thrown stone: x = x₀ + 1,3t, y = y₀ + 4,0t − 4,9t² (м, с; g = 9,8 м/с², air left out),
+ *   rises by 0,82 м in 0,41 с and is 1,05 м above the water (the hands touch it) about 1,9 с after the take-off. The
+ *   body turns 1½ somersaults forward: it tucks (0,15–0,40 с), spins tucked, opens (1,20–1,45 с) and enters the water
+ *   head first, straight, with the hands over the head. The turning keeps the angular momentum: the moment of inertia
+ *   is taken as 18 кг·м² stretched and 4 кг·м² tucked, so the spin is 4,5 times faster in the tuck (about 8 рад/с
+ *   against 1,8 рад/с). The centre of mass is computed in every frame from the body segments (head 8,1 %, trunk 49,7 %,
+ *   upper arm 2,8 %, forearm with hand 2,2 %, thigh 10 %, shin with foot 6,1 %), and the figure is placed so that this
+ *   point lies on the parabola; faint dots mark it every 0,1 с. Under the water the body is slowed (time constant
+ *   0,12 с). The splash and the rings on the water are drawn, not computed. A coach on the deck follows the dive.
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
 import PeopleStyles from '@components/people/PeopleStyles.astro';
 
-const uid = Math.random().toString(36).slice(2, 8);
-const mArrow = `ii-ar-${uid}`;
-// Billiards: the table cloth and the pockets
-const T = { x0: 22, y0: 30, x1: 338, y1: 210 };
-const POCKETS = [
-	[T.x0, T.y0],
-	[180, T.y0 - 2],
-	[T.x1, T.y0],
-	[T.x0, T.y1],
-	[180, T.y1 + 2],
-	[T.x1, T.y1],
+// ---- billiards: the table in perspective; u along the table (0 head end, 1 foot end), w across (0 near, 1 far)
+const YN = 168; // the near cushion line
+const YF = 140; // the far cushion line
+const XN = [118, 318];
+const XF = [126, 310];
+const P = (u: number, w: number) => {
+	const xn = XN[0] + (XN[1] - XN[0]) * u;
+	const xf = XF[0] + (XF[1] - XF[0]) * u;
+	return { x: xn + (xf - xn) * w, y: YN + (YF - YN) * w };
+};
+const pt = (u: number, w: number) => {
+	const p = P(u, w);
+	return `${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+};
+const quad = (u0: number, w0: number, u1: number, w1: number) => `M${pt(u0, w0)} L${pt(u1, w0)} L${pt(u1, w1)} L${pt(u0, w1)} Z`;
+const pockets = [
+	[0, 0],
+	[0.5, 0],
+	[1, 0],
+	[0, 1],
+	[0.5, 1],
+	[1, 1],
+].map(([u, w]) => ({ ...P(u, w), r: 7.2 - 1.2 * w }));
+const diamonds = [0.125, 0.25, 0.375, 0.625, 0.75, 0.875].flatMap((u) => [P(u, -0.1), P(u, 1.08)]);
+const planks = Array.from({ length: 11 }, (_, i) => {
+	const x = -60 + i * 50;
+	return `M${(180 + (x - 180) * 0.45).toFixed(1)} 112 L${x} 240`;
+});
+const cues = [324, 331, 338, 345];
+const lightPath = `M174 56 L276 56 L${pt(1.02, 0.6)} L${pt(1.02, -0.12)} L${pt(0.02, -0.12)} L${pt(0.02, 0.6)} Z`;
+
+// ---- dive: drawn in world coordinates (45 px per м), the water at y = 600, the 10-м platform at 600 − 450 = 150;
+// the camera (the [data-world] group) follows the diver down
+const WY = 600;
+const K = 45; // px per м
+const PLAT = WY - 10 * K;
+const EDGE = 120; // the front edge of the platform
+const levels = [
+	{ h: 7.5, x: 112 },
+	{ h: 5, x: 104 },
+	{ h: 3, x: 96 },
 ];
-// Boat: the water surface and the pier
-const WL = 172;
-const PIER = { x: 266, y: 150 };
+const clouds = [
+	{ x: 150, y: 30 },
+	{ x: 230, y: 70 },
+	{ x: 300, y: 24 },
+];
+const crowd = Array.from({ length: 34 }, (_, i) => {
+	const v = Math.sin(i * 12.9898) * 43758.5453;
+	const r = v - Math.floor(v);
+	return { x: 190 + i * 5 + r * 2, y: WY - 54 - (i % 3) * 7 - r * 2, c: i % 4 };
+});
+const lanes = [0, 1, 2].map((i) => WY + 6 + i * 6.5);
+const rungs = Array.from({ length: Math.floor((WY - PLAT) / 20) }, (_, i) => `M8 ${WY - 14 - i * 20} H22`).join(' ');
 ---
 
 <PeopleStyles />
 <IntroFrame data-impintro>
 	<div class="intro__card" data-scene="billiards">
-		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Бильярдный стол, вид сверху. Кий ударяет белый шар, он катится к красному шару и ударяет его точно в центр. Белый шар останавливается на месте удара, а красный катится дальше с той же скоростью и падает в лузу">
-			<defs>
-				<marker id={mArrow} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-					<path class="ii-head" d="M0 0 L10 5 L0 10 z"></path>
-				</marker>
-			</defs>
-			<rect class="ii-rail" x="0" y="8" width="360" height="224" rx="14"></rect>
-			<rect class="ii-cloth" x={T.x0} y={T.y0} width={T.x1 - T.x0} height={T.y1 - T.y0} rx="4"></rect>
-			{[70, 125, 235, 290].map((x) => <circle class="ii-diamond" cx={x} cy="19" r="2" />)}
-			{[70, 125, 235, 290].map((x) => <circle class="ii-diamond" cx={x} cy="221" r="2" />)}
-			{POCKETS.map(([x, y]) => <circle class="ii-pocket" cx={x} cy={y} r="12" />)}
-			<!-- the red ball: drops into the pocket -->
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Бильярдная. Игрок склонился над столом и бьёт кием по белому шару. Белый шар катится к красному и ударяет его точно в центр. Белый шар останавливается на месте удара, а красный катится дальше с той же скоростью и падает в дальнюю угловую лузу">
+			<!-- the room -->
+			<rect class="ib-wall" x="0" y="0" width="360" height="112"></rect>
+			<rect class="ib-panel" x="0" y="88" width="360" height="24"></rect>
+			<rect class="ib-floor" x="0" y="112" width="360" height="128"></rect>
+			<path class="ib-plank" d={planks.join(' ')}></path>
+			<!-- the scoreboard and the cue rack on the wall -->
+			<rect class="ib-board" x="22" y="22" width="78" height="22" rx="2"></rect>
+			<path class="ib-wire" d="M27 29 H95 M27 37 H95"></path>
+			{[31, 36, 41, 67, 72].map((x) => <circle class="ib-bead" cx={x} cy="29" r="2.2" />)}
+			{[31, 36, 75, 80, 85].map((x) => <circle class="ib-bead ib-bead--b" cx={x} cy="37" r="2.2" />)}
+			<rect class="ib-rack" x="318" y="30" width="34" height="6" rx="1.5"></rect>
+			<rect class="ib-rack" x="318" y="96" width="34" height="8" rx="1.5"></rect>
+			{cues.map((x) => <path class="ib-cue-wall" d={`M${x} 28 L${x + 0.6} 98`} />)}
+			<!-- the lamp and its light -->
+			<path class="ib-cord" d="M184 0 V46 M266 0 V46"></path>
+			<path class="ib-light" d={lightPath}></path>
+			<!-- the table: far legs, aprons, rails, cloth, pockets -->
+			<path class="ib-leg ib-leg--far" d={`M${P(0.06, 1).x} ${YF + 10} V203 M${P(0.94, 1).x} ${YF + 10} V203`}></path>
+			<path class="ib-apron ib-apron--end" d={`M${pt(-0.05, -0.15)} L${pt(-0.05, 1.15)} L${P(-0.05, 1.15).x + 1} ${YF + 12} L${P(-0.05, -0.15).x + 2} ${YN + 19} Z`}></path>
+			<path class="ib-apron" d={`M${pt(-0.05, -0.15)} L${pt(1.05, -0.15)} L${P(1.05, -0.15).x - 2} ${YN + 19} L${P(-0.05, -0.15).x + 2} ${YN + 19} Z`}></path>
+			<path class="ib-leg" d={`M${P(0.05, 0).x} ${YN + 19} V231 M${P(0.95, 0).x} ${YN + 19} V231`}></path>
+			<path class="ib-foot" d={`M${P(0.05, 0).x - 5} 231 h10 M${P(0.95, 0).x - 5} 231 h10`}></path>
+			<path class="ib-rail" d={quad(-0.05, -0.15, 1.05, 1.15)}></path>
+			<path class="ib-cloth" d={quad(0, 0, 1, 1)}></path>
+			<path class="ib-cushion" d={`M${pt(0, 0)} L${pt(1, 0)} M${pt(0, 1)} L${pt(1, 1)} M${pt(0, 0)} L${pt(0, 1)} M${pt(1, 0)} L${pt(1, 1)}`}></path>
+			{diamonds.map((d) => <circle class="ib-diamond" cx={d.x} cy={d.y} r="1" />)}
+			{pockets.map((p) => <ellipse class="ib-pocket" cx={p.x} cy={p.y} rx={p.r} ry={p.r * 0.55} />)}
+			<!-- the balls -->
 			<g data-red>
-				<circle class="ii-shadow" cx="1.5" cy="2" r="9"></circle>
-				<circle class="ii-red" cx="0" cy="0" r="9"></circle>
-				<circle class="ii-shine" cx="-3" cy="-3" r="2.4"></circle>
+				<ellipse class="ib-shadow" cx="1" cy="3.2" rx="4" ry="1.5"></ellipse>
+				<circle class="ib-red" cx="0" cy="0" r="3.9"></circle>
+				<circle class="ib-shine" cx="-1.3" cy="-1.4" r="1.1"></circle>
 			</g>
 			<g data-white>
-				<circle class="ii-shadow" cx="1.5" cy="2" r="9"></circle>
-				<circle class="ii-white" cx="0" cy="0" r="9"></circle>
-				<circle class="ii-shine" cx="-3" cy="-3" r="2.4"></circle>
+				<ellipse class="ib-shadow" cx="1" cy="3.2" rx="4" ry="1.5"></ellipse>
+				<circle class="ib-white" cx="0" cy="0" r="3.9"></circle>
+				<circle class="ib-shine" cx="-1.3" cy="-1.4" r="1.1"></circle>
 			</g>
-			<line class="ii-varrow" data-varrow marker-end={`url(#${mArrow})`}></line>
-			<!-- the cue, drawn along the line of the shot -->
-			<g data-cue>
-				<line class="ii-cue" x1="-260" y1="0" x2="-12" y2="0"></line>
-				<line class="ii-cue-tip" x1="-16" y1="0" x2="-11" y2="0"></line>
-			</g>
+			<!-- the lamp shade in front of the light -->
+			<path class="ib-shade" d="M170 56 L176 46 H274 L280 56 Z"></path>
+			<path class="ib-shade-rim" d="M170 56 H280"></path>
+			<!-- the player (people kit) and the cue -->
+			<g data-cue-back></g>
+			<g data-player></g>
+			<path class="ib-cue-butt" data-butt></path>
+			<path class="ib-cue" data-cue></path>
+			<path class="ib-cue-tip" data-tip></path>
 		</svg>
 		<div class="intro__foot">
-			<p>Шар ударяет точно в центр такого же неподвижного шара и останавливается как вкопанный, а второй шар <More term="катится дальше с его скоростью">Шары одинаковые, и при ударе первый шар передаёт второму всё своё движение — весь свой импульс. То же происходит с одинаковыми тележками в модели раздела <a href="#закон-сохранения-импульса">«Закон сохранения импульса»</a>. На бильярде так получается, если в момент удара первый шар скользит по сукну, не вращаясь: для этого кием бьют чуть ниже центра шара.</More>.</p>
+			<p>Шар ударяет точно в центр такого же неподвижного шара и останавливается как вкопанный, а второй шар <More term="катится дальше с его скоростью">Шары одинаковые, и при ударе первый шар передаёт второму весь свой импульс. Удар бильярдных шаров почти упругий — так же ведут себя одинаковые тележки в модели раздела <a href="#упругий-и-неупругий-удар">«Упругий и неупругий удар»</a>. На бильярде так получается, если в момент удара первый шар скользит по сукну, не вращаясь: для этого кием бьют чуть ниже центра шара.</More>.</p>
 			<button type="button" class="intro__again" data-again>Повторить</button>
 		</div>
 	</div>
 
-	<div class="intro__card" data-scene="boat">
-		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Мальчик стоит в лодке у причала. Он приседает и прыгает на причал, а лодка в тот же момент отплывает назад, в другую сторону, вдвое медленнее, чем летит мальчик">
-			<defs>
-				<marker id={`${mArrow}b`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-					<path class="ii-head" d="M0 0 L10 5 L0 10 z"></path>
-				</marker>
-			</defs>
-			<rect class="ii-sky" x="0" y="0" width="360" height={WL}></rect>
-			<path class="ii-shore" d={`M 0 ${WL} L 0 ${WL - 26} Q 40 ${WL - 40} 96 ${WL - 30} Q 130 ${WL - 22} 160 ${WL} Z`}></path>
-			<!-- the pier -->
-			{[PIER.x + 10, PIER.x + 62, PIER.x + 114].map((x) => <rect class="ii-post" x={x} y={PIER.y} width="8" height={240 - PIER.y} />)}
-			<rect class="ii-deck" x={PIER.x} y={PIER.y} width={360 - PIER.x} height="8"></rect>
-			{[PIER.x + 26, PIER.x + 52, PIER.x + 78].map((x) => <line class="ii-plank" x1={x} y1={PIER.y + 1} x2={x} y2={PIER.y + 7} />)}
-			<!-- the boy -->
-			<!-- the boy (people kit) -->
-			<g data-boy></g>
-			<!-- the boat -->
-			<g data-boat>
-				<path class="ii-hull-in" d="M 4 -18 L 116 -18 L 112 -8 L 8 -8 Z"></path>
-				<path class="ii-hull" d="M 0 -18 L 120 -18 L 108 4 Q 104 10 96 10 L 18 10 Q 10 10 6 4 Z"></path>
-				<line class="ii-gunwale" x1="0" y1="-18" x2="120" y2="-18"></line>
-				<line class="ii-seat" x1="52" y1="-11" x2="70" y2="-11"></line>
+	<div class="intro__card" data-scene="dive">
+		<svg class="intro__svg" viewBox="0 0 360 240" role="img" aria-label="Открытый бассейн с вышкой. Прыгун отталкивается от края десятиметровой вышки, сгибается, крутит в воздухе полтора сальто, выпрямляется и входит в воду головой вниз. Бледные точки, поставленные через равные промежутки времени, отмечают одну точку его тела: они лежат на ровной параболе. Тренер на бортике следит за прыжком">
+			<rect class="id-sky" x="0" y="0" width="360" height="240"></rect>
+			{clouds.map((s) => <path class="id-cloud" d={`M${s.x} ${s.y} q6 -7 14 -2 q8 -6 14 2 q6 1 4 5 h-34 q-4 -3 2 -5 Z`} />)}
+			<g data-world>
+				<path class="id-hill" d={`M0 ${WY - 72} Q60 ${WY - 94} 130 ${WY - 82} Q200 ${WY - 98} 270 ${WY - 84} Q320 ${WY - 92} 360 ${WY - 86} V${WY} H0 Z`}></path>
+				<path class="id-tree" d={`M246 ${WY - 72} q-6 -16 6 -24 q12 8 6 24 Z M262 ${WY - 70} q-5 -12 5 -19 q10 7 5 19 Z M300 ${WY - 72} q-6 -15 6 -22 q12 7 6 22 Z M318 ${WY - 71} q-5 -12 5 -18 q10 6 5 18 Z`}></path>
+				<!-- the stand with spectators -->
+				<path class="id-stand" d={`M180 ${WY - 46} L184 ${WY - 72} H360 V${WY - 46} Z`}></path>
+				<path class="id-step" d={`M182 ${WY - 54} H360 M183 ${WY - 61} H360 M184 ${WY - 68} H360`}></path>
+				{crowd.map((c) => <g class={`id-fan id-fan--${c.c}`}><circle cx={c.x} cy={c.y - 4.2} r="1.5" /><rect x={c.x - 1.6} y={c.y - 2.8} width="3.2" height="4" rx="1" /></g>)}
+				<rect class="id-deck-far" x="0" y={WY - 46} width="360" height="46"></rect>
+				<!-- the tower -->
+				<rect class="id-tower" x="30" y={PLAT} width="66" height={WY - PLAT}></rect>
+				<path class="id-joint" d={[0.25, 0.5, 0.75].map((f) => `M30 ${PLAT + (WY - PLAT) * f} H96`).join(' ')}></path>
+				{levels.map((l) => <rect class="id-plat id-plat--low" x="40" y={WY - l.h * K} width={l.x - 40} height="8" />)}
+				<rect class="id-plat" x="40" y={PLAT} width={EDGE - 40} height="10"></rect>
+				<path class="id-rail" d={`M46 ${PLAT} V${PLAT - 46} H84 V${PLAT} M46 ${PLAT - 24} H84`}></path>
+				<path class="id-ladder" d={`M8 ${WY} V${PLAT - 10} M22 ${WY} V${PLAT - 10} ${rungs}`}></path>
+				<!-- the deck, the coach -->
+				<rect class="id-deck" x="290" y={WY - 8} width="70" height="8"></rect>
+				<g data-coach></g>
+				<!-- the marks of the one point, the diver -->
+				<g data-dots></g>
+				<g data-wrap><g data-diver></g></g>
+				<!-- the water over the part of the diver that is under it -->
+				<rect class="id-water" x="0" y={WY} width="360" height="90"></rect>
+				{lanes.map((y, i) => <path class="id-lane" d={`M0 ${y} H360`} stroke-dasharray={`${4 + 2 * i} ${5 + 2 * i}`} />)}
+				<path class="id-surf" d={`M0 ${WY} H360`}></path>
+				<g data-rings></g>
+				<g data-splash></g>
 			</g>
-			<path class="ii-water" data-water></path>
-			<path class="ii-surf" data-surf></path>
-			<line class="ii-varrow" data-vboy marker-end={`url(#${mArrow}b)`}></line>
-			<line class="ii-varrow" data-vboat marker-end={`url(#${mArrow}b)`}></line>
 		</svg>
 		<div class="intro__foot">
-			<p>Мальчик прыгает с лодки на причал, а лодка в тот же миг <More term="отплывает назад">Отталкиваясь от лодки, мальчик толкает и её: они действуют друг на друга с равными силами в противоположные стороны. Лодка (100 кг) вдвое тяжелее мальчика (50 кг), поэтому отплывает вдвое медленнее: 1 м/с против его 2 м/с. Расчёт — в задаче 2 раздела <a href="#задачи">«Задачи»</a>.</More>.</p>
+			<p>Прыгун крутит сальто, руки и ноги движутся как угодно, а <More term="одна точка его тела">Это центр масс прыгуна. После толчка на него действует только сила тяжести (сопротивление воздуха мало), и центр масс летит по параболе, как брошенный камень. Сгибаясь и разгибаясь, прыгун меняет только положение рук и ног относительно этой точки: внутренние силы не меняют движения центра масс. Подробнее — в разделе <a href="#центр-масс">«Центр масс»</a>.</More> летит по ровной дуге.</p>
 			<button type="button" class="intro__again" data-again>Повторить</button>
 		</div>
 	</div>
 </IntroFrame>
 
 <style is:global>
-	.ii-rail {
-		fill: color-mix(in oklab, var(--ig-v) 40%, var(--sl-color-gray-5));
+	[data-impintro] {
+		--ib-wood: color-mix(in oklab, hsl(25, 45%, 38%) 80%, var(--sl-color-gray-5));
+		--ib-wood-d: color-mix(in oklab, hsl(25, 45%, 24%) 80%, var(--sl-color-gray-6));
+		--ib-cloth: color-mix(in oklab, hsl(160, 45%, 34%) 85%, var(--ig-surface));
 	}
-	.ii-cloth {
-		fill: color-mix(in oklab, color-mix(in oklch decreasing hue, var(--ig-vx) 50%, var(--ig-v)) 50%, var(--ig-surface));
-		stroke: color-mix(in oklab, var(--ig-v) 30%, var(--sl-color-gray-4));
-		stroke-width: 3;
-	}
-	.ii-diamond {
-		fill: var(--sl-color-gray-2);
-	}
-	.ii-pocket {
-		fill: var(--sl-color-black);
-	}
-	:root[data-theme='light'] .ii-pocket {
-		fill: var(--sl-color-white);
-	}
-	.ii-shadow {
-		fill: color-mix(in srgb, var(--sl-color-black) 45%, transparent);
-	}
-	:root[data-theme='light'] .ii-shadow {
-		fill: color-mix(in srgb, var(--sl-color-white) 25%, transparent);
-	}
-	.ii-white {
-		fill: var(--sl-color-white);
-		stroke: var(--sl-color-gray-3);
-		stroke-width: 0.8;
-	}
-	:root[data-theme='light'] .ii-white {
-		fill: var(--sl-color-black);
-	}
-	.ii-red {
-		fill: var(--ig-vy);
-		stroke: color-mix(in srgb, var(--ig-vy) 60%, var(--sl-color-gray-5));
-		stroke-width: 0.8;
-	}
-	.ii-shine {
-		fill: color-mix(in srgb, var(--sl-color-white) 55%, transparent);
-	}
-	:root[data-theme='light'] .ii-shine {
-		fill: color-mix(in srgb, var(--sl-color-black) 70%, transparent);
-	}
-	.ii-cue {
-		stroke: color-mix(in oklab, var(--ig-v) 70%, var(--sl-color-gray-2));
-		stroke-width: 5;
-		stroke-linecap: round;
-	}
-	.ii-cue-tip {
-		stroke: var(--ig-vx);
-		stroke-width: 4;
-	}
-	.ii-varrow {
-		stroke: var(--ig-v);
-		stroke-width: 2.6;
-		stroke-linecap: round;
-	}
-	.ii-head {
-		fill: var(--ig-v);
-	}
-	/* boat scene */
-	.ii-sky {
-		fill: color-mix(in srgb, var(--ig-vx) 12%, transparent);
-	}
-	.ii-shore {
-		fill: color-mix(in oklab, var(--ig-v) 22%, var(--sl-color-gray-5));
-	}
-	.ii-water {
-		fill: color-mix(in srgb, var(--ig-vx) 40%, transparent);
-	}
-	.ii-surf {
-		fill: none;
-		stroke: color-mix(in srgb, var(--ig-vx) 70%, var(--sl-color-white));
-		stroke-width: 1.6;
-	}
-	.ii-post,
-	.ii-deck {
-		fill: color-mix(in oklab, var(--ig-v) 35%, var(--sl-color-gray-4));
-	}
-	.ii-plank {
-		stroke: color-mix(in oklab, var(--ig-v) 20%, var(--sl-color-gray-5));
-		stroke-width: 1;
-	}
-	.ii-hull {
-		fill: color-mix(in oklab, var(--ig-vy) 45%, var(--sl-color-gray-4));
-		stroke: color-mix(in oklab, var(--ig-vy) 30%, var(--sl-color-gray-3));
-		stroke-width: 1.2;
-		stroke-linejoin: round;
-	}
-	.ii-hull-in {
-		fill: color-mix(in oklab, var(--ig-vy) 25%, var(--sl-color-gray-5));
-	}
-	.ii-gunwale {
-		stroke: var(--sl-color-gray-2);
-		stroke-width: 2.4;
-		stroke-linecap: round;
-	}
-	.ii-seat {
-		stroke: var(--sl-color-gray-3);
-		stroke-width: 3;
-	}
+	[data-impintro] .ib-wall { fill: color-mix(in oklab, hsl(35, 30%, 40%) 30%, var(--sl-color-gray-6)); }
+	[data-impintro] .ib-panel { fill: color-mix(in oklab, var(--ib-wood-d) 60%, var(--sl-color-gray-6)); }
+	[data-impintro] .ib-floor { fill: color-mix(in oklab, hsl(28, 35%, 30%) 45%, var(--sl-color-gray-6)); }
+	[data-impintro] .ib-plank { stroke: color-mix(in oklab, var(--sl-color-gray-5) 70%, transparent); stroke-width: 0.7; fill: none; }
+	[data-impintro] .ib-board { fill: var(--ib-wood-d); stroke: var(--ib-wood); stroke-width: 1.2; }
+	[data-impintro] .ib-wire { stroke: var(--sl-color-gray-3); stroke-width: 0.6; }
+	[data-impintro] .ib-bead { fill: hsl(40, 70%, 70%); }
+	[data-impintro] .ib-bead--b { fill: hsl(0, 0%, 88%); }
+	[data-impintro] .ib-rack { fill: var(--ib-wood); }
+	[data-impintro] .ib-cue-wall { stroke: hsl(32, 55%, 62%); stroke-width: 1.6; stroke-linecap: round; }
+	[data-impintro] .ib-cord { stroke: var(--sl-color-gray-4); stroke-width: 0.8; }
+	[data-impintro] .ib-shade { fill: color-mix(in oklab, hsl(150, 40%, 30%) 80%, var(--sl-color-gray-6)); }
+	[data-impintro] .ib-shade-rim { stroke: hsl(45, 90%, 78%); stroke-width: 1.4; }
+	[data-impintro] .ib-light { fill: hsl(48, 90%, 75%); opacity: 0.1; }
+	[data-impintro] .ib-leg { stroke: var(--ib-wood-d); stroke-width: 7; }
+	[data-impintro] .ib-leg--far { stroke-width: 5; opacity: 0.8; }
+	[data-impintro] .ib-foot { stroke: var(--ib-wood-d); stroke-width: 3; stroke-linecap: round; }
+	[data-impintro] .ib-apron { fill: var(--ib-wood-d); stroke: var(--ib-wood); stroke-width: 0.8; }
+	[data-impintro] .ib-apron--end { fill: color-mix(in oklab, var(--ib-wood-d) 80%, black); }
+	[data-impintro] .ib-rail { fill: var(--ib-wood); stroke: var(--ib-wood-d); stroke-width: 1; }
+	[data-impintro] .ib-cloth { fill: var(--ib-cloth); }
+	[data-impintro] .ib-cushion { stroke: color-mix(in oklab, var(--ib-cloth) 70%, black); stroke-width: 1.6; }
+	[data-impintro] .ib-diamond { fill: hsl(45, 40%, 88%); }
+	[data-impintro] .ib-pocket { fill: hsl(220, 25%, 8%); }
+	[data-impintro] .ib-shadow { fill: hsl(160, 50%, 10%); opacity: 0.45; }
+	[data-impintro] .ib-white { fill: hsl(45, 40%, 95%); stroke: hsl(45, 10%, 60%); stroke-width: 0.5; }
+	[data-impintro] .ib-red { fill: hsl(355, 75%, 52%); stroke: hsl(355, 60%, 32%); stroke-width: 0.5; }
+	[data-impintro] .ib-shine { fill: white; opacity: 0.75; }
+	[data-impintro] .ib-cue { stroke: hsl(36, 60%, 66%); stroke-linecap: round; fill: none; }
+	[data-impintro] .ib-cue-butt { stroke: hsl(15, 45%, 26%); stroke-linecap: round; fill: none; }
+	[data-impintro] .ib-cue-tip { stroke: hsl(205, 60%, 55%); stroke-width: 1.4; stroke-linecap: butt; }
+
+	[data-impintro] .id-sky { fill: color-mix(in oklab, hsl(205, 70%, 62%) 35%, var(--sl-color-bg)); }
+	[data-impintro] .id-cloud { fill: color-mix(in oklab, white 55%, var(--sl-color-bg)); opacity: 0.6; }
+	[data-impintro] .id-hill { fill: color-mix(in oklab, hsl(130, 30%, 40%) 45%, var(--sl-color-bg)); }
+	[data-impintro] .id-tree { fill: color-mix(in oklab, hsl(140, 35%, 30%) 60%, var(--sl-color-bg)); }
+	[data-impintro] .id-stand { fill: color-mix(in oklab, hsl(210, 10%, 60%) 40%, var(--sl-color-bg)); }
+	[data-impintro] .id-step { stroke: color-mix(in oklab, var(--sl-color-gray-3) 50%, transparent); stroke-width: 0.6; }
+	[data-impintro] .id-fan circle { fill: color-mix(in oklab, hsl(26, 55%, 72%) 70%, var(--sl-color-bg)); }
+	[data-impintro] .id-fan rect { fill: color-mix(in oklab, hsl(0, 70%, 60%) 60%, var(--sl-color-bg)); }
+	[data-impintro] .id-fan--1 rect { fill: color-mix(in oklab, hsl(205, 70%, 60%) 60%, var(--sl-color-bg)); }
+	[data-impintro] .id-fan--2 rect { fill: color-mix(in oklab, hsl(45, 80%, 60%) 60%, var(--sl-color-bg)); }
+	[data-impintro] .id-fan--3 rect { fill: color-mix(in oklab, hsl(150, 50%, 50%) 60%, var(--sl-color-bg)); }
+	[data-impintro] .id-deck-far { fill: color-mix(in oklab, hsl(30, 8%, 75%) 45%, var(--sl-color-bg)); }
+	[data-impintro] .id-tower { fill: color-mix(in oklab, hsl(30, 8%, 70%) 60%, var(--sl-color-gray-5)); }
+	[data-impintro] .id-joint { stroke: var(--sl-color-gray-4); stroke-width: 0.6; }
+	[data-impintro] .id-plat { fill: color-mix(in oklab, hsl(30, 8%, 80%) 70%, var(--sl-color-gray-4)); }
+	[data-impintro] .id-plat--low { opacity: 0.75; }
+	[data-impintro] .id-rail { stroke: var(--sl-color-gray-3); stroke-width: 1; fill: none; }
+	[data-impintro] .id-ladder { stroke: var(--sl-color-gray-3); stroke-width: 0.8; fill: none; }
+	[data-impintro] .id-deck { fill: color-mix(in oklab, hsl(30, 8%, 80%) 60%, var(--sl-color-gray-5)); }
+	[data-impintro] .id-water { fill: hsl(195, 75%, 45%); opacity: 0.88; }
+	[data-impintro] .id-lane { stroke: hsl(0, 0%, 95%); stroke-width: 1.2; opacity: 0.6; }
+	[data-impintro] .id-surf { stroke: hsl(190, 80%, 80%); stroke-width: 1; }
+	[data-impintro] .id-dot { fill: var(--sl-color-white); }
+	[data-impintro] .id-ring { fill: none; stroke: hsl(190, 80%, 85%); stroke-width: 1.6; }
+	[data-impintro] .id-drop { fill: hsl(190, 80%, 88%); }
 </style>
 
 <script>
 	import { scene } from '@components/intro/scene';
-	import { figure } from '@components/people';
+	import { figure, ANKLE_CM, SKELETON, DEG, ROLL, add, sub, polar, mk, lerp, lerpPt, ease, type Pt, type FigurePose, type FigureState } from '@components/people';
 
-	const ease = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
 	const f1 = (v: number) => v.toFixed(1);
+	const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+	const smooth = (a: number, b: number, t: number) => ease((t - a) / (b - a));
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-impintro]')) {
-		// ---------- Billiards: 3,5 s ----------
+		// ------------------------------------------------------------------ billiards
 		{
 			const card = root.querySelector<HTMLElement>('[data-scene="billiards"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
+			// the table, as in the frontmatter
+			const P = (u: number, w: number): Pt => {
+				const xn = 118 + 200 * u;
+				const xf = 126 + 184 * u;
+				return { x: xn + (xf - xn) * w, y: 168 - 28 * w };
+			};
+			const LEN = 254;
+			const WID = 127; // см
+			const V = 1.5; // м/с, the balls
+			// the shot line: from the white ball toward the far corner pocket (u = 1, w = 1)
+			const W0 = { u: 0.22, w: 0.5 };
+			const dU = (1 - W0.u) * LEN;
+			const dW = (1 - W0.w) * WID;
+			const Ltot = Math.hypot(dU, dW); // см, white start → pocket
+			const at = (s: number) => P(W0.u + (dU * s) / Ltot / LEN, W0.w + (dW * s) / Ltot / WID); // s см along the line
+			const D1 = 83; // см, the travel of the white ball to the impact
+			const ballY = (p: Pt) => ({ x: p.x, y: p.y - 3.4 });
 			const white = $<SVGGElement>('[data-white]');
 			const red = $<SVGGElement>('[data-red]');
-			const cue = $<SVGGElement>('[data-cue]');
-			const arrow = $<SVGLineElement>('[data-varrow]');
-			// the line of the shot: from the white ball to the corner pocket
-			const A0 = [64, 62];
-			const P = [334, 206];
-			const L = Math.hypot(P[0] - A0[0], P[1] - A0[1]);
-			const d = [(P[0] - A0[0]) / L, (P[1] - A0[1]) / L];
-			const ang = (Math.atan2(d[1], d[0]) * 180) / Math.PI;
-			const at = (s: number) => [A0[0] + d[0] * s, A0[1] + d[1] * s];
-			const R = 9;
-			const SB = 170; // the red ball on the line
-			const SC = SB - 2 * R; // the white ball stops here
-			const V = 110; // px/s, the same for both balls
-			const RUN = 3.5;
-			const tHit = 0.62; // the cue touches the white ball
-			const tC = tHit + SC / V; // the balls collide
-			const place = (g: SVGGElement, s: number) => {
-				const [x, y] = at(s);
-				g.setAttribute('transform', `translate(${f1(x)} ${f1(y)})`);
+			const place = (g: SVGGElement, p: Pt, k = 1, op = 1) => {
+				const q = ballY(p);
+				g.setAttribute('transform', `translate(${f1(q.x)} ${f1(q.y)}) scale(${k.toFixed(3)})`);
+				g.setAttribute('opacity', op.toFixed(2));
 			};
-			scene(card, RUN, (x) => {
-				const t = x * RUN;
-				// the cue: drawn back, strikes, then slowly withdraws
-				let back = 4;
-				if (t < 0.5) back = 4 + 26 * ease(t / 0.5);
-				else if (t < tHit) back = 30 - 26 * ((t - 0.5) / (tHit - 0.5));
-				else back = 4 + 30 * ease((t - tHit) / 0.8);
-				const [cx, cy] = at(-back);
-				cue.setAttribute('transform', `translate(${f1(cx)} ${f1(cy)}) rotate(${ang.toFixed(2)})`);
-				cue.style.opacity = t > tHit + 0.6 ? String(Math.max(0, 1 - (t - tHit - 0.6) / 0.4)) : '1';
-				// the white ball slides to the red one and stops there
-				const sW = t < tHit ? 0 : Math.min(SC, V * (t - tHit));
-				place(white, sW);
-				// the red ball goes on with the same speed and drops into the pocket
-				const sR = t < tC ? SB : Math.min(L, SB + V * (t - tC));
-				place(red, sR);
-				const left = L - sR;
-				const inPocket = left < 14 ? Math.max(0, left / 14) : 1;
-				red.setAttribute('transform', `${red.getAttribute('transform')} scale(${(0.55 + 0.45 * inPocket).toFixed(2)})`);
-				red.style.opacity = left < 1 ? '0' : String(0.35 + 0.65 * inPocket);
-				// the speed arrow in front of whichever ball moves
-				const moving = t > tHit && t < tC ? sW : t >= tC && left > 22 ? sR : -1;
-				if (moving < 0) arrow.style.opacity = '0';
-				else {
-					const [x1, y1] = at(moving + R + 4);
-					const [x2, y2] = at(moving + R + 30);
-					arrow.setAttribute('x1', f1(x1));
-					arrow.setAttribute('y1', f1(y1));
-					arrow.setAttribute('x2', f1(x2));
-					arrow.setAttribute('y2', f1(y2));
-					arrow.style.opacity = '1';
+			// the player: 178 см at 0,76 px per см, standing at the head end
+			const S = 0.76;
+			const player = figure($<SVGGElement>('[data-player]'), { s: S, H: 178, clothes: 'home', shirt: 'hm-green', name: 'player' });
+			player.backLayer(0, $<SVGGElement>('[data-cue-back]'));
+			const FLOOR = 215;
+			const ankleY = FLOOR - ANKLE_CM.lowshoe * S;
+			const HIP: Pt = { x: 70, y: 148.5 };
+			const LEAN = 1.22;
+			// the cue in the picture: the tip aims at the white ball along the shot, the cue rises a little toward the butt
+			const wStart = ballY(at(0));
+			const ahead = ballY(at(20));
+			const a0 = Math.atan2(ahead.y - wStart.y, ahead.x - wStart.x) + 5.5 * DEG;
+			const cd: Pt = { x: Math.cos(a0), y: Math.sin(a0) }; // from the butt toward the tip
+			const contact: Pt = { x: wStart.x - cd.x * 3.9, y: wStart.y - cd.y * 3.9 }; // the tip meets the ball here
+			const CUE = 147 * S;
+			const GRIP = 112 * S; // the grip, from the tip
+			const bridgeOn: Pt = { x: contact.x - cd.x * 25 * S, y: contact.y - cd.y * 25 * S };
+			const bridgeHand: Pt = { x: bridgeOn.x + 1.5, y: P(0.13, 0.46).y - 0.6 }; // the palm on the cloth under the cue
+			// the stroke: the tip's distance (см) behind the contact point; negative = past it
+			const T_BACK = [0.35, 0.85]; // drawn back by 12 см
+			const ACC = (1.0 * 1.0) / (2 * 0.15); // м/с²: from rest to 1,0 м/с over 15 см
+			const T_HIT = T_BACK[1] + 0.3;
+			const tipBehind = (t: number) => {
+				if (t < T_BACK[0]) return 3;
+				if (t < T_BACK[1]) return 3 + 12 * smooth(T_BACK[0], T_BACK[1], t);
+				if (t < T_HIT) {
+					const tt = t - T_BACK[1];
+					return 15 - 100 * 0.5 * ACC * tt * tt;
 				}
-			});
+				const tt = Math.min(t - T_HIT, 0.2); // the follow-through: from 0,5 м/с to a stop in 0,2 с, 5 см
+				return -100 * (0.5 * tt - 1.25 * tt * tt);
+			};
+			const cueEls = { cue: $<SVGPathElement>('[data-cue]'), tip: $<SVGPathElement>('[data-tip]'), butt: $<SVGPathElement>('[data-butt]') };
+			const RED0 = D1 + 5.7; // the red ball's centre, см along the line
+			const T_MEET = T_HIT + D1 / 100 / V;
+			const T_POCKET = T_MEET + (Ltot - RED0) / 100 / V;
+			const RUN = 3.0;
+			const pose = (t: number): FigurePose => {
+				const b = tipBehind(t) * S;
+				const tip: Pt = { x: contact.x - cd.x * b, y: contact.y - cd.y * b };
+				const grip: Pt = { x: tip.x - cd.x * GRIP, y: tip.y - cd.y * GRIP };
+				const butt: Pt = { x: tip.x - cd.x * CUE, y: tip.y - cd.y * CUE };
+				// the cue tapers: thick at the butt, thin at the tip
+				const mid: Pt = lerpPt(butt, tip, 0.3);
+				cueEls.cue.setAttribute('d', `M${f1(mid.x)} ${f1(mid.y)} L${f1(tip.x - cd.x * 1.2)} ${f1(tip.y - cd.y * 1.2)}`);
+				cueEls.cue.setAttribute('stroke-width', '1.6');
+				cueEls.butt.setAttribute('d', `M${f1(butt.x)} ${f1(butt.y)} L${f1(mid.x)} ${f1(mid.y)}`);
+				cueEls.butt.setAttribute('stroke-width', '2.6');
+				cueEls.tip.setAttribute('d', `M${f1(tip.x - cd.x * 1.4)} ${f1(tip.y - cd.y * 1.4)} L${f1(tip.x)} ${f1(tip.y)}`);
+				return {
+					hip: HIP,
+					lean: LEAN,
+					head: 0.06,
+					ankles: [
+						{ x: HIP.x - 15, y: ankleY },
+						{ x: HIP.x + 17, y: ankleY },
+					],
+					feet: [0, 0],
+					hands: [
+						{ at: grip, pose: 'grip', d: 3, dir: Math.PI / 2 - 0.15, roll: ROLL.backViewer, contact: 'cue' },
+						{ at: bridgeHand, pose: 'flat', dir: 0.05, roll: ROLL.palmCw, contact: 'cloth' },
+					],
+					planted: [true, true],
+				};
+			};
+			const draw = (t: number) => {
+				player.pose(pose(t));
+				if (t < T_HIT) place(white, at(0));
+				else if (t < T_MEET) place(white, at((t - T_HIT) * V * 100));
+				else place(white, at(D1));
+				if (t < T_MEET) place(red, at(RED0));
+				else {
+					const s = Math.min(RED0 + (t - T_MEET) * V * 100, Ltot);
+					const drop = clamp01((t - T_POCKET) / 0.18);
+					place(red, at(s), 1 - 0.45 * drop, 1 - drop);
+				}
+			};
+			scene(card, RUN, (x) => draw(x * RUN));
 		}
 
-		// ---------- Boat: 5 s ----------
+		// ------------------------------------------------------------------ dive
 		{
-			const card = root.querySelector<HTMLElement>('[data-scene="boat"]')!;
+			const card = root.querySelector<HTMLElement>('[data-scene="dive"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
-			const boat = $<SVGGElement>('[data-boat]');
-			// the boy: 1,6 м at 40 px per м (people kit)
-			const S = 0.4;
-			const u = 160 * S;
-			const fig = figure($<SVGGElement>('[data-boy]'), { s: S, H: 160, age: 'teen', shirt: 'hm-gold', hair: 'short', clothes: 'indoor', prefix: 'hm', name: 'boy' });
-			const water = $<SVGPathElement>('[data-water]');
-			const surf = $<SVGPathElement>('[data-surf]');
-			const vBoy = $<SVGLineElement>('[data-vboy]');
-			const vBoat = $<SVGLineElement>('[data-vboat]');
-			const K = 40; // px per m
-			const WL = 172;
-			const FLOOR = WL - 6; // the boat floor
-			const DECK = 150; // the pier
-			const BX0 = 120; // the left end of the boat at the start
-			const X0 = 222; // the boy's feet at the start
-			const t1 = 0.6; // crouching starts
-			const t2 = 1.0; // the push starts
-			const TP = 0.2; // the push lasts
-			const t3 = t2 + TP; // take-off
-			const TF = 0.7; // flight
-			const t4 = t3 + TF; // landing
-			const U = 2; // m/s, the boy
-			const W = 1; // m/s, the boat (backwards)
-			const TAU = 4; // s, the water slows the boat
-			const G = 9.8;
-			const H = (FLOOR - DECK) / K; // m, the pier above the floor
-			const VY = (H + (G * TF * TF) / 2) / TF; // vertical speed at take-off
-			const RUN = 5;
-			// the boat's shift backwards (m) at time t
-			const boatShift = (t: number) => {
-				if (t < t2) return 0;
-				if (t < t3) return (0.5 * (W / TP) * (t - t2) ** 2);
-				return 0.5 * W * TP + W * TAU * (1 - Math.exp(-(t - t3) / TAU));
-			};
-			const boatSpeed = (t: number) => (t < t2 ? 0 : t < t3 ? (W * (t - t2)) / TP : W * Math.exp(-(t - t3) / TAU));
-			// the boy: feet position (px) and how much he crouches
-			const boy = (t: number) => {
-				if (t < t2) return { x: X0, y: FLOOR, c: ease((t - t1) / (t2 - t1)), fly: 0 };
-				if (t < t3) {
-					const tt = t - t2;
-					const sx = 0.5 * (U / TP) * tt * tt; // the body moves forward during the push
-					return { x: X0 + sx * K, y: FLOOR, c: 1 - tt / TP, fly: 0 };
+			const WY = 600;
+			const K = 45; // px per м
+			const PLAT = WY - 10 * K;
+			const EDGE = 120;
+			const S = 0.45; // px per см
+			const H = 180;
+			const sk = SKELETON.adult;
+			const u = S * H;
+			const diver = figure($<SVGGElement>('[data-diver]'), { s: S, H, clothes: 'swim', shirt: 'hm-blue', name: 'diver' });
+			const wrap = $<SVGGElement>('[data-wrap]');
+			const coach = figure($<SVGGElement>('[data-coach]'), { s: S, H: 176, clothes: 'home', shirt: 'hm-red', dir: -1, name: 'coach' });
+			const ARM = (sk.upper + sk.fore) * u;
+			const REACH = ARM * 0.98 + 0.04 * u; // shoulder to the middle of a stretched hand
+			const LEG = (sk.thigh + sk.shin) * u;
+
+			// the centre of mass of a pose (in the figure's own coordinates), from its joints
+			const cmOf = (hip: Pt, lean: number, st: FigureState, ankles: [Pt, Pt]): Pt => {
+				const spine = { x: Math.sin(lean), y: -Math.cos(lean) };
+				const head = add(hip, { x: spine.x * sk.headC * u, y: spine.y * sk.headC * u });
+				const neck = add(hip, { x: spine.x * sk.shoulder * u, y: spine.y * sk.shoulder * u });
+				const parts: [Pt, number][] = [
+					[head, 0.081],
+					[lerpPt(hip, neck, 0.5), 0.497],
+				];
+				for (const i of [0, 1] as const) {
+					parts.push([lerpPt(st.shoulders[i], st.elbows[i], 0.44), 0.028]);
+					parts.push([lerpPt(st.elbows[i], st.wrists[i], 0.6), 0.022]);
+					parts.push([lerpPt(hip, st.knees[i], 0.43), 0.1]);
+					parts.push([lerpPt(st.knees[i], ankles[i], 0.55), 0.061]);
 				}
-				const x3 = X0 + 0.5 * U * TP * K;
-				if (t < t4) {
-					const tt = t - t3;
-					return { x: x3 + U * tt * K, y: FLOOR - (VY * tt - (G * tt * tt) / 2) * K, c: 0, fly: Math.sin((Math.PI * tt) / TF) };
+				let x = 0;
+				let y = 0;
+				for (const [p, m] of parts) {
+					x += p.x * m;
+					y += p.y * m;
 				}
-				return { x: x3 + U * TF * K, y: DECK, c: 0.5 * Math.sin(Math.PI * Math.min(1, (t - t4) / 0.5)), fly: 0 };
+				return { x, y };
 			};
-			// x, y: between the feet on the floor; c: how deep he crouches; fly: 0…1…0 over the flight
-			const drawBoy = (x: number, y: number, c: number, fly: number) => {
-				const ank = 7 * S;
-				// the hip joint comes down by up to 0,2 of the height in the crouch; the body leans forward
-				const hip = { x: x - 2 - 4 * c, y: y - 0.505 * u + 0.2 * u * c - 0.04 * u * fly };
-				// the arms swing down and back while he crouches, forward and up in the flight
-				const swing = Math.PI / 2 + 0.9 * c - 2.1 * fly;
-				fig.pose({
+
+			// the take-off: standing at the edge (the figure's coordinates = the picture's, no turn yet)
+			const ankleY = PLAT - ANKLE_CM.barefoot * S;
+			const FOOT_X = EDGE - 17 * S; // the ankle, the toes at the edge
+			const T_OFF = 1.1; // s
+			const VX = 1.3;
+			const VY = 4.0; // м/с
+			const hipStand = { x: FOOT_X + 1, y: ankleY - LEG * 0.995 };
+			const prePose = (t: number): FigurePose => {
+				const dip = smooth(0.45, 0.8, t) * (1 - smooth(0.8, T_OFF, t)); // knees bend, then straighten
+				const rise = smooth(0.85, T_OFF, t); // up on the toes
+				const ankle = { x: FOOT_X, y: ankleY - rise * 7 * S };
+				const hip = { x: hipStand.x - dip * 2.2, y: hipStand.y + dip * 4.6 - rise * 7 * S };
+				const lean = 0.05 + dip * 0.35 - 0.05 * rise;
+				const sh = diver.shoulders(hip, lean);
+				// the arms: by the sides, swung back in the dip, then forward and up over the head
+				const back = smooth(0.4, 0.75, t);
+				const up = smooth(0.72, T_OFF, t);
+				const ang = lerp(lerp(Math.PI / 2, Math.PI / 2 + 0.75, back), -Math.PI / 2 + 0.12, up); // screen angle of the arm
+				const hand = (i: 0 | 1) => ({ at: add(sh[i], polar(REACH, ang - i * 0.05)), pose: (up > 0.5 ? 'flat' : 'relaxed') as 'flat' | 'relaxed' });
+				return {
 					hip,
-					lean: 0.45 * c + 0.25 * fly,
-					head: -0.2 * c,
+					lean,
+					head: -0.05 * up,
+					ankles: [ankle, { x: ankle.x - 1.2, y: ankle.y }],
+					feet: [rise * 0.9, rise * 0.9],
+					hands: [hand(0), hand(1)],
+					planted: [rise < 0.02, rise < 0.02],
+				};
+			};
+
+			// in the air: stretched ↔ tucked; the figure's coordinates with the hip at the origin
+			const tuckOf = (tau: number) => smooth(0.15, 0.4, tau) * (1 - smooth(1.2, 1.45, tau));
+			const inertia = (tau: number) => lerp(18, 4, tuckOf(tau));
+			const airPose = (tau: number): { q: FigurePose; ankles: [Pt, Pt] } => {
+				const k = tuckOf(tau);
+				const hip = { x: 0, y: 0 };
+				const lean = lerp(-0.05, 1.0, k);
+				const thigh = lerp(Math.PI / 2, -0.35, k);
+				const bend = lerp(0, 2.5, k);
+				const legs: [[number, number], [number, number]] = [
+					[thigh, bend],
+					[thigh + 0.05, bend],
+				];
+				const knee = (l: [number, number]): Pt => polar(sk.thigh * u, l[0]);
+				const ank = (l: [number, number]): Pt => add(knee(l), polar(sk.shin * u, l[0] + l[1]));
+				const ankles: [Pt, Pt] = [ank(legs[0]), ank(legs[1])];
+				const sh = diver.shoulders(hip, lean);
+				// the hands: over the head when stretched, on the shins when tucked; swept forward in between
+				const hand = (i: 0 | 1) => {
+					const a0 = -Math.PI / 2 + 0.12 - i * 0.05;
+					const tgt = lerpPt(knee(legs[i]), ankles[i], 0.3);
+					const v = sub(tgt, sh[i]);
+					let a1 = Math.atan2(v.y, v.x);
+					if (a1 < a0) a1 += 2 * Math.PI;
+					const r = Math.min(REACH, lerp(REACH, Math.hypot(v.x, v.y), k)); // never beyond the reach of the arm
+					const at = k > 0.995 ? tgt : add(sh[i], polar(r, lerp(a0, a1, k)));
+					return { at, pose: (k > 0.5 ? 'grip' : 'flat') as 'grip' | 'flat', d: 9, contact: k > 0.995 ? `shin-${i}` : undefined };
+				};
+				return {
+					q: { hip, lean, head: lerp(-0.05, 0.25, k), ankles, legs, feet: [lerp(0.9, 0.7, k), lerp(0.9, 0.7, k)], hands: [hand(0), hand(1)] },
+					ankles,
+				};
+			};
+			// the angle turned (rad) after tau s in the air for the angular momentum L (кг·м²/с)
+			const turned = (tau: number, L: number) => {
+				let a = 0;
+				const n = Math.max(1, Math.ceil(tau / 0.002));
+				for (let i = 0; i < n; i++) a += (L / inertia((i + 0.5) * (tau / n))) * (tau / n);
+				return a;
+			};
+			const dots = $<SVGGElement>('[data-dots]');
+			const dotEls: SVGCircleElement[] = [];
+			const rings = $<SVGGElement>('[data-rings]');
+			const ringEls = [0, 1, 2].map(() => mk(rings, 'ellipse', { class: 'id-ring', rx: 0, ry: 0, opacity: 0 }));
+			const splash = $<SVGGElement>('[data-splash]');
+			const drops = Array.from({ length: 14 }, (_, i) => {
+				const r = Math.abs(Math.sin(i * 91.7) * 1000) % 1;
+				return { vx: (i % 2 ? 1 : -1) * (0.3 + 1.2 * r), vy: 2.6 + 2.2 * ((i * 0.37) % 1), el: mk(splash, 'circle', { class: 'id-drop', r: f1(1.6 + 1.4 * r), opacity: 0 }) };
+			});
+			// the take-off pose fixes the start of the parabola; the entry fixes the angular momentum (1½ turns)
+			const p0 = prePose(T_OFF);
+			const cm0 = cmOf(p0.hip, p0.lean, diver.pose(p0), p0.ankles);
+			const y0m = (WY - cm0.y) / K; // the centre of mass above the water at the take-off, м
+			const T_E = (VY + Math.sqrt(VY * VY + 4 * 4.9 * (y0m - 1.05))) / (2 * 4.9);
+			const Lmom = (3 * Math.PI) / turned(T_E, 1);
+			for (let i = 1; i * 0.1 < T_E; i++) dotEls.push(mk(dots, 'circle', { class: 'id-dot', r: '2.2', opacity: 0 }));
+			const RUN = T_OFF + T_E + 1.1;
+			// the coach on the deck, following the diver with his eyes
+			const CS = 0.45;
+			const coachAnkle = WY - 8 - ANKLE_CM.lowshoe * CS;
+			const coachHip = { x: 326, y: coachAnkle - (sk.thigh + sk.shin) * 176 * CS * 0.995 };
+			const coachPose = (look: number): FigurePose => {
+				const sh = coach.shoulders(coachHip, -0.02);
+				const r = (sk.upper + sk.fore) * 176 * CS * 0.97;
+				return {
+					hip: coachHip,
+					lean: -0.02,
+					head: look,
 					ankles: [
-						{ x: x + 3, y: y - ank - 0.12 * u * fly },
-						{ x: x - 3, y: y - ank - 0.1 * u * fly },
+						{ x: 320, y: coachAnkle },
+						{ x: 333, y: coachAnkle },
 					],
-					feet: [0.3 * fly, 0.35 * fly],
+					feet: [0, 0],
 					hands: [
-						{ arm: [swing, 0.35], pose: 'relaxed' },
-						{ arm: [swing + 0.15, 0.45], pose: 'relaxed' },
+						{ at: add(sh[0], polar(r, Math.PI / 2 - 0.08)), pose: 'relaxed' },
+						{ at: add(sh[1], polar(r, Math.PI / 2 + 0.06)), pose: 'relaxed' },
 					],
+					planted: [true, true],
+				};
+			};
+			// the camera: the platform stays in view until the diver comes down past it, then the view follows his centre of
+			// mass until the water reaches the lower part of the picture
+			const world = $<SVGGElement>('[data-world]');
+			const TOP0 = PLAT - 120;
+			const TOP1 = WY - 196;
+			let camY = TOP0;
+			const draw = (t: number) => {
+				const tau = t - T_OFF;
+				{
+					const ta = Math.max(0, Math.min(tau, T_E));
+					const cy = cm0.y - (VY * ta - 4.9 * ta * ta) * K;
+					camY = Math.min(TOP1, Math.max(TOP0, cy - 110));
+					world.setAttribute('transform', `translate(0 ${f1(-camY)})`);
+				}
+				coach.pose(coachPose(-0.6 + 0.55 * smooth(T_OFF + 0.5, T_OFF + T_E, t)));
+				if (tau < 0) {
+					wrap.removeAttribute('transform');
+					diver.pose(prePose(t));
+				} else {
+					const ta = Math.min(tau, T_E);
+					// after the entry the body goes on down, slowed by the water
+					const under = Math.max(0, tau - T_E);
+					const slow = 0.12 * (1 - Math.exp(-under / 0.12)); // s of motion at the entry speed
+					const vE = VY - 9.8 * T_E;
+					const xm = VX * ta + VX * slow;
+					const ym = VY * ta - 4.9 * ta * ta + vE * slow;
+					const C: Pt = { x: cm0.x + xm * K, y: cm0.y - ym * K };
+					const { q, ankles } = airPose(ta);
+					const st = diver.pose(q);
+					const cm = cmOf(q.hip, q.lean, st, ankles);
+					const th = turned(ta, Lmom);
+					wrap.setAttribute('transform', `translate(${f1(C.x)} ${f1(C.y)}) rotate(${(th / DEG).toFixed(1)}) translate(${f1(-cm.x)} ${f1(-cm.y)})`);
+				}
+				// the marks every 0,1 s in the air
+				dotEls.forEach((d, i) => {
+					const tt = (i + 1) * 0.1;
+					const on = tau >= tt;
+					d.setAttribute('opacity', on ? '0.6' : '0');
+					d.setAttribute('cx', f1(cm0.x + VX * tt * K));
+					d.setAttribute('cy', f1(cm0.y - (VY * tt - 4.9 * tt * tt) * K));
+				});
+				// the splash and the rings
+				const te = tau - T_E + 0.08;
+				const xe = cm0.x + VX * T_E * K;
+				drops.forEach((d) => {
+					const y = d.vy * te - 4.9 * te * te;
+					const on = te > 0 && y > 0;
+					d.el.setAttribute('opacity', on ? (0.9 * (1 - te)).toFixed(2) : '0');
+					d.el.setAttribute('cx', f1(xe + d.vx * Math.max(0, te) * K));
+					d.el.setAttribute('cy', f1(WY - Math.max(0, y) * K));
+				});
+				ringEls.forEach((r, i) => {
+					const tr = te - i * 0.25;
+					const on = tr > 0;
+					r.setAttribute('cx', f1(xe));
+					r.setAttribute('cy', f1(WY + 1.5));
+					r.setAttribute('rx', f1(on ? 9 + tr * 66 : 0));
+					r.setAttribute('ry', f1(on ? 2.4 + tr * 9 : 0));
+					r.setAttribute('opacity', on ? Math.max(0, 0.9 - tr * 0.8).toFixed(2) : '0');
 				});
 			};
-			const arrowAt = (ln: SVGLineElement, x: number, y: number, len: number) => {
-				ln.setAttribute('x1', f1(x));
-				ln.setAttribute('y1', f1(y));
-				ln.setAttribute('x2', f1(x + len));
-				ln.setAttribute('y2', f1(y));
-			};
-			scene(card, RUN, (x) => {
-				const t = x * RUN;
-				const now = performance.now() / 1000;
-				const bx = BX0 - boatShift(t) * K;
-				const bob = 0.7 * Math.sin(now * 1.4);
-				boat.setAttribute('transform', `translate(${f1(bx)} ${f1(WL + bob)})`);
-				const b = boy(t);
-				// while he stands in the boat, he bobs with it
-				drawBoy(b.x, b.y + (t < t3 ? bob : 0), b.c, b.fly);
-				// the water surface with a small wake behind the moving boat
-				const vb = boatSpeed(t);
-				const pts: string[] = [];
-				for (let px = 0; px <= 360; px += 6) {
-					let h = 0.8 * Math.sin(px / 21 + now * 1.6);
-					const dl = px - bx; // the bow wave on the left end of the boat
-					if (dl > -26 && dl < 4) h -= 2.2 * vb * Math.exp(-((dl + 6) ** 2) / 80);
-					pts.push(`${px} ${f1(WL + h)}`);
-				}
-				surf.setAttribute('d', `M ${pts.join(' L ')}`);
-				water.setAttribute('d', `M ${pts.join(' L ')} L 360 240 L 0 240 Z`);
-				// the speed arrows: the boy 2, the boat 1 (18 px per m/s)
-				const show = t > t3 - 0.05 && t < t4 + 0.6;
-				vBoy.style.opacity = show && t < t4 ? '1' : '0';
-				vBoat.style.opacity = show ? '1' : '0';
-				if (show) {
-					arrowAt(vBoy, b.x - 14, b.y - 76, 18 * U);
-					arrowAt(vBoat, bx + 58, WL - 34, -18 * vb);
-				}
-			});
+			scene(card, RUN, (x) => draw(x * RUN));
 		}
 	}
 </script>
