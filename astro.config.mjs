@@ -85,7 +85,7 @@ export default defineConfig({
 					section('Световые явления', '8-klass/svetovye-yavleniya', ['istochniki-sveta', 'otrazhenie-sveta', 'prelomlenie-sveta', 'linzy', 'glaz-i-zrenie']),
 				]),
 				grade(9, [
-					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['pryamolineynoe-dvizhenie', 'otnositelnost-dvizheniya', 'zakony-nyutona', 'svobodnoe-padenie-tel', 'zakon-vsemirnogo-tyagoteniya', 'ravnomernoe-dvizhenie-po-okruzhnosti', 'impuls-reaktivnoe-dvizhenie', 'sohranenie-mehanicheskoy-energii']),
+					section('Законы взаимодействия и движения тел', '9-klass/zakony-dvizheniya', ['pryamolineynoe-dvizhenie', 'otnositelnost-dvizheniya', 'zakony-nyutona', 'svobodnoe-padenie-tel', 'ravnomernoe-dvizhenie-po-okruzhnosti', 'zakon-vsemirnogo-tyagoteniya', 'impuls-reaktivnoe-dvizhenie', 'sohranenie-mehanicheskoy-energii']),
 					section('Механические колебания и волны. Звук', '9-klass/kolebaniya-i-volny', ['mayatnik', 'volny-dlina-volny', 'zvuk']),
 					section('Электромагнитное поле', '9-klass/elektromagnitnoe-pole', ['magnitnaya-indukciya', 'yavlenie-elektromagnitnoy-indukcii', 'peremennyy-tok-transformator', 'elektromagnitnye-volny-svet']),
 					section('Строение атома и атомного ядра', '9-klass/atom-i-yadro', ['radioaktivnost-modeli-atoma', 'sostav-atomnogo-yadra', 'yadernye-reakcii']),
