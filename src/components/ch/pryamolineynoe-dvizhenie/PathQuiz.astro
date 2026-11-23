@@ -1,0 +1,359 @@
+---
+/**
+ * Quiz «путь и перемещение» (Irina, 23 Nov 2026: «интерактив с выбором правильных вариантов: будут разные траектории
+ * (прямая, замкнутая, кривая), и нужно сравнить перемещение и путь»). Five small cards, each a trajectory seen from
+ * above with its start (green dot) and end (red ring): the pupil chooses s = l, 0 < s < l or s = 0. A wrong choice
+ * is struck out with a hint; the right one (class `is-right`, which lights the chapter's «вопрос» star) starts a dot
+ * that runs along the trajectory, then the gold displacement arrow appears from start to end and the line under the
+ * card gives both lengths. After two wrong choices the answer is shown the same way.
+ * Lengths (recomputed in python, 23 Nov 2026):
+ *   road: 300 м one way, l = s = 300 м (0,533 px per metre);
+ *   slalom: y = 8 м · sin(2πx / 40 м) over 120 м, l = 158,5 м ≈ 158 м, s = 120 м (1,5 px per metre);
+ *   pool: 50 м there and back, l = 100 м, s = 0;
+ *   pond: half of a circle of R = 40 м, l = πR = 125,7 м ≈ 126 м, s = 2R = 80 м (1,1 px per metre);
+ *   stadium: one lap, l = 400 м, s = 0 (straights 84,4 м, bends R = 36,5 м; 1,08 px per metre).
+ */
+import PdStyles from './PdStyles.astro';
+
+const f = (v: number) => v.toFixed(1);
+// the slalom: 3 periods of a sine, 120 м → 180 px, amplitude 8 м → 12 px
+const sl: string[] = [];
+for (let i = 0; i <= 120; i++) sl.push(`${i ? 'L' : 'M'}${f(20 + i * 1.5)} ${f(60 - 12 * Math.sin((2 * Math.PI * i) / 40))}`);
+const gates = [10, 30, 50, 70, 90, 110].map((m, i) => ({ x: 20 + m * 1.5, y: 60 - 12 * Math.sin((2 * Math.PI * m) / 40) + (i % 2 ? 9 : -9) }));
+// the stadium: straights 84,4 м = 91 px, bends R = 36,5 м = 39,4 px, centre (110, 62); start in the middle of the lower straight
+const R = 39.4;
+const H = 45.5;
+const lap = `M110 ${f(62 + R)} H${f(110 + H)} A${R} ${R} 0 0 0 ${f(110 + H)} ${f(62 - R)} H${f(110 - H)} A${R} ${R} 0 0 0 ${f(110 - H)} ${f(62 + R)} Z`;
+
+const OPTS = ['<i>s</i> = <i>l</i>', '0 &lt; <i>s</i> &lt; <i>l</i>', '<i>s</i> = 0'];
+const cards = [
+	{
+		title: 'Автомобиль проехал по прямой дороге',
+		answer: 0,
+		start: [30, 74],
+		end: [190, 74],
+		traj: 'M30 74 H190',
+		hints: ['', 'Автомобиль ехал по прямой в одну сторону: длина траектории и есть расстояние от начала до конца.', 'Конец не совпадает с началом.'],
+		result: '<i>l</i> = 300&nbsp;м, <i>s</i> = 300&nbsp;м: по прямой в одну сторону путь равен модулю перемещения.',
+	},
+	{
+		title: 'Лыжник прошёл трассу слалома',
+		answer: 1,
+		start: [20, 60],
+		end: [200, 60],
+		traj: sl.join(' '),
+		hints: ['Перемещение — прямой отрезок от начала до конца, а траектория изгибается и длиннее его.', '', 'Конец не совпадает с началом.'],
+		result: '<i>l</i> ≈ 158&nbsp;м, <i>s</i> = 120&nbsp;м: изогнутая траектория длиннее отрезка от начала до конца.',
+	},
+	{
+		title: 'Пловец проплыл дорожку бассейна туда и обратно',
+		answer: 2,
+		start: [35, 62],
+		end: [35, 62],
+		traj: 'M35 62 H185 H35',
+		hints: ['Пловец вернулся туда, откуда начал.', 'Конец совпал с началом: отрезка между ними нет.', ''],
+		result: '<i>l</i> = 50&nbsp;м + 50&nbsp;м = 100&nbsp;м, <i>s</i> = 0: пловец вернулся к старту.',
+	},
+	{
+		title: 'Девочка обошла пруд по дорожке наполовину',
+		answer: 1,
+		start: [66, 70],
+		end: [154, 70],
+		traj: 'M66 70 A44 44 0 0 1 154 70',
+		hints: ['Путь идёт по дуге, а перемещение — прямо, поперёк пруда.', '', 'Половина круга не возвращает в начало: конец — на другом берегу.'],
+		result: '<i>l</i> = π<i>R</i> ≈ 126&nbsp;м, <i>s</i> = 2<i>R</i> = 80&nbsp;м (радиус дорожки <i>R</i> = 40&nbsp;м).',
+	},
+	{
+		title: 'Бегун пробежал один круг по стадиону',
+		answer: 2,
+		start: [110, 62 + R],
+		end: [110, 62 + R],
+		traj: lap,
+		hints: ['Бегун вернулся на старт.', 'Конец круга совпал с началом: отрезка между ними нет.', ''],
+		result: '<i>l</i> = 400&nbsp;м, <i>s</i> = 0: после целого круга бегун там же, где начал.',
+	},
+];
+---
+
+<PdStyles />
+<figure class="g7 pdm pq not-content" data-pathquiz>
+	<div class="pq__grid">
+		{
+			cards.map((c, n) => (
+				<div class="pq__card" data-card data-answer={c.answer} data-sx={c.start[0]} data-sy={c.start[1]} data-ex={c.end[0]} data-ey={c.end[1]}>
+					<p class="pq__title">{c.title}</p>
+					<svg class="g7__svg pq__svg" viewBox="0 0 220 120" role="img" aria-label={`${c.title}: траектория, её начало и конец`}>
+						{n === 0 && (
+							<>
+								<rect class="pdm-grass" x="0" y="0" width="220" height="120" rx="8" />
+								<rect class="pdm-road" x="0" y="62" width="220" height="24" />
+								<line class="pdm-lane" x1="0" y1="80" x2="220" y2="80" />
+							</>
+						)}
+						{n === 1 && (
+							<>
+								<rect class="pq-snow" x="0" y="0" width="220" height="120" rx="8" />
+								{gates.map((g, i) => (
+									<path class={i % 2 ? 'pq-gate pq-gate--b' : 'pq-gate'} d={`M${f(g.x)} ${f(g.y + 6)} V${f(g.y - 6)} l6 2.5 l-6 2.5`} />
+								))}
+							</>
+						)}
+						{n === 2 && (
+							<>
+								<rect class="pq-tiles" x="0" y="0" width="220" height="120" rx="8" />
+								<rect class="pq-water" x="30" y="22" width="160" height="76" rx="3" />
+								<line class="pq-rope" x1="30" y1="47" x2="190" y2="47" />
+								<line class="pq-rope" x1="30" y1="77" x2="190" y2="77" />
+								<path class="pq-dir" d="M90 54 H130 m-5 -3.5 l5 3.5 l-5 3.5" />
+								<path class="pq-dir" d="M130 70 H90 m5 -3.5 l-5 3.5 l5 3.5" />
+							</>
+						)}
+						{n === 3 && (
+							<>
+								<rect class="pdm-grass" x="0" y="0" width="220" height="120" rx="8" />
+								<circle class="pq-water" cx="110" cy="70" r="33" />
+							</>
+						)}
+						{n === 4 && (
+							<>
+								<rect class="pdm-grass" x="0" y="0" width="220" height="120" rx="8" />
+								<path class="pq-track" d={lap} />
+							</>
+						)}
+						<path class="pq-traj" data-traj d={c.traj} />
+						<g data-arrow />
+						<circle class="pq-start" cx={c.start[0]} cy={c.start[1]} r="4.5" />
+						<circle class="pq-end" cx={c.end[0]} cy={c.end[1]} r={c.end[0] === c.start[0] && c.end[1] === c.start[1] ? 8 : 4.5} />
+						<circle class="pq-runner" data-runner r="3.5" cx={c.start[0]} cy={c.start[1]} />
+					</svg>
+					<div class="pq__opts" role="group" aria-label="Сравните модуль перемещения и путь">
+						{OPTS.map((o, i) => (
+							<button type="button" class="pq__opt" data-i={i} data-hint={c.hints[i]} set:html={o} />
+						))}
+					</div>
+					<p class="pq__fb" aria-live="polite" data-fb />
+					<p class="pq__res" data-res hidden set:html={c.result} />
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="g7__caption">
+		Вид сверху. Сплошная линия — траектория, зелёная точка — начало, красная — конец (кольцо, если конец совпал с началом). После ответа появляется золотая стрелка — перемещение.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.pq .pq__grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+		gap: 0.75rem;
+	}
+	.pq .pq__card {
+		display: grid;
+		align-content: start;
+		gap: 0.4rem;
+		padding: 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		background: var(--g7-paper);
+	}
+	.pq .pq__title {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.pq .pq__svg {
+		width: 100%;
+		height: auto;
+		display: block;
+	}
+	.pq .pq-snow {
+		fill: color-mix(in oklab, var(--ig-vx) 8%, var(--sl-color-gray-6));
+	}
+	.pq .pq-tiles {
+		fill: color-mix(in oklab, var(--ig-vx) 6%, var(--sl-color-gray-5));
+	}
+	.pq .pq-gate {
+		fill: var(--g7-red);
+		stroke: var(--g7-red);
+		stroke-width: 1.2;
+	}
+	.pq .pq-gate--b {
+		fill: var(--g7-blue);
+		stroke: var(--g7-blue);
+	}
+	.pq .pq-water {
+		fill: var(--g7-water);
+		stroke: var(--g7-water-edge);
+		stroke-width: 1;
+	}
+	.pq .pq-rope {
+		stroke: var(--g7-water-edge);
+		stroke-width: 1.2;
+		stroke-dasharray: 3 3;
+	}
+	.pq .pq-dir {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.pq .pq-track {
+		fill: color-mix(in oklab, hsl(120, 40%, 45%) 30%, var(--g7-paper));
+		stroke: color-mix(in oklab, var(--ig-vy) 40%, var(--sl-color-gray-4));
+		stroke-width: 9;
+	}
+	.pq .pq-traj {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.pq .pq-start {
+		fill: var(--g7-green);
+		stroke: var(--g7-paper);
+		stroke-width: 1.2;
+	}
+	.pq .pq-end {
+		fill: none;
+		stroke: var(--g7-red);
+		stroke-width: 2.4;
+	}
+	.pq .pq-end[r='4.5'] {
+		fill: var(--g7-red);
+		stroke: var(--g7-paper);
+		stroke-width: 1.2;
+	}
+	.pq .pq-runner {
+		fill: var(--g7-gold);
+		opacity: 0;
+	}
+	.pq .pq-runner.is-on {
+		opacity: 1;
+	}
+	.pq [data-arrow] {
+		opacity: 0;
+		transition: opacity 0.5s;
+	}
+	.pq [data-arrow].is-on {
+		opacity: 1;
+	}
+	.pq .pq__opts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.pq .pq__opt {
+		margin: 0;
+		padding: 0.3rem 0.75rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		background: transparent;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.pq .pq__opt:hover:not(:disabled) {
+		border-color: var(--sl-color-accent);
+	}
+	.pq .pq__opt:disabled {
+		cursor: default;
+	}
+	.pq .pq__opt.is-right {
+		border-color: var(--g7-green);
+		background: color-mix(in oklab, var(--g7-green) 22%, transparent);
+	}
+	.pq .pq__opt.is-wrong {
+		border-color: var(--g7-red);
+		color: var(--g7-red);
+		opacity: 0.75;
+		text-decoration: line-through;
+	}
+	.pq .pq__fb,
+	.pq .pq__res {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.pq .pq__fb:empty {
+		display: none;
+	}
+	.pq .pq__fb.is-right {
+		color: var(--g7-green);
+		font-weight: 700;
+	}
+	.pq .pq__res {
+		color: var(--sl-color-gray-1);
+	}
+	@media (max-width: 40rem) {
+		.pq .pq__fb,
+		.pq .pq__res {
+			font-size: var(--sl-text-sm);
+		}
+	}
+</style>
+
+<script>
+	import { newArrow } from './pd';
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-pathquiz]')) {
+		for (const card of fig.querySelectorAll<HTMLElement>('[data-card]')) {
+			const answer = Number(card.dataset.answer);
+			const opts = [...card.querySelectorAll<HTMLButtonElement>('.pq__opt')];
+			const fb = card.querySelector<HTMLElement>('[data-fb]')!;
+			const res = card.querySelector<HTMLElement>('[data-res]')!;
+			const traj = card.querySelector<SVGPathElement>('[data-traj]')!;
+			const runner = card.querySelector<SVGCircleElement>('[data-runner]')!;
+			const arrowG = card.querySelector<SVGGElement>('[data-arrow]')!;
+			const [sx, sy, ex, ey] = ['sx', 'sy', 'ex', 'ey'].map((k) => Number(card.dataset[k]));
+			newArrow(arrowG, 'gold')(sx, sy, ex, ey, 9, 5);
+			// run a dot along the trajectory (about 1,6 s), then show the displacement
+			const reveal = () => {
+				opts.forEach((b) => (b.disabled = true));
+				const L = traj.getTotalLength();
+				const T = 1600;
+				let t0 = -1;
+				runner.classList.add('is-on');
+				const step = (now: number) => {
+					if (t0 < 0) t0 = now;
+					const u = Math.min(1, (now - t0) / T);
+					const e = u * u * (3 - 2 * u);
+					const p = traj.getPointAtLength(e * L);
+					runner.setAttribute('cx', p.x.toFixed(1));
+					runner.setAttribute('cy', p.y.toFixed(1));
+					if (u < 1) requestAnimationFrame(step);
+					else {
+						runner.classList.remove('is-on');
+						arrowG.classList.add('is-on');
+						res.hidden = false;
+					}
+				};
+				requestAnimationFrame(step);
+			};
+			let wrong = 0;
+			opts.forEach((btn, i) =>
+				btn.addEventListener('click', () => {
+					if (i === answer) {
+						btn.classList.add('is-right');
+						fb.textContent = wrong === 0 ? 'Верно!' : 'Верно, теперь получилось!';
+						fb.classList.add('is-right');
+						reveal();
+					} else {
+						wrong += 1;
+						btn.classList.add('is-wrong');
+						btn.disabled = true;
+						if (wrong >= opts.length - 1) {
+							fb.textContent = `${btn.dataset.hint} Правильный ответ отмечен.`;
+							opts[answer].classList.add('is-right');
+							reveal();
+						} else fb.textContent = `${btn.dataset.hint} Подумайте ещё раз.`;
+					}
+				}),
+			);
+		}
+	}
+</script>

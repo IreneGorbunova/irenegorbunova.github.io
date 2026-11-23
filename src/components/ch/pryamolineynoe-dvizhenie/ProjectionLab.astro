@@ -1,12 +1,14 @@
 ---
 /**
  * Model: displacement, its projection and the path. A straight road 800 м long (−400…400 м, 0,4 px per metre) with a
- * bus stop at the origin O; a car drives from the start flag to the finish flag, optionally first to the turning mark
- * at the right end of the road (400 м in the axis «вправо») and back. The displacement (gold arrow above the road) goes
- * from the start to the finish; its projection is the thick gold segment on the axis, under dashed drops.
- *   sₓ = x − x₀, s = |sₓ|; the path l = |x − x₀| without the turn, |400 − x₀| + |400 − x| with it (axis «вправо»).
- * Flipping the axis («влево») keeps the origin and the flags on the road and changes the sign of every coordinate:
- * the sliders show the new coordinates; sₓ changes sign, s and l do not; the turning mark is then at −400 м.
+ * bus stop at the origin O; the axis Ox always points to the right (Irina, 23 Nov 2026). A car drives from the start
+ * flag to the finish flag, optionally first to the turning mark at the end of the road ahead of it (400 м when it
+ * drives to the right, −400 м to the left) and back. The displacement (gold arrow above the road) goes from the start
+ * to the finish; its projection is the thick gold segment on the axis, under dashed drops.
+ *   sₓ = x − x₀, s = |sₓ|; the path l = |x − x₀| without the turn, |E − x₀| + |E − x| with it (E = ±400 м).
+ * «вправо» / «влево» turn the car: when it would drive the other way, the two flags swap, so the same stretch of road
+ * is driven backwards (sₓ changes sign, s and l do not). Moving a slider past the other flag turns the car as well.
+ * With the flags together the buttons only choose where the car faces (and where it turns).
  * Sliders x₀ and x: −300…300 м, step 50. The drive is sped up (about 320 м per second of animation, the caption says
  * so); the car (4,4 м) is drawn 12 times larger than the scale of the road. During the drive every readout follows the car
  * (x is its place now, sₓ and s the displacement so far, l the path so far); before it, x is the finish flag.
@@ -44,7 +46,7 @@ import PdStyles from './PdStyles.astro';
 				<label class="g7__slider" style="flex: 1 1 11rem"><span>Конечная координата <i>x</i></span><output data-o1></output><input type="range" min="-300" max="300" step="50" value="300" data-x1 aria-label="Конечная координата, метры" /></label>
 			</div>
 			<div class="g7__row">
-				<span class="g7__label">Ось направлена:</span>
+				<span class="g7__label">Автомобиль едет:</span>
 				<span class="g7__seg" data-dir><button type="button" class="g7__btn" aria-pressed="true" data-d="1">вправо</button><button type="button" class="g7__btn" aria-pressed="false" data-d="-1">влево</button></span>
 				<label class="pdm-check"><input type="checkbox" data-turnbox /> <span>С разворотом у конца дороги</span></label>
 				<button type="button" class="g7__btn g7__btn--go" data-go>Поехали</button>
@@ -100,15 +102,20 @@ import PdStyles from './PdStyles.astro';
 		const proj0 = $<SVGCircleElement>('[data-proj0]');
 		const calc = $<HTMLUListElement>('[data-calc]');
 		const turnG = $<SVGGElement>('[data-turn]');
-		let d: 1 | -1 = 1;
+		let d: 1 | -1 = 1; // where the car drives (and faces): 1 to the right, along Ox; −1 to the left
 		let r0 = 100;
 		let r1 = 300;
 		let drive = -1; // metres driven along the route; −1: standing at the start
-		// the turning mark at the right end of the road
-		turnG.append(el('line', { class: 'pdm-pole', x1: X(END) - 4, y1: 72, x2: X(END) - 4, y2: 50 }));
-		turnG.append(el('path', { class: 'ink', d: `M${X(END) - 13} 44 a6 6 0 1 1 9 5 m0 0 l-4 -5 m4 5 l-6 1` }));
+		// the turning mark at the end of the road ahead of the car (drawn for the right end, mirrored for the left one)
+		const turnMark = () => {
+			turnG.replaceChildren();
+			const g = el('g', { transform: d > 0 ? '' : `translate(360 0) scale(-1 1)` });
+			g.append(el('line', { class: 'pdm-pole', x1: X(END) - 4, y1: 72, x2: X(END) - 4, y2: 50 }));
+			g.append(el('path', { class: 'ink', d: `M${X(END) - 13} 44 a6 6 0 1 1 9 5 m0 0 l-4 -5 m4 5 l-6 1` }));
+			turnG.append(g);
+		};
 		const flag = (r: number, cls: string, up: number) => `<line class="pdm-pole" x1="${f1(X(r))}" y1="72" x2="${f1(X(r))}" y2="${48 - up}"></line><path class="${cls}" d="M${f1(X(r))} ${48 - up} l12 4 l-12 4 Z"></path>`;
-		const route = () => (turnBox.checked ? [r0, END, r1] : [r0, r1]);
+		const route = () => (turnBox.checked ? [r0, d * END, r1] : [r0, r1]);
 		const routeLen = () => {
 			const p = route();
 			let L = 0;
@@ -130,17 +137,18 @@ import PdStyles from './PdStyles.astro';
 		};
 		const num = (v: number) => String(v).replace('-', '−');
 		const draw = () => {
-			const x0 = d * r0;
-			const x1 = d * r1;
+			const x0 = r0;
+			const x1 = r1;
+			turnMark();
 			$<HTMLOutputElement>('[data-o0]').textContent = `${num(x0)} м`;
 			$<HTMLOutputElement>('[data-o1]').textContent = `${num(x1)} м`;
-			axisX($<SVGGElement>('[data-axis]'), { y: 138, xa: 12, xb: 348, X: (v) => X(d * v), from: -400, to: 400, step: 50, every: 100, dir: d });
+			axisX($<SVGGElement>('[data-axis]'), { y: 138, xa: 12, xb: 348, X, from: -400, to: 400, step: 50, every: 100 });
 			flags.innerHTML = flag(r0, 'pdm-flag', 0) + flag(r1, 'pdm-flag pdm-flag--end', r1 === r0 ? 8 : 0);
 			// the car: at the start, driving, or at the finish
 			const L = routeLen();
 			const m = drive < 0 ? 0 : Math.min(drive, L);
 			const pos = at(m);
-			const sg = drive < 0 ? Math.sign(route()[1] - r0) || 1 : pos.sg;
+			const sg = drive < 0 ? Math.sign(route()[1] - r0) || d : pos.sg;
 			wrap.setAttribute('transform', `translate(${f1(X(pos.r))} 96) scale(${sg} 1)`);
 			pose(0, 0, m * 100, false);
 			// the path driven so far (lower lane), with the turn
@@ -167,7 +175,7 @@ import PdStyles from './PdStyles.astro';
 			proj0.setAttribute('cx', f1(X(r0)));
 			proj0.setAttribute('r', Math.abs(shown - r0) < 1 ? '3.5' : '0');
 			// during the drive every readout follows the car: x is where it is now, l the path driven so far
-			const xNow = Math.round(d * shown);
+			const xNow = Math.round(shown);
 			const sx = xNow - x0;
 			const l = drive < 0 ? L : Math.round(m);
 			calc.innerHTML = [
@@ -177,15 +185,23 @@ import PdStyles from './PdStyles.astro';
 				`<li>${drive >= 0 && drive < L ? 'Путь растёт: ' : 'Путь: '}${k(`l = ${l}\\ \\text{м}`)}</li>`,
 			].join('');
 		};
+		const dirBtns = [...fig.querySelectorAll<HTMLButtonElement>('[data-dir] button')];
+		const showDir = () => dirBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.d) === d)));
 		segment($('[data-dir]'), (b) => {
-			d = Number(b.dataset.d) as 1 | -1;
-			in0.value = String(d * r0);
-			in1.value = String(d * r1);
+			const nd = Number(b.dataset.d) as 1 | -1;
+			// the car turns: the same stretch of road, driven the other way
+			if (r1 !== r0 && Math.sign(r1 - r0) !== nd) [r0, r1] = [r1, r0];
+			d = nd;
+			in0.value = String(r0);
+			in1.value = String(r1);
+			drive = -1;
 			draw();
 		});
 		const onInput = () => {
-			r0 = d * Number(in0.value);
-			r1 = d * Number(in1.value);
+			r0 = Number(in0.value);
+			r1 = Number(in1.value);
+			if (r1 !== r0) d = Math.sign(r1 - r0) as 1 | -1;
+			showDir();
 			drive = -1;
 			draw();
 		};
