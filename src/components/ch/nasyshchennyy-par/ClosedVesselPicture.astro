@@ -1,0 +1,160 @@
+---
+/**
+ * Picture «Пар в закрытом сосуде при нагревании» (animated): a closed vessel of 1 л with 0,2 г of water and no air is
+ * heated evenly from 20 to 120 °C in 8 с, holds 2 с and starts again. While there is water, the vapor is saturated and
+ * its pressure is p_н(t) (psat.ts, IAPWS-IF97): 2,34 кПа at 20 °C, 12,4 at 50 °C. The water is all gone when the
+ * density of saturated vapor reaches 0,2 г / 1 л = 200 г/м³: at 70,4 °C, 31,7 кПа. Then the vapor is unsaturated and
+ * its pressure grows like that of a gas, p ∝ T: 31,7 · 393,15 / 343,5 = 36,3 кПа at 120 °C. The curve p_н(t) goes on
+ * dashed (what the vapor would do if water were left; it leaves the frame at 81 °C, 49,4 кПа). Gray dashed: a gas
+ * that does not condense, with the same 2,34 кПа at 20 °C: 3,14 кПа at 120 °C.
+ * Not to scale: the water layer (0,2 см³, a film 0,02 мм thick on a 1-л bottom) is drawn 14 px thick at the start;
+ * the dots of vapor are proportional to its density (one dot for 6 г/м³: 3 dots at 20 °C, 33 at the break).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import { psat } from './psat';
+
+const X0 = 152;
+const X1 = 330;
+const Y0 = 196;
+const Y1 = 22;
+const x = (t: number) => X0 + (t / 120) * (X1 - X0);
+const y = (p: number) => Y0 - (p / 50) * (Y0 - Y1);
+// the break: ρ_н(t) = 200 г/м³
+const rho = (t: number) => (psat(t) * 1000 * 18.02) / (8.314 * (t + 273.15));
+let lo = 20;
+let hi = 120;
+for (let i = 0; i < 50; i++) {
+	const m = (lo + hi) / 2;
+	if (rho(m) < 200) lo = m;
+	else hi = m;
+}
+const TB = lo;
+const PB = psat(TB);
+const sat: string[] = [];
+for (let t = 0; t <= TB + 0.001; t += 1) sat.push(`${x(t).toFixed(1)} ${y(psat(t)).toFixed(1)}`);
+sat.push(`${x(TB).toFixed(1)} ${y(PB).toFixed(1)}`);
+const satOn: string[] = [];
+for (let t = TB; psat(t) <= 50; t += 0.5) satOn.push(`${x(t).toFixed(1)} ${y(psat(t)).toFixed(1)}`);
+const p20 = psat(20);
+const fmtc = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
+---
+
+<G7Styles />
+<figure class="g7 g7--pic not-content" data-cvpic data-tb={TB} data-pb={PB}>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 230" role="img" aria-label={`Закрытый сосуд с небольшим количеством воды нагревают. Пока вода есть, давление пара растёт по крутой кривой давления насыщенного пара. При ${fmtc(TB, 0)} градусах вода вся испарилась, и дальше давление растёт медленно, как у газа`}>
+			<!-- the graph -->
+			{[10, 20, 30, 40, 50].map((p) => <g><path class="ln" d={`M${X0 - 3} ${y(p)} H${X0}`} /><text class="t-small" x={X0 - 6} y={y(p) + 4} text-anchor="end">{p}</text></g>)}
+			{[20, 40, 60, 80, 100, 120].map((t) => <text class="t-small" x={x(t)} y={Y0 + 15} text-anchor="middle">{t}</text>)}
+			<path class="ln" d={`M${X0} ${Y1 - 8} V${Y0} H${X1 + 4}`}></path>
+			<text class="t-small" x={X0 + 6} y={Y1 - 8}><tspan class="t-i">p</tspan>, кПа</text>
+			<text class="t-small" x={X1 + 4} y={Y0 + 30} text-anchor="end"><tspan class="t-i">t</tspan>, °C</text>
+			<path class="cv-gas" d={`M${x(20)} ${y(p20)} L${x(120)} ${y((p20 * 393.15) / 293.15)}`}></path>
+			<path class="cv-sat-on" d={`M${satOn.join(' L')}`}></path>
+			<path class="cv-sat" d={`M${sat.join(' L')}`}></path>
+			<path class="cv-line" d={`M${x(TB)} ${y(PB)} L${x(120)} ${y((PB * 393.15) / (TB + 273.15))}`}></path>
+			<path class="cv-trace" data-trace d=""></path>
+			<circle class="cv-break" cx={x(TB)} cy={y(PB)} r="3"></circle>
+			<circle class="cv-pt" data-pt r="5"></circle>
+			<!-- labels with leaders -->
+			<text class="t-small cv-blue" x={x(3)} y={y(41)}>вода и</text>
+			<text class="t-small cv-blue" x={x(3)} y={y(41) + 13}>насыщенный пар</text>
+			<path class="cv-lead" d={`M${x(42)} ${y(41) + 17} L${x(52)} ${y(psat(52)) - 4}`}></path>
+			<text class="t-small cv-gold" x={x(119)} y={y(21)} text-anchor="end">только пар,</text>
+			<text class="t-small cv-gold" x={x(119)} y={y(21) + 13} text-anchor="end">воды нет</text>
+			<path class="cv-lead" d={`M${x(108)} ${y(21) - 12} L${x(108)} ${y((PB * (108 + 273.15)) / (TB + 273.15)) + 4}`}></path>
+			<text class="t-small" x={x(119)} y={y(3.14) - 6} text-anchor="end">газ без воды</text>
+			<!-- the vessel on a burner -->
+			<rect class="cv-box" x="22" y="30" width="96" height="150" rx="10"></rect>
+			<path class="cv-water" data-water d=""></path>
+			<g data-dots></g>
+			<path class="cv-shine" d="M30 46 V96"></path>
+			<path class="cv-stand" d="M30 184 L24 206 M110 184 L116 206 M18 206 H122"></path>
+			<path class="cv-flame" data-flame d="M58 200 q4 -10 8 -16 q4 6 6 16 q2 -9 6 -14 q4 7 4 14 Z"></path>
+			<text class="t-strong t-num" x="70" y="20" text-anchor="middle" data-read>20&nbsp;°C</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">Закрытый сосуд объёмом 1&nbsp;л, в нём 0,2&nbsp;г воды и её пар, воздуха нет; сосуд равномерно нагревают. Слой воды нарисован толще, чем он есть. Когда вода вся испарилась, пар ненасыщенный (жёлтая линия). Штрихи продолжают кривую давления насыщенного пара; серый пунктир — газ, который не конденсируется.</figcaption>
+</figure>
+
+<style is:global>
+	[data-cvpic] .g7__svg { max-width: 34rem; margin-inline: auto; }
+	[data-cvpic] .cv-sat { fill: none; stroke: var(--g7-blue); stroke-width: 2.6; }
+	[data-cvpic] .cv-sat-on { fill: none; stroke: var(--g7-blue); stroke-width: 1.4; stroke-dasharray: 5 4; opacity: 0.7; }
+	[data-cvpic] .cv-line { fill: none; stroke: var(--g7-gold); stroke-width: 2.6; }
+	[data-cvpic] .cv-gas { fill: none; stroke: var(--g7-line); stroke-width: 1.4; stroke-dasharray: 4 3; }
+	[data-cvpic] .cv-trace { fill: none; stroke: var(--g7-ink); stroke-width: 1; opacity: 0; }
+	[data-cvpic] .cv-break { fill: var(--g7-paper); stroke: var(--g7-ink); stroke-width: 1.3; }
+	[data-cvpic] .cv-pt { fill: var(--g7-gold); stroke: var(--g7-ink); stroke-width: 1.4; }
+	[data-cvpic] .cv-lead { fill: none; stroke: var(--g7-line); stroke-width: 0.8; }
+	[data-cvpic] .cv-blue { fill: var(--g7-blue); }
+	[data-cvpic] .cv-gold { fill: var(--g7-gold); }
+	[data-cvpic] .cv-box { fill: color-mix(in oklab, var(--g7-glass) 18%, transparent); stroke: var(--g7-ink); stroke-width: 2.2; }
+	[data-cvpic] .cv-water { fill: var(--g7-water); stroke: var(--g7-water-edge); stroke-width: 1.4; }
+	[data-cvpic] .cv-dot { fill: var(--g7-blue); }
+	[data-cvpic] .cv-shine { stroke: var(--sl-color-white); stroke-width: 2; opacity: 0.25; stroke-linecap: round; }
+	[data-cvpic] .cv-stand { fill: none; stroke: var(--g7-line); stroke-width: 2; }
+	[data-cvpic] .cv-flame { fill: var(--g7-red); opacity: 0.85; }
+</style>
+
+<script>
+	import { loop, fmt, fmtInt } from '../g7/kit';
+	import { psat } from './psat';
+
+	const X0 = 152;
+	const X1 = 330;
+	const Y0 = 196;
+	const Y1 = 22;
+	const x = (t: number) => X0 + (t / 120) * (X1 - X0);
+	const y = (p: number) => Y0 - (p / 50) * (Y0 - Y1);
+	const rho = (t: number) => (psat(t) * 1000 * 18.02) / (8.314 * (t + 273.15)); // г/м³
+	const HEAT = 8;
+	const HOLD = 2;
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-cvpic]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const TB = Number(fig.dataset.tb);
+		const PB = Number(fig.dataset.pb);
+		const dotsG = $<SVGGElement>('[data-dots]');
+		let seed = 9;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		const dots = Array.from({ length: 34 }, () => {
+			const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			c.setAttribute('class', 'cv-dot');
+			c.setAttribute('r', '2');
+			dotsG.append(c);
+			return { c, u: rnd(), w: rnd(), ph: rnd() * 6.3, sp: 0.7 + rnd() };
+		});
+		let tau = 0;
+		const draw = () => {
+			const t = 20 + 100 * Math.min(1, tau / HEAT);
+			const wet = t < TB;
+			const p = wet ? psat(t) : (PB * (t + 273.15)) / (TB + 273.15);
+			const r = wet ? rho(t) : 200;
+			const mw = Math.max(0, 0.2 - r * 0.001); // г of water left
+			const hw = (mw / 0.2) * 14;
+			const BOT = 178;
+			const wtop = BOT - hw;
+			$('[data-water]').setAttribute('d', hw > 0.4 ? `M24 ${(wtop - 1.5).toFixed(1)} Q70 ${(wtop + 1.5).toFixed(1)} 116 ${(wtop - 1.5).toFixed(1)} V${BOT - 6} Q116 ${BOT} 110 ${BOT} H30 Q24 ${BOT} 24 ${BOT - 6} Z` : '');
+			const n = Math.round(r / 6);
+			dots.forEach((d, i) => {
+				d.c.style.display = i < n ? '' : 'none';
+				if (i >= n) return;
+				const k = Math.sqrt((t + 273) / 293);
+				d.c.setAttribute('cx', (30 + 80 * (0.5 + 0.5 * Math.sin(d.ph + tau * d.sp * k * 1.3 + d.u * 6))).toFixed(1));
+				d.c.setAttribute('cy', (38 + (wtop - 46) * (0.5 + 0.5 * Math.sin(d.ph * 1.7 + tau * d.sp * k * 1.1 + d.w * 6))).toFixed(1));
+			});
+			const pt = $<SVGCircleElement>('[data-pt]');
+			pt.setAttribute('cx', x(t).toFixed(1));
+			pt.setAttribute('cy', y(p).toFixed(1));
+			$('[data-read]').textContent = `${fmtInt(t)} °C, ${fmt(p, p < 10 ? 1 : 0)} кПа`;
+			$('[data-flame]').setAttribute('opacity', tau < HEAT ? (0.75 + 0.25 * Math.sin(tau * 23)).toFixed(2) : '0');
+		};
+		loop(fig, (dt) => {
+			tau += dt;
+			if (tau > HEAT + HOLD) tau = 0;
+			draw();
+			return true;
+		});
+		draw();
+	}
+</script>

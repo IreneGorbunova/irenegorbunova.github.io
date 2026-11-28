@@ -1,12 +1,22 @@
 ---
 /**
- * Model «Точка росы»: the curve of the pressure of saturated water vapour p_н(t) from −5 to 35 °C (psat.ts; below
- * 0 °C over supercooled water, close to the values over ice) and a point for the air of a room: its temperature t and
- * the partial pressure of the water vapour in it p = φ·p_н(t). The relative humidity is the height of the point
- * divided by the height of the curve above it. «Охлаждать воздух» moves the point left at a constant p (the air is
- * cooled at a constant pressure, the amount of vapour stays the same) until it meets the curve at the dew point
- * t_р = the temperature with p_н(t_р) = p; cooled further, the point slides down the curve and the extra vapour turns
- * into dew. Example: 22 °C and 50 %: p = 1,32 кПа, t_р = 11 °C.
+ * Model «Облачко от дыхания»: the curve of the pressure of saturated water vapor p_н(t) from −20 to 40 °C (psat.ts,
+ * IAPWS-IF97; below 0 °C over supercooled water, as the first droplets of a breath cloud are liquid) and two points:
+ * the breath, 34 °C and saturated (p = p_н(34 °C) = 5,32 кПа; exhaled air is close to body temperature and nearly
+ * saturated), and the outside air, set by two sliders (−20 … 30 °C, 10 … 100 %): t and p = φ·p_н(t).
+ * When the breath mixes with the air, the temperature and the partial pressure of the vapor of the mixture are
+ * weighted means of those of the two parts (the heat capacity and the amount of air in both are almost the same, the
+ * vapor is a small part of it), so every mixture lies on the straight segment between the two points. The curve is
+ * convex, so the segment can run above it: there the vapor of the mixture would be denser than saturated, and the
+ * extra vapor turns into droplets — the cloud. The part of the segment above the curve is drawn as a light band.
+ * The readout «Вода в капельках» is the largest excess over the segment, (p − p_н(t))·M/(RT), M = 18,02 г/моль.
+ * The dashed horizontal from the air point to the curve marks the dew point of the outside air (cooling at constant p).
+ * «Выдохнуть» runs a small dot from the breath point to the air point in 3 с (the mixture growing more and more
+ * diluted); the line above the graph reads the mixture.
+ * Numbers: −10 °C, 80 %: p = 0,229 кПа, t_р = −12,8 °C, the segment crosses the curve, up to 10,7 г/м³ of droplets (at
+ * a mixture of 27 % breath and 2 °C); 20 °C, 50 %: p = 1,17 кПа, t_р = 9,3 °C, the segment stays below the curve, no
+ * cloud. At 50 % the droplets appear below about 18 °C, at 80 % below about 22 °C. The model shows where droplets
+ * appear at all; a cloud that is well seen needs many of them, so in life the breath is seen mostly in cold weather.
  */
 import G7Styles from '../g7/G7Styles.astro';
 import { psat } from './psat';
@@ -15,48 +25,60 @@ const X0 = 40;
 const X1 = 330;
 const Y0 = 220;
 const Y1 = 22;
-const x = (t: number) => X0 + ((t + 5) / 40) * (X1 - X0);
-const y = (p: number) => Y0 - (p / 6) * (Y0 - Y1);
+const TMIN = -20;
+const TMAX = 40;
+const PMAX = 7;
+const x = (t: number) => X0 + ((t - TMIN) / (TMAX - TMIN)) * (X1 - X0);
+const y = (p: number) => Y0 - (p / PMAX) * (Y0 - Y1);
 const curve: string[] = [];
-for (let t = -5; t <= 35.001; t += 0.5) curve.push(`${x(t).toFixed(1)} ${y(psat(t)).toFixed(1)}`);
-const under = `M${x(-5)} ${Y0} L${curve.join(' L')} L${x(35)} ${Y0} Z`;
+for (let t = TMIN; t <= TMAX + 0.001; t += 0.5) curve.push(`${x(t).toFixed(1)} ${y(psat(t)).toFixed(1)}`);
+const under = `M${x(TMIN)} ${Y0} L${curve.join(' L')} L${x(TMAX)} ${Y0} Z`;
+const TB = 34;
+const PB = psat(TB);
 ---
 
 <G7Styles />
 <figure class="g7 not-content" data-dewlab>
 	<div class="g7__grid">
-		<svg class="g7__svg" viewBox="0 0 340 254" role="img" aria-label="График давления насыщенного водяного пара от температуры и точка, изображающая воздух в комнате; при охлаждении точка движется влево до кривой — до точки росы">
+		<svg class="g7__svg" viewBox="0 0 340 254" role="img" aria-label="График давления насыщенного водяного пара от температуры, точка выдыхаемого воздуха на кривой и точка уличного воздуха; все смеси лежат на отрезке между ними; где отрезок выше кривой, появляются капельки — облачко">
 			<path class="dl-under" d={under}></path>
 			<path class="ln" d={`M${X0} ${Y1 - 6} V${Y0} H${X1 + 6}`}></path>
-			{[1, 2, 3, 4, 5, 6].map((p) => <g><path class="ln-dash" d={`M${X0} ${y(p)} H${X1}`} /><text class="t-small" x={X0 - 6} y={y(p) + 4} text-anchor="end">{p}</text></g>)}
-			{[0, 10, 20, 30].map((t) => <text class="t-small" x={x(t)} y={Y0 + 15} text-anchor="middle">{t}</text>)}
+			{[1, 2, 3, 4, 5, 6, 7].map((p) => <g><path class="ln-dash" d={`M${X0} ${y(p)} H${X1}`} /><text class="t-small" x={X0 - 6} y={y(p) + 4} text-anchor="end">{p}</text></g>)}
+			{[-20, -10, 0, 10, 20, 30, 40].map((t) => <text class="t-small" x={x(t)} y={Y0 + 15} text-anchor="middle">{t < 0 ? `−${-t}` : t}</text>)}
 			<text class="t-small" x={X0 + 6} y={Y1 - 8}><tspan class="t-i">p</tspan>, кПа</text>
 			<text class="t-small" x={X1 + 4} y={Y0 + 28} text-anchor="end"><tspan class="t-i">t</tspan>, °C</text>
 			<polyline class="dl-curve" points={curve.join(' ')}></polyline>
-			<text class="t-small t-halo" x={x(17)} y={y(4.8)}>насыщенный пар</text>
-			<line class="dl-sat" data-sat></line>
-			<line class="dl-path" data-path></line>
+			<text class="t-small t-halo dl-bluet" x={x(36)} y={y(6.9)} text-anchor="end">насыщенный пар</text>
 			<line class="dl-drop" data-drop></line>
-			<circle class="dl-dew" data-dew r="4.5"></circle>
+			<line class="dl-mix" data-mix></line>
+			<path class="dl-fog" data-fog d=""></path>
+			<circle class="dl-dew" data-dew r="4"></circle>
+			<circle class="dl-breath" cx={x(TB)} cy={y(PB)} r="6"></circle>
+			<text class="t-small t-halo dl-warm" x={x(TB) - 9} y={y(PB) - 6} text-anchor="end">выдох</text>
 			<circle class="dl-air" data-air r="6"></circle>
+			<circle class="dl-run" data-run r="4"></circle>
 			<text class="t-small t-halo" data-dewlab-t></text>
-			<text class="t-strong t-halo" data-msg x={x(-3)} y={Y1 + 14}></text>
+			<text class="t-strong t-halo" data-msg x={x(-19)} y={Y1 + 12}></text>
 		</svg>
 		<div class="g7__side">
-			<label class="g7__slider">Температура воздуха <output data-out-t>22 °C</output><input type="range" min="5" max="35" step="1" value="22" data-t /></label>
-			<label class="g7__slider">Относительная влажность <output data-out-f>50 %</output><input type="range" min="10" max="100" step="5" value="50" data-f /></label>
+			<label class="g7__slider">Температура воздуха <output data-out-t>−10 °C</output><input type="range" min="-20" max="30" step="1" value="-10" data-t /></label>
+			<label class="g7__slider">Относительная влажность воздуха <output data-out-f>80 %</output><input type="range" min="10" max="100" step="5" value="80" data-f /></label>
 			<div class="g7__row">
-				<button type="button" class="g7__btn g7__btn--go" data-cool>Охлаждать воздух</button>
-				<button type="button" class="g7__btn" data-reset>Сначала</button>
+				<button type="button" class="g7__btn" data-preset="-10,80">Мороз −10&nbsp;°C</button>
+				<button type="button" class="g7__btn" data-preset="20,50">Комната +20&nbsp;°C</button>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Выдохнуть</button>
 			</div>
 			<ul class="g7__read">
 				<li><span>Давление насыщенного пара <i>p</i><sub>н</sub></span> <b data-ps>—</b></li>
 				<li class="is-key"><span>Парциальное давление пара <i>p</i></span> <b data-pp>—</b></li>
-				<li class="is-warm"><span>Точка росы <i>t</i><sub>р</sub></span> <b data-td>—</b></li>
+				<li><span>Точка росы воздуха <i>t</i><sub>р</sub></span> <b data-td>—</b></li>
+				<li class="is-warm"><span>Вода в капельках, в 1&nbsp;м³ смеси</span> <b data-w>—</b></li>
 			</ul>
 		</div>
 	</div>
-	<figcaption class="g7__caption">Синяя линия — давление насыщенного водяного пара (табличные данные), точка — воздух в комнате. Под линией пар ненасыщенный.</figcaption>
+	<figcaption class="g7__caption">Синяя линия — давление насыщенного водяного пара (табличные данные). Красная точка — выдыхаемый воздух (34&nbsp;°C, пар насыщенный), жёлтая — уличный воздух. Смеси выдоха с воздухом лежат на отрезке между точками; где отрезок выше синей линии, лишний пар превращается в капельки (светлая полоса). Пунктир влево от жёлтой точки ведёт к точке росы уличного воздуха.</figcaption>
 </figure>
 
 <style is:global>
@@ -68,19 +90,42 @@ const under = `M${x(-5)} ${Y0} L${curve.join(' L')} L${x(35)} ${Y0} Z`;
 		stroke: var(--g7-blue);
 		stroke-width: 3;
 	}
-	[data-dewlab] .dl-sat,
+	[data-dewlab] .dl-bluet {
+		fill: var(--g7-blue);
+	}
+	[data-dewlab] .dl-warm {
+		fill: var(--g7-red);
+	}
 	[data-dewlab] .dl-drop {
 		stroke: var(--g7-line);
 		stroke-width: 1;
 		stroke-dasharray: 3 3;
 	}
-	[data-dewlab] .dl-path {
-		stroke: var(--g7-gold);
-		stroke-width: 2;
+	[data-dewlab] .dl-mix {
+		stroke: var(--g7-ink);
+		stroke-width: 1.5;
 		stroke-dasharray: 5 3;
+		opacity: 0.7;
+	}
+	[data-dewlab] .dl-fog {
+		fill: none;
+		stroke: color-mix(in oklab, var(--g7-blue) 30%, white);
+		stroke-width: 9;
+		stroke-linecap: round;
+		opacity: 0.85;
 	}
 	[data-dewlab] .dl-air {
 		fill: var(--g7-gold);
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	[data-dewlab] .dl-breath {
+		fill: var(--g7-red);
+		stroke: var(--g7-ink);
+		stroke-width: 1.4;
+	}
+	[data-dewlab] .dl-run {
+		fill: var(--g7-paper);
 		stroke: var(--g7-ink);
 		stroke-width: 1.4;
 	}
@@ -99,60 +144,119 @@ const under = `M${x(-5)} ${Y0} L${curve.join(' L')} L${x(35)} ${Y0} Z`;
 	const X1 = 330;
 	const Y0 = 220;
 	const Y1 = 22;
-	const x = (t: number) => X0 + ((t + 5) / 40) * (X1 - X0);
-	const y = (p: number) => Y0 - (p / 6) * (Y0 - Y1);
+	const TMIN = -20;
+	const TMAX = 40;
+	const PMAX = 7;
+	const x = (t: number) => X0 + ((t - TMIN) / (TMAX - TMIN)) * (X1 - X0);
+	const y = (p: number) => Y0 - (p / PMAX) * (Y0 - Y1);
+	const TB = 34;
+	const PB = psat(TB);
+	const deg = (t: number) => `${Math.round(t) < 0 ? '−' : ''}${fmtInt(Math.abs(t))} °C`;
 	for (const fig of document.querySelectorAll<HTMLElement>('[data-dewlab]')) {
 		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
 		const inT = $<HTMLInputElement>('[data-t]');
 		const inF = $<HTMLInputElement>('[data-f]');
 		const air = $<SVGCircleElement>('[data-air]');
 		const dew = $<SVGCircleElement>('[data-dew]');
-		const sat = $<SVGLineElement>('[data-sat]');
-		const path = $<SVGLineElement>('[data-path]');
 		const drop = $<SVGLineElement>('[data-drop]');
+		const mix = $<SVGLineElement>('[data-mix]');
+		const fog = $<SVGPathElement>('[data-fog]');
+		const run = $<SVGCircleElement>('[data-run]');
 		const dlab = $<SVGTextElement>('[data-dewlab-t]');
 		const msg = $<SVGTextElement>('[data-msg]');
-		let cooling = false;
-		let tNow = 22; // the temperature of the air while it is cooled
+		let s = -1; // the share of the way from the breath to the air during «Выдохнуть», −1 when idle
 		const set = (e: Element, a: Record<string, number | string>) => {
 			for (const [k, v] of Object.entries(a)) e.setAttribute(k, typeof v === 'number' ? v.toFixed(1) : v);
 		};
 		const draw = () => {
 			const t0 = Number(inT.value);
 			const f = Number(inF.value) / 100;
-			const p0 = f * psat(t0);
+			const ps = psat(t0);
+			const p0 = f * ps;
 			const td = tSat(p0);
-			const t = cooling ? tNow : t0;
-			const p = t >= td ? p0 : psat(t); // below the dew point the extra vapour has condensed
-			$('[data-out-t]').textContent = `${t0}\u00a0°C`;
-			$('[data-out-f]').textContent = `${inF.value}\u00a0%`;
-			set(air, { cx: x(t), cy: y(p) });
-			set(dew, { cx: x(td), cy: y(p0) });
-			set(sat, { x1: x(t), x2: x(t), y1: y(p), y2: y(psat(t)) });
-			set(path, { x1: x(Math.max(td, t)), x2: x(t0), y1: y(p0), y2: y(p0) });
-			set(drop, { x1: x(td), x2: x(td), y1: y(p0), y2: Y0 });
-			set(dlab, { x: x(td) - 4, y: Y0 - 6, 'text-anchor': 'end' });
-			dlab.textContent = `${fmtInt(td)}\u00a0°C`;
-			$('[data-ps]').textContent = `${fmt(psat(t), 2)}\u00a0кПа`;
-			$('[data-pp]').textContent = `${fmt(p, 2)}\u00a0кПа`;
-			$('[data-td]').textContent = `${fmtInt(td)}\u00a0°C`;
-			const phi = Math.min(100, (p / psat(t)) * 100);
-			msg.textContent = cooling ? (t < td - 0.2 ? `${fmtInt(t)} °C: выпадает роса` : `${fmtInt(t)} °C, φ = ${fmtInt(phi)} %`) : `φ = ${fmtInt(phi)} %`;
+			$('[data-out-t]').textContent = deg(t0);
+			$('[data-out-f]').textContent = `${inF.value} %`;
+			set(air, { cx: x(t0), cy: y(p0) });
+			set(mix, { x1: x(TB), y1: y(PB), x2: x(t0), y2: y(p0) });
+			// the part of the segment above the curve, and the largest excess of vapor
+			let d = '';
+			let on = false;
+			let wMax = 0;
+			for (let i = 0; i <= 400; i++) {
+				const u = i / 400; // share of the outside air in the mixture
+				const t = TB + (t0 - TB) * u;
+				const p = PB + (p0 - PB) * u;
+				const over = p > psat(t) * 1.001;
+				if (over) {
+					wMax = Math.max(wMax, ((p - psat(t)) * 1000 * 18.02) / (8.314 * (t + 273.15)));
+					d += `${on ? 'L' : 'M'}${x(t).toFixed(1)} ${y(p).toFixed(1)} `;
+				}
+				on = over;
+			}
+			fog.setAttribute('d', d);
+			// the dew point of the outside air
+			const inside = td >= TMIN;
+			dew.style.display = inside ? '' : 'none';
+			drop.style.display = inside ? '' : 'none';
+			dlab.style.display = inside ? '' : 'none';
+			set(dew, { cx: x(Math.max(td, TMIN)), cy: y(p0) });
+			set(drop, { x1: x(Math.max(td, TMIN)), x2: x(t0), y1: y(p0), y2: y(p0) });
+			dlab.innerHTML = `<tspan class="t-i">t</tspan><tspan dy="3" font-size="0.75em">р</tspan><tspan dy="-3"> = ${deg(td)}</tspan>`;
+			const w = dlab.getComputedTextLength() || 60;
+			const xd = x(Math.max(td, TMIN));
+			const cands = [
+				{ x: xd - w / 2, b: y(p0) + 17 },
+				{ x: xd - w / 2, b: y(p0) - 9 },
+				...[-9, -22, -35, -48, -61].map((d) => ({ x: X0 + 4, b: y(p0) + d })),
+				{ x: xd + 8, b: y(p0) + 17 },
+			];
+			const ok = (c: { x: number; b: number }) => {
+				if (c.x < X0 + 3 || c.x + w > X1 + 4 || c.b > Y0 - 3 || c.b - 12 < Y1 + 16) return false;
+				const box = { x0: c.x - 2, x1: c.x + w + 2, y0: c.b - 12, y1: c.b + 3 };
+				const hit = (cx: number, cy: number, r = 2) => cx > box.x0 - r && cx < box.x1 + r && cy > box.y0 - r && cy < box.y1 + r;
+				for (let tt = TMIN; tt <= TMAX; tt += 0.25) if (hit(x(tt), y(psat(tt)))) return false;
+				for (let u = 0; u <= 1; u += 0.01) if (hit(x(TB + (t0 - TB) * u), y(PB + (p0 - PB) * u), 4)) return false;
+				return !hit(x(t0), y(p0), 7) && !hit(xd, y(p0), 5);
+			};
+			const c = cands.find(ok) ?? cands[0];
+			set(dlab, { x: c.x, y: c.b, 'text-anchor': 'start' });
+			// the running mixture
+			if (s >= 0) {
+				const t = TB + (t0 - TB) * s;
+				const p = PB + (p0 - PB) * s;
+				const pn = psat(t);
+				run.style.display = '';
+				set(run, { cx: x(t), cy: y(p) });
+				msg.textContent = p > pn * 1.001 ? `смесь ${deg(t)}: капельки` : `смесь ${deg(t)}: φ = ${fmtInt((p / pn) * 100)} %`;
+			} else {
+				run.style.display = 'none';
+				msg.textContent = `воздух: φ = ${inF.value} %`;
+			}
+			$('[data-ps]').textContent = `${fmt(ps, 2)} кПа`;
+			$('[data-pp]').textContent = `${fmt(p0, 2)} кПа`;
+			$('[data-td]').textContent = deg(td);
+			$('[data-w]').textContent = wMax > 0.005 ? `до ${fmt(wMax, wMax < 1 ? 2 : 1)} г` : 'нет';
 		};
-		inT.addEventListener('input', () => ((cooling = false), draw()));
-		inF.addEventListener('input', () => ((cooling = false), draw()));
-		$('[data-reset]').addEventListener('click', () => ((cooling = false), draw()));
-		$('[data-cool]').addEventListener('click', () => {
-			cooling = true;
-			tNow = Number(inT.value);
+		const stop = () => ((s = -1), draw());
+		inT.addEventListener('input', stop);
+		inF.addEventListener('input', stop);
+		for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-preset]')) {
+			b.addEventListener('click', () => {
+				const [t, f] = b.dataset.preset!.split(',');
+				inT.value = t;
+				inF.value = f;
+				stop();
+			});
+		}
+		$('[data-go]').addEventListener('click', () => {
+			s = 0;
+			draw();
+			wake();
 		});
 		draw();
-		loop(fig, (dt) => {
-			if (!cooling) return true;
-			const td = tSat((Number(inF.value) / 100) * psat(Number(inT.value)));
-			const stop = Math.max(-5, td - 5);
-			if (tNow > stop) {
-				tNow = Math.max(stop, tNow - 4 * dt); // 4 °C per second of the model
+		const wake = loop(fig, (dt) => {
+			if (s >= 0 && s < 1) {
+				s = Math.min(1, s + dt / 3); // 3 s from the breath to the air
 				draw();
 			}
 			return true;

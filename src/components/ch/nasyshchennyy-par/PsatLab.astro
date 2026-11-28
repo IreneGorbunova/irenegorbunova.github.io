@@ -1,121 +1,191 @@
 ---
 /**
- * Model «Когда вода закипает»: the pressure of saturated water vapour p_н(t) from 0 to 130 °C (psat.ts) and a
- * horizontal line of the outside pressure, set by a slider (25–250 кПа) or by the buttons: the top of Everest
- * (8849 м, about 34 кПа), the top of Elbrus (5642 м, about 50 кПа), the sea level (101 кПа), a pressure cooker
- * (about 200 кПа). Water boils where the line meets the curve: 72, 81, 100, 120 °C. A dashed line shows how the
- * pressure of the vapour would grow from 100 °C if it were heated in a closed vessel without water (p ∝ T): far slower.
+ * Model «Когда жидкость закипает»: the pressure of saturated vapor of water (psat.ts, IAPWS-IF97), ethanol and
+ * diethyl ether (psat.ts, Antoine) from −40 to 130 °C, and a horizontal line of the outside pressure set by a slider
+ * (5–250 кПа, step 0,1 кПа) or by the buttons «Колокол насоса» (5 кПа: air pumped out from under a bell),
+ * «Нормальное давление» (101,3 кПа) and «Автоклав» (205 кПа: a steam sterilizer at 121 °C). The chosen liquid boils
+ * where the line meets its curve (bisection, tSat in psat.ts). Its curve is blue and thick, the other two thin.
+ * Numbers the model shows: at 101,3 кПа water 100,0, ethanol 78,3, ether 34,6 °C; at 5 кПа 32,9; 17,5; −29,8 °C; at
+ * 205 кПа 121,1; 97,1; 56,2 °C; water boils at 90 °C at 70,2 кПа, ether at 20 °C at 58,7 кПа; at 56,5 кПа water boils
+ * at 84,5 °C, at 84,6 кПа at 95,0 °C. Gray dashed: the pressure of water vapor heated from 100 °C in a closed vessel
+ * without water, p ∝ T (101,4 кПа · 403,15/373,15 = 109,6 кПа at 130 °C). The labels of the curves and of the point
+ * move away from the red line and from the curves wherever it is set (checked at every setting).
  */
 import G7Styles from '../g7/G7Styles.astro';
-import { psat } from './psat';
+import { LIQUIDS } from './psat';
 
 const X0 = 46;
-const X1 = 330;
+const X1 = 290;
 const Y0 = 236;
 const Y1 = 24;
-const x = (t: number) => X0 + (t / 130) * (X1 - X0);
+const x = (t: number) => X0 + ((t + 40) / 170) * (X1 - X0);
 const y = (p: number) => Y0 - (p / 250) * (Y0 - Y1);
-const curve: string[] = [];
-for (let t = 0; t <= 130.001; t += 1) curve.push(`${x(t).toFixed(1)} ${y(psat(t)).toFixed(1)}`);
-const p100 = psat(100);
+const curves = Object.entries(LIQUIDS).map(([k, f]) => {
+	const pts: string[] = [];
+	for (let t = -40; t <= 130.001; t += 0.5) {
+		const p = f(t);
+		pts.push(`${x(t).toFixed(1)} ${y(Math.min(p, 262)).toFixed(1)}`);
+		if (p > 262) break;
+	}
+	return { k, d: `M${pts.join(' L')}` };
+});
+const p100 = LIQUIDS.water(100);
+const names: Record<string, string> = { water: 'вода', ethanol: 'спирт', ether: 'эфир' };
 ---
 
 <G7Styles />
 <figure class="g7 not-content" data-psatlab>
 	<div class="g7__grid">
-		<svg class="g7__svg" viewBox="0 0 340 270" role="img" aria-label="График давления насыщенного водяного пара от температуры и линия внешнего давления; точка их пересечения — температура кипения">
-			<path class="ln" d={`M${X0} ${Y1 - 6} V${Y0} H${X1 + 6}`}></path>
+		<svg class="g7__svg" viewBox="0 0 340 270" role="img" aria-label="Графики давления насыщенного пара воды, спирта и эфира от температуры и линия внешнего давления; точка пересечения линии с кривой выбранной жидкости — её температура кипения">
+			<defs><clipPath id="ps-clip"><rect x={X0} y={Y1 - 10} width={X1 - X0 + 2} height={Y0 - Y1 + 10}></rect></clipPath></defs>
 			{[50, 100, 150, 200, 250].map((p) => <g><path class="ln-dash" d={`M${X0} ${y(p)} H${X1}`} /><text class="t-small" x={X0 - 6} y={y(p) + 4} text-anchor="end">{p}</text></g>)}
-			{[0, 20, 40, 60, 80, 100, 120].map((t) => <text class="t-small" x={x(t)} y={Y0 + 15} text-anchor="middle">{t}</text>)}
-			<text class="t-small" x={X0 + 6} y={Y1 - 10}><tspan class="t-i">p</tspan>, кПа</text>
+			{[-40, 0, 40, 80, 120].map((t) => <text class="t-small" x={x(t)} y={Y0 + 15} text-anchor="middle">{t === 0 ? '0' : String(t).replace('-', '−')}</text>)}
+			<path class="ln" d={`M${x(0)} ${Y0} V${Y0 + 4}`}></path>
+			<path class="ln" d={`M${X0} ${Y1 - 10} V${Y0} H${X1 + 6}`}></path>
+			<text class="t-small" x={X0 + 6} y={Y1 - 12}><tspan class="t-i">p</tspan>, кПа</text>
 			<text class="t-small" x={X1 + 4} y={Y0 + 28} text-anchor="end"><tspan class="t-i">t</tspan>, °C</text>
-			<path class="ps-ideal" d={`M${x(100)} ${y(p100)} L${x(130)} ${y((p100 * 403) / 373)}`}></path>
-			<polyline class="ps-curve" points={curve.join(' ')}></polyline>
-			<text class="t-small t-halo" x={x(104)} y={y(170)} text-anchor="end">давление насыщенного пара</text>
+			<g clip-path="url(#ps-clip)">
+				<path class="ps-ideal" d={`M${x(100)} ${y(p100)} L${x(130)} ${y((p100 * 403.15) / 373.15)}`}></path>
+				{curves.map((c) => <path class="ps-curve" data-curve={c.k} d={c.d} />)}
+			</g>
+			{curves.map((c) => <text class="t-small t-halo ps-name" data-name={c.k}>{names[c.k]}</text>)}
 			<line class="ps-ext" data-ext x1={X0} x2={X1} y1="0" y2="0"></line>
 			<line class="ps-drop" data-drop x1="0" x2="0" y1="0" y2={Y0}></line>
 			<circle class="ps-pt" data-pt r="5"></circle>
-			<text class="t-strong t-halo" data-lab x="0" y="0"></text>
+			<text class="t-strong t-halo t-num ps-lab" data-lab x="0" y="0"></text>
 		</svg>
 		<div class="g7__side">
-			<label class="g7__slider">Внешнее давление <output data-out-p>101 кПа</output><input type="range" min="25" max="250" step="1" value="101" data-p /></label>
+			<div class="g7__label">Жидкость</div>
+			<div class="g7__seg" data-liqs>
+				<button type="button" class="g7__btn" aria-pressed="true" data-liq="water">вода</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-liq="ethanol">спирт</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-liq="ether">эфир</button>
+			</div>
+			<label class="g7__slider">Внешнее давление <output data-out-p>101,3 кПа</output><input type="range" min="5" max="250" step="0.1" value="101.3" data-p /></label>
 			<div class="g7__row" data-places>
-				<button type="button" class="g7__btn" data-pp="34">Эверест</button>
-				<button type="button" class="g7__btn" data-pp="50">Эльбрус</button>
-				<button type="button" class="g7__btn" data-pp="101">У моря</button>
-				<button type="button" class="g7__btn" data-pp="200">Скороварка</button>
+				<button type="button" class="g7__btn" data-pp="5">Колокол насоса</button>
+				<button type="button" class="g7__btn" data-pp="101.3">Нормальное давление</button>
+				<button type="button" class="g7__btn" data-pp="205">Автоклав</button>
 			</div>
 			<ul class="g7__read">
-				<li class="is-warm">Вода кипит при <b data-tb>—</b></li>
+				<li class="is-warm"><span><span data-liqname>Вода</span> кипит при</span> <b data-tb>—</b></li>
 			</ul>
-			<p class="g7__note">Пунктир — так росло бы давление пара, если бы его нагревали в закрытом сосуде без воды.</p>
+			<p class="g7__note">Серый пунктир — так росло бы давление водяного пара, если бы его нагревали в закрытом сосуде без воды.</p>
 		</div>
 	</div>
-	<figcaption class="g7__caption">Давление насыщенного водяного пара при разных температурах (табличные данные). Жидкость кипит, когда давление её насыщенного пара равно внешнему.</figcaption>
+	<figcaption class="g7__caption">Давление насыщенного пара воды, спирта и эфира при разных температурах (табличные данные). Жидкость кипит, когда давление её насыщенного пара равно внешнему давлению (красная линия).</figcaption>
 </figure>
 
 <style is:global>
-	[data-psatlab] .ps-curve {
-		fill: none;
-		stroke: var(--g7-blue);
-		stroke-width: 3;
-	}
-	[data-psatlab] .ps-ideal {
-		fill: none;
-		stroke: var(--g7-line);
-		stroke-width: 1.4;
-		stroke-dasharray: 5 4;
-	}
-	[data-psatlab] .ps-ext {
-		stroke: var(--g7-red);
-		stroke-width: 2;
-	}
-	[data-psatlab] .ps-drop {
-		stroke: var(--g7-red);
-		stroke-width: 1;
-		stroke-dasharray: 3 3;
-	}
-	[data-psatlab] .ps-pt {
-		fill: var(--g7-gold);
-		stroke: var(--g7-ink);
-		stroke-width: 1.4;
-	}
+	[data-psatlab] .ps-curve { fill: none; stroke: var(--g7-faint); stroke-width: 1.6; }
+	[data-psatlab] .ps-curve.is-on { stroke: var(--g7-blue); stroke-width: 3; }
+	[data-psatlab] .ps-name { fill: var(--g7-line); }
+	[data-psatlab] .ps-name.is-on { fill: var(--g7-blue); font-weight: 700; }
+	[data-psatlab] .ps-ideal { fill: none; stroke: var(--g7-line); stroke-width: 1.4; stroke-dasharray: 5 4; }
+	[data-psatlab] .ps-ext { stroke: var(--g7-red); stroke-width: 2; }
+	[data-psatlab] .ps-drop { stroke: var(--g7-red); stroke-width: 1; stroke-dasharray: 3 3; }
+	[data-psatlab] .ps-pt { fill: var(--g7-gold); stroke: var(--g7-ink); stroke-width: 1.4; }
+	[data-psatlab] .g7__seg { display: flex; }
+	[data-psatlab] .g7__svg text.ps-lab { font-size: 12.5px; }
 </style>
 
 <script>
-	import { fmtInt } from '../g7/kit';
-	import { tSat } from './psat';
+	import { fmt, fmtInt } from '../g7/kit';
+	import { LIQUIDS, tSat } from './psat';
 
+	type Liq = keyof typeof LIQUIDS;
 	const X0 = 46;
-	const X1 = 330;
+	const X1 = 290;
 	const Y0 = 236;
 	const Y1 = 24;
-	const x = (t: number) => X0 + (t / 130) * (X1 - X0);
+	const x = (t: number) => X0 + ((t + 40) / 170) * (X1 - X0);
 	const y = (p: number) => Y0 - (p / 250) * (Y0 - Y1);
+	const NAME: Record<Liq, string> = { water: 'Вода', ethanol: 'Спирт', ether: 'Эфир' };
+	// the points of every curve and of the dashed line, in the picture, for the label placement
+	const pts: { x: number; y: number }[] = [];
+	for (const f of Object.values(LIQUIDS))
+		for (let t = -40; t <= 130; t += 0.25) {
+			const p = f(t);
+			pts.push({ x: x(t), y: y(Math.min(p, 262)) });
+			if (p > 262) break;
+		}
+	const p100 = LIQUIDS.water(100);
+	for (let t = 100; t <= 130; t += 1) pts.push({ x: x(t), y: y((p100 * (t + 273.15)) / 373.15) });
+	type Box = { x0: number; x1: number; y0: number; y1: number };
+	const boxOf = (e: SVGTextElement): Box => {
+		const r = e.getBBox();
+		return { x0: r.x, x1: r.x + r.width, y0: r.y, y1: r.y + r.height };
+	};
+	/** Is the text's real box free of the frame, the red line, the drop line, the curves and the boxes already placed? */
+	const free = (b: Box, lineY: number, dropX: number | null, others: Box[]) =>
+		b.x0 >= X0 + 2 &&
+		b.x1 <= 338 &&
+		b.y0 >= 2 &&
+		b.y1 <= Y0 - 3 &&
+		!(lineY > b.y0 - 1 && lineY < b.y1 + 1) &&
+		!(dropX !== null && dropX > b.x0 - 2 && dropX < b.x1 + 2 && b.y1 > lineY) &&
+		!pts.some((q) => q.x > b.x0 - 1.5 && q.x < b.x1 + 1.5 && q.y > b.y0 - 1 && q.y < b.y1 + 1) &&
+		!others.some((o) => o.x0 < b.x1 + 2 && b.x0 < o.x1 + 2 && o.y0 < b.y1 + 2 && b.y0 < o.y1 + 2);
 	for (const fig of document.querySelectorAll<HTMLElement>('[data-psatlab]')) {
-		const inP = fig.querySelector<HTMLInputElement>('[data-p]')!;
-		const out = fig.querySelector('[data-out-p]')!;
-		const ext = fig.querySelector<SVGLineElement>('[data-ext]')!;
-		const drop = fig.querySelector<SVGLineElement>('[data-drop]')!;
-		const pt = fig.querySelector<SVGCircleElement>('[data-pt]')!;
-		const lab = fig.querySelector<SVGTextElement>('[data-lab]')!;
-		const tb = fig.querySelector('[data-tb]')!;
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const inP = $<HTMLInputElement>('[data-p]');
+		let liq: Liq = 'water';
 		const show = () => {
 			const p = Number(inP.value);
-			const t = tSat(p);
-			out.textContent = `${p}\u00a0кПа`;
-			ext.setAttribute('y1', y(p).toFixed(1));
-			ext.setAttribute('y2', y(p).toFixed(1));
+			const f = LIQUIDS[liq];
+			const t = tSat(p, f);
+			const yp = y(p);
+			$('[data-out-p]').textContent = `${fmt(p, 1)} кПа`;
+			$('[data-ext]').setAttribute('y1', yp.toFixed(1));
+			$('[data-ext]').setAttribute('y2', yp.toFixed(1));
+			const drop = $('[data-drop]');
 			drop.setAttribute('x1', x(t).toFixed(1));
 			drop.setAttribute('x2', x(t).toFixed(1));
-			drop.setAttribute('y1', y(p).toFixed(1));
+			drop.setAttribute('y1', yp.toFixed(1));
+			const pt = $('[data-pt]');
 			pt.setAttribute('cx', x(t).toFixed(1));
-			pt.setAttribute('cy', y(p).toFixed(1));
-			lab.setAttribute('x', (x(t) - 8).toFixed(1));
-			lab.setAttribute('y', (y(p) - 9).toFixed(1));
-			lab.setAttribute('text-anchor', 'end');
+			pt.setAttribute('cy', yp.toFixed(1));
+			for (const c of fig.querySelectorAll('[data-curve]')) c.classList.toggle('is-on', c.getAttribute('data-curve') === liq);
+			// the label of the point: the first free place around it (tried in place and measured)
+			const lab = $<SVGTextElement>('[data-lab]');
 			lab.textContent = `${fmtInt(t)}\u00a0°C`;
-			tb.textContent = `${fmtInt(t)}\u00a0°C`;
+			const px = x(t);
+			const tryAt = (e: SVGTextElement, cands: [number, number, string][], ok: (b: Box) => boolean) => {
+				for (const [cx, cy, anchor] of cands) {
+					e.setAttribute('x', cx.toFixed(1));
+					e.setAttribute('y', cy.toFixed(1));
+					e.setAttribute('text-anchor', anchor);
+					const b = boxOf(e);
+					if (ok(b)) return b;
+				}
+				e.setAttribute('x', '-200');
+				return null;
+			};
+			const lc: [number, number, string][] = [];
+			const ring = (dys: number[]) => {
+				for (const dy of dys) for (const [sx, a] of [[7, 'start'], [-7, 'end']] as const) lc.push([px + sx, yp + dy, a], [px + sx, yp - dy + 11, a]);
+			};
+			ring([16, 32]);
+			// next to the foot of the dashed drop line, just above the t axis
+			lc.push([px + 5, Y0 - 5, 'start'], [px - 5, Y0 - 5, 'end']);
+			ring([48, 64, 80, 96]);
+			const placed: Box[] = [];
+			const lb = tryAt(lab, lc, (b) => free(b, yp, null, []));
+			if (lb) placed.push(lb);
+			// the names of the curves: beside the curve at one of several heights, away from the line, the label, each other
+			for (const n of fig.querySelectorAll<SVGTextElement>('[data-name]')) {
+				const k = n.dataset.name as Liq;
+				n.classList.toggle('is-on', k === liq);
+				const nc: [number, number, string][] = [];
+				for (const ph of [225, 185, 145, 205, 165, 125, 105, 85, 65, 45]) {
+					const xt = x(tSat(ph, LIQUIDS[k]));
+					nc.push([xt - 7, y(ph) + 4, 'end'], [xt + 7, y(ph) + 4, 'start']);
+				}
+				const nb = tryAt(n, nc, (b) => free(b, yp, x(t), placed));
+				if (nb) placed.push(nb);
+			}
+			$('[data-liqname]').textContent = NAME[liq];
+			$('[data-tb]').textContent = `${fmt(t, 1)} °C`;
 		};
 		inP.addEventListener('input', show);
 		for (const b of fig.querySelectorAll<HTMLButtonElement>('[data-pp]'))
@@ -123,6 +193,15 @@ const p100 = psat(100);
 				inP.value = b.dataset.pp!;
 				show();
 			});
+		const lb = [...fig.querySelectorAll<HTMLButtonElement>('[data-liq]')];
+		for (const b of lb)
+			b.addEventListener('click', () => {
+				for (const o of lb) o.setAttribute('aria-pressed', String(o === b));
+				liq = b.dataset.liq as Liq;
+				show();
+			});
 		show();
+		// the text widths are known only once the fonts are in
+		document.fonts?.ready.then(show);
 	}
 </script>

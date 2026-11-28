@@ -1,0 +1,247 @@
+---
+/**
+ * Model «Изотермы углекислого газа» (Andrews' experiment): 1 г of carbon dioxide CO₂ in a glass cylinder under a
+ * piston, no air, kept at a constant temperature (a thermostat). Real data (co2.ts: CoolProp, the Span–Wagner equation
+ * of state). Temperatures 0, 10, 20, 31, 40 °C; the volume 20 см³ down to where the pressure reaches 12 МПа (1,05 см³
+ * at 0 °C, 1,15 at 20 °C, 1,40 at 40 °C), set by the slider, by dragging the piston or by «Сжимать медленно»
+ * (from 20 см³ to the smallest volume in 8 с).
+ * Left: the cylinder, 11 px per см³ (20 см³ = 220 px), not to scale across (30 px wide). Gas: 56 dots for the whole gram, a dot
+ * stands for 1/56 г, so the number of dots in the gas is proportional to the mass of the gas (they jiggle in place, the
+ * motion is not to scale). On the plateau the liquid takes the mass fraction x = (v_газ − V)/(v_газ − v_ж) and the
+ * volume x·v_ж, drawn as a layer with a meniscus; the dots of the condensed gas disappear, so the density of the gas
+ * stays the same while it condenses. At 31 and 40 °C (above the critical 30,98 °C) no layer ever appears.
+ * Right: the p–V graph (V 0–20 см³, p 0–12 МПа): the two-phase region shaded (DOME), the five isotherms faint, the
+ * chosen one drawn, the part already passed thick, the point; the ideal gas p = mRT/(MV) (M = 44,01 г/моль) dashed.
+ * Numbers: plateaus 3,49 / 4,50 / 5,73 МПа at 0 / 10 / 20 °C; at 20 °C the liquid appears at 5,15 см³ and the gas is
+ * gone at 1,29 см³; at 20 °C and 20 см³ the pressure is 2,38 МПа (an ideal gas: 2,77 МПа).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import { ISO, DOME, CRIT } from './co2';
+
+const X0 = 82;
+const X1 = 310;
+const Y0 = 222;
+const Y1 = 22;
+const x = (v: number) => X0 + (v / 20) * (X1 - X0);
+const y = (p: number) => Y0 - (p / 12) * (Y0 - Y1);
+const pathOf = (pts: [number, number][]) => pts.map(([v, p], i) => `${i ? 'L' : 'M'}${x(v).toFixed(1)} ${y(Math.min(p, 12.5)).toFixed(1)}`).join(' ');
+const dome = `M${DOME.map((r) => `${x(r[2]).toFixed(1)} ${y(r[1]).toFixed(1)}`).join(' L')} L${x(CRIT.v).toFixed(1)} ${y(CRIT.p).toFixed(1)} L${DOME.slice()
+	.reverse()
+	.map((r) => `${x(r[3]).toFixed(1)} ${y(r[1]).toFixed(1)}`)
+	.join(' L')} Z`;
+---
+
+<G7Styles />
+<figure class="g7 not-content" data-isolab>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 320 256" role="img" aria-label="Слева стеклянный цилиндр с углекислым газом под поршнем, справа график давления от объёма. При сжатии ниже 31 градуса газ частично превращается в жидкость, и давление перестаёт расти, пока весь газ не сконденсируется">
+			<!-- the graph -->
+			<path class="il-dome" d={dome}></path>
+			{[3, 6, 9, 12].map((p) => <g><path class="ln-dash" d={`M${X0} ${y(p)} H${X1}`} /><text class="t-small" x={X0 - 5} y={y(p) + 4} text-anchor="end">{p}</text></g>)}
+			{[5, 10, 15, 20].map((v) => <text class="t-small" x={x(v)} y={Y0 + 15} text-anchor="middle">{v}</text>)}
+			<path class="ln" d={`M${X0} ${Y1 - 8} V${Y0} H${X1 + 6}`}></path>
+			<text class="t-small" x={X0 + 6} y={Y1 - 8}><tspan class="t-i">p</tspan>, МПа</text>
+			<text class="t-small" x={X1 + 4} y={Y0 + 30} text-anchor="end"><tspan class="t-i">V</tspan>, см³</text>
+			<path class="il-ideal" data-ideal d=""></path>
+			{ISO.map((s) => <path class="il-faint" d={pathOf(s.pts)} />)}
+			<path class="il-iso" data-iso d=""></path>
+			<path class="il-done" data-done d=""></path>
+			<circle class="il-crit" cx={x(CRIT.v)} cy={y(CRIT.p)} r="2.6"></circle>
+			<circle class="il-pt" data-pt r="5"></circle>
+			<!-- the cylinder: 11 px per см³ -->
+			<rect class="il-bath" x="3" y="14" width="48" height="226" rx="6"></rect>
+			<rect class="il-gas" x="12" y="18" width="30" height="220" data-gasbox></rect>
+			<path class="il-liq" data-liq d=""></path>
+			<g data-dots></g>
+			<rect class="il-piston" x="11" y="0" width="32" height="7" rx="1.5" data-piston></rect>
+			<rect class="il-rod" x="24" y="-200" width="6" height="200" data-rod></rect>
+			<rect class="il-grab" x="2" y="-210" width="50" height="226" data-grab></rect>
+			<path class="il-wall" d="M11 14 V239 H43 V14"></path>
+			<text class="t-small il-bathlabel" x="27" y="252" text-anchor="middle" data-tlabel>20&nbsp;°C</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__label">Температура</div>
+			<div class="g7__seg" data-temps>
+				{ISO.map((s) => <button type="button" class="g7__btn" aria-pressed={s.t === 20 ? 'true' : 'false'} data-t={s.t}>{s.t}&nbsp;°C</button>)}
+			</div>
+			<label class="g7__slider">Объём <output data-out-v>20,00 см³</output><input type="range" min="1.15" max="20" step="0.05" value="20" data-v /></label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Сжимать медленно</button>
+				<button type="button" class="g7__btn" data-reset>Сначала</button>
+			</div>
+			<ul class="g7__read">
+				<li class="is-key"><span>Давление <i>p</i></span> <b data-p>—</b></li>
+				<li><span>В жидком состоянии</span> <b data-x>—</b></li>
+			</ul>
+			<p class="g7__msg" data-msg aria-live="polite"></p>
+		</div>
+	</div>
+	<figcaption class="g7__caption">1&nbsp;г углекислого газа под поршнем при постоянной температуре (данные для настоящего CO₂). Закрашена область, где в цилиндре одновременно жидкость и газ; пунктир — идеальный газ при той же температуре. Кружок — критическая точка. Цилиндр не в масштабе по ширине, молекулы не в масштабе.</figcaption>
+</figure>
+
+<style is:global>
+	[data-isolab] .il-dome { fill: color-mix(in oklab, var(--g7-blue) 14%, transparent); }
+	[data-isolab] .il-faint { fill: none; stroke: var(--g7-faint); stroke-width: 1; }
+	[data-isolab] .il-ideal { fill: none; stroke: var(--g7-line); stroke-width: 1.4; stroke-dasharray: 4 3; }
+	[data-isolab] .il-iso { fill: none; stroke: var(--g7-blue); stroke-width: 1.6; opacity: 0.55; }
+	[data-isolab] .il-done { fill: none; stroke: var(--g7-blue); stroke-width: 3.2; stroke-linejoin: round; }
+	[data-isolab] .il-pt { fill: var(--g7-gold); stroke: var(--g7-ink); stroke-width: 1.4; }
+	[data-isolab] .il-crit { fill: var(--g7-paper); stroke: var(--g7-ink); stroke-width: 1.2; }
+	[data-isolab] .il-bath { fill: color-mix(in oklab, var(--g7-blue) 7%, var(--g7-paper)); stroke: var(--g7-faint); }
+	[data-isolab] .il-gas { fill: color-mix(in oklab, var(--g7-glass) 25%, transparent); }
+	[data-isolab] .il-wall { fill: none; stroke: var(--g7-ink); stroke-width: 2; stroke-linejoin: round; }
+	[data-isolab] .il-liq { fill: var(--g7-water); stroke: var(--g7-water-edge); stroke-width: 1.4; }
+	[data-isolab] .il-dot { fill: var(--g7-blue); }
+	[data-isolab] .il-piston { fill: var(--g7-steel); stroke: var(--g7-ink); stroke-width: 1.2; }
+	[data-isolab] .il-rod { fill: var(--g7-steel-dark); stroke: var(--g7-ink); stroke-width: 1; }
+	[data-isolab] .il-grab { fill: transparent; cursor: ns-resize; touch-action: none; }
+	[data-isolab] .il-bathlabel { font-weight: 600; }
+	[data-isolab] .g7__seg { flex-wrap: wrap; }
+</style>
+
+<script>
+	import { loop, fmt, drag } from '../g7/kit';
+	import { ISO, type Iso } from './co2';
+
+	const X0 = 82;
+	const X1 = 310;
+	const Y0 = 222;
+	const Y1 = 22;
+	const x = (v: number) => X0 + (v / 20) * (X1 - X0);
+	const y = (p: number) => Y0 - (p / 12) * (Y0 - Y1);
+	const BOT = 238; // the inner bottom of the cylinder
+	const PX = 11; // px per см³
+	const ND = 56;
+	/** The pressure on an isotherm at the volume v (linear between the data points). */
+	const pAt = (s: Iso, v: number) => {
+		const a = s.pts;
+		if (v <= a[0][0]) return a[0][1];
+		for (let i = 1; i < a.length; i++) if (v <= a[i][0]) return a[i - 1][1] + ((a[i][1] - a[i - 1][1]) * (v - a[i - 1][0])) / (a[i][0] - a[i - 1][0]);
+		return a[a.length - 1][1];
+	};
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-isolab]')) {
+		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const svg = $<SVGSVGElement>('svg');
+		const inV = $<HTMLInputElement>('[data-v]');
+		const dotsG = $<SVGGElement>('[data-dots]');
+		let seed = 3;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		const dots = Array.from({ length: ND }, () => {
+			const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			c.setAttribute('class', 'il-dot');
+			c.setAttribute('r', '1.9');
+			dotsG.append(c);
+			return { c, u: 0.05 + 0.9 * rnd(), w: rnd(), ph: rnd() * 6.3, ph2: rnd() * 6.3 };
+		});
+		// the dots that condense first are the ones nearest the liquid
+		const order = dots.map((d, i) => i).sort((a, b) => dots[a].w - dots[b].w);
+		let iso = ISO.find((s) => s.t === 20)!;
+		let V = 20;
+		let going = false;
+		let time = 0;
+		const vMin = () => iso.pts[0][0];
+		const state = () => {
+			const p = pAt(iso, V);
+			let xl = 0; // mass fraction of the liquid
+			if (iso.psat && iso.vLiq && iso.vVap) xl = V <= iso.vLiq ? 1 : V >= iso.vVap ? 0 : (iso.vVap - V) / (iso.vVap - iso.vLiq);
+			return { p, xl };
+		};
+		const draw = () => {
+			const { p, xl } = state();
+			const top = BOT - V * PX; // the piston's lower face
+			$('[data-piston]').setAttribute('y', (top - 7).toFixed(1));
+			$('[data-rod]').setAttribute('y', (top - 7 - 200).toFixed(1));
+			$('[data-grab]').setAttribute('y', (top - 7 - 210).toFixed(1));
+			$('[data-gasbox]').setAttribute('y', top.toFixed(1));
+			$('[data-gasbox]').setAttribute('height', (V * PX).toFixed(1));
+			// the liquid layer with a meniscus (wets the glass)
+			const hl = xl * (iso.vLiq ?? 0) * PX;
+			const liq = $<SVGPathElement>('[data-liq]');
+			if (hl > 0.3) {
+				const ly = BOT - hl;
+				const m = Math.min(3, hl * 0.6);
+				liq.setAttribute('d', `M12 ${(ly - m).toFixed(1)} Q16 ${ly.toFixed(1)} 27 ${ly.toFixed(1)} Q38 ${ly.toFixed(1)} 42 ${(ly - m).toFixed(1)} V${BOT} H12 Z`);
+			} else liq.setAttribute('d', '');
+			// the gas: one dot per 1/70 г of gas, spread over the space above the liquid
+			const nGas = Math.round(ND * (1 - xl));
+			const gTop = top + 2.5;
+			const gBot = BOT - hl - 2.5;
+			order.forEach((k, rank) => {
+				const d = dots[k];
+				const on = rank >= ND - nGas;
+				d.c.style.display = on && gBot > gTop ? '' : 'none';
+				if (!on) return;
+				const jx = 1.6 * Math.sin(d.ph + time * 3.1);
+				const jy = 1.6 * Math.sin(d.ph2 + time * 2.7);
+				d.c.setAttribute('cx', (14.5 + d.u * 25 + jx * 0.6).toFixed(1));
+				d.c.setAttribute('cy', Math.min(gBot, Math.max(gTop, gTop + d.w * (gBot - gTop) + jy)).toFixed(1));
+			});
+			// the graph
+			const pt = $<SVGCircleElement>('[data-pt]');
+			pt.setAttribute('cx', x(V).toFixed(1));
+			pt.setAttribute('cy', y(p).toFixed(1));
+			const passed = iso.pts.filter(([v]) => v >= V);
+			$('[data-done]').setAttribute('d', [[V, p] as [number, number], ...passed].map(([v, q], i) => `${i ? 'L' : 'M'}${x(v).toFixed(1)} ${y(q).toFixed(1)}`).join(' '));
+			$('[data-iso]').setAttribute('d', iso.pts.map(([v, q], i) => `${i ? 'L' : 'M'}${x(v).toFixed(1)} ${y(Math.min(q, 12.5)).toFixed(1)}`).join(' '));
+			const k = ((1 / 44.01) * 8.314 * (iso.t + 273.15)) / 1; // МПа·см³
+			let d = '';
+			for (let v = Math.max(0.5, k / 12); v <= 20.001; v += 0.1) d += `${d ? 'L' : 'M'}${x(v).toFixed(1)} ${y(k / v).toFixed(1)} `;
+			$('[data-ideal]').setAttribute('d', d);
+			$('[data-out-v]').textContent = `${fmt(V, 2)} см³`;
+			$('[data-p]').textContent = `${fmt(p, 2)} МПа`;
+			// a mixture never shows 0 or 100 %
+			const pc = xl > 0 && xl < 1 ? Math.min(99, Math.max(1, Math.round(xl * 100))) : Math.round(xl * 100);
+			$('[data-x]').textContent = iso.psat ? `${pc} %` : '—';
+			$('[data-tlabel]').textContent = `${iso.t} °C`;
+			const msg = $('[data-msg]');
+			if (!iso.psat) msg.textContent = 'Граница жидкости и газа не появляется.';
+			else if (xl <= 0) msg.textContent = 'В цилиндре только газ.';
+			else if (xl >= 1) msg.textContent = 'В цилиндре только жидкость.';
+			else msg.textContent = 'В цилиндре жидкость и газ.';
+		};
+		const setV = (v: number) => {
+			V = Math.min(20, Math.max(vMin(), v));
+			inV.value = String(V);
+			draw();
+		};
+		const btns = [...fig.querySelectorAll<HTMLButtonElement>('[data-temps] button')];
+		for (const b of btns)
+			b.addEventListener('click', () => {
+				for (const o of btns) o.setAttribute('aria-pressed', String(o === b));
+				iso = ISO.find((s) => s.t === Number(b.dataset.t))!;
+				inV.min = String(vMin());
+				setV(V);
+			});
+		inV.addEventListener('input', () => {
+			going = false;
+			setV(Number(inV.value));
+		});
+		drag($('[data-grab]'), svg, {
+			start: () => (going = false),
+			move: (p) => setV((BOT - p.y - 3) / PX),
+		});
+		$('[data-go]').addEventListener('click', () => {
+			if (V <= vMin() + 0.01) setV(20);
+			going = true;
+			wake();
+		});
+		$('[data-reset]').addEventListener('click', () => {
+			going = false;
+			setV(20);
+		});
+		inV.min = String(vMin());
+		const rate = (20 - 1) / 8; // см³ per s
+		const wake = loop(fig, (dt) => {
+			time += dt;
+			if (going) {
+				const v = V - rate * dt;
+				if (v <= vMin()) {
+					going = false;
+					setV(vMin());
+				} else setV(v);
+			} else draw();
+			return true;
+		});
+		setV(20);
+	}
+</script>

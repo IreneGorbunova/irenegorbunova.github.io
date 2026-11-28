@@ -1,0 +1,158 @@
+---
+/**
+ * Picture «Пузырёк пара в воде» (animated, two panels; side by side on a wide screen, one under the other on a phone):
+ * water in a pot at the sea level, the air pressure 101 кПа. A bubble of vapor appears at a hot spot of the bottom.
+ * Inside it the vapor is saturated: p_н = 70,2 кПа at 90 °C, 101,4 кПа at 100 °C (psat.ts, IAPWS-IF97). Blue arrows
+ * pointing out of the bubble stand for the pressure of the vapor inside, red arrows pointing in for the outside
+ * pressure; their lengths are proportional to the pressures (24 px for 101 кПа). They are drawn on the upper half of
+ * the bubble only, so that they stay in the water when the bubble stands on the bottom. The pressure of the water layer
+ * itself (about 1 кПа for 10 см of water) is neglected, as the caption says.
+ * 90 °C (a loop of 3,6 с): a bubble born at a hotter spot of the bottom (6 px in 0,25 с) collapses in 1 с
+ *   (p_н < p_внеш), twice per loop at two places. 100 °C: the bubble grows to 7 px in 0,8 с, leaves the bottom and rises 1,6 с, growing to 11 px, and
+ *   bursts at the surface. Not to scale: bubbles of a few millimetres drawn as large as on a scheme, slowed down.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import { psat } from './psat';
+
+const panels = [90, 100].map((t) => ({ t, p: psat(t) }));
+const fmtc = (v: number) => Math.round(v).toString();
+---
+
+<G7Styles />
+<figure class="g7 g7--pic not-content" data-bubpic>
+	<div class="g7__grid is-two">
+		{
+			panels.map((q) => (
+				<svg class="g7__svg" viewBox="0 0 170 214" role="img" data-bub={q.t} data-pn={q.p} aria-label={q.t === 90 ? 'Вода при 90 градусах: пузырёк пара у дна сжимается и исчезает, давление пара в нём 70 килопаскалей меньше внешнего, 101 килопаскаля' : 'Вода при 100 градусах: давление пара в пузырьке равно внешнему, пузырёк растёт, всплывает и лопается на поверхности'}>
+					<text class="t-title" x="85" y="18" text-anchor="middle">{q.t}&nbsp;°C</text>
+					<text class="t-small bp-blue" x="8" y="36"><tspan class="t-i">p</tspan><tspan font-size="8" dy="2">н</tspan><tspan dy="-2"> = {fmtc(q.p)}&nbsp;кПа</tspan></text>
+					<text class="t-small bp-red" x="162" y="36" text-anchor="end"><tspan class="t-i">p</tspan><tspan font-size="8" dy="2">внеш</tspan><tspan dy="-2"> = 101&nbsp;кПа</tspan></text>
+					<path class="bp-pot" d="M18 50 V180 Q18 188 26 188 H144 Q152 188 152 180 V50"></path>
+					<path class="bp-water" d="M20 66 H150 V180 Q150 186 144 186 H26 Q20 186 20 180 Z"></path>
+					<path class="bp-surf" data-surf d="M20 66 H150"></path>
+					<g data-bubs></g>
+					<path class="bp-burner" d="M30 196 H140"></path>
+					{[40, 62, 84, 106, 128].map((fx) => <path class="bp-flame" d={`M${fx - 5} 194 q2 -8 5 -12 q3 4 5 12 Z`} />)}
+					<text class="t-small" x="85" y="210" text-anchor="middle">{q.t === 90 ? 'пузырёк сжимается' : 'пузырёк растёт'}</text>
+				</svg>
+			))
+		}
+	</div>
+	<figcaption class="g7__caption">Пузырёк пара у дна кастрюли, давление воздуха 101&nbsp;кПа. Синие стрелки — давление насыщенного пара внутри пузырька, красные — внешнее давление; длины стрелок пропорциональны давлениям. Давление самого слоя воды (около 1&nbsp;кПа) не учтено. Пузырьки увеличены, движение замедлено.</figcaption>
+</figure>
+
+<style is:global>
+	[data-bubpic] .bp-pot { fill: none; stroke: var(--g7-steel); stroke-width: 4; stroke-linejoin: round; }
+	[data-bubpic] .bp-water { fill: var(--g7-water); }
+	[data-bubpic] .bp-surf { fill: none; stroke: var(--g7-water-edge); stroke-width: 1.6; }
+	[data-bubpic] .bp-bub { fill: color-mix(in oklab, var(--g7-paper) 70%, transparent); stroke: var(--g7-water-edge); stroke-width: 1.4; }
+	[data-bubpic] .bp-in { stroke: var(--g7-blue); stroke-width: 2; fill: none; }
+	[data-bubpic] .bp-out { stroke: var(--g7-red); stroke-width: 2; fill: none; }
+	[data-bubpic] .bp-hin { fill: var(--g7-blue); }
+	[data-bubpic] .bp-hout { fill: var(--g7-red); }
+	[data-bubpic] .bp-blue { fill: var(--g7-blue); }
+	[data-bubpic] .bp-red { fill: var(--g7-red); }
+	[data-bubpic] .bp-burner { stroke: var(--g7-line); stroke-width: 3; }
+	[data-bubpic] .bp-flame { fill: var(--g7-red); opacity: 0.8; }
+	[data-bubpic] .bp-ring { fill: none; stroke: var(--g7-water-edge); stroke-width: 1.2; }
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = (p: Element, tag: string, a: Record<string, string | number>) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		p.append(e);
+		return e;
+	};
+	const ease = (u: number) => {
+		const t = Math.min(1, Math.max(0, u));
+		return t * t * (3 - 2 * t);
+	};
+	const K = 24 / 101; // px of arrow per кПа
+	/** A bubble at (cx, cy) of radius r with 4 blue arrows out (the vapor) and 4 red arrows in (outside), lengths ∝ pressure. */
+	const bubble = (g: Element, cx: number, cy: number, r: number, pn: number, op = 1) => {
+		if (r < 0.5) return;
+		const b = mk(g, 'g', { opacity: op.toFixed(2) });
+		mk(b, 'circle', { class: 'bp-bub', cx, cy, r: r.toFixed(1) });
+		if (cy - r - 101 * K < 70) return; // near the surface the arrows would leave the water: the bubble alone
+		const li = pn * K;
+		const lo = 101 * K;
+		// the vapor pushes out and the water in at every point of the surface; drawn on the upper half only (the bubble
+		// stands on the bottom): blue at 0°, 45°, 90°, 135°, 180° above the horizontal, red between them
+		for (let k = 0; k < 5; k++) {
+			const a = Math.PI + (k * Math.PI) / 4;
+			const ux = Math.cos(a);
+			const uy = Math.sin(a);
+			const x0 = cx + ux * r;
+			const y0 = cy + uy * r;
+			const x1 = x0 + ux * (li - 5);
+			const y1 = y0 + uy * (li - 5);
+			mk(b, 'path', { class: 'bp-in', d: `M${x0.toFixed(1)} ${y0.toFixed(1)} L${x1.toFixed(1)} ${y1.toFixed(1)}` });
+			mk(b, 'path', { class: 'bp-hin', d: `M${(x1 + ux * 5).toFixed(1)} ${(y1 + uy * 5).toFixed(1)} L${(x1 - uy * 3).toFixed(1)} ${(y1 + ux * 3).toFixed(1)} L${(x1 + uy * 3).toFixed(1)} ${(y1 - ux * 3).toFixed(1)} Z` });
+			if (k === 4) break;
+			const c = a + Math.PI / 8;
+			const vx = Math.cos(c);
+			const vy = Math.sin(c);
+			const ex = cx + vx * (r + 1);
+			const ey = cy + vy * (r + 1);
+			const sx = ex + vx * lo;
+			const sy = ey + vy * lo;
+			mk(b, 'path', { class: 'bp-out', d: `M${sx.toFixed(1)} ${sy.toFixed(1)} L${(ex + vx * 5).toFixed(1)} ${(ey + vy * 5).toFixed(1)}` });
+			mk(b, 'path', { class: 'bp-hout', d: `M${ex.toFixed(1)} ${ey.toFixed(1)} L${(ex + vx * 5 - vy * 3).toFixed(1)} ${(ey + vy * 5 + vx * 3).toFixed(1)} L${(ex + vx * 5 + vy * 3).toFixed(1)} ${(ey + vy * 5 - vx * 3).toFixed(1)} Z` });
+		}
+	};
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-bubpic]')) {
+		for (const svg of fig.querySelectorAll<SVGSVGElement>('svg[data-bub]')) {
+			const hot = svg.dataset.bub === '100';
+			const pn = Number(svg.dataset.pn);
+			const g = svg.querySelector('[data-bubs]')!;
+			const surf = svg.querySelector('[data-surf]')!;
+			const BOT = 186;
+			let tau = 0;
+			const draw = () => {
+				g.replaceChildren();
+				if (!hot) {
+					// two bubbles a loop: each is born at the hotter bottom in 0,25 с and collapses in 1 с
+					for (const [t0, cx] of [
+						[0.2, 70],
+						[2.0, 104],
+					] as const) {
+						const a = tau - t0;
+						if (a < 0 || a > 1.25) continue;
+						const r = a < 0.25 ? 6 * ease(a / 0.25) : 6 * (1 - ease((a - 0.25) / 1.0));
+						bubble(g, cx, BOT - r - 1, r, pn);
+					}
+					surf.setAttribute('d', 'M20 66 H150');
+				} else {
+					const T = 3.6;
+					const a = tau % T;
+					const cx = 85;
+					let wave = 0;
+					if (a < 0.8) {
+						const r = 7 * ease(a / 0.8);
+						bubble(g, cx, BOT - r - 1, r, pn);
+					} else if (a < 2.4) {
+						const s = (a - 0.8) / 1.6;
+						const r = 7 + 4 * s;
+						const cy = BOT - 8 - (BOT - 8 - 66 - 4) * (s * s * 0.4 + 0.6 * s);
+						bubble(g, cx, cy, r, pn);
+					} else if (a < 3.0) {
+						const s = (a - 2.4) / 0.6;
+						wave = 1 - s;
+						mk(g, 'ellipse', { class: 'bp-ring', cx, cy: 66, rx: (10 + 30 * s).toFixed(1), ry: (2 + 3 * s).toFixed(1), opacity: (1 - s).toFixed(2) });
+					}
+					surf.setAttribute('d', wave > 0 ? `M20 66 H70 Q85 ${(66 - 5 * wave).toFixed(1)} 100 66 H150` : 'M20 66 H150');
+				}
+			};
+			loop(svg, (dt) => {
+				tau = (tau + dt) % 3.6;
+				draw();
+				return true;
+			});
+			draw();
+		}
+	}
+</script>
