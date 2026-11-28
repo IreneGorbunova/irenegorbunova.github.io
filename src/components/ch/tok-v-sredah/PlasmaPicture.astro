@@ -1,0 +1,136 @@
+---
+/**
+ * «Газ и плазма»: three small panels in a row (also on a phone: the titles are HTML and wrap).
+ *   «Газ» — 8 neutral molecules (gray, two atoms each);
+ *   «Частично ионизованный газ» — 5 molecules, 3 positive ions (red, «+») and 3 electrons (blue);
+ *   «Полностью ионизованный газ» — 6 nuclei (red, «+») and 6 electrons, no neutral particles.
+ * Under each panel the count of positive and negative particles, equal in the last two: the plasma as a whole is
+ * neutral. The particles move gently (symbolic thermal motion: they wander and bounce off the panel's walls).
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const PANELS = [
+	{ k: 'gas', name: 'Газ', mol: 8, ion: 0, count: '+: 0, −: 0' },
+	{ k: 'part', name: 'Частично ионизованный газ', mol: 5, ion: 3, count: '+: 3, −: 3' },
+	{ k: 'full', name: 'Полностью ионизованный газ', mol: 0, ion: 6, count: '+: 6, −: 6' },
+];
+---
+
+<G7Styles />
+<figure class="g7 g7--pic plz not-content" data-plz>
+	<div class="plz__grid">
+		{PANELS.map((p) => (
+			<div class="plz__item">
+				<svg class="g7__svg" viewBox="0 0 120 90" role="img" aria-label={`${p.name}: ${p.mol} нейтральных молекул, ${p.ion} положительных частиц и ${p.ion} электронов`} data-panel data-nmol={p.mol} data-nion={p.ion}>
+					<rect class="plz-box" x="2" y="2" width="116" height="86" rx="6"></rect>
+				</svg>
+				<p class="plz__name">{p.name}</p>
+				<p class="plz__count">{p.count}</p>
+			</div>
+		))}
+	</div>
+	<figcaption class="g7__caption">В плазме положительных и отрицательных зарядов поровну.</figcaption>
+</figure>
+
+<style is:global>
+	.plz__grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.6rem;
+		max-width: 32rem;
+		margin-inline: auto;
+	}
+	.plz__item {
+		display: grid;
+		gap: 0.2rem;
+		align-content: start;
+		text-align: center;
+	}
+	.plz__name,
+	.plz__count {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.3;
+		color: var(--sl-color-gray-2);
+	}
+	.plz__count {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.plz-box {
+		fill: color-mix(in oklab, var(--g7-violet) 7%, var(--g7-paper));
+		stroke: var(--g7-line);
+		stroke-width: 1;
+	}
+	.plz-mol {
+		fill: color-mix(in oklab, var(--sl-color-gray-3) 55%, var(--g7-paper));
+		stroke: var(--g7-line);
+		stroke-width: 0.8;
+	}
+	.plz-ion {
+		fill: color-mix(in oklab, var(--g7-red) 65%, var(--g7-paper));
+		stroke: var(--g7-red);
+		stroke-width: 1;
+	}
+	.plz-sign {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.3;
+	}
+	.plz-el {
+		fill: var(--g7-blue);
+	}
+</style>
+
+<script>
+	import { el, loop, rng } from '../g7/kit';
+
+	const f = (v: number) => v.toFixed(1);
+	for (const root of document.querySelectorAll<HTMLElement>('[data-plz]')) {
+		const rand = rng(3);
+		type P = { g: SVGGElement; x: number; y: number; vx: number; vy: number; r: number; spin: number; w: number };
+		const all: P[] = [];
+		for (const svg of root.querySelectorAll<SVGSVGElement>('[data-panel]')) {
+			const nMol = Number(svg.dataset.nmol);
+			const nIon = Number(svg.dataset.nion);
+			const mine: P[] = [];
+			const add = (kind: 'mol' | 'ion' | 'el') => {
+				const g = el('g', {});
+				if (kind === 'mol') g.append(el('circle', { class: 'plz-mol', cx: -3, r: 4.6 }), el('circle', { class: 'plz-mol', cx: 3, r: 4.6 }));
+				else if (kind === 'ion') g.append(el('circle', { class: 'plz-ion', r: 5 }), el('path', { class: 'plz-sign', d: 'M-2.8 0 H2.8 M0 -2.8 V2.8' }));
+				else g.append(el('circle', { class: 'plz-el', r: 2.6 }));
+				svg.append(g);
+				const r = kind === 'el' ? 3 : kind === 'ion' ? 5.5 : 8;
+				// a free place: no overlap with the particles already placed
+				let x = 60;
+				let y = 45;
+				for (let k = 0; k < 200; k++) {
+					x = 4 + r + rand() * (112 - 2 * r);
+					y = 4 + r + rand() * (82 - 2 * r);
+					if (mine.every((o) => Math.hypot(o.x - x, o.y - y) > o.r + r + 3)) break;
+				}
+				const a = rand() * 6.283;
+				const v = kind === 'el' ? 22 : 9;
+				const p: P = { g, x, y, vx: v * Math.cos(a), vy: v * Math.sin(a), r, spin: rand() * 6.283, w: kind === 'mol' ? (rand() - 0.5) * 1.5 : 0 };
+				mine.push(p);
+				all.push(p);
+			};
+			for (let i = 0; i < nMol; i++) add('mol');
+			for (let i = 0; i < nIon; i++) add('ion');
+			for (let i = 0; i < nIon; i++) add('el');
+		}
+		loop(root, (dt) => {
+			for (const p of all) {
+				p.x += p.vx * dt;
+				p.y += p.vy * dt;
+				if (p.x < 4 + p.r || p.x > 116 - p.r) p.vx = -p.vx;
+				if (p.y < 4 + p.r || p.y > 86 - p.r) p.vy = -p.vy;
+				p.x = Math.min(116 - p.r, Math.max(4 + p.r, p.x));
+				p.y = Math.min(86 - p.r, Math.max(4 + p.r, p.y));
+				p.spin += p.w * dt;
+				p.g.setAttribute('transform', `translate(${f(p.x)} ${f(p.y)}) rotate(${f((p.spin * 180) / Math.PI)})`);
+			}
+			return true;
+		});
+	}
+</script>
