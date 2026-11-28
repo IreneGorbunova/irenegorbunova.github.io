@@ -1,0 +1,206 @@
+---
+/**
+ * «Площадь опоры» (next to the definition): four panels, each a side view above and a top view below. The area of
+ * support (shaded violet, the color of the reactions of supports) is the figure bounded by the line joining the points
+ * of support; the vertical through the center of gravity (dashed) meets the floor inside it (the dot in the top view).
+ *  (a) a table 1,2 × 0,7 м on four legs: a rectangle (side view 80 px per metre, top view 100 px per metre);
+ *  (b) a camera tripod, its feet on a circle of radius 34 см: a triangle (side 80, top 100 px per metre);
+ *  (c) a person (175 см, the people kit, 0,5 px per см) standing with the soles 10 см apart: the figure around both soles
+ *      (the soles 26 × 9 см; top view 1,6 px per см), larger than the soles themselves;
+ *  (d) the same person leaning on a cane whose tip stands 20 см ahead of the toes and 15 см to the side of the near foot: the figure
+ *      reaches the tip of the cane.
+ * The panels form two rows of two (one column on a phone).
+ */
+import RtStyles from './RtStyles.astro';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
+import { cgMark } from './rt';
+
+const f = (v: number) => v.toFixed(1);
+// convex hull of points (monotone chain)
+type P = { x: number; y: number };
+const hull = (pts: P[]) => {
+	const p = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
+	const cr = (o: P, a: P, b: P) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+	const lo: P[] = [];
+	for (const q of p) {
+		while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop();
+		lo.push(q);
+	}
+	const up: P[] = [];
+	for (const q of [...p].reverse()) {
+		while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop();
+		up.push(q);
+	}
+	return [...lo.slice(0, -1), ...up.slice(0, -1)];
+};
+const poly = (pts: P[]) => `M${pts.map((q) => `${f(q.x)} ${f(q.y)}`).join(' L')} Z`;
+// a sole (top view), 26 см long: a narrower heel, the arch on the inner side, a wide ball and a round toe; the toe to
+// the right; `side` −1 for the far (left) foot, +1 for the near (right) one: the arch faces the other foot
+const KS = 1.6;
+const SOLE = [[0, 0], [1, 3.3], [6, 3.7], [11, 3.0], [17, 4.3], [22, 4.5], [25, 3.2], [26, 0], [25, -3.2], [22, -4.5], [17, -4.4], [11, -3.9], [6, -3.7], [1, -3.3]];
+const sole = (cx: number, cy: number, side: number) => SOLE.map(([x, y]) => ({ x: cx + (x - 13) * KS, y: cy + y * side * KS }));
+const TY = 160; // top views: the center line
+const s1 = sole(96, TY - 9.5 * KS, -1);
+const s2 = sole(96, TY + 9.5 * KS, 1);
+const cane = { x: 96 + (13 + 20) * KS, y: TY + (9.5 + 15) * KS * 0.9 };
+const areaFeet = poly(hull([...s1, ...s2]));
+const areaCane = poly(hull([...s1, ...s2, cane]));
+const soles = `${poly(s1)} ${poly(s2)}`;
+// tripod top view: feet on a circle of radius 40 см, 100 px per metre (40 px)
+const tri = [0, 1, 2].map((i) => ({ x: 100 + 34 * Math.cos(-Math.PI / 2 + (i * 2 * Math.PI) / 3 + Math.PI / 6), y: TY + 34 * Math.sin(-Math.PI / 2 + (i * 2 * Math.PI) / 3 + Math.PI / 6) * 0.9 }));
+const FL = 108; // the floor of the side views
+---
+
+<RtStyles />
+<PeopleStyles />
+<figure class="g7 g7--pic spa not-content" data-spa>
+	<div class="g7__grid is-two">
+		<figure class="rt-panel">
+			<svg class="g7__svg" viewBox="0 0 200 200" role="img" aria-label="Стол на четырёх ножках; сверху видно, что площадь опоры — прямоугольник с ножками в углах">
+				<rect class="rt-ground" x="0" y={FL} width="200" height="4"></rect>
+				<path class="rt-gline" d={`M0 ${FL} H200`}></path>
+				<rect class="rt-wood" x="52" y="44" width="96" height="7" rx="1.5"></rect>
+				<path class="spa-leg" d={`M57 51 V${FL} M143 51 V${FL}`}></path>
+				<path class="spa-leg spa-leg--far" d={`M64 51 V${FL - 4} M136 51 V${FL - 4}`}></path>
+				<path class="rt-dash rt-s--grav" d={`M100 56 V${FL}`}></path>
+				<Fragment set:html={cgMark(100, 56, 4)} />
+				<text class="rt-lab" x="196" y="124" text-anchor="end">вид сверху</text>
+				<rect class="rt-area" x="52" y={TY - 28} width="96" height="56"></rect>
+				{[[52, TY - 28], [148, TY - 28], [52, TY + 28], [148, TY + 28]].map(([x, y]) => <rect class="spa-foot" x={x - 3} y={y - 3} width="6" height="6"></rect>)}
+				<circle class="rt-dot" cx="100" cy={TY} r="3"></circle>
+			</svg>
+			<figcaption>Стол: площадь опоры — прямоугольник, в углах которого стоят ножки.</figcaption>
+		</figure>
+		<figure class="rt-panel">
+			<svg class="g7__svg" viewBox="0 0 200 200" role="img" aria-label="Фотоаппарат на штативе; сверху видно, что площадь опоры — треугольник между тремя ножками">
+				<rect class="rt-ground" x="0" y={FL} width="200" height="4"></rect>
+				<path class="rt-gline" d={`M0 ${FL} H200`}></path>
+				<path class="spa-leg spa-leg--far" d={`M100 40 L104 ${FL - 3}`}></path>
+				<path class="spa-leg" d={`M100 40 L68 ${FL} M100 40 L132 ${FL}`}></path>
+				<rect class="spa-cam" x="86" y="20" width="28" height="18" rx="3"></rect>
+				<circle class="spa-lens" cx="113" cy="29" r="6"></circle>
+				<path class="rt-dash rt-s--grav" d={`M100 38 V${FL}`}></path>
+				<Fragment set:html={cgMark(100, 38, 4)} />
+				<text class="rt-lab" x="196" y="124" text-anchor="end">вид сверху</text>
+				<path class="rt-area" d={poly(tri)}></path>
+				{tri.map((q) => <circle class="spa-foot" cx={q.x} cy={q.y} r="3.2"></circle>)}
+				<circle class="rt-dot" cx="100" cy={TY} r="3"></circle>
+			</svg>
+			<figcaption>Штатив: площадь опоры — треугольник между ножками.</figcaption>
+		</figure>
+		<figure class="rt-panel">
+			<svg class="g7__svg" viewBox="0 0 200 200" role="img" aria-label="Человек стоит; сверху видно, что площадь опоры — фигура вокруг обеих подошв, она больше самих подошв">
+				<rect class="rt-ground" x="0" y={FL} width="200" height="4"></rect>
+				<path class="rt-gline" d={`M0 ${FL} H200`}></path>
+				<g data-person-a></g>
+				<path class="rt-dash rt-s--grav" data-v-a></path>
+				<g data-cg-a></g>
+				<text class="rt-lab" x="196" y="124" text-anchor="end">вид сверху</text>
+				<path class="rt-area" d={areaFeet}></path>
+				<path class="spa-sole" d={soles}></path>
+				<circle class="rt-dot" cx="96" cy={TY} r="3"></circle>
+			</svg>
+			<figcaption>Человек: площадь опоры — фигура вокруг обеих подошв.</figcaption>
+		</figure>
+		<figure class="rt-panel">
+			<svg class="g7__svg" viewBox="0 0 200 200" role="img" aria-label="Человек опирается на трость; сверху видно, что площадь опоры стала больше: она доходит до конца трости">
+				<rect class="rt-ground" x="0" y={FL} width="200" height="4"></rect>
+				<path class="rt-gline" d={`M0 ${FL} H200`}></path>
+				<path class="spa-cane" data-cane></path>
+				<g data-person-b></g>
+				<path class="rt-dash rt-s--grav" data-v-b></path>
+				<g data-cg-b></g>
+				<text class="rt-lab" x="4" y="124">вид сверху</text>
+				<path class="rt-area" d={areaCane}></path>
+				<path class="spa-sole" d={soles}></path>
+				<circle class="spa-foot" cx={cane.x} cy={cane.y} r="3.2"></circle>
+				<circle class="rt-dot" cx="96" cy={TY} r="3"></circle>
+			</svg>
+			<figcaption>С тростью площадь опоры больше: она доходит до конца трости.</figcaption>
+		</figure>
+	</div>
+	<figcaption class="g7__caption">
+		Фиолетовым закрашена площадь опоры, точка — место, где вертикаль через центр тяжести (пунктир) встречает пол. Масштабы разные: стол и штатив — 80&nbsp;px на метр сбоку и 100&nbsp;px сверху, человек — 50&nbsp;px на метр сбоку и 160&nbsp;px сверху.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.g7__svg .spa-leg {
+		stroke: var(--g7-wood-dark);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.g7__svg .spa-leg--far {
+		opacity: 0.6;
+	}
+	.g7__svg .spa-foot {
+		fill: var(--g7-ink);
+	}
+	.g7__svg .spa-cam {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.g7__svg .spa-lens {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--g7-ink);
+		stroke-width: 1;
+	}
+	.g7__svg .spa-sole {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--g7-ink);
+		stroke-width: 0.8;
+	}
+	.g7__svg .spa-cane {
+		fill: none;
+		stroke: hsl(25, 45%, 35%);
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { figure, SKELETON, DEG, add, polar, type Pt } from '@components/people';
+	import { cgMark } from './rt';
+
+	const FL = 108;
+	const S = 0.5; // px per см
+	const H = 175;
+	const u = S * H;
+	const sk = SKELETON.adult;
+	const legL = (sk.thigh + sk.shin) * u;
+	const armL = (sk.upper + sk.fore) * u * 0.95 + 0.045 * u;
+	const AY = FL - 7 * S;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-spa]')) {
+		const stand = (sel: string, name: string, x: number, cane: boolean) => {
+			const p = figure(root.querySelector<SVGGElement>(sel)!, { s: S, H, clothes: 'home', shirt: cane ? 'hm-green' : 'hm-blue', hair: 'short', name });
+			const hip = { x, y: AY - Math.sqrt((0.997 * legL) ** 2 - (0.04 * u) ** 2) };
+			const sh = p.shoulders(hip, cane ? 0.06 : 0);
+			// the cane: its handle in the near hand in front of the hip, its tip on the floor 20 см ahead of the toes
+			const tip = { x: x + 0.02 * u + (13 + 20) * S * 1.0, y: FL };
+			const grip = { x: tip.x - 4, y: hip.y + 0.02 * u };
+			p.pose({
+				hip,
+				lean: cane ? 0.06 : 0,
+				ankles: [
+					{ x: x + 0.02 * u, y: AY },
+					{ x: x - 0.03 * u, y: AY },
+				],
+				feet: [0, 0],
+				planted: [true, true],
+				hands: [
+					cane ? { at: grip, pose: 'grip', d: 2.5, contact: 'handle of the cane' } : { at: add(sh[0], polar(armL, Math.PI / 2 - 3 * DEG)), pose: 'relaxed' },
+					{ at: add(sh[1], polar(armL, Math.PI / 2 + 4 * DEG)), pose: 'relaxed' },
+				],
+			});
+			if (cane) root.querySelector('[data-cane]')!.setAttribute('d', `M${(grip.x - 5).toFixed(1)} ${(grip.y - 2).toFixed(1)} Q${grip.x.toFixed(1)} ${(grip.y - 6).toFixed(1)} ${(grip.x + 1).toFixed(1)} ${(grip.y + 1).toFixed(1)} L${tip.x.toFixed(1)} ${tip.y}`);
+			// the center of gravity of a standing person: about 0,55 of the height above the soles, above the feet
+			const cg: Pt = { x: x - 0.005 * u, y: FL - 0.55 * u };
+			const k = cane ? 'b' : 'a';
+			root.querySelector(`[data-cg-${k}]`)!.innerHTML = cgMark(cg.x, cg.y, 3.5);
+			root.querySelector(`[data-v-${k}]`)!.setAttribute('d', `M${cg.x.toFixed(1)} ${cg.y.toFixed(1)} V${FL}`);
+		};
+		stand('[data-person-a]', 'standing', 96, false);
+		stand('[data-person-b]', 'with a cane', 86, true);
+	}
+</script>

@@ -95,10 +95,10 @@ export default defineConfig({
 					section('Кинематика', '10-klass/kinematika', ['sistema-otscheta', 'ravnouskorennoe-dvizhenie', 'svobodnoe-padenie', 'brosok-pod-uglom', 'dvizhenie-po-okruzhnosti']),
 					section('Динамика', '10-klass/dinamika', ['dinamika-zakony-nyutona', 'sily-v-mehanike']),
 					section('Законы сохранения', '10-klass/zakony-sohraneniya', ['impuls', 'mehanicheskaya-energiya']),
+					section('Статика', '10-klass/statika', ['ravnovesie-tel']),
 					// hidden until reworked (Arsenii, 23 Nov 2026: «эти три раздела не удаляй, но скрой с сайта — они сырые»); their pages are drafts
-					// section('Статика', '10-klass/statika', ['ravnovesie-tel']),
-					// reworked chapters come back one by one (28 Nov 2026); the rest stay drafts: nasyshchennyy-par, tverdye-tela, osnovy-termodinamiki
-					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['osnovy-mkt', 'gazovye-zakony']),
+					// reworked chapters come back one by one (28 Nov 2026); the rest stay drafts: tverdye-tela (between nasyshchennyy-par and osnovy-termodinamiki)
+					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['osnovy-mkt', 'gazovye-zakony', 'nasyshchennyy-par', 'osnovy-termodinamiki']),
 					// section('Электродинамика', '10-klass/elektrodinamika', ['elektrostatika', 'kondensatory', 'zakony-postoyannogo-toka', 'tok-v-sredah']),
 				]),
 				grade(11, [
