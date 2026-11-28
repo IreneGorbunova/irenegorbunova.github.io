@@ -1,0 +1,290 @@
+---
+/**
+ * «Линии полей» (picture, three panels, looping animations). Schemes in the plane of the picture, as in the textbooks.
+ *
+ * 1. The electric field of two fixed charges +q and −q (equal moduli) 76 px apart. Its lines (red, E) are computed
+ *    here at build time: from 12 points around +q the line follows the direction of E = Σ kq·r/r³ in steps of 0,8 px
+ *    until it reaches −q or leaves the panel; the lines that leave the panel also end on −q far away. Lines start on
+ *    the positive charge and end on the negative one.
+ * 2. The magnetic field of a straight wire with current toward the viewer (⊙, current green): circles (purple, B)
+ *    of radius 24, 44 and 66 px, wider apart further out (B ∝ 1/r). Seen with the current coming toward us they run
+ *    counterclockwise (the gimlet rule, grade 8 «Магнитное поле прямого тока»). Closed: no start, no end.
+ * 3. A magnetic field toward the viewer inside a circle of radius 40 px (⊙, size of the marks ∝ B) that grows, stays,
+ *    falls and stays zero (cycle 8,5 с: 3 с growth B = (1 − cos πt/3)/2, 1,5 с constant, 3 с fall, 1 с zero). Around it
+ *    the electric field made by the changing magnetic field: closed red circles of radius 54 and 76 px. Their
+ *    brightness and the speed of the running arrows ∝ |ΔB/Δt|; none while B does not change. Direction (Lenz's rule,
+ *    as the induced current): while B toward us grows, E runs clockwise as seen by us; while it falls, counterclockwise.
+ * The arrows running along the lines show their direction only; their speed is arbitrary (nothing moves along a field
+ * line), the caption says so. Colors: E red, B purple, current green (EvsStyles.astro).
+ */
+import EvsStyles from './EvsStyles.astro';
+
+// panel 1: the dipole lines, computed at build time
+const P = { x: 62, y: 106 };
+const M = { x: 138, y: 106 };
+const box = { x0: 3, x1: 197, y0: 26, y1: 176 };
+const lines: string[] = [];
+const N = 12;
+for (let i = 0; i < N; i++) {
+	const a = (2 * Math.PI * (i + 0.5)) / N;
+	let x = P.x + 9 * Math.cos(a);
+	let y = P.y + 9 * Math.sin(a);
+	let d = `M${x.toFixed(1)} ${y.toFixed(1)}`;
+	for (let s = 0; s < 2000; s++) {
+		const r1 = Math.hypot(x - P.x, y - P.y);
+		const r2 = Math.hypot(x - M.x, y - M.y);
+		const ex = (x - P.x) / r1 ** 3 - (x - M.x) / r2 ** 3;
+		const ey = (y - P.y) / r1 ** 3 - (y - M.y) / r2 ** 3;
+		const e = Math.hypot(ex, ey);
+		x += (0.8 * ex) / e;
+		y += (0.8 * ey) / e;
+		if (s % 3 === 2) d += `L${x.toFixed(1)} ${y.toFixed(1)}`;
+		if (Math.hypot(x - M.x, y - M.y) < 9) break;
+		if (x < box.x0 || x > box.x1 || y < box.y0 || y > box.y1) break;
+	}
+	d += `L${x.toFixed(1)} ${y.toFixed(1)}`;
+	lines.push(d);
+}
+const W = { x: 100, y: 104 };
+const bRings = [24, 44, 66];
+const eRings = [54, 76];
+const dots: [number, number][] = [];
+for (const dx of [-20, 0, 20]) for (const dy of [-20, 0, 20]) if (dx || dy) dots.push([W.x + dx, W.y + dy]);
+const ring = (r: number, cw: boolean) =>
+	// a full circle starting at the top; cw = clockwise on the screen
+	`M${W.x} ${W.y - r} A${r} ${r} 0 1 ${cw ? 1 : 0} ${W.x} ${W.y + r} A${r} ${r} 0 1 ${cw ? 1 : 0} ${W.x} ${W.y - r}`;
+---
+
+<EvsStyles />
+<figure class="g7 g7--pic evs fl not-content" data-evs-lines>
+	<div class="g7__grid is-three">
+		<svg class="g7__svg" viewBox="0 0 200 212" role="img" aria-label="Поле двух неподвижных зарядов: красные линии электрического поля выходят из положительного заряда и входят в отрицательный">
+			<text class="t-title" x="100" y="17" text-anchor="middle">Поле зарядов</text>
+			<g data-lines>
+				{lines.map((d) => <path class="evs-e-line" d={d}></path>)}
+			</g>
+			<g data-heads></g>
+			<circle class="fl-q" cx={P.x} cy={P.y} r="9"></circle>
+			<path class="fl-sign" d={`M${P.x - 4.5} ${P.y} h9 M${P.x} ${P.y - 4.5} v9`}></path>
+			<circle class="fl-q" cx={M.x} cy={M.y} r="9"></circle>
+			<path class="fl-sign" d={`M${M.x - 4.5} ${M.y} h9`}></path>
+			<text class="t-i t-e" x="164" y="56" font-size="14">E</text>
+			<path class="arrow--e" fill="none" stroke-width="1" d="M164.5 43 h8 m-2.2 -1.8 l2.2 1.8 l-2.2 1.8"></path>
+			<text class="t-small" x="100" y="190" text-anchor="middle">линии начинаются на «+»</text>
+			<text class="t-small" x="100" y="205" text-anchor="middle">и кончаются на «−»</text>
+		</svg>
+		<svg class="g7__svg" viewBox="0 0 200 212" role="img" aria-label="Магнитное поле прямого провода с током, который идёт к нам: фиолетовые линии — замкнутые окружности вокруг провода, направлены против часовой стрелки">
+			<text class="t-title" x="100" y="17" text-anchor="middle">Поле тока</text>
+			<g data-lines>
+				{bRings.map((r) => <path class="evs-b-line" d={ring(r, false)}></path>)}
+			</g>
+			<g data-heads></g>
+			<circle class="fl-wire" cx={W.x} cy={W.y} r="7"></circle>
+			<circle class="fl-wire-dot" cx={W.x} cy={W.y} r="1.8"></circle>
+			<text class="t-i fl-i" x="108" y="100">I</text>
+			<text class="t-i t-b" x="150" y="54" font-size="14">B</text>
+			<path class="arrow--b" fill="none" stroke-width="1" d="M150.5 41 h8 m-2.2 -1.8 l2.2 1.8 l-2.2 1.8"></path>
+			<text class="t-small" x="100" y="190" text-anchor="middle">ток идёт к нам; линии замкнуты:</text>
+			<text class="t-small" x="100" y="205" text-anchor="middle">нет ни начала, ни конца</text>
+		</svg>
+		<svg class="g7__svg" viewBox="0 0 200 212" role="img" aria-label="Магнитное поле, направленное к нам, то растёт, то убывает. Вокруг него возникает электрическое поле с замкнутыми красными линиями; пока магнитное поле не меняется, электрического поля нет">
+			<text class="t-title" x="100" y="17" text-anchor="middle">Меняется магнитное поле</text>
+			<circle class="evs-b-fill fl-region" cx={W.x} cy={W.y} r="40"></circle>
+			<g data-dots>
+				{dots.map(([x, y]) => (
+					<g>
+						<circle class="fl-bdot-ring" cx={x} cy={y} r="2"></circle>
+						<circle class="fl-bdot" cx={x} cy={y} r="1"></circle>
+					</g>
+				))}
+			</g>
+			<text class="t-i t-b" x="95" y="110" font-size="14">B</text>
+			<path class="arrow--b" fill="none" stroke-width="1" d="M95.5 97 h8 m-2.2 -1.8 l2.2 1.8 l-2.2 1.8"></path>
+			<g data-erings>
+				{eRings.map((r) => <path class="evs-e-line" d={ring(r, true)}></path>)}
+			</g>
+			<g data-heads></g>
+			<text class="t-i t-e" x="166" y="44" font-size="14">E</text>
+			<path class="arrow--e" fill="none" stroke-width="1" d="M166.5 31 h8 m-2.2 -1.8 l2.2 1.8 l-2.2 1.8"></path>
+			<text class="t-small" x="100" y="190" text-anchor="middle" data-s1></text>
+			<text class="t-small" x="100" y="205" text-anchor="middle" data-s2></text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">
+		На первой схеме линии электрического поля неподвижных зарядов (красные) начинаются на положительном заряде и
+		кончаются на отрицательном. На второй линии магнитного поля прямого тока (фиолетовые) замкнуты. На третьей
+		магнитное поле, направленное к нам, растёт и убывает, и вокруг него возникает электрическое поле с замкнутыми
+		линиями; пока магнитное поле не меняется, электрического поля нет. Бегущие стрелки только показывают направление
+		линий, их скорость условная.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.g7--pic.evs.fl .g7__grid.is-three {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.6rem;
+	}
+	@container (max-width: 36rem) {
+		.g7--pic.evs.fl .g7__grid.is-three {
+			grid-template-columns: minmax(0, 1fr);
+			max-width: 20rem;
+			margin-inline: auto;
+		}
+	}
+	.evs.fl .g7__svg text.t-small {
+		font-size: 11.5px;
+	}
+	.evs.fl .fl-q {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 70%, var(--g7-paper));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.evs.fl .fl-sign {
+		stroke: var(--sl-color-white);
+		stroke-width: 2;
+		stroke-linecap: round;
+		fill: none;
+	}
+	.evs.fl .fl-wire {
+		fill: var(--g7-paper);
+		stroke: var(--g7-green);
+		stroke-width: 2;
+	}
+	.evs.fl .fl-wire-dot {
+		fill: var(--g7-green);
+	}
+	.evs.fl .g7__svg .fl-i {
+		fill: var(--g7-green);
+	}
+	.evs.fl .fl-region {
+		stroke: var(--evs-b);
+		stroke-width: 0.8;
+		stroke-dasharray: 3 3;
+	}
+	.evs.fl .fl-bdot-ring {
+		fill: none;
+		stroke: var(--evs-b);
+		stroke-width: 1.2;
+	}
+	.evs.fl .fl-bdot {
+		fill: var(--evs-b);
+	}
+	/* the same layout on a phone: the stacked panels are wide enough for the desktop text size */
+	@media (max-width: 40rem) {
+		.evs.fl .g7__svg text {
+			font-size: 12px;
+		}
+		.evs.fl .g7__svg text.t-small {
+			font-size: 11.5px;
+		}
+		.evs.fl .g7__svg text.t-title {
+			font-size: 13px;
+		}
+		.evs.fl .g7__svg text.t-i {
+			font-size: 14px;
+		}
+	}
+</style>
+
+<script>
+	import { el, loop } from './evs';
+
+	const HEAD = 6; // arrowhead length, px
+	const head = (p: SVGPathElement, s: number, rev: boolean) => {
+		const a = p.getPointAtLength(Math.max(0, s - 1));
+		const b = p.getPointAtLength(s + 1);
+		const dx = (b.x - a.x) * (rev ? -1 : 1);
+		const dy = (b.y - a.y) * (rev ? -1 : 1);
+		const l = Math.hypot(dx, dy) || 1;
+		const ux = dx / l;
+		const uy = dy / l;
+		const c = p.getPointAtLength(s);
+		const tx = c.x + ux * HEAD * 0.5;
+		const ty = c.y + uy * HEAD * 0.5;
+		const bx = c.x - ux * HEAD * 0.5;
+		const by = c.y - uy * HEAD * 0.5;
+		return `M${tx.toFixed(1)} ${ty.toFixed(1)} L${(bx - uy * 3).toFixed(1)} ${(by + ux * 3).toFixed(1)} L${(bx + uy * 3).toFixed(1)} ${(by - ux * 3).toFixed(1)} Z`;
+	};
+	/** Arrowheads that run along the paths of `src`, one every `gap` px (at least one per path). */
+	const runner = (svg: SVGSVGElement, src: string, cls: string, gap: number) => {
+		const paths = [...svg.querySelectorAll<SVGPathElement>(`${src} path`)];
+		const g = svg.querySelectorAll('[data-heads]')[0];
+		const items = paths.map((p) => {
+			const L = p.getTotalLength();
+			const n = Math.max(1, Math.round(L / gap));
+			const heads = Array.from({ length: n }, () => el('path', { class: cls }));
+			g.append(...heads);
+			return { p, L, heads };
+		});
+		return (u: number, rev = false) => {
+			for (const it of items) {
+				it.heads.forEach((h, j) => {
+					const s = (((u + j * (it.L / it.heads.length)) % it.L) + it.L) % it.L;
+					const end = Math.min(s, it.L - HEAD * 0.5 - 0.5);
+					h.setAttribute('d', head(it.p, Math.max(HEAD * 0.5 + 0.5, end), rev));
+					// heads fade near the open ends of a line (charges, panel border)
+					const fade = Math.min(1, s / 10, (it.L - s) / 10);
+					(h as SVGElement).style.opacity = String(Math.max(0, fade));
+				});
+			}
+		};
+	};
+
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-evs-lines]')) {
+		const [s1, s2, s3] = [...fig.querySelectorAll<SVGSVGElement>('svg')];
+		const run1 = runner(s1, '[data-lines]', 'head--e', 70);
+		const run2 = runner(s2, '[data-lines]', 'head--b', 60);
+		const run3 = runner(s3, '[data-erings]', 'head--e', 80);
+		const eRings = [...s3.querySelectorAll<SVGPathElement>('[data-erings] path')];
+		const heads3 = s3.querySelectorAll<SVGElement>('[data-heads]')[0] as SVGGElement;
+		const rings = [...s3.querySelectorAll<SVGCircleElement>('.fl-bdot-ring')];
+		const dots = [...s3.querySelectorAll<SVGCircleElement>('.fl-bdot')];
+		const t1 = s3.querySelector<SVGTextElement>('[data-s1]')!;
+		const t2 = s3.querySelector<SVGTextElement>('[data-s2]')!;
+		const say = (a: string, b: string) => {
+			if (t1.textContent !== a) t1.textContent = a;
+			if (t2.textContent !== b) t2.textContent = b;
+		};
+		const CYC = 8.5;
+		let t = 0;
+		let u12 = 0;
+		let u3 = 0;
+		const draw = (dt: number) => {
+			t = (t + dt) % CYC;
+			u12 += dt * 14;
+			run1(u12);
+			run2(u12);
+			// B(t) and the rate of its change, −1…1
+			let B = 0;
+			let rate = 0;
+			if (t < 3) {
+				B = (1 - Math.cos((Math.PI * t) / 3)) / 2;
+				rate = Math.sin((Math.PI * t) / 3);
+				say('магнитное поле растёт —', 'есть электрическое поле');
+			} else if (t < 4.5) {
+				B = 1;
+				say('магнитное поле не меняется —', 'электрического поля нет');
+			} else if (t < 7.5) {
+				const x = t - 4.5;
+				B = (1 + Math.cos((Math.PI * x) / 3)) / 2;
+				rate = -Math.sin((Math.PI * x) / 3);
+				say('магнитное поле убывает —', 'электрическое — в другую сторону');
+			} else {
+				say('магнитного поля нет —', 'электрического поля нет');
+			}
+			// the rings are drawn clockwise: s grows while B grows; while B falls the heads run and point backward
+			u3 += dt * 26 * rate;
+			run3(u3, rate < 0);
+			const o = Math.min(1, Math.abs(rate) * 1.3);
+			for (const p of eRings) p.style.opacity = String(o);
+			heads3.style.opacity = String(o);
+			const r = 1.2 + 4 * B;
+			rings.forEach((c) => c.setAttribute('r', r.toFixed(2)));
+			dots.forEach((c) => c.setAttribute('r', (0.4 + 1.1 * B).toFixed(2)));
+			for (const c of [...rings, ...dots]) c.style.opacity = String(B < 0.03 ? 0 : 1);
+			return true;
+		};
+		draw(0);
+		loop(fig, (dt) => draw(dt));
+	}
+</script>
