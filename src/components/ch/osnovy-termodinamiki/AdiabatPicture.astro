@@ -9,10 +9,22 @@
  * the gas column is 60 px per liter; the tint of the gas (warm or cold) shows the temperature change. One loop lasts
  * 6 s: 1 s at rest, the stroke in 1,2 s (in a real cylinder it may take hundredths of a second), 3 s holding, then the
  * picture starts again.
+ * The p–V graph beside the cylinders (under them on a phone): p from 0 to 350 кПа (0,486 px per кПа), V from 0 to 2,2 л
+ * (127 px per liter). The dashed isotherm through the start, p = 100/V кПа (300 К), and the solid adiabat,
+ * p = 100·V^(−5/3) кПа (pV^(5/3) stays the same for a monatomic gas); two points move along the adiabat with the
+ * pistons: at 0,5 л 317 кПа (on the isotherm it would be 200 кПа), at 2 л 31,5 кПа (on the isotherm 50 кПа). Small open
+ * circles mark the isotherm's values at 0,5 and 2 л.
  */
 import G7Styles from '../g7/G7Styles.astro';
 
 const BASE = 168;
+const GX = (V: number) => 56 + V * 127;
+const GY = (p: number) => 196 - p * 0.486;
+const curve = (fn: (V: number) => number, a: number, b: number) =>
+	Array.from({ length: 81 }, (_, k) => {
+		const V = a + ((b - a) * k) / 80;
+		return `${k ? 'L' : 'M'}${GX(V).toFixed(1)} ${GY(fn(V)).toFixed(1)}`;
+	}).join(' ');
 const sides = [
 	{ x0: 34, V1: 0.5, title: 'газ быстро сжимают' },
 	{ x0: 210, V1: 2, title: 'газ быстро расширяется' },
@@ -21,7 +33,7 @@ const sides = [
 
 <G7Styles />
 <figure class="g7 g7--pic ad not-content" data-adiabat>
-	<div class="g7__grid">
+	<div class="g7__grid is-two">
 		<svg class="g7__svg" viewBox="0 0 360 228" role="img" aria-label="Два цилиндра с газом в толстой теплоизоляции. В левом поршень быстро вдвигают — газ нагревается с 300 до 476 кельвинов. В правом поршень быстро выдвигают — газ охлаждается до 189 кельвинов">
 			{sides.map((s) => (
 				<g data-side data-x0={s.x0} data-v1={s.V1}>
@@ -32,16 +44,37 @@ const sides = [
 					<g data-mols />
 					<g data-piston>
 						<rect class="ad-piston" x={s.x0 + 2} y="-8" width="112" height="8" />
-						<rect class="ad-rod" x={s.x0 + 53} y="-44" width="10" height="36" />
+						<rect class="ad-rod" data-rod x={s.x0 + 53} y="-44" width="10" height="36" />
 					</g>
 					<text class="t-small" x={s.x0 + 58} y="202" text-anchor="middle">{s.title}</text>
 					<text class="t-title" x={s.x0 + 58} y="221" text-anchor="middle"><tspan class="t-i">T</tspan><tspan data-t> = 300&nbsp;К</tspan></text>
 				</g>
 			))}
 		</svg>
+		<svg class="g7__svg" viewBox="0 0 360 228" role="img" aria-label="График давления от объёма: пунктиром изотерма 300 кельвинов, сплошной линией адиабата. Адиабата идёт круче: при сжатии давление растёт до 317 килопаскалей вместо 200, при расширении падает до 31,5 вместо 50">
+			<g class="ad-grid">
+				{[100, 200, 300].map((p) => <line x1={GX(0)} y1={GY(p)} x2={GX(2.2)} y2={GY(p)}></line>)}
+				{[0.5, 1, 1.5, 2].map((V) => <line x1={GX(V)} y1={GY(350)} x2={GX(V)} y2={GY(0)}></line>)}
+			</g>
+			{[100, 200, 300].map((p) => <text class="t-small ad-s" x={GX(0) - 5} y={GY(p) + 4} text-anchor="end">{p}</text>)}
+			{[0.5, 1, 1.5, 2].map((V) => <text class="t-small ad-s" x={GX(V)} y={GY(0) + 15} text-anchor="middle">{String(V).replace('.', ',')}</text>)}
+			<path class="ad-axis" d={`M${GX(0)} ${GY(350) - 10} V${GY(0)} H${GX(2.2) + 12}`}></path>
+			<path class="ad-axis-head" d={`M${GX(0) - 3.5} ${GY(350) - 6} L${GX(0)} ${GY(350) - 14} L${GX(0) + 3.5} ${GY(350) - 6} Z M${GX(2.2) + 8} ${GY(0) - 3.5} L${GX(2.2) + 16} ${GY(0)} L${GX(2.2) + 8} ${GY(0) + 3.5} Z`}></path>
+			<text class="t-i" x={GX(0) + 7} y={GY(350) - 4}>p<tspan class="t-small ad-s" font-style="normal">, кПа</tspan></text>
+			<text class="t-i" x="356" y={GY(0) + 15} text-anchor="end">V<tspan class="t-small ad-s" font-style="normal">, л</tspan></text>
+			<path class="ad-iso" d={curve((V) => 100 / V, 0.3, 2.2)}></path>
+			<path class="ad-adi" d={curve((V) => 100 * Math.pow(V, -5 / 3), 0.475, 2.2)}></path>
+			<circle class="ad-isopt" cx={GX(0.5)} cy={GY(200)} r="3"></circle>
+			<circle class="ad-isopt" cx={GX(2)} cy={GY(50)} r="3"></circle>
+			<text class="t-small ad-s ad-lab" x={GX(1.3)} y={GY(100 / 1.3) - 7}>изотерма 300 К</text>
+			<text class="t-small ad-s ad-lab ad-lab--adi" x={GX(0.539) + 9} y={GY(280) + 4}>адиабата</text>
+			<circle class="ad-start" cx={GX(1)} cy={GY(100)} r="3"></circle>
+			<circle class="ad-pt is-hot" data-pt="0" r="4.5"></circle>
+			<circle class="ad-pt is-cold" data-pt="1" r="4.5"></circle>
+		</svg>
 	</div>
 	<figcaption class="g7__caption">
-		Газ в толстой теплоизоляции: теплообмена нет, <i>Q</i>&nbsp;=&nbsp;0. Вначале 1&nbsp;л при 300&nbsp;К. Сжатый вдвое, газ нагревается до 476&nbsp;К; расширившись вдвое, охлаждается до 189&nbsp;К. Скорости молекул замедлены в миллиарды раз, движение поршня — в десятки раз.
+		Газ в толстой теплоизоляции: теплообмена нет, <i>Q</i>&nbsp;=&nbsp;0. Вначале 1&nbsp;л при 300&nbsp;К. Сжатый вдвое, газ нагревается до 476&nbsp;К; расширившись вдвое, охлаждается до 189&nbsp;К. На графике адиабата идёт круче изотермы: при сжатии газ ещё и нагревается, поэтому его давление растёт быстрее. Скорости молекул замедлены в миллиарды раз, движение поршня — в десятки раз.
 	</figcaption>
 </figure>
 
@@ -68,6 +101,60 @@ const sides = [
 	}
 	.ad-mol {
 		fill: var(--g7-blue);
+	}
+	.ad-grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.ad-axis {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	.ad-axis-head {
+		fill: var(--sl-color-gray-2);
+	}
+	.ad-iso {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+		stroke-dasharray: 5 4;
+	}
+	.ad-adi {
+		fill: none;
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 2.4;
+	}
+	.ad-isopt {
+		fill: var(--g7-paper);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.ad-start {
+		fill: var(--sl-color-gray-1);
+	}
+	.ad-pt {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+	}
+	.ad-pt.is-hot {
+		fill: var(--g7-red);
+	}
+	.ad-pt.is-cold {
+		fill: var(--g7-blue);
+	}
+	.g7__svg .ad-lab {
+		fill: var(--sl-color-gray-2);
+	}
+	.g7__svg .ad-lab--adi {
+		fill: var(--sl-color-gray-1);
+	}
+	.ad .g7__svg .t-small,
+	.ad .g7__svg .ad-s {
+		font-size: 12.5px;
+	}
+	.ad .g7__svg .t-title {
+		font-size: 14px;
 	}
 	.ad-piston,
 	.ad-rod {
@@ -99,15 +186,18 @@ const sides = [
 			});
 			const tint = g.querySelector<SVGRectElement>('[data-tint]')!;
 			tint.classList.add(V1 < 1 ? 'is-hot' : 'is-cold');
-			return { x0, V1, mols, gas: g.querySelector<SVGRectElement>('[data-gas]')!, tint, piston: g.querySelector<SVGGElement>('[data-piston]')!, tT: g.querySelector<SVGTSpanElement>('[data-t]')! };
+			return { x0, V1, mols, gas: g.querySelector<SVGRectElement>('[data-gas]')!, tint, piston: g.querySelector<SVGGElement>('[data-piston]')!, rod: g.querySelector<SVGRectElement>('[data-rod]')!, tT: g.querySelector<SVGTSpanElement>('[data-t]')! };
 		});
+		const pts = [0, 1].map((i) => root.querySelector<SVGCircleElement>(`[data-pt="${i}"]`)!);
 		let t = 0;
 		loop(root, (dt) => {
 			t = (t + dt) % RUN;
 			const s = Math.min(1, Math.max(0, (t - 1) / 1.2));
 			const e = 0.5 - 0.5 * Math.cos(Math.PI * s);
-			for (const sd of sides) {
+			sides.forEach((sd, i) => {
 				const V = 1 + (sd.V1 - 1) * e;
+				pts[i].setAttribute('cx', f(56 + V * 127));
+				pts[i].setAttribute('cy', f(196 - 100 * Math.pow(V, -5 / 3) * 0.486));
 				const T = 300 * Math.pow(V, -2 / 3);
 				const h = PX * V;
 				const top = BASE - h;
@@ -117,6 +207,9 @@ const sides = [
 				}
 				sd.tint.setAttribute('opacity', f(Math.min(0.4, (Math.abs(T - 300) / 180) * 0.4)));
 				sd.piston.setAttribute('transform', `translate(0 ${f(top)})`);
+				// the rod always comes out through the insulating lid (its top edge is at y = 30): its end stays at y = 16
+				sd.rod.setAttribute('y', f(16 - top));
+				sd.rod.setAttribute('height', f(top - 8 - 16));
 				sd.tT.textContent = ` = ${fmtInt(T)} К`;
 				const k = Math.sqrt(T / 300);
 				for (const m of sd.mols) {
@@ -127,7 +220,7 @@ const sides = [
 					m.c.setAttribute('cx', f(sd.x0 + m.x));
 					m.c.setAttribute('cy', f(BASE - m.fy * h));
 				}
-			}
+			});
 			return true;
 		});
 	}

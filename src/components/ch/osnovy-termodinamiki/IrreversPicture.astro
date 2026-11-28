@@ -25,10 +25,17 @@ const cup = (x: number) => `M${x - 26} 92 L${x - 22} 138 Q${x} 146 ${x + 22} 138
 				<ellipse class="ir-tea" cx="90" cy="92" rx="26" ry="5" />
 				<path class="ir-handle" d="M116 100 Q134 104 130 118 Q126 128 113 126" />
 				<rect class="ir-saucer" x="54" y="142" width="72" height="5" rx="2.5" />
-				<g data-heat>
-					<path class="ir-q" d="M50 112 H28 M34 106 L26 112 L34 118" />
-					<path class="ir-q" d="M130 76 L148 62 M140 62 L150 60 L147 70" />
-				</g>
+				{k === 0 ? (
+					<g data-heat>
+						<path class="ir-q" d="M50 112 H28 M34 106 L26 112 L34 118" />
+						<path class="ir-q" d="M130 76 L148 62 M140 62 L150 60 L147 70" />
+					</g>
+				) : (
+					<g data-heat>
+						<path class="ir-q" d="M26 112 H48 M42 106 L50 112 L42 118" />
+						<path class="ir-q" d="M150 60 L132 74 M131 69 L128 78 L137 77" />
+					</g>
+				)}
 				<text class="t-strong t-num" data-temp x="90" y="172" text-anchor="middle">80 °C</text>
 				<text class="t-small" x="90" y="186" text-anchor="middle">в комнате 22&nbsp;°C</text>
 				{k === 1 && <path class="ir-cross" d="M20 30 L160 160 M160 30 L20 160" />}
@@ -83,19 +90,18 @@ const cup = (x: number) => `M${x - 26} 92 L${x - 22} 138 Q${x} 146 ${x + 22} 138
 		let t = 0;
 		loop(root, (dt) => {
 			t = (t + dt) % 8;
-			const tau = Math.min(6, t) * (40 / 6); // minutes
-			const temp = 22 + 58 * Math.exp(-tau / 12);
+			const s = Math.min(6, t); // film time, s
+			const tempAt = (x: number) => 22 + 58 * Math.exp(-(x * (40 / 6)) / 12); // 40 minutes in 6 s
 			panels.forEach((sv, k) => {
-				// the right panel is the same film backwards
-				const T = k === 0 ? temp : 22 + 58 - (temp - 22);
+				// the right panel is the same film run backwards: T(6 с − t)
+				const T = k === 0 ? tempAt(s) : tempAt(6 - s);
 				sv.querySelector('[data-temp]')!.textContent = `${Math.round(T)} °C`;
 				const hot = (T - 22) / 58;
 				(sv.querySelector('[data-steam]') as SVGGElement).style.opacity = String(Math.max(0, hot - 0.2));
 				(sv.querySelector('[data-steam]') as SVGGElement).setAttribute('transform', `translate(0 ${(-(t * 6) % 8).toFixed(1)})`);
 				const heat = sv.querySelector('[data-heat]') as SVGGElement;
-				heat.style.opacity = String(Math.min(1, 0.25 + Math.abs(k === 0 ? temp - 22 : 80 - temp) / 40));
-				// arrows point out of the cup on the left and into it on the right
-				heat.setAttribute('transform', k === 0 ? '' : 'rotate(180 90 100)');
+				// arrows point out of the cup on the left and into it on the right (own arrowheads, no rotation)
+				heat.style.opacity = String(Math.min(1, 0.25 + (T - 22) / 40));
 			});
 			return true;
 		});
