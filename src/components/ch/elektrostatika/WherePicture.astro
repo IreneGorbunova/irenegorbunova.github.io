@@ -1,0 +1,351 @@
+---
+/**
+ * «Где это встречается» (four small schemes, 2 × 2 on a computer, stacked on a phone; not to scale).
+ * 1. Continuous inkjet coder: a jet of drops leaves the nozzle, passes the charging electrode, then two deflecting
+ *    plates (+ above, − below). A charged drop (charged negatively, by a different amount for each dot) is pulled
+ *    toward «+» — inside the plates along a parabola (constant force across the jet), after them in a straight line —
+ *    passes over the gutter and lands on the egg at its own height; an uncharged drop flies straight into the gutter
+ *    (a short tube open toward the jet). Animated: drops at
+ *    120 px/s, one in three uncharged (slowed: real drops fly at about 20 м/с, tens of thousands per second).
+ * 2. A shark above the sand; a flatfish hidden in the sand makes a weak field (its lines faint, gray, traced at build
+ *    time for a pair of opposite charges 26 px apart); the pores on the shark's snout feel it.
+ * 3. A shielding bag: a positively charged rod at the left, the lines (straight here: the rod is long and close) end
+ *    on the bag's metal layer, where it gets «−»; its far side gets «+» and the lines go on outside; inside, by the
+ *    circuit board, there are no lines.
+ * 4. Salt in water: the edge of a NaCl crystal (Na⁺ small, red; Cl⁻ large, blue); two ions have left it, each in a
+ *    shell of water molecules turned with their «−» end (oxygen) to Na⁺ and their «+» ends (hydrogen) to Cl⁻.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const W = 200;
+const H = 150;
+type P = { x: number; y: number };
+// 2: the fish's faint field: +q at (108, 128), −q at (134, 128)
+const fish: { x: number; y: number; q: number }[] = [
+	{ x: 108, y: 128, q: 1 },
+	{ x: 134, y: 128, q: -1 },
+];
+const dirAt = (p: P) => {
+	let ex = 0;
+	let ey = 0;
+	for (const s of fish) {
+		const dx = p.x - s.x;
+		const dy = p.y - s.y;
+		const r2 = dx * dx + dy * dy + 1e-6;
+		const k = s.q / (r2 * Math.sqrt(r2));
+		ex += k * dx;
+		ey += k * dy;
+	}
+	const n = Math.hypot(ex, ey) || 1;
+	return { x: ex / n, y: ey / n };
+};
+const fishLines = [-150, -125, -100, -75, -50, -30].map((deg) => {
+	const a = (deg * Math.PI) / 180;
+	let p = { x: 108 + 4 * Math.cos(a), y: 128 + 4 * Math.sin(a) };
+	const pts = [p];
+	for (let i = 0; i < 400; i++) {
+		const d = dirAt(p);
+		p = { x: p.x + d.x, y: p.y + d.y };
+		pts.push(p);
+		if (Math.hypot(p.x - 134, p.y - 128) < 4 || p.y < 60 || p.x < 2 || p.x > 198) break;
+	}
+	return pts.map((q, i) => `${i ? 'L' : 'M'}${q.x.toFixed(1)} ${q.y.toFixed(1)}`).join(' ');
+});
+// 4: ions of the crystal and the two free ions with water
+const lattice: { x: number; y: number; na: boolean }[] = [];
+for (let i = 0; i < 4; i++) for (let j = 0; j < 6; j++) lattice.push({ x: 12 + i * 15, y: 36 + j * 18, na: (i + j) % 2 === 0 });
+const water = (cx: number, cy: number, r: number, n: number, oIn: boolean) =>
+	Array.from({ length: n }, (_, k) => {
+		const a = (k * 2 * Math.PI) / n + 0.3;
+		const ux = Math.cos(a);
+		const uy = Math.sin(a);
+		// O at distance r; the H atoms 104,5° apart, pointing away from the ion (oIn) or toward it
+		const o = { x: cx + ux * r, y: cy + uy * r };
+		const out = oIn ? 1 : -1;
+		const hs = [-1, 1].map((s) => {
+			const b = a + s * ((104.5 / 2) * Math.PI) / 180;
+			return { x: o.x + out * 5.2 * Math.cos(b), y: o.y + out * 5.2 * Math.sin(b) };
+		});
+		return { o, hs };
+	});
+const naW = water(124, 56, 13, 5, true);
+const clW = water(156, 108, 16.5, 6, false);
+---
+
+<G7Styles />
+<figure class="g7 g7--pic wh not-content" data-wh>
+	<div class="g7__grid is-two">
+		<svg class="g7__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Каплеструйный принтер: заряженные капли чернил отклоняются полем между пластинами и печатают дату на яйце, незаряженные летят прямо в сборник">
+			<text class="t-title" x="8" y="16">Дата на яйце</text>
+			<rect class="wh__dev" x="6" y="58" width="24" height="16" rx="2" />
+			<rect class="wh__ring" x="44" y="60" width="9" height="12" rx="2" />
+			<rect class="wh__plate is-plus" x="66" y="52" width="46" height="4" rx="1" />
+			<rect class="wh__plate is-minus" x="66" y="76" width="46" height="4" rx="1" />
+			<path class="wh__sgn" d="M86 47 h6 M89 44 v6 M86 85 h6" />
+			<path class="wh__gut" d="M128 64 H146 V72 H128" />
+			<ellipse class="wh__egg" cx="176" cy="54" rx="17" ry="23" />
+			<text class="wh__date" x="176" y="50" text-anchor="middle">12.05</text>
+			<g data-drops></g>
+			<path class="wh__lead" d="M48.5 74 V98 M89 82 V112 M137 74 V98" />
+			<text class="t-small" x="48" y="108" text-anchor="middle">электрод</text>
+			<text class="t-small" x="89" y="124" text-anchor="middle">пластины</text>
+			<text class="t-small" x="140" y="108" text-anchor="middle">сборник</text>
+		</svg>
+		<svg class="g7__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Акула над песком чувствует слабое электрическое поле рыбы, зарытой в песок">
+			<rect class="wh__water" x="0" y="0" width={W} height="118" />
+			<text class="t-title" x="8" y="16">Акула</text>
+			<rect class="wh__sand" x="0" y="116" width={W} height="34" />
+			{fishLines.map((d) => <path class="wh__fline" d={d} />)}
+			<ellipse class="wh__fish" cx="121" cy="129" rx="19" ry="6" />
+			<path class="wh__shark" d="M16 60 Q40 44 92 50 Q118 52 134 62 Q124 68 110 70 L96 72 Q60 78 30 70 L14 82 L18 66 L4 54 Z M70 50 L82 30 L90 51 Z" />
+			<circle class="wh__eye" cx="121" cy="58" r="1.6" />
+			{[0, 1, 2, 3, 4].map((i) => <circle class="wh__pore" cx={124 + (i % 3) * 3} cy={63 + Math.floor(i / 3) * 3} r="0.9" />)}
+			<path class="wh__lead" d="M128 66 L150 84" />
+			<text class="t-small" x="152" y="92">поры</text>
+			<text class="t-small" x="8" y="142">рыба в песке</text>
+			<path class="wh__lead" d="M84 138 L101 131" />
+		</svg>
+		<svg class="g7__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Экранирующий пакет с платой: линии напряжённости от заряженной палочки заканчиваются на металлическом слое пакета, внутрь не проходят">
+			<text class="t-title" x="8" y="16">Экранирующий пакет</text>
+			<rect class="wh__rod" x="14" y="36" width="9" height="96" rx="3" />
+			{[0, 1, 2, 3, 4].map((i) => <path class="wh__p" d={`M15.5 ${48 + i * 18} h6 M18.5 ${45 + i * 18} v6`} />)}
+			{[0, 1, 2, 3, 4].map((i) => (
+				<>
+					<line class="wh__fl" x1="25" y1={48 + i * 18} x2="68" y2={48 + i * 18} />
+					<path class="wh__ftip" d={`M50 ${48 + i * 18} l-7 -3 v6 Z`} />
+					<line class="wh__fl" x1="166" y1={48 + i * 18} x2="196" y2={48 + i * 18} />
+					<path class="wh__ftip" d={`M186 ${48 + i * 18} l-7 -3 v6 Z`} />
+				</>
+			))}
+			<rect class="wh__bag" x="70" y="34" width="94" height="100" rx="5" />
+			<rect class="wh__zip" x="70" y="34" width="94" height="7" rx="3" />
+			<rect class="wh__board" x="84" y="60" width="66" height="50" rx="2" />
+			<rect class="wh__chip" x="92" y="68" width="18" height="12" rx="1" />
+			<rect class="wh__chip" x="118" y="70" width="24" height="16" rx="1" />
+			<path class="wh__trace" d="M96 96 H140 M100 102 H132 M110 74 H118" />
+			{[0, 1, 2, 3, 4].map((i) => <path class="wh__m" d={`M73 ${48 + i * 18} h5`} />)}
+			{[0, 1, 2, 3, 4].map((i) => <path class="wh__p" d={`M155 ${48 + i * 18} h5 M157.5 ${45.5 + i * 18} v5`} />)}
+		</svg>
+		<svg class="g7__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Соль в воде: ионы натрия и хлора уходят из кристалла, вокруг каждого собираются молекулы воды, повёрнутые к нему нужным концом">
+			<rect class="wh__water" x="0" y="0" width={W} height={H} />
+			<text class="t-title" x="8" y="16">Соль в воде</text>
+			{lattice.map((a) => (
+				<>
+					<circle class={a.na ? 'wh__na' : 'wh__cl'} cx={a.x} cy={a.y} r={a.na ? 4 : 6.5} />
+				</>
+			))}
+			{naW.map((m) => (
+				<>
+					{m.hs.map((h) => <circle class="wh__h" cx={h.x} cy={h.y} r="2.4" />)}
+					<circle class="wh__o" cx={m.o.x} cy={m.o.y} r="4.2" />
+				</>
+			))}
+			{clW.map((m) => (
+				<>
+					{m.hs.map((h) => <circle class="wh__h" cx={h.x} cy={h.y} r="2.4" />)}
+					<circle class="wh__o" cx={m.o.x} cy={m.o.y} r="4.2" />
+				</>
+			))}
+			<circle class="wh__na" cx="124" cy="56" r="4.5" />
+			<path class="wh__s" d="M121.8 56 h4.4 M124 53.8 v4.4" />
+			<circle class="wh__cl" cx="156" cy="108" r="7" />
+			<path class="wh__s" d="M153 108 h6" />
+			<text class="t-small" x="150" y="40">Na⁺</text>
+			<text class="t-small" x="181" y="142">Cl⁻</text>
+			<text class="t-small" x="8" y="144">кристалл</text>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">Схемы, не в масштабе.</figcaption>
+</figure>
+
+<style is:global>
+	[data-wh] .g7__grid {
+		max-width: 28rem;
+		margin-inline: auto;
+	}
+	[data-wh] .wh__dev {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	[data-wh] .wh__ring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	[data-wh] .wh__plate {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.5;
+	}
+	[data-wh] .is-plus {
+		fill: var(--g7-red);
+	}
+	[data-wh] .is-minus {
+		fill: var(--g7-blue);
+	}
+	[data-wh] .wh__sgn {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	[data-wh] .wh__gut {
+		fill: color-mix(in oklab, var(--sl-color-gray-5) 60%, transparent);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	[data-wh] .wh__egg {
+		fill: hsl(36, 50%, 88%);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+	}
+	[data-wh] .g7__svg .wh__date {
+		font-size: 9.5px;
+		font-weight: 700;
+		fill: hsl(222, 40%, 18%);
+	}
+	[data-wh] .wh__drop {
+		fill: hsl(222, 40%, 30%);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.4;
+	}
+	[data-wh] .wh__lead {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.7;
+	}
+	[data-wh] .wh__water {
+		fill: color-mix(in oklab, var(--g7-blue) 12%, var(--g7-paper));
+	}
+	[data-wh] .wh__sand {
+		fill: color-mix(in oklab, var(--g7-gold) 30%, var(--sl-color-gray-5));
+	}
+	[data-wh] .wh__fline {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+		stroke-dasharray: 2 2;
+		opacity: 0.8;
+	}
+	[data-wh] .wh__fish {
+		fill: color-mix(in oklab, var(--g7-gold) 40%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	[data-wh] .wh__shark {
+		fill: color-mix(in oklab, var(--g7-blue) 20%, var(--sl-color-gray-3));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	[data-wh] .wh__eye {
+		fill: var(--sl-color-black);
+	}
+	[data-wh] .wh__pore {
+		fill: var(--sl-color-black);
+	}
+	[data-wh] .wh__rod {
+		fill: color-mix(in oklab, var(--g7-red) 30%, var(--sl-color-gray-4));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	[data-wh] .wh__fl {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	[data-wh] .wh__ftip {
+		fill: var(--sl-color-gray-2);
+	}
+	[data-wh] .wh__bag {
+		fill: color-mix(in oklab, var(--sl-color-gray-2) 30%, var(--g7-paper));
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.2;
+	}
+	[data-wh] .wh__zip {
+		fill: var(--sl-color-gray-3);
+	}
+	[data-wh] .wh__board {
+		fill: hsl(150, 45%, 30%);
+		stroke: hsl(150, 45%, 22%);
+		stroke-width: 0.8;
+	}
+	[data-wh] .wh__chip {
+		fill: hsl(222, 15%, 18%);
+	}
+	[data-wh] .wh__trace {
+		stroke: color-mix(in oklab, var(--g7-gold) 70%, transparent);
+		stroke-width: 1;
+	}
+	[data-wh] .wh__p {
+		stroke: var(--g7-red);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+	[data-wh] .wh__m {
+		stroke: var(--g7-blue);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+	[data-wh] .wh__na {
+		fill: var(--g7-red);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.6;
+	}
+	[data-wh] .wh__cl {
+		fill: var(--g7-blue);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.6;
+	}
+	[data-wh] .wh__s {
+		stroke: var(--sl-color-black);
+		stroke-width: 1.2;
+	}
+	[data-wh] .wh__o {
+		fill: color-mix(in oklab, var(--g7-blue) 45%, var(--sl-color-gray-2));
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.5;
+	}
+	[data-wh] .wh__h {
+		fill: hsl(350, 75%, 86%);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.4;
+	}
+</style>
+
+<script>
+	import { loop, el } from '../g7/kit';
+
+	// the drops of the inkjet panel: x from 30 to the egg or the gutter at 120 px/s; a charged drop gets a deflection
+	// toward «+» inside the plates (x 66 … 112, a parabola), then flies straight; its charge sets where it lands
+	const LEVELS = [0, 0.45, 0.62, 0.8]; // 0 = uncharged; the others pass over the gutter and land at y ≈ 54, 49 and 43 on the egg
+	for (const root of document.querySelectorAll<HTMLElement>('[data-wh]')) {
+		const g = root.querySelector('[data-drops]')!;
+		const N = 14;
+		const drops = Array.from({ length: N }, (_, i) => {
+			const c = el('circle', { class: 'wh__drop', r: '1.8', cx: '0', cy: '68' });
+			g.append(c);
+			return { c, k: i % 3 === 0 ? 0 : LEVELS[1 + ((i >> 1) % 3)] };
+		});
+		const yOf = (x: number, k: number) => {
+			if (k === 0 || x < 66) return 68;
+			const s = Math.min(x, 112) - 66;
+			// inside: y = 68 − a·s²/2; after: straight along the exit slope
+			const a = (k * 20) / (46 * 46);
+			const y = 68 - (a * s * s) / 2;
+			if (x <= 112) return y;
+			return y - a * 46 * (x - 112);
+		};
+		let t = 0;
+		loop(root, (dt) => {
+			t += dt;
+			drops.forEach((d, i) => {
+				const span = 140; // px from the nozzle to the end of a run
+				const x = 30 + ((t * 120 + (i * span) / N) % span);
+				const end = d.k === 0 ? 137 : 161;
+				const vis = x < end;
+				d.c.setAttribute('cx', x.toFixed(1));
+				d.c.setAttribute('cy', yOf(x, d.k).toFixed(1));
+				d.c.setAttribute('opacity', vis ? '1' : '0');
+			});
+			return true;
+		});
+	}
+</script>

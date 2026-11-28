@@ -1,0 +1,428 @@
+---
+/**
+ * «Опыт Фарадея» (model). A charged metal ball on an insulating stand (slider q = 0 … +10 нКл, step 1) and, 190 px
+ * to its right, an electroscope; the button «Накрыть сеткой» puts a closed metal mesh cage (a sphere in the scheme)
+ * over the electroscope, «Убрать сетку» takes it away.
+ *
+ * Field lines are computed (not drawn by hand), in the plane of the picture: the ball, the electroscope's knob and the
+ * cage are treated as long bodies across the picture (2D), where the field of a conductor is found exactly by images.
+ * A line charge λ at the ball's center; a neutral conducting cylinder of radius a at distance D adds −λ at a²/D from
+ * its axis toward the ball and +λ on its axis (its surface is then one equipotential and its total charge zero). The
+ * lines (Runge — Kutta steps of 1,5 px) leave the ball at equal angles, 2 lines per нКл (their number ∝ q):
+ *   without the cage the whole electroscope (knob, rod and leaves) is a neutral conductor, solved numerically
+ *   (method of moments: 42 line charges along its outline at one potential, total zero); the lines that reach it end
+ *   on it, and as many start from its positive part (mostly the leaves), at equal shares of its positive charge;
+ *   with the cage (radius 88 px) the lines that reach it end on its outer surface, and as many start from its far
+ *   side, at the places where its surface charge density is positive (spaced by equal shares of that charge);
+ *   inside the cage there is no field and no line.
+ * Induced charges: with the cage one blue «−» on its near side for each line that ends there and one red «+» on its far
+ * side for each line that starts there (equal numbers, 0,5 нКл each, at equal shares of the negative and of the
+ * positive surface charge), drawn just inside the mesh line; e.g. at 10 нКл 6 of the 20 lines reach the cage; without it, «−» on the
+ * knob and «+» on the leaves. The leaves of the electroscope (a drawing rule, not a computation) open by induction to
+ * an angle between them of 5° per нКл (50° at 10 нКл) without the cage and stay closed with it at every q.
+ * The readout says «поле внутри сетки: 0» only with the cage. Colors: «+» red, «−» blue, lines gray.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const W = 360;
+const H = 240;
+const B = { x: 62, y: 112, r: 16 };
+const C = { x: 252, y: 128, a: 88 };
+const K = { x: 252, y: 76, r: 7 };
+const TABLE = 230;
+// the mesh: a grid clipped by the circle, with a gap around the label «сетка» (x C.x ± 24, y from C.y − C.a + 9 to + 29)
+const LB = { x0: C.x - 24, x1: C.x + 24, y0: C.y - C.a + 9, y1: C.y - C.a + 29 };
+const mesh: string[] = [];
+const vseg = (x: number, a: number, b: number) => {
+	if (x < LB.x0 || x > LB.x1 || b < LB.y0 || a > LB.y1) return mesh.push(`M${x.toFixed(1)} ${a.toFixed(1)} V${b.toFixed(1)}`);
+	if (a < LB.y0) mesh.push(`M${x.toFixed(1)} ${a.toFixed(1)} V${LB.y0}`);
+	if (b > LB.y1) mesh.push(`M${x.toFixed(1)} ${LB.y1} V${b.toFixed(1)}`);
+};
+const hseg = (y: number, a: number, b: number) => {
+	if (y < LB.y0 || y > LB.y1 || b < LB.x0 || a > LB.x1) return mesh.push(`M${a.toFixed(1)} ${y.toFixed(1)} H${b.toFixed(1)}`);
+	if (a < LB.x0) mesh.push(`M${a.toFixed(1)} ${y.toFixed(1)} H${LB.x0}`);
+	if (b > LB.x1) mesh.push(`M${LB.x1} ${y.toFixed(1)} H${b.toFixed(1)}`);
+};
+for (let x = C.x - C.a + 8; x < C.x + C.a; x += 11) {
+	const h = Math.sqrt(Math.max(0, C.a * C.a - (x - C.x) ** 2));
+	vseg(x, C.y - h, C.y + h);
+}
+for (let y = C.y - C.a + 8; y < C.y + C.a; y += 11) {
+	const w = Math.sqrt(Math.max(0, C.a * C.a - (y - C.y) ** 2));
+	hseg(y, C.x - w, C.x + w);
+}
+---
+
+<G7Styles />
+<figure class="g7 g7--wide sh not-content" data-sh>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Заряженный металлический шар и электроскоп; электроскоп можно накрыть металлической сеткой. Показаны линии напряжённости поля шара и заряды на сетке" data-svg>
+			<rect class="sh__table" x="0" y={TABLE} width={W} height={H - TABLE} />
+			<g data-lines></g>
+			<!-- the ball on its stand -->
+			<rect class="sh__glass" x={B.x - 2.5} y={B.y + B.r - 2} width="5" height={TABLE - B.y - B.r - 4} rx="1.5" />
+			<rect class="sh__base" x={B.x - 18} y={TABLE - 6} width="36" height="6" rx="2" />
+			<circle class="sh__ball" cx={B.x} cy={B.y} r={B.r} />
+			<g data-bsigns></g>
+			<!-- the electroscope -->
+			<rect class="sh__base" x={K.x - 14} y="200" width="28" height={TABLE - 200} rx="2" />
+			<path class="sh__jar" d={`M${K.x - 28} 124 H${K.x + 28} V192 Q${K.x + 28} 200 ${K.x + 20} 200 H${K.x - 20} Q${K.x - 28} 200 ${K.x - 28} 192 Z`} />
+			<rect class="sh__cork" x={K.x - 7} y="118" width="14" height="8" rx="1.5" />
+			<line class="sh__rod" x1={K.x} y1={K.y + K.r} x2={K.x} y2="150" />
+			<path class="sh__leaf" data-leaf0 d="" />
+			<path class="sh__leaf" data-leaf1 d="" />
+			<circle class="sh__knob" cx={K.x} cy={K.y} r={K.r} />
+			<g data-esigns></g>
+			<!-- the cage -->
+			<g class="sh__cage" data-cage>
+				<path class="sh__mesh" d={mesh.join(' ')} />
+				<circle class="sh__ring" cx={C.x} cy={C.y} r={C.a} />
+				<rect class="sh__base" x={C.x - 60} y={TABLE - 4} width="120" height="4" />
+				<text class="t-halo sh__lab" x={C.x} y={C.y - C.a + 24} text-anchor="middle">сетка</text>
+			</g>
+			<g data-csigns></g>
+		</svg>
+		<div class="g7__side sh__side">
+			<label class="g7__slider">
+				<span>Заряд шара <output data-oq></output></span>
+				<input type="range" min="0" max="10" step="1" value="6" data-q aria-label="Заряд шара, нанокулоны" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn" data-cagebtn aria-pressed="false">Накрыть сеткой</button>
+			</div>
+			<ul class="g7__read">
+				<li><span>Угол между листочками</span> <b data-oang></b></li>
+				<li data-inside style="display:none"><span>Поле внутри сетки</span> <b>0</b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">Схема в разрезе; сетка показана шаром. Линии напряжённости рассчитаны по полю заряженного шара и зарядов, которые он наводит на электроскопе или на сетке. Из шара выходят 2&nbsp;линии на каждый нанокулон.</figcaption>
+</figure>
+
+<style is:global>
+	[data-sh] .sh__table {
+		fill: var(--g7-wood);
+	}
+	[data-sh] .sh__glass {
+		fill: var(--g7-glass);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+	}
+	[data-sh] .sh__base {
+		fill: var(--g7-wood-dark);
+	}
+	[data-sh] .sh__ball,
+	[data-sh] .sh__knob {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+	}
+	[data-sh] .sh__jar {
+		fill: color-mix(in oklab, var(--g7-glass) 22%, transparent);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.1;
+	}
+	[data-sh] .sh__cork {
+		fill: var(--g7-wood-dark);
+	}
+	[data-sh] .sh__rod {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.2;
+	}
+	[data-sh] .sh__leaf {
+		fill: color-mix(in oklab, var(--g7-gold) 70%, var(--sl-color-gray-3));
+		stroke: color-mix(in oklab, var(--g7-gold) 50%, var(--sl-color-gray-5));
+		stroke-width: 0.6;
+	}
+	[data-sh] .sh__line {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.1;
+	}
+	[data-sh] .sh__tip {
+		fill: var(--sl-color-gray-2);
+	}
+	[data-sh] .sh__cage {
+		transition: opacity 0.35s;
+	}
+	[data-sh] .sh__mesh {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.6;
+		opacity: 0.45;
+	}
+	[data-sh] .g7__svg .sh__lab {
+		font-size: 12px;
+		fill: var(--sl-color-gray-1);
+	}
+	[data-sh] .sh__ring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.4;
+	}
+	[data-sh] .sh__p {
+		stroke: var(--g7-red);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+	[data-sh] .sh__m {
+		stroke: var(--g7-blue);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+	}
+</style>
+
+<script>
+	import { el } from '../g7/kit';
+
+	const W = 360;
+	const B = { x: 62, y: 112, r: 16 };
+	const C = { x: 252, y: 128, a: 88 };
+	const K = { x: 252, y: 76, r: 7 };
+	const TABLE = 230;
+	type P = { x: number; y: number };
+	type Src = { x: number; y: number; q: number };
+	// the images of a line charge λ = 1 at B in a neutral conducting cylinder (center o, radius a)
+	const images = (o: P, a: number): Src[] => {
+		const dx = B.x - o.x;
+		const dy = B.y - o.y;
+		const D = Math.hypot(dx, dy);
+		const k = (a * a) / D / D;
+		return [
+			{ x: o.x + dx * k, y: o.y + dy * k, q: -1 },
+			{ x: o.x, y: o.y, q: 1 },
+		];
+	};
+	const fieldOf = (srcs: Src[], p: P): P => {
+		let ex = 0;
+		let ey = 0;
+		for (const s of srcs) {
+			const dx = p.x - s.x;
+			const dy = p.y - s.y;
+			const r2 = dx * dx + dy * dy + 1e-9;
+			ex += (s.q * dx) / r2;
+			ey += (s.q * dy) / r2;
+		}
+		return { x: ex, y: ey };
+	};
+	// the electroscope (knob, rod and both leaves) as one neutral conductor, found numerically (method of moments in
+	// the plane): line charges λⱼ at points 4–4,5 px apart along its outline, each standing for its piece of length s
+	// (self term −ln(s/2e)); all points get one potential V and Σλⱼ = 0. Returns the charges and the outline pieces.
+	const electroscope = (half: number) => {
+		const pts: { x: number; y: number; s: number }[] = [];
+		for (let i = 0; i < 11; i++) {
+			const a = (i / 11) * 2 * Math.PI;
+			pts.push({ x: K.x + K.r * Math.cos(a), y: K.y + K.r * Math.sin(a), s: (2 * Math.PI * K.r) / 11 });
+		}
+		for (let i = 0; i < 15; i++) pts.push({ x: K.x, y: K.y + K.r + 2.2 + i * 4.5, s: 4.5 });
+		const segs: [P, P][] = [[{ x: K.x, y: K.y + K.r }, { x: K.x, y: 150 }]];
+		for (const sd of [-1, 1]) {
+			const e = { x: K.x + sd * 34 * Math.sin(half), y: 150 + 34 * Math.cos(half) };
+			segs.push([{ x: K.x, y: 150 }, e]);
+			for (let i = 1; i <= 8; i++) pts.push({ x: K.x + (e.x - K.x) * (i / 8), y: 150 + (e.y - 150) * (i / 8), s: 4.25 });
+		}
+		const N = pts.length;
+		// the system: rows 0…N−1 potentials, row N the total charge; unknowns λ₀…λ_{N−1}, V
+		const M: number[][] = [];
+		for (let i = 0; i < N; i++) {
+			const row: number[] = [];
+			for (let j = 0; j < N; j++) row.push(i === j ? -Math.log(pts[i].s / (2 * Math.E)) : -Math.log(Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y)));
+			row.push(-1, Math.log(Math.hypot(pts[i].x - B.x, pts[i].y - B.y)));
+			M.push(row);
+		}
+		M.push([...pts.map(() => 1), 0, 0]);
+		const n = N + 1;
+		for (let c = 0; c < n; c++) {
+			let piv = c;
+			for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
+			[M[c], M[piv]] = [M[piv], M[c]];
+			for (let r = 0; r < n; r++) {
+				if (r === c) continue;
+				const f = M[r][c] / M[c][c];
+				for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+			}
+		}
+		const lam = pts.map((_, i) => M[i][n] / M[i][i]);
+		return { pts, lam, segs };
+	};
+	const segDist = (p: P, a: P, b: P) => {
+		const dx = b.x - a.x;
+		const dy = b.y - a.y;
+		const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
+		return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
+	};
+	const SETS = {
+		cage: [{ x: B.x, y: B.y, q: 1 }, ...images(C, C.a)],
+	};
+	const trace = (srcs: Src[], start: P, stop: (p: P) => boolean): P[] => {
+		const dir = (p: P) => {
+			const e = fieldOf(srcs, p);
+			const n = Math.hypot(e.x, e.y) || 1;
+			return { x: e.x / n, y: e.y / n };
+		};
+		const pts = [start];
+		let p = start;
+		const h = 1.5;
+		for (let i = 0; i < 700; i++) {
+			const k1 = dir(p);
+			const k2 = dir({ x: p.x + (h / 2) * k1.x, y: p.y + (h / 2) * k1.y });
+			const k3 = dir({ x: p.x + (h / 2) * k2.x, y: p.y + (h / 2) * k2.y });
+			const k4 = dir({ x: p.x + h * k3.x, y: p.y + h * k3.y });
+			p = { x: p.x + (h / 6) * (k1.x + 2 * k2.x + 2 * k3.x + k4.x), y: p.y + (h / 6) * (k1.y + 2 * k2.y + 2 * k3.y + k4.y) };
+			pts.push(p);
+			if (stop(p) || p.x < 1 || p.x > W - 1 || p.y < 1 || p.y > TABLE - 1) break;
+		}
+		return pts;
+	};
+	const d = (pts: P[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+	const tip = (pts: P[]) => {
+		const i = Math.max(1, Math.min(pts.length - 2, Math.floor(pts.length * 0.5)));
+		const a = pts[i];
+		const b = pts[i + 1];
+		const n = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+		const ux = (b.x - a.x) / n;
+		const uy = (b.y - a.y) / n;
+		const tx = a.x + ux * 3;
+		const ty = a.y + uy * 3;
+		return `M${tx.toFixed(1)} ${ty.toFixed(1)} L${(tx - ux * 6 - uy * 3).toFixed(1)} ${(ty - uy * 6 + ux * 3).toFixed(1)} L${(tx - ux * 6 + uy * 3).toFixed(1)} ${(ty - uy * 6 - ux * 3).toFixed(1)} Z`;
+	};
+	const len = (pts: P[]) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : 0), 0);
+	// points of the cage at equal shares of its positive (sgn 1) or negative (sgn −1) surface charge
+	const shares = (sgn: 1 | -1, n: number): number[] => {
+		const M = 720;
+		const sig: number[] = [];
+		for (let i = 0; i < M; i++) {
+			const t = (i / M) * 2 * Math.PI;
+			const nx = Math.cos(t);
+			const ny = Math.sin(t);
+			const e = fieldOf(SETS.cage, { x: C.x + (C.a + 0.01) * nx, y: C.y + (C.a + 0.01) * ny });
+			sig.push(Math.max(0, sgn * (e.x * nx + e.y * ny)));
+		}
+		const tot = sig.reduce((a, b) => a + b, 0);
+		const out: number[] = [];
+		let acc = 0;
+		let k = 0;
+		for (let i = 0; i < M && k < n; i++) {
+			acc += sig[i];
+			while (k < n && acc >= ((k + 0.5) / n) * tot) {
+				out.push((i / M) * 2 * Math.PI);
+				k++;
+			}
+		}
+		return out;
+	};
+	const sign = (g: Element, x: number, y: number, plus: boolean, s = 3) =>
+		g.append(el('path', { class: plus ? 'sh__p' : 'sh__m', d: plus ? `M${(x - s).toFixed(1)} ${y.toFixed(1)} h${2 * s} M${x.toFixed(1)} ${(y - s).toFixed(1)} v${2 * s}` : `M${(x - s).toFixed(1)} ${y.toFixed(1)} h${2 * s}` }));
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-sh]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const sq = $<HTMLInputElement>('[data-q]');
+		const btn = $<HTMLButtonElement>('[data-cagebtn]');
+		const linesG = $('[data-lines]');
+		const cage = $<SVGGElement>('[data-cage]');
+		let caged = false;
+		const draw = () => {
+			const q = +sq.value;
+			$('[data-oq]').textContent = q ? `+${q} нКл` : '0';
+			btn.textContent = caged ? 'Убрать сетку' : 'Накрыть сеткой';
+			btn.setAttribute('aria-pressed', String(caged));
+			cage.style.opacity = caged ? '1' : '0';
+			$<HTMLElement>('[data-inside]').style.display = caged ? '' : 'none';
+			linesG.replaceChildren();
+			const bs = $('[data-bsigns]');
+			const es = $('[data-esigns]');
+			const cs = $('[data-csigns]');
+			bs.replaceChildren();
+			es.replaceChildren();
+			cs.replaceChildren();
+			// the ball's charge: up to 10 «+» on its surface
+			for (let i = 0; i < q; i++) {
+				const a = (i / Math.max(1, q)) * 2 * Math.PI - Math.PI / 2;
+				sign(bs, B.x + (B.r - 6) * Math.cos(a), B.y + (B.r - 6) * Math.sin(a), true, 2.5);
+			}
+			const n = 2 * q;
+			const ang = caged ? 0 : 5 * q;
+			const half = ((ang / 2) * Math.PI) / 180;
+			const el0 = caged ? null : electroscope(half);
+			const srcs: Src[] = caged ? SETS.cage : [{ x: B.x, y: B.y, q: 1 }, ...el0!.pts.map((p, i) => ({ x: p.x, y: p.y, q: el0!.lam[i] }))];
+			const onScope = (p: P) => Math.hypot(p.x - K.x, p.y - K.y) < K.r + 1.5 || el0!.segs.some(([a, b]) => segDist(p, a, b) < 2.5);
+			const stop = caged ? (p: P) => Math.hypot(p.x - C.x, p.y - C.y) < C.a || Math.hypot(p.x - B.x, p.y - B.y) < B.r - 1 : (p: P) => onScope(p) || Math.hypot(p.x - B.x, p.y - B.y) < B.r - 1;
+			let into = 0;
+			const all: P[][] = [];
+			for (let i = 0; i < n; i++) {
+				const a = ((i + 0.5) / n) * 2 * Math.PI;
+				const pts = trace(srcs, { x: B.x + (B.r + 0.5) * Math.cos(a), y: B.y + (B.r + 0.5) * Math.sin(a) }, stop);
+				const end = pts[pts.length - 1];
+				if (caged ? Math.hypot(end.x - C.x, end.y - C.y) < C.a + 2 : onScope(end)) into++;
+				all.push(pts);
+			}
+			if (caged && into > 0) {
+				// as many lines start on the far side of the cage as ended on its near side
+				for (const t of shares(1, into)) {
+					const s = { x: C.x + (C.a + 0.5) * Math.cos(t), y: C.y + (C.a + 0.5) * Math.sin(t) };
+					all.push(trace(srcs, s, (p) => Math.hypot(p.x - B.x, p.y - B.y) < B.r || Math.hypot(p.x - C.x, p.y - C.y) < C.a - 0.5));
+				}
+			}
+			if (!caged && into > 0 && el0) {
+				// as many lines leave the electroscope from its positive part as ended on it (equal shares of its «+»)
+				const pos = el0.lam.map((l) => Math.max(0, l));
+				const tot = pos.reduce((a, b) => a + b, 0);
+				let acc = 0;
+				let k = 0;
+				for (let i = 0; i < pos.length && k < into; i++) {
+					acc += pos[i];
+					while (k < into && acc >= ((k + 0.5) / into) * tot) {
+						k++;
+						// start 3 px out along the field of everything but this point's own charge
+						const p0 = el0.pts[i];
+						const e = fieldOf(srcs.filter((_, j) => j !== i + 1), p0);
+						const n0 = Math.hypot(e.x, e.y) || 1;
+						const st = { x: p0.x + (3 * e.x) / n0, y: p0.y + (3 * e.y) / n0 };
+						let steps = 0;
+						all.push(trace(srcs, st, (p) => ++steps > 4 && (onScope(p) || Math.hypot(p.x - B.x, p.y - B.y) < B.r)));
+					}
+				}
+			}
+			for (const pts of all) {
+				linesG.append(el('path', { class: 'sh__line', d: d(pts) }));
+				if (len(pts) > 30) linesG.append(el('path', { class: 'sh__tip', d: tip(pts) }));
+			}
+			// induced charges
+			if (caged) {
+				// one sign per line that ends on the cage (−) and per line that starts on it (+): 0,5 нКл each
+				for (const t of shares(-1, into)) sign(cs, C.x + (C.a - 7) * Math.cos(t), C.y + (C.a - 7) * Math.sin(t), false);
+				for (const t of shares(1, into)) sign(cs, C.x + (C.a - 7) * Math.cos(t), C.y + (C.a - 7) * Math.sin(t), true);
+			}
+			// the electroscope: the leaves hang from (K.x, 150), 34 px long; each turns by half the angle between them
+			const leaf = (s: 1 | -1) => {
+				const ex = K.x + s * 34 * Math.sin(half);
+				const ey = 150 + 34 * Math.cos(half);
+				const wx = 3 * Math.cos(half);
+				const wy = -s * 3 * Math.sin(half);
+				return `M${(K.x - s * 1).toFixed(1)} 150 L${(ex - s * wx * 0.3).toFixed(1)} ${(ey).toFixed(1)} L${(ex + s * wx).toFixed(1)} ${(ey + wy).toFixed(1)} L${(K.x + s * 2.2).toFixed(1)} 150 Z`;
+			};
+			$('[data-leaf0]').setAttribute('d', leaf(-1));
+			$('[data-leaf1]').setAttribute('d', leaf(1));
+			if (!caged && q > 0) {
+				const m = Math.min(3, Math.ceil(q / 3));
+				for (let i = 0; i < m; i++) {
+					const a = Math.PI + (i - (m - 1) / 2) * 1.1;
+					sign(es, K.x + (K.r + 5) * Math.cos(a), K.y + (K.r + 5) * Math.sin(a), false, 2.5);
+				}
+				const pl = Math.min(2, Math.ceil(q / 5));
+				for (const s of [-1, 1] as const)
+					for (let i = 0; i < pl; i++) {
+						const f = 0.55 + 0.3 * i;
+						sign(es, K.x + s * (34 * f * Math.sin(half) + 6 * Math.cos(half)), 150 + 34 * f * Math.cos(half) - s * 6 * Math.sin(half) * 0, true, 2.3);
+					}
+			}
+			$('[data-oang]').textContent = `${ang}°`;
+		};
+		sq.addEventListener('input', draw);
+		btn.addEventListener('click', () => {
+			caged = !caged;
+			draw();
+		});
+		draw();
+	}
+</script>

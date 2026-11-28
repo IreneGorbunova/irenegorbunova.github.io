@@ -1,23 +1,26 @@
 ---
 /**
  * Two looping opening scenes of «Электростатика. Закон Кулона. Электрическое поле». No terms of the chapter in the
- * pictures or in the visible captions.
+ * pictures or in the visible captions. Every person is drawn with the shared people kit (src/components/people/).
  *
- * Balloon: a living room drawn at 1,05 px per centimeter. A boy (168 см) rubs a balloon (25 см across) on his hair
- *   for 2,5 s, then holds it over the head of his sister (128 см, long hair). The balloon comes down from 46 px
- *   (44 см) above her hair to 16 px (15 см) in 3 s, waits, and goes back up. Her strands are pulled toward the balloon
- *   with a strength ∝ 1/d² (d — from the balloon to the center of her head), so they rise more and more steeply as it
+ * Balloon: a living room drawn at 1,05 px per centimeter. A brother (teen, 168 см) holds a balloon (25 см across)
+ *   by its knot (near hand; the balloon turned so the knot points back toward him) with the far hand spread on its
+ *   front, and rubs it on the top of his bowed head for 2,5 s (±5 см, 2,5 times a second); then his far hand lets go
+ *   (it opens and comes down close to the body in 0,7 s to hang straight down behind it) and the near hand carries the
+ *   balloon by the knot over the head of his sister (child, 128 см, long hair). The balloon comes down from 34 px (32 см) above
+ *   her hair to 10 px (10 см) in 3 s, waits, and goes back up. Her strands are pulled toward the balloon with a
+ *   strength ∝ 1/d² (d — from the balloon to the center of her head), so they rise more and more steeply as it
  *   approaches, and fan out (a drawing rule: the uncharged strands are pulled by the charges the balloon shifts in
- *   them). Real time.
- * Storm: a parked hatchback (4,1 м long, 0,49 px per centimeter) in the rain; a mother at the wheel, a girl in the back
- *   seat. After 2 s a lightning stroke hits the roof: the sky flashes (three return strokes, as a real flash flickers),
- *   the metal body glows along its outline, a spark jumps from the sill to the wet road. The people inside go on
- *   sitting; the girl looks up. The flash is slowed about ten times so it can be seen (a real one lasts about 0,2 s,
- *   each stroke a ten-thousandth of a second).
+ *   them); she lifts her head a little. Real time. Both stand still (feet planted).
+ * Storm: a parked car (4,1 м long, 0,49 px per centimeter) in the rain; a mother at the wheel (both hands on its
+ *   rim), a girl in the back seat (hands on her knees). After 2 s a lightning stroke hits the roof: the sky flashes
+ *   (three return strokes, as a real flash flickers), the metal body glows along its outline, a spark jumps from the
+ *   sill to the wet road. The people inside go on sitting; the girl looks up. The flash is slowed about ten times so
+ *   it can be seen (a real one lasts about 0,2 s, each stroke a ten-thousandth of a second).
  */
 import IntroFrame from '@components/intro/IntroFrame.astro';
 import More from '@components/More.astro';
-import PeopleStyles from '../mehanicheskaya-rabota/PeopleStyles.astro';
+import PeopleStyles from '@components/people/PeopleStyles.astro';
 
 // the living room
 const FL = 226; // floor
@@ -71,12 +74,14 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 			<ellipse class="el-rug" cx="150" cy={FL + 4} rx="110" ry="8"></ellipse>
 			<g data-girl></g>
 			<g data-hair></g>
-			<g data-boy></g>
+			<g data-back0></g>
+			<g data-back1></g>
 			<g data-balloon>
 				<ellipse class="el-balloon" cx="0" cy="0" rx="12.5" ry="14"></ellipse>
 				<ellipse class="el-balloon-hi" cx="-4.5" cy="-6" rx="3.2" ry="4.6" transform="rotate(25 -4.5 -6)"></ellipse>
 				<path class="el-balloon" d="M-2 13.5 L2 13.5 L1 16.5 L-1 16.5 Z"></path>
 			</g>
+			<g data-boy></g>
 		</svg>
 		<div class="intro__foot">
 			<p>
@@ -393,14 +398,10 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 
 <script>
 	import { scene } from '@components/intro/scene';
-	import { el } from '../g7/kit';
-	import { human, type HumanPose } from '../mehanicheskaya-rabota/people';
+	import { figure, ANKLE_CM, blendShape, handShape, ease, type Pt, type HandTarget } from '@components/people';
 
-	const ease = (u: number) => {
-		const t = Math.min(1, Math.max(0, u));
-		return t * t * (3 - 2 * t);
-	};
 	const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+	const lerpP = (a: Pt, b: Pt, k: number): Pt => ({ x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k) });
 
 	for (const root of document.querySelectorAll<HTMLElement>('[data-elintro]')) {
 		// ---------- the balloon ----------
@@ -413,44 +414,51 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 			const Hb = 168;
 			const ug = S * Hg;
 			const ub = S * Hb;
-			const Ag = 7 * S * (Hg / 172);
-			const Ab = 7 * S;
-			const girl = human($<SVGGElement>('[data-girl]'), { s: S, H: Hg, shirt: 'hm-green', hair: 'short', girth: 0.9 });
-			$<SVGGElement>('[data-girl]').classList.add('hm-blond');
-			const boy = human($<SVGGElement>('[data-boy]'), { s: S, H: Hb, shirt: 'hm-blue', hair: 'short', dir: -1 });
+			const BR = 12.5; // the balloon's radius across, px (25 см); 14 px along its axis
+			const D = 23; // the grip on the balloon, см (the hand spread over its side)
+			const girlG = $<SVGGElement>('[data-girl]');
+			girlG.classList.add('hm-blond');
+			const girl = figure(girlG, { s: S, H: Hg, age: 'child', girth: 0.9, shirt: 'hm-green', hair: 'short', name: 'sister' });
+			const boy = figure($<SVGGElement>('[data-boy]'), { s: S, H: Hb, age: 'teen', shirt: 'hm-blue', hair: 'short', dir: -1, name: 'brother' });
+			boy.backLayer(0, $('[data-back0]'));
+			boy.backLayer(1, $('[data-back1]'));
 			const gx = 112;
-			const bx = 172; // close enough to hold the balloon over her head with his arm within reach
-			const ghip = { x: gx, y: FL - 0.505 * ug };
+			const bx = 166;
+			const ghip = { x: gx, y: FL - 0.48 * ug };
 			const bhip = { x: bx, y: FL - 0.505 * ub };
-			// centers of the heads (people.ts: 0,4 H above the hip joint, 0,015 H forward), radii 0,064 H
-			const gh = { x: gx + 0.015 * ug, y: ghip.y - 0.4 * ug };
-			const gr = 0.064 * ug;
-			const bh = { x: bx - 0.015 * ub, y: bhip.y - 0.4 * ub };
-			const br = 0.064 * ub;
+			// her head (kit: head center 0,437 H above the hip joint, 0,1 of the body depth forward; radius 0,083 H)
+			const gW = 0.14 * ug * 0.9;
+			const gh = { x: gx + 0.1 * gW, y: ghip.y - 0.437 * ug };
+			const gr = 0.083 * ug;
+			// his head center and radius for a lean (the head turns about its center)
+			const bW = 0.14 * ub;
+			const bHead = (lean: number) => ({ x: bx - (0.424 * ub * Math.sin(lean) + 0.1 * bW * Math.cos(lean)), y: bhip.y - 0.424 * ub * Math.cos(lean) + 0.1 * bW * Math.sin(lean) });
+			const br = 0.071 * ub;
 
-			// the girl's hair: 14 strands from the top and the back of her head
+			// the girl's hair: a mass of long hair on the head and the back and 18 strands that lift toward the balloon
 			const hairG = $<SVGGElement>('[data-hair]');
-			// the mass of long hair lying on the head and the back; it fades as the strands lift
-			const mass = el('path', { class: 'el-hair-mass' });
+			const mass = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			mass.setAttribute('class', 'el-hair-mass');
 			hairG.append(mass);
-			{
-				const P = (a: number, k: number) => `${(gh.x + k * gr * Math.cos((a * Math.PI) / 180)).toFixed(1)} ${(gh.y + k * gr * Math.sin((a * Math.PI) / 180)).toFixed(1)}`;
-				mass.setAttribute('d', `M${P(-40, 1.0)} A${(1.12 * gr).toFixed(1)} ${(1.12 * gr).toFixed(1)} 0 0 0 ${P(-200, 1.12)} Q${(gh.x - 1.25 * gr).toFixed(1)} ${(gh.y + 1.6 * gr).toFixed(1)} ${(gh.x - 1.05 * gr).toFixed(1)} ${(gh.y + 1.2 * gr + 18).toFixed(1)} L${(gh.x - 0.3 * gr).toFixed(1)} ${(gh.y + 1.2 * gr + 14).toFixed(1)} Q${(gh.x - 0.25 * gr).toFixed(1)} ${(gh.y + 0.8 * gr).toFixed(1)} ${P(150, 0.85)} L${P(-30, 0.9)} Z`);
-			}
 			const N = 18;
 			const strands = Array.from({ length: N }, (_, i) => {
 				const a = ((-55 - (i * 150) / (N - 1)) * Math.PI) / 180; // from the forehead over the top to the nape
-				const p = el('path', { class: i % 3 === 1 ? 'el-hair-d' : 'el-hair' });
+				const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+				p.setAttribute('class', i % 3 === 1 ? 'el-hair-d' : 'el-hair');
 				hairG.append(p);
 				return { a, p, i };
 			});
-			const hair = (b: { x: number; y: number } | null, lam: number, t: number) => {
+			const hair = (b: Pt | null, lam: number, t: number, tilt: number) => {
+				const P = (a: number, k: number) => `${(gh.x + k * gr * Math.cos(a + tilt)).toFixed(1)} ${(gh.y + k * gr * Math.sin(a + tilt)).toFixed(1)}`;
+				const dg = Math.PI / 180;
+				mass.setAttribute('d', `M${P(-40 * dg, 1.0)} A${(1.12 * gr).toFixed(1)} ${(1.12 * gr).toFixed(1)} 0 0 0 ${P(-200 * dg, 1.12)} Q${(gh.x - 1.25 * gr).toFixed(1)} ${(gh.y + 1.6 * gr).toFixed(1)} ${(gh.x - 1.05 * gr).toFixed(1)} ${(gh.y + 1.2 * gr + 18).toFixed(1)} L${(gh.x - 0.3 * gr).toFixed(1)} ${(gh.y + 1.2 * gr + 14).toFixed(1)} Q${(gh.x - 0.25 * gr).toFixed(1)} ${(gh.y + 0.8 * gr).toFixed(1)} ${P(150 * dg, 0.85)} L${P(-30 * dg, 0.9)} Z`);
 				mass.style.opacity = String(1 - 0.85 * lam);
 				for (const s of strands) {
-					const R = { x: gh.x + gr * Math.cos(s.a), y: gh.y + gr * Math.sin(s.a) };
-					const nrm = { x: Math.cos(s.a), y: Math.sin(s.a) };
+					const a = s.a + tilt;
+					const R = { x: gh.x + gr * Math.cos(a), y: gh.y + gr * Math.sin(a) };
+					const nrm = { x: Math.cos(a), y: Math.sin(a) };
 					const f = s.i / (N - 1);
-					// at rest: the strand hugs the head, goes to the back and hangs down to the shoulder blades
+					// at rest the strand hugs the head, goes to the back and hangs down to the shoulder blades
 					const rest = { x: gh.x - 0.35 * gr - 0.75 * gr * f - (s.i % 2) * 0.8, y: gh.y + 1.2 * gr + 8 + 10 * f + (s.i % 3) * 2 };
 					const restC = { x: gh.x + nrm.x * gr * 1.45 - 0.6 * gr, y: gh.y + nrm.y * gr * 1.3 };
 					let tip = rest;
@@ -459,97 +467,125 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 						const dx = b.x - R.x;
 						const dy = b.y - R.y;
 						const d = Math.hypot(dx, dy) || 1;
-						// a strand that grows on the side of the balloon is pulled harder (it is nearer)
 						const facing = Math.max(0, (nrm.x * dx + nrm.y * dy) / d);
 						const li = lam * (0.35 + 0.65 * facing);
-						// the strands push one another apart: a narrow fan around the direction to the balloon
 						const fan = (s.i - (N - 1) / 2) * 0.035 + 0.05 * Math.sin(t * 5 + s.i);
 						const ang = Math.atan2(dy, dx) + fan;
-						// a lifted strand reaches toward the balloon but stops short of its surface
-						const L = Math.min(gr + 22, d - 15);
+						const L = Math.min(gr + 22, d - 16);
 						const up = { x: R.x + L * Math.cos(ang), y: R.y + L * Math.sin(ang) };
 						const upC = { x: R.x + (nrm.x * 0.4 + Math.cos(ang) * 0.6) * L * 0.5, y: R.y + (nrm.y * 0.4 + Math.sin(ang) * 0.6) * L * 0.5 };
-						tip = { x: lerp(rest.x, up.x, li), y: lerp(rest.y, up.y, li) };
-						ctrl = { x: lerp(restC.x, upC.x, li), y: lerp(restC.y, upC.y, li) };
+						tip = lerpP(rest, up, li);
+						ctrl = lerpP(restC, upC, li);
 					}
 					s.p.setAttribute('d', `M${R.x.toFixed(1)} ${R.y.toFixed(1)} Q${ctrl.x.toFixed(1)} ${ctrl.y.toFixed(1)} ${tip.x.toFixed(1)} ${tip.y.toFixed(1)}`);
 				}
 			};
 			const balloon = $<SVGGElement>('[data-balloon]');
-			const standG = (head: number): HumanPose => ({
-				hip: ghip,
-				lean: 0,
-				ankles: [
-					{ x: gx + 0.015 * ug, y: FL - Ag },
-					{ x: gx - 0.03 * ug, y: FL - Ag },
-				],
-				feet: [0, 0],
-				hands: [
-					{ x: gx + 0.035 * ug, y: FL - 0.42 * ug },
-					{ x: gx - 0.01 * ug, y: FL - 0.42 * ug },
-				],
-				head,
-			});
-			const hang = [
-				{ x: bx - 0.03 * ub, y: FL - 0.42 * ub },
-				{ x: bx + 0.01 * ub, y: FL - 0.42 * ub },
-			];
-			const top = gh.y - gr; // the top of her head
-			const rubC = (t: number) => ({ x: bh.x + 7 * Math.sin(t * 2 * Math.PI * 2.5), y: bh.y - br - 11 });
+			const Ab = ANKLE_CM.trainer * S;
+			const gTop = gh.y - gr; // the top of her head
+			// the balloon's center: on the top of his bowed head while he rubs (±5 px, 2,5 times a second), then over her head
+			const rubLean = 0.12;
+			const rubHead = 0.25;
+			const hb = bHead(rubLean);
+			const tilt0 = rubLean * 0.4 + rubHead;
+			const rubTop = { x: hb.x - br * Math.sin(tilt0) - 1, y: hb.y - br * Math.cos(tilt0) - 1.5 };
+			const rubC = (t: number): Pt => ({ x: rubTop.x + 5 * Math.sin(t * 2 * Math.PI * 2.5), y: rubTop.y - 13 });
+			const over = (gap: number): Pt => ({ x: gh.x - 2, y: gTop - gap - 14 });
 			const gapAt = (t: number) => {
-				// px between her hair and the balloon: 46 → 6 → 50
-				if (t < 3.3) return 46;
-				if (t < 6.3) return lerp(46, 16, ease((t - 3.3) / 3));
-				if (t < 7.3) return 16;
-				return lerp(16, 50, ease((t - 7.3) / 1.7));
+				// px between her hair and the balloon: 34 → 10 → 36
+				if (t < 3.4) return 34;
+				if (t < 6.4) return lerp(34, 10, ease((t - 3.4) / 3));
+				if (t < 7.4) return 10;
+				return lerp(10, 36, ease((t - 7.4) / 1.6));
+			};
+			const shG = handShape('grip', D / (0.104 * Hb));
+			const shR = handShape('relaxed');
+			// a hand spread on the balloon: the grip center is the balloon's center; fingers up, the palm toward the balloon
+			const onBalloon = (B: Pt, side: 1 | -1, contact: string): HandTarget => ({ at: B, pose: 'grip', d: D, dir: -Math.PI / 2 + side * 0.25, roll: side > 0 ? 0 : Math.PI, contact });
+			// the balloon is turned so that its knot points back and a little down (toward him); the near hand holds the knot
+			const TURN = -70;
+			const knotOf = (B: Pt): Pt => ({ x: B.x - 15.5 * Math.sin((TURN * Math.PI) / 180), y: B.y + 15.5 * Math.cos((TURN * Math.PI) / 180) });
+			const onKnot = (B: Pt): HandTarget => ({ at: knotOf(B), pose: 'grip', d: 2, dir: -2.2, contact: 'balloon knot' });
+			// the far hand hangs straight down, a little behind the body
+			const hangOf = (lean: number): Pt => {
+				const sh = boy.shoulders(bhip, lean)[1];
+				return { x: sh.x + 3, y: sh.y + 0.94 * (0.176 + 0.133 + 0.045) * ub };
 			};
 			scene(card, 9, (x) => {
 				const t = x * 9;
-				let B: { x: number; y: number };
-				let hands: [{ x: number; y: number }, { x: number; y: number }];
-				const over = (g: number) => ({ x: gh.x - 3, y: top - 14 - g });
+				let B: Pt;
+				let lean: number;
+				let head: number;
+				let far: HandTarget;
 				if (t < 2.5) {
 					B = rubC(t);
-					hands = [
-						{ x: B.x - 9, y: B.y + 6 },
-						{ x: B.x - 3, y: B.y + 11 },
-					];
-				} else if (t < 3.3) {
-					const k = ease((t - 2.5) / 0.8);
+					lean = rubLean;
+					head = rubHead;
+					far = onBalloon(B, -1, 'balloon, far side');
+				} else if (t < 3.4) {
+					const k = ease((t - 2.5) / 0.9);
 					const a = rubC(2.5);
-					const b = over(46);
-					B = { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k) - 10 * Math.sin(Math.PI * k) };
-					hands = [
-						{ x: B.x + 3, y: B.y + 16 },
-						// on the way down the far hand keeps out of the shoulder's way (an elbow bends 150° at most)
-						{ x: lerp(B.x - 3, hang[1].x - 0.06 * ub, k) - 16 * Math.sin(Math.PI * k), y: lerp(B.y + 11, hang[1].y, k) },
-					];
+					const b = over(34);
+					B = { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k) - 6 * Math.sin(Math.PI * k) };
+					lean = lerp(rubLean, 0.2, k);
+					head = lerp(rubHead, 0.3, k);
+					// the far hand lets go: it opens and comes down close to the body (the elbow bends, the hand passes
+					// about 33 px from the shoulder, well clear of the sister) to hang behind the body, in 0,7 s
+					const sh = boy.shoulders(bhip, lean)[1];
+					const k2 = ease((t - 2.5) / 0.7);
+					const hang = hangOf(lean);
+					const a0 = { x: a.x - BR - 1, y: a.y };
+					const r0 = Math.hypot(a0.x - sh.x, a0.y - sh.y);
+					const r1 = Math.hypot(hang.x - sh.x, hang.y - sh.y);
+					const f0 = Math.atan2(a0.y - sh.y, a0.x - sh.x);
+					let f1 = Math.atan2(hang.y - sh.y, hang.x - sh.x);
+					if (f1 > f0) f1 -= 2 * Math.PI; // he faces −x: from up-forward through forward to down the screen angle falls
+					const fa = lerp(f0, f1, k2);
+					const ra = lerp(r0, r1, k2) - Math.max(0, (lerp(r0, r1, 0.5) - 33)) * Math.sin(Math.PI * k2);
+					const at = { x: sh.x + ra * Math.cos(fa), y: sh.y + ra * Math.sin(fa) };
+					far = { at, shape: blendShape(shG, shR, k2), pose: k2 < 0.5 ? 'grip' : 'relaxed', d: D, dir: k2 < 0.3 ? lerp(-Math.PI / 2 - 0.25, fa, k2 / 0.3) : fa, roll: lerp(0, -1.2, k2) }; // then the fingers point along the arm (the wrist stays straight)
 				} else {
 					B = over(gapAt(t));
-					// the far arm hangs below its shoulder, which has moved forward with the lean
-					hands = [{ x: B.x + 3, y: B.y + 16 }, { x: hang[1].x - 0.06 * ub, y: hang[1].y }];
+					lean = 0.2;
+					head = 0.3;
+					far = { at: hangOf(lean), pose: 'relaxed', dir: Math.PI / 2, roll: -1.2 };
 				}
-				balloon.setAttribute('transform', `translate(${B.x.toFixed(1)} ${B.y.toFixed(1)})`);
-				boy({
+				const turn = TURN;
+				balloon.setAttribute('transform', `translate(${B.x.toFixed(1)} ${B.y.toFixed(1)}) rotate(${turn.toFixed(1)})`);
+				boy.pose({
 					hip: bhip,
-					lean: t < 2.5 ? 0 : 0.06 + 0.16 * ease((t - 2.5) / 0.8),
+					lean,
+					head,
 					ankles: [
 						{ x: bx - 0.02 * ub, y: FL - Ab },
 						{ x: bx + 0.03 * ub, y: FL - Ab },
 					],
 					feet: [0, 0],
-					hands,
-					// the far hand lets the balloon go and hangs relaxed
-					grips: [null, t >= 2.5 ? { pose: 'relaxed' } : null],
-					head: t < 2.5 ? -0.25 : 0.25,
+					planted: [true, true],
+					hands: [onKnot(B), far],
 				});
 				// the pull ∝ 1/d², d from the balloon to the center of her head; full at the closest approach
 				const charged = t > 2.5;
 				const d = Math.hypot(B.x - gh.x, B.y - gh.y);
-				const dmin = gr + 14 + 16;
+				const dmin = gr + 10 + 14;
 				const lam = charged ? Math.min(1, (dmin / d) ** 2) : 0;
-				hair(B, lam, t);
-				girl(standG(-0.35 * lam));
+				const gHead = -0.3 * lam;
+				girl.pose({
+					hip: ghip,
+					lean: 0,
+					head: gHead,
+					ankles: [
+						{ x: gx + 0.015 * ug, y: FL - Ab * (Hg / 168) * 1.1 },
+						{ x: gx - 0.03 * ug, y: FL - Ab * (Hg / 168) * 1.1 },
+					],
+					feet: [0, 0],
+					planted: [true, true],
+					hands: [
+						{ arm: [Math.PI / 2 - 0.06, 0.25], pose: 'relaxed' },
+						{ arm: [Math.PI / 2 + 0.04, 0.2], pose: 'relaxed' },
+					],
+				});
+				hair(B, lam, t, gHead);
 			});
 		}
 		// ---------- the storm ----------
@@ -557,22 +593,10 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 			const card = root.querySelector<HTMLElement>('[data-scene="storm"]')!;
 			const $ = <T extends Element>(s: string) => card.querySelector<T>(s)!;
 			const S = 0.49;
-			const mom = human($<SVGGElement>('[data-mom]'), { s: S, H: 166, shirt: 'hm-red', hair: 'pony' });
-			const kid = human($<SVGGElement>('[data-kid]'), { s: S, H: 128, shirt: 'hm-gold', hair: 'pony' });
+			const mom = figure($<SVGGElement>('[data-mom]'), { s: S, H: 166, shirt: 'hm-red', hair: 'pony', name: 'mother at the wheel' });
+			const kid = figure($<SVGGElement>('[data-kid]'), { s: S, H: 128, age: 'child', shirt: 'hm-gold', hair: 'pony', name: 'girl in the back seat' });
 			const um = S * 166;
 			const uk = S * 128;
-			// seated: hip on the seat, thighs forward, feet on the floor
-			const seat = (x: number, y: number, u: number, hands: [{ x: number; y: number }, { x: number; y: number }], head: number, lean = -0.12): HumanPose => ({
-				hip: { x, y },
-				lean,
-				ankles: [
-					{ x: x + 0.3 * u, y: y + 0.2 * u },
-					{ x: x + 0.28 * u, y: y + 0.2 * u },
-				],
-				feet: [0, 0],
-				hands,
-				head,
-			});
 			const bolt = [$('[data-bolt]'), $('[data-bolt2]')];
 			const flash = $('[data-flash]');
 			const froad = $('[data-froad]');
@@ -592,6 +616,9 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 				}
 				return b;
 			};
+			// seated: the hip joint just above the seat, thighs forward, shins down to the floor of the car
+			const momHip = { x: 207, y: 157 };
+			const kidHip = { x: 150, y: 151 };
 			scene(card, 6, (x) => {
 				const t = x * 6;
 				const b = strokes(t);
@@ -610,11 +637,39 @@ const rain = Array.from({ length: 70 }, (_, i) => ({ x: (i * 53.3) % 380, y: (i 
 					d.l.setAttribute('x2', (X - 3 * d.s).toFixed(1));
 					d.l.setAttribute('y2', (y + 9 * d.s).toFixed(1));
 				}
-				// the girl looks up after the flash
+				// the girl looks up after the flash and back down
 				const look = t > 2.2 ? -0.35 * ease((t - 2.2) / 0.6) * (t < 4.8 ? 1 : 1 - ease((t - 4.8) / 0.8)) : 0;
-				// the mother sits up, a little forward, so that her hands reach the steering wheel
-				mom(seat(208, 156, um, [{ x: 236, y: 141 }, { x: 234, y: 143 }], 0.05, 0.1));
-				kid(seat(152, 150, uk, [{ x: 166, y: 147 }, { x: 164, y: 148 }], look));
+				// the mother sits a little forward with both hands on the rim of the wheel
+				mom.pose({
+					hip: momHip,
+					lean: 0.12,
+					head: 0.02,
+					ankles: [
+						{ x: momHip.x + 0.33 * um, y: momHip.y + 0.21 * um },
+						{ x: momHip.x + 0.31 * um, y: momHip.y + 0.21 * um },
+					],
+					feet: [0.1, 0.1],
+					planted: [true, true],
+					hands: [
+						{ at: { x: 235.5, y: 131.5 }, pose: 'grip', d: 3, dir: -0.3, roll: -Math.PI / 2, contact: 'steering wheel' },
+						{ at: { x: 237.5, y: 131 }, pose: 'grip', d: 3, dir: -0.3, roll: -Math.PI / 2, contact: 'steering wheel' },
+					],
+				});
+				kid.pose({
+					hip: kidHip,
+					lean: -0.08,
+					head: look,
+					ankles: [
+						{ x: kidHip.x + 0.3 * uk, y: kidHip.y + 0.19 * uk },
+						{ x: kidHip.x + 0.28 * uk, y: kidHip.y + 0.19 * uk },
+					],
+					feet: [0, 0],
+					planted: [true, true],
+					hands: [
+						{ at: { x: kidHip.x + 0.13 * uk, y: kidHip.y - 2.6 }, pose: 'flat', dir: 0.1, roll: 0, contact: 'her knee' },
+						{ at: { x: kidHip.x + 0.11 * uk, y: kidHip.y - 2.6 }, pose: 'flat', dir: 0.1, roll: 0, contact: 'her knee' },
+					],
+				});
 			});
 		}
 	}

@@ -1,15 +1,20 @@
 ---
 /**
  * Lines of the field strength, traced at build time along the real field (Runge — Kutta steps of 1,5 px):
- * 1) charges +q and −q: E ∝ q/r² summed; 16 lines leave «+», most end on «−»; at two points of one line the gold
- *    arrows of E lie along the tangent;
+ * 1) charges +2q and −q, 60 px apart (the grade-9 chapter shows +q and −q, so this panel shows unequal charges):
+ *    E ∝ q/r² summed; 16 lines leave «+2q» at 11,25° + k·22,5°. Exactly half of the flux of +2q ends on −q (in space
+ *    the lines leaving within 90° of the direction to −q end on it), so 8 lines end on «−q» and 8 go away: the number of
+ *    lines is proportional to the charge. The line nearest to the dividing line (78,75°) swings out to 64 px from the
+ *    axis before it comes back, inside the panel. At two points of that line the gold arrows E⃗ lie along the tangent.
  * 2) charges +q and +q: the same tracing, the lines go off to the sides and never cross;
  * 3) two long parallel plates seen edge-on, +σ and −σ: each plate is 31 charged threads (a field ∝ 1/r of each, since
  *    the plates are long), 11 lines leave the inner face of «+»; between the plates they are straight, parallel and
  *    evenly spaced — the field is uniform; at the edges they bulge outward, as real lines do.
- * Static picture, no script. Colors: «+» red, «−» blue, lines gray, E gold.
+ * Static picture, no script. Colors: «+» red, «−» blue, lines gray, E⃗ gold; vector labels with arrows (vlab.ts).
  */
 import G7Styles from '../g7/G7Styles.astro';
+import VlabStyles from './VlabStyles.astro';
+import { vlabSvg } from './vlab';
 
 type P = { x: number; y: number };
 type Src = { x: number; y: number; q: number; d2?: boolean };
@@ -45,7 +50,7 @@ const trace = (srcs: Src[], start: P, stop: (p: P) => boolean): P[] => {
 		const k4 = dir(srcs, { x: p.x + h * k3.x, y: p.y + h * k3.y });
 		p = { x: p.x + (h / 6) * (k1.x + 2 * k2.x + 2 * k3.x + k4.x), y: p.y + (h / 6) * (k1.y + 2 * k2.y + 2 * k3.y + k4.y) };
 		pts.push(p);
-		if (stop(p) || p.x < -5 || p.x > W + 5 || p.y < -5 || p.y > H + 5) break;
+		if (stop(p) || p.x < -5 || p.x > W + 5 || p.y < -5 || p.y > H) break;
 	}
 	return pts;
 };
@@ -64,34 +69,56 @@ const mid = (pts: P[], at = 0.5) => {
 };
 const len = (pts: P[]) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : 0), 0);
 
-// 1) +q and −q
+// 1) +2q and −q
 const dip: Src[] = [
-	{ x: 62, y: 72, q: 1 },
-	{ x: 138, y: 72, q: -1 },
+	{ x: 70, y: 76, q: 2 },
+	{ x: 130, y: 76, q: -1 },
 ];
 const near = (s: Src, r: number) => (p: P) => Math.hypot(p.x - s.x, p.y - s.y) < r;
 const lines1 = Array.from({ length: 16 }, (_, k) => {
 	const a = (k * 2 * Math.PI) / 16 + Math.PI / 16;
-	return trace(dip, { x: 62 + 10 * Math.cos(a), y: 72 + 10 * Math.sin(a) }, near(dip[1], 9));
+	return trace(dip, { x: 70 + 13.5 * Math.cos(a), y: 76 + 13.5 * Math.sin(a) }, near(dip[1], 10));
 });
-// the tangent arrows of E on the line that leaves upward (k = 12: about −79°)
+// a place for a label (10 × 16 px box, baseline at its bottom − 3) beside the point (x, y) along the normal (nx, ny):
+// the candidate whose box keeps farthest from every traced line
+const freeSpot = (x: number, y: number, nx: number, ny: number) => {
+	const pts = lines1.flat();
+	let best = { x, y, d: -1 };
+	for (const side of [1, -1])
+		for (let k = 9; k <= 26; k += 1) {
+			const cx = x + side * nx * k;
+			const cy = y + side * ny * k;
+			// the whole label (arrow over the letter included) stays inside the panel
+			if (cy - 12 < 2 || cx - 8 < 2 || cx + 8 > W - 2) continue;
+			let d = 1e9;
+			for (const q of pts) {
+				const dx = Math.max(0, Math.abs(q.x - cx) - 7);
+				const dy = Math.max(0, Math.abs(q.y - cy) - 10);
+				d = Math.min(d, Math.hypot(dx, dy));
+			}
+			if (d > best.d + 0.5) best = { x: cx, y: cy, d };
+		}
+	return { x: best.x, y: best.y + 5 };
+};
+// the tangent arrows of E on the widest line that ends on −q (k = 12: it leaves at 281,25°, nearly straight up, and
+// comes down onto −q over the top), where lines are sparse
 const tl = lines1[12];
-const tangents = [0.3, 0.62].map((f) => {
+const tangents = [0.3, 0.68].map((f) => {
 	const i = Math.floor(tl.length * f);
 	const p = tl[i];
 	const e = field(dip, p);
 	const n = Math.hypot(e.x, e.y);
-	// the length here shows only the direction: 28 px
+	// the length here shows only the direction: 26 px
 	const ux = e.x / n;
 	const uy = e.y / n;
-	const end = { x: p.x + ux * 28, y: p.y + uy * 28 };
+	const end = { x: p.x + ux * 26, y: p.y + uy * 26 };
 	const bx = end.x - ux * 7;
 	const by = end.y - uy * 7;
 	return {
 		p,
 		line: `M${p.x.toFixed(1)} ${p.y.toFixed(1)} L${bx.toFixed(1)} ${by.toFixed(1)}`,
 		head: `M${end.x.toFixed(1)} ${end.y.toFixed(1)} L${(bx - uy * 3.5).toFixed(1)} ${(by + ux * 3.5).toFixed(1)} L${(bx + uy * 3.5).toFixed(1)} ${(by - ux * 3.5).toFixed(1)} Z`,
-		lab: { x: end.x + ux * 4 + 3, y: end.y + uy * 4 + 4 },
+		lab: freeSpot(p.x + ux * 13, p.y + uy * 13, -uy, ux),
 	};
 });
 
@@ -119,7 +146,7 @@ const lines3 = Array.from({ length: 11 }, (_, k) => {
 });
 
 const panels = [
-	{ lines: lines1, title: 'Разноимённые заряды' },
+	{ lines: lines1, title: 'Заряды +2q и −q' },
 	{ lines: lines2, title: 'Одноимённые заряды' },
 	{ lines: lines3, title: 'Две пластины' },
 ];
@@ -127,11 +154,15 @@ const sign = (x: number, y: number, plus: boolean) => (plus ? `M${x - 4} ${y} H$
 ---
 
 <G7Styles />
+<VlabStyles />
 <figure class="g7 g7--pic lp not-content" data-lp>
 	<div class="g7__grid is-three">
 		{panels.map((pn, n) => (
 			<svg class="g7__svg" viewBox={`0 0 ${W} ${H + 22}`} role="img" aria-label={`Линии напряжённости: ${pn.title.toLowerCase()}`}>
-				<g>
+				<clipPath id={`lp-clip-${n}`}>
+					<rect x="0" y="0" width={W} height={H + 2} />
+				</clipPath>
+				<g clip-path={`url(#lp-clip-${n})`}>
 					{pn.lines.map((l) => (
 						<path class="lp__line" d={path(l)} />
 					))}
@@ -146,13 +177,13 @@ const sign = (x: number, y: number, plus: boolean) => (plus ? `M${x - 4} ${y} H$
 								<path class="arrow arrow--gold" d={t.line} style="stroke-width:2.2" />
 								<path class="head--gold" d={t.head} />
 								<circle class="lp__pt" cx={t.p.x} cy={t.p.y} r="2.4" />
-								<text class="t-small t-gold t-halo" x={t.lab.x} y={t.lab.y}>E</text>
+								<g transform={`translate(${t.lab.x.toFixed(1)} ${t.lab.y.toFixed(1)})`} set:html={vlabSvg('E', '', 'vl--gold', 13)} />
 							</>
 						))}
-						<circle class="lp__q is-plus" cx="62" cy="72" r="9" />
-						<path class="lp__sign" d={sign(62, 72, true)} />
-						<circle class="lp__q is-minus" cx="138" cy="72" r="9" />
-						<path class="lp__sign" d={sign(138, 72, false)} />
+						<circle class="lp__q is-plus" cx="70" cy="76" r="13" />
+						<text class="lp__ql" x="70" y="80" text-anchor="middle">+2q</text>
+						<circle class="lp__q is-minus" cx="130" cy="76" r="10" />
+						<text class="lp__ql" x="130" y="80" text-anchor="middle">−q</text>
 					</>
 				)}
 				{n === 1 && (
@@ -179,7 +210,7 @@ const sign = (x: number, y: number, plus: boolean) => (plus ? `M${x - 4} ${y} H$
 			</svg>
 		))}
 	</div>
-	<figcaption class="g7__caption">Линии построены по настоящему полю зарядов. Касательная к линии в каждой точке направлена так же, как напряжённость <i>E</i> (золотые стрелки). Между пластинами линии параллельны и идут на равных расстояниях: поле однородно.</figcaption>
+	<figcaption class="g7__caption">Линии построены по настоящему полю зарядов. Касательная к линии в каждой точке направлена так же, как напряжённость <i>E⃗</i> (золотые стрелки). Из заряда +2<i>q</i> выходит 16 линий, на заряде −<i>q</i> заканчивается 8: число линий пропорционально заряду. Между пластинами линии параллельны и идут на равных расстояниях: поле однородно.</figcaption>
 </figure>
 
 <style is:global>
@@ -193,6 +224,13 @@ const sign = (x: number, y: number, plus: boolean) => (plus ? `M${x - 4} ${y} H$
 	}
 	[data-lp] .lp__pt {
 		fill: var(--g7-gold);
+	}
+	[data-lp] .g7__svg .lp__ql {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 11.5px;
+		font-weight: 700;
+		fill: var(--sl-color-black);
 	}
 	[data-lp] .lp__q {
 		stroke: var(--sl-color-gray-1);
