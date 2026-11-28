@@ -97,7 +97,8 @@ export default defineConfig({
 					section('Законы сохранения', '10-klass/zakony-sohraneniya', ['impuls', 'mehanicheskaya-energiya']),
 					// hidden until reworked (Arsenii, 23 Nov 2026: «эти три раздела не удаляй, но скрой с сайта — они сырые»); their pages are drafts
 					// section('Статика', '10-klass/statika', ['ravnovesie-tel']),
-					// section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['osnovy-mkt', 'gazovye-zakony', 'nasyshchennyy-par', 'tverdye-tela', 'osnovy-termodinamiki']),
+					// reworked chapters come back one by one (28 Nov 2026); the rest stay drafts: nasyshchennyy-par, tverdye-tela, osnovy-termodinamiki
+					section('Молекулярная физика и термодинамика', '10-klass/molekulyarnaya-fizika', ['osnovy-mkt', 'gazovye-zakony']),
 					// section('Электродинамика', '10-klass/elektrodinamika', ['elektrostatika', 'kondensatory', 'zakony-postoyannogo-toka', 'tok-v-sredah']),
 				]),
 				grade(11, [

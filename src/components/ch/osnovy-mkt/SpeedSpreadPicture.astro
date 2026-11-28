@@ -1,0 +1,192 @@
+---
+/**
+ * «Скорости молекул азота» (section «Скорости молекул», before the Stern model): the share of nitrogen molecules N₂
+ * (m₀ = 0,028 / 6,022·10²³ = 4,65·10⁻²⁶ кг) in each 100-м/с interval of speed, by the Maxwell distribution
+ * f(υ) = 4π(m₀/2πkT)^{3/2} υ² exp(−m₀υ²/2kT), integrated over each interval (here, at build time, by the midpoint rule
+ * with 400 points per interval). Three temperatures: −100 °C (173 К), 20 °C (293 К), 500 °C (773 К). The vertical gold
+ * line is the mean square speed √(3kT/m₀): 393, 511 and 830 м/с. Shares faster than 1000 м/с: 0,02 %, 0,9 % and 22,5 %.
+ * Bars (%) at 293 К: 1,0 6,2 13,5 18,6 19,5 16,5 11,6 7,0 3,6 1,6 0,6 0,2 0,1; at 173 К the highest bar is 25,1 %, at
+ * 773 К 12,2 %. The axes are fixed (0–2000 м/с, 0–26 %), so the shift and the widening show; the bars grow from their
+ * old heights to the new ones in 0,6 с when a temperature is chosen.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const k = 1.380649e-23;
+const m0 = 0.028 / 6.02214076e23;
+const temps = [
+	{ T: 173, label: '−100 °C' },
+	{ T: 293, label: '20 °C' },
+	{ T: 773, label: '500 °C' },
+];
+const f = (v: number, T: number) => {
+	const a = m0 / (2 * k * T);
+	return 4 * Math.PI * (a / Math.PI) ** 1.5 * v * v * Math.exp(-a * v * v);
+};
+const share = (v0: number, v1: number, T: number, n = 400) => {
+	let s = 0;
+	for (let i = 0; i < n; i++) s += f(v0 + ((i + 0.5) * (v1 - v0)) / n, T) * ((v1 - v0) / n);
+	return s * 100;
+};
+const data = temps.map(({ T, label }) => ({
+	T,
+	label,
+	bars: Array.from({ length: 20 }, (_, i) => +share(i * 100, i * 100 + 100, T).toFixed(2)),
+	rms: Math.sqrt((3 * k * T) / m0),
+	fast: share(1000, 10000, T, 20000),
+}));
+// plot frame
+const GX0 = 44;
+const GX1 = 344;
+const GY0 = 236; // 0 %
+const GY1 = 66; // 26 %
+const xs = (v: number) => GX0 + (v / 2000) * (GX1 - GX0);
+const ys = (p: number) => GY0 - (p / 26) * (GY0 - GY1);
+---
+
+<G7Styles />
+<figure class="g7 g7--stack g7--narrow not-content" data-speedpic data-sets={JSON.stringify(data)}>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 360 272" role="img" aria-label="Гистограмма: какая доля молекул азота имеет скорость в каждом интервале по 100 метров в секунду, и средняя квадратичная скорость при выбранной температуре">
+			<text class="sp-lab" x={GX0 - 4} y="18">доля молекул, %</text>
+			{[0, 5, 10, 15, 20, 25].map((p) => (
+				<g>
+					<path class="sp-gridline" d={`M${GX0} ${ys(p)}H${GX1}`} />
+					<text class="sp-lab t-num" x={GX0 - 6} y={ys(p) + 4} text-anchor="end">{p}</text>
+				</g>
+			))}
+			<g data-bars>
+				{Array.from({ length: 20 }, (_, i) => <rect class="sp-bar" x={xs(i * 100) + 0.8} width={xs(100) - GX0 - 1.6} y={GY0} height="0" />)}
+			</g>
+			<path class="sp-axis" d={`M${GX0} ${GY1 - 8}V${GY0}H${GX1 + 4}`}></path>
+			{[0, 500, 1000, 1500, 2000].map((v) => (
+				<g>
+					<path class="sp-axis" d={`M${xs(v)} ${GY0}v5`} />
+					<text class="sp-lab t-num" x={xs(v)} y={GY0 + 18} text-anchor={v === 2000 ? 'end' : 'middle'} dx={v === 2000 ? 4 : 0}>{v}</text>
+				</g>
+			))}
+			<text class="sp-lab" x={GX1 + 4} y={GY0 + 34} text-anchor="end"><tspan class="sp-i">υ</tspan>, м/с</text>
+			<path class="sp-rms" data-rms d={`M${xs(511)} ${GY1 - 4}V${GY0}`}></path>
+			<text class="sp-rms-lab" data-rms-lab1 x={xs(511)} y="36" text-anchor="middle">средняя квадратичная</text>
+			<text class="sp-rms-lab" data-rms-lab2 x={xs(511)} y="52" text-anchor="middle">скорость 511&nbsp;м/с</text>
+		</svg>
+		<div class="g7__side">
+			<div class="g7__row sp-row">
+				<span class="g7__label">Температура азота</span>
+				<div class="g7__seg" role="group" aria-label="Температура азота">
+					{data.map((d, i) => <button type="button" class="g7__btn" aria-pressed={i === 1 ? 'true' : 'false'} data-set={i}>{d.label}</button>)}
+				</div>
+			</div>
+			<ul class="g7__read">
+				<li class="is-warm">Средняя квадратичная скорость <b data-out-rms>511&nbsp;м/с</b></li>
+				<li>Быстрее 1000&nbsp;м/с <b data-out-fast>0,9&nbsp;%</b></li>
+			</ul>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Каждый столбик — доля молекул, скорости которых лежат в интервале шириной 100&nbsp;м/с. Больше всего молекул со скоростями немного меньше средней квадратичной, но есть и гораздо более быстрые.
+	</figcaption>
+</figure>
+
+<style>
+	.sp-row {
+		justify-content: center;
+	}
+	.g7__svg .sp-lab {
+		font-size: 12px;
+		fill: var(--sl-color-gray-2);
+	}
+	.g7__svg .sp-i {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 14px;
+	}
+	.g7__svg .sp-rms-lab {
+		font-size: 12.5px;
+		font-weight: 600;
+		fill: var(--ig-v);
+	}
+	.sp-gridline {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.8;
+	}
+	.sp-axis {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.sp-bar {
+		fill: color-mix(in oklab, var(--ig-vx) 70%, var(--sl-color-bg));
+		stroke: var(--ig-vx);
+		stroke-width: 0.8;
+	}
+	.sp-rms {
+		stroke: var(--ig-v);
+		stroke-width: 2.2;
+		stroke-dasharray: 5 3;
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const GX0 = 44;
+	const GX1 = 344;
+	const GY0 = 236;
+	const GY1 = 66;
+	const xs = (v: number) => GX0 + (v / 2000) * (GX1 - GX0);
+	const ys = (p: number) => GY0 - (p / 26) * (GY0 - GY1);
+	const num = (v: number, d: number) => v.toFixed(d).replace('.', ',');
+	type Set = { T: number; label: string; bars: number[]; rms: number; fast: number };
+	for (const root of document.querySelectorAll<HTMLElement>('[data-speedpic]')) {
+		const sets: Set[] = JSON.parse(root.dataset.sets!);
+		const bars = [...root.querySelectorAll<SVGRectElement>('[data-bars] rect')];
+		const rms = root.querySelector<SVGPathElement>('[data-rms]')!;
+		const l1 = root.querySelector<SVGTextElement>('[data-rms-lab1]')!;
+		const l2 = root.querySelector<SVGTextElement>('[data-rms-lab2]')!;
+		const outR = root.querySelector('[data-out-rms]')!;
+		const outF = root.querySelector('[data-out-fast]')!;
+		const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-set]')];
+		let from = sets[1].bars.map(() => 0);
+		let to = sets[1].bars;
+		let rFrom = sets[1].rms;
+		let rTo = sets[1].rms;
+		let t = 0;
+		const DUR = 0.6;
+		const ease = (u: number) => u * u * (3 - 2 * u);
+		const draw = (u: number) => {
+			const e = ease(Math.min(1, u));
+			bars.forEach((b, i) => {
+				const p = from[i] + (to[i] - from[i]) * e;
+				b.setAttribute('y', ys(p).toFixed(2));
+				b.setAttribute('height', (GY0 - ys(p)).toFixed(2));
+			});
+			const r = rFrom + (rTo - rFrom) * e;
+			const x = xs(r);
+			rms.setAttribute('d', `M${x.toFixed(1)} ${GY1 - 4}V${GY0}`);
+			// the two-line label stays inside the picture
+			const lx = Math.min(GX1 + 8 - 68, Math.max(76, x));
+			l1.setAttribute('x', lx.toFixed(1));
+			l2.setAttribute('x', lx.toFixed(1));
+			l2.textContent = `скорость ${Math.round(r)} м/с`;
+		};
+		const choose = (i: number) => {
+			const s = sets[i];
+			const e = ease(Math.min(1, t / DUR));
+			from = from.map((f, j) => f + (to[j] - f) * e);
+			rFrom = rFrom + (rTo - rFrom) * e;
+			to = s.bars;
+			rTo = s.rms;
+			t = 0;
+			outR.textContent = `${Math.round(s.rms)} м/с`;
+			outF.textContent = `${s.fast < 0.1 ? num(s.fast, 2) : num(s.fast, 1)} %`;
+			for (const b of btns) b.setAttribute('aria-pressed', String(b === btns[i]));
+			wake();
+		};
+		for (const b of btns) b.addEventListener('click', () => choose(Number(b.dataset.set)));
+		const wake = loop(root, (dt) => {
+			t += dt;
+			draw(t / DUR);
+			return t < DUR + 0.05;
+		});
+	}
+</script>
