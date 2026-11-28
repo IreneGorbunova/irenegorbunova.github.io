@@ -1,0 +1,347 @@
+---
+/**
+ * How one parameter of a gas is kept constant: three small looping panels (a row on a wide screen, a column on a
+ * phone), all to one scale (p in кПа = νR·T/V with V in л and νR in Дж/К; 1 кПа·л = 1 Дж):
+ * cylinder cross-section 1 дм², 1 л = 1 дм of height = 30 px. Loop 8,2 s: hold, forward (3 s), hold, back (3 s).
+ *   T = const (νR = 1,00 Дж/К): the cylinder stands in a large water bath at 27 °C (300 К); a rod pushes the piston slowly:
+ *     V 3,0 → 2,0 л, p 100 → 150 кПа, T stays 300 К (the work done on the gas leaves as heat into the water).
+ *   p = const (νR = 0,667 Дж/К): a light free piston with a weight on it; a burner heats the gas: T 300 → 450 К, V 2,0 → 3,0 л,
+ *     p stays 100 кПа (the weight and the air above press the same).
+ *   V = const (νR = 0,667 Дж/К): a closed steel vessel on a burner: T 300 → 450 К, p 100 → 150 кПа, V stays 2,0 л.
+ * On the way back the burner is off (the gas cools) and the rod is pulled back. Dots stand for the gas: their speed
+ * ∝ √T, their number the same. Gauges: 0…200 кПа.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const KPX = 30;
+const BOT = 186; // the cylinder's inner bottom
+const yV = (v: number) => BOT - v * KPX;
+const GC = { x: 156, y: 48, r: 28 };
+const gA = (p: number) => (-210 + (p / 200) * 240) * (Math.PI / 180);
+const gTicks = Array.from({ length: 9 }, (_, i) => i * 25);
+const panels = [
+	{ kind: 'T', name: 'Изотермический', cst: 'T', aria: 'Цилиндр в большой ванне с водой; поршень медленно вдвигают: объём уменьшается, давление растёт, температура та же' },
+	{ kind: 'p', name: 'Изобарный', cst: 'p', aria: 'Под цилиндром с лёгким поршнем и грузом горит горелка: температура и объём растут, давление то же' },
+	{ kind: 'V', name: 'Изохорный', cst: 'V', aria: 'Закрытый стальной сосуд на горелке: температура и давление растут, объём тот же' },
+] as const;
+---
+
+<G7Styles />
+<figure class="g7 g7--pic ikp not-content" data-ikp>
+	<div class="g7__grid is-three">
+		{
+			panels.map((P) => (
+				<div class="ikp__panel" data-kind={P.kind}>
+					<svg class="g7__svg" viewBox="0 0 200 282" role="img" aria-label={P.aria}>
+						{P.kind === 'T' && <rect class="ikp__water" x="10" y="96" width="128" height="98" rx="3" />}
+						{P.kind === 'T' && <path class="ikp__bath" d="M8 80 V196 H140 V80" />}
+						<rect class="ikp__gas" x="58" width="36" y="0" height="0" data-gas />
+						<g data-dots />
+						{P.kind !== 'V' && <rect class="ikp__piston" x="58.5" width="35" y="0" height="8" rx="1.5" data-piston />}
+						{P.kind === 'T' && <path class="ikp__rod" data-rod />}
+						{P.kind === 'p' && <path class="ikp__weight" data-weight d="M64 -18 H88 L90 0 H62 Z" />}
+						{P.kind === 'V' && <rect class="ikp__lid" x="52" y={yV(2) - 8} width="48" height="8" rx="2" />}
+						{P.kind === 'V' && <path class="ikp__bolt" d={`M56 ${yV(2) - 11} V${yV(2) - 8} M96 ${yV(2) - 11} V${yV(2) - 8}`} />}
+						<path class={P.kind === 'V' ? 'ikp__steel' : 'ikp__glass'} d={P.kind === 'V' ? `M56 ${yV(2)} V${BOT + 2} H96 V${yV(2)}` : `M56 ${yV(3.6)} V${BOT + 2} H96 V${yV(3.6)}`} />
+						{P.kind !== 'V' && (
+							<g class="ikp__scale">
+								{[1, 2, 3].map((v) => (
+									<line x1="50" x2="56" y1={yV(v)} y2={yV(v)} />
+								))}
+								{[1, 2, 3].map((v) => (
+									<text x="47" y={yV(v) + 4} text-anchor="end">
+										{v}
+									</text>
+								))}
+								<text x="47" y={yV(3.5) + 4} text-anchor="end">
+									л
+								</text>
+							</g>
+						)}
+						{P.kind === 'T' && (
+							<g>
+								<rect class="ikp__ttube" x="20" y="70" width="6" height="112" rx="3" />
+								<rect class="ikp__tliq" x="21.6" y="126" width="2.8" height="58" />
+								<circle class="ikp__tbulb" cx="23" cy="186" r="5.5" />
+								<text class="ikp__small" x="6" y="62">
+									27 °C
+								</text>
+							</g>
+						)}
+						{P.kind !== 'T' && (
+							<g>
+								<path class="ikp__flame" data-flame />
+								<rect class="ikp__burner" x="64" y="214" width="24" height="12" rx="2" />
+								<path class="ikp__stand" d="M50 196 L44 226 M102 196 L108 226 M48 196 H104" />
+							</g>
+						)}
+						<!-- the gauge -->
+						<path class="ikp__pipe" d={`M96 ${BOT - 10} H${GC.x} V${GC.y + GC.r}`} />
+						<circle class="ikp__dial" cx={GC.x} cy={GC.y} r={GC.r} />
+						{gTicks.map((p) => {
+							const a = gA(p);
+							const r1 = p % 100 === 0 ? GC.r - 7 : GC.r - 4;
+							return <line class="ikp__gt" x1={GC.x + r1 * Math.cos(a)} y1={GC.y + r1 * Math.sin(a)} x2={GC.x + (GC.r - 1.5) * Math.cos(a)} y2={GC.y + (GC.r - 1.5) * Math.sin(a)} />;
+						})}
+						{[0, 100, 200].map((p) => {
+							const a = gA(p);
+							return (
+								<text class="ikp__gl" x={GC.x + (GC.r + 10) * Math.cos(a)} y={GC.y + (GC.r + 10) * Math.sin(a) + 4} text-anchor="middle">
+									{p}
+								</text>
+							);
+						})}
+						<text class="ikp__gl" x={GC.x} y={GC.y + 17} text-anchor="middle">кПа</text>
+						<line class="ikp__needle" x1={GC.x} y1={GC.y} data-needle />
+						<circle class="ikp__hub" cx={GC.x} cy={GC.y} r="2.5" />
+						<!-- readouts: p, V, T; the constant one is framed -->
+						{(['p', 'V', 'T'] as const).map((s, i) => (
+							<g class={`ikp__rd ikp__rd--${s}`}>
+								{s === P.cst && <rect class="ikp__cst" x={4 + i * 65} y="234" width="62" height="46" rx="6" />}
+								<text class="ikp__sym" x={35 + i * 65} y="252" text-anchor="middle">
+									{s === P.cst ? `${s} = const` : s}
+								</text>
+								<text class="ikp__val" x={35 + i * 65} y="272" text-anchor="middle" data-val={s} />
+							</g>
+						))}
+					</svg>
+					<p class="ikp__name">{P.name}</p>
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="g7__caption">
+		Один масштаб на всех трёх рисунках: площадь поршня 1&nbsp;дм², 1&nbsp;л — это 1&nbsp;дм высоты. Рамкой выделена величина, которая не меняется.
+	</figcaption>
+</figure>
+
+<style is:global>
+	/* on a phone the three panels stack: keep each one small */
+	.ikp .g7__svg {
+		display: block;
+		max-width: 230px;
+		margin-inline: auto;
+	}
+	.ikp .g7__grid.is-three {
+		gap: 0.75rem;
+	}
+	.ikp__name {
+		margin: 0.3rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.g7__svg .ikp__water {
+		fill: color-mix(in srgb, var(--ig-vx) 24%, transparent);
+	}
+	.g7__svg .ikp__bath {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2;
+	}
+	.g7__svg .ikp__gas {
+		fill: color-mix(in oklab, var(--g7-red) calc(var(--heat, 0) * 24%), var(--g7-paper));
+	}
+	.g7__svg .ikp__dot {
+		fill: var(--sl-color-gray-1);
+	}
+	.g7__svg .ikp__piston,
+	.g7__svg .ikp__lid {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.g7__svg .ikp__bolt {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.5;
+	}
+	.g7__svg .ikp__rod {
+		fill: none;
+		stroke: var(--g7-steel);
+		stroke-width: 4;
+		stroke-linecap: round;
+	}
+	.g7__svg .ikp__weight {
+		fill: var(--sl-color-gray-3);
+		stroke: var(--sl-color-gray-2);
+	}
+	.g7__svg .ikp__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.g7__svg .ikp__steel {
+		fill: none;
+		stroke: var(--g7-steel);
+		stroke-width: 4;
+		stroke-linejoin: round;
+	}
+	.g7__svg .ikp__scale line {
+		stroke: var(--g7-blue);
+		stroke-width: 1.2;
+	}
+	.g7__svg .ikp__scale text {
+		font-size: 12px;
+		fill: var(--g7-blue);
+	}
+	.g7__svg .ikp__ttube {
+		fill: color-mix(in srgb, var(--sl-color-white) 14%, var(--g7-paper));
+		stroke: var(--sl-color-gray-3);
+	}
+	.g7__svg .ikp__tliq,
+	.g7__svg .ikp__tbulb {
+		fill: var(--g7-red);
+	}
+	.g7__svg .ikp__small {
+		font-size: 12px;
+		fill: var(--g7-red);
+	}
+	.g7__svg .ikp__flame {
+		fill: color-mix(in oklab, var(--ig-v) 60%, var(--ig-vy));
+	}
+	.g7__svg .ikp__burner {
+		fill: var(--sl-color-gray-4);
+		stroke: var(--sl-color-gray-3);
+	}
+	.g7__svg .ikp__stand {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.g7__svg .ikp__pipe {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.g7__svg .ikp__dial {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.g7__svg .ikp__gt {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.g7__svg .ikp__gl {
+		font-size: 11px;
+		fill: var(--sl-color-gray-2);
+	}
+	.g7__svg .ikp__needle {
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.g7__svg .ikp__hub {
+		fill: var(--sl-color-gray-2);
+	}
+	.g7__svg .ikp__cst {
+		fill: color-mix(in oklab, var(--sl-color-accent) 14%, var(--g7-paper));
+		stroke: var(--sl-color-accent);
+		stroke-width: 1.2;
+	}
+	.g7__svg .ikp__sym {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 14px;
+	}
+	.g7__svg .ikp__val {
+		font-weight: 700;
+		font-size: 13px;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.g7__svg .ikp__rd--p .ikp__sym {
+		fill: var(--g7-gold);
+	}
+	.g7__svg .ikp__rd--V .ikp__sym {
+		fill: var(--g7-blue);
+	}
+	.g7__svg .ikp__rd--T .ikp__sym {
+		fill: var(--g7-red);
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+	const f1 = (v: number) => v.toFixed(1);
+	const KPX = 30;
+	const BOT = 186;
+	const yV = (v: number) => BOT - v * KPX;
+	const GC = { x: 156, y: 48 };
+	const CYCLE = 8.2;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ikp]')) {
+		const panels = Array.from(root.querySelectorAll<HTMLElement>('.ikp__panel')).map((pn, j) => {
+			const kind = pn.dataset.kind as 'T' | 'p' | 'V';
+			const q = <T extends Element>(s: string) => pn.querySelector<T>(s);
+			let seed = 21 + j * 7;
+			const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+			const dots = Array.from({ length: 12 }, () => {
+				const c = el('circle', { class: 'ikp__dot', r: 1.7 });
+				q('[data-dots]')!.append(c);
+				return { c, u: rnd(), v: rnd(), a: rnd() * 6.283 };
+			});
+			return { pn, kind, q, dots, svg: q<SVGSVGElement>('svg')! };
+		});
+		let t = 0;
+		const draw = (dt: number) => {
+			t = (t + dt) % CYCLE;
+			const fwd = t < 4.1;
+			const u = fwd ? ease((t - 0.6) / 3.0) : 1 - ease((t - 4.6) / 3.0);
+			for (const P of panels) {
+				let V: number;
+				let T: number;
+				if (P.kind === 'T') {
+					V = 3 - u;
+					T = 300;
+				} else if (P.kind === 'p') {
+					T = 300 + 150 * u;
+					V = (2 * T) / 300;
+				} else {
+					T = 300 + 150 * u;
+					V = 2;
+				}
+				const p = (P.kind === 'T' ? 1 : 2 / 3) * (T / V); // кПа: νR = 1,00 Дж/К (T) or 0,667 Дж/К (p, V)
+				const top = yV(V);
+				const gas = P.q<SVGRectElement>('[data-gas]')!;
+				gas.setAttribute('y', f1(top));
+				gas.setAttribute('height', f1(BOT - top));
+				P.q('[data-piston]')?.setAttribute('y', f1(top - 8));
+				P.q('[data-weight]')?.setAttribute('transform', `translate(0 ${f1(top - 8)})`);
+				P.q('[data-rod]')?.setAttribute('d', `M76 ${f1(top - 8)} V${f1(top - 60)} M64 ${f1(top - 60)} H88`);
+				const flame = P.q<SVGPathElement>('[data-flame]');
+				if (flame) {
+					const on = fwd && t > 0.5 && t < 3.7;
+					const fh = on ? 14 + 2 * Math.sin(t * 17 + P.kind.charCodeAt(0)) : 0;
+					flame.setAttribute('d', fh > 0 ? `M68 214 Q68 ${f1(214 - fh * 0.6)} 76 ${f1(214 - fh)} Q84 ${f1(214 - fh * 0.6)} 84 214 Z` : '');
+				}
+				P.svg.style.setProperty('--heat', ((T - 300) / 150).toFixed(3));
+				const a = (-210 + (p / 200) * 240) * (Math.PI / 180);
+				const n = P.q<SVGLineElement>('[data-needle]')!;
+				n.setAttribute('x2', f1(GC.x + 22 * Math.cos(a)));
+				n.setAttribute('y2', f1(GC.y + 22 * Math.sin(a)));
+				P.q('[data-val="p"]')!.textContent = `${fmt(p, 0)} кПа`;
+				P.q('[data-val="V"]')!.textContent = `${fmt(V, 1)} л`;
+				P.q('[data-val="T"]')!.textContent = `${fmt(T, 0)} К`;
+				const k = Math.sqrt(T / 300);
+				const h = BOT - top;
+				for (const d of P.dots) {
+					d.u += Math.cos(d.a) * dt * k * 1.1;
+					d.v += (Math.sin(d.a) * dt * k * 1.1 * 36) / h;
+					if (d.u < 0 || d.u > 1) (d.a = Math.PI - d.a), (d.u = Math.min(1, Math.max(0, d.u)));
+					if (d.v < 0 || d.v > 1) (d.a = -d.a), (d.v = Math.min(1, Math.max(0, d.v)));
+					d.c.setAttribute('cx', f1(61 + d.u * 30));
+					d.c.setAttribute('cy', f1(top + 3 + d.v * (h - 6)));
+				}
+			}
+		};
+		loop(root, (dt) => {
+			draw(dt);
+			return true;
+		});
+		draw(0);
+	}
+</script>

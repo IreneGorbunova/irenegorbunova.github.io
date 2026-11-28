@@ -1,0 +1,190 @@
+---
+/**
+ * Picture to the definition of the ideal gas: «Воздух» and «Идеальный газ» side by side (stacked on a phone), to one
+ * scale, 13 px per нм. A two-dimensional slice of nitrogen at 0 °C and 101 кПа: 12 molecules in 13,4 × 10,0 нм, one
+ * per 3,34 × 3,34 нм (3,34 нм = n^(−1/3), n = p/kT = 2,69·10²⁵ м⁻³). Both panels start from the same positions and
+ * velocities (realgas.ts, seed 1):
+ *   air — dumbbells 0,35 нм long (two atoms 0,11 нм apart) that spin (ω_rms = 5,2 рад/пс) and interact by the
+ *     Lennard-Jones force (σ = 0,37 нм, ε/k = 95 К): far apart they do not feel each other, close by they swerve
+ *     toward each other and bounce;
+ *   ideal gas — points that fly straight and bounce elastically off each other (at the distance σ) and off the walls.
+ * The paths stay the same until two molecules pass close; then the two panels part. Motion slowed down 2,5·10¹¹
+ * times (1 с on the screen = 4 пс); the loop is 24 с (96 пс). Fading trails show the last 1,2 с of every path.
+ * The molecules take 0,07 % of the volume: (π/6)·0,37³ нм³ per 3,34³ нм³.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+const PX = 13; // px per нм
+const BW = 4 * 3.34 * PX;
+const BH = 3 * 3.34 * PX;
+const X0 = 8;
+const Y0 = 26;
+const panels = [
+	{ key: 'air', title: 'Воздух', aria: 'Молекулы азота в виде маленьких гантелек летают в сосуде; пролетая близко, они слегка притягиваются и отклоняются' },
+	{ key: 'ideal', title: 'Идеальный газ', aria: 'Те же молекулы в виде точек летают по прямым и отскакивают при ударах' },
+] as const;
+---
+
+<G7Styles />
+<figure class="g7 g7--pic rgp not-content" data-rgp>
+	<div class="g7__grid is-two">
+		{
+			panels.map((P) => (
+				<svg class="g7__svg" viewBox={`0 0 ${BW + 2 * X0} 206`} role="img" aria-label={P.aria} data-panel={P.key}>
+					<text class="t-title" x={X0} y="17">
+						{P.title}
+					</text>
+					<rect class="rgp__box" x={X0} y={Y0} width={BW} height={BH} rx="2" />
+					<g data-trails />
+					<g data-mols />
+					{P.key === 'air' ? (
+						<g class="rgp__legend">
+							<g transform={`translate(${X0 + 6} ${Y0 + BH + 20})`}>
+								<circle class="rgp__atom" cx="-0.7" r="1.6" />
+								<circle class="rgp__atom" cx="0.7" r="1.6" />
+							</g>
+							<text x={X0 + 16} y={Y0 + BH + 24}>
+								молекула ≈ 0,35 нм
+							</text>
+						</g>
+					) : (
+						<g class="rgp__legend">
+							<circle class="rgp__pt" cx={X0 + 6} cy={Y0 + BH + 20} r="1.6" />
+							<text x={X0 + 16} y={Y0 + BH + 24}>
+								молекула — точка
+							</text>
+						</g>
+					)}
+					<g class="rgp__legend">
+						<path class="rgp__bar" d={`M${X0} ${Y0 + BH + 37} V${Y0 + BH + 43} M${X0} ${Y0 + BH + 40} H${X0 + 3.34 * PX} M${X0 + 3.34 * PX} ${Y0 + BH + 37} V${Y0 + BH + 43}`} />
+						<text x={X0 + 3.34 * PX + 6} y={Y0 + BH + 44}>
+							≈ 3,3 нм
+						</text>
+					</g>
+				</svg>
+			))
+		}
+	</div>
+	<figcaption class="g7__caption">
+		Один и тот же газ при 0&nbsp;°C и атмосферном давлении, в масштабе; движение замедлено в 250&nbsp;миллиардов раз. Молекулы воздуха притягиваются, только когда пролетают совсем близко, и занимают меньше тысячной доли объёма.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.g7__svg .rgp__box {
+		fill: color-mix(in srgb, var(--ig-vx) 5%, var(--g7-paper));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.5;
+	}
+	.g7__svg .rgp__atom,
+	.g7__svg .rgp__pt {
+		fill: var(--sl-color-white);
+	}
+	.g7__svg .rgp__trail {
+		fill: none;
+		stroke: var(--g7-blue);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0.55;
+	}
+	.g7__svg .rgp__legend text {
+		font-size: 12px;
+		fill: var(--sl-color-gray-2);
+	}
+	.g7__svg .rgp__bar {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.3;
+	}
+	.rgp [data-mols],
+	.rgp [data-trails] {
+		transition: opacity 0.4s;
+	}
+</style>
+
+<script>
+	import { el, loop } from '../g7/kit';
+	import { H, initAir, N, start, stepAir, stepIdeal, type Mol } from './realgas';
+
+	const PX = 13;
+	const X0 = 8;
+	const Y0 = 26;
+	const TS = 4; // пс of the model per second on the screen
+	const LOOP = 24; // s
+	const TRAIL = 1.2; // s
+	const f1 = (v: number) => v.toFixed(1);
+	const sx = (x: number) => X0 + x * PX;
+	const sy = (y: number) => Y0 + (H - y) * PX;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-rgp]')) {
+		const svgs = ['air', 'ideal'].map((k) => root.querySelector<SVGSVGElement>(`[data-panel="${k}"]`)!);
+		const views = svgs.map((svg, p) => {
+			const mg = svg.querySelector('[data-mols]')!;
+			const tg = svg.querySelector('[data-trails]')!;
+			const mols = Array.from({ length: N }, () => {
+				const g = el('g', {});
+				if (p === 0) {
+					g.append(el('circle', { class: 'rgp__atom', cx: -0.7, r: 1.6 }), el('circle', { class: 'rgp__atom', cx: 0.7, r: 1.6 }));
+				} else g.append(el('circle', { class: 'rgp__pt', r: 1.6 }));
+				mg.append(g);
+				const tr = el('path', { class: 'rgp__trail' });
+				tg.append(tr);
+				return { g, tr, hist: [] as { x: number; y: number }[] };
+			});
+			return { mg, tg, mols };
+		});
+		let air: Mol[] = [];
+		let ideal: Mol[] = [];
+		let t = 0;
+		const reset = () => {
+			air = start(1);
+			ideal = start(1);
+			initAir(air);
+			t = 0;
+			for (const v of views) for (const m of v.mols) m.hist.length = 0;
+		};
+		const draw = () => {
+			const keep = Math.round(TRAIL * 30);
+			[air, ideal].forEach((ms, p) => {
+				const v = views[p];
+				ms.forEach((m, i) => {
+					const o = v.mols[i];
+					const x = sx(m.x);
+					const y = sy(m.y);
+					o.g.setAttribute('transform', p === 0 ? `translate(${f1(x)} ${f1(y)}) rotate(${((-m.th * 180) / Math.PI).toFixed(1)})` : `translate(${f1(x)} ${f1(y)})`);
+					o.hist.push({ x, y });
+					if (o.hist.length > keep) o.hist.shift();
+					o.tr.setAttribute('d', o.hist.length > 1 ? `M${o.hist.map((h) => `${f1(h.x)} ${f1(h.y)}`).join(' L')}` : '');
+				});
+			});
+		};
+		reset();
+		draw();
+		let acc = 0;
+		loop(root, (dt) => {
+			t += dt;
+			// fade out over the last 0,4 s of the loop, then start again
+			const fade = t > LOOP - 0.4 ? 0 : 1;
+			for (const v of views) {
+				(v.mg as SVGGElement).style.opacity = String(fade);
+				(v.tg as SVGGElement).style.opacity = String(fade);
+			}
+			if (t >= LOOP) {
+				reset();
+				for (const v of views) {
+					(v.mg as SVGGElement).style.opacity = '1';
+					(v.tg as SVGGElement).style.opacity = '1';
+				}
+			}
+			// trails are sampled 30 times a second; the physics advances with every frame
+			stepAir(air, dt * TS);
+			stepIdeal(ideal, dt * TS);
+			acc += dt;
+			if (acc >= 1 / 30) {
+				acc = 0;
+				draw();
+			}
+			return true;
+		});
+	}
+</script>

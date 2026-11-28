@@ -1,0 +1,541 @@
+---
+/**
+ * «Газ в водяной бане» (models before the laws of Gay-Lussac and Charles). A water bath with a thermometer; the
+ * slider sets the temperature of the water from −20 to 100 °C (below 0 °C the bath is ice with salt); the gas takes
+ * the temperature of the water with the time constant τ = 0,8 с. «Записать точку» puts the state of the gas on the
+ * graph (only when the gas has the water's temperature within 0,3 °C). From three points the line through them is
+ * drawn (least squares) with its dashed continuation down to the temperature axis: it meets it at −273 °C.
+ *   mode="isobar": a vertical glass cylinder 3,0 см across (7,07 см²) with a light piston that slides without friction
+ *     and is open to the air, so the pressure of the gas is always atmospheric. 50,0 мл at 0 °C:
+ *     V = 50 · (273 + t)/273 мл → −20 °C 46,3; 0 °C 50,0; 20 °C 53,7; 40 °C 57,3; 60 °C 61,0; 80 °C 64,7; 100 °C 68,3 мл;
+ *     V/T = 50/273 = 0,183 мл/К at every temperature. Graph V(t).
+ *   mode="isochor": a closed steel flask of 0,5 л with an absolute pressure gauge (кПа); 100,0 кПа at 0 °C:
+ *     p = 100 · (273 + t)/273 кПа → −20 °C 92,7; 0 °C 100,0; 20 °C 107,3; 40 °C 114,7; 60 °C 122,0; 80 °C 129,3;
+ *     100 °C 136,6 кПа; p/T = 0,366 кПа/К. Graph p(t). The steel's own expansion (0,4 % in volume for 100 К) is
+ *     neglected.
+ * Scale of the drawing: the cylinder 12 px per см (isobar), the flask 9,4 px per см (isochor). Dots stand for the gas;
+ * their speed grows as √T and their number stays the same.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+
+interface Props {
+	mode: 'isobar' | 'isochor';
+}
+const { mode } = Astro.props;
+const iso = mode === 'isobar';
+const uid = Math.random().toString(36).slice(2, 8);
+// the thermometer: −20…100 °C, 1,15 px per degree
+const TX = iso ? 214 : 236;
+const TY = (t: number) => 196 - (t + 20) * 1.15;
+const tTicks = [-20, 0, 20, 40, 60, 80, 100];
+// isobar: the cylinder
+const CX = 128;
+const CW = 18; // inner half-width (1,5 см at 12 px per см)
+const CB = 224; // the inner bottom
+const CTOP = 68;
+const mlY = (v: number) => CB - (v / 7.069) * 12; // мл → y
+const mlTicks = Array.from({ length: 8 }, (_, i) => 40 + i * 5);
+// isochor: the flask and the gauge
+const FX = 104;
+const FY = 172;
+const FR = 46;
+const GX = 160;
+const GY = 48;
+const GR = 40;
+const gAng = (p: number) => (-210 + (p / 160) * 240) * (Math.PI / 180); // 0 кПа at −210°, 160 кПа at +30°
+const gTicks = Array.from({ length: 17 }, (_, i) => i * 10);
+const label = iso ? 'Объём газа' : 'Давление газа';
+---
+
+<G7Styles />
+<figure class={`g7 tbl tbl--${mode} not-content`} data-tbl={mode}>
+	<div class="g7__grid tbl__grid">
+		<div class="tbl__left">
+			<svg class="g7__svg" viewBox="0 0 290 252" role="img" aria-label={iso ? 'Стеклянный цилиндр с лёгким поршнем в водяной бане с термометром' : 'Закрытая стальная колба с манометром в водяной бане с термометром'} data-svg>
+				<defs>
+					<marker id={`tbl-a-${uid}`} viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3" markerHeight="3" orient="auto"><path class="head--gold" d="M0,0 L10,5 L0,10 z"></path></marker>
+				</defs>
+				<!-- hot plate under the bath -->
+				<rect class="tbl__plate" x="30" y="238" width="210" height="10" rx="3"></rect>
+				<rect class="tbl__glow" x="40" y="236" width="190" height="3" rx="1.5" data-glow></rect>
+				<!-- the bath: water and glass -->
+				<rect class="tbl__water" x="22" y="92" width="226" height="142" data-water></rect>
+				<path class="tbl__wsurf" d="M22 92 H248"></path>
+				<g data-ice></g>
+				<g class="tbl__steam" data-steam>
+					<path d="M176 86 q -5 -9 0 -18 t 0 -18"></path>
+					<path d="M60 86 q 5 -9 0 -18 t 0 -18"></path>
+				</g>
+				<text class="t-small t-halo" x="28" y="80" data-icelab>лёд с солью</text>
+				{
+					iso ? (
+						<g>
+							<rect class="tbl__gas" x={CX - CW} width={CW * 2} y="0" height="0" data-gas></rect>
+							<g data-dots></g>
+							<rect class="tbl__piston" x={CX - CW + 0.5} width={CW * 2 - 1} y="0" height="8" rx="1.5" data-piston></rect>
+							<path class="tbl__glass" d={`M${CX - CW - 2} ${CTOP} V${CB + 2} Q${CX - CW - 2} ${CB + 4} ${CX - CW} ${CB + 4} H${CX + CW} Q${CX + CW + 2} ${CB + 4} ${CX + CW + 2} ${CB + 2} V${CTOP}`}></path>
+							<g class="tbl__grad">
+								{mlTicks.map((v) => (
+									<line x1={CX + CW - (v % 10 === 0 ? 9 : 5)} x2={CX + CW} y1={mlY(v)} y2={mlY(v)} />
+								))}
+								{mlTicks
+									.filter((v) => v % 10 === 0)
+									.map((v) => (
+										<text class="t-halo" x={CX + CW + 6} y={mlY(v) + 4}>
+											{v}
+										</text>
+									))}
+								<text class="t-halo" x={CX + CW + 6} y={mlY(78) + 4}>
+									мл
+								</text>
+							</g>
+							<line class="arrow arrow--gold" data-parrow x1={CX} x2={CX} y1="36" marker-end={`url(#tbl-a-${uid})`}></line>
+							<text class="t-small t-halo tbl__p0" x={CX - 10} y="30" text-anchor="end">
+								воздух
+							</text>
+						</g>
+					) : (
+						<g>
+							<path class="tbl__pipe" d={`M${FX} ${FY - FR + 2} V${GY + 12} Q${FX} ${GY} ${FX + 12} ${GY} H${GX - GR}`}></path>
+							<circle class="tbl__flask" cx={FX} cy={FY} r={FR}></circle>
+							<circle class="tbl__gas" cx={FX} cy={FY} r={FR - 3}></circle>
+							<g data-dots></g>
+							<circle class="tbl__dial" cx={GX} cy={GY} r={GR}></circle>
+							<g class="tbl__gticks">
+								{gTicks.map((p) => {
+									const a = gAng(p);
+									const r1 = p % 50 === 0 ? GR - 8 : GR - 5;
+									return <line x1={GX + r1 * Math.cos(a)} y1={GY + r1 * Math.sin(a)} x2={GX + (GR - 2) * Math.cos(a)} y2={GY + (GR - 2) * Math.sin(a)} />;
+								})}
+								{[0, 50, 100, 150].map((p) => {
+									const a = gAng(p);
+									return (
+										<text x={GX + (GR + 10) * Math.cos(a)} y={GY + (GR + 10) * Math.sin(a) + 3.5} text-anchor="middle">
+											{p}
+										</text>
+									);
+								})}
+								<text x={GX} y={GY + 22} text-anchor="middle">
+									кПа
+								</text>
+							</g>
+							<line class="tbl__needle" x1={GX} y1={GY} data-needle></line>
+							<circle class="tbl__hub" cx={GX} cy={GY} r="3"></circle>
+						</g>
+					)
+				}
+				<!-- the thermometer in the water -->
+				<rect class="tbl__ttube" x={TX - 3.5} y="44" width="7" height="166" rx="3.5"></rect>
+				<rect class="tbl__tliq" x={TX - 1.6} width="3.2" data-tliq></rect>
+				<circle class="tbl__tbulb" cx={TX} cy="214" r="7"></circle>
+				<g class="tbl__tscale">
+					{tTicks.map((t) => (
+						<line x1={TX + 4} x2={TX + (t % 20 === 0 ? 9 : 7)} y1={TY(t)} y2={TY(t)} />
+					))}
+					{[-20, 0, 50, 100].map((t) => (
+						<text class="t-halo" x={TX + 12} y={TY(t) + 4}>
+							{t < 0 ? `−${-t}` : t}
+						</text>
+					))}
+					<text class="t-halo" x={TX + 12} y={TY(100) - 12}>
+						°C
+					</text>
+				</g>
+				<path class="tbl__bath" d="M20 70 V236 H250 V70"></path>
+			</svg>
+		</div>
+		<div class="g7__side">
+			<label class="g7__slider">
+				<span>Температура воды <i>t</i></span>
+				<output data-ot></output>
+				<input type="range" min="-20" max="100" step="5" value="20" data-t aria-label="Температура воды, градусы Цельсия" />
+			</label>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-rec>Записать точку</button>
+				<button type="button" class="g7__btn" data-clear>Стереть точки</button>
+			</div>
+			<p class="g7__note tbl__wait" data-wait aria-live="polite"></p>
+			<ul class="g7__read">
+				<li><span>Температура газа</span><b data-og></b></li>
+				<li class={iso ? 'is-key' : 'is-warm'}><span>{label} <i>{iso ? 'V' : 'p'}</i></span><b data-ov></b></li>
+				<li><span><i>{iso ? 'V' : 'p'}</i>/<i>T</i>, где <i>T</i> = <i>t</i> + 273</span><b data-or></b></li>
+			</ul>
+			<svg class="g7__svg tbl__graph" viewBox="0 0 300 196" role="img" aria-label={iso ? 'График зависимости объёма газа от температуры' : 'График зависимости давления газа от температуры'} data-graph>
+				<path class="tbl__gridl" data-gridl></path>
+				<path class="tbl__axis" data-axis></path>
+				<g data-gticks></g>
+				<text class="t-i tbl__axname" x="48" y="14">{iso ? 'V' : 'p'}<tspan class="tbl__unit">{iso ? ', мл' : ', кПа'}</tspan></text>
+				<text class="t-i tbl__axname" x="294" y="158" text-anchor="end">t<tspan class="tbl__unit">, °C</tspan></text>
+				<path class="tbl__fit" data-fit></path>
+				<path class="tbl__ext" data-ext></path>
+				<g data-zero>
+					<circle class="tbl__zero" r="4"></circle>
+					<text class="t-small t-strong t-halo tbl__zerolab" text-anchor="middle">−273 °C</text>
+				</g>
+				<g data-pts></g>
+			</svg>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		{
+			iso
+				? 'Поршень лёгкий и движется без трения, сверху на него давит атмосферный воздух, поэтому давление газа не меняется. Цилиндр — в масштабе.'
+				: 'Колба стальная и закрыта, поэтому объём газа не меняется. Манометр показывает давление газа, отсчитанное от нуля (абсолютное давление).'
+		}{' '}
+		Газ принимает температуру воды не сразу: точку можно записать, когда температуры сравнялись. Штриховая линия — продолжение прямой туда, где опыт уже невозможен: при сильном охлаждении газ становится жидкостью.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.tbl__grid {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+	@container (max-width: 36rem) {
+		.tbl__grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	.g7__svg .tbl__plate {
+		fill: var(--sl-color-gray-4);
+	}
+	.g7__svg .tbl__glow {
+		fill: var(--g7-red);
+		opacity: var(--glow, 0);
+	}
+	.g7__svg .tbl__water {
+		fill: color-mix(in oklab, var(--ig-vy) calc(var(--heat, 0.3) * 45%), var(--ig-vx));
+		opacity: 0.3;
+	}
+	.g7__svg .tbl__wsurf {
+		stroke: color-mix(in oklab, var(--ig-vy) calc(var(--heat, 0.3) * 60%), var(--ig-vx));
+		stroke-width: 1.2;
+	}
+	.g7__svg .tbl__ice {
+		fill: color-mix(in srgb, var(--sl-color-white) 70%, var(--ig-vx));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 0.8;
+		opacity: 0.85;
+	}
+	.g7__svg .tbl__steam path {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+	.g7__svg .tbl__bath {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2.5;
+		stroke-linejoin: round;
+	}
+	.g7__svg .tbl__gas {
+		fill: var(--g7-paper);
+	}
+	.g7__svg .tbl__dot {
+		fill: var(--sl-color-gray-1);
+	}
+	.g7__svg .tbl__piston {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.g7__svg .tbl__glass {
+		fill: none;
+		stroke: var(--g7-glass);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.g7__svg .tbl__grad line {
+		stroke: var(--g7-blue);
+		stroke-width: 1;
+	}
+	.g7__svg .tbl__grad text {
+		font-size: 10.5px;
+		fill: var(--g7-blue);
+	}
+	.g7__svg .tbl__p0 {
+		fill: var(--g7-gold);
+	}
+	.g7__svg .tbl__flask {
+		fill: var(--g7-steel-dark);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.g7__svg .tbl__pipe {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 4;
+	}
+	.g7__svg .tbl__dial {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2;
+	}
+	.g7__svg .tbl__gticks line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+	.g7__svg .tbl__gticks text {
+		font-size: 10.5px;
+		fill: var(--sl-color-gray-2);
+	}
+	.g7__svg .tbl__needle {
+		stroke: var(--g7-gold);
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	.g7__svg .tbl__hub {
+		fill: var(--sl-color-gray-2);
+	}
+	.g7__svg .tbl__ttube {
+		fill: color-mix(in srgb, var(--sl-color-white) 12%, var(--g7-paper));
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.g7__svg .tbl__tliq,
+	.g7__svg .tbl__tbulb {
+		fill: var(--g7-red);
+	}
+	.g7__svg .tbl__tscale line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.g7__svg .tbl__tscale text {
+		font-size: 10.5px;
+		fill: var(--g7-red);
+	}
+	.tbl__wait {
+		min-height: 1.3em;
+	}
+	.g7__svg .tbl__axis {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.g7__svg .tbl__gridl {
+		fill: none;
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 0.8;
+	}
+	.g7__svg .tbl__axname {
+		fill: var(--sl-color-gray-2);
+	}
+	.g7__svg .tbl__unit {
+		font-family: var(--__sl-font);
+		font-style: normal;
+		font-size: 11px;
+	}
+	.tbl--isobar {
+		--tbl-c: var(--ig-vx);
+	}
+	.tbl--isochor {
+		--tbl-c: var(--ig-v);
+	}
+	.g7__svg .tbl__fit {
+		fill: none;
+		stroke: var(--tbl-c);
+		stroke-width: 2;
+	}
+	.g7__svg .tbl__ext {
+		fill: none;
+		stroke: var(--tbl-c);
+		stroke-width: 1.5;
+		stroke-dasharray: 4 4;
+	}
+	.g7__svg .tbl__pt {
+		fill: var(--tbl-c);
+		stroke: var(--g7-paper);
+		stroke-width: 1.5;
+	}
+	.g7__svg .tbl__zero {
+		fill: var(--g7-paper);
+		stroke: var(--tbl-c);
+		stroke-width: 2;
+	}
+</style>
+
+<script>
+	import { el, fmt, loop } from '../g7/kit';
+
+	const TAU = 0.8; // s
+	const f1 = (v: number) => v.toFixed(1);
+	// the graph: t −300…100 °C → 40…290 px
+	const GXp = (t: number) => 40 + ((t + 300) / 400) * 250;
+	for (const root of document.querySelectorAll<HTMLElement>('[data-tbl]')) {
+		const iso = root.dataset.tbl === 'isobar';
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const tIn = q<HTMLInputElement>('[data-t]');
+		const rec = q<HTMLButtonElement>('[data-rec]');
+		const clear = q<HTMLButtonElement>('[data-clear]');
+		const wait = q<HTMLParagraphElement>('[data-wait]');
+		const svg = q<SVGSVGElement>('[data-svg]');
+		const dotsG = q<SVGGElement>('[data-dots]');
+		const iceG = q<SVGGElement>('[data-ice]');
+		const icelab = q<SVGTextElement>('[data-icelab]');
+		const steam = q<SVGGElement>('[data-steam]');
+		const tliq = q<SVGRectElement>('[data-tliq]');
+		const pts = q<SVGGElement>('[data-pts]');
+		const fit = q<SVGPathElement>('[data-fit]');
+		const ext = q<SVGPathElement>('[data-ext]');
+		const zero = q<SVGGElement>('[data-zero]');
+		// the quantity: V in мл (isobar) or p in кПа (isochor), at 0 °C 50 мл or 100 кПа
+		const Q0 = iso ? 50 : 100;
+		const QMAX = iso ? 80 : 160;
+		const qOf = (t: number) => (Q0 * (273 + t)) / 273;
+		const GY = (v: number) => 166 - (v / QMAX) * 146;
+		const unit = iso ? 'мл' : 'кПа';
+		// the graph's axes, grid and ticks
+		{
+			let d = '';
+			for (const t of [-200, -100, 0]) d += `M${f1(GXp(t))} 166 V20 `;
+			const steps = iso ? [20, 40, 60] : [40, 80, 120];
+			for (const v of steps) d += `M40 ${f1(GY(v))} H286 `;
+			q('[data-gridl]').setAttribute('d', d);
+			q('[data-axis]').setAttribute('d', `M40 8 V166 H294 M36 16 L40 8 L44 16 M286 162 L294 166 L286 170`);
+			const tg = q('[data-gticks]');
+			for (const t of [-200, -100, 0, 100]) tg.append(el('text', { class: 't-small', x: f1(GXp(t)), y: 180, 'text-anchor': 'middle' }, t < 0 ? `−${-t}` : String(t)));
+			for (const v of steps) tg.append(el('text', { class: 't-small', x: 34, y: f1(GY(v) + 4), 'text-anchor': 'end' }, String(v)));
+		}
+		// the gas: dots that bounce inside its volume
+		let seed = iso ? 7 : 9;
+		const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+		const N = iso ? 12 : 16;
+		const dots = Array.from({ length: N }, () => {
+			const a = rnd() * Math.PI * 2;
+			const c = el('circle', { class: 'tbl__dot', r: 1.8 });
+			dotsG.append(c);
+			return { c, u: rnd(), v: rnd(), a, sp: 0.7 + 0.6 * rnd() };
+		});
+		// ice cubes at the surface
+		for (let i = 0; i < 4; i++) iceG.append(el('rect', { class: 'tbl__ice', x: 30 + i * 18 + (i % 2) * 3, y: 88 + (i % 2) * 3, width: 13, height: 10, rx: 2.5, transform: `rotate(${(i % 2 ? 12 : -9)} ${37 + i * 18} 94)` }));
+		let tg = Number(tIn.value); // the gas's temperature
+		const recorded: { t: number; v: number }[] = [];
+		const settled = () => Math.abs(tg - Number(tIn.value)) < 0.3;
+		const drawGraph = () => {
+			pts.textContent = '';
+			for (const r of recorded) pts.append(el('circle', { class: 'tbl__pt', cx: f1(GXp(r.t)), cy: f1(GY(r.v)), r: 4.5 }));
+			const ts = recorded.map((r) => r.t);
+			const show = recorded.length >= 3 && Math.max(...ts) - Math.min(...ts) >= 20;
+			if (!show) {
+				fit.setAttribute('d', '');
+				ext.setAttribute('d', '');
+				zero.style.visibility = 'hidden';
+				return;
+			}
+			// least squares v = a + b·t
+			const n = recorded.length;
+			const mt = ts.reduce((s, t) => s + t, 0) / n;
+			const mv = recorded.reduce((s, r) => s + r.v, 0) / n;
+			let sxy = 0;
+			let sxx = 0;
+			for (const r of recorded) {
+				sxy += (r.t - mt) * (r.v - mv);
+				sxx += (r.t - mt) ** 2;
+			}
+			const b = sxy / sxx;
+			const a = mv - b * mt;
+			const t0 = -a / b; // where the line meets the axis
+			const lo = Math.min(...ts);
+			const hi = Math.max(...ts);
+			fit.setAttribute('d', `M${f1(GXp(lo))} ${f1(GY(a + b * lo))} L${f1(GXp(hi))} ${f1(GY(a + b * hi))}`);
+			ext.setAttribute('d', `M${f1(GXp(t0))} ${f1(GY(0))} L${f1(GXp(lo))} ${f1(GY(a + b * lo))}`);
+			zero.style.visibility = 'visible';
+			zero.querySelector('circle')!.setAttribute('cx', f1(GXp(t0)));
+			zero.querySelector('circle')!.setAttribute('cy', f1(GY(0)));
+			const lab = zero.querySelector('text')!;
+			lab.setAttribute('x', f1(GXp(t0) + 2));
+			lab.setAttribute('y', '180');
+			lab.textContent = `${fmt(t0, 0)} °C`;
+		};
+		let now = 0;
+		const draw = (dt: number) => {
+			now += dt;
+			const tw = Number(tIn.value);
+			tg += (tw - tg) * (1 - Math.exp(-dt / TAU));
+			if (Math.abs(tw - tg) < 0.3) tg = tw;
+			q('[data-ot]').textContent = `${tw < 0 ? '−' + -tw : tw} °C`;
+			q('[data-og]').textContent = `${fmt(tg, 0)} °C`;
+			const v = qOf(tg);
+			q('[data-ov]').textContent = `${fmt(v, 1)} ${unit}`;
+			q('[data-or]').textContent = `${fmt(v / (tg + 273), 3)} ${unit}/К`;
+			rec.disabled = !settled();
+			wait.textContent = settled() ? '' : tw > tg ? 'Газ нагревается…' : 'Газ остывает…';
+			// the bath
+			const heat = Math.min(1, Math.max(0, (tw + 20) / 120));
+			svg.style.setProperty('--heat', heat.toFixed(3));
+			svg.style.setProperty('--glow', Math.max(0, (tw - 25) / 75).toFixed(3));
+			iceG.style.visibility = icelab.style.visibility = tw <= 0 ? 'visible' : 'hidden';
+			steam.style.visibility = tw >= 70 ? 'visible' : 'hidden';
+			steam.setAttribute('transform', `translate(0 ${f1(-((now * 8) % 8))})`);
+			// the thermometer shows the water
+			const yT = 196 - (tw + 20) * 1.15;
+			tliq.setAttribute('y', f1(yT));
+			tliq.setAttribute('height', f1(214 - yT));
+			// the gas and its dots (speed ∝ √T)
+			const k = Math.sqrt((tg + 273) / 293);
+			if (iso) {
+				const CX = 128;
+				const CW = 18;
+				const CB = 224;
+				const top = CB - (v / 7.069) * 12;
+				const gas = q<SVGRectElement>('[data-gas]');
+				gas.setAttribute('y', f1(top));
+				gas.setAttribute('height', f1(CB - top));
+				q('[data-piston]').setAttribute('y', f1(top - 8));
+				const ar = q<SVGLineElement>('[data-parrow]');
+				ar.setAttribute('y2', f1(top - 13));
+				for (const d of dots) {
+					d.u += Math.cos(d.a) * d.sp * k * dt * 0.9;
+					d.v += Math.sin(d.a) * d.sp * k * dt * 0.9 * (36 / Math.max(30, CB - top));
+					if (d.u < 0 || d.u > 1) (d.a = Math.PI - d.a), (d.u = Math.min(1, Math.max(0, d.u)));
+					if (d.v < 0 || d.v > 1) (d.a = -d.a), (d.v = Math.min(1, Math.max(0, d.v)));
+					d.c.setAttribute('cx', f1(CX - CW + 3 + d.u * (2 * CW - 6)));
+					d.c.setAttribute('cy', f1(top + 3 + d.v * (CB - top - 6)));
+				}
+			} else {
+				const FX = 104;
+				const FY = 172;
+				const R = 40;
+				for (const d of dots) {
+					d.u += Math.cos(d.a) * d.sp * k * dt * 0.5;
+					d.v += Math.sin(d.a) * d.sp * k * dt * 0.5;
+					const r = Math.hypot(d.u - 0.5, d.v - 0.5);
+					if (r > 0.5) {
+						// reflect from the round wall
+						const nx = (d.u - 0.5) / r;
+						const ny = (d.v - 0.5) / r;
+						const vx = Math.cos(d.a);
+						const vy = Math.sin(d.a);
+						const dn = vx * nx + vy * ny;
+						d.a = Math.atan2(vy - 2 * dn * ny, vx - 2 * dn * nx);
+						d.u = 0.5 + nx * 0.499;
+						d.v = 0.5 + ny * 0.499;
+					}
+					d.c.setAttribute('cx', f1(FX - R + d.u * 2 * R));
+					d.c.setAttribute('cy', f1(FY - R + d.v * 2 * R));
+				}
+				const a = (-210 + (v / 160) * 240) * (Math.PI / 180);
+				const n = q<SVGLineElement>('[data-needle]');
+				n.setAttribute('x2', f1(160 + 30 * Math.cos(a)));
+				n.setAttribute('y2', f1(48 + 30 * Math.sin(a)));
+			}
+		};
+		const wake = loop(root, (dt) => {
+			draw(dt);
+			return true;
+		});
+		tIn.addEventListener('input', wake);
+		rec.addEventListener('click', () => {
+			if (!settled()) return;
+			const t = Math.round(tg);
+			if (!recorded.some((r) => r.t === t)) recorded.push({ t, v: qOf(t) });
+			drawGraph();
+		});
+		clear.addEventListener('click', () => {
+			recorded.length = 0;
+			drawGraph();
+		});
+		draw(0);
+		drawGraph();
+	}
+</script>
