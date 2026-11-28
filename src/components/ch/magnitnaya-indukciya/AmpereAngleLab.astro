@@ -1,0 +1,309 @@
+---
+/**
+ * The angle α of the formula F = BIl sin α: a straight conductor with current lies in a horizontal plane between the
+ * flat poles of a magnet (N on the left, S on the right) and turns slowly about the vertical axis through its middle.
+ * Oblique view: x to the right (along B⃗), y up, z toward the viewer; a point (x, y, z) is drawn at
+ * (CX + x − 0,35·z, CY − y + 0,5·z) px.
+ * Physics: B⃗ = B·x̂; the current runs along û = (cos α, 0, sin α), α the angle between the conductor (the direction of
+ * the current) and B⃗; F⃗ = I·l·û × B⃗ = (0, BIl·sin α, 0): the force is vertical (up for 0 < α < 180°), at right angles to
+ * both the conductor and the lines, and its modulus is BIl·sin α. Numbers: B = 0,5 Тл, I = 2 А, l = 0,2 м, BIl = 0,2 Н;
+ * α = 0 → 0; 30° → 0,1 Н; 90° → 0,2 Н; 150° → 0,1 Н; 180° → 0.
+ * Drawing: the conductor 150 px long (l = 20 см, 7,5 px per см), the force arrow 0,2 Н = 80 px. The conductor stops for
+ * 1,4 с at α = 0, 30°, 90°, 150°, 180° and turns between them in 1,2 с (eased), then turns back; the loop lasts 26 с.
+ * The current is the green chevrons running along the conductor.
+ */
+---
+
+<figure class="aal not-content" data-aal>
+	<svg class="aal__svg" viewBox="0 0 360 230" role="img" aria-label="Проводник с током лежит в горизонтальной плоскости между полюсами магнита и медленно поворачивается. Угол альфа — между проводником и магнитными линиями. Стрелка силы Ампера направлена вертикально вверх, её длина пропорциональна синусу угла: наибольшая, когда проводник поперёк линий, и ноль, когда вдоль">
+		<g data-back></g>
+		<g data-mid></g>
+		<g data-front></g>
+	</svg>
+	<div class="aal__read" data-read></div>
+	<figcaption class="aal__legend">
+		<span><i class="aal__sw aal__sw--i"></i>ток в проводнике</span>
+		<span><i class="aal__sw aal__sw--b"></i>магнитные линии</span>
+		<span><i class="aal__sw aal__sw--f"></i>сила Ампера</span>
+	</figcaption>
+</figure>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = <K extends keyof SVGElementTagNameMap>(p: Element, tag: K, a: Record<string, string | number> = {}, text?: string) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		if (text !== undefined) e.textContent = text;
+		p.append(e);
+		return e;
+	};
+	const f = (v: number) => v.toFixed(1);
+	const fmt = (v: number, d: number) => v.toFixed(d).replace('.', ',');
+	const CX = 178;
+	const CY = 140;
+	const P = (x: number, y: number, z: number): [number, number] => [CX + x - 0.35 * z, CY - y + 0.5 * z];
+	const pt = (p: [number, number]) => `${f(p[0])} ${f(p[1])}`;
+	const head = (x: number, y: number, dx: number, dy: number, s: number) => {
+		const l = Math.hypot(dx, dy) || 1;
+		const ux = dx / l;
+		const uy = dy / l;
+		const bx = x - ux * s;
+		const by = y - uy * s;
+		return `M${f(x)} ${f(y)}L${f(bx - uy * s * 0.5)} ${f(by + ux * s * 0.5)}L${f(bx + uy * s * 0.5)} ${f(by - ux * s * 0.5)}Z`;
+	};
+	/** A vector letter: the glyph and a small arrow over it. */
+	const vec = (g: Element, x: number, y: number, t: string, cls: string) => {
+		mk(g, 'text', { class: `aal__t ${cls}`, x: f(x), y: f(y), 'text-anchor': 'middle' }, t);
+		mk(g, 'path', { class: `aal__va ${cls}`, d: `M${f(x - 4.5)} ${f(y - 15)}H${f(x + 4.5)}M${f(x + 2)} ${f(y - 17.5)}L${f(x + 4.5)} ${f(y - 15)}L${f(x + 2)} ${f(y - 12.5)}` });
+	};
+	const B = 0.5;
+	const I = 2;
+	const L = 0.2;
+	const STOPS = [0, 30, 90, 150, 180];
+	const HOLD = 1.4;
+	const MOVE = 1.2;
+	const seq = [...STOPS, ...STOPS.slice(1, -1).reverse()];
+	const PERIOD = seq.length * (HOLD + MOVE);
+	const ease = (u: number) => (u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u));
+	const angleAt = (t: number) => {
+		const tt = t % PERIOD;
+		const k = Math.floor(tt / (HOLD + MOVE));
+		const r = tt - k * (HOLD + MOVE);
+		const a0 = seq[k];
+		const a1 = seq[(k + 1) % seq.length];
+		return r < HOLD ? a0 : a0 + (a1 - a0) * ease((r - HOLD) / MOVE);
+	};
+
+	document.querySelectorAll<HTMLElement>('[data-aal]').forEach((root) => {
+		const back = root.querySelector<SVGGElement>('[data-back]')!;
+		const mid = root.querySelector<SVGGElement>('[data-mid]')!;
+		const front = root.querySelector<SVGGElement>('[data-front]')!;
+		const read = root.querySelector<HTMLElement>('[data-read]')!;
+		// ---- the still part: the plane of the gap, the poles, the lines
+		const quad = (a: [number, number, number][]) => `M${a.map((p) => pt(P(...p))).join('L')}Z`;
+		mk(back, 'path', { class: 'aal__plane', d: quad([[-112, 0, -78], [112, 0, -78], [112, 0, 78], [-112, 0, 78]]) });
+		const pole = (x: number, cls: string, name: string) => {
+			mk(back, 'path', { class: `aal__pole ${cls}`, d: quad([[x, -34, -78], [x, 52, -78], [x, 52, 78], [x, -34, 78]]) });
+			const c = P(x, 9, 0);
+			mk(back, 'text', { class: 'aal__pl', x: f(c[0]), y: f(c[1] + 7), 'text-anchor': 'middle' }, name);
+		};
+		pole(-118, 'aal__pole--n', 'N');
+		for (const z of [-60, -20, 20, 60]) {
+			const a = P(-112, 0, z);
+			const b = P(112, 0, z);
+			mk(back, 'path', { class: 'aal__line', d: `M${pt(a)}L${pt(b)}` });
+			for (const x of [-80, 80]) {
+				const h = P(x, 0, z);
+				mk(back, 'path', { class: 'aal__lh', d: head(h[0] + 4, h[1], 1, 0, 8) });
+			}
+		}
+		// the S pole in front of the far ends of the lines; the direction of B⃗ from the axis (the side of α)
+		pole(118, 'aal__pole--s', 'S');
+		const r0 = P(0, 0, 0);
+		const r1 = P(62, 0, 0);
+		mk(back, 'path', { class: 'aal__ref', d: `M${pt(r0)}L${pt(r1)}` });
+		const bl = P(24, 0, -60);
+		vec(back, bl[0], bl[1] - 8, 'B', 'aal__c-b');
+		let t = 0;
+		const draw = () => {
+			const deg = angleAt(t);
+			const a = (deg * Math.PI) / 180;
+			const u: [number, number, number] = [Math.cos(a), 0, Math.sin(a)];
+			const half = 75;
+			mid.replaceChildren();
+			front.replaceChildren();
+			// the conductor: a copper rod with the current chevrons
+			const p0 = P(-u[0] * half, 0, -u[2] * half);
+			const p1 = P(u[0] * half, 0, u[2] * half);
+			mk(mid, 'path', { class: 'aal__rod', d: `M${pt(p0)}L${pt(p1)}` });
+			const dx = p1[0] - p0[0];
+			const dy = p1[1] - p0[1];
+			const dl = Math.hypot(dx, dy);
+			const ux = dx / dl;
+			const uy = dy / dl;
+			for (let k = 0; k < 4; k++) {
+				const s = ((t * 0.35 + k / 4) % 1) * 0.86 + 0.07;
+				const cx = p0[0] + dx * s;
+				const cy = p0[1] + dy * s;
+				mk(mid, 'path', { class: 'aal__chev', d: `M${f(cx - ux * 4 - uy * 5)} ${f(cy - uy * 4 + ux * 5)}L${f(cx + ux * 2)} ${f(cy + uy * 2)}L${f(cx - ux * 4 + uy * 5)} ${f(cy - uy * 4 - ux * 5)}` });
+			}
+			// the arc of α from the direction of the lines to the conductor
+			if (deg > 0.5) {
+				let d = '';
+				for (let k = 0; k <= 30; k++) {
+					const th = (a * k) / 30;
+					d += `${k ? 'L' : 'M'}${pt(P(36 * Math.cos(th), 0, 36 * Math.sin(th)))}`;
+				}
+				mk(mid, 'path', { class: 'aal__arc', d });
+				const m = P(52 * Math.cos(a / 2), 0, 52 * Math.sin(a / 2));
+				mk(mid, 'text', { class: 'aal__t aal__c-a', x: f(m[0]), y: f(m[1] + 6), 'text-anchor': 'middle' }, 'α');
+			}
+			mk(mid, 'circle', { class: 'aal__axis', cx: CX, cy: CY, r: 2.6 });
+			// the force: vertical, 80 px for 0,2 Н
+			const Fm = B * I * L * Math.sin(a);
+			const len = (Math.max(0, Fm) / 0.2) * 80;
+			if (len > 4) {
+				const top = P(0, len, 0);
+				mk(front, 'path', { class: 'aal__f', d: `M${CX} ${CY}L${f(top[0])} ${f(top[1] + Math.min(9, len * 0.5))}` });
+				mk(front, 'path', { class: 'aal__fh', d: head(top[0], top[1], 0, -1, Math.min(12, len * 0.6)) });
+				if (len > 22) vec(front, top[0] + 16, top[1] + 14, 'F', 'aal__c-f');
+			}
+			const sn = Math.abs(Math.sin(a)) < 1e-9 ? 0 : Math.sin(a);
+			const Fs = Math.abs(Fm) < 1e-9 ? '0' : fmt(Fm, 2).replace(/0$/, '');
+			read.innerHTML =
+				`<span><i>α</i> = ${Math.round(deg)}°</span>` +
+				`<span>sin&nbsp;<i>α</i> = ${fmt(sn, 2)}</span>` +
+				`<span><i>F</i> = <i>BIl</i>&nbsp;sin&nbsp;<i>α</i> = 0,5&nbsp;Тл · 2&nbsp;А · 0,2&nbsp;м · ${fmt(sn, 2)} = ${Fs}&nbsp;Н</span>`;
+		};
+		draw();
+		loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+	});
+</script>
+
+<style>
+	.aal {
+		--aal-i: var(--sl-color-green);
+		--aal-f: var(--ig-v);
+		--aal-cu: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.aal__svg {
+		display: block;
+		width: 100%;
+		max-width: 34rem;
+		height: auto;
+		margin-inline: auto;
+		border-radius: 0.6rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent);
+	}
+	.aal__read {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.2rem 1.2rem;
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.aal__legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem 1.2rem;
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.aal__sw {
+		display: inline-block;
+		width: 1.4rem;
+		height: 0.2rem;
+		margin-right: 0.35rem;
+		vertical-align: middle;
+	}
+	.aal__sw--i {
+		background: var(--aal-i);
+	}
+	.aal__sw--b {
+		background: var(--sl-color-gray-2);
+	}
+	.aal__sw--f {
+		background: var(--aal-f);
+	}
+	.aal :global(.aal__plane) {
+		fill: color-mix(in srgb, var(--sl-color-gray-5) 45%, transparent);
+	}
+	.aal :global(.aal__pole) {
+		opacity: 0.85;
+	}
+	.aal :global(.aal__pole--n) {
+		fill: var(--ig-vx);
+	}
+	.aal :global(.aal__pole--s) {
+		fill: var(--ig-vy);
+	}
+	.aal :global(.aal__pl) {
+		fill: white;
+		font-weight: 700;
+		font-size: 20px;
+		font-family: var(--__sl-font);
+	}
+	.aal :global(.aal__line) {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+	}
+	.aal :global(.aal__lh) {
+		fill: var(--sl-color-gray-2);
+	}
+	.aal :global(.aal__rod) {
+		stroke: var(--aal-cu);
+		stroke-width: 7;
+		stroke-linecap: round;
+	}
+	.aal :global(.aal__chev) {
+		fill: none;
+		stroke: var(--aal-i);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.aal :global(.aal__ref) {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 3;
+	}
+	.aal :global(.aal__arc) {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+	}
+	.aal :global(.aal__axis) {
+		fill: var(--sl-color-white);
+	}
+	.aal :global(.aal__f) {
+		stroke: var(--aal-f);
+		stroke-width: 4;
+	}
+	.aal :global(.aal__fh) {
+		fill: var(--aal-f);
+	}
+	.aal :global(.aal__t) {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 19px;
+		paint-order: stroke;
+		stroke: var(--sl-color-gray-6);
+		stroke-width: 4px;
+	}
+	.aal :global(.aal__va) {
+		fill: none;
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.aal :global(text.aal__c-b) {
+		fill: var(--sl-color-gray-2);
+	}
+	.aal :global(path.aal__c-b) {
+		stroke: var(--sl-color-gray-2);
+	}
+	.aal :global(text.aal__c-f) {
+		fill: var(--aal-f);
+	}
+	.aal :global(path.aal__c-f) {
+		stroke: var(--aal-f);
+	}
+	.aal :global(text.aal__c-a) {
+		fill: var(--sl-color-white);
+	}
+</style>

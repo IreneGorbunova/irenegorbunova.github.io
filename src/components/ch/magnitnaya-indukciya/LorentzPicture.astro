@@ -1,0 +1,368 @@
+---
+/**
+ * The Lorentz force and the left-hand rule for a particle, two panels side by side (stacked on a narrow phone). The
+ * field is uniform, its lines go away from us (⊗) in both panels.
+ *   left, «Две частицы в поле»: a positive and a negative particle with equal masses and equal moduli of charge start
+ *     from one point with the same velocity (up). The force (gold, toward the center) is at right angles to the
+ *     velocity (green, along the path), so each runs a circle of the same radius: the positive one counterclockwise
+ *     (the force to the left at the start), the negative one clockwise. One turn takes 6 с here (slowed down: an
+ *     electron in a 1 мТл field turns in 36 нс, T = 2πm/(|q|B)); the radius is drawn 62 px.
+ *   right, «Правило левой руки»: the particle runs up along a dashed track (velocity υ⃗ up); a LEFT hand (people kit,
+ *     the same placing as LeftHandPicture) lies next to it with the palm toward us, so that the lines (going away from
+ *     us) come into it; the four fingers point along the velocity for the positive particle and against it for the
+ *     negative one; the thumb set out at 90° shows the force: to the left for +, to the right for −. A toggle switches
+ *     the particle. The hand is only rotated, never mirrored, so it stays a left hand.
+ * Physics: F⃗ = q·υ⃗ × B⃗ (x right, y up, z toward us): υ⃗ = +y, B⃗ = −z: υ⃗ × B⃗ = −x; q > 0 to the left, q < 0 to the right.
+ * At any point of the circle the force on the positive particle points to the center (counterclockwise motion).
+ * Not to scale: the hand is drawn large.
+ */
+import PeopleStyles from '@components/people/PeopleStyles.astro';
+---
+
+<PeopleStyles />
+<figure class="lzp not-content" data-lzp>
+	<div class="lzp__panels">
+		<div>
+			<svg class="lzp__svg" viewBox="0 0 300 300" role="img" aria-label="Магнитные линии уходят от нас. Из одной точки вверх вылетают положительная и отрицательная частицы. Сила Лоренца перпендикулярна скорости, и частицы движутся по окружностям: положительная против часовой стрелки, отрицательная по часовой" data-circ></svg>
+			<p class="lzp__cap">Две частицы в одном поле</p>
+		</div>
+		<div>
+			<div class="lzp__ctrl" role="radiogroup" aria-label="Знак заряда частицы">
+				<button type="button" role="radio" aria-checked="true" class="lzp__btn is-on" data-q="1">Положительная частица</button>
+				<button type="button" role="radio" aria-checked="false" class="lzp__btn" data-q="-1">Отрицательная частица</button>
+			</div>
+			<svg class="lzp__svg" viewBox="0 0 300 300" role="img" aria-label="Левая рука лежит рядом с траекторией частицы, магнитные линии входят в ладонь, четыре пальца направлены по скорости положительной частицы или против скорости отрицательной, отставленный большой палец показывает направление силы Лоренца" data-hand-svg>
+				<g data-bg></g>
+				<g data-arm></g>
+				<g data-hand></g>
+				<g data-marks></g>
+			</svg>
+			<p class="lzp__cap">Правило левой руки<br /><span class="lzp__tag" data-tag>четыре пальца — по скорости</span></p>
+		</div>
+	</div>
+	<figcaption class="lzp__legend">
+		<span><i class="lzp__sw lzp__sw--v"></i>скорость частицы</span>
+		<span><i class="lzp__sw lzp__sw--f"></i>сила Лоренца</span>
+		<span>⊗ — магнитные линии уходят от нас</span>
+	</figcaption>
+</figure>
+
+<script>
+	import { hand, handPoint, type V3 } from '@components/people/hand';
+	import { forearm, place, thumbOut } from './grip';
+	import { loop } from '../g7/kit';
+
+	const NS = 'http://www.w3.org/2000/svg';
+	const mk = <K extends keyof SVGElementTagNameMap>(p: Element, tag: K, a: Record<string, string | number> = {}, text?: string) => {
+		const e = document.createElementNS(NS, tag);
+		for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
+		if (text !== undefined) e.textContent = text;
+		p.append(e);
+		return e;
+	};
+	const f = (v: number) => v.toFixed(1);
+	const SHAPE = thumbOut();
+	const PALM: [number, number, number] = [0.42, -0.055, 0];
+	const LH = 116;
+	const arrowPath = (x1: number, y1: number, x2: number, y2: number, s = 11) => {
+		const l = Math.hypot(x2 - x1, y2 - y1) || 1;
+		const ux = (x2 - x1) / l;
+		const uy = (y2 - y1) / l;
+		const bx = x2 - ux * s;
+		const by = y2 - uy * s;
+		return { shaft: `M${f(x1)} ${f(y1)}L${f(bx + ux * 2)} ${f(by + uy * 2)}`, head: `M${f(x2)} ${f(y2)}L${f(bx - uy * s * 0.5)} ${f(by + ux * s * 0.5)}L${f(bx + uy * s * 0.5)} ${f(by - ux * s * 0.5)}Z` };
+	};
+	const vec = (g: Element, x: number, y: number, t: string, cls: string) => {
+		mk(g, 'text', { class: `lzp__t ${cls}`, x: f(x), y: f(y), 'text-anchor': 'middle' }, t);
+		mk(g, 'path', { class: `lzp__va ${cls}`, d: `M${f(x - 5)} ${f(y - 17)}H${f(x + 5)}M${f(x + 2.3)} ${f(y - 19.7)}L${f(x + 5)} ${f(y - 17)}L${f(x + 2.3)} ${f(y - 14.3)}` });
+	};
+	const crosses = (g: Element) => {
+		for (let i = 0; i < 6; i++)
+			for (let j = 0; j < 6; j++) {
+				const x = 42 + i * 43;
+				const y = 42 + j * 43;
+				mk(g, 'path', { class: 'lzp__x', d: `M${x - 5} ${y - 5}L${x + 5} ${y + 5}M${x + 5} ${y - 5}L${x - 5} ${y + 5}` });
+				mk(g, 'circle', { class: 'lzp__xc', cx: x, cy: y, r: 8 });
+			}
+	};
+	const particle = (g: Element, x: number, y: number, plus: boolean) => {
+		mk(g, 'circle', { class: `lzp__p ${plus ? 'lzp__p--plus' : 'lzp__p--minus'}`, cx: f(x), cy: f(y), r: 9 });
+		mk(g, 'text', { class: 'lzp__ps', x: f(x), y: f(y + 5), 'text-anchor': 'middle' }, plus ? '+' : '−');
+	};
+
+	document.querySelectorAll<HTMLElement>('[data-lzp]').forEach((root) => {
+		// ---------------- left: two circles
+		const circ = root.querySelector<SVGSVGElement>('[data-circ]')!;
+		const cBg = mk(circ, 'g');
+		const cMov = mk(circ, 'g');
+		crosses(cBg);
+		const R = 62;
+		const S0 = { x: 150, y: 170 };
+		for (const s of [1, -1]) mk(cBg, 'circle', { class: 'lzp__track', cx: S0.x - s * R, cy: S0.y, r: R });
+		mk(cBg, 'circle', { class: 'lzp__start', cx: S0.x, cy: S0.y, r: 3 });
+		const TURN = 6;
+		// ---------------- right: the hand
+		const top = root.querySelector<SVGSVGElement>('[data-hand-svg]')!;
+		const part = (k: string) => top.querySelector<SVGGElement>(`[data-${k}]`)!;
+		let q = 1;
+		let t = 0;
+		let dot: SVGGElement | null = null;
+		const build = () => {
+			for (const k of ['bg', 'arm', 'hand', 'marks']) part(k).replaceChildren();
+			const bg = part('bg');
+			crosses(bg);
+			mk(bg, 'path', { class: 'lzp__trk', d: 'M118 6V294' });
+			// the hand: palm toward us (lines away from us go into it), fingers along υ for +, against υ for −
+			const dir = q > 0 ? -Math.PI / 2 : Math.PI / 2;
+			const roll = Math.PI / 2;
+			const at = { x: 186, y: 150 };
+			const wrist = place('L', at, dir, roll, LH, PALM);
+			const arm = forearm(wrist, dir, LH, 2.2);
+			mk(part('arm'), 'path', { class: 'hm-skin lzp__arm', d: arm.skin });
+			mk(part('arm'), 'path', { class: 'lzp__sleeve', d: arm.sleeve });
+			const h = hand(part('hand'), { cls: 'hm-skin', side: 'L', Lh: LH });
+			h.set({ wrist, dir, roll }, SHAPE, 'flat');
+			const fr = { wrist, dir, roll };
+			const hp = (p: V3) => handPoint('L', fr, LH, p);
+			const line = (ps: V3[]) => ps.map((p, i) => `${i ? 'L' : 'M'}${f(hp(p).x)} ${f(hp(p).y)}`).join('');
+			const y = -0.057;
+			mk(part('hand'), 'path', { class: 'lzp__crease', d: line([[0.41, y, -0.17], [0.38, y, -0.04], [0.39, y, 0.06], [0.42, y, 0.14]]) });
+			mk(part('hand'), 'path', { class: 'lzp__crease', d: line([[0.31, y, 0.13], [0.32, y, 0.0], [0.34, y, -0.12]]) });
+			mk(part('hand'), 'path', { class: 'lzp__crease', d: line([[0.3, y, 0.135], [0.2, y, 0.11], [0.12, y, 0.06], [0.06, y, 0.0]]) });
+			root.querySelector('[data-tag]')!.textContent = q > 0 ? 'четыре пальца — по скорости' : 'четыре пальца — против скорости';
+			const mks = part('marks');
+			// the velocity beside the track (bottom left), the force beyond the fingertips
+			const va = arrowPath(92, 262, 92, 196);
+			mk(mks, 'path', { class: 'lzp__v', d: va.shaft });
+			mk(mks, 'path', { class: 'lzp__vh', d: va.head });
+			vec(mks, 72, 238, 'υ', 'lzp__c-v');
+			const fx = q > 0 ? -1 : 1;
+			const fy = q > 0 ? 44 : 256;
+			const fa = arrowPath(118 + fx * 14, fy, 118 + fx * 92, fy);
+			mk(mks, 'path', { class: 'lzp__f', d: fa.shaft });
+			mk(mks, 'path', { class: 'lzp__fh', d: fa.head });
+			vec(mks, 118 + fx * 60, fy - 12, 'F', 'lzp__c-f');
+			dot = mk(mks, 'g');
+		};
+		const draw = () => {
+			// left panel: both particles at the same phase
+			cMov.replaceChildren();
+			const ph = ((t % TURN) / TURN) * 2 * Math.PI;
+			for (const s of [1, -1]) {
+				// s = +1: center to the left, counterclockwise on the screen
+				const cx = S0.x - s * R;
+				const px = cx + s * R * Math.cos(ph);
+				const py = S0.y - R * Math.sin(ph);
+				const vx = -s * Math.sin(ph);
+				const vy = -Math.cos(ph);
+				const v = arrowPath(px + vx * 11, py + vy * 11, px + vx * 42, py + vy * 42, 9);
+				mk(cMov, 'path', { class: 'lzp__v', d: v.shaft });
+				mk(cMov, 'path', { class: 'lzp__vh', d: v.head });
+				const fxu = (cx - px) / R;
+				const fyu = (S0.y - py) / R;
+				const fa = arrowPath(px + fxu * 11, py + fyu * 11, px + fxu * 36, py + fyu * 36, 9);
+				mk(cMov, 'path', { class: 'lzp__f', d: fa.shaft });
+				mk(cMov, 'path', { class: 'lzp__fh', d: fa.head });
+				particle(cMov, px, py, s > 0);
+			}
+			// right panel: the particle runs up the track
+			if (dot) {
+				dot.replaceChildren();
+				const y = 300 - ((t * 50) % 320) + 10;
+				particle(dot, 118, y, q > 0);
+			}
+		};
+		build();
+		draw();
+		loop(root, (dt) => {
+			t += dt;
+			draw();
+			return true;
+		});
+		const bs = [...root.querySelectorAll<HTMLButtonElement>('[data-q]')];
+		bs.forEach((b) =>
+			b.addEventListener('click', () => {
+				q = Number(b.dataset.q);
+				bs.forEach((x) => {
+					x.classList.toggle('is-on', x === b);
+					x.setAttribute('aria-checked', x === b ? 'true' : 'false');
+				});
+				build();
+				draw();
+			}),
+		);
+	});
+</script>
+
+<style>
+	.lzp {
+		--lzp-v: var(--sl-color-green);
+		--lzp-f: var(--ig-v);
+		margin: 1.25rem 0 1.75rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.lzp__panels {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.6rem;
+		align-items: end;
+	}
+	@media (max-width: 30rem) {
+		.lzp__panels {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	.lzp__ctrl {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 0.5rem;
+	}
+	.lzp__btn {
+		padding: 0.35rem 0.8rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		cursor: pointer;
+	}
+	.lzp__btn.is-on {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-2);
+		background: var(--sl-color-gray-5);
+	}
+	.lzp__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent);
+	}
+	.lzp__cap {
+		margin: 0.35rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+	}
+	.lzp__tag {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.lzp__legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem 1.2rem;
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.lzp__sw {
+		display: inline-block;
+		width: 1.4rem;
+		height: 0.2rem;
+		margin-right: 0.35rem;
+		vertical-align: middle;
+	}
+	.lzp__sw--v {
+		background: var(--lzp-v);
+	}
+	.lzp__sw--f {
+		background: var(--lzp-f);
+	}
+	.lzp :global(.lzp__x) {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.lzp :global(.lzp__xc) {
+		fill: none;
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.lzp :global(.lzp__track),
+	.lzp :global(.lzp__trk) {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 5;
+	}
+	.lzp :global(.lzp__start) {
+		fill: var(--sl-color-white);
+	}
+	.lzp :global(.lzp__p) {
+		fill: var(--sl-color-gray-6);
+		stroke-width: 2.2;
+	}
+	.lzp :global(.lzp__p--plus) {
+		stroke: var(--ig-vy);
+	}
+	.lzp :global(.lzp__p--minus) {
+		stroke: var(--ig-vx);
+	}
+	.lzp :global(.lzp__ps) {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+		font-size: 14px;
+		font-family: var(--__sl-font);
+	}
+	.lzp :global(.lzp__v) {
+		stroke: var(--lzp-v);
+		stroke-width: 3.5;
+	}
+	.lzp :global(.lzp__vh) {
+		fill: var(--lzp-v);
+	}
+	.lzp :global(.lzp__f) {
+		stroke: var(--lzp-f);
+		stroke-width: 3.5;
+	}
+	.lzp :global(.lzp__fh) {
+		fill: var(--lzp-f);
+	}
+	.lzp :global(.lzp__t) {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-weight: 600;
+		font-size: 22px;
+		paint-order: stroke;
+		stroke: var(--sl-color-gray-6);
+		stroke-width: 4px;
+	}
+	.lzp :global(.lzp__va) {
+		fill: none;
+		stroke-width: 1.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.lzp :global(text.lzp__c-v) {
+		fill: var(--lzp-v);
+	}
+	.lzp :global(path.lzp__c-v) {
+		stroke: var(--lzp-v);
+	}
+	.lzp :global(text.lzp__c-f) {
+		fill: var(--lzp-f);
+	}
+	.lzp :global(path.lzp__c-f) {
+		stroke: var(--lzp-f);
+	}
+	.lzp :global(.lzp__crease) {
+		fill: none;
+		stroke: color-mix(in srgb, var(--hm-skin) 55%, black);
+		stroke-width: 1.2;
+		stroke-linecap: round;
+	}
+	.lzp :global(.lzp__arm) {
+		stroke-width: 0.8;
+	}
+	.lzp :global(.lzp__sleeve) {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 80%, var(--ig-vx));
+		stroke: var(--hm-line);
+		stroke-width: 0.8;
+	}
+</style>

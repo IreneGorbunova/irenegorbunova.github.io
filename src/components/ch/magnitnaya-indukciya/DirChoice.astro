@@ -1,0 +1,223 @@
+---
+/**
+ * A question on a direction rule with a small scheme above the answers: the shared Choice (ch/g7/Choice.astro, a right
+ * answer lights the chapter star) with an inline SVG put into its question. The schemes (`pic`):
+ *   wire-dot      — a wire end-on, the current toward us (⊙), a dashed circle round it without arrows;
+ *   wire-up       — a wire in the plane of the picture, the current up, a point A to the right of it;
+ *   coil          — a coil lying along the picture, the near halves of its turns with arrows of the current (down);
+ *   poles-dot     — N above, S below, the lines down between them, a conductor end-on with the current toward us (⊙);
+ *   plus-right    — lines away from us (⊗), a positive particle moving to the right;
+ *   minus-up      — lines toward us (⊙), a negative particle moving up.
+ * Answers (x to the right, y up, z toward us; B ∝ I × r, F ∝ I × B, F ∝ q·υ × B):
+ *   wire-dot: counterclockwise; wire-up: at A, y × x = −z, away from us (⊗); coil: the near side (z > 0) goes −y,
+ *   z × (−y) = +x, the right end is N; poles-dot: z × (−y) = +x, to the right; plus-right: x × (−z) = +y, up;
+ *   minus-up: −(y × z) = −x, to the left.
+ * Colors as in the chapter: current green, lines gray, N blue, S red; the velocity of a particle green.
+ */
+import Choice from '../g7/Choice.astro';
+
+interface Props {
+	pic: 'wire-dot' | 'wire-up' | 'coil' | 'poles-dot' | 'plus-right' | 'minus-up';
+	question: string;
+	options: string[];
+	answer: number;
+	hints?: string[];
+}
+const { pic, question, options, answer, hints } = Astro.props;
+
+const head = (x: number, y: number, dx: number, dy: number, s = 8, cls = 'dch-h') => {
+	const l = Math.hypot(dx, dy);
+	const ux = dx / l;
+	const uy = dy / l;
+	const bx = x - ux * s;
+	const by = y - uy * s;
+	const w = s * 0.5;
+	return `<path class="${cls}" d="M${x} ${y}L${(bx - uy * w).toFixed(1)} ${(by + ux * w).toFixed(1)}L${(bx + uy * w).toFixed(1)} ${(by - ux * w).toFixed(1)}Z"/>`;
+};
+const dot = (x: number, y: number, r = 11, cls = 'dch-i') => `<circle class="dch-ring" cx="${x}" cy="${y}" r="${r}"/><circle class="${cls}f" cx="${x}" cy="${y}" r="${r * 0.3}"/>`;
+const cross = (x: number, y: number, r = 11, cls = 'dch-i') => {
+	const a = r * 0.55;
+	return `<circle class="dch-ring" cx="${x}" cy="${y}" r="${r}"/><path class="${cls}" d="M${x - a} ${y - a}L${x + a} ${y + a}M${x + a} ${y - a}L${x - a} ${y + a}"/>`;
+};
+/** A letter with a small arrow over it (a vector). */
+const vec = (x: number, y: number, t: string, cls: string) =>
+	`<text class="dch-t ${cls}" x="${x}" y="${y}" text-anchor="middle">${t}</text><path class="dch-va ${cls}s" d="M${x - 4.5} ${y - 14}H${x + 4.5}M${x + 2} ${y - 16.5}L${x + 4.5} ${y - 14}L${x + 2} ${y - 11.5}"/>`;
+const grid = (kind: 'x' | 'd') => {
+	let g = '';
+	for (let i = 0; i < 6; i++)
+		for (let j = 0; j < 3; j++) {
+			const x = 22 + i * 31;
+			const y = 22 + j * 38;
+			g += kind === 'x' ? cross(x, y, 6.5, 'dch-b') : dot(x, y, 6.5, 'dch-b');
+		}
+	return g;
+};
+const particle = (x: number, y: number, plus: boolean) =>
+	`<circle class="dch-p ${plus ? 'dch-p--plus' : 'dch-p--minus'}" cx="${x}" cy="${y}" r="10"/><text class="dch-ps" x="${x}" y="${y + 5}" text-anchor="middle">${plus ? '+' : '−'}</text>`;
+
+let body = '';
+let label = '';
+if (pic === 'wire-dot') {
+	label = 'Провод перпендикулярен рисунку, ток идёт к нам; вокруг провода — штриховая окружность магнитной линии без стрелок';
+	body = `<circle class="dch-line dch-dash" cx="100" cy="60" r="40"/><circle class="dch-wire" cx="100" cy="60" r="13"/>${dot(100, 60, 13)}`;
+} else if (pic === 'wire-up') {
+	label = 'Вертикальный провод, ток идёт вверх; справа от провода точка A';
+	body = `<rect class="dch-wire" x="74" y="6" width="10" height="108" rx="2"/><path class="dch-cur" d="M79 92V36"/>${head(79, 26, 0, -1, 11, 'dch-ih')}<circle class="dch-a" cx="132" cy="60" r="4"/><text class="dch-t" x="143" y="65">A</text>`;
+} else if (pic === 'coil') {
+	label = 'Катушка лежит вдоль рисунка; на ближних к нам половинах витков стрелки тока направлены вниз';
+	let back = '';
+	let front = '';
+	for (let k = 0; k < 6; k++) {
+		const x = 48 + k * 21;
+		back += `<path class="dch-coilb" d="M${x} 28A8 32 0 0 0 ${x} 92"/>`;
+		front += `<path class="dch-coil" d="M${x} 28A8 32 0 0 1 ${x} 92"/>`;
+		if (k % 2 === 0) front += head(x + 8, 66, 0, 1, 8, 'dch-ih');
+	}
+	body = `${back}${front}<text class="dch-t" x="26" y="65" text-anchor="middle">1</text><text class="dch-t" x="178" y="65" text-anchor="middle">2</text>`;
+} else if (pic === 'poles-dot') {
+	label = 'Сверху северный полюс магнита, снизу южный, магнитные линии идут сверху вниз; между полюсами проводник, ток в нём идёт к нам';
+	let lines = '';
+	for (let k = 0; k < 5; k++) {
+		const x = 40 + k * 30;
+		if (k === 2) continue;
+		lines += `<path class="dch-line" d="M${x} 28V92"/>${head(x, 66, 0, 1, 7, 'dch-bh')}`;
+	}
+	body = `<rect class="dch-n" x="22" y="4" width="156" height="24" rx="3"/><text class="dch-pl" x="100" y="22" text-anchor="middle">N</text><rect class="dch-s" x="22" y="92" width="156" height="24" rx="3"/><text class="dch-pl" x="100" y="110" text-anchor="middle">S</text>${lines}<circle class="dch-wire" cx="100" cy="60" r="12"/>${dot(100, 60, 12)}`;
+} else if (pic === 'plus-right') {
+	label = 'Магнитные линии уходят от нас; положительно заряженная частица движется вправо';
+	body = `${grid('x')}<rect class="dch-bg" x="58" y="31" width="92" height="47" rx="6"/>${particle(72, 60, true)}<path class="dch-v" d="M86 60H130"/>${head(142, 60, 1, 0, 10, 'dch-vh')}${vec(116, 50 + 0, 'υ', 'dch-vt')}`;
+} else {
+	label = 'Магнитные линии идут к нам; отрицательно заряженная частица движется вверх';
+	body = `${grid('d')}<rect class="dch-bg" x="78" y="8" width="44" height="104" rx="6"/>${particle(100, 96, false)}<path class="dch-v" d="M100 82V36"/>${head(100, 22, 0, -1, 10, 'dch-vh')}${vec(114, 50, 'υ', 'dch-vt')}`;
+}
+const svg = `<svg class="dch" viewBox="0 0 200 120" role="img" aria-label="${label}">${body}</svg>`;
+---
+
+<div class="dch-wrap">
+	<Choice question={`${question}${svg}`} options={options} answer={answer} hints={hints}>
+		<slot />
+	</Choice>
+</div>
+
+<style is:global>
+	.dch-wrap .dch {
+		display: block;
+		width: 100%;
+		max-width: 15rem;
+		height: auto;
+		margin: 0.6rem 0 0.2rem;
+		border-radius: 0.6rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent);
+		font-weight: 400;
+	}
+	.dch .dch-line {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.6;
+	}
+	.dch .dch-dash {
+		stroke-dasharray: 5 4;
+	}
+	.dch .dch-bh,
+	.dch .dch-bf {
+		fill: var(--sl-color-gray-2);
+	}
+	.dch .dch-b {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+	}
+	.dch .dch-ring {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+	}
+	.dch .dch-wire {
+		fill: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		stroke: color-mix(in srgb, var(--ig-v) 40%, black);
+		stroke-width: 0.8;
+	}
+	.dch .dch-i {
+		stroke: var(--sl-color-green);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.dch .dch-if,
+	.dch .dch-ih {
+		fill: var(--sl-color-green);
+	}
+	.dch .dch-cur {
+		stroke: var(--sl-color-green);
+		stroke-width: 3;
+	}
+	.dch .dch-a {
+		fill: var(--sl-color-white);
+	}
+	.dch .dch-t {
+		fill: var(--sl-color-white);
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 16px;
+	}
+	.dch .dch-coil {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		stroke-width: 3;
+	}
+	.dch .dch-coilb {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 40%, var(--sl-color-gray-4));
+		stroke-width: 2;
+		stroke-dasharray: 3 3;
+	}
+	.dch .dch-n {
+		fill: var(--ig-vx);
+	}
+	.dch .dch-s {
+		fill: var(--ig-vy);
+	}
+	.dch .dch-pl {
+		fill: white;
+		font-weight: 700;
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.dch .dch-bg {
+		fill: color-mix(in srgb, var(--sl-color-gray-6) 55%, var(--ig-surface));
+	}
+	.dch .dch-p {
+		fill: var(--sl-color-gray-6);
+		stroke-width: 2;
+	}
+	.dch .dch-p--plus {
+		stroke: var(--ig-vy);
+	}
+	.dch .dch-p--minus {
+		stroke: var(--ig-vx);
+	}
+	.dch .dch-ps {
+		fill: var(--sl-color-white);
+		font-weight: 700;
+		font-size: 15px;
+		font-family: var(--__sl-font);
+	}
+	.dch .dch-v {
+		stroke: var(--sl-color-green);
+		stroke-width: 3;
+	}
+	.dch .dch-vh {
+		fill: var(--sl-color-green);
+	}
+	.dch .dch-vt {
+		fill: var(--sl-color-green);
+	}
+	.dch .dch-va {
+		fill: none;
+		stroke-width: 1.3;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.dch .dch-vts {
+		stroke: var(--sl-color-green);
+	}
+</style>

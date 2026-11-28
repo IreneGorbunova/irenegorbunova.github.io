@@ -1,0 +1,235 @@
+---
+/**
+ * The angle α of the formula Φ = BS cos α: one square frame in a uniform field at three angles, side by side (stacked on
+ * a phone). Static, drawn at build time.
+ * Axonometric view from 40° to the right of the lines and 50° above them: x along B⃗, y up, z toward the front; a point
+ * (x, y, z) is drawn at (CX + 0,77·x + 0,64·z, CY − 0,64·y − 0,49·x + 0,59·z). The frame (side 68 px) turns about the
+ * vertical axis through its center: its
+ * horizontal edge runs along e = (−sin α, 0, cos α), its normal n⃗ = (cos α, 0, sin α) (at α = 0 along B⃗, at 90° toward
+ * the viewer). Four field lines (gray, to the right) at y = ±18 (they cross the frame's place) and ±42 (above and below
+ * it), in the plane z = 0. The arc of α lies in the horizontal plane through the center, from the direction of B⃗ to n⃗.
+ * Panels: α = 0 (Φ = BS), α = 60° (cos 60° = 0,5, Φ = BS/2), α = 90° (cos 90° = 0, Φ = 0: the lines slide along the frame).
+ * Not to scale; the normal is drawn 58 px long.
+ */
+const CX = 104;
+const CY = 80;
+const CP = Math.cos((40 * Math.PI) / 180);
+const SP = Math.sin((40 * Math.PI) / 180);
+const CT = Math.cos((50 * Math.PI) / 180);
+const ST = Math.sin((50 * Math.PI) / 180);
+const P = (x: number, y: number, z: number) => [CX + x * CP + z * SP, CY - y * CT + (-x * SP + z * CP) * ST];
+const f = (v: number) => v.toFixed(1);
+const pt = (p: number[]) => `${f(p[0])} ${f(p[1])}`;
+const head = (x: number, y: number, dx: number, dy: number, s: number) => {
+	const l = Math.hypot(dx, dy);
+	const ux = dx / l;
+	const uy = dy / l;
+	const bx = x - ux * s;
+	const by = y - uy * s;
+	return `M${f(x)} ${f(y)}L${f(bx - uy * s * 0.5)} ${f(by + ux * s * 0.5)}L${f(bx + uy * s * 0.5)} ${f(by - ux * s * 0.5)}Z`;
+};
+const panels = [0, 60, 90].map((deg) => {
+	const a = (deg * Math.PI) / 180;
+	const e = [-Math.sin(a), 0, Math.cos(a)];
+	const n = [Math.cos(a), 0, Math.sin(a)];
+	const h = 34;
+	const c = (s: number, t: number) => P(e[0] * h * s, h * t, e[2] * h * s);
+	const frame = `M${pt(c(-1, -1))}L${pt(c(1, -1))}L${pt(c(1, 1))}L${pt(c(-1, 1))}Z`;
+	const lines = [-42, -18, 18, 42].map((y) => {
+		const a0 = P(-78, y, 0);
+		const a1 = P(78, y, 0);
+		const dx = a1[0] - a0[0];
+		const dy = a1[1] - a0[1];
+		const dl = Math.hypot(dx, dy);
+		return { d: `M${pt(a0)}L${pt([a1[0] - (6 * dx) / dl, a1[1] - (6 * dy) / dl])}`, h: head(a1[0], a1[1], dx, dy, 8) };
+	});
+	const L = 58;
+	const tip = P(n[0] * L, 0, n[2] * L);
+	const sx = tip[0] - CX;
+	const sy = tip[1] - CY;
+	const sl = Math.hypot(sx, sy);
+	const nShaft = `M${CX} ${CY}L${f(tip[0] - (sx / sl) * 8)} ${f(tip[1] - (sy / sl) * 8)}`;
+	const nHead = head(tip[0], tip[1], sx, sy, 10);
+	// the label of n⃗ beyond the tip, the label of α by the middle of the arc
+	const nl = [tip[0] + (sx / sl) * 12, tip[1] + (sy / sl) * 12 + 13];
+	let arc = '';
+	let al: number[] | null = null;
+	if (deg > 0) {
+		const R = 30;
+		for (let k = 0; k <= 24; k++) {
+			const th = (a * k) / 24;
+			arc += `${k ? 'L' : 'M'}${pt(P(R * Math.cos(th), 0, R * Math.sin(th)))}`;
+		}
+		al = P(44 * Math.cos(a / 2), 0, 44 * Math.sin(a / 2));
+	}
+	const cap = deg === 0 ? ['α = 0, cos α = 1', 'Φ = BS'] : deg === 60 ? ['α = 60°, cos α = 0,5', 'Φ = 0,5·BS'] : ['α = 90°, cos α = 0', 'Φ = 0'];
+	const label = deg === 0 ? 'Рамка перпендикулярна магнитным линиям, нормаль к ней направлена вдоль линий, угол альфа равен нулю' : deg === 60 ? 'Рамка повёрнута, нормаль к ней составляет с линиями угол 60 градусов' : 'Рамка параллельна магнитным линиям, нормаль перпендикулярна им, угол 90 градусов';
+	return { deg, frame, lines, nShaft, nHead, nl, arc, al, cap, label, Bl: P(-50, 42, 0) };
+});
+---
+
+<figure class="fap not-content">
+	<div class="fap__panels">
+		{
+			panels.map((p) => (
+				<div class="fap__panel">
+					<svg class="fap__svg" viewBox="0 0 200 150" role="img" aria-label={p.label}>
+						{p.lines.map((l) => (
+							<>
+								<path class="fap__line" d={l.d} />
+								<path class="fap__lh" d={l.h} />
+							</>
+						))}
+						<text class="fap__t fap__t--b" x={p.Bl[0].toFixed(1)} y={(p.Bl[1] - 7).toFixed(1)} text-anchor="middle">B</text>
+						<path class="fap__va fap__va--b" d={`M${(p.Bl[0] - 4.5).toFixed(1)} ${(p.Bl[1] - 21).toFixed(1)}H${(p.Bl[0] + 4.5).toFixed(1)}M${(p.Bl[0] + 2).toFixed(1)} ${(p.Bl[1] - 23.5).toFixed(1)}L${(p.Bl[0] + 4.5).toFixed(1)} ${(p.Bl[1] - 21).toFixed(1)}L${(p.Bl[0] + 2).toFixed(1)} ${(p.Bl[1] - 18.5).toFixed(1)}`} />
+						<path class="fap__frame" d={p.frame} />
+						{p.arc && <path class="fap__arc" d={p.arc} />}
+						{p.al && (
+							<text class="fap__t fap__t--a" x={p.al[0].toFixed(1)} y={(p.al[1] + 5).toFixed(1)} text-anchor="middle">
+								α
+							</text>
+						)}
+						<path class="fap__n" d={p.nShaft} />
+						<path class="fap__nh" d={p.nHead} />
+						<circle class="fap__c" cx="104" cy="80" r="2.5" />
+						<text class="fap__t fap__t--n" x={p.nl[0].toFixed(1)} y={p.nl[1].toFixed(1)} text-anchor="middle">n</text>
+						<path class="fap__va fap__va--n" d={`M${(p.nl[0] - 4).toFixed(1)} ${(p.nl[1] - 13).toFixed(1)}H${(p.nl[0] + 4).toFixed(1)}M${(p.nl[0] + 1.8).toFixed(1)} ${(p.nl[1] - 15.2).toFixed(1)}L${(p.nl[0] + 4).toFixed(1)} ${(p.nl[1] - 13).toFixed(1)}L${(p.nl[0] + 1.8).toFixed(1)} ${(p.nl[1] - 10.8).toFixed(1)}`} />
+					</svg>
+					<p class="fap__cap">
+						{p.cap[0]}
+						<br />
+						<b>{p.cap[1]}</b>
+					</p>
+				</div>
+			))
+		}
+	</div>
+	<figcaption class="fap__legend">
+		<span><i class="fap__sw fap__sw--b"></i>линии магнитной индукции</span>
+		<span><i class="fap__sw fap__sw--w"></i>рамка</span>
+		<span><i class="fap__sw fap__sw--n"></i>нормаль к рамке</span>
+	</figcaption>
+</figure>
+
+<style>
+	.fap {
+		--mi-normal: color-mix(in oklab, var(--sl-color-green) 40%, var(--ig-vx));
+		--fap-w: color-mix(in srgb, var(--ig-v) 62%, var(--ig-vy));
+		margin: 1.25rem 0 1.5rem;
+		padding: 0.8rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.fap__panels {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.6rem;
+	}
+	@media (max-width: 34rem) {
+		.fap__panels {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.fap__panel {
+			max-width: 17rem;
+			width: 100%;
+			margin-inline: auto;
+		}
+	}
+	.fap__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: color-mix(in srgb, var(--sl-color-gray-6) 55%, transparent);
+	}
+	.fap__cap {
+		margin: 0.35rem 0 0;
+		text-align: center;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-white);
+		font-family: var(--ig-font-math);
+	}
+	.fap__line {
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+	}
+	.fap__lh {
+		fill: var(--sl-color-gray-2);
+	}
+	.fap__frame {
+		fill: color-mix(in srgb, var(--fap-w) 22%, transparent);
+		stroke: var(--fap-w);
+		stroke-width: 4;
+		stroke-linejoin: round;
+	}
+	.fap__arc {
+		fill: none;
+		stroke: var(--sl-color-white);
+		stroke-width: 1.4;
+	}
+	.fap__n {
+		stroke: var(--mi-normal);
+		stroke-width: 3;
+	}
+	.fap__nh {
+		fill: var(--mi-normal);
+	}
+	.fap__c {
+		fill: var(--sl-color-white);
+	}
+	.fap__t {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 17px;
+		paint-order: stroke;
+		stroke: var(--sl-color-gray-6);
+		stroke-width: 4px;
+	}
+	.fap__t--b {
+		fill: var(--sl-color-gray-2);
+	}
+	.fap__t--n {
+		fill: var(--mi-normal);
+	}
+	.fap__t--a {
+		fill: var(--sl-color-white);
+		font-size: 16px;
+	}
+	.fap__va {
+		fill: none;
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.fap__va--b {
+		stroke: var(--sl-color-gray-2);
+	}
+	.fap__va--n {
+		stroke: var(--mi-normal);
+	}
+	.fap__legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem 1.2rem;
+		margin-top: 0.6rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+	.fap__sw {
+		display: inline-block;
+		width: 1.4rem;
+		height: 0.2rem;
+		margin-right: 0.35rem;
+		vertical-align: middle;
+	}
+	.fap__sw--b {
+		background: var(--sl-color-gray-2);
+	}
+	.fap__sw--w {
+		background: var(--fap-w);
+	}
+	.fap__sw--n {
+		background: var(--mi-normal);
+	}
+</style>
