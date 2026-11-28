@@ -1,0 +1,511 @@
+---
+/**
+ * Resonance on a footbridge: a column of soldiers marches over a light suspension footbridge (side view).
+ * Scale: 30 px per м; the span 17,6 м (528 px); soldiers 175 см tall (people kit, 0,3 px per см), steps of 0,75 м,
+ * 3 м apart (four steps, so that in step all of them put the same foot down at once), ten soldiers in an endless column.
+ * The bridge is one oscillator, its first mode: the deck sags as q·sin(πx/L), q'' + 2ζω0q' + ω0²q = F(t)/M with the
+ * own frequency ν0 = 2,0 Гц, ζ = 0,02, the modal mass M = 8 т (a light footbridge). Each soldier on the deck pushes it
+ * with the varying part of the force of his steps, 0,4·mg = 314 Н for m = 80 кг (walking: about 40 % of the weight at
+ * the step frequency), times sin(πx/L) at his place; its maximum comes when a foot lands. In step all the pushes add up;
+ * out of step every soldier has his own cadence (±12 %) and phase, with the step length changed so that the column keeps
+ * its speed. Real time; the sag of the deck is drawn 20 times larger (said in the caption).
+ * Numbers (recomputed in Python with the same equations): in step at ν = 2,0 Гц the middle of the deck swings with an
+ * amplitude of about 2,3 см, at 1,5 or 2,5 Гц about 0,2 см; out of step at 2,0 Гц about 0,4–0,9 см.
+ * The curve A(ν) below is the amplitude the bridge settles to in step, F0/(M·√((ω0² − ω²)² + (2ζω0ω)²)) with the mean
+ * force of the column F0 = 314 Н · (1/3 м) · 2L/π = 1,2 кН; it is drawn bin by bin (0,05 Гц) where the slider has been;
+ * the dot is the amplitude now, √(q² + (q'/ω0)²), so it climbs to the curve in a few seconds.
+ * People: kit figures in profile, walk cycle from motion.ts with the stance foot planted; each soldier's group moves up
+ * and down with the deck under him, so the planted foot stays on the deck. Soldiers leaving on the right come back on the
+ * left off the picture (no foot is declared planted in that frame).
+ */
+import PeopleStyles from '@components/people/PeopleStyles.astro';
+
+const uid = `br-${Math.random().toString(36).slice(2, 8)}`;
+const X0 = 96;
+const SPAN = 528;
+const DECK = 196;
+const hangers = Array.from({ length: 21 }, (_, i) => X0 + 12 + i * 24.2);
+// curve chart
+const CX0 = 72;
+const CX1 = 690;
+const CY0 = 196;
+const CY1 = 40;
+const NU0 = 1.2;
+const NU1 = 2.8;
+const AMAX = 3;
+const cx = (nu: number) => CX0 + ((nu - NU0) / (NU1 - NU0)) * (CX1 - CX0);
+const cy = (a: number) => CY0 - (a / AMAX) * (CY0 - CY1);
+const nuTicks = [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8];
+const aTicks = [1, 2, 3];
+const num = (v: number) => String(v).replace('.', ',');
+---
+
+<PeopleStyles />
+<figure class="br not-content" data-bridge>
+	<svg class="br__scene" viewBox="0 0 720 290" role="img" aria-label="Колонна солдат идёт по лёгкому висячему мосту; мост раскачивается">
+		<rect class="br__water" x="0" y="246" width="720" height="44" />
+		<path class="br__wave" d="M20 262 q10 -4 20 0 t20 0 M140 274 q10 -4 20 0 t20 0 M300 258 q10 -4 20 0 t20 0 M470 270 q10 -4 20 0 t20 0 M600 260 q10 -4 20 0 t20 0" />
+		<path class="br__bank" d={`M0 ${DECK} H${X0} L${X0 - 20} 250 H0 Z`} />
+		<path class="br__bank" d={`M720 ${DECK} H${X0 + SPAN} L${X0 + SPAN + 20} 250 H720 Z`} />
+		<rect class="br__tower" x={X0 - 6} y="84" width="10" height={DECK - 84} />
+		<rect class="br__tower" x={X0 + SPAN - 4} y="84" width="10" height={DECK - 84} />
+		<path class="br__cable" data-cable />
+		<g class="br__hangers">
+			{hangers.map((x) => <line x1={x} x2={x} data-hx={x} />)}
+		</g>
+		<g data-soldiers></g>
+		<path class="br__deck" data-deck />
+		<line class="br__road" x1="0" x2={X0} y1={DECK} y2={DECK} />
+		<line class="br__road" x1={X0 + SPAN} x2="720" y1={DECK} y2={DECK} />
+	</svg>
+
+	<div class="br__controls">
+		<label class="br__slider">
+			<span>Частота шагов <i>ν</i> (шагов в секунду)</span>
+			<output data-nu-out></output>
+			<input type="range" min={NU0} max={NU1} step="0.05" value="1.5" data-nu />
+		</label>
+		<div class="br__seg" role="group" aria-label="Как идут солдаты">
+			<button type="button" class="br__btn" aria-pressed="true" data-step="1">В ногу</button>
+			<button type="button" class="br__btn" aria-pressed="false" data-step="0">Не в ногу</button>
+		</div>
+	</div>
+	<dl class="br__stats">
+		<div><dt>Собственная частота моста</dt><dd><i>ν</i><sub>0</sub> = 2,0 Гц</dd></div>
+		<div><dt>Амплитуда колебаний середины моста</dt><dd data-amp>0 см</dd></div>
+	</dl>
+
+	<svg class="br__chart" viewBox="0 0 720 236" role="img" aria-label="Резонансная кривая: амплитуда колебаний моста в зависимости от частоты шагов">
+		<g class="br__grid">
+			{nuTicks.map((n) => <line x1={cx(n)} x2={cx(n)} y1={CY0} y2={CY1} />)}
+			{aTicks.map((a) => <line x1={CX0} x2={CX1} y1={cy(a)} y2={cy(a)} />)}
+		</g>
+		<line class="br__axis" x1={CX0} y1={CY0} x2={CX1 + 8} y2={CY0} />
+		<line class="br__axis" x1={CX0} y1={CY0} x2={CX0} y2={CY1 - 10} />
+		<g class="br__labels">
+			{nuTicks.slice(0, -1).map((n) => <text x={cx(n)} y={CY0 + 22} text-anchor="middle">{num(n)}</text>)}
+			<text x={CX0 - 8} y={CY0 + 6} text-anchor="end">0</text>
+			{aTicks.map((a) => <text x={CX0 - 8} y={cy(a) + 6} text-anchor="end">{a}</text>)}
+			<text x={CX0 + 10} y={CY1 - 16}><tspan class="br__it">A</tspan>, см</text>
+			<text x={CX1 + 10} y={CY0 + 22} text-anchor="end" class="br__unit"><tspan class="br__it">ν</tspan>, Гц</text>
+		</g>
+		<line class="br__nu0" x1={cx(2)} x2={cx(2)} y1={CY0} y2={CY1} />
+		<path class="br__curve" data-curve />
+		<line class="br__now" y1={CY0} data-now-line />
+		<circle class="br__dot" r="7" data-dot />
+	</svg>
+	<div class="br__buttons">
+		<button type="button" class="br__btn" data-all>Показать всю кривую</button>
+		<button type="button" class="br__btn" data-clear>Стереть кривую</button>
+	</div>
+	<figcaption class="br__caption">
+		Время настоящее, а прогиб моста нарисован в 20 раз больше. Кривая — амплитуда, до которой раскачивается мост при
+		ходьбе в ногу; она рисуется там, где вы уже поставили частоту шагов. Точка — амплитуда сейчас. Вертикальный
+		пунктир — собственная частота моста.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.br {
+		margin-block: 1.5rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.br i {
+		font-family: var(--ig-font-math);
+	}
+	.br__scene,
+	.br__chart {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: var(--sl-color-bg);
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.br__chart {
+		margin-top: 0.8rem;
+	}
+	.br__water {
+		fill: color-mix(in srgb, var(--ig-vx) 22%, var(--sl-color-bg));
+	}
+	.br__wave {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-vx) 45%, var(--sl-color-bg));
+		stroke-width: 1.5;
+	}
+	.br__bank {
+		fill: color-mix(in srgb, var(--sl-color-gray-4) 60%, var(--sl-color-bg));
+	}
+	.br__road {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 3;
+	}
+	.br__tower {
+		fill: var(--sl-color-gray-3);
+	}
+	.br__cable {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 2.2;
+	}
+	.br__hangers line {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+	}
+	.br__deck {
+		fill: none;
+		stroke: color-mix(in srgb, var(--ig-v) 55%, var(--sl-color-gray-3));
+		stroke-width: 5;
+		stroke-linecap: round;
+	}
+	.br__controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: end;
+		gap: 0.6rem 1.2rem;
+		margin-top: 0.8rem;
+	}
+	.br__slider {
+		flex: 1 1 18rem;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.br__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.br__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.br__seg,
+	.br__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.br__buttons {
+		margin-top: 0.5rem;
+	}
+	.br__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.3rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-1);
+		cursor: pointer;
+	}
+	.br__btn[aria-pressed='true'] {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 22%, transparent);
+		color: var(--sl-color-white);
+	}
+	.br__stats {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem 1.5rem;
+		margin: 0.7rem 0 0;
+		font-size: var(--sl-text-sm);
+	}
+	.br__stats div {
+		display: flex;
+		gap: 0.4rem;
+	}
+	.br__stats dt {
+		color: var(--sl-color-gray-3);
+	}
+	.br__stats dd {
+		margin: 0;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.br__grid line {
+		stroke: var(--sl-color-gray-5);
+		stroke-width: 1;
+	}
+	.br__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.br__labels text {
+		font-family: var(--__sl-font);
+		font-size: 14px;
+		fill: var(--sl-color-gray-3);
+		paint-order: stroke fill;
+		stroke: var(--sl-color-bg);
+		stroke-width: 4px;
+	}
+	.br__labels .br__it {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+	}
+	.br__nu0 {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 4;
+	}
+	.br__curve {
+		fill: none;
+		stroke: var(--ig-v);
+		stroke-width: 3;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.br__now {
+		stroke: var(--sl-color-text-accent);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	.br__dot {
+		fill: var(--sl-color-text-accent);
+		stroke: var(--sl-color-bg);
+		stroke-width: 2;
+	}
+	.br__caption {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.br {
+			padding: 0.75rem;
+		}
+		.br__labels text {
+			font-size: 24px;
+		}
+	}
+</style>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+	import { figure, walk, ANKLE_CM, SKELETON, DEG, add, polar, mk, type Pt, type HandTarget, type Figure } from '@components/people';
+	import { fmt } from './util';
+
+	const f1 = (v: number) => v.toFixed(1);
+	const X0 = 96;
+	const SPAN = 528;
+	const DECK = 196;
+	const K = 30; // px per м
+	const EXAG = 20;
+	const S = 0.3; // px per см
+	const HS = 175; // см
+	const STEP = 0.75 * K; // px
+	const GAP = 4 * STEP; // 3 м
+	const NS = 10;
+	const WRAP = NS * GAP; // 900 px, 40 steps
+	const M = 8000;
+	const ZETA = 0.02;
+	const W0 = 2 * Math.PI * 2.0;
+	const AG = 0.4 * 80 * 9.8; // Н
+	const LM = SPAN / K; // м
+	const F0 = AG * (1 / 3) * ((2 * LM) / Math.PI);
+	const DEL = [0, 0.09, -0.07, 0.12, -0.11, 0.04, -0.03, 0.1, -0.06, 0.07];
+	const PSI = [0, 0.37, 0.71, 0.13, 0.52, 0.89, 0.27, 0.64, 0.05, 0.81];
+	// chart
+	const CX0 = 72;
+	const CX1 = 690;
+	const CY0 = 196;
+	const CY1 = 40;
+	const NU0 = 1.2;
+	const NU1 = 2.8;
+	const AMAX = 3;
+	const cx = (nu: number) => CX0 + ((nu - NU0) / (NU1 - NU0)) * (CX1 - CX0);
+	const cy = (a: number) => CY0 - (Math.min(a, AMAX + 0.15) / AMAX) * (CY0 - CY1);
+	const steady = (nu: number) => {
+		const w = 2 * Math.PI * nu;
+		return (100 * F0) / M / Math.sqrt((W0 * W0 - w * w) ** 2 + (2 * ZETA * W0 * w) ** 2); // см
+	};
+	const shape = (x: number) => (x > X0 && x < X0 + SPAN ? Math.sin((Math.PI * (x - X0)) / SPAN) : 0);
+
+	/** A marching soldier: the hip at `hipX`, feet planted by the walk cycle of distance d, arms swinging. */
+	const marcher = (p: Figure) => {
+		const sk = SKELETON.adult;
+		const u = S * HS;
+		const ay = DECK - ANKLE_CM.lowshoe * S;
+		const legL = (sk.thigh + sk.shin) * u;
+		const len = (sk.upper + sk.fore) * u * 0.95 + 0.045 * u;
+		return (d: number, step: number, base: number, plant: boolean) => {
+			const w = walk(d, step, 0, Math.max(0.05 * u, 1.6));
+			const hip = { x: base + d, y: ay - legL * 0.93 + w.bob };
+			const sh = p.shoulders(hip, 0.03);
+			const swing = (s: Pt, a: number): HandTarget => ({ at: add(s, polar(len, Math.PI / 2 - a)), pose: 'relaxed' });
+			p.pose({
+				hip,
+				lean: 0.03,
+				ankles: [
+					{ x: base + w.feet[0].x + step * 0.5, y: ay - w.feet[0].up },
+					{ x: base + w.feet[1].x + step * 0.5, y: ay - w.feet[1].up },
+				],
+				feet: [w.feet[0].toe, w.feet[1].toe],
+				hands: [swing(sh[0], -24 * DEG * w.arm), swing(sh[1], 24 * DEG * w.arm)],
+				planted: [plant && w.feet[0].planted, plant && w.feet[1].planted],
+			});
+			return hip.x;
+		};
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-bridge]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const nuIn = q<HTMLInputElement>('[data-nu]');
+		const nuOut = q<HTMLOutputElement>('[data-nu-out]');
+		const ampOut = q<HTMLElement>('[data-amp]');
+		const deck = q<SVGPathElement>('[data-deck]');
+		const cable = q<SVGPathElement>('[data-cable]');
+		const hangers = Array.from(root.querySelectorAll<SVGLineElement>('[data-hx]'));
+		const curve = q<SVGPathElement>('[data-curve]');
+		const dot = q<SVGCircleElement>('[data-dot]');
+		const nowLine = q<SVGLineElement>('[data-now-line]');
+		const stepBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-step]'));
+		const host = q<SVGGElement>('[data-soldiers]');
+
+		const soldiers = Array.from({ length: NS }, (_, i) => {
+			const g = mk(host, 'g', {});
+			const inner = mk(g, 'g', {});
+			const p = figure(inner, { s: S, H: HS, clothes: 'home', shirt: 'hm-green', name: `soldier-${i + 1}` });
+			return { g, pose: marcher(p), lastD: -1 };
+		});
+
+		let nu = Number(nuIn.value);
+		let inStep = true;
+		let dist = 0; // px the column has gone
+		let qd = 0; // m, sag of the middle of the deck
+		let vd = 0;
+		let changed = true; // a frame where feet may jump (start, mode switch)
+		const seen = new Set<number>();
+		const bin = (v: number) => Math.round(v * 20);
+
+		const drawCurve = () => {
+			const bins = [...seen].sort((a, b) => a - b);
+			let d = '';
+			let prev = -99;
+			for (const b of bins) {
+				const v = b / 20;
+				const pt = `${f1(cx(v))} ${f1(cy(steady(v)))}`;
+				if (b === prev + 1) {
+					// fill the gap between two neighbouring bins with the smooth curve
+					for (let k = 1; k <= 4; k++) {
+						const vv = (prev + k / 4) / 20;
+						d += ` L${f1(cx(vv))} ${f1(cy(steady(vv)))}`;
+					}
+				} else d += ` M${pt} L${pt}`;
+				prev = b;
+			}
+			curve.setAttribute('d', d.trim());
+		};
+		const deckY = (x: number) => DECK + EXAG * K * qd * shape(x);
+		/** The far cable: 88 at the towers, 80 px lower in the middle, moving with the deck (the hangers keep their length). */
+		const cableY = (x: number) => 88 + 80 * (1 - 4 * ((x - X0) / SPAN - 0.5) ** 2) + (deckY(x) - DECK);
+
+		/**
+		 * Soldier i: D — how far along the wrap (0…900 px), the hip at D − 90; his walk distance d and step. Out of step
+		 * the step is shorter or longer by the factor 1/(1 + δ), so his cadence is ν(1 + δ) at the same speed, and his
+		 * phase is shifted by ψ steps. A foot lands whenever d/step is a whole number, so his push is cos(2π·d/step).
+		 */
+		const gait = (i: number) => {
+			const D = (dist + i * GAP) % WRAP;
+			const step = inStep ? STEP : STEP / (1 + DEL[i]);
+			const d = inStep ? D : D + PSI[i] * step;
+			return { D, d, step, hipX: D - 90 };
+		};
+		const force = () => {
+			let F = 0;
+			for (let i = 0; i < NS; i++) {
+				const g = gait(i);
+				F += AG * shape(g.hipX) * Math.cos((2 * Math.PI * g.d) / g.step);
+			}
+			return F;
+		};
+
+		const draw = () => {
+			// deck and cable
+			let dd = '';
+			let cd = '';
+			for (let i = 0; i <= 48; i++) {
+				const x = X0 + (i * SPAN) / 48;
+				const y = deckY(x);
+				dd += `${i ? ' L' : 'M'}${f1(x)} ${f1(y + 3)}`;
+				cd += `${i ? ' L' : 'M'}${f1(x)} ${f1(cableY(x))}`;
+			}
+			deck.setAttribute('d', dd);
+			cable.setAttribute('d', cd);
+			for (const h of hangers) {
+				const x = Number(h.dataset.hx);
+				h.setAttribute('y1', f1(cableY(x)));
+				h.setAttribute('y2', f1(deckY(x)));
+			}
+			// soldiers
+			soldiers.forEach((s, i) => {
+				const g = gait(i);
+				const wrapped = g.D < s.lastD;
+				s.lastD = g.D;
+				const hipX = s.pose(g.d, g.step, g.hipX - g.d, !(wrapped || changed));
+				s.g.setAttribute('transform', `translate(0 ${f1(deckY(hipX) - DECK)})`);
+			});
+			changed = false;
+			// readouts
+			const amp = 100 * Math.sqrt(qd * qd + (vd / W0) ** 2);
+			ampOut.textContent = `${fmt(amp, 1)} см`;
+			dot.setAttribute('cx', f1(cx(nu)));
+			dot.setAttribute('cy', f1(cy(amp)));
+			nowLine.setAttribute('x1', f1(cx(nu)));
+			nowLine.setAttribute('x2', f1(cx(nu)));
+			nowLine.setAttribute('y2', f1(cy(amp)));
+		};
+
+		loop(root, (dt) => {
+			const h = 0.002;
+			let rest = dt;
+			while (rest > 1e-9) {
+				const k = Math.min(h, rest);
+				const a = force() / M - 2 * ZETA * W0 * vd - W0 * W0 * qd;
+				vd += a * k;
+				qd += vd * k;
+				dist += STEP * nu * k;
+				rest -= k;
+			}
+			draw();
+			return true;
+		});
+
+		const setNu = () => {
+			nu = Number(nuIn.value);
+			nuOut.textContent = `${fmt(nu, 2)} Гц`;
+			if (inStep) seen.add(bin(nu));
+			drawCurve();
+		};
+		nuIn.addEventListener('input', setNu);
+		stepBtns.forEach((b) =>
+			b.addEventListener('click', () => {
+				inStep = b.dataset.step === '1';
+				stepBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+				changed = true;
+				if (inStep) seen.add(bin(nu));
+				drawCurve();
+			}),
+		);
+		q<HTMLButtonElement>('[data-all]').addEventListener('click', () => {
+			for (let b = bin(NU0); b <= bin(NU1); b++) seen.add(b);
+			drawCurve();
+		});
+		q<HTMLButtonElement>('[data-clear]').addEventListener('click', () => {
+			seen.clear();
+			if (inStep) seen.add(bin(nu));
+			drawCurve();
+		});
+		setNu();
+		draw();
+	}
+</script>

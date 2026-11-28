@@ -69,3 +69,27 @@ export const logScale = (min: number, max: number) => ({
 	toValue: (pos: number) => min * (max / min) ** (pos / 1000),
 	toPos: (value: number) => (1000 * Math.log(value / min)) / Math.log(max / min),
 });
+
+/**
+ * The small arrow over the letter of a vector's label (as ProjAnglePicture of «Перемещение…» draws it): a short line
+ * over the first glyph of `label` with a little head on the right. Call after the label has been placed; the mark
+ * copies the label's visibility.
+ */
+export const vecMark = (label: SVGTextElement, mark: SVGPathElement) => {
+	mark.style.visibility = label.style.visibility;
+	let r: DOMRect;
+	try {
+		r = label.getExtentOfChar(0) as DOMRect;
+	} catch {
+		return;
+	}
+	if (!r.width) return;
+	const w = Math.max(r.width * 0.95, 8);
+	const cx = r.x + r.width * 0.62;
+	const lower = /[a-zа-я]/.test(label.textContent?.charAt(0) ?? '');
+	const fs = parseFloat(getComputedStyle(label).fontSize) || r.height / 1.2;
+	const base = Number(label.getAttribute('y')) || r.y + r.height * 0.8;
+	const y = base - fs * (lower ? 0.66 : 0.9);
+	const h = Math.max(fs * 0.13, 2.2);
+	mark.setAttribute('d', `M${(cx - w / 2).toFixed(1)} ${y.toFixed(1)} H${(cx + w / 2).toFixed(1)} M${(cx + w / 2 - h).toFixed(1)} ${(y - h).toFixed(1)} L${(cx + w / 2).toFixed(1)} ${y.toFixed(1)} L${(cx + w / 2 - h).toFixed(1)} ${(y + h).toFixed(1)}`);
+};

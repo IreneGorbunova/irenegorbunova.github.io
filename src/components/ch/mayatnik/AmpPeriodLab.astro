@@ -1,0 +1,481 @@
+---
+/**
+ * Model to the definitions of amplitude, period and frequency («Амплитуда, период и частота»).
+ * A weight on a horizontal spring slides on a smooth table (side view, one scale: 1 см = 13 px; the ruler under the
+ * table is in centimetres, 0 = the position of equilibrium). The motion is set directly: x = A·cos(2πt/T), real time.
+ * Sliders: the amplitude A (1–8 см) and the period T (0,5–3,0 с); ν = 1/T is shown live. The amplitude is a dimension
+ * line from 0 to the right extreme point; both extreme points are dashed lines.
+ * The stopwatch works as in the lab: «Пуск секундомера» starts it when the weight is next at the right extreme point,
+ * every return to that point adds one whole oscillation N, and after N = 10 it stops by itself (or by «Стоп» at any
+ * moment). The panel then computes T = t/N and ν = 1/T with the measured numbers. The crossing times are found exactly
+ * (between two frames), so 10 oscillations of T = 1,5 с read t = 15,0 с.
+ * Why this design: the three notions are seen at once and separately — A on the path, T and ν on the stopwatch — and
+ * changing A leaves T unchanged; the stopwatch repeats the school method T = t/N.
+ */
+const uid = `ap-${Math.random().toString(36).slice(2, 8)}`;
+const X0 = 380;
+const PX = 13; // px per см
+const TRACK = 150;
+const WALL = 70;
+const ticks = Array.from({ length: 21 }, (_, i) => i - 10);
+const wallHatch = Array.from({ length: 5 }, (_, i) => 98 + i * 12);
+const floorHatch = Array.from({ length: 31 }, (_, i) => 74 + i * 20);
+---
+
+<figure class="ap not-content" data-ap>
+	<svg class="ap__scene" viewBox="0 0 720 224" role="img" aria-label="Груз на пружине колеблется на гладком столе. Отмечены положение равновесия, крайние точки и амплитуда; секундомер считает полные колебания">
+		<defs>
+			<marker id={`${uid}-d`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+				<path class="ap__head" d="M0 1 L10 5 L0 9 z" />
+			</marker>
+		</defs>
+		<!-- stopwatch -->
+		<g class="ap__watch" transform="translate(52 48)">
+			<rect x="-5" y="-36" width="10" height="7" rx="2" />
+			<circle r="27" class="ap__dial" />
+			{Array.from({ length: 12 }, (_, i) => {
+				const a = (i * Math.PI) / 6;
+				return <line x1={(21 * Math.sin(a)).toFixed(1)} y1={(-21 * Math.cos(a)).toFixed(1)} x2={(25 * Math.sin(a)).toFixed(1)} y2={(-25 * Math.cos(a)).toFixed(1)} />;
+			})}
+			<line class="ap__hand" x1="0" y1="0" x2="0" y2="-20" data-hand />
+			<circle r="2.5" class="ap__axle" />
+		</g>
+		<text class="ap__big" x="96" y="40" data-tclock>t = 0,0 с</text>
+		<text class="ap__big" x="96" y="72" data-nclock>N = 0</text>
+
+		<!-- table, wall -->
+		<line class="ap__table" x1={WALL} y1={TRACK} x2="690" y2={TRACK} />
+		{floorHatch.map((x) => <line class="ap__hatch" x1={x} y1={TRACK + 1} x2={x - 8} y2={TRACK + 9} />)}
+		<line class="ap__table" x1={WALL} y1={TRACK} x2={WALL} y2="96" />
+		{wallHatch.map((y) => <line class="ap__hatch" x1={WALL - 1} y1={y} x2={WALL - 9} y2={y + 8} />)}
+
+		<!-- ruler -->
+		<g class="ap__ruler">
+			{ticks.map((c) => <line x1={X0 + c * PX} x2={X0 + c * PX} y1={TRACK + 14} y2={TRACK + (c % 2 === 0 ? 24 : 19)} />)}
+			<line x1={X0 - 10 * PX} x2={X0 + 10 * PX} y1={TRACK + 14} y2={TRACK + 14} />
+			{ticks.filter((c) => c % 4 === 0).map((c) => <text x={X0 + c * PX} y={TRACK + 42} text-anchor="middle">{c < 0 ? `−${-c}` : c}</text>)}
+			<text x={X0 + 10 * PX + 14} y={TRACK + 24}>см</text>
+		</g>
+		<text class="ap__small" x={X0} y="214" text-anchor="middle">положение равновесия</text>
+
+		<!-- equilibrium and the extreme points -->
+		<line class="ap__eq" x1={X0} y1="100" x2={X0} y2={TRACK + 12} />
+		<line class="ap__ext" y1="100" y2={TRACK + 12} data-ext-l />
+		<line class="ap__ext" y1="100" y2={TRACK + 12} data-ext-r />
+
+		<!-- amplitude -->
+		<line class="ap__dim" y1="94" y2="94" x1={X0} marker-start={`url(#${uid}-d)`} marker-end={`url(#${uid}-d)`} data-dim />
+		<text class="ap__alabel" y="84" text-anchor="middle" data-alabel><tspan class="ap__it">A</tspan><tspan data-aval> = 5,0 см</tspan></text>
+
+		<path class="ap__coil" data-coil />
+		<rect class="ap__weight" y={TRACK - 34} width="44" height="34" rx="5" data-weight />
+	</svg>
+
+	<div class="ap__controls">
+		<label class="ap__slider">
+			<span>Амплитуда <i>A</i></span>
+			<output data-a-out></output>
+			<input type="range" min="1" max="8" step="0.5" value="5" data-a />
+		</label>
+		<label class="ap__slider">
+			<span>Период <i>T</i></span>
+			<output data-t-out></output>
+			<input type="range" min="0.5" max="3" step="0.1" value="1.5" data-t />
+		</label>
+	</div>
+	<div class="ap__nu" data-nu></div>
+	<div class="ap__buttons">
+		<button type="button" class="ap__btn ap__btn--primary" data-start>Пуск секундомера</button>
+		<button type="button" class="ap__btn" data-stop disabled>Стоп</button>
+		<span class="ap__hint" data-hint>Секундомер включится, когда груз будет в правой крайней точке, и остановится после 10 полных колебаний.</span>
+	</div>
+	<div class="ap__result">
+		<div class="ap__f" data-f-t></div>
+		<div class="ap__f" data-f-nu></div>
+	</div>
+	<figcaption class="ap__caption">
+		Пунктир — крайние точки, между ними груз ходит «туда и обратно». Трения нет, поэтому размах не уменьшается.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.ap {
+		margin-block: 1.5rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ap i {
+		font-family: var(--ig-font-math);
+	}
+	.ap__scene {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: var(--sl-color-bg);
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	.ap__scene text {
+		font-family: var(--__sl-font);
+		font-size: 14px;
+		fill: var(--sl-color-gray-2);
+	}
+	.ap__scene .ap__big {
+		font-size: 20px;
+		font-weight: 600;
+		fill: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ap__scene .ap__alabel {
+		font-size: 17px;
+		fill: var(--sl-color-white);
+	}
+	.ap__scene .ap__it {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 19px;
+	}
+	.ap__dial {
+		fill: var(--ig-surface);
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.ap__watch rect {
+		fill: var(--sl-color-gray-3);
+	}
+	.ap__watch line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.4;
+	}
+	.ap__watch .ap__hand {
+		stroke: var(--sl-color-text-accent);
+		stroke-width: 2.4;
+		stroke-linecap: round;
+	}
+	.ap__axle {
+		fill: var(--sl-color-text-accent);
+	}
+	.ap__watch.is-on .ap__dial {
+		stroke: var(--sl-color-text-accent);
+	}
+	.ap__table {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 2;
+	}
+	.ap__hatch {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1.2;
+	}
+	.ap__ruler line {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.ap__eq {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 5 4;
+	}
+	.ap__ext {
+		stroke: var(--ig-vy);
+		stroke-width: 1.4;
+		stroke-dasharray: 3 4;
+		transition: stroke-width 0.2s;
+	}
+	.ap__ext.is-flash {
+		stroke-width: 4;
+		stroke-dasharray: none;
+	}
+	.ap__dim {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.6;
+	}
+	.ap__head {
+		fill: var(--sl-color-white);
+	}
+	.ap__coil {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+	.ap__weight {
+		fill: var(--ig-vy);
+		stroke: color-mix(in srgb, var(--ig-vy) 60%, var(--sl-color-white));
+		stroke-width: 1.2;
+	}
+	.ap__controls {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.6rem 1.2rem;
+		margin-top: 0.8rem;
+	}
+	.ap__slider {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.2rem 0.6rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ap__slider input {
+		grid-column: 1 / -1;
+		width: 100%;
+		accent-color: var(--sl-color-accent);
+	}
+	.ap__slider output {
+		font-weight: 700;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.ap__nu {
+		margin-top: 0.4rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+	.ap__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.6rem;
+		margin-top: 0.7rem;
+	}
+	.ap__btn {
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		padding: 0.35rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-1);
+		cursor: pointer;
+	}
+	.ap__btn--primary {
+		border-color: var(--sl-color-accent);
+		background: color-mix(in srgb, var(--sl-color-accent) 22%, transparent);
+		color: var(--sl-color-white);
+	}
+	.ap__btn:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.ap__hint {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		flex: 1 1 16rem;
+	}
+	.ap__result {
+		display: grid;
+		gap: 0.3rem;
+		margin-top: 0.6rem;
+		min-height: 3.4rem;
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	.ap__f {
+		color: var(--sl-color-gray-1);
+	}
+	.ap__caption {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	@media (max-width: 40rem) {
+		.ap {
+			padding: 0.75rem;
+		}
+		.ap__scene text {
+			font-size: 24px;
+		}
+		.ap__scene .ap__big {
+			font-size: 28px;
+		}
+		.ap__scene .ap__alabel {
+			font-size: 28px;
+		}
+		.ap__scene .ap__it {
+			font-size: 30px;
+		}
+		.ap__controls {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>
+
+<script>
+	import { loop } from '@components/ch/g7/kit';
+	import { fmt, tex, tnum } from './util';
+
+	const X0 = 380;
+	const PX = 13;
+	const TRACK = 150;
+	const WALL = 70;
+	const NMAX = 10;
+	const TAU = 2 * Math.PI;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ap]')) {
+		const q = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const aIn = q<HTMLInputElement>('[data-a]');
+		const tIn = q<HTMLInputElement>('[data-t]');
+		const aOut = q<HTMLOutputElement>('[data-a-out]');
+		const tOut = q<HTMLOutputElement>('[data-t-out]');
+		const weight = q<SVGRectElement>('[data-weight]');
+		const coil = q<SVGPathElement>('[data-coil]');
+		const extL = q<SVGLineElement>('[data-ext-l]');
+		const extR = q<SVGLineElement>('[data-ext-r]');
+		const dim = q<SVGLineElement>('[data-dim]');
+		const alabel = q<SVGTextElement>('[data-alabel]');
+		const aval = q<SVGTSpanElement>('[data-aval]');
+		const hand = q<SVGLineElement>('[data-hand]');
+		const watch = q<SVGGElement>('.ap__watch');
+		const tClock = q<SVGTextElement>('[data-tclock]');
+		const nClock = q<SVGTextElement>('[data-nclock]');
+		const start = q<HTMLButtonElement>('[data-start]');
+		const stop = q<HTMLButtonElement>('[data-stop]');
+		const fT = q<HTMLElement>('[data-f-t]');
+		const fNu = q<HTMLElement>('[data-f-nu]');
+		const nu = q<HTMLElement>('[data-nu]');
+
+		let A = Number(aIn.value); // см, set by the slider
+		let Ashown = A; // follows A smoothly, so the weight does not jump
+		let T = Number(tIn.value);
+		let phi = 0; // phase, rad; x = A·cos(phi)
+		let mode: 'idle' | 'armed' | 'run' | 'done' = 'idle';
+		let tw = 0; // stopwatch time, s
+		let N = 0;
+		let flash = 0;
+
+		const coilPath = (x2: number) => {
+			const y = TRACK - 17;
+			const a = WALL + 8;
+			const b = x2 - 8;
+			const n = 18;
+			let d = `M ${WALL} ${y} L ${a} ${y}`;
+			for (let i = 0; i < n; i++) d += ` L ${(a + ((i + 0.5) / n) * (b - a)).toFixed(1)} ${y + (i % 2 ? -9 : 9)}`;
+			return `${d} L ${b.toFixed(1)} ${y} L ${x2.toFixed(1)} ${y}`;
+		};
+
+		const showClock = () => {
+			tClock.textContent = `t = ${fmt(tw, 1)} с`;
+			nClock.textContent = `N = ${N}`;
+			hand.setAttribute('transform', `rotate(${((tw % 60) * 6).toFixed(1)})`);
+			watch.classList.toggle('is-on', mode === 'run');
+		};
+
+		const showResult = () => {
+			if (mode !== 'done' || N < 1) {
+				tex(fT, `T = \\dfrac{t}{N} = \\;?`);
+				tex(fNu, `\\nu = \\dfrac{1}{T} = \\;?`);
+				return;
+			}
+			const Tm = tw / N;
+			tex(fT, `T = \\dfrac{t}{N} = \\dfrac{${tnum(tw, 1)}~\\text{с}}{${N}} \\approx ${tnum(Tm, 2)}~\\text{с}`);
+			tex(fNu, `\\nu = \\dfrac{1}{T} = \\dfrac{1}{${tnum(Tm, 2)}~\\text{с}} \\approx ${tnum(1 / Tm, 2)}~\\text{Гц}`);
+		};
+
+		const draw = () => {
+			const x = X0 + Ashown * PX * Math.cos(phi);
+			weight.setAttribute('x', (x - 22).toFixed(1));
+			coil.setAttribute('d', coilPath(x - 22));
+			const r = X0 + A * PX;
+			const l = X0 - A * PX;
+			for (const [ln, v] of [
+				[extR, r],
+				[extL, l],
+			] as const) {
+				ln.setAttribute('x1', v.toFixed(1));
+				ln.setAttribute('x2', v.toFixed(1));
+			}
+			dim.setAttribute('x2', r.toFixed(1));
+			alabel.setAttribute('x', ((X0 + r) / 2).toFixed(1));
+			aval.textContent = ` = ${fmt(A, 1)} см`;
+			extR.classList.toggle('is-flash', flash > 0);
+			showClock();
+		};
+
+		const setTexts = () => {
+			aOut.textContent = `${fmt(A, 1)} см`;
+			tOut.textContent = `${fmt(T, 1)} с`;
+			tex(nu, `\\nu = \\dfrac{1}{T} = \\dfrac{1}{${tnum(T, 1)}~\\text{с}} \\approx ${tnum(1 / T, 2)}~\\text{Гц}`);
+		};
+
+		const reset = () => {
+			mode = 'idle';
+			tw = 0;
+			N = 0;
+			start.disabled = false;
+			stop.disabled = true;
+			showResult();
+		};
+
+		const wake = loop(root, (dt) => {
+			const w = TAU / T;
+			const before = phi;
+			phi += w * dt;
+			Ashown += (A - Ashown) * Math.min(1, dt * 6);
+			flash = Math.max(0, flash - dt);
+			// the moments the weight is at the right extreme point inside this frame (phase = 2πk)
+			let k = Math.floor(before / TAU) + 1;
+			let tFrame = 0; // time inside the frame already given to the stopwatch
+			while (k * TAU <= phi && (mode === 'armed' || mode === 'run')) {
+				const at = (k * TAU - before) / w; // s after the start of the frame
+				if (mode === 'armed') {
+					mode = 'run';
+					tw = 0;
+					N = 0;
+				} else {
+					tw += at - tFrame;
+					N += 1;
+					flash = 0.25;
+					if (N >= NMAX) {
+						mode = 'done';
+						start.disabled = false;
+						stop.disabled = true;
+						showResult();
+					}
+				}
+				tFrame = at;
+				k += 1;
+			}
+			if (mode === 'run') tw += dt - tFrame;
+			if (phi > 1e4) phi -= TAU * Math.floor(phi / TAU) - TAU;
+			draw();
+			return true;
+		});
+
+		aIn.addEventListener('input', () => {
+			A = Number(aIn.value);
+			setTexts();
+			draw();
+		});
+		tIn.addEventListener('input', () => {
+			T = Number(tIn.value);
+			setTexts();
+			reset();
+			draw();
+		});
+		start.addEventListener('click', () => {
+			mode = 'armed';
+			tw = 0;
+			N = 0;
+			start.disabled = true;
+			stop.disabled = false;
+			showResult();
+			draw();
+			wake();
+		});
+		stop.addEventListener('click', () => {
+			mode = N > 0 ? 'done' : 'idle';
+			start.disabled = false;
+			stop.disabled = true;
+			showResult();
+			draw();
+		});
+
+		setTexts();
+		showResult();
+		draw();
+	}
+</script>

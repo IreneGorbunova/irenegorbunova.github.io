@@ -1,0 +1,386 @@
+---
+/**
+ * Picture to the definitions of free, damped and forced oscillations (Irina, 28 Nov 2026: «добавить вынужденные
+ * колебания и свободные колебания… чтобы это всё сопровождалось графиком»). Three rows, each a weight on a spring
+ * (left) and a pen that draws its x(t) (right), the same scale for the weight and the graph (1 unit of x = 40 px),
+ * 53 px per second, a scene of 10 s in real time with «Повторить».
+ *   1. Free without friction: x'' = −ω0²x, released from x = 1 at rest; own period T0 = 1,25 с (8 oscillations).
+ *   2. Free with friction (damped): x'' = −ω0²x − 2βx', β = 0,23 1/с: in 10 с the amplitude falls to 10 %;
+ *      the period 2π/√(ω0² − β²) = 1,252 с ≈ 1,25 с, the envelope ±e^(−βt) dashed.
+ *   3. Forced: from rest, x'' = −ω0²x − 2βx' + f0·sin(2πt/Tf), β = 0,5 1/с, f0 = 12,5, Tf = 2,0 с. At first the own
+ *      oscillations mix in, after about 6 с only the oscillations with the period of the force are left (amplitude
+ *      f0/√((ω0² − ωf²)² + (2βωf)²) = 0,80; the largest swing on the way 1,01). The force is drawn as the arrow F on the
+ *      weight (its length ∝ the force).
+ * The marks: T0 between the first two crests after the start (rows 1, 2), labelled with 2π/√(ω0² − β²) = 1,25 с; in row
+ * 3 between two crests after 6 с, found from the computed curve, labelled with the period of the force, 2,00 с.
+ */
+import katex from 'katex';
+
+const uid = `ok-${Math.random().toString(36).slice(2, 8)}`;
+const vecF = katex.renderToString('\\vec F', { throwOnError: false });
+const rows = [
+	{ id: 'free', title: 'Свободные колебания без трения' },
+	{ id: 'damp', title: 'Свободные колебания с трением — затухающие' },
+	{ id: 'forced', title: 'Вынужденные колебания: действует периодическая внешняя сила' },
+];
+const GX0 = 150;
+const GY0 = 86;
+---
+
+<figure class="ok not-content" data-okinds>
+	{
+		rows.map((r) => (
+			<div class="ok__row" data-row={r.id}>
+				<p class="ok__title">{r.title}</p>
+				<svg class="ok__svg" viewBox="0 0 720 150" role="img" aria-label={`${r.title}: груз на пружине и график его смещения от времени`}>
+					<defs>
+						<marker id={`${uid}-${r.id}-d`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+							<path class="ok__dimhead" d="M0 1 L10 5 L0 9 z" />
+						</marker>
+						<marker id={`${uid}-${r.id}-ax`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+							<path class="ok__axhead" d="M0 1 L10 5 L0 9 z" />
+						</marker>
+						<marker id={`${uid}-${r.id}-f`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+							<path class="ok__fhead" d="M0 0 L10 5 L0 10 z" />
+						</marker>
+					</defs>
+					<rect class="ok__ceiling" x="34" y="4" width="68" height="5" rx="1.5" />
+					<line class="ok__eq" x1="114" x2={GX0} y1={GY0} y2={GY0} />
+					<path class="ok__spring" data-spring />
+					<rect class="ok__weight" x="56" width="24" height="20" rx="3" data-weight />
+					{r.id === 'forced' && (
+						<g data-force>
+							<line class="ok__force" marker-end={`url(#${uid}-${r.id}-f)`} data-fline />
+							<text class="ok__fsym" data-ftext>F</text>
+							<path class="ok__vecmark" data-fmark />
+						</g>
+					)}
+					<line class="ok__axis" x1={GX0} y1={GY0} x2="694" y2={GY0} marker-end={`url(#${uid}-${r.id}-ax)`} />
+					<line class="ok__axis" x1={GX0} y1="140" x2={GX0} y2="36" marker-end={`url(#${uid}-${r.id}-ax)`} />
+					<text class="ok__sym" x={GX0 - 8} y="48" text-anchor="end">x</text>
+					<text class="ok__sym" x="700" y={GY0 + 6}>t</text>
+					{r.id === 'damp' && (
+						<>
+							<path class="ok__env" data-env="1" />
+							<path class="ok__env" data-env="-1" />
+						</>
+					)}
+					<path class="ok__curve" data-curve />
+					<circle class="ok__pen" r="3.5" data-pen />
+					<g class="ok__mark" data-mark>
+						<line class="ok__guide" y1="30" data-g1 />
+						<line class="ok__guide" y1="30" data-g2 />
+						<line class="ok__dim" y1="30" y2="30" marker-start={`url(#${uid}-${r.id}-d)`} marker-end={`url(#${uid}-${r.id}-d)`} data-dim />
+						<text class="ok__label" y="22" text-anchor="middle" data-label><tspan class="ok__it">T</tspan>{r.id !== 'forced' && <tspan class="ok__sub" dy="4">0</tspan>}<tspan dy={r.id !== 'forced' ? -4 : 0}>{r.id === 'forced' ? ' = 2,00 с' : ' = 1,25 с'}</tspan></text>
+					</g>
+				</svg>
+			</div>
+		))
+	}
+	<div class="ok__foot">
+		<figcaption>
+			Свободные колебания идут со своим, собственным периодом <i>T</i><sub>0</sub>; трение их гасит. Вынужденные
+			колебания после короткого «разгона» идут с периодом внешней силы <span set:html={vecF} />, а не со своим. Время — настоящее.
+		</figcaption>
+		<button type="button" class="ok__again" data-again>Повторить</button>
+	</div>
+</figure>
+
+<style is:global>
+	.ok {
+		margin-block: 1.5rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		background: var(--ig-surface);
+	}
+	.ok__row + .ok__row {
+		margin-top: 0.6rem;
+	}
+	.ok__title {
+		margin: 0 0 0.25rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		color: var(--sl-color-gray-1);
+	}
+	.ok__svg {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 0.6rem;
+		background: var(--sl-color-bg);
+	}
+	.ok__svg text {
+		font-family: var(--__sl-font);
+		font-size: 15px;
+		fill: var(--sl-color-gray-1);
+	}
+	.ok__svg .ok__sym,
+	.ok__svg .ok__fsym {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 17px;
+		fill: var(--sl-color-gray-2);
+	}
+	.ok__svg .ok__fsym {
+		fill: var(--ig-vx);
+	}
+	.ok__svg .ok__it {
+		font-family: var(--ig-font-math);
+		font-style: italic;
+		font-size: 17px;
+	}
+	.ok__svg .ok__sub {
+		font-size: 11px;
+	}
+	.ok__ceiling {
+		fill: var(--sl-color-gray-5);
+		stroke: var(--sl-color-gray-4);
+	}
+	.ok__eq {
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 1;
+		stroke-dasharray: 4 4;
+	}
+	.ok__spring {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+	.ok__weight {
+		fill: var(--ig-vy);
+		stroke: color-mix(in srgb, var(--ig-vy) 60%, var(--sl-color-white));
+	}
+	.ok__axis {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	.ok__axhead {
+		fill: var(--sl-color-gray-3);
+	}
+	.ok__curve {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 2.4;
+		stroke-linejoin: round;
+	}
+	.ok__pen {
+		fill: var(--ig-vy);
+	}
+	.ok__env {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+		stroke-dasharray: 4 4;
+	}
+	.ok__force {
+		stroke: var(--ig-vx);
+		stroke-width: 3;
+		stroke-linecap: round;
+	}
+	.ok__fhead {
+		fill: var(--ig-vx);
+	}
+	.ok__vecmark {
+		fill: none;
+		stroke: var(--ig-vx);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.ok__dim {
+		stroke: var(--sl-color-white);
+		stroke-width: 1.3;
+	}
+	.ok__dimhead {
+		fill: var(--sl-color-white);
+	}
+	.ok__guide {
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1;
+		stroke-dasharray: 2 3;
+	}
+	.ok__mark {
+		transition: opacity 0.3s;
+	}
+	.ok__foot {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin-top: 0.6rem;
+	}
+	.ok__foot figcaption {
+		margin: 0;
+		font-size: var(--sl-text-sm);
+		line-height: 1.4;
+		color: var(--sl-color-gray-2);
+	}
+	.ok__foot i {
+		font-family: var(--ig-font-math);
+	}
+	.ok__again {
+		flex: none;
+		margin: 0;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		padding: 0.2rem 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+	}
+	@media (max-width: 40rem) {
+		.ok__svg text {
+			font-size: 26px;
+		}
+		.ok__svg .ok__sym,
+		.ok__svg .ok__fsym,
+		.ok__svg .ok__it {
+			font-size: 28px;
+		}
+		.ok__svg .ok__sub {
+			font-size: 18px;
+		}
+	}
+</style>
+
+<script>
+	import { scene } from '@components/intro/scene';
+	import { rk4t } from './physics';
+	import { vecMark } from './util';
+
+	const GX0 = 150;
+	const GY0 = 86;
+	const PS = 53; // px per s
+	const PU = 40; // px per unit of x
+	const RUN = 10;
+	const H = 0.005;
+	const W0 = (2 * Math.PI) / 1.25;
+	const WF = (2 * Math.PI) / 2.0;
+	const F0 = 12.5;
+	const f1 = (v: number) => v.toFixed(1);
+
+	type Row = { t: number[]; x: number[]; f: number[] };
+	const simulate = (id: string): Row => {
+		const beta = id === 'free' ? 0 : id === 'damp' ? 0.23 : 0.5;
+		const force = (t: number) => (id === 'forced' ? F0 * Math.sin(WF * t) : 0);
+		let x = id === 'forced' ? 0 : 1;
+		let v = 0;
+		const out: Row = { t: [], x: [], f: [] };
+		for (let i = 0; i <= RUN / H; i++) {
+			const t = i * H;
+			out.t.push(t);
+			out.x.push(x);
+			out.f.push(force(t));
+			[x, v] = rk4t(t, x, v, H, (tt, xx, vv) => -W0 * W0 * xx - 2 * beta * vv + force(tt));
+		}
+		return out;
+	};
+	/** Times of the crests (local maxima) of a computed curve. */
+	const crests = (r: Row) => {
+		const c: number[] = [];
+		for (let i = 1; i < r.x.length - 1; i++) if (r.x[i] > r.x[i - 1] && r.x[i] >= r.x[i + 1] && r.x[i] > 0.05) c.push(r.t[i]);
+		return c;
+	};
+	const springPath = (yTop: number, yBot: number) => {
+		const n = 12;
+		const x = 68;
+		let d = `M${x} ${f1(yTop)} L${x} ${f1(yTop + 3)}`;
+		for (let i = 0; i < n; i++) d += ` L${x + (i % 2 ? -7 : 7)} ${f1(yTop + 3 + ((i + 0.5) / n) * (yBot - yTop - 6))}`;
+		return `${d} L${x} ${f1(yBot - 3)} L${x} ${f1(yBot)}`;
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-okinds]')) {
+		const rows = Array.from(root.querySelectorAll<HTMLElement>('[data-row]')).map((rowEl) => {
+			const id = rowEl.dataset.row!;
+			const q = <T extends Element>(s: string) => rowEl.querySelector<T>(s);
+			const data = simulate(id);
+			const cr = crests(data);
+			// the marked period: the first two crests (free, damped) or two late crests (forced)
+			let a = cr[0];
+			let b = cr[1];
+			if (id === 'forced') {
+				const late = cr.filter((t) => t > 6);
+				a = late[0];
+				b = late[1];
+			}
+			const x1 = GX0 + a * PS;
+			const x2 = GX0 + b * PS;
+			const yTop = (t: number) => GY0 - PU * data.x[Math.round(t / H)];
+			for (const [sel, xv] of [
+				['[data-g1]', x1],
+				['[data-g2]', x2],
+			] as const) {
+				const g = q<SVGLineElement>(sel)!;
+				g.setAttribute('x1', f1(xv));
+				g.setAttribute('x2', f1(xv));
+				g.setAttribute('y2', f1(yTop(sel === '[data-g1]' ? a : b) - 4));
+			}
+			const dim = q<SVGLineElement>('[data-dim]')!;
+			dim.setAttribute('x1', f1(x1));
+			dim.setAttribute('x2', f1(x2));
+			const label = q<SVGTextElement>('[data-label]')!;
+			label.setAttribute('x', f1((x1 + x2) / 2));
+			if (id === 'damp') {
+				for (const env of rowEl.querySelectorAll<SVGPathElement>('[data-env]')) {
+					const s = Number(env.dataset.env);
+					env.setAttribute(
+						'd',
+						Array.from({ length: 101 }, (_, i) => {
+							const t = (i * RUN) / 100;
+							return `${i ? 'L' : 'M'}${f1(GX0 + t * PS)} ${f1(GY0 - s * PU * Math.exp(-0.23 * t))}`;
+						}).join(' '),
+					);
+				}
+			}
+			return {
+				id,
+				data,
+				markAt: b,
+				curve: q<SVGPathElement>('[data-curve]')!,
+				pen: q<SVGCircleElement>('[data-pen]')!,
+				mark: q<SVGGElement>('[data-mark]')!,
+				spring: q<SVGPathElement>('[data-spring]')!,
+				weight: q<SVGRectElement>('[data-weight]')!,
+				fline: q<SVGLineElement>('[data-fline]'),
+				ftext: q<SVGTextElement>('[data-ftext]'),
+				fmark: q<SVGPathElement>('[data-fmark]'),
+			};
+		});
+
+		scene(root, RUN, (u) => {
+			const t = u * RUN;
+			const n = Math.round(t / H);
+			for (const r of rows) {
+				const pts: string[] = [];
+				const stride = 4;
+				for (let i = 0; i <= n; i += stride) pts.push(`${f1(GX0 + r.data.t[i] * PS)} ${f1(GY0 - PU * r.data.x[i])}`);
+				const xNow = r.data.x[n];
+				pts.push(`${f1(GX0 + t * PS)} ${f1(GY0 - PU * xNow)}`);
+				r.curve.setAttribute('d', `M${pts.join(' L')}`);
+				r.pen.setAttribute('cx', f1(GX0 + t * PS));
+				r.pen.setAttribute('cy', f1(GY0 - PU * xNow));
+				r.mark.style.opacity = t >= r.markAt ? '1' : '0';
+				const wc = GY0 - PU * xNow; // the weight's center
+				r.weight.setAttribute('y', f1(wc - 10));
+				r.spring.setAttribute('d', springPath(9, wc - 10));
+				if (r.fline && r.ftext && r.fmark) {
+					const L = (r.data.f[n] / F0) * 30; // up when positive
+					const on = Math.abs(L) > 4;
+					r.fline.style.visibility = on ? 'visible' : 'hidden';
+					r.ftext.style.visibility = on ? 'visible' : 'hidden';
+					r.fline.setAttribute('x1', '88');
+					r.fline.setAttribute('x2', '88');
+					r.fline.setAttribute('y1', f1(wc));
+					r.fline.setAttribute('y2', f1(wc - L));
+					r.ftext.setAttribute('x', '96');
+					r.ftext.setAttribute('y', f1(wc - L / 2 + 7));
+					vecMark(r.ftext, r.fmark);
+				}
+			}
+		});
+	}
+</script>
