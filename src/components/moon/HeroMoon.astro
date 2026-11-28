@@ -377,7 +377,26 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 		img.onload = draw;
 		img.src = root.dataset.src!;
 		place();
-		document.fonts?.ready.then(place);
+		document.fonts?.ready.then(() => place());
+		// A browser may lay the page out at another window size first (Yandex Browser prerenders pages from its
+		// start page and address bar) and show it later without a resize event; the Moon then stayed where the free
+		// spot used to be, over the text or the button (Irina, 28 Nov 2026). So any change of the hero or of its text
+		// places the Moon again.
+		let layoutTimer = 0;
+		const replace = () => {
+			clearTimeout(layoutTimer);
+			layoutTimer = window.setTimeout(() => place(), 60);
+		};
+		if ('ResizeObserver' in window) {
+			const ro = new ResizeObserver(replace);
+			ro.observe(hero);
+			hero.querySelectorAll('.hero__name, .hero__lead, .hero__actions').forEach((el) => ro.observe(el));
+		}
+		document.addEventListener('prerenderingchange', replace);
+		window.addEventListener('pageshow', replace);
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'visible') replace();
+		});
 		let resizeTimer = 0;
 		let lastW = window.innerWidth;
 		let lastH = window.innerHeight;
