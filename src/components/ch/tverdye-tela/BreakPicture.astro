@@ -1,0 +1,194 @@
+---
+/**
+ * Picture to «Пластичность и хрупкость»: two test bars of the same initial length (10 см, drawn 130 px) in a testing
+ * machine, pulled at the same time (both lower grips move together). Marks every 1 см drawn on each bar before the test.
+ * Copper (annealed, StretchLab: necking at ε = 35 %, the break at 45 %; here drawn with the break at 40 %): it lengthens
+ *   uniformly (its marks spread evenly, its width falls as 1/√(1 + ε): the volume stays the same) up to 30 %, then a
+ *   neck forms in the middle (the marks there spread more), and at 40 % it breaks with a cup-and-cone end.
+ * Cast iron (gray, StretchLab: the break at ε ≈ 0,2 %): its 0,2 % (0,3 px) cannot be seen; it breaks across almost at
+ *   once with flat ends, and its lower half then moves away with the grip; its marks do not spread.
+ * Loop of 7 с: 3,8 с of pulling (the lower grips move 52 px), the broken bars stay apart to 6,3 с, then the picture
+ * fades and starts again.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+import TtStyles from './TtStyles.astro';
+---
+
+<G7Styles />
+<TtStyles />
+<figure class="g7 g7--pic g7--narrow br not-content" data-ttbreak>
+	<div class="g7__grid">
+		<svg class="g7__svg" viewBox="0 0 340 262" role="img" aria-label="Медный и чугунный образцы растягивают одновременно. Медный сильно удлиняется, образует шейку и рвётся. Чугунный почти не удлиняется и сразу ломается поперёк">
+			<text class="t-title" x="100" y="16" text-anchor="middle">медь</text>
+			<text class="t-title" x="240" y="16" text-anchor="middle">чугун</text>
+			<rect class="br-frame" x="30" y="22" width="280" height="8" rx="2"></rect>
+			<g data-scene>
+				<rect class="br-grip" x="84" y="28" width="32" height="14" rx="2"></rect>
+				<rect class="br-grip" x="224" y="28" width="32" height="14" rx="2"></rect>
+				<path class="br-bar br-cu" data-cu1 d=""></path>
+				<path class="br-bar br-cu" data-cu2 d=""></path>
+				<path class="br-bar br-fe" data-fe1 d=""></path>
+				<path class="br-bar br-fe" data-fe2 d=""></path>
+				<path class="br-marks" data-mcu d=""></path>
+				<path class="br-marks" data-mfe d=""></path>
+				<g data-low>
+					<rect class="br-grip" x="84" y="0" width="32" height="14" rx="2"></rect>
+					<rect class="br-grip" x="224" y="0" width="32" height="14" rx="2"></rect>
+					<rect class="br-cross" x="30" y="14" width="280" height="7" rx="2"></rect>
+				</g>
+				<g data-neck opacity="0">
+					<path class="br-lead" data-nl d=""></path>
+					<text class="t-small" data-nt x="72" y="0" text-anchor="end">шейка</text>
+				</g>
+			</g>
+		</svg>
+	</div>
+	<figcaption class="g7__caption">Медный и чугунный образцы одной длины растягивают одновременно; черточки нанесены через 1&nbsp;см. Медь удлиняется почти на половину, образует шейку и рвётся. Чугун ломается поперёк, почти не удлинившись.</figcaption>
+</figure>
+
+<style is:global>
+	.br-frame,
+	.br-cross {
+		fill: var(--sl-color-gray-4);
+	}
+	.br-grip {
+		fill: var(--g7-steel);
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 1;
+	}
+	.br-bar {
+		stroke: var(--sl-color-gray-1);
+		stroke-width: 0.9;
+		stroke-linejoin: round;
+	}
+	.br-cu {
+		fill: var(--tt-copper);
+	}
+	.br-fe {
+		fill: var(--tt-iron);
+	}
+	.br-marks {
+		fill: none;
+		stroke: var(--sl-color-black);
+		stroke-width: 1.2;
+		opacity: 0.75;
+	}
+	.br-lead {
+		fill: none;
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 1;
+	}
+</style>
+
+<script>
+	import { loop } from '../g7/kit';
+
+	const f = (v: number) => v.toFixed(1);
+	const Y0 = 42; // the bars start below the upper grips
+	const L0 = 130; // 10 см
+	const HW = 7; // half width at rest
+	const RUN = 7;
+	const TB = 3.8; // copper breaks
+	const DMAX = 52; // 40 %
+	const TFE = 0.15; // cast iron breaks almost at once
+	// the extra length of the neck is spread about the middle: a smooth step of width 9 px
+	const step = (s: number) => 0.5 * (1 + Math.tanh((s - L0 / 2) / 9));
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ttbreak]')) {
+		const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+		const scene = $<SVGGElement>('[data-scene]');
+		const draw = (tt: number) => {
+			const t = tt < 6.6 ? tt : 0;
+			scene.style.opacity = tt < 6.3 ? '1' : tt < 6.6 ? f((6.6 - tt) / 0.3) : f((tt - 6.6) / 0.4);
+			const D = DMAX * Math.min(1, t / TB);
+			const eu = Math.min(0.3, D / L0); // uniform strain
+			const ext = Math.max(0, D - 0.3 * L0); // the neck's extra length
+			const neck = ext / (DMAX - 0.3 * L0); // 0…1
+			const cuBroken = t >= TB;
+			const yLow = Y0 + L0 + D;
+			$<SVGGElement>('[data-low]').setAttribute('transform', `translate(0 ${f(yLow)})`);
+			// copper: material point s (0…L0) → y; width at s
+			const yAt = (s: number) => Y0 + s * (1 + eu) + ext * step(s);
+			const wAt = (s: number) => (HW / Math.sqrt(1 + eu)) * (1 - 0.62 * neck * Math.exp(-(((s - L0 / 2) / 10) ** 2)));
+			const outline = (s0: number, s1: number, x: number, end0?: string, end1?: string) => {
+				let a = '';
+				let b = '';
+				for (let k = 0; k <= 30; k++) {
+					const s = s0 + ((s1 - s0) * k) / 30;
+					a += `${k ? 'L' : 'M'}${f(x - wAt(s))} ${f(yAt(s))} `;
+					b = `L${f(x + wAt(s))} ${f(yAt(s))} ` + b;
+				}
+				return a + (end1 ?? '') + b + (end0 ?? '') + 'Z';
+			};
+			const XC = 100;
+			const cu1 = $('[data-cu1]');
+			const cu2 = $('[data-cu2]');
+			if (!cuBroken) {
+				cu1.setAttribute('d', outline(0, L0, XC));
+				cu2.setAttribute('d', '');
+			} else {
+				// cup and cone: the upper end a cone (a point), the lower one a cup (a notch); the pieces 4 px apart
+				const m = L0 / 2;
+				const yu = yAt(m) - 2;
+				const yl = yAt(m) + 2;
+				const w = wAt(m);
+				cu1.setAttribute('d', outline(0, m - 0.5, XC, '', `L${f(XC)} ${f(yu + 3)} `));
+				const pts: string[] = [];
+				let a = `M${f(XC - w)} ${f(yl)} L${f(XC)} ${f(yl + 3)} L${f(XC + w)} ${f(yl)} `;
+				for (let k = 0; k <= 30; k++) {
+					const s = m + 0.5 + ((L0 - m - 0.5) * k) / 30;
+					pts.push(`${f(XC + wAt(s))} ${f(yAt(s) + 2)}`);
+				}
+				a += 'L' + pts.join(' L');
+				const back: string[] = [];
+				for (let k = 30; k >= 0; k--) {
+					const s = m + 0.5 + ((L0 - m - 0.5) * k) / 30;
+					back.push(`${f(XC - wAt(s))} ${f(yAt(s) + 2)}`);
+				}
+				cu2.setAttribute('d', a + ' L' + back.join(' L') + ' Z');
+			}
+			// copper marks every 13 px of the material (1 см)
+			let mk = '';
+			for (let k = 1; k < 10; k++) {
+				const s = k * 13;
+				const y = yAt(s) + (cuBroken && s > L0 / 2 ? 2 : 0);
+				mk += `M${f(XC - wAt(s))} ${f(y)} H${f(XC - wAt(s) + 5)} `;
+			}
+			$('[data-mcu]').setAttribute('d', mk);
+			// cast iron: no visible strain; broken across at s = 0,55 L0 with a jagged flat end; the lower half moves with the grip
+			const XF = 240;
+			const SB = 0.55 * L0;
+			const feBroken = t >= TFE;
+			const gap = feBroken ? D : 0;
+			if (!feBroken) {
+				$('[data-fe1]').setAttribute('d', `M${XF - HW} ${Y0} H${XF + HW} V${Y0 + L0} H${XF - HW} Z`);
+				$('[data-fe2]').setAttribute('d', '');
+			} else {
+				const y1 = Y0 + SB;
+				const y2 = Y0 + SB + gap;
+				$('[data-fe1]').setAttribute('d', `M${XF - HW} ${Y0} H${XF + HW} V${f(y1)} L${XF + 3} ${f(y1 + 1.5)} L${XF - 1} ${f(y1 - 1)} L${XF - 4} ${f(y1 + 1)} L${XF - HW} ${f(y1)} Z`);
+				$('[data-fe2]').setAttribute('d', `M${XF - HW} ${f(y2)} L${XF - 4} ${f(y2 + 1)} L${XF - 1} ${f(y2 - 1)} L${XF + 3} ${f(y2 + 1.5)} L${XF + HW} ${f(y2)} V${f(Y0 + L0 + gap)} H${XF - HW} Z`);
+			}
+			let mf = '';
+			for (let k = 1; k < 10; k++) {
+				const s = k * 13;
+				const y = Y0 + s + (feBroken && s > SB ? gap : 0);
+				mf += `M${XF - HW} ${f(y)} H${XF - HW + 5} `;
+			}
+			$('[data-mfe]').setAttribute('d', mf);
+			// the neck label: beside the narrowest place, when the neck shows
+			const yn = yAt(L0 / 2);
+			$<SVGGElement>('[data-neck]').setAttribute('opacity', neck > 0.25 ? '1' : '0');
+			$('[data-nl]').setAttribute('d', `M76 ${f(yn - 4)} L${f(XC - wAt(L0 / 2) - 3)} ${f(yn)}`);
+			$('[data-nt]').setAttribute('y', f(yn));
+		};
+		let t = 0;
+		(root as HTMLElement & { ttDraw?: (t: number) => void }).ttDraw = (tt: number) => draw((t = tt));
+		loop(root, (dt) => {
+			if (root.hasAttribute('data-tt-freeze')) return false;
+			t = (t + dt) % RUN;
+			draw(t);
+			return true;
+		});
+		draw(0);
+	}
+</script>

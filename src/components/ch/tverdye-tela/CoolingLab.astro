@@ -1,0 +1,320 @@
+---
+/**
+ * Model «Как застывает расплав» (section «Аморфные тела»): a scheme of solidification, not a calculation of a real melt.
+ * A square window of the melt, 28 × 28 particle spacings, cools from above the melting temperature to the room
+ * temperature at one of three rates. The rules (classical nucleation and growth, G. Tammann, 1903) and the numbers are
+ * in cooling.ts: below the melting temperature nuclei of crystals appear in the liquid and grow, a liquid particle
+ * next to a grain takes its place in that grain's lattice and its orientation; the colder, the more nuclei but the
+ * slower the growth; below the «glass» temperature (two thirds of the way from the melting to the room temperature,
+ * not labelled) nothing moves, and the liquid left there freezes without order. Results over 40 seeds: «медленно» one
+ * crystal (30 of 40), two (8) or three (2); «быстро» 7–22 grains (median 14), 0–4 % without order; «очень быстро»
+ * 96–100 % without order and 0–5 tiny grains.
+ *
+ * Drawing (canvas, 390 × 290 units): the window 270 units wide (a = 9,64 units per spacing); a crystal particle sits
+ * on its grain's square lattice (each grain in its own tint), a liquid particle jitters around a random place (the
+ * places are a relaxed random packing of the same density); the amplitude of the jitter falls with the temperature
+ * and the particles stop at the glass temperature (amorphous ones are gray). Thermometer on the right: «плавление»
+ * and «комнатная» marks. The time is compressed differently for each rate so that each run lasts about 9,4 с on
+ * the screen: 1,2 с down to the melting temperature, 7 с of solidification, 1,2 с down to the room temperature
+ * (the caption says so). Each press of «Начать» / «Ещё раз» takes a new random seed.
+ */
+import G7Styles from '../g7/G7Styles.astro';
+---
+
+<G7Styles />
+<figure class="g7 g7--wide tt-cool not-content" data-ttcool>
+	<div class="g7__grid">
+		<canvas class="g7__canvas" width="780" height="580" role="img" aria-label="Расплав остывает: в нём появляются и растут кристаллики, а при быстром охлаждении частицы застывают без порядка"></canvas>
+		<div class="g7__side">
+			<div class="g7__label">Остужать</div>
+			<div class="g7__seg" data-rate>
+				<button type="button" class="g7__btn" aria-pressed="true" data-r="slow">медленно</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-r="fast">быстро</button>
+				<button type="button" class="g7__btn" aria-pressed="false" data-r="vfast">очень быстро</button>
+			</div>
+			<div class="g7__row">
+				<button type="button" class="g7__btn g7__btn--go" data-go>Начать</button>
+			</div>
+			<ul class="g7__read">
+				<li><span>состояние</span> <b data-state>расплав</b></li>
+				<li class="is-key"><span>кристалликов</span> <b data-n>—</b></li>
+				<li class="is-warm"><span>без порядка</span> <b data-x>—</b></li>
+			</ul>
+			<span class="tt-probe" data-probe aria-hidden="true"></span>
+		</div>
+	</div>
+	<figcaption class="g7__caption">
+		Схема: каждый кружок — частица, у каждого кристаллика свой цвет. Время сжато, и по-разному для каждой скорости охлаждения: на самом деле медленное охлаждение длится в сотни раз дольше очень быстрого.
+	</figcaption>
+</figure>
+
+<style is:global>
+	.tt-cool .tt-probe {
+		position: absolute;
+		width: 0;
+		height: 0;
+		overflow: hidden;
+	}
+</style>
+
+<script>
+	import { loop, segment } from '../g7/kit';
+	import { solidify, N, M, rng, type Rate, type Result } from './cooling';
+
+	const W = 390;
+	const H = 290;
+	const X0 = 10;
+	const Y0 = 10;
+	const SIDE = 270;
+	const A = SIDE / N; // units per particle spacing
+	const RP = 0.33 * A; // particle radius
+	const S0 = 1.2; // s on screen: down to the melting temperature
+	const S1 = 7; // s: solidification
+	const S2 = 1.2; // s: down to the room temperature
+	// the thermometer: the level of the liquid in it (y) for the top temperature, the melting and the room temperature
+	const TX = 300;
+	const YTOP = 34;
+	const YM = 84;
+	const YR = 250;
+	const YG = YM + (2 / 3) * (YR - YM); // the glass temperature (not labelled)
+	const TINTS = [
+		'var(--ig-vx)',
+		'var(--ig-v)',
+		'var(--g7-green)',
+		'var(--ig-vy)',
+		'var(--g7-violet)',
+		'var(--sl-color-gray-1)',
+	];
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-ttcool]')) {
+		const cv = root.querySelector('canvas')!;
+		const ctx = cv.getContext('2d')!;
+		const probe = root.querySelector<HTMLElement>('[data-probe]')!;
+		const go = root.querySelector<HTMLButtonElement>('[data-go]')!;
+		const outState = root.querySelector('[data-state]')!;
+		const outN = root.querySelector('[data-n]')!;
+		const outX = root.querySelector('[data-x]')!;
+		const col = (expr: string) => {
+			probe.style.color = '';
+			probe.style.color = expr;
+			return getComputedStyle(probe).color;
+		};
+		let C: Record<string, string> = {};
+		let tints: string[] = [];
+		const colors = () => {
+			C = {
+				paper: col('var(--g7-paper)'),
+				frame: col('var(--sl-color-gray-3)'),
+				ink: col('var(--sl-color-gray-2)'),
+				melt: col('color-mix(in oklab, var(--ig-vy) 55%, var(--ig-v))'),
+				liquid: col('color-mix(in oklab, var(--ig-vy) 40%, var(--ig-v))'),
+				glass: col('var(--sl-color-gray-3)'),
+				edge: col('var(--sl-color-gray-1)'),
+				tube: col('var(--sl-color-gray-5)'),
+				red: col('var(--g7-red)'),
+			};
+			tints = TINTS.map(col);
+		};
+		colors();
+		new MutationObserver(() => (colors(), draw())).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+		// the places of the liquid particles: a jittered grid relaxed to a random packing (min distance 0,8 a)
+		const homes = (seed: number) => {
+			const r = rng(seed);
+			const p: { x: number; y: number; ph: number; w: number; ph2: number; w2: number }[] = [];
+			for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) p.push({ x: j + 0.5 + (r() - 0.5) * 0.9, y: i + 0.5 + (r() - 0.5) * 0.9, ph: r() * 6.28, w: 5 + r() * 4, ph2: r() * 6.28, w2: 5 + r() * 4 });
+			for (let it = 0; it < 25; it++)
+				for (let a = 0; a < p.length; a++)
+					for (let b = a + 1; b < p.length; b++) {
+						const dx = p[b].x - p[a].x;
+						const dy = p[b].y - p[a].y;
+						if (Math.abs(dx) > 1 || Math.abs(dy) > 1) continue;
+						const d = Math.hypot(dx, dy) || 1e-3;
+						if (d < 0.8) {
+							const k = (0.8 - d) / d / 2;
+							p[a].x -= dx * k;
+							p[a].y -= dy * k;
+							p[b].x += dx * k;
+							p[b].y += dy * k;
+						}
+					}
+			for (const q of p) {
+				q.x = Math.min(N - 0.35, Math.max(0.35, q.x));
+				q.y = Math.min(N - 0.35, Math.max(0.35, q.y));
+			}
+			return p;
+		};
+
+		let rate: Rate = 'slow';
+		let res: Result | null = null;
+		let liq = homes(1);
+		let t = 0; // s on the screen since «Начать» (0 before the start: the melt above its melting point)
+		let jt = 0; // the clock of the jitter: it stops when the liquid has frozen
+		let running = false;
+		let seed = 1;
+		const total = S0 + S1 + S2;
+
+		// the state at screen time t: the undercooling u (−… above the melting point) and the thermometer level
+		const at = (tt: number) => {
+			const uEnd = res ? res.uEnd : 1;
+			if (tt < S0) return { u: -1 + tt / S0, y: YTOP + (YM - YTOP) * (tt / S0) };
+			if (tt < S0 + S1) {
+				const u = (uEnd * (tt - S0)) / S1;
+				return { u, y: YM + (YG - YM) * u };
+			}
+			const k = Math.min(1, (tt - S0 - S1) / S2);
+			const u0 = uEnd;
+			const y0 = YM + (YG - YM) * u0;
+			return { u: u0 + (1 - u0) * Math.min(1, k * 2.5), y: y0 + (YR - y0) * k };
+		};
+
+		const draw = () => {
+			const dpr = cv.width / W;
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			ctx.fillStyle = C.paper;
+			ctx.fillRect(0, 0, W, H);
+			const s = at(t);
+			const u = s.u;
+			// mobility of the liquid: full above the melting point, falling to zero at the glass temperature
+			const mob = u < 0 ? 1 : Math.max(0, 1 - u);
+			ctx.save();
+			ctx.beginPath();
+			ctx.rect(X0, Y0, SIDE, SIDE);
+			ctx.clip();
+			ctx.fillStyle = C.melt;
+			ctx.globalAlpha = u < 1 ? 0.1 * mob : 0;
+			ctx.fillRect(X0, Y0, SIDE, SIDE);
+			ctx.globalAlpha = 1;
+			ctx.lineWidth = 0.7;
+			ctx.strokeStyle = C.edge;
+			// liquid and amorphous particles
+			const frozen = u >= 1;
+			for (const p of liq) {
+				const cell = Math.floor(p.y * 2) * M + Math.floor(p.x * 2);
+				if (res && res.cellU[cell] <= u) continue;
+				const amp = 0.17 * (0.35 + 0.65 * mob);
+				const ox = amp * Math.sin(p.ph + p.w * jt);
+				const oy = amp * Math.sin(p.ph2 + p.w2 * jt);
+				ctx.fillStyle = frozen ? C.glass : C.liquid;
+				ctx.beginPath();
+				ctx.arc(X0 + (p.x + ox) * A, Y0 + (p.y + oy) * A, RP, 0, 2 * Math.PI);
+				ctx.fill();
+				ctx.stroke();
+			}
+			// crystals: a small vibration about the lattice places
+			if (res)
+				for (const g of res.grains) {
+					ctx.fillStyle = tints[g.tint % tints.length];
+					for (const p of g.pts) {
+						if (p.u > u) continue;
+						const v = 0.035 * mob;
+						const ox = v * Math.sin(9 * t + p.x * 7.1);
+						const oy = v * Math.sin(8 * t + p.y * 5.3);
+						ctx.beginPath();
+						ctx.arc(X0 + (p.x + ox) * A, Y0 + (p.y + oy) * A, RP, 0, 2 * Math.PI);
+						ctx.fill();
+						ctx.stroke();
+					}
+				}
+			ctx.restore();
+			ctx.strokeStyle = C.frame;
+			ctx.lineWidth = 1.5;
+			ctx.strokeRect(X0, Y0, SIDE, SIDE);
+			// the thermometer
+			ctx.fillStyle = C.tube;
+			ctx.strokeStyle = C.frame;
+			ctx.lineWidth = 1.2;
+			ctx.beginPath();
+			ctx.roundRect(TX - 5, 18, 10, 254, 5);
+			ctx.fill();
+			ctx.stroke();
+			ctx.beginPath();
+			ctx.arc(TX, 272, 9, 0, 2 * Math.PI);
+			ctx.fillStyle = C.red;
+			ctx.fill();
+			ctx.fillRect(TX - 2.6, s.y, 5.2, 272 - s.y);
+			ctx.strokeStyle = C.ink;
+			ctx.lineWidth = 1.2;
+			ctx.beginPath();
+			ctx.moveTo(TX + 6, YM);
+			ctx.lineTo(TX + 12, YM);
+			ctx.moveTo(TX + 6, YR);
+			ctx.lineTo(TX + 12, YR);
+			ctx.stroke();
+			ctx.fillStyle = C.ink;
+			ctx.font = `13px ${getComputedStyle(root).fontFamily}`;
+			ctx.textBaseline = 'middle';
+			ctx.fillText('плавление', TX + 15, YM);
+			ctx.fillText('комнатная', TX + 15, YR);
+		};
+
+		const show = () => {
+			const s = at(t);
+			if (!res) {
+				outState.textContent = 'расплав';
+				outN.textContent = '—';
+				outX.textContent = '—';
+				return;
+			}
+			const done = t >= total;
+			outState.textContent = s.u < 0 ? 'остывает до температуры плавления' : s.u < 1 && !done ? 'застывает' : done ? 'остыло' : 'остывает';
+			if (done) {
+				outN.textContent = String(res.grains.length);
+				outX.textContent = `${Math.round(res.amorphous * 100)} %`;
+			} else {
+				outN.textContent = '—';
+				outX.textContent = '—';
+			}
+		};
+
+		const wake = loop(root, (dt) => {
+			if (root.hasAttribute('data-tt-freeze')) return false;
+			if (at(t).u < 1) jt += dt;
+			if (running) {
+				t += dt;
+				if (t >= total) {
+					t = total;
+					running = false;
+				}
+			}
+			draw();
+			show();
+			return running || !res; // before the start the melt keeps jittering
+		});
+
+		const start = () => {
+			seed = (seed * 48271 + Date.now()) % 2147483647;
+			res = solidify(rate, seed);
+			liq = homes(seed + 1);
+			t = 0;
+			running = true;
+			go.textContent = 'Ещё раз';
+			show();
+			wake();
+		};
+		go.addEventListener('click', start);
+		segment(root.querySelector('[data-rate]')!, (b) => {
+			rate = b.dataset.r as Rate;
+			res = null;
+			running = false;
+			t = 0;
+			go.textContent = 'Начать';
+			show();
+			wake();
+		});
+		// for the checks: run a given rate and seed to the end at once
+		(root as HTMLElement & { ttRun?: (r: Rate, s: number) => { n: number; x: number } }).ttRun = (r, s) => {
+			rate = r;
+			for (const b of root.querySelectorAll<HTMLButtonElement>('[data-rate] button')) b.setAttribute('aria-pressed', String(b.dataset.r === r));
+			res = solidify(r, s);
+			liq = homes(s + 1);
+			t = total;
+			running = false;
+			go.textContent = 'Ещё раз';
+			draw();
+			show();
+			return { n: res.grains.length, x: Math.round(res.amorphous * 100) };
+		};
+		draw();
+	}
+</script>
