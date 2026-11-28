@@ -40,8 +40,8 @@ const sym = (s: string) =>
 }
 
 <style is:global>
-	.sl-markdown-content [data-g],
-	.sl-markdown-content [data-u],
+	.sl-markdown-content .katex [data-g],
+	.sl-markdown-content .katex [data-u],
 	[data-note] {
 		cursor: help;
 		border-radius: 0.25em;
@@ -53,8 +53,8 @@ const sym = (s: string) =>
 		position: relative;
 		z-index: 1;
 	}
-	.sl-markdown-content [data-g]:hover,
-	.sl-markdown-content [data-u]:hover,
+	.sl-markdown-content .katex [data-g]:hover,
+	.sl-markdown-content .katex [data-u]:hover,
 	[data-note]:hover,
 	[data-note][aria-expanded='true'] {
 		background: var(--sl-color-accent-low);
@@ -63,8 +63,13 @@ const sym = (s: string) =>
 
 <script>
 	type NoteEl = HTMLElement & { igNote?: () => Node };
-	const ANY = '[data-more], [data-part], [data-g], [data-u], [data-note]';
-	const HOVER = '[data-part], [data-g], [data-u], [data-note]:not([data-note-tap])';
+	// [data-part] only inside a <Formula>, [data-g] and [data-u] only inside a KaTeX formula: models use these attributes
+	// for their own buttons and drawings (28 Nov 2026: a star-colour model's data-g broke the page script).
+	const MORE = '.ig-more[data-more]'; // a <More> word (a model has its own [data-more] line)
+	const PART = '[data-formula] [data-part]';
+	const GU = '.katex [data-g], .katex [data-u]';
+	const ANY = `${MORE}, ${PART}, ${GU}, [data-note]`;
+	const HOVER = `${PART}, ${GU}, [data-note]:not([data-note-tap])`;
 	const supported = typeof HTMLElement.prototype.showPopover === 'function';
 
 	const bodyOf = (el: NoteEl): Node | null => {
@@ -79,7 +84,7 @@ const sym = (s: string) =>
 		return null;
 	};
 
-	for (const el of document.querySelectorAll<HTMLElement>('[data-part]')) {
+	for (const el of document.querySelectorAll<HTMLElement>(PART)) {
 		el.setAttribute('role', 'button');
 		el.tabIndex = 0;
 		el.setAttribute('aria-haspopup', 'dialog');
@@ -88,7 +93,7 @@ const sym = (s: string) =>
 
 	if (!supported) {
 		// Old browser: a <More> word opens its note right after it; the other notes are not shown.
-		for (const btn of document.querySelectorAll<HTMLElement>('[data-more]')) {
+		for (const btn of document.querySelectorAll<HTMLElement>(MORE)) {
 			const tpl = btn.nextElementSibling as HTMLTemplateElement;
 			const box = document.createElement('span');
 			box.className = 'ig-more-inline';
@@ -195,7 +200,7 @@ const sym = (s: string) =>
 		});
 		document.addEventListener('keydown', (e) => {
 			if (e.key !== 'Enter' && e.key !== ' ') return;
-			const el = triggerOf(e.target, '[data-more], [data-part], [data-note]');
+			const el = triggerOf(e.target, `${MORE}, ${PART}, [data-note]`);
 			if (!el || el !== document.activeElement) return;
 			e.preventDefault();
 			el.click();
