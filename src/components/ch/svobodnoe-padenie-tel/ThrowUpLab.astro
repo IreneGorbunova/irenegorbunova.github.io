@@ -12,20 +12,50 @@
  * crosses zero; the dot at the present moment. Controls: υ₀ 5…25 м/с (step 1, default 10), «Бросить», «Пауза /
  * Продолжить», «Сначала», and the time slider 0…t_пол (step 0,01 с). The clock runs in real time (the longest flight
  * lasts 5,1 с). After the flight a table gives the times of rise and fall, H and the speed of return.
+ *
+ * Second mode «Падение с высоты» (Irina, 28 Nov 2026): the ball is let go without initial speed from the edge of a roof
+ * at the height h = 5…35 м (step 1, default 20) and falls to the ground. The chapter's axis for a falling body
+ * (AxisPicture mode="down"): Oy points DOWN from the point O where the ball was let go; the scale «y, м» 0…h runs down
+ * from O (same 8,8 px per metre), a gold arrow from O to the ball is the distance fallen. Physics without air:
+ * υ = gt, h = gt²/2 (live, with the numbers); on landing t = √(2h/g), υ = √(2gh). Examples: h = 20 м → 2,02 с,
+ * 19,8 м/с; h = 5 м → 1,01 с, 9,90 м/с; h = 35 м → 2,67 с, 26,2 м/с; at t = 1 с: 9,8 м/с and 4,90 м, at t = 2 с:
+ * 19,6 м/с and 19,6 м. Rings every 0,2 с (the way down, as in the first mode): the gaps grow as 1 : 3 : 5 : … .
+ * Two graphs drawn live as the ball falls, on fixed axes so that heights can be compared: υ(t) (0…30 м/с, a straight
+ * line through the origin) and h(t) (0…40 м, a parabola), t 0…3,5 с; a dashed line on h(t) marks the ground. The house
+ * has a window on every floor of 3 м. The clock runs in real time (the longest fall lasts 2,7 с).
  */
+import katex from 'katex';
 import SptStyles from './SptStyles.astro';
+const gVec = katex.renderToString('\\vec g', { throwOnError: false });
 ---
 
 <SptStyles />
 <figure class="g7 spt not-content" data-throwlab>
+	<div class="g7__row spt-throw-modes">
+		<div class="g7__seg" role="group" aria-label="Опыт">
+			<button type="button" class="g7__btn" data-mode="up" aria-pressed="true">Бросок вверх</button>
+			<button type="button" class="g7__btn" data-mode="fall" aria-pressed="false">Падение с высоты</button>
+		</div>
+	</div>
 	<div class="g7__grid spt-throw-grid">
-		<svg class="g7__svg" viewBox="0 0 170 360" role="img" aria-label="Мяч, брошенный вертикально вверх, и шкала высоты от 0 до 35 метров. Синяя стрелка — скорость мяча, красная — ускорение свободного падения">
+		<svg class="g7__svg" viewBox="0 0 170 360" role="img" data-scene aria-label="Мяч, брошенный вертикально вверх, и шкала высоты от 0 до 35 метров. Синяя стрелка — скорость мяча, красная — ускорение свободного падения">
 			<rect class="spt-sky" x="0" y="0" width="170" height="338"></rect>
 			<rect class="spt-earth" x="0" y="338" width="170" height="22"></rect>
 			<g data-scale></g>
-			<!-- the launcher plate at O -->
-			<rect class="spt-plate" x="86" y="334" width="22" height="4" rx="1"></rect>
-			<text class="t-i" x="114" y="336">O</text>
+			<!-- the launcher plate at O (mode «Бросок вверх») -->
+			<g data-uponly>
+				<rect class="spt-plate" x="86" y="334" width="22" height="4" rx="1"></rect>
+				<text class="t-i" x="114" y="336">O</text>
+			</g>
+			<!-- the house the ball is let go from, its roof at O (mode «Падение с высоты»); moved by the script -->
+			<g data-fallonly style="display: none">
+				<rect class="spt-house" data-house x="122" y="0" width="40" height="0"></rect>
+				<g data-windows></g>
+				<rect class="spt-roof" data-roof x="112" y="0" width="56" height="4" rx="1"></rect>
+				<text class="t-i t-halo" data-o x="46" y="0">O</text>
+				<g data-harrow></g>
+				<text class="t-i t-gold t-halo" data-hl x="60" y="0" text-anchor="end">h</text>
+			</g>
 			<line class="spt-ref" data-topline x1="60" x2="166" y1="0" y2="0" visibility="hidden"></line>
 			<text class="t-small t-gold t-halo" data-toptext x="167" y="0" text-anchor="end" visibility="hidden"></text>
 			<g data-marks></g>
@@ -33,8 +63,10 @@ import SptStyles from './SptStyles.astro';
 			<g data-arrows></g>
 		</svg>
 		<div class="g7__side">
-			<svg class="g7__svg" viewBox="0 0 220 168" role="img" aria-label="График проекции скорости мяча от времени — прямая, идущая вниз"><g data-gframe></g><path class="spt-curve" data-gline d=""></path><g data-gtop></g><circle class="spt-dot--now" data-gdot r="4"></circle></svg>
-			<label class="g7__slider"><span>Скорость броска <i>υ</i><sub>0</sub></span><output data-ov></output><input type="range" min="5" max="25" step="1" value="10" data-v0 aria-label="Скорость броска, метры в секунду" /></label>
+			<svg class="g7__svg" viewBox="0 0 220 168" role="img" data-vsvg aria-label="График проекции скорости мяча от времени — прямая, идущая вниз"><g data-gframe></g><path class="spt-curve" data-gline d=""></path><g data-gtop></g><g data-gnums></g><circle class="spt-dot--now" data-gdot r="4"></circle></svg>
+			<svg class="g7__svg" viewBox="0 0 220 130" role="img" data-hsvg style="display: none" aria-label="График пути, пройденного падающим мячом, от времени — парабола"><g data-hframe></g><g data-hground></g><path class="spt-curve spt-curve--gold" data-hline d=""></path><g data-hnums></g><circle class="spt-dot--now spt-dot--gold" data-hdot r="4"></circle></svg>
+			<label class="g7__slider" data-v0row><span>Скорость броска <i>υ</i><sub>0</sub></span><output data-ov></output><input type="range" min="5" max="25" step="1" value="10" data-v0 aria-label="Скорость броска, метры в секунду" /></label>
+			<label class="g7__slider" data-hrow style="display: none"><span>Высота</span><output data-oh></output><input type="range" min="5" max="35" step="1" value="20" data-h aria-label="Высота, с которой отпускают мяч, метры" /></label>
 			<label class="g7__slider"><span>Время <i>t</i></span><output data-ot></output><input type="range" min="0" max="2.04" step="0.01" value="0" data-t aria-label="Время, секунды" /></label>
 			<div class="g7__row">
 				<button type="button" class="g7__btn g7__btn--go" data-go>Бросить</button>
@@ -48,7 +80,7 @@ import SptStyles from './SptStyles.astro';
 		<ul class="g7__read" data-table style="display: none"></ul>
 	</div>
 	<figcaption class="g7__caption">
-		Синяя стрелка — скорость мяча, красная — ускорение свободного падения <i>g</i>: оно не меняется ни при подъёме, ни в верхней точке, ни при спуске. Бледные кружки отмечают мяч через каждые 0,2&nbsp;с: сплошные — на пути вверх, контурные — на пути вниз. Воздух не учитывается; мяч нарисован крупнее, чем в масштабе шкалы. Время идёт как настоящее.
+		Синяя стрелка — скорость мяча, красная — ускорение свободного падения <Fragment set:html={gVec} />: оно не меняется ни при подъёме, ни в верхней точке, ни при спуске. Бледные кружки отмечают мяч через каждые 0,2&nbsp;с: сплошные — на пути вверх, контурные — на пути вниз. При падении с высоты ось <i>Oy</i> направлена вниз из точки <i>O</i>, где мяч отпустили, а золотая стрелка — пройденный путь <i>h</i>. Воздух не учитывается; мяч нарисован крупнее, чем в масштабе шкалы. Время идёт как настоящее.
 	</figcaption>
 </figure>
 
@@ -61,6 +93,38 @@ import SptStyles from './SptStyles.astro';
 	}
 	.spt .spt-plate {
 		fill: var(--g7-steel);
+	}
+	.spt .spt-house {
+		fill: color-mix(in oklab, var(--g7-steel) 35%, var(--g7-paper));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.8;
+	}
+	.spt .spt-window {
+		fill: color-mix(in oklab, var(--ig-vx) 30%, var(--g7-paper));
+		stroke: var(--sl-color-gray-4);
+		stroke-width: 0.6;
+	}
+	/* on a phone the scene and the graphs are drawn small: larger letters keep them at 11 px and more */
+	@container (max-width: 34rem) {
+		.spt [data-scene] text {
+			font-size: 15.5px;
+		}
+		.spt [data-vsvg] text,
+		.spt [data-hsvg] text {
+			font-size: 12.5px;
+		}
+	}
+	.spt .spt-roof {
+		fill: var(--g7-steel);
+	}
+	.spt .spt-curve--gold {
+		stroke: var(--g7-gold);
+	}
+	.spt .spt-dot--gold {
+		stroke: var(--g7-gold);
+	}
+	.spt .spt-throw-modes {
+		margin-bottom: 0.6rem;
 	}
 	.spt .spt-mark-up {
 		fill: var(--sl-color-gray-3);
@@ -96,55 +160,85 @@ import SptStyles from './SptStyles.astro';
 
 	for (const fig of document.querySelectorAll<HTMLElement>('[data-throwlab]')) {
 		const $ = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
-		const Y0 = 333; // the ball's center at O
+		const Y0 = 333; // the ball's center at O (throw) and on the ground (fall)
 		const K = 8.8; // px per metre
 		const VS = 2.4; // px per м/с
 		const BX = 97;
+		const T1F = 3.5; // the time axis of the fall graphs, с (the longest fall lasts 2,67 с; the rest leaves room for «земля»)
 		const inV = $<HTMLInputElement>('[data-v0]');
+		const inH = $<HTMLInputElement>('[data-h]');
 		const inT = $<HTMLInputElement>('[data-t]');
 		const go = $<HTMLButtonElement>('[data-go]');
 		const pause = $<HTMLButtonElement>('[data-pause]');
 		const ball = $<SVGCircleElement>('[data-ball]');
-		// the scale
+		const scene = $<SVGSVGElement>('[data-scene]');
+		const vsvg = $<SVGSVGElement>('[data-vsvg]');
+		const hsvg = $<SVGSVGElement>('[data-hsvg]');
 		const sc = $<SVGGElement>('[data-scale]');
-		sc.append(el('path', { class: 'ink', d: `M40 ${Y0} V${Y0 - 35 * K - 8}` }));
-		sc.append(el('path', { class: 'head--ink', d: `M40 ${f1(Y0 - 35 * K - 14)} l-4 9 h8 Z` }));
-		for (let m = 0; m <= 35; m += 5) {
-			const y = Y0 - m * K;
-			sc.append(el('line', { class: 'ln', x1: 36, y1: f1(y), x2: 44, y2: f1(y) }));
-			const t = el('text', { class: 't-small t-num', x: 32, y: f1(y + 3.5), 'text-anchor': 'end' });
-			t.textContent = String(m);
-			sc.append(t);
-		}
-		label(sc, 48, 14, [['y'], ', м']);
 		const vArrow = newArrow($<SVGGElement>('[data-arrows]'), 'blue');
 		const gArrow = newArrow($<SVGGElement>('[data-arrows]'), 'red');
+		const hArrow = newArrow($<SVGGElement>('[data-harrow]'), 'gold');
 		const marks = $<SVGGElement>('[data-marks]');
 		const topLine = $<SVGLineElement>('[data-topline]');
 		const topText = $<SVGTextElement>('[data-toptext]');
-		const gf = graphFrame($<SVGGElement>('[data-gframe]'), { x0: 34, y0: 14, w: 168, h: 136, t1: 5.2, tStep: 1, v0: -25, v1: 25, vStep: 5, vEvery: 10, vName: ['υ', 'y'], vUnit: 'м/с' });
-		// the numbers of the axes go on top of the graph's line, each on a halo, so the line never hides them
-		{
-			const nums = el('g', {});
-			$('[data-gframe]').querySelectorAll('text').forEach((t) => {
+		let fall = false;
+		// a graph frame whose numbers go on top of the graph's line, each on a halo, so the line never hides them
+		const frame = (fr: string, nums: string, o: Parameters<typeof graphFrame>[1]) => {
+			const m = graphFrame($(fr), o);
+			const n = $(nums);
+			n.replaceChildren();
+			$(fr).querySelectorAll('text').forEach((t) => {
 				t.classList.add('t-halo');
-				nums.append(t);
+				n.append(t);
 			});
-			$('[data-gdot]').before(nums);
-		}
+			// throw mode: the time axis runs through the middle and the line goes under it on the right, so the name «t, с»
+			// goes over the axis there; under it, it hid the number 5
+			if (o.v0 < 0) {
+				const tl = [...n.querySelectorAll('text')].find((e) => /^t, с/.test(e.textContent ?? ''));
+				tl?.setAttribute('y', f1(m.V(0) - 7));
+			}
+			return m;
+		};
+		const UPF = { x0: 34, y0: 14, w: 168, h: 136, t1: 5.2, tStep: 1, v0: -25, v1: 25, vStep: 5, vEvery: 10, vName: ['υ', 'y'] as [string, string], vUnit: 'м/с' };
+		const VFF = { x0: 34, y0: 14, w: 168, h: 96, t1: T1F, tStep: 0.5, tEvery: 1, v0: 0, v1: 30, vStep: 5, vEvery: 10, vName: ['υ'] as [string], vUnit: 'м/с' };
+		const HFF = { ...VFF, v1: 40, vName: ['h'] as [string], vUnit: 'м' };
+		let gf = frame('[data-gframe]', '[data-gnums]', UPF);
+		const hf = frame('[data-hframe]', '[data-hnums]', HFF);
+		// the scale: up from O on the ground (throw), down from O at the roof (fall)
+		const buildScale = () => {
+			sc.replaceChildren();
+			if (!fall) {
+				sc.append(el('path', { class: 'ink', d: `M40 ${Y0} V${Y0 - 35 * K - 8}` }));
+				sc.append(el('path', { class: 'head--ink', d: `M40 ${f1(Y0 - 35 * K - 14)} l-4 9 h8 Z` }));
+				for (let m = 0; m <= 35; m += 5) {
+					const y = Y0 - m * K;
+					sc.append(el('line', { class: 'ln', x1: 36, y1: f1(y), x2: 44, y2: f1(y) }));
+					sc.append(el('text', { class: 't-small t-num', x: 32, y: f1(y + 3.5), 'text-anchor': 'end' }, String(m)));
+				}
+				label(sc, 48, 14, [['y'], ', м']);
+				return;
+			}
+			const h = Number(inH.value);
+			const yO = Y0 - h * K;
+			sc.append(el('path', { class: 'ink', d: `M40 ${f1(yO)} V346` }));
+			sc.append(el('path', { class: 'head--ink', d: 'M40 355 l-4 -9 h8 Z' }));
+			for (let m = 0; m <= h + 1e-9; m += 5) {
+				const y = yO + m * K;
+				sc.append(el('line', { class: 'ln', x1: 36, y1: f1(y), x2: 44, y2: f1(y) }));
+				sc.append(el('text', { class: 't-small t-num t-halo', x: 32, y: f1(y + 3.5), 'text-anchor': 'end' }, String(m)));
+			}
+			label(sc, 48, 356, [['y'], ', м'], { class: 't-halo' });
+		};
 		let t = 0;
 		let running = false;
 		const tex = (v: number, d = 2) => fmt(v, d).replace(',', '{,}').replace('−', '-');
-		const draw = () => {
+		const tEnd = () => (fall ? Math.sqrt((2 * Number(inH.value)) / G) : (2 * Number(inV.value)) / G);
+		const drawUp = () => {
 			const v0 = Number(inV.value);
 			const tUp = v0 / G;
 			const tAll = 2 * tUp;
 			const H = (v0 * v0) / (2 * G);
-			t = Math.min(t, tAll);
-			inT.max = tAll.toFixed(2);
-			if (Math.abs(Number(inT.value) - t) > 0.004) inT.value = t.toFixed(2);
 			$<HTMLOutputElement>('[data-ov]').textContent = `${v0} м/с`;
-			$<HTMLOutputElement>('[data-ot]').textContent = `${fmt(t, 2)} с`;
 			const vy = v0 - G * t;
 			const y = Math.max(0, v0 * t - 0.5 * G * t * t);
 			const yb = Y0 - y * K;
@@ -168,7 +262,8 @@ import SptStyles from './SptStyles.astro';
 			const yh = Y0 - H * K;
 			topLine.setAttribute('y1', f1(yh));
 			topLine.setAttribute('y2', f1(yh));
-			topText.setAttribute('y', f1(yh - 4));
+			// high enough over the line that the ball just under the top (and the larger phone letters) stay clear of it
+			topText.setAttribute('y', f1(yh - 8));
 			topText.textContent = `H = ${fmt(H, 2)} м`;
 			// the graph: the whole line, the top, the dot
 			$('[data-gline]').setAttribute('d', `M${f1(gf.T(0))} ${f1(gf.V(v0))} L${f1(gf.T(tAll))} ${f1(gf.V(-v0))}`);
@@ -176,9 +271,7 @@ import SptStyles from './SptStyles.astro';
 			gt.replaceChildren();
 			// the top: a dashed line up from the crossing (clear of the time numbers under the axis), its name at the top
 			gt.append(el('line', { class: 'spt-ref', x1: f1(gf.T(tUp)), y1: f1(gf.V(0)), x2: f1(gf.T(tUp)), y2: f1(gf.V(25)) }));
-			const tt = el('text', { class: 't-small t-halo', x: f1(gf.T(tUp) + 3), y: f1(gf.V(25) + 9) });
-			tt.textContent = 'верхняя точка';
-			gt.append(tt);
+			gt.append(el('text', { class: 't-small t-halo', x: f1(gf.T(tUp) + 3), y: f1(gf.V(25) + 19) }, 'верхняя точка'));
 			const dot = $<SVGCircleElement>('[data-gdot]');
 			dot.setAttribute('cx', f1(gf.T(t)));
 			dot.setAttribute('cy', f1(gf.V(vy)));
@@ -199,13 +292,114 @@ import SptStyles from './SptStyles.astro';
 					`<li class="is-warm"><span>Наибольшая высота <i>H</i></span><b>${fmt(H, 2)} м</b></li>`,
 					`<li class="is-key"><span>Скорость при возвращении</span><b>${fmt(v0, 1)} м/с</b></li>`,
 				].join('');
+		};
+		const drawFall = () => {
+			const h = Number(inH.value);
+			const tAll = tEnd();
+			const yO = Y0 - h * K;
+			$<HTMLOutputElement>('[data-oh]').textContent = `${h} м`;
+			const v = G * t;
+			const s = t >= tAll - 1e-9 ? h : 0.5 * G * t * t;
+			const yb = yO + s * K;
+			ball.setAttribute('cy', f1(yb));
+			// the house: its roof at O, just under the level of the ball's bottom
+			$('[data-roof]').setAttribute('y', f1(yO + 5));
+			$('[data-house]').setAttribute('y', f1(yO + 9));
+			$('[data-house]').setAttribute('height', f1(338 - yO - 9));
+			$('[data-o]').setAttribute('y', f1(yO + 4));
+			// a window on every floor of 3 м, counted from the ground
+			const win = $<SVGGElement>('[data-windows]');
+			win.replaceChildren();
+			for (let fl = 0; (fl + 1) * 3 <= h + 1e-9; fl++) win.append(el('rect', { class: 'spt-window', x: 136, y: f1(338 - (fl + 0.75) * 3 * K), width: 12, height: f1(1.2 * K), rx: 1 }));
+			// the velocity on the right (down; near the ground moved up as a whole), g on the left, the path h in gold
+			const len = v * VS;
+			const lift = Math.max(0, yb + len - 336);
+			vArrow(BX + 10, yb - lift, BX + 10, yb + len - lift, 6, 3.5);
+			gArrow(BX - 12, yb - 14, BX - 12, yb + 10, 6, 3.5);
+			hArrow(66, yO, 66, yb, 6, 3.5);
+			const hl = $<SVGTextElement>('[data-hl]');
+			hl.setAttribute('visibility', yb - yO >= 30 ? 'visible' : 'hidden');
+			hl.setAttribute('y', f1((yO + yb) / 2 + 5));
+			// rings every 0,2 с up to now: the way down
+			marks.replaceChildren();
+			for (let q = 0.2; q <= t + 1e-9 && q < tAll - 1e-9; q += 0.2) marks.append(el('circle', { class: 'spt-mark-down', cx: BX, cy: f1(yO + 0.5 * G * q * q * K), r: 4.5 }));
+			topLine.setAttribute('visibility', 'hidden');
+			topText.setAttribute('visibility', 'hidden');
+			// the graphs grow with the time
+			const pts = (f: (q: number) => number, m: { T: (q: number) => number; V: (q: number) => number }) => {
+				const p: string[] = [];
+				const n = Math.max(1, Math.ceil(t / 0.02));
+				for (let i = 0; i <= n; i++) {
+					const q = (t * i) / n;
+					p.push(`${i ? 'L' : 'M'}${f1(m.T(q))} ${f1(m.V(f(q)))}`);
+				}
+				return p.join(' ');
+			};
+			$('[data-gline]').setAttribute('d', t > 0 ? pts((q) => G * q, gf) : '');
+			$('[data-hline]').setAttribute('d', t > 0 ? pts((q) => Math.min(h, 0.5 * G * q * q), hf) : '');
+			$('[data-gtop]').replaceChildren();
+			const gd = $<SVGCircleElement>('[data-gdot]');
+			gd.setAttribute('cx', f1(gf.T(t)));
+			gd.setAttribute('cy', f1(gf.V(v)));
+			const hd = $<SVGCircleElement>('[data-hdot]');
+			hd.setAttribute('cx', f1(hf.T(t)));
+			hd.setAttribute('cy', f1(hf.V(s)));
+			// the ground on the graph h(t): a dashed line at the height
+			const gr = $<SVGGElement>('[data-hground]');
+			gr.replaceChildren();
+			gr.append(el('line', { class: 'spt-ref', x1: hf.T(0), y1: f1(hf.V(h)), x2: hf.T(T1F), y2: f1(hf.V(h)) }));
+			// the name at the left, over the line; under it when the line runs at the top, beside the axis name «h, м»
+			gr.append(el('text', { class: 't-small t-halo', x: f1(hf.T(0) + 6), y: f1(h > 30 ? hf.V(h) + 13 : hf.V(h) - 6) }, 'земля'));
+			// formulas with the numbers; on landing also the time of the fall and the speed at the ground
+			const done = t >= tAll - 1e-9;
+			const lines = [
+				`<li class="is-key">${k(`t = ${tex(t)}\\ \\text{с}`)}</li>`,
+				`<li>${k(`\\upsilon = gt = 9{,}8 \\cdot ${tex(t)} = ${tex(v, 1)}\\ \\text{м/с}`)}</li>`,
+				`<li>${k(`h = \\dfrac{gt^2}{2} = \\dfrac{9{,}8 \\cdot ${tex(t)}^2}{2} = ${tex(s, 1)}\\ \\text{м}`)}</li>`,
+			];
+			if (done)
+				lines.push(
+					`<li class="is-text">Мяч упал на землю:</li>`,
+					`<li class="is-key">${k(`t = \\sqrt{\\dfrac{2h}{g}} = \\sqrt{\\dfrac{2 \\cdot ${h}}{9{,}8}} \\approx ${tex(tAll)}\\ \\text{с}`)}</li>`,
+					`<li class="is-key">${k(`\\upsilon = \\sqrt{2gh} = \\sqrt{2 \\cdot 9{,}8 \\cdot ${h}} \\approx ${tex(Math.sqrt(2 * G * h), 1)}\\ \\text{м/с}`)}</li>`,
+				);
+			$('[data-calc]').innerHTML = lines.join('');
+			$<HTMLUListElement>('[data-table]').style.display = 'none';
+		};
+		const draw = () => {
+			const tAll = tEnd();
+			t = Math.min(t, tAll);
+			inT.max = tAll.toFixed(2);
+			if (Math.abs(Number(inT.value) - t) > 0.004) inT.value = t.toFixed(2);
+			$<HTMLOutputElement>('[data-ot]').textContent = `${fmt(t, 2)} с`;
+			if (fall) drawFall();
+			else drawUp();
 			pause.disabled = t === 0 && !running;
 			pause.textContent = !running && t > 0 && t < tAll - 1e-9 ? 'Продолжить' : 'Пауза';
 			if (t >= tAll - 1e-9) pause.disabled = true;
 		};
+		const setMode = (f: boolean) => {
+			fall = f;
+			running = false;
+			t = 0;
+			fig.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.mode === 'fall') === f)));
+			$<HTMLElement>('[data-uponly]').style.display = f ? 'none' : '';
+			$<HTMLElement>('[data-fallonly]').style.display = f ? '' : 'none';
+			$<HTMLElement>('[data-v0row]').style.display = f ? 'none' : '';
+			$<HTMLElement>('[data-hrow]').style.display = f ? '' : 'none';
+			hsvg.style.display = f ? '' : 'none';
+			vsvg.setAttribute('viewBox', f ? '0 0 220 130' : '0 0 220 168');
+			vsvg.setAttribute('aria-label', f ? 'График скорости падающего мяча от времени — прямая, идущая вверх из начала координат' : 'График проекции скорости мяча от времени — прямая, идущая вниз');
+			scene.setAttribute('aria-label', f ? 'Мяч отпускают с края крыши без начальной скорости. Ось Oy направлена вниз от точки O. Синяя стрелка — скорость мяча, красная — ускорение свободного падения, золотая — пройденный путь' : 'Мяч, брошенный вертикально вверх, и шкала высоты от 0 до 35 метров. Синяя стрелка — скорость мяча, красная — ускорение свободного падения');
+			gf = frame('[data-gframe]', '[data-gnums]', f ? VFF : UPF);
+			go.textContent = f ? 'Отпустить' : 'Бросить';
+			if (!f) $('[data-hline]').setAttribute('d', '');
+			buildScale();
+			draw();
+		};
 		const wake = loop(fig, (dt) => {
 			if (!running) return false;
-			const tAll = (2 * Number(inV.value)) / G;
+			const tAll = tEnd();
 			t = Math.min(tAll, t + dt);
 			if (t >= tAll) running = false;
 			draw();
@@ -229,8 +423,8 @@ import SptStyles from './SptStyles.astro';
 		});
 		inT.addEventListener('input', () => {
 			running = false;
-			// the slider's end is the moment of return (its max is rounded to 0,01 с)
-			t = Number(inT.value) >= Number(inT.max) - 1e-9 ? (2 * Number(inV.value)) / G : Number(inT.value);
+			// the slider's end is the moment of return or landing (its max is rounded to 0,01 с)
+			t = Number(inT.value) >= Number(inT.max) - 1e-9 ? tEnd() : Number(inT.value);
 			draw();
 		});
 		inV.addEventListener('input', () => {
@@ -238,6 +432,13 @@ import SptStyles from './SptStyles.astro';
 			t = 0;
 			draw();
 		});
-		draw();
+		inH.addEventListener('input', () => {
+			running = false;
+			t = 0;
+			buildScale();
+			draw();
+		});
+		fig.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode === 'fall')));
+		setMode(false);
 	}
 </script>
