@@ -96,6 +96,12 @@ const MOVES = [
 		to: 'uchebnik/8-klass/svetovye-yavleniya/prelomlenie-sveta',
 		ids: ['prelomlenie', 'ugol-prelomleniya', 'zakon-prelomleniya', 'pokazatel', 'polnoe-otrazhenie'],
 	},
+	// 28 Nov 2026: the section «Искусственные спутники Земли» moved from «Движение по окружности» to «Закон всемирного тяготения» (Irina).
+	{
+		from: 'uchebnik/9-klass/zakony-dvizheniya/ravnomernoe-dvizhenie-po-okruzhnosti',
+		to: 'uchebnik/9-klass/zakony-dvizheniya/zakon-vsemirnogo-tyagoteniya',
+		ids: ['iskusstvennyy-sputnik', 'pervaya-kosmicheskaya'],
+	},
 ];
 
 /** Old card key → new card key. */

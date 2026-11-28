@@ -1,0 +1,182 @@
+---
+/**
+ * «Пушка Ньютона» (looping picture for «Искусственные спутники Земли»): Newton's thought experiment from «О системе
+ * мира» (1728). A cannon on top of a mountain 0,15 R ≈ 960 км high (no real mountain is that high; Newton's drawing
+ * also has an enormous one) fires horizontally, each time faster: 3; 5; 6,5; 7 and 7,4 км/с. No air. The paths are
+ * computed at build time with the law of gravitation (RK4, step 0,002 in units R = 6370 км, √(R/g) = 806 с,
+ * GM = gR²): the first four balls fall back to the Earth, 14°, 29°, 62° and about 120° of the way round; the fifth,
+ * with the speed of a circular orbit at that height, √(GM/(R + h)) = 7,9 км/с · √(1/1,15) ≈ 7,37 км/с, goes round the
+ * Earth in 104 мин and comes back to the mountain. The Earth, the mountain and the paths are drawn to one scale
+ * (R = 100 px). Time sped up about 670 times (806 с of flight = 1,2 с; the orbit takes 9,3 с). The dashed line is the
+ * horizontal at the muzzle: where the ball would fly without gravity. The current ball and its path are red (the
+ * color of the Moon's fall in MoonFall), old paths stay gray until the loop restarts.
+ */
+import PicStyles from './PicStyles.astro';
+
+const C = { x: 180, y: 165 };
+const PX = 100;
+const H = 0.15;
+const R0 = 1 + H;
+const KMS = 7.906; // √(gR) in км/с, g = 9,8 м/с², R = 6,37·10⁶ м
+const speeds = [3, 5, 6.5, 7, Math.sqrt(1 / R0) * KMS];
+const Tc = 2 * Math.PI * R0 ** 1.5;
+const track = (u: number) => {
+	let s = [0, R0, u, 0];
+	const dt = 0.002;
+	const f = (z: number[]) => {
+		const r = Math.hypot(z[0], z[1]);
+		return [z[2], z[3], -z[0] / r ** 3, -z[1] / r ** 3];
+	};
+	const pts: number[] = [C.x, C.y - R0 * PX];
+	let t = 0;
+	let n = 0;
+	for (;;) {
+		const k1 = f(s);
+		const k2 = f(s.map((v, i) => v + (dt / 2) * k1[i]));
+		const k3 = f(s.map((v, i) => v + (dt / 2) * k2[i]));
+		const k4 = f(s.map((v, i) => v + dt * k3[i]));
+		const next = s.map((v, i) => v + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+		t += dt;
+		n++;
+		const r = Math.hypot(next[0], next[1]);
+		if (r < 1) {
+			// land exactly on the surface
+			const k = (Math.hypot(s[0], s[1]) - 1) / (Math.hypot(s[0], s[1]) - r);
+			const x = s[0] + (next[0] - s[0]) * k;
+			const y = s[1] + (next[1] - s[1]) * k;
+			pts.push(+(C.x + x * PX).toFixed(1), +(C.y - y * PX).toFixed(1));
+			return { pts, dt: 0.02, end: t, land: true };
+		}
+		s = next;
+		if (t >= Tc) {
+			pts.push(C.x, +(C.y - R0 * PX).toFixed(1));
+			return { pts, dt: 0.02, end: Tc, land: false };
+		}
+		if (n % 10 === 0) pts.push(+(C.x + s[0] * PX).toFixed(1), +(C.y - s[1] * PX).toFixed(1));
+	}
+};
+const tracks = speeds.map((u) => ({ ...track(u / KMS), v: u.toFixed(1).replace('.', ',').replace(',0', '') }));
+const peak = C.y - R0 * PX;
+---
+
+<PicStyles />
+<figure class="gp-pic gp-pic--one not-content" data-gr-cannon data-tracks={JSON.stringify(tracks)}>
+	<div class="gp-pic__grid">
+		<svg class="gp-pic__svg" viewBox="0 0 360 300" role="img" aria-label="Пушка на вершине очень высокой горы стреляет горизонтально, каждый раз быстрее. Ядра падают всё дальше, а самое быстрое облетает Землю по окружности">
+			<line class="gp-dash" x1={C.x + 10} y1={peak} x2="352" y2={peak}></line>
+			<text x="348" y={peak - 7} text-anchor="end">без тяготения</text>
+			<circle class="gp-earth" cx={C.x} cy={C.y} r={PX}></circle>
+			<path class="gp-land" d={`M${C.x - 62} ${C.y - 40} q20 -26 46 -18 q14 12 -4 26 q-20 10 -42 -8 Z M${C.x + 18} ${C.y + 6} q30 -8 36 16 q-2 26 -26 22 q-16 -14 -10 -38 Z M${C.x - 50} ${C.y + 40} q16 -4 20 14 q-12 10 -22 0 Z`}></path>
+			<path class="gc-mount" d={`M${C.x - 22} ${C.y - PX + 3} L${C.x - 3} ${peak + 1} L${C.x + 3} ${peak + 1} L${C.x + 22} ${C.y - PX + 3} Z`}></path>
+			<rect class="gc-cannon" x={C.x - 4} y={peak - 4} width="13" height="4.5" rx="1.5"></rect>
+			<g data-old></g>
+			<path class="gc-trace" data-trace></path>
+			<circle class="gc-ball" r="3.4" data-ball></circle>
+			<text class="gc-read" x="10" y="22">скорость ядра</text>
+			<text class="gc-read gc-read--v" x="10" y="42" data-v></text>
+		</svg>
+	</div>
+	<figcaption>
+		Мысленный опыт Ньютона. Пушка на вершине горы высотой около 1000&nbsp;км (таких гор нет) стреляет горизонтально,
+		каждый раз быстрее. Чем больше скорость, тем дальше падает ядро. При скорости около 7,4&nbsp;км/с ядро всё время падает
+		к Земле, но облетает её по окружности. Воздуха нет; Земля, гора и пути ядер — в одном масштабе; время ускорено
+		примерно в 700 раз.
+	</figcaption>
+</figure>
+
+<style is:global>
+	[data-gr-cannon] .gc-mount {
+		fill: color-mix(in srgb, var(--sl-color-gray-3) 70%, var(--ig-v) 10%);
+		stroke: var(--sl-color-gray-2);
+		stroke-width: 0.8;
+	}
+	[data-gr-cannon] .gc-cannon {
+		fill: var(--sl-color-gray-1);
+	}
+	[data-gr-cannon] .gc-trace {
+		fill: none;
+		stroke: var(--ig-vy);
+		stroke-width: 1.8;
+	}
+	[data-gr-cannon] .gc-old {
+		fill: none;
+		stroke: var(--sl-color-gray-3);
+		stroke-width: 1.2;
+	}
+	[data-gr-cannon] .gc-land {
+		fill: var(--sl-color-gray-2);
+	}
+	[data-gr-cannon] .gc-ball {
+		fill: var(--sl-color-gray-1);
+		stroke: var(--sl-color-bg);
+		stroke-width: 0.8;
+	}
+	[data-gr-cannon] .gp-pic__svg .gc-read {
+		font-size: 13px;
+	}
+	[data-gr-cannon] .gp-pic__svg .gc-read--v {
+		font-size: 16px;
+		font-weight: 700;
+		fill: var(--ig-vy);
+	}
+</style>
+
+<script>
+	import { el, loop } from '../g7/kit';
+
+	type Track = { pts: number[]; dt: number; end: number; land: boolean; v: string };
+	for (const fig of document.querySelectorAll<HTMLElement>('[data-gr-cannon]')) {
+		const q = <T extends Element>(s: string) => fig.querySelector<T>(s)!;
+		const tracks: Track[] = JSON.parse(fig.dataset.tracks!);
+		const UNIT = 1.2; // s of the animation per √(R/g) = 806 с of flight
+		const PAUSE = 0.7;
+		const HOLD = 2.5;
+		const trace = q('[data-trace]');
+		const ball = q('[data-ball]');
+		const old = q('[data-old]');
+		let shot = 0;
+		let t = 0;
+		const pathOf = (p: number[], n: number) => {
+			let d = `M${p[0]} ${p[1]}`;
+			for (let i = 1; i < n; i++) d += ` L${p[2 * i]} ${p[2 * i + 1]}`;
+			return d;
+		};
+		const draw = () => {
+			const tr = tracks[shot];
+			const np = tr.pts.length / 2;
+			const flight = tr.end * UNIT;
+			const u = Math.min(t / flight, 1);
+			const iF = u * (np - 1);
+			const i = Math.floor(iF);
+			const k = iF - i;
+			const j = Math.min(i + 1, np - 1);
+			const x = tr.pts[2 * i] + (tr.pts[2 * j] - tr.pts[2 * i]) * k;
+			const y = tr.pts[2 * i + 1] + (tr.pts[2 * j + 1] - tr.pts[2 * i + 1]) * k;
+			trace.setAttribute('d', `${pathOf(tr.pts, i + 1)} L${x.toFixed(1)} ${y.toFixed(1)}`);
+			ball.setAttribute('cx', x.toFixed(1));
+			ball.setAttribute('cy', y.toFixed(1));
+			q('[data-v]').textContent = `${tr.v} км/с`;
+		};
+		draw();
+		loop(fig, (dt) => {
+			t += dt;
+			const tr = tracks[shot];
+			const flight = tr.end * UNIT;
+			const wait = shot === tracks.length - 1 ? HOLD : PAUSE;
+			if (t > flight + wait) {
+				if (shot === tracks.length - 1) {
+					old.replaceChildren();
+					shot = 0;
+				} else {
+					old.append(el('path', { class: 'gc-old', d: pathOf(tr.pts, tr.pts.length / 2) }));
+					const n = tr.pts.length;
+					old.append(el('circle', { class: 'gc-land', cx: tr.pts[n - 2], cy: tr.pts[n - 1], r: 2.4 }));
+					shot++;
+				}
+				t = 0;
+			}
+			draw();
+			return true;
+		});
+	}
+</script>
