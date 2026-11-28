@@ -228,6 +228,20 @@ const hatch = (x0: number, y0: number, x1: number, y1: number, step = 10) => {
 		stroke-width: 1;
 		paint-order: stroke fill;
 	}
+	.fa__over,
+	.fa__overhalo {
+		fill: none;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.fa__over {
+		stroke: var(--ig-vy);
+		stroke-width: 1.6;
+	}
+	.fa__overhalo {
+		stroke: var(--sl-color-bg);
+		stroke-width: 4.5;
+	}
 	.fa__dot {
 		fill: var(--sl-color-gray-1);
 	}
@@ -454,6 +468,12 @@ const hatch = (x0: number, y0: number, x1: number, y1: number, step = 10) => {
 		hand: '<i>F</i><sub>руки</sub>',
 	};
 
+	/** The force named as a vector in the table: an arrow over its last italic letter (F⃗тр, N⃗, mg⃗ = m·g⃗). */
+	const vecH = (h: string) => {
+		const k = h.lastIndexOf('</i>');
+		return k < 0 ? h : `${h.slice(0, k)}\u20d7${h.slice(k)}`;
+	};
+
 	interface Force {
 		id: string;
 		body: 0 | 1;
@@ -498,7 +518,7 @@ const hatch = (x0: number, y0: number, x1: number, y1: number, step = 10) => {
 		root: SVGSVGElement;
 		g: SVGGElement;
 		bodies: SVGGElement[];
-		arrows: Map<string, { p: SVGPathElement; l: SVGTextElement }>;
+		arrows: Map<string, { p: SVGPathElement; l: SVGTextElement; oh: SVGPathElement; o: SVGPathElement }>;
 		axes: SVGGElement;
 		proj: SVGGElement;
 		dots: SVGCircleElement[];
@@ -825,7 +845,7 @@ const hatch = (x0: number, y0: number, x1: number, y1: number, step = 10) => {
 			for (const f of st.forces) {
 				let a = sc.arrows.get(f.id);
 				if (!a) {
-					a = { p: mk(sc.g, 'path', { class: 'fa__force' }), l: mk(sc.g, 'text', { class: 'fa__flabel' }) };
+					a = { p: mk(sc.g, 'path', { class: 'fa__force' }), l: mk(sc.g, 'text', { class: 'fa__flabel' }), oh: mk(sc.g, 'path', { class: 'fa__overhalo' }), o: mk(sc.g, 'path', { class: 'fa__over' }) };
 					a.l.innerHTML = f.label;
 					sc.arrows.set(f.id, a);
 				}
@@ -844,7 +864,11 @@ const hatch = (x0: number, y0: number, x1: number, y1: number, step = 10) => {
 				let anchor = 'start';
 				if (Math.abs(f.dir.x) < 0.05) {
 					// vertical: next to the end, on the right (or the left)
-					p = v(c.x + (f.left ? -8 : 8), f.dir.y < 0 ? c.y - far - 11 : c.y + far + 18);
+					// (below a downward arrow 8 px lower than before 28 Nov 2026: room for the small arrow over the letter)
+					p = v(c.x + (f.left ? -8 : 8), f.dir.y < 0 ? c.y - far - 11 : c.y + far + 26);
+					// a long downward arrow near the bottom edge: the label stays inside, beside the head, a little farther out
+					const yMax = sc.root.viewBox.baseVal.height - 7;
+					if (p.y > yMax) p = v(p.x + (f.left ? -8 : 8), yMax);
 					anchor = f.left ? 'end' : 'start';
 				} else if (Math.abs(f.dir.y) < 0.05) {
 					// horizontal: above the shaft, between the body and the head when there is room, else beyond the end
@@ -858,6 +882,18 @@ const hatch = (x0: number, y0: number, x1: number, y1: number, step = 10) => {
 					anchor = Math.abs(f.dir.x) > 0.5 ? (f.dir.x > 0 ? 'start' : 'end') : 'middle';
 				}
 				attrs(a.l, { x: p.x.toFixed(1), y: p.y.toFixed(1), 'text-anchor': anchor });
+				// the small arrow over the letter(s) of the vector: «mg», «m₁g» whole, «F» of «F_тр»
+				const nOver = f.label === Fs.mg ? 2 : f.label === Fs.m1g || f.label === Fs.m2g ? 3 : 1;
+				if (a.l.getNumberOfChars() < nOver) continue; // a hidden tab: drawn again when it is shown
+				const e0 = a.l.getExtentOfChar(0);
+				const e1 = a.l.getExtentOfChar(nOver - 1);
+				const ox = e0.x + 1;
+				const ow = e1.x + e1.width - e0.x - 1;
+				const oy = p.y - 18;
+				const od = `M ${ox.toFixed(1)} ${oy.toFixed(1)} h ${ow.toFixed(1)} m -3.5 -2.8 l 3.5 2.8 l -3.5 2.8`;
+				a.o.setAttribute('d', od);
+				a.oh.setAttribute('d', od);
+				a.o.style.visibility = a.oh.style.visibility = a.l.style.visibility;
 			}
 			// centers
 			while (sc.dots.length < centers.length) sc.dots.push(mk(sc.g, 'circle', { class: 'fa__dot', r: 3 }));
@@ -940,7 +976,7 @@ const hatch = (x0: number, y0: number, x1: number, y1: number, step = 10) => {
 			if (!axesOn) return;
 			table.innerHTML =
 				`<thead><tr>${st.head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>` +
-				st.rows.map((r) => (r.length === 1 ? `<tr class="fa__grp"><td colspan="3">${r[0]}</td></tr>` : `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`)).join('') +
+				st.rows.map((r) => (r.length === 1 ? `<tr class="fa__grp"><td colspan="3">${r[0]}</td></tr>` : `<tr>${r.map((c, j) => `<td>${j ? c : vecH(c)}</td>`).join('')}</tr>`)).join('') +
 				'</tbody>';
 			katex.render(`\\begin{aligned} ${st.tex} \\end{aligned}`, texEl, { displayMode: true, throwOnError: false, strict: false });
 		};
