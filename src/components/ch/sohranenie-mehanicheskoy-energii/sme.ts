@@ -118,3 +118,42 @@ export const energyBars = (g: Element, o: { x: number; base: number; full: numbe
 	};
 	return Object.assign(set, { x: (i: number) => o.x + i * (w + gap), w, top: (val: number) => o.base - Math.max(0, Math.min(1.08, val / o.max)) * o.full });
 };
+
+/**
+ * A vector label: a small arrow over the letter number `ci` of a label made by `label` (a short path in the color of
+ * the label, as in sistema-otscheta/ProjAnglePicture). The arrow is placed from the measured glyph and follows the
+ * text: call the returned function after every change of the text's x, y or visibility. Upper-case letters get the
+ * arrow higher than lower-case ones; italic letters slant, so the arrow is shifted a little to the right.
+ */
+export const vecMark = (t: SVGTextElement, ci: number, color: string) => {
+	const p = el('path', { class: `sme-vec sme-vec--${color}`, d: '' });
+	t.after(p);
+	let rel: { a: number; b: number; y: number } | null = null;
+	return () => {
+		const vis = t.getAttribute('visibility') ?? 'visible';
+		p.setAttribute('visibility', vis);
+		if (!rel) {
+			try {
+				if (ci >= t.getNumberOfChars()) return;
+				const s = t.getStartPositionOfChar(ci);
+				const e = t.getEndPositionOfChar(ci);
+				if (!(e.x > s.x)) return;
+				const x0 = Number(t.getAttribute('x'));
+				const y0 = Number(t.getAttribute('y'));
+				const fs = parseFloat(getComputedStyle(t).fontSize) || 14;
+				const ch = (t.textContent ?? '')[ci] ?? 'x';
+				const up = ch !== ch.toLowerCase();
+				const sk = 0.1 * fs;
+				const mid = (s.x + e.x) / 2 - x0 + sk;
+				const half = Math.max(3.5, (e.x - s.x) / 2);
+				rel = { a: mid - half, b: mid + half, y: s.y - y0 - (up ? 0.95 : 0.74) * fs };
+			} catch {
+				return;
+			}
+		}
+		const x = Number(t.getAttribute('x')) + rel.b;
+		const y = Number(t.getAttribute('y')) + rel.y;
+		const xa = Number(t.getAttribute('x')) + rel.a;
+		p.setAttribute('d', `M${f1(xa)} ${f1(y)} H${f1(x)} M${f1(x - 2.6)} ${f1(y - 2.4)} L${f1(x)} ${f1(y)} L${f1(x - 2.6)} ${f1(y + 2.4)}`);
+	};
+};
