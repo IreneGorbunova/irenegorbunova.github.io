@@ -9,6 +9,10 @@
  * with the power released in each (I²R, I²r; full glow at 20 Вт).
  * Below, the graph U(I) on fixed axes: I 0…12 А (24 px per А), U 0…6 В (18 px per В). The line through (0; ℰ) and
  * (ℰ/r; 0) is the voltage at the poles for every R; the point is the present state of the circuit.
+ * «Записать точку» leaves a dot (I; U) of the present state on the graph (up to 8; a state already recorded is not
+ * doubled); the dots stay while R or the key change and are cleared by «Стереть точки» or by a change of ℰ or r.
+ * Check: ℰ = 4,5 В, r = 1 Ом, R = 8 / 4 / 2 / 1 Ом → (0,5 А; 4 В), (0,9 А; 3,6 В), (1,5 А; 3 В), (2,25 А; 2,25 В); the
+ * line through them meets the U axis at 4,5 В = ℰ and the I axis at 4,5 А = ℰ/r.
  */
 import G7Styles from '../g7/G7Styles.astro';
 
@@ -77,7 +81,7 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 			{ticksI.map((i) => (
 				<>
 					<line class="fcl-grid" x1={OX + i * PI} x2={OX + i * PI} y1={OY} y2={OY - 6 * PU} />
-					<text class="t-small t-num" x={OX + i * PI} y={OY + 13} text-anchor="middle">{i}</text>
+					<text class="t-small t-num" x={OX + i * PI} y={OY + 16} text-anchor="middle">{i}</text>
 				</>
 			))}
 			{ticksU.map((u) => (
@@ -86,10 +90,11 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 					<text class="t-small t-num" x={OX - 6} y={OY - u * PU + 4} text-anchor="end">{u}</text>
 				</>
 			))}
-			<text class="t-small" x={OX + 12 * PI + 4} y={OY + 26} text-anchor="end"><tspan class="t-i">I</tspan>, А</text>
+			<text class="t-small" x={OX + 12 * PI + 4} y={OY + 29} text-anchor="end"><tspan class="t-i">I</tspan>, А</text>
 			<text class="t-small" x={OX - 30} y={OY - 6 * PU - 16}><tspan class="t-i">U</tspan>, В</text>
 			<line class="fcl-line" data-line></line>
 			<path class="fcl-guide" data-guide></path>
+			<g data-dots></g>
 			<circle class="fcl-point" data-point r="5"></circle>
 		</svg>
 		<div class="g7__side">
@@ -109,9 +114,13 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 				<input type="range" min="0" max="20" step="0.5" value="8" data-rext aria-label="Сопротивление реостата, омы" />
 			</label>
 			<button type="button" class="g7__btn" data-key>Разомкнуть ключ</button>
+			<div class="g7__row">
+				<button type="button" class="g7__btn" data-rec>Записать точку</button>
+				<button type="button" class="g7__btn" data-clear>Стереть точки</button>
+			</div>
 			<ul class="g7__read" aria-live="polite">
 				<li><span>Амперметр, <i>I</i></span><b data-i></b></li>
-				<li><span>Вольтметр, <i>U</i></span><b data-u></b></li>
+				<li><span>Вольтметр, <i>U</i></span><b data-uread></b></li>
 				<li><span>Внутри источника, <i>Ir</i></span><b data-ir></b></li>
 				<li class="is-key"><span><i>U</i> + <i>Ir</i></span><b data-sum></b></li>
 			</ul>
@@ -119,11 +128,19 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 		</div>
 	</div>
 	<figcaption class="g7__caption">
-		Приборы идеальные: амперметр не имеет сопротивления, через вольтметр ток не идёт. Точки — свободные электроны; их скорость пропорциональна силе тока, но в миллионы раз больше настоящей. Свечение резисторов растёт с выделяемой в них мощностью. На графике прямая — напряжение на полюсах при любом <i>R</i>, точка — то, что показывают приборы сейчас.
+		Приборы идеальные: амперметр не имеет сопротивления, через вольтметр ток не идёт. Точки — свободные электроны; их скорость пропорциональна силе тока, но в миллионы раз больше настоящей. Свечение резисторов растёт с выделяемой в них мощностью. На графике прямая — напряжение на полюсах при любом <i>R</i>, точка — то, что показывают приборы сейчас. «Записать точку» оставляет на графике показания приборов.
 	</figcaption>
 </figure>
 
 <style is:global>
+	.g7 {
+		--zpt-useful: hsl(172, 62%, 48%);
+		--zpt-loss: hsl(24, 95%, 58%);
+	}
+	:root[data-theme='light'] .g7 {
+		--zpt-useful: hsl(174, 75%, 28%);
+		--zpt-loss: hsl(22, 88%, 46%);
+	}
 	.fcl-wire {
 		fill: none;
 		stroke: var(--g7-line);
@@ -171,11 +188,11 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 		stroke-linecap: round;
 	}
 	.fcl-heat-a {
-		stop-color: var(--g7-red);
+		stop-color: var(--zpt-loss);
 		stop-opacity: 0.85;
 	}
 	.fcl-heat-b {
-		stop-color: var(--g7-red);
+		stop-color: var(--zpt-loss);
 		stop-opacity: 0;
 	}
 	.fcl-e {
@@ -186,7 +203,7 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 		stroke-width: 0.6;
 	}
 	.fcl-line {
-		stroke: var(--g7-gold);
+		stroke: var(--g7-green);
 		stroke-width: 2.4;
 	}
 	.fcl-guide {
@@ -195,10 +212,20 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 		stroke-width: 1;
 		stroke-dasharray: 3 3;
 	}
+	.fcl-dot {
+		fill: var(--g7-paper);
+		stroke: var(--g7-ink);
+		stroke-width: 1.8;
+	}
 	.fcl-point {
 		fill: var(--g7-red);
 		stroke: var(--g7-paper);
 		stroke-width: 1.5;
+	}
+	@media (max-width: 40rem) {
+		[data-fcl] .g7__svg .t-small {
+			font-size: 12.5px;
+		}
 	}
 </style>
 
@@ -253,7 +280,7 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 			q('[data-rv]').textContent = `${fmt(R, 1)} Ом`;
 			q('[data-active]').setAttribute('width', ((60 * R) / 20).toFixed(1));
 			q('[data-i]').textContent = `${fmt(I, 2)} А`;
-			q('[data-u]').textContent = `${fmt(U, 2)} В`;
+			q('[data-uread]').textContent = `${fmt(U, 2)} В`;
 			q('[data-ir]').textContent = `${fmt(I * r, 2)} В`;
 			q('[data-sum]').textContent = `${fmt(U, 2)} + ${fmt(I * r, 2)} = ${fmt(U + I * r, 2)} В`;
 			q('[data-ia]').textContent = `${fmt(I, 2)} А`;
@@ -277,7 +304,7 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 			q('[data-guide]').setAttribute('d', `M${px.toFixed(1)} ${OY} V${py.toFixed(1)} H${OX}`);
 			const msg = q<HTMLElement>('[data-msg]');
 			msg.hidden = !(closed && R === 0);
-			msg.textContent = 'R = 0: напряжение на полюсах равно нулю, а сила тока — наибольшая. Это короткое замыкание.';
+			msg.textContent = 'R = 0: напряжение на полюсах равно нулю, а сила тока наибольшая — её ограничивает только внутреннее сопротивление источника.';
 			placeElectrons();
 		};
 		loop(root, (dt) => {
@@ -286,7 +313,31 @@ const ticksU = [0, 1, 2, 3, 4, 5, 6];
 			placeElectrons();
 			return true;
 		});
+		// recorded points (I; U) for the present ℰ and r
+		const dotsG = q<SVGGElement>('[data-dots]');
+		let dots: { key: string; I: number; U: number }[] = [];
+		const drawDots = () => {
+			dotsG.replaceChildren(...dots.map((d) => el('circle', { class: 'fcl-dot', r: 3.6, cx: (OX + d.I * PI).toFixed(1), cy: (OY - d.U * PU).toFixed(1) })));
+			q<HTMLButtonElement>('[data-clear]').disabled = !dots.length;
+			q<HTMLButtonElement>('[data-rec]').disabled = dots.length >= 8;
+		};
+		q('[data-rec]').addEventListener('click', () => {
+			const E = Number(eIn.value);
+			const R = Number(RIn.value);
+			const key = closed ? String(R) : 'open';
+			if (dots.length >= 8 || dots.some((d) => d.key === key)) return;
+			const Ii = closed ? E / (R + Number(rIn.value)) : 0;
+			dots.push({ key, I: Ii, U: closed ? Ii * R : E });
+			drawDots();
+		});
+		const clear = () => {
+			dots = [];
+			drawDots();
+		};
+		q('[data-clear]').addEventListener('click', clear);
+		for (const i of [eIn, rIn]) i.addEventListener('input', clear);
 		for (const i of [eIn, rIn, RIn]) i.addEventListener('input', update);
+		drawDots();
 		keyBtn.addEventListener('click', () => {
 			closed = !closed;
 			update();
